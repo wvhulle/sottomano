@@ -5,8 +5,10 @@
 //! GUI, so (B) and (C) logic can be checked without a display.
 
 mod app;
+mod config;
 mod niri;
 mod script;
+mod widget;
 
 use app::Bar;
 use iced_layershell::build_pattern::daemon;

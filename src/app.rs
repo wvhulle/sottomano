@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use iced::widget::{container, row, text};
+use iced::widget::{Row, Space, container, row, text};
 use iced::window::Id;
 use iced::{Alignment, Color, Element, Length, Subscription, Task};
 use iced_layershell::reexport::{
@@ -19,10 +19,14 @@ use iced_layershell::reexport::{
 use iced_layershell::to_layer_message;
 use niri_ipc::state::EventStreamState;
 
-use crate::niri;
+use crate::config::Config;
 use crate::script::{self, WidgetData};
+use crate::{niri, widget};
 
-pub const BAR_HEIGHT: u32 = 32;
+/// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits over a
+/// (blurred/shadowed) backdrop rather than a `surface`-colored panel, so it wants a
+/// constant light foreground regardless of which palette is active.
+const BAR_TEXT: Color = Color::WHITE;
 
 /// Which screen edge a surface anchors to. Odin opens both per screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,7 +47,7 @@ impl Position {
         edge | Anchor::Left | Anchor::Right
     }
 
-    fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Position::Top => "top",
             Position::Bottom => "bottom",
@@ -60,6 +64,7 @@ struct Surface {
 }
 
 pub struct Bar {
+    config: Config,
     clock: String,
     battery: Option<WidgetData>,
     niri: EventStreamState,
@@ -84,6 +89,7 @@ impl Bar {
     pub fn new() -> (Self, Task<Message>) {
         (
             Self {
+                config: crate::config::load(),
                 clock: now_hm(),
                 battery: None,
                 niri: EventStreamState::default(),
@@ -162,7 +168,7 @@ impl Bar {
             })
             .map(|(output, position)| {
                 let id = Id::unique();
-                let settings = layer_settings(&output, position);
+                let settings = layer_settings(&output, position, self.config.bar_outer_height());
                 self.surfaces.insert(id, Surface { output, position });
                 Task::done(Message::NewLayerShell { settings, id })
             })
@@ -177,65 +183,88 @@ impl Bar {
             return container(text("")).into();
         };
 
-        let battery = match &self.battery {
-            Some(d) if d.available => match d.percent() {
-                Some(p) => format!("{} {p}%", glyph(&d.icon)),
-                None => glyph(&d.icon),
-            },
-            _ => "—".to_string(),
+        let ctx = widget::Context {
+            config: &self.config,
+            clock: &self.clock,
+            battery: self.battery.as_ref(),
+            niri: &self.niri,
+            output: &surface.output,
+            position: surface.position,
         };
+        let zones = widget::layout(surface.position);
 
-        // This surface's own output — the multi-output payoff: each bar shows the
-        // workspaces of the screen it lives on, not the globally-focused one.
-        let ws_line = niri::workspaces_for_output(&self.niri, &surface.output)
-            .iter()
-            .map(|p| {
-                let label = p.name.clone().unwrap_or_else(|| (p.idx + 1).to_string());
-                if p.is_active {
-                    format!("[{label}]")
-                } else {
-                    format!(" {label} ")
-                }
-            })
-            .collect::<String>();
-
-        // Marker names the output + edge so stacked screenshots are unambiguous next to
-        // the live odin QML bars.
-        let marker = format!("odin-rs {} {} ▸", surface.output, surface.position.label());
+        // Compose the zones into a strip: start-anchored group, fill, center group,
+        // fill, end-anchored group — the iced stand-in for odin's per-zone edge anchors.
         let content = row![
-            text(marker).size(16).color(Color::from_rgb(1.0, 0.6, 0.2)),
-            text(battery).size(16),
-            text(ws_line).size(16),
-            text(&self.clock).size(16),
+            self.zone_group(&zones, &ctx, widget::Align::Start),
+            Space::new().width(Length::Fill),
+            self.zone_group(&zones, &ctx, widget::Align::Center),
+            Space::new().width(Length::Fill),
+            self.zone_group(&zones, &ctx, widget::Align::End),
         ]
-        .spacing(24)
         .align_y(Alignment::Center)
-        .padding([0, 12]);
+        .padding([
+            self.config.layout.vertical_padding as f32,
+            self.config.layout.horizontal_group_padding as f32,
+        ]);
 
+        // The bar chrome: `surface` at `bgOpacity`, rounded only when floating — exactly
+        // odin's `BarChrome`. The surface itself is fully transparent (see `style`), so
+        // at `bgOpacity 0` this paints nothing and any backdrop shows through.
         container(content)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_y(Alignment::Center)
+            .style(|_| container::Style {
+                background: Some(self.config.chrome_color().into()),
+                border: iced::Border {
+                    radius: self.config.chrome_radius().into(),
+                    ..Default::default()
+                },
+                text_color: Some(BAR_TEXT),
+                ..Default::default()
+            })
             .into()
     }
 
-    pub fn style(&self, theme: &iced::Theme) -> iced::theme::Style {
+    /// Render all zones with a given alignment into one row, separated by odin's
+    /// inter-group spacing. Empty (no matching zones) collapses to a zero-width row.
+    fn zone_group<'a>(
+        &self,
+        zones: &[widget::Zone],
+        ctx: &widget::Context<'a>,
+        align: widget::Align,
+    ) -> Row<'a, Message> {
+        Row::with_children(
+            zones
+                .iter()
+                .filter(|z| z.align == align)
+                .map(|z| Element::from(z.view(ctx))),
+        )
+        .spacing(self.config.layout.horizontal_group_spacing as f32)
+        .align_y(Alignment::Center)
+    }
+
+    pub fn style(&self, _theme: &iced::Theme) -> iced::theme::Style {
         iced::theme::Style {
-            // Opaque, distinctly-tinted backing so the odin-rs bars are unmistakable
-            // when screenshotted next to the live odin QML bars.
-            background_color: Color::from_rgb(0.12, 0.10, 0.20),
-            text_color: theme.palette().text,
+            // Fully transparent layer surface — the chrome fill (surface at bgOpacity)
+            // is painted by the view's container so `bgOpacity 0` yields a genuinely
+            // transparent bar, like odin. Requires the compositor to composite alpha.
+            background_color: Color::TRANSPARENT,
+            text_color: BAR_TEXT,
         }
     }
 }
 
-/// Layer-shell settings for one bar. `exclusive_zone: 0` keeps the spike's behaviour:
-/// don't reserve space, but move out of the way of surfaces that do — so a top bar
-/// lands flush below odin's reserved top zone and a bottom bar above odin's bottom one.
-fn layer_settings(output: &str, position: Position) -> NewLayerShellSettings {
+/// Layer-shell settings for one bar. The bar reserves its own strip via an exclusive
+/// zone equal to its height (odin's `exclusiveZone: barOuterHeight`), so niri tiles
+/// windows clear of it instead of letting them overlap. `height` is odin's
+/// `barOuterHeight` from the shared config; it also stacks below odin's own reserved
+/// zone, so the two bars sit flush without overlapping windows.
+fn layer_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some((0, BAR_HEIGHT)),
-        exclusive_zone: Some(0),
+        size: Some((0, height)),
+        exclusive_zone: Some(height as i32),
         anchor: position.anchor(),
         layer: Layer::Top,
         // Never take keyboard focus — mirrors Odin's WlrKeyboardFocus.None.
@@ -283,15 +312,4 @@ fn now_hm() -> String {
     let h = (secs / 3600) % 24;
     let m = (secs / 60) % 60;
     format!("{h:02}:{m:02}")
-}
-
-/// Map an Odin icon name to a stand-in glyph. Odin renders Font Awesome via an icon
-/// font; the spike just needs something visible, so a couple of ASCII/emoji stand-ins.
-fn glyph(icon: &str) -> String {
-    match icon {
-        "plug-circle-bolt" => "⚡".to_string(),
-        "car-battery" => "🔋".to_string(),
-        other if other.is_empty() => "·".to_string(),
-        other => other.to_string(),
-    }
 }
