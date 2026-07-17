@@ -118,6 +118,8 @@ pub struct Layout {
     pub blur: bool,
     pub shadow: bool,
     pub float_offset: f32,
+    /// Thickness of the thin state bars (menu-group affordance, pager focus/urgent).
+    pub focus_underline_thickness: f32,
 }
 
 impl Default for Layout {
@@ -133,6 +135,7 @@ impl Default for Layout {
             blur: true,
             shadow: false,
             float_offset: 0.0,
+            focus_underline_thickness: 3.4,
         }
     }
 }

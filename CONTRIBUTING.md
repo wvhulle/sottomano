@@ -58,7 +58,7 @@ Compare its clock / battery / workspaces against odin's own bar in the same imag
 - Kill a running instance with `pkill -f target/debug/odin-rs` (⚠ don't put that exact
   string in a larger shell command — pkill will match its own wrapper).
 
-## Current state (Phase 1 — multi-output daemon, DONE)
+## Current state (Phase 1 done; Phase 2 sysfs group done; Phase 3 group/menu system started)
 
 Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_message(multi)]`.
 `StartMode::Background` opens no surface up-front; `Bar` enumerates niri outputs and opens one
@@ -71,8 +71,63 @@ Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_
 - `src/niri.rs` — `niri-ipc` event-stream thread → tokio mpsc → iced Subscription (replaces the
   ~380-line derivation in `../odin/DataProvider/NiriService.qml`) + `list_outputs()` one-shot
   `Request::Outputs` enumeration.
-- `src/script.rs` — **temporary** Nu-subprocess runner + JSON parse. Phase 2 deletes this as
-  scripts are ported to native Rust.
+- `src/config.rs` — reads odin's **own** `$XDG_CONFIG_HOME/odin/config.json` (shared for now; the
+  dark/light symlink is followed) into `palette`/`font`/`layout`, with odin's exact gruvbox-dark
+  defaults. Schema is `../odin/UserConfig/*.qml`. Later we split to our own file.
+- `src/widget.rs` — odin's bar as data (Phase 3 start): `layout(position)` returns per-bar `Zone`s
+  (`shell.qml`'s exact top/bottom composition & order — top and bottom now differ), each holding
+  ordered `Group`s. A `Group` is `Static` (odin's `WidgetGroup`: a row of widgets), `Menu` (odin's
+  `MenuGroup`: a handle that expands content **in place** — no popup — under a `Hairline` affordance
+  that's faint at rest / brighter on hover / solid when open), `Workspaces`, or `WindowList`.
+  Source-backed leaf widgets render as a Font Awesome icon (**`iced_font_awesome`** `fa_icon_solid`,
+  odin's `icon` names verbatim; self-registers the FA font) + a thin vertical `gauge` (odin's
+  `PercentGauge`), tinted by `level`. Unavailable sources render nothing (empty groups vanish).
+  Font: odin's `sans-serif`/`monospace` are resolved to the same concrete families Qt uses (IBM
+  Plex Sans / Lilex Nerd Font Mono, from `fc-match`) so text matches odin's rendering; iced loads
+  system fonts so `Font::with_name` finds them.
+  - **Menu interaction**: single-open (odin's `GroupMenuState`) — `open_menu`/`hovered_menu` on
+    `Bar`; a menu handle click toggles (`ToggleMenu`), hover drives the hairline (`HoverMenu`), and
+    a click on the bar background collapses any open menu (`CloseMenus`, via a dismiss `mouse_area`
+    stacked *under* the content so widget clicks are captured first). odin's `System` group is the
+    flagship: cpu handle → temperature/memory/disk expand.
+  - **Hairline indicators** (this pass): workspace pills and window-list entries now carry a
+    `Hairline` along the inner screen edge (powerTint focused, criticalTint urgent) via the shared
+    `edge_overlay` helper, instead of text-color tinting — matching odin's focus-is-an-underline
+    convention. Labels stay neutral/dim, not colored, except the focused/urgent entry's own text
+    which goes full white. Not yet ported: the *sliding* animation between slots (odin's
+    `Behavior on x/width`) — the indicator currently snaps to the focused slot.
+  - **App icons** (this pass): `src/desktop.rs` ports `WindowIcon._resolveAppId` — `.desktop` entry
+    lookup (`freedesktop-desktop-entry`, scanned once at startup off the executor) → its `Icon=`
+    field resolved through the icon theme (`freedesktop-icons`, respecting `default_theme_gtk`) →
+    theme-name variants of the app_id itself (as-is / lowercased / last dotted segment) → generic
+    `application-x-executable` fallback. Rendered via iced's `image` widget (needs the `image`
+    Cargo feature). `DesktopEntries` is loaded once into `Bar` behind an `Arc` (cheap to clone
+    through `Message`, which iced requires `Clone` on) and passed through `Context`.
+  - **Click-to-focus**: both the workspace pager and window list now dispatch niri
+    `Action::FocusWorkspace`/`FocusWindow` on click (`niri::focus_workspace`/`focus_window`,
+    fire-and-forget via the shared `niri_action` helper — the resulting state change arrives back
+    through the event stream, no local optimistic update).
+  - **Still to port** (Phase 3 cont.): most groups whose data sources are unported (Weather,
+    network, media, audio, tray, notifications, quicklaunch) are omitted, not stubbed; the sliding
+    hairline animation; per-window tick row above each workspace slot (`WorkspaceWindowIndicators`);
+    click-on-active-workspace → toggle niri overview; drag-to-reorder for both pagers.
+- `src/source.rs` (+ `source/sysfs.rs`, `source/disk.rs`) — native data sources (Phase 2). Each
+  is a rich domain type (real fields, status enums, `Option` for "no hardware") rather than one
+  stringly JSON bag, sharing two traits: `BarWidget` (render: icon/label/level/value/tooltip) and
+  `Source` (`poll()`). **No Nu subprocess** — all reads are direct `std::fs` on `/proc`/`/sys`
+  (`disk` via `statvfs(2)`). `script.rs` (the old Nu-runner) is deleted.
+
+**Styling (matches odin, consuming its config):** the layer surface is fully transparent; the
+chrome fill is `surface` at `bgOpacity` (rounded only when floating) painted by the view container —
+so the active light config's `bgOpacity: 0` yields a genuinely see-through bar. Text is white
+(`Config.barText`), sized/spaced from the config. Each bar reserves its strip via
+`exclusive_zone = barOuterHeight` (odin's behaviour), so niri tiles windows clear of it.
+
+**Deferred to Phase 4 — the backdrop.** odin's white text is legible only because niri casts a
+dark drop-shadow behind it (off-screen `odin-backdrop-{pos}` caster + a niri `layer-rule`). odin-rs
+has none yet, so over light wallpaper the text is low-contrast. Reproducing it is Phase 4 item 5
+(niri blur region / gradient backdrop) — an off-screen caster surface per bar + a niri layer-rule,
+entangled with the run-below-odin dev arrangement. Left transparent (odin-faithful) until then.
 
 Validated visually (single-output machine, DP-1): top bar lands flush below odin's QML top bar,
 bottom bar above odin's bottom bar, each showing DP-1's workspaces with `[odin]` active — plus the
@@ -99,7 +154,18 @@ in a `BTreeMap`. Enumerate outputs (`niri_ipc::Request::Outputs`) and open one `
 see "Current state" above (removal handled via `close_events`; addition needs a manual
 re-enumeration trigger, deferred).
 
-### Phase 2 — port the 49 Nu scripts → native Rust data sources
+### Phase 2 — port the 49 Nu scripts → native Rust data sources (IN PROGRESS)
+**Hard rule (maintainer):** no reuse of the `.nu` scripts and no subprocesses — every source is
+in-process Rust. `script.rs` is deleted; there is no Nu fallback.
+
+**Done — sysfs/procfs group** (`source/sysfs.rs`, `source/disk.rs`): battery, power-consumption,
+cpu, cpu-clock, memory, temperature (hwmon, not `sensors`), disk (`statvfs`; the btrfs block-group
+detail is deferred to a future btrfs-ioctl pass). All seven wired into the bar and rendered with FA
+icons + level tints. `backlight` is **not** in this group despite the table below — it's clightd /
+wl-gammarelay D-Bus with write actions, so it moves to the D-Bus phase.
+
+Remaining categories below are unported.
+
 Each `../odin/scripts/*.nu` emits one JSON object matching the contract in
 `../odin/ReusableComponent/ScriptDataSource.qml` (`icon`, `label`, `badge`, `level`, `tooltip`,
 `available`, and a tagged-union `value` facet: `slider|gauge|chart|none`). That JSON **is the
