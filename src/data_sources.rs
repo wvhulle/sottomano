@@ -18,8 +18,10 @@
 //! until those consumers land, rather than dropping the ported parity data.
 #![allow(dead_code)]
 
+pub mod app_icon;
 pub mod disk;
-pub mod sysfs;
+pub mod niri;
+pub mod sysfs_sensors;
 
 /// Severity band — odin's `level`, driving the widget tint.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

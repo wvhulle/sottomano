@@ -65,16 +65,24 @@ Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_
 `NewLayerShell` per (output, edge) itself, bound by name via `OutputOption::OutputName`. Files:
 
 - `src/main.rs` — `daemon()` builder with `StartMode::Background` + `--smoke`.
-- `src/app.rs` — Elm `Bar` state with shared data (clock/battery/niri) + a `BTreeMap<window::Id,
-  Surface>` of open surfaces; `#[to_layer_message(multi)] Message`, `view(&self, id)` renders the
-  surface's own output's workspaces. `close_events()` drops a surface's state on teardown.
-- `src/niri.rs` — `niri-ipc` event-stream thread → tokio mpsc → iced Subscription (replaces the
-  ~380-line derivation in `../odin/DataProvider/NiriService.qml`) + `list_outputs()` one-shot
-  `Request::Outputs` enumeration.
-- `src/config.rs` — reads odin's **own** `$XDG_CONFIG_HOME/odin/config.json` (shared for now; the
-  dark/light symlink is followed) into `palette`/`font`/`layout`, with odin's exact gruvbox-dark
-  defaults. Schema is `../odin/UserConfig/*.qml`. Later we split to our own file.
-- `src/widget.rs` — odin's bar as data (Phase 3 start): `layout(position)` returns per-bar `Zone`s
+- `src/bar_program.rs` — Elm `Bar` state with shared data (clock/battery/niri) + a
+  `BTreeMap<window::Id, Surface>` of open surfaces; `#[to_layer_message(multi)] Message`,
+  `view(&self, id)` renders the surface's own output's workspaces. `close_events()` drops a
+  surface's state on teardown. Layer-shell surface/output bookkeeping (`Surface`, `Position`,
+  `layer_settings`) lives in `src/layer_surface.rs`; the async polling/subscription glue
+  (`poll`, `niri_action`, `niri_subscription`, `now_hm`, `SourceKind`) lives in
+  `src/message_subscriptions.rs`.
+- `src/data_sources/niri.rs` — `niri-ipc` event-stream thread → tokio mpsc → iced Subscription
+  (replaces the ~380-line derivation in `../odin/DataProvider/NiriService.qml`) +
+  `list_outputs()` one-shot `Request::Outputs` enumeration.
+- `src/user_config.rs` (+ `user_config/{color_palette,font_config,layout_config}.rs`) — reads
+  odin's **own** `$XDG_CONFIG_HOME/odin/config.json` (shared for now; the dark/light symlink is
+  followed) into `palette`/`font`/`layout`, with odin's exact gruvbox-dark defaults. Schema is
+  `../odin/UserConfig/*.qml`. Later we split to our own file.
+- `src/concrete_widgets.rs` (+ `concrete_widgets/{workspace_pager,window_title_list}.rs`) and
+  `src/widget_groups.rs` (+ `widget_groups/{battery_group,system_group,workspaces_group,
+  window_list_group,clock_group}.rs`) — odin's bar as data (Phase 3 start): `layout(position)`
+  (in `widget_groups.rs`) returns per-bar `Zone`s
   (`shell.qml`'s exact top/bottom composition & order — top and bottom now differ), each holding
   ordered `Group`s. A `Group` is `Static` (odin's `WidgetGroup`: a row of widgets), `Menu` (odin's
   `MenuGroup`: a handle that expands content **in place** — no popup — under a `Hairline` affordance
@@ -82,6 +90,9 @@ Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_
   Source-backed leaf widgets render as a Font Awesome icon (**`iced_font_awesome`** `fa_icon_solid`,
   odin's `icon` names verbatim; self-registers the FA font) + a thin vertical `gauge` (odin's
   `PercentGauge`), tinted by `level`. Unavailable sources render nothing (empty groups vanish).
+  The `gauge`/`hairline`/`edge_overlay`/`leaf`/`font_family`/`level_color` rendering primitives
+  (odin's `ReusableComponent` equivalent) live in `src/visual_elements.rs`, not inside
+  `concrete_widgets`/`widget_groups` — they're what widgets are drawn with, not a widget.
   Font: odin's `sans-serif`/`monospace` are resolved to the same concrete families Qt uses (IBM
   Plex Sans / Lilex Nerd Font Mono, from `fc-match`) so text matches odin's rendering; iced loads
   system fonts so `Font::with_name` finds them.
@@ -96,7 +107,7 @@ Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_
     convention. Labels stay neutral/dim, not colored, except the focused/urgent entry's own text
     which goes full white. Not yet ported: the *sliding* animation between slots (odin's
     `Behavior on x/width`) — the indicator currently snaps to the focused slot.
-  - **App icons** (this pass): `src/desktop.rs` ports `WindowIcon._resolveAppId` — `.desktop` entry
+  - **App icons** (this pass): `src/data_sources/app_icon.rs` ports `WindowIcon._resolveAppId` — `.desktop` entry
     lookup (`freedesktop-desktop-entry`, scanned once at startup off the executor) → its `Icon=`
     field resolved through the icon theme (`freedesktop-icons`, respecting `default_theme_gtk`) →
     theme-name variants of the app_id itself (as-is / lowercased / last dotted segment) → generic
@@ -111,7 +122,9 @@ Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_
     network, media, audio, tray, notifications, quicklaunch) are omitted, not stubbed; the sliding
     hairline animation; per-window tick row above each workspace slot (`WorkspaceWindowIndicators`);
     click-on-active-workspace → toggle niri overview; drag-to-reorder for both pagers.
-- `src/source.rs` (+ `source/sysfs.rs`, `source/disk.rs`) — native data sources (Phase 2). Each
+- `src/data_sources.rs` (+ `data_sources/disk.rs`, `data_sources/sysfs_sensors.rs` +
+  `data_sources/sysfs_sensors/{battery,power,cpu_usage,cpu_clock,memory,temperature}.rs`) —
+  native data sources (Phase 2). Each
   is a rich domain type (real fields, status enums, `Option` for "no hardware") rather than one
   stringly JSON bag, sharing two traits: `BarWidget` (render: icon/label/level/value/tooltip) and
   `Source` (`poll()`). **No Nu subprocess** — all reads are direct `std::fs` on `/proc`/`/sys`
@@ -158,7 +171,7 @@ re-enumeration trigger, deferred).
 **Hard rule (maintainer):** no reuse of the `.nu` scripts and no subprocesses — every source is
 in-process Rust. `script.rs` is deleted; there is no Nu fallback.
 
-**Done — sysfs/procfs group** (`source/sysfs.rs`, `source/disk.rs`): battery, power-consumption,
+**Done — sysfs/procfs group** (`data_sources/sysfs_sensors/`, `data_sources/disk.rs`): battery, power-consumption,
 cpu, cpu-clock, memory, temperature (hwmon, not `sensors`), disk (`statvfs`; the btrfs block-group
 detail is deferred to a future btrfs-ioctl pass). All seven wired into the bar and rendered with FA
 icons + level tints. `backlight` is **not** in this group despite the table below — it's clightd /

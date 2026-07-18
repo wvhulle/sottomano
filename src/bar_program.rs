@@ -1,116 +1,55 @@
-//! The iced bar: a multi-output daemon (Phase 1) fed by native data sources (Phase 2).
-//! One layer-shell surface per (output, edge): `iced_layershell::build_pattern::daemon`
-//! drives many surfaces from one Elm program, and `view(&self, id)` renders whichever
-//! surface iced is painting.
+//! The `Bar` Elm program: a multi-output daemon (Phase 1) fed by native data sources
+//! (Phase 2). One layer-shell surface per (output, edge): `iced_layershell::build_pattern::
+//! daemon` drives many surfaces from one Elm program, and `view(&self, id)` renders
+//! whichever surface iced is painting.
 //!
-//! Shared data (clock, the polled `source` widgets, niri state) lives once on `Bar`;
-//! only the surface's identity — which output and which edge — is keyed by `window::Id`.
-//! This mirrors `../odin/shell.qml`'s `Variants { model: Quickshell.screens }` opening a
-//! top and a bottom `BarWindow` per screen.
+//! Shared data (clock, the polled source widgets, niri state) lives once on `Bar`; only
+//! the surface's identity — which output and which edge — is keyed by `window::Id`. This
+//! mirrors `../odin/shell.qml`'s `Variants { model: Quickshell.screens }` opening a top
+//! and a bottom `BarWindow` per screen.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use iced::widget::{Row, Space, container, mouse_area, row, stack, text};
 use iced::window::Id;
-use iced::{Alignment, Color, Element, Length, Subscription, Task};
-use iced_layershell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
-};
+use iced::{Alignment, Color, Element, Length, Task};
 use iced_layershell::to_layer_message;
 use niri_ipc::state::EventStreamState;
 
-use crate::config::Config;
-use crate::desktop::DesktopEntries;
-use crate::source::{Source, disk, sysfs};
-use crate::{niri, widget};
+use crate::concrete_widgets;
+use crate::data_sources::app_icon::DesktopEntries;
+use crate::data_sources::{disk, niri, sysfs_sensors};
+use crate::layer_surface::{Position, Surface, layer_settings};
+use crate::message_subscriptions::{SourceKind, niri_action, now_hm, poll};
+use crate::user_config::Config;
+use crate::widget_groups;
 
 /// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits over a
 /// (blurred/shadowed) backdrop rather than a `surface`-colored panel, so it wants a
 /// constant light foreground regardless of which palette is active.
 const BAR_TEXT: Color = Color::WHITE;
 
-/// Which screen edge a surface anchors to. Odin opens both per screen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Position {
-    Top,
-    Bottom,
-}
-
-impl Position {
-    const ALL: [Position; 2] = [Position::Top, Position::Bottom];
-
-    /// Full-width bar anchored to this edge; left+right makes width compositor-driven.
-    fn anchor(self) -> Anchor {
-        let edge = match self {
-            Position::Top => Anchor::Top,
-            Position::Bottom => Anchor::Bottom,
-        };
-        edge | Anchor::Left | Anchor::Right
-    }
-}
-
-/// The identity of one open surface: which output it lives on and which edge it hugs.
-/// `view` renders that output's workspaces — the whole point of going multi-output.
-#[derive(Debug, Clone)]
-struct Surface {
-    output: String,
-    position: Position,
-}
-
 pub struct Bar {
     config: Config,
     clock: String,
     /// Polled native sources, `None` until first poll (or when unavailable). Only the
     /// sources odin's bar composition uses (its `System` group + `Battery`).
-    battery: Option<sysfs::Battery>,
-    cpu: Option<sysfs::CpuUsage>,
-    memory: Option<sysfs::Memory>,
-    temperature: Option<sysfs::Temperature>,
+    battery: Option<sysfs_sensors::Battery>,
+    cpu: Option<sysfs_sensors::CpuUsage>,
+    memory: Option<sysfs_sensors::Memory>,
+    temperature: Option<sysfs_sensors::Temperature>,
     disk: Option<disk::Disk>,
     /// The one expanded menu group, if any (odin's single-open `GroupMenuState`).
-    open_menu: Option<widget::MenuId>,
+    open_menu: Option<concrete_widgets::MenuId>,
     /// The menu group under the pointer, for the hairline's hover state.
-    hovered_menu: Option<widget::MenuId>,
+    hovered_menu: Option<concrete_widgets::MenuId>,
     niri: EventStreamState,
     /// Installed `.desktop` entries for window→icon resolution, scanned once at startup
     /// (odin's `DesktopEntries` singleton); `None` until that scan completes.
     desktop_entries: Option<Arc<DesktopEntries>>,
     /// Every live layer-shell surface, keyed by its iced `window::Id`.
     surfaces: BTreeMap<Id, Surface>,
-}
-
-/// The native sources the bar polls. One timer per kind fires `Message::Poll(kind)`.
-#[derive(Debug, Clone, Copy)]
-pub enum SourceKind {
-    Battery,
-    Cpu,
-    Memory,
-    Temperature,
-    Disk,
-}
-
-impl SourceKind {
-    const ALL: [SourceKind; 5] = [
-        SourceKind::Battery,
-        SourceKind::Cpu,
-        SourceKind::Memory,
-        SourceKind::Temperature,
-        SourceKind::Disk,
-    ];
-
-    /// Poll cadence per source — faster for volatile readings (cpu load), slower for
-    /// ones that drift (battery, disk).
-    fn interval(self) -> Duration {
-        let secs = match self {
-            SourceKind::Cpu => 3,
-            SourceKind::Memory | SourceKind::Temperature => 5,
-            SourceKind::Battery => 30,
-            SourceKind::Disk => 60,
-        };
-        Duration::from_secs(secs)
-    }
 }
 
 /// `#[to_layer_message(multi)]` injects the multi-surface action variants
@@ -123,13 +62,13 @@ pub enum Message {
     Tick,                                          // 1 Hz clock
     Poll(SourceKind),      // a source's timer fired
     // Poll results — typed per source (trait objects can't satisfy Message: Clone).
-    BatteryLoaded(Option<sysfs::Battery>),
-    CpuLoaded(Option<sysfs::CpuUsage>),
-    MemoryLoaded(Option<sysfs::Memory>),
-    TemperatureLoaded(Option<sysfs::Temperature>),
+    BatteryLoaded(Option<sysfs_sensors::Battery>),
+    CpuLoaded(Option<sysfs_sensors::CpuUsage>),
+    MemoryLoaded(Option<sysfs_sensors::Memory>),
+    TemperatureLoaded(Option<sysfs_sensors::Temperature>),
     DiskLoaded(Option<disk::Disk>),
-    ToggleMenu(widget::MenuId),         // click a menu handle → open/close it
-    HoverMenu(Option<widget::MenuId>),  // pointer entered/left a menu (hairline state)
+    ToggleMenu(concrete_widgets::MenuId),         // click a menu handle → open/close it
+    HoverMenu(Option<concrete_widgets::MenuId>),  // pointer entered/left a menu (hairline state)
     CloseMenus,                         // click bar background → collapse any open menu
     FocusWindow(u64),                   // click a window-list entry → focus that window
     FocusWorkspace(u64),                // click a workspace pill → focus that workspace
@@ -141,7 +80,7 @@ impl Bar {
     pub fn new() -> (Self, Task<Message>) {
         (
             Self {
-                config: crate::config::load(),
+                config: crate::user_config::load(),
                 clock: now_hm(),
                 battery: None,
                 cpu: None,
@@ -206,11 +145,11 @@ impl Bar {
                 Task::none()
             }
             Message::Poll(kind) => match kind {
-                SourceKind::Battery => poll::<sysfs::Battery>().map(Message::BatteryLoaded),
-                SourceKind::Cpu => poll::<sysfs::CpuUsage>().map(Message::CpuLoaded),
-                SourceKind::Memory => poll::<sysfs::Memory>().map(Message::MemoryLoaded),
+                SourceKind::Battery => poll::<sysfs_sensors::Battery>().map(Message::BatteryLoaded),
+                SourceKind::Cpu => poll::<sysfs_sensors::CpuUsage>().map(Message::CpuLoaded),
+                SourceKind::Memory => poll::<sysfs_sensors::Memory>().map(Message::MemoryLoaded),
                 SourceKind::Temperature => {
-                    poll::<sysfs::Temperature>().map(Message::TemperatureLoaded)
+                    poll::<sysfs_sensors::Temperature>().map(Message::TemperatureLoaded)
                 }
                 SourceKind::Disk => poll::<disk::Disk>().map(Message::DiskLoaded),
             },
@@ -298,14 +237,14 @@ impl Bar {
             eprintln!("app: view(bottom) called at {:?}", std::time::SystemTime::now());
         }
 
-        let ctx = widget::Context {
+        let ctx = concrete_widgets::Context {
             config: &self.config,
             clock: &self.clock,
-            battery: self.battery.as_ref().map(widget::as_bar_widget),
-            cpu: self.cpu.as_ref().map(widget::as_bar_widget),
-            memory: self.memory.as_ref().map(widget::as_bar_widget),
-            temperature: self.temperature.as_ref().map(widget::as_bar_widget),
-            disk: self.disk.as_ref().map(widget::as_bar_widget),
+            battery: self.battery.as_ref().map(concrete_widgets::as_bar_widget),
+            cpu: self.cpu.as_ref().map(concrete_widgets::as_bar_widget),
+            memory: self.memory.as_ref().map(concrete_widgets::as_bar_widget),
+            temperature: self.temperature.as_ref().map(concrete_widgets::as_bar_widget),
+            disk: self.disk.as_ref().map(concrete_widgets::as_bar_widget),
             niri: &self.niri,
             desktop_entries: self.desktop_entries.as_deref(),
             output: &surface.output,
@@ -313,16 +252,16 @@ impl Bar {
             open_menu: self.open_menu,
             hovered_menu: self.hovered_menu,
         };
-        let zones = widget::layout(surface.position);
+        let zones = widget_groups::layout(surface.position);
 
         // Compose the zones into a strip: start-anchored group, fill, center group,
         // fill, end-anchored group — the iced stand-in for odin's per-zone edge anchors.
         let content = row![
-            self.zone_group(&zones, &ctx, widget::Align::Start),
+            self.zone_group(&zones, &ctx, concrete_widgets::Align::Start),
             Space::new().width(Length::Fill),
-            self.zone_group(&zones, &ctx, widget::Align::Center),
+            self.zone_group(&zones, &ctx, concrete_widgets::Align::Center),
             Space::new().width(Length::Fill),
-            self.zone_group(&zones, &ctx, widget::Align::End),
+            self.zone_group(&zones, &ctx, concrete_widgets::Align::End),
         ]
         .align_y(Alignment::Center)
         .padding([
@@ -363,9 +302,9 @@ impl Bar {
     /// inter-group spacing. Hidden zones (all groups unavailable) are skipped.
     fn zone_group<'a>(
         &self,
-        zones: &[widget::Zone],
-        ctx: &widget::Context<'a>,
-        align: widget::Align,
+        zones: &[concrete_widgets::Zone],
+        ctx: &concrete_widgets::Context<'a>,
+        align: concrete_widgets::Align,
     ) -> Row<'a, Message> {
         Row::with_children(
             zones
@@ -387,95 +326,4 @@ impl Bar {
             text_color: BAR_TEXT,
         }
     }
-}
-
-/// Layer-shell settings for one bar. The bar reserves its own strip via an exclusive
-/// zone equal to its height (odin's `exclusiveZone: barOuterHeight`), so niri tiles
-/// windows clear of it instead of letting them overlap. `height` is odin's
-/// `barOuterHeight` from the shared config; it also stacks below odin's own reserved
-/// zone, so the two bars sit flush without overlapping windows.
-fn layer_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: Some((0, height)),
-        exclusive_zone: Some(height as i32),
-        anchor: position.anchor(),
-        layer: Layer::Top,
-        // Never take keyboard focus — mirrors Odin's WlrKeyboardFocus.None.
-        keyboard_interactivity: KeyboardInteractivity::None,
-        // Bind this surface to a specific niri output by name.
-        output_option: OutputOption::OutputName(output.to_string()),
-        ..Default::default()
-    }
-}
-
-pub fn subscription(_state: &Bar) -> Subscription<Message> {
-    // One poll timer per source at its own cadence (`SourceKind::interval`), plus the
-    // clock, surface teardown, and the niri event stream. iced requires each `map`
-    // closure to be a zero-sized non-capturing literal, so the timers are spelled out
-    // rather than built in a loop (a captured `kind` or an `fn` pointer both fail).
-    use SourceKind::*;
-    Subscription::batch([
-        iced::time::every(Battery.interval()).map(|_| Message::Poll(Battery)),
-        iced::time::every(Cpu.interval()).map(|_| Message::Poll(Cpu)),
-        iced::time::every(Memory.interval()).map(|_| Message::Poll(Memory)),
-        iced::time::every(Temperature.interval()).map(|_| Message::Poll(Temperature)),
-        iced::time::every(Disk.interval()).map(|_| Message::Poll(Disk)),
-        iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
-        iced::window::close_events().map(Message::WindowClosed),
-        niri_subscription(),
-    ])
-}
-
-/// Poll a native source off the async executor and deliver its `Option` result. A read
-/// runs on a blocking thread (some read `/proc` twice with a delay); a join failure
-/// degrades to `None` (source treated as unavailable this cycle) rather than a crash.
-/// Fire-and-forget a blocking niri action off the async executor; the resulting state
-/// change arrives back through the event stream, so no result message is produced.
-fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {
-    Task::future(async move {
-        let _ = tokio::task::spawn_blocking(action).await;
-    })
-    .discard()
-}
-
-fn poll<S: Source + Send + 'static>() -> Task<Option<S>> {
-    Task::perform(
-        async { tokio::task::spawn_blocking(S::poll).await },
-        |joined| match joined {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("source {}: poll task panicked: {e}", S::NAME);
-                None
-            }
-        },
-    )
-}
-
-/// Bridge the blocking niri event thread into an iced Subscription. The dedicated
-/// thread `blocking_send`s events into a tokio channel; here we `recv().await` and
-/// forward each as `Message::Niri`.
-fn niri_subscription() -> Subscription<Message> {
-    use iced::futures::SinkExt;
-    Subscription::run(|| {
-        iced::stream::channel(256, |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-            let mut rx = niri::spawn_event_thread();
-            while let Some(event) = rx.recv().await {
-                if output.send(Message::Niri(event)).await.is_err() {
-                    break;
-                }
-            }
-        })
-    })
-}
-
-fn now_hm() -> String {
-    // Minimal, dependency-free HH:MM from the system clock (UTC). A real bar would use
-    // chrono with the local timezone; the spike only needs a ticking value.
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let h = (secs / 3600) % 24;
-    let m = (secs / 60) % 60;
-    format!("{h:02}:{m:02}")
 }

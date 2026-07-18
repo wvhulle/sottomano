@@ -1,21 +1,23 @@
 //! odin-rs — a pure-Rust niri bar on iced + iced_layershell. Launches a multi-output
 //! layer-shell daemon (one bar per output/edge); must run inside a niri session.
 
-mod app;
-mod config;
-mod desktop;
-mod niri;
-mod source;
-mod widget;
+mod bar_program;
+mod concrete_widgets;
+mod data_sources;
+mod layer_surface;
+mod message_subscriptions;
+mod user_config;
+mod visual_elements;
+mod widget_groups;
 
-use app::Bar;
+use bar_program::Bar;
 use iced_layershell::build_pattern::daemon;
 use iced_layershell::settings::{LayerShellSettings, Settings, StartMode};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     daemon(Bar::new, Bar::namespace, Bar::update, Bar::view)
         .style(Bar::style)
-        .subscription(app::subscription)
+        .subscription(message_subscriptions::subscription)
         .settings(Settings {
             layer_settings: LayerShellSettings {
                 // `Background` opens no surface up-front: `Bar` enumerates niri outputs
