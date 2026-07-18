@@ -1,8 +1,9 @@
 //! Shared rendering primitives (odin's `ReusableComponent` equivalent): the visual
 //! vocabulary every leaf widget and concrete widget is drawn with — a gauge fill, a
-//! hairline state indicator, the edge-anchored layout it sits in, and the source-backed
-//! leaf rendering that combines them. Not a widget itself; this is what widgets are drawn
-//! with, so it lives beside `concrete_widgets`/`widget_groups` rather than inside either.
+//! state indicator, the edge-anchored layout it sits in, and the source-backed leaf
+//! rendering that combines them. Not a widget itself; this is what widgets are drawn
+//! with, so it lives beside `bar_layout` rather than inside it. Each function takes
+//! exactly the data it needs (`&Config`, `Position`) rather than a shared render context.
 
 use iced::alignment::Vertical;
 use iced::widget::text::Shaping;
@@ -11,13 +12,17 @@ use iced::{Alignment, Border, Color, Element, Font, Length};
 use iced_font_awesome::fa_icon_solid;
 
 use crate::bar_program::Message;
-use crate::layer_surface::Position;
-use crate::concrete_widgets::Context;
 use crate::data_sources::{BarWidget, Level};
+use crate::layer_surface::Position;
 use crate::user_config::Config;
 
 /// Gap (px) between a widget and its inner-edge hairline indicator.
 const HAIRLINE_GAP: f32 = 3.0;
+
+/// Coerce a concrete source reference to `&dyn BarWidget` for uniform rendering.
+pub fn as_bar_widget<W: BarWidget>(w: &W) -> &dyn BarWidget {
+    w
+}
 
 /// Place a state `indicator` (a hairline) against the inner screen edge of `content` —
 /// the shared basis for menu affordances and pager focus/urgent bars. A real in-flow
@@ -28,12 +33,12 @@ const HAIRLINE_GAP: f32 = 3.0;
 /// The indicator sits below `content` on a top bar, above it on a bottom bar, so it
 /// always points into the screen; a spacer of `HAIRLINE_GAP` separates the two.
 pub fn edge_overlay<'a>(
-    ctx: &Context<'a>,
+    position: Position,
     content: Element<'a, Message>,
     indicator: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let gap = container(iced::widget::Space::new()).height(HAIRLINE_GAP);
-    match ctx.position {
+    match position {
         Position::Top => iced::widget::column![content, gap, indicator],
         Position::Bottom => iced::widget::column![indicator, gap, content],
     }
@@ -43,23 +48,23 @@ pub fn edge_overlay<'a>(
 
 /// A source-backed leaf: Font Awesome icon + thin vertical gauge (or a text label for a
 /// label-only source), tinted by severity. `None` when the source is unavailable.
-pub fn leaf<'a>(ctx: &Context<'a>, widget: Option<&dyn BarWidget>) -> Option<Element<'a, Message>> {
+pub fn leaf<'a>(config: &Config, widget: Option<&dyn BarWidget>) -> Option<Element<'a, Message>> {
     let widget = widget?;
-    let size = ctx.config.font.size as f32;
-    let color = level_color(ctx.config, widget.level());
+    let size = config.font.size as f32;
+    let color = level_color(config, widget.level());
     let icon = fa_icon_solid(widget.icon()).size(size).color(color);
 
     match widget.value() {
         Some(value) => Some(
             row![icon, gauge(value.percent(), color, size)]
-                .spacing(ctx.config.layout.horizontal_widget_spacing as f32)
+                .spacing(config.layout.horizontal_widget_spacing as f32)
                 .align_y(Alignment::Center)
                 .into(),
         ),
         None => match widget.label() {
             Some(label) if !label.is_empty() => Some(
                 row![icon, text(label).size(size).color(color).shaping(Shaping::Advanced)]
-                    .spacing(ctx.config.layout.horizontal_widget_spacing as f32)
+                    .spacing(config.layout.horizontal_widget_spacing as f32)
                     .align_y(Alignment::Center)
                     .into(),
             ),
@@ -94,11 +99,44 @@ pub fn gauge<'a>(percent: i64, color: Color, font_size: f32) -> Element<'a, Mess
         .into()
 }
 
+/// A state indicator expressed as the content's own container style, not a separately
+/// sized sibling/overlay widget — the pattern real shipped iced panels use (cosmic-panel's
+/// workspace applet renders its focused pill via `.class(Button::Suggested)` on the same
+/// button, not a second element positioned to match it). `color: None` renders a plain,
+/// unstyled container; `Some(color)` tints its background/border. Because the indicator
+/// *is* the container wrapping `content`, it is trivially and always correctly sized —
+/// this sidesteps the `Length::Fill`-vs-`Shrink`-compression subtlety a separate
+/// hairline/overlay element must navigate (see `edge_overlay`'s doc comment for the bug
+/// that pattern hit). Always call this (never conditionally), varying only `color`, so
+/// the widget tree shape stays identical across renders regardless of state.
+pub fn state_pill<'a>(
+    config: &Config,
+    content: Element<'a, Message>,
+    color: Option<Color>,
+) -> Element<'a, Message> {
+    let radius = config.layout.focus_underline_thickness;
+    container(content)
+        .padding([2.0, config.layout.horizontal_widget_spacing as f32 * 0.5])
+        .style(move |_| match color {
+            Some(color) => container::Style {
+                background: Some(Color { a: 0.22, ..color }.into()),
+                border: Border {
+                    color,
+                    width: 1.0,
+                    radius: radius.into(),
+                },
+                ..Default::default()
+            },
+            None => container::Style::default(),
+        })
+        .into()
+}
+
 /// odin's `Hairline`: a thin rounded bar marking an expandable group or focus/urgent
 /// state. A fixed-height, content-width sibling (see `edge_overlay`), at the caller's
 /// opacity.
-pub fn hairline<'a>(ctx: &Context<'a>, color: Color, opacity: f32) -> Element<'a, Message> {
-    let thickness = ctx.config.layout.focus_underline_thickness;
+pub fn hairline<'a>(config: &Config, color: Color, opacity: f32) -> Element<'a, Message> {
+    let thickness = config.layout.focus_underline_thickness;
     container(iced::widget::Space::new().width(Length::Fill))
         .width(Length::Fill)
         .height(thickness)

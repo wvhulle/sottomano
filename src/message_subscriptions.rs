@@ -100,15 +100,3 @@ fn niri_subscription() -> Subscription<Message> {
         })
     })
 }
-
-pub(crate) fn now_hm() -> String {
-    // Minimal, dependency-free HH:MM from the system clock (UTC). A real bar would use
-    // chrono with the local timezone; the spike only needs a ticking value.
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let h = (secs / 3600) % 24;
-    let m = (secs / 60) % 60;
-    format!("{h:02}:{m:02}")
-}

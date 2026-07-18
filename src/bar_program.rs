@@ -3,27 +3,31 @@
 //! daemon` drives many surfaces from one Elm program, and `view(&self, id)` renders
 //! whichever surface iced is painting.
 //!
-//! Shared data (clock, the polled source widgets, niri state) lives once on `Bar`; only
-//! the surface's identity — which output and which edge — is keyed by `window::Id`. This
-//! mirrors `../odin/shell.qml`'s `Variants { model: Quickshell.screens }` opening a top
-//! and a bottom `BarWindow` per screen.
+//! Shared data (the polled group state, niri state) lives once on `Bar`, each concern
+//! owned by the group that renders it (`bar_layout::{battery_group,system_group,
+//! clock_group}`) rather than held as raw fields here; only the surface's identity —
+//! which output and which edge — is keyed by `window::Id`. This mirrors
+//! `../odin/shell.qml`'s `Variants { model: Quickshell.screens }` opening a top and a
+//! bottom `BarWindow` per screen.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use iced::widget::{Row, Space, container, mouse_area, row, stack, text};
+use iced::widget::{Space, container, mouse_area, stack, text};
 use iced::window::Id;
 use iced::{Alignment, Color, Element, Length, Task};
 use iced_layershell::to_layer_message;
 use niri_ipc::state::EventStreamState;
 
-use crate::concrete_widgets;
+use crate::bar_layout;
+use crate::bar_layout::battery_group::BatteryGroup;
+use crate::bar_layout::clock_group::ClockGroup;
+use crate::bar_layout::system_group::SystemGroup;
 use crate::data_sources::app_icon::DesktopEntries;
 use crate::data_sources::{disk, niri, sysfs_sensors};
 use crate::layer_surface::{Position, Surface, layer_settings};
-use crate::message_subscriptions::{SourceKind, niri_action, now_hm, poll};
+use crate::message_subscriptions::{SourceKind, niri_action, poll};
 use crate::user_config::Config;
-use crate::widget_groups;
 
 /// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits over a
 /// (blurred/shadowed) backdrop rather than a `surface`-colored panel, so it wants a
@@ -32,18 +36,9 @@ const BAR_TEXT: Color = Color::WHITE;
 
 pub struct Bar {
     config: Config,
-    clock: String,
-    /// Polled native sources, `None` until first poll (or when unavailable). Only the
-    /// sources odin's bar composition uses (its `System` group + `Battery`).
-    battery: Option<sysfs_sensors::Battery>,
-    cpu: Option<sysfs_sensors::CpuUsage>,
-    memory: Option<sysfs_sensors::Memory>,
-    temperature: Option<sysfs_sensors::Temperature>,
-    disk: Option<disk::Disk>,
-    /// The one expanded menu group, if any (odin's single-open `GroupMenuState`).
-    open_menu: Option<concrete_widgets::MenuId>,
-    /// The menu group under the pointer, for the hairline's hover state.
-    hovered_menu: Option<concrete_widgets::MenuId>,
+    battery_group: BatteryGroup,
+    system_group: SystemGroup,
+    clock_group: ClockGroup,
     niri: EventStreamState,
     /// Installed `.desktop` entries for window→icon resolution, scanned once at startup
     /// (odin's `DesktopEntries` singleton); `None` until that scan completes.
@@ -67,11 +62,11 @@ pub enum Message {
     MemoryLoaded(Option<sysfs_sensors::Memory>),
     TemperatureLoaded(Option<sysfs_sensors::Temperature>),
     DiskLoaded(Option<disk::Disk>),
-    ToggleMenu(concrete_widgets::MenuId),         // click a menu handle → open/close it
-    HoverMenu(Option<concrete_widgets::MenuId>),  // pointer entered/left a menu (hairline state)
-    CloseMenus,                         // click bar background → collapse any open menu
-    FocusWindow(u64),                   // click a window-list entry → focus that window
-    FocusWorkspace(u64),                // click a workspace pill → focus that workspace
+    ToggleMenu,             // click the System group's handle → open/close it
+    HoverMenu(bool),        // pointer entered/left the handle (hairline hover state)
+    CloseMenus,             // click bar background → collapse any open menu
+    FocusWindow(u64),       // click a window-list entry → focus that window
+    FocusWorkspace(u64),    // click a workspace pill → focus that workspace
     Niri(niri_ipc::Event), // event-stream delta
     WindowClosed(Id),      // surface gone (e.g. output unplugged)
 }
@@ -81,14 +76,9 @@ impl Bar {
         (
             Self {
                 config: crate::user_config::load(),
-                clock: now_hm(),
-                battery: None,
-                cpu: None,
-                memory: None,
-                temperature: None,
-                disk: None,
-                open_menu: None,
-                hovered_menu: None,
+                battery_group: BatteryGroup::default(),
+                system_group: SystemGroup::default(),
+                clock_group: ClockGroup::default(),
                 niri: EventStreamState::default(),
                 desktop_entries: None,
                 surfaces: BTreeMap::new(),
@@ -141,7 +131,7 @@ impl Bar {
                 Task::none()
             }
             Message::Tick => {
-                self.clock = now_hm();
+                self.clock_group.tick();
                 Task::none()
             }
             Message::Poll(kind) => match kind {
@@ -154,36 +144,35 @@ impl Bar {
                 SourceKind::Disk => poll::<disk::Disk>().map(Message::DiskLoaded),
             },
             Message::BatteryLoaded(data) => {
-                self.battery = data;
+                self.battery_group.set(data);
                 Task::none()
             }
             Message::CpuLoaded(data) => {
-                self.cpu = data;
+                self.system_group.set_cpu(data);
                 Task::none()
             }
             Message::MemoryLoaded(data) => {
-                self.memory = data;
+                self.system_group.set_memory(data);
                 Task::none()
             }
             Message::TemperatureLoaded(data) => {
-                self.temperature = data;
+                self.system_group.set_temperature(data);
                 Task::none()
             }
             Message::DiskLoaded(data) => {
-                self.disk = data;
+                self.system_group.set_disk(data);
                 Task::none()
             }
-            Message::ToggleMenu(id) => {
-                // Single-open: toggling the open one closes it, else this becomes the open one.
-                self.open_menu = (self.open_menu != Some(id)).then_some(id);
+            Message::ToggleMenu => {
+                self.system_group.toggle();
                 Task::none()
             }
-            Message::HoverMenu(id) => {
-                self.hovered_menu = id;
+            Message::HoverMenu(hovered) => {
+                self.system_group.hover(hovered);
                 Task::none()
             }
             Message::CloseMenus => {
-                self.open_menu = None;
+                self.system_group.close();
                 Task::none()
             }
             Message::FocusWindow(window) => niri_action(move || niri::focus_window(window)),
@@ -237,37 +226,22 @@ impl Bar {
             eprintln!("app: view(bottom) called at {:?}", std::time::SystemTime::now());
         }
 
-        let ctx = concrete_widgets::Context {
-            config: &self.config,
-            clock: &self.clock,
-            battery: self.battery.as_ref().map(concrete_widgets::as_bar_widget),
-            cpu: self.cpu.as_ref().map(concrete_widgets::as_bar_widget),
-            memory: self.memory.as_ref().map(concrete_widgets::as_bar_widget),
-            temperature: self.temperature.as_ref().map(concrete_widgets::as_bar_widget),
-            disk: self.disk.as_ref().map(concrete_widgets::as_bar_widget),
-            niri: &self.niri,
-            desktop_entries: self.desktop_entries.as_deref(),
-            output: &surface.output,
-            position: surface.position,
-            open_menu: self.open_menu,
-            hovered_menu: self.hovered_menu,
+        let content = match surface.position {
+            Position::Top => bar_layout::top_row(
+                &self.battery_group,
+                &self.system_group,
+                &self.clock_group,
+                &self.config,
+                surface.position,
+            ),
+            Position::Bottom => bar_layout::bottom_row(
+                &self.niri,
+                &surface.output,
+                self.desktop_entries.as_deref(),
+                &self.config,
+                surface.position,
+            ),
         };
-        let zones = widget_groups::layout(surface.position);
-
-        // Compose the zones into a strip: start-anchored group, fill, center group,
-        // fill, end-anchored group — the iced stand-in for odin's per-zone edge anchors.
-        let content = row![
-            self.zone_group(&zones, &ctx, concrete_widgets::Align::Start),
-            Space::new().width(Length::Fill),
-            self.zone_group(&zones, &ctx, concrete_widgets::Align::Center),
-            Space::new().width(Length::Fill),
-            self.zone_group(&zones, &ctx, concrete_widgets::Align::End),
-        ]
-        .align_y(Alignment::Center)
-        .padding([
-            self.config.layout.vertical_padding as f32,
-            self.config.layout.horizontal_group_padding as f32,
-        ]);
 
         // Click-anywhere-empty collapses any open menu (odin's dismiss MouseArea). It sits
         // *under* the content, so widget/menu-handle clicks are captured by their own
@@ -296,25 +270,6 @@ impl Bar {
                 ..Default::default()
             })
             .into()
-    }
-
-    /// Render all zones with a given alignment into one row, separated by odin's
-    /// inter-group spacing. Hidden zones (all groups unavailable) are skipped.
-    fn zone_group<'a>(
-        &self,
-        zones: &[concrete_widgets::Zone],
-        ctx: &concrete_widgets::Context<'a>,
-        align: concrete_widgets::Align,
-    ) -> Row<'a, Message> {
-        Row::with_children(
-            zones
-                .iter()
-                .filter(|z| z.align == align)
-                .filter_map(|z| z.view(ctx))
-                .map(Element::from),
-        )
-        .spacing(self.config.layout.horizontal_group_spacing as f32)
-        .align_y(Alignment::Center)
     }
 
     pub fn style(&self, _theme: &iced::Theme) -> iced::theme::Style {

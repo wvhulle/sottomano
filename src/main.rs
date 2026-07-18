@@ -1,14 +1,13 @@
 //! odin-rs — a pure-Rust niri bar on iced + iced_layershell. Launches a multi-output
 //! layer-shell daemon (one bar per output/edge); must run inside a niri session.
 
+mod bar_layout;
 mod bar_program;
-mod concrete_widgets;
 mod data_sources;
 mod layer_surface;
 mod message_subscriptions;
 mod user_config;
 mod visual_elements;
-mod widget_groups;
 
 use bar_program::Bar;
 use iced_layershell::build_pattern::daemon;
