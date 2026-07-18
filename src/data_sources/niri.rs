@@ -131,12 +131,6 @@ pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
         loop {
             match read() {
                 Ok(event) => {
-                    if matches!(event, Event::WindowFocusChanged { .. }) {
-                        eprintln!(
-                            "niri: thread got WindowFocusChanged at {:?}",
-                            std::time::SystemTime::now()
-                        );
-                    }
                     if tx.blocking_send(event).is_err() {
                         return; // receiver dropped: app is shutting down
                     }

@@ -7,8 +7,8 @@
 
 use iced::alignment::Vertical;
 use iced::widget::text::Shaping;
-use iced::widget::{container, row, stack, text};
-use iced::{Alignment, Border, Color, Element, Font, Length};
+use iced::widget::{button, container, row, stack, text};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length};
 use iced_font_awesome::fa_icon_solid;
 
 use crate::bar_program::Message;
@@ -99,37 +99,34 @@ pub fn gauge<'a>(percent: i64, color: Color, font_size: f32) -> Element<'a, Mess
         .into()
 }
 
-/// A state indicator expressed as the content's own container style, not a separately
-/// sized sibling/overlay widget — the pattern real shipped iced panels use (cosmic-panel's
-/// workspace applet renders its focused pill via `.class(Button::Suggested)` on the same
-/// button, not a second element positioned to match it). `color: None` renders a plain,
-/// unstyled container; `Some(color)` tints its background/border. Because the indicator
-/// *is* the container wrapping `content`, it is trivially and always correctly sized —
-/// this sidesteps the `Length::Fill`-vs-`Shrink`-compression subtlety a separate
-/// hairline/overlay element must navigate (see `edge_overlay`'s doc comment for the bug
-/// that pattern hit). Always call this (never conditionally), varying only `color`, so
-/// the widget tree shape stays identical across renders regardless of state.
-pub fn state_pill<'a>(
-    config: &Config,
-    content: Element<'a, Message>,
-    color: Option<Color>,
-) -> Element<'a, Message> {
-    let radius = config.layout.focus_underline_thickness;
-    container(content)
-        .padding([2.0, config.layout.horizontal_widget_spacing as f32 * 0.5])
-        .style(move |_| match color {
-            Some(color) => container::Style {
-                background: Some(Color { a: 0.22, ..color }.into()),
-                border: Border {
-                    color,
-                    width: 1.0,
-                    radius: radius.into(),
-                },
-                ..Default::default()
-            },
-            None => container::Style::default(),
-        })
-        .into()
+/// A clickable list entry's state style, keyed on both its selection color and iced's
+/// own built-in `button::Status` (Active/Hovered/Pressed/Disabled) — the pattern real
+/// shipped iced panels use for "selected" (cosmic-panel's workspace applet renders its
+/// focused pill via `.class(Button::Suggested)` on the button itself; cosmic-app-list's
+/// window entries use `button::custom(content).selected(is_focused).class(style_fn)`).
+/// Pair with `iced::widget::button(content).on_press(msg).style(move |theme, status|
+/// button_style(color, status))` — no separate sized/positioned indicator widget needed,
+/// since the indicator *is* the button's own background/border, trivially and always
+/// correctly sized to it. `color: None` means "not selected" (plain/transparent, tinted
+/// only by hover/press); `Some(color)` marks focused/urgent.
+pub fn button_style(color: Option<Color>, status: button::Status) -> button::Style {
+    let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+    let background = match (color, hovered) {
+        (Some(color), true) => Some(Background::Color(Color { a: 0.32, ..color })),
+        (Some(color), false) => Some(Background::Color(Color { a: 0.22, ..color })),
+        (None, true) => Some(Background::Color(Color { a: 0.10, ..Color::WHITE })),
+        (None, false) => None,
+    };
+    button::Style {
+        background,
+        text_color: Color::WHITE,
+        border: Border {
+            color: color.unwrap_or(Color::TRANSPARENT),
+            width: if color.is_some() { 1.0 } else { 0.0 },
+            radius: 4.0.into(),
+        },
+        ..button::Style::default()
+    }
 }
 
 /// odin's `Hairline`: a thin rounded bar marking an expandable group or focus/urgent

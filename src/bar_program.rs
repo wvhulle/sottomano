@@ -180,9 +180,6 @@ impl Bar {
                 niri_action(move || niri::focus_workspace(workspace))
             }
             Message::Niri(event) => {
-                if matches!(event, niri_ipc::Event::WindowFocusChanged { .. }) {
-                    eprintln!("app: update got WindowFocusChanged at {:?}", std::time::SystemTime::now());
-                }
                 niri::apply(&mut self.niri, event);
                 Task::none()
             }
@@ -222,10 +219,6 @@ impl Bar {
             // never registered). Render nothing rather than panic.
             return container(text("")).into();
         };
-        if matches!(surface.position, Position::Bottom) {
-            eprintln!("app: view(bottom) called at {:?}", std::time::SystemTime::now());
-        }
-
         let content = match surface.position {
             Position::Top => bar_layout::top_row(
                 &self.battery_group,
@@ -239,7 +232,6 @@ impl Bar {
                 &surface.output,
                 self.desktop_entries.as_deref(),
                 &self.config,
-                surface.position,
             ),
         };
 

@@ -231,6 +231,31 @@ for any residual runtime deps). Replace odin in the home-manager module once at 
 - Small, shippable commits; keep the bar building & runnable at every step.
 - The maintainer distrusts always-on/auto-heal timers — prefer signal/event-driven updates,
   infrequent polls, and visible failure over silent retry loops.
+- **Selected/focused state → the widget's own style, not a separate indicator element.**
+  Render "this item is selected" as a plain `iced::widget::button`'s own
+  `.style(|theme, status| ...)` closure (background/border keyed on the item's
+  `is_focused`/`is_urgent`, folded with iced's built-in `Hovered`/`Pressed`
+  `button::Status`), not a second sized/positioned widget (a hairline, an overlay)
+  laid on top of or beside the content. This is how real shipped iced panels do it
+  (cosmic-panel's workspace/app-list applets: `button::custom(content).class(state_fn)`)
+  — see `src/visual_elements.rs`'s `button_style` — and it sidesteps a real
+  `Length::Fill`-vs-`Shrink`-compression subtlety a separate overlay/underline element
+  must navigate correctly (documented in git history if you need the trace). When a
+  group of entries only some of which are selected/urgent, always build every entry
+  through the *same* code path (button with a style closure), varying only the
+  captured color/state — never conditionally swap between "plain" and "decorated"
+  element shapes across renders, which defeats iced's widget-tree diffing.
+- **Known limitation — the bottom bar can stop repainting.** `WAYLAND_DEBUG=1` protocol
+  tracing has shown the bottom bar's `wl_surface` stop receiving `wl_callback.done`
+  frame-pacing events a few commits after startup, while the top bar's surface keeps
+  receiving them normally — confirmed independent of widget/data-layer choices (persists
+  with or without images in the window list, and across an unrelated widget-implementation
+  rewrite). Likely a `layershellev`/`iced_layershell` bug in per-surface frame-callback
+  bookkeeping when one client owns multiple layer-shell surfaces (`daemon()` +
+  `NewLayerShell`, this app's Phase 1 architecture) — every cosmic-panel reference
+  applet avoids the problem structurally by running **one layer-shell surface per
+  process** instead. If this becomes blocking, that one-surface-per-process model is the
+  next thing to try; it's a real architectural change, not a quick fix.
 
 ## Reference docs
 

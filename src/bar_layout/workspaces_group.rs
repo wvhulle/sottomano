@@ -2,38 +2,33 @@
 //! always renders live niri state, so unlike battery/system it has no owned fields.
 
 use iced::widget::text::Shaping;
-use iced::widget::{Row, mouse_area, row, text};
+use iced::widget::{Row, button, row, text};
 use iced::{Alignment, Color, Element};
 use niri_ipc::state::EventStreamState;
 
 use crate::bar_program::Message;
 use crate::data_sources::niri;
-use crate::layer_surface::Position;
 use crate::user_config::Config;
-use crate::visual_elements::{edge_overlay, font_family, hairline};
+use crate::visual_elements::{button_style, font_family};
 
 /// The workspace pager (odin's `Workspaces`): this output's workspaces in index order, as
-/// clickable slots. Focus and urgency are shown by a hairline along the inner edge of the
-/// active/urgent slot (powerTint / criticalTint), not by tinting the label — so labels
-/// stay neutral, matching odin. Clicking a workspace focuses it.
-pub fn view<'a>(niri: &EventStreamState, output: &str, config: &Config, position: Position) -> Element<'a, Message> {
+/// clickable slots. Focus and urgency are shown by the slot button's own background
+/// (powerTint / criticalTint), not by tinting the label — so labels stay neutral,
+/// matching odin. Clicking a workspace focuses it.
+pub fn view<'a>(niri: &EventStreamState, output: &str, config: &Config) -> Element<'a, Message> {
     let slots = niri::workspaces_for_output(niri, output).into_iter().map(|p| {
         let label = workspace_label(config, &p);
-        // Always the same widget tree shape (a Stack with a hairline layer), varying only
-        // the indicator's color/opacity — never conditionally omitted. A structural swap
-        // between "plain label" and "Stack(label, hairline)" at the same list position,
-        // frame to frame, defeats iced's widget diffing: the indicator can end up stuck on
-        // whichever slot first got the Stack shape instead of tracking the live state.
-        let (color, opacity) = if p.is_urgent {
-            (config.palette.critical_tint.0, 1.0)
+        let color = if p.is_urgent {
+            Some(config.palette.critical_tint.0)
         } else if p.is_active {
-            (config.palette.power_tint.0, 1.0)
+            Some(config.palette.power_tint.0)
         } else {
-            (config.palette.power_tint.0, 0.0)
+            None
         };
-        let slot = edge_overlay(position, label, hairline(config, color, opacity));
-        mouse_area(slot)
+        button(label)
+            .padding([2.0, config.layout.horizontal_widget_spacing as f32 * 0.5])
             .on_press(Message::FocusWorkspace(p.id))
+            .style(move |_theme, status| button_style(color, status))
             .into()
     });
     Row::with_children(slots)

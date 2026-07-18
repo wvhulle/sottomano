@@ -2,7 +2,7 @@
 //! always renders live niri state, so unlike battery/system it has no owned fields.
 
 use iced::widget::text::Shaping;
-use iced::widget::{Row, image, mouse_area, text};
+use iced::widget::{Row, button, image, text};
 use iced::{Alignment, Color, Element};
 use niri_ipc::state::EventStreamState;
 
@@ -10,13 +10,13 @@ use crate::bar_program::Message;
 use crate::data_sources::app_icon::DesktopEntries;
 use crate::data_sources::niri;
 use crate::user_config::Config;
-use crate::visual_elements::{font_family, state_pill};
+use crate::visual_elements::{button_style, font_family};
 
 /// The window list (odin's `Windowlist`): icon + title of the windows on the output's
 /// active workspace, in on-screen order. The focused entry carries a pill background
-/// (powerTint), an urgent one criticalTint — the container's own style, not a separate
-/// sized indicator element (see `state_pill`'s doc comment for why). `None` when the
-/// workspace has no windows. Clicking an entry focuses that window.
+/// (powerTint), an urgent one criticalTint — the button's own style, not a separate
+/// sized indicator element (see `visual_elements::button_style`'s doc comment for why).
+/// `None` when the workspace has no windows. Clicking an entry focuses that window.
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
@@ -28,11 +28,6 @@ pub fn view<'a>(
     if windows.is_empty() {
         return None;
     }
-    eprintln!(
-        "window_list: output={} focus={:?}",
-        output,
-        windows.iter().map(|w| (w.id, w.is_focused)).collect::<Vec<_>>()
-    );
     let size = config.font.size as f32;
     let sans = font_family(&config.font.family);
     let entries = windows.into_iter().map(|w| {
@@ -60,10 +55,13 @@ pub fn view<'a>(
         } else {
             None
         };
-        let entry = state_pill(config, content, indicator_color);
 
         // Clicking a window focuses it (odin's Windowlist `onActivated`).
-        mouse_area(entry).on_press(Message::FocusWindow(w.id)).into()
+        button(content)
+            .padding([2.0, config.layout.horizontal_widget_spacing as f32 * 0.5])
+            .on_press(Message::FocusWindow(w.id))
+            .style(move |_theme, status| button_style(indicator_color, status))
+            .into()
     });
     Some(
         Row::with_children(entries)
@@ -83,17 +81,9 @@ fn window_icon<'a>(
     desktop_entries: Option<&DesktopEntries>,
     w: &niri::WinEntry,
 ) -> Option<Element<'a, Message>> {
-    // TEMP DIAGNOSTIC: icons disabled to test whether iced_layershell's single-window
-    // image-allocation (multi_window.rs always allocates into window_manager.iter_mut()
-    // .next(), never the specific requesting surface) is stalling the bottom bar's frame
-    // cycle. Remove this early return once confirmed either way.
-    return None;
-    #[allow(unreachable_code)]
-    {
-        let path = desktop_entries?.icon_for(&w.app_id)?;
-        let side = config.image_icon_size() as f32;
-        Some(image(image::Handle::from_path(path)).width(side).height(side).into())
-    }
+    let path = desktop_entries?.icon_for(&w.app_id)?;
+    let side = config.image_icon_size() as f32;
+    Some(image(image::Handle::from_path(path)).width(side).height(side).into())
 }
 
 /// A short label for a window: its title, else its app id.
