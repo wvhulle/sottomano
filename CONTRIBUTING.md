@@ -245,17 +245,22 @@ for any residual runtime deps). Replace odin in the home-manager module once at 
   through the *same* code path (button with a style closure), varying only the
   captured color/state — never conditionally swap between "plain" and "decorated"
   element shapes across renders, which defeats iced's widget-tree diffing.
-- **Known limitation — the bottom bar can stop repainting.** `WAYLAND_DEBUG=1` protocol
-  tracing has shown the bottom bar's `wl_surface` stop receiving `wl_callback.done`
-  frame-pacing events a few commits after startup, while the top bar's surface keeps
-  receiving them normally — confirmed independent of widget/data-layer choices (persists
-  with or without images in the window list, and across an unrelated widget-implementation
-  rewrite). Likely a `layershellev`/`iced_layershell` bug in per-surface frame-callback
-  bookkeeping when one client owns multiple layer-shell surfaces (`daemon()` +
-  `NewLayerShell`, this app's Phase 1 architecture) — every cosmic-panel reference
-  applet avoids the problem structurally by running **one layer-shell surface per
-  process** instead. If this becomes blocking, that one-surface-per-process model is the
-  next thing to try; it's a real architectural change, not a quick fix.
+- **Patched dependency — `iced_layershell` multi-surface "frozen bar" fix.** The second
+  layer-shell surface in the `daemon()` (the bottom bar) used to render once at startup
+  then freeze: focus changes never updated it even though `view()`/the data layer were
+  correct. Root cause (found by instrumenting a local checkout): the second window's wgpu
+  swapchain goes `SurfaceError::Outdated` (its swapchain is created before the compositor's
+  final `configure`), and upstream `iced_layershell`'s multi-window present path treated
+  `Outdated` as a soft "log and give up" error — so `compositor.present()` failed every
+  frame, never fired its present callback, and the surface never committed again. Stock
+  iced (`iced_winit`) handles this by **reconfiguring the surface + re-requesting a redraw**
+  on `Outdated`/`Lost`; the daemon path was simply missing it. Fix lives in a local checkout
+  at `../exwlshelleventloop` (`iced_layershell/src/multi_window.rs`, the present-error match)
+  and is wired in via `[patch.crates-io]` in `Cargo.toml`. **This should be upstreamed** to
+  `waycrate/exwlshelleventloop` (it's the same bug as their unresolved issues #275/#360);
+  until then the `../exwlshelleventloop` checkout must exist for odin-rs to build. Because a
+  single layer surface never hit this, `daemon()`/multi-surface stays viable — no
+  one-surface-per-process rearchitecture needed.
 
 ## Reference docs
 
