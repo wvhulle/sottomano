@@ -2,16 +2,15 @@
 
 use std::path::Path;
 
+use super::{battery::ChargeStatus, read_trimmed};
 use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
-
-use super::battery::ChargeStatus;
-use super::read_trimmed;
 
 const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
 const POWER_GAUGE_MAX_W: f64 = 40.0;
 
-/// Live system power draw in watts (`power-consumption.nu`), from `BAT0/power_now`.
+/// Live system power draw in watts (`power-consumption.nu`), from
+/// `BAT0/power_now`.
 #[derive(Debug, Clone)]
 pub struct PowerDraw {
     pub watts: f64,

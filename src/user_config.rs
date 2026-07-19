@@ -1,8 +1,9 @@
 //! Odin's user config, consumed verbatim. For now odin-rs reads the *same*
-//! `$XDG_CONFIG_HOME/odin/config.json` odin does (`../odin/UserConfig/Config.qml` is the
-//! schema); later we can split to our own file. Only the styling groups odin-rs currently
-//! renders — `palette`, `font`, `layout` — are modelled; missing keys keep odin's exact
-//! gruvbox-dark defaults, matching QML's per-property `JsonObject` fallbacks.
+//! `$XDG_CONFIG_HOME/odin/config.json` odin does
+//! (`../odin/UserConfig/Config.qml` is the schema); later we can split to our
+//! own file. Only the styling groups odin-rs currently renders — `palette`,
+//! `font`, `layout` — are modelled; missing keys keep odin's exact gruvbox-dark
+//! defaults, matching QML's per-property `JsonObject` fallbacks.
 
 use std::path::PathBuf;
 
@@ -37,8 +38,9 @@ impl Config {
         (self.image_icon_size() + 2 + 2 * self.layout.vertical_padding) as u32
     }
 
-    /// Bar chrome fill: `surface` at the configured background opacity. At `bgOpacity 0`
-    /// this is fully transparent and only a backdrop (if any) shows through.
+    /// Bar chrome fill: `surface` at the configured background opacity. At
+    /// `bgOpacity 0` this is fully transparent and only a backdrop (if any)
+    /// shows through.
     pub fn chrome_color(&self) -> Color {
         self.palette.surface.with_alpha(self.layout.bg_opacity)
     }
@@ -53,8 +55,9 @@ impl Config {
     }
 }
 
-/// A failed config load. `read_to_string` follows the dark/light symlink odin points
-/// `config.json` at, so a missing target or malformed JSON both land here.
+/// A failed config load. `read_to_string` follows the dark/light symlink odin
+/// points `config.json` at, so a missing target or malformed JSON both land
+/// here.
 #[derive(Debug)]
 pub enum LoadError {
     Read(std::io::Error),
@@ -98,8 +101,9 @@ fn read(path: &std::path::Path) -> Result<Config, LoadError> {
     Ok(config)
 }
 
-/// Load odin's config, falling back to the gruvbox-dark defaults on any failure so the
-/// bar always has a usable theme (odin's own behaviour: missing keys keep defaults).
+/// Load odin's config, falling back to the gruvbox-dark defaults on any failure
+/// so the bar always has a usable theme (odin's own behaviour: missing keys
+/// keep defaults).
 pub fn load() -> Config {
     let path = config_path();
     match read(&path) {

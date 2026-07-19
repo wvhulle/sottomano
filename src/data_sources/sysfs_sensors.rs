@@ -1,6 +1,7 @@
-//! sysfs / procfs hardware sensor sources, ported in-process from odin's `battery.nu`,
-//! `cpu.nu`, `cpu-clock.nu`, `memory.nu`, `temperature.nu`, `power-consumption.nu`. All
-//! reads are direct `std::fs` on `/proc` and `/sys` — no subprocess, no `sensors`/`nu`.
+//! sysfs / procfs hardware sensor sources, ported in-process from odin's
+//! `battery.nu`, `cpu.nu`, `cpu-clock.nu`, `memory.nu`, `temperature.nu`,
+//! `power-consumption.nu`. All reads are direct `std::fs` on `/proc` and `/sys`
+//! — no subprocess, no `sensors`/`nu`.
 
 use std::path::{Path, PathBuf};
 
@@ -11,8 +12,9 @@ pub mod memory;
 pub mod power;
 pub mod temperature;
 
-// Not every re-export is consumed yet (CpuClock/PowerDraw/TempReading are ported for
-// parity but not rendered until Phase 4's popups/tooltips land — see data_sources.rs).
+// Not every re-export is consumed yet (CpuClock/PowerDraw/TempReading are
+// ported for parity but not rendered until Phase 4's popups/tooltips land — see
+// data_sources.rs).
 #[allow(unused_imports)]
 pub use battery::Battery;
 #[allow(unused_imports)]
@@ -26,8 +28,9 @@ pub use power::PowerDraw;
 #[allow(unused_imports)]
 pub use temperature::{TempReading, Temperature};
 
-/// Per-core current frequency in GHz, from cpufreq sysfs, sorted by core index. Shared by
-/// `cpu_clock` (per-core detail) and `cpu_usage` (the bar's average summary).
+/// Per-core current frequency in GHz, from cpufreq sysfs, sorted by core index.
+/// Shared by `cpu_clock` (per-core detail) and `cpu_usage` (the bar's average
+/// summary).
 pub(super) fn core_freqs() -> Vec<CoreFreq> {
     let mut cores: Vec<CoreFreq> = list_dir("/sys/devices/system/cpu")
         .iter()
@@ -45,7 +48,8 @@ pub(super) fn core_freqs() -> Vec<CoreFreq> {
     cores
 }
 
-/// Just the GHz values (`cpu.nu`'s frequency summary doesn't need core indices).
+/// Just the GHz values (`cpu.nu`'s frequency summary doesn't need core
+/// indices).
 pub(super) fn core_ghz() -> Vec<f64> {
     core_freqs().iter().map(|c| c.ghz).collect()
 }
@@ -58,7 +62,8 @@ fn cpu_core_index(name: &str) -> Option<u32> {
         .flatten()
 }
 
-/// First `/sys/class/power_supply/<prefix>*` entry, sorted (odin's `glob BAT* | first`).
+/// First `/sys/class/power_supply/<prefix>*` entry, sorted (odin's `glob BAT* |
+/// first`).
 pub(super) fn first_power_supply(prefix: &str) -> Option<PathBuf> {
     let mut entries: Vec<PathBuf> = list_dir("/sys/class/power_supply")
         .into_iter()
@@ -88,7 +93,8 @@ pub(super) fn read_i64(path: impl AsRef<Path>) -> Option<i64> {
     read_trimmed(path)?.parse().ok()
 }
 
-/// GHz to 2 decimals with the unit — odin's `math round --precision 2` + `" GHz"`.
+/// GHz to 2 decimals with the unit — odin's `math round --precision 2` + `"
+/// GHz"`.
 pub(super) fn ghz(value: f64) -> String {
     format!("{value:.2} GHz")
 }

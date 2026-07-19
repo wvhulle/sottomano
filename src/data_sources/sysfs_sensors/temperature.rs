@@ -2,9 +2,8 @@
 
 use std::path::Path;
 
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
-
 use super::{favg, fmax, fmin, list_dir, read_i64, read_trimmed};
+use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
 
 const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
@@ -16,9 +15,10 @@ pub struct TempReading {
     pub celsius: f64,
 }
 
-/// CPU temperature across all per-core sensors (`temperature.nu`), read directly from
-/// hwmon rather than via `sensors`. Chip names are the raw hwmon `name` (e.g. `k10temp`),
-/// not `sensors`' bus-qualified form (`k10temp-pci-00c3`) — a minor tooltip deviation.
+/// CPU temperature across all per-core sensors (`temperature.nu`), read
+/// directly from hwmon rather than via `sensors`. Chip names are the raw hwmon
+/// `name` (e.g. `k10temp`), not `sensors`' bus-qualified form
+/// (`k10temp-pci-00c3`) — a minor tooltip deviation.
 #[derive(Debug, Clone)]
 pub struct Temperature {
     pub readings: Vec<TempReading>,
@@ -96,8 +96,9 @@ fn cpu_temp_readings() -> Vec<TempReading> {
         .collect()
 }
 
-/// The per-core readings of one chip. Core labels are `Core N` (Intel) or `Tccd*`
-/// (AMD); with none, fall back to the first present of Tdie/Tctl/Package id 0.
+/// The per-core readings of one chip. Core labels are `Core N` (Intel) or
+/// `Tccd*` (AMD); with none, fall back to the first present of
+/// Tdie/Tctl/Package id 0.
 fn chip_readings(chip: &Path, name: &str, is_coretemp: bool) -> Vec<TempReading> {
     let labels: Vec<(u32, String)> = temp_labels(chip);
     let is_core = |label: &str| {
@@ -109,7 +110,11 @@ fn chip_readings(chip: &Path, name: &str, is_coretemp: bool) -> Vec<TempReading>
     };
 
     let indices: Vec<u32> = if labels.iter().any(|(_, l)| is_core(l)) {
-        labels.iter().filter(|(_, l)| is_core(l)).map(|(i, _)| *i).collect()
+        labels
+            .iter()
+            .filter(|(_, l)| is_core(l))
+            .map(|(i, _)| *i)
+            .collect()
     } else {
         TEMP_FALLBACK_LABELS
             .iter()
@@ -134,7 +139,11 @@ fn temp_labels(chip: &Path) -> Vec<(u32, String)> {
         .iter()
         .filter_map(|p| {
             let stem = p.file_name()?.to_str()?;
-            let index: u32 = stem.strip_prefix("temp")?.strip_suffix("_label")?.parse().ok()?;
+            let index: u32 = stem
+                .strip_prefix("temp")?
+                .strip_suffix("_label")?
+                .parse()
+                .ok()?;
             Some((index, read_trimmed(p)?))
         })
         .collect()

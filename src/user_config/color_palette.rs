@@ -9,10 +9,15 @@ pub struct Rgb(pub Color);
 
 impl Rgb {
     const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self(Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0))
+        Self(Color::from_rgb(
+            r as f32 / 255.0,
+            g as f32 / 255.0,
+            b as f32 / 255.0,
+        ))
     }
 
-    /// This color with its alpha replaced — mirrors `ConfigLoader.withBgOpacity`.
+    /// This color with its alpha replaced — mirrors
+    /// `ConfigLoader.withBgOpacity`.
     pub fn with_alpha(self, alpha: f32) -> Color {
         Color { a: alpha, ..self.0 }
     }
@@ -42,7 +47,8 @@ impl<'de> Deserialize<'de> for Rgb {
     }
 }
 
-/// The `palette` group. Defaults are odin's gruvbox-dark base16 (see `ColorPalette.qml`).
+/// The `palette` group. Defaults are odin's gruvbox-dark base16 (see
+/// `ColorPalette.qml`).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Palette {

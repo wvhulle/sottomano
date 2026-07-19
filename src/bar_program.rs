@@ -1,37 +1,38 @@
-//! The `Bar` Elm program: a multi-output daemon (Phase 1) fed by native data sources
-//! (Phase 2). One layer-shell surface per (output, edge): `iced_layershell::build_pattern::
-//! daemon` drives many surfaces from one Elm program, and `view(&self, id)` renders
-//! whichever surface iced is painting.
+//! The `Bar` Elm program: a multi-output daemon (Phase 1) fed by native data
+//! sources (Phase 2). One layer-shell surface per (output, edge):
+//! `iced_layershell::build_pattern:: daemon` drives many surfaces from one Elm
+//! program, and `view(&self, id)` renders whichever surface iced is painting.
 //!
-//! Shared data (the polled group state, niri state) lives once on `Bar`, each concern
-//! owned by the group that renders it (`bar_layout::{battery_group,system_group,
-//! clock_group}`) rather than held as raw fields here; only the surface's identity —
-//! which output and which edge — is keyed by `window::Id`. This mirrors
-//! `../odin/shell.qml`'s `Variants { model: Quickshell.screens }` opening a top and a
+//! Shared data (the polled group state, niri state) lives once on `Bar`, each
+//! concern owned by the group that renders it
+//! (`bar_layout::{battery_group,system_group, clock_group}`) rather than held
+//! as raw fields here; only the surface's identity — which output and which
+//! edge — is keyed by `window::Id`. This mirrors `../odin/shell.qml`'s
+//! `Variants { model: Quickshell.screens }` opening a top and a
 //! bottom `BarWindow` per screen.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
-use iced::widget::{Space, container, mouse_area, stack, text};
-use iced::window::Id;
-use iced::{Alignment, Color, Element, Length, Task};
+use iced::{
+    Alignment, Color, Element, Length, Task,
+    widget::{Space, container, mouse_area, stack, text},
+    window::Id,
+};
 use iced_layershell::to_layer_message;
 use niri_ipc::state::EventStreamState;
 
-use crate::bar_layout;
-use crate::bar_layout::battery_group::BatteryGroup;
-use crate::bar_layout::clock_group::ClockGroup;
-use crate::bar_layout::system_group::SystemGroup;
-use crate::data_sources::app_icon::DesktopEntries;
-use crate::data_sources::{disk, niri, sysfs_sensors};
-use crate::layer_surface::{Position, Surface, layer_settings};
-use crate::message_subscriptions::{SourceKind, niri_action, poll};
-use crate::user_config::Config;
+use crate::{
+    bar_layout,
+    bar_layout::{battery_group::BatteryGroup, clock_group::ClockGroup, system_group::SystemGroup},
+    data_sources::{app_icon::DesktopEntries, disk, niri, sysfs_sensors},
+    layer_surface::{Position, Surface, layer_settings},
+    message_subscriptions::{SourceKind, niri_action, poll},
+    user_config::Config,
+};
 
-/// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits over a
-/// (blurred/shadowed) backdrop rather than a `surface`-colored panel, so it wants a
-/// constant light foreground regardless of which palette is active.
+/// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits
+/// over a (blurred/shadowed) backdrop rather than a `surface`-colored panel, so
+/// it wants a constant light foreground regardless of which palette is active.
 const BAR_TEXT: Color = Color::WHITE;
 
 pub struct Bar {
@@ -40,21 +41,23 @@ pub struct Bar {
     system_group: SystemGroup,
     clock_group: ClockGroup,
     niri: EventStreamState,
-    /// Installed `.desktop` entries for window→icon resolution, scanned once at startup
-    /// (odin's `DesktopEntries` singleton); `None` until that scan completes.
+    /// Installed `.desktop` entries for window→icon resolution, scanned once at
+    /// startup (odin's `DesktopEntries` singleton); `None` until that scan
+    /// completes.
     desktop_entries: Option<Arc<DesktopEntries>>,
     /// Every live layer-shell surface, keyed by its iced `window::Id`.
     surfaces: BTreeMap<Id, Surface>,
 }
 
 /// `#[to_layer_message(multi)]` injects the multi-surface action variants
-/// (`NewLayerShell { settings, id }`, `AnchorSizeChange`, …) this builder needs.
+/// (`NewLayerShell { settings, id }`, `AnchorSizeChange`, …) this builder
+/// needs.
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
-    OpenBars(Vec<String>),                        // enumerated output names → open surfaces
-    DesktopEntriesLoaded(Arc<DesktopEntries>),     // .desktop scan finished
-    Tick,                                          // 1 Hz clock
+    OpenBars(Vec<String>), // enumerated output names → open surfaces
+    DesktopEntriesLoaded(Arc<DesktopEntries>), // .desktop scan finished
+    Tick,                  // 1 Hz clock
     Poll(SourceKind),      // a source's timer fired
     // Poll results — typed per source (trait objects can't satisfy Message: Clone).
     BatteryLoaded(Option<sysfs_sensors::Battery>),
@@ -62,11 +65,11 @@ pub enum Message {
     MemoryLoaded(Option<sysfs_sensors::Memory>),
     TemperatureLoaded(Option<sysfs_sensors::Temperature>),
     DiskLoaded(Option<disk::Disk>),
-    ToggleMenu,             // click the System group's handle → open/close it
-    HoverMenu(bool),        // pointer entered/left the handle (hairline hover state)
-    CloseMenus,             // click bar background → collapse any open menu
-    FocusWindow(u64),       // click a window-list entry → focus that window
-    FocusWorkspace(u64),    // click a workspace pill → focus that workspace
+    ToggleMenu,            // click the System group's handle → open/close it
+    HoverMenu(bool),       // pointer entered/left the handle (hairline hover state)
+    CloseMenus,            // click bar background → collapse any open menu
+    FocusWindow(u64),      // click a window-list entry → focus that window
+    FocusWorkspace(u64),   // click a workspace pill → focus that workspace
     Niri(niri_ipc::Event), // event-stream delta
     WindowClosed(Id),      // surface gone (e.g. output unplugged)
 }
@@ -192,9 +195,10 @@ impl Bar {
         }
     }
 
-    /// Open one bar per (output, edge). Each gets a fresh `window::Id` registered in
-    /// `surfaces` *before* the surface exists, so the `view(id)` that follows the
-    /// compositor's configure already knows what to draw.
+    /// Open one bar per (output, edge). Each gets a fresh `window::Id`
+    /// registered in `surfaces` *before* the surface exists, so the
+    /// `view(id)` that follows the compositor's configure already knows
+    /// what to draw.
     fn open_bars(&mut self, outputs: Vec<String>) -> Task<Message> {
         let opens: Vec<Task<Message>> = outputs
             .iter()
@@ -236,9 +240,9 @@ impl Bar {
             ),
         };
 
-        // Click-anywhere-empty collapses any open menu (odin's dismiss MouseArea). It sits
-        // *under* the content, so widget/menu-handle clicks are captured by their own
-        // mouse areas and only gap clicks fall through to here.
+        // Click-anywhere-empty collapses any open menu (odin's dismiss MouseArea). It
+        // sits *under* the content, so widget/menu-handle clicks are captured
+        // by their own mouse areas and only gap clicks fall through to here.
         let dismiss = mouse_area(
             container(Space::new())
                 .width(Length::Fill)
@@ -246,9 +250,10 @@ impl Bar {
         )
         .on_press(Message::CloseMenus);
 
-        // The bar chrome: `surface` at `bgOpacity`, rounded only when floating — exactly
-        // odin's `BarChrome`. The surface itself is fully transparent (see `style`), so
-        // at `bgOpacity 0` this paints nothing and any backdrop shows through.
+        // The bar chrome: `surface` at `bgOpacity`, rounded only when floating —
+        // exactly odin's `BarChrome`. The surface itself is fully transparent
+        // (see `style`), so at `bgOpacity 0` this paints nothing and any
+        // backdrop shows through.
         container(stack![dismiss, content])
             .width(Length::Fill)
             .height(Length::Fill)

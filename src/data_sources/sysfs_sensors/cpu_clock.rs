@@ -1,8 +1,7 @@
 //! Per-core CPU clock speeds, ported from odin's `cpu-clock.nu`.
 
-use crate::data_sources::{BarWidget, Row, Source, row};
-
 use super::{core_freqs, favg, fmax, fmin, ghz};
+use crate::data_sources::{BarWidget, Row, Source, row};
 
 /// One core's current frequency.
 #[derive(Debug, Clone, Copy)]

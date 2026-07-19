@@ -1,13 +1,12 @@
 //! CPU busy percent, ported from odin's `cpu.nu`.
 
-use std::thread;
-use std::time::Duration;
-
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
+use std::{thread, time::Duration};
 
 use super::{core_ghz, favg, fmax, fmin, ghz};
+use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
 
-/// CPU busy percent over a 200 ms `/proc/stat` delta, plus per-core GHz (`cpu.nu`).
+/// CPU busy percent over a 200 ms `/proc/stat` delta, plus per-core GHz
+/// (`cpu.nu`).
 #[derive(Debug, Clone)]
 pub struct CpuUsage {
     pub percent: i64,
@@ -69,9 +68,16 @@ impl Source for CpuUsage {
     }
 }
 
-/// The aggregate `cpu` line of `/proc/stat`, as its jiffy counters (idle at index 3).
+/// The aggregate `cpu` line of `/proc/stat`, as its jiffy counters (idle at
+/// index 3).
 fn cpu_stat() -> Option<Vec<i64>> {
     let content = std::fs::read_to_string("/proc/stat").ok()?;
     let first = content.lines().next()?;
-    Some(first.split_whitespace().skip(1).filter_map(|t| t.parse().ok()).collect())
+    Some(
+        first
+            .split_whitespace()
+            .skip(1)
+            .filter_map(|t| t.parse().ok())
+            .collect(),
+    )
 }

@@ -1,12 +1,11 @@
 //! The centered clock: a single-widget static group. Owns its own ticking text.
 
-use iced::widget::text::Shaping;
-use iced::widget::text;
-use iced::Element;
+use iced::{
+    Element,
+    widget::{text, text::Shaping},
+};
 
-use crate::bar_program::Message;
-use crate::user_config::Config;
-use crate::visual_elements::font_family;
+use crate::{bar_program::Message, user_config::Config, visual_elements::font_family};
 
 pub struct ClockGroup {
     text: String,
@@ -34,8 +33,8 @@ impl ClockGroup {
 }
 
 fn now_hm() -> String {
-    // Minimal, dependency-free HH:MM from the system clock (UTC). A real bar would use
-    // chrono with the local timezone; the spike only needs a ticking value.
+    // Minimal, dependency-free HH:MM from the system clock (UTC). A real bar would
+    // use chrono with the local timezone; the spike only needs a ticking value.
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())

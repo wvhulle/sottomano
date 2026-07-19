@@ -40,8 +40,14 @@ impl BarWidget for Memory {
     fn tooltip(&self) -> Vec<Row> {
         vec![
             row("Memory", format!("{}%", self.percent())),
-            row("Used", format!("{:.1} GiB", self.used_kb as f64 / KIB_PER_GIB)),
-            row("Total", format!("{:.1} GiB", self.total_kb as f64 / KIB_PER_GIB)),
+            row(
+                "Used",
+                format!("{:.1} GiB", self.used_kb as f64 / KIB_PER_GIB),
+            ),
+            row(
+                "Total",
+                format!("{:.1} GiB", self.total_kb as f64 / KIB_PER_GIB),
+            ),
         ]
     }
 }

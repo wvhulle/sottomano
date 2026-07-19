@@ -231,6 +231,17 @@ for any residual runtime deps). Replace odin in the home-manager module once at 
 - Small, shippable commits; keep the bar building & runnable at every step.
 - The maintainer distrusts always-on/auto-heal timers — prefer signal/event-driven updates,
   infrequent polls, and visible failure over silent retry loops.
+- **`view()` must be cheap — no I/O, no filesystem, no heavy compute.** iced rebuilds the
+  *entire* surface's widget tree (view + layout) synchronously on every update, and a bar
+  is one surface, so an expensive `view()` in one widget stalls the whole strip — the
+  workspace hairline lagged only because the window list shared its surface. Resolve/memoise
+  anything costly outside the hot path: e.g. `app_icon::DesktopEntries::icon_for` caches its
+  `app_id`→path result (an on-disk icon-theme walk cost ~130 ms/frame → ~20 µs cached,
+  dropping focus-change latency from ~130 ms to ~2 ms). If a widget needs derived data,
+  compute it in `update()` and store it, or memoise behind interior mutability (`RwLock`,
+  since the bar state must be `Sync`) — never recompute it per frame in `view()`. When a
+  visual update feels laggy, time the `view()` of each group before touching the render loop;
+  the stall is almost always work-in-`view()`, not the compositor.
 - **Focus/urgent state → a shared `hairline`, odin's design.** The pager slots (workspace
   + window list) and the menu-group expand affordance all mark state with the same
   `visual_elements::hairline` primitive (a thin rounded bar: pick `color`/`opacity`/

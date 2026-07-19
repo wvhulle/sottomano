@@ -1,23 +1,27 @@
-//! The niri window list (odin's `Windowlist` ConcreteWidget/WidgetGroup). Stateless —
-//! always renders live niri state, so unlike battery/system it has no owned fields.
+//! The niri window list (odin's `Windowlist` ConcreteWidget/WidgetGroup).
+//! Stateless — always renders live niri state, so unlike battery/system it has
+//! no owned fields.
 
-use iced::widget::text::Shaping;
-use iced::widget::{Row, image, mouse_area, text};
-use iced::{Alignment, Element};
+use iced::{
+    Alignment, Element,
+    widget::{Row, image, mouse_area, text, text::Shaping},
+};
 use niri_ipc::state::EventStreamState;
 
-use crate::bar_program::Message;
-use crate::data_sources::app_icon::DesktopEntries;
-use crate::data_sources::niri;
-use crate::layer_surface::Position;
-use crate::user_config::Config;
-use crate::visual_elements::{edge_slot, font_family, hairline};
+use crate::{
+    bar_program::Message,
+    data_sources::{app_icon::DesktopEntries, niri},
+    layer_surface::Position,
+    user_config::Config,
+    visual_elements::{edge_slot, font_family, hairline},
+};
 
-/// The window list (odin's `Windowlist`): icon + title of the windows on the output's
-/// active workspace, in on-screen order. Focus/urgency show as a hairline along the inner
-/// edge (powerTint / criticalTint) — the same shared indicator the workspace pager and the
-/// menu-group affordance use — not label tinting; labels stay neutral. `None` when the
-/// workspace has no windows. Clicking an entry focuses that window.
+/// The window list (odin's `Windowlist`): icon + title of the windows on the
+/// output's active workspace, in on-screen order. Focus/urgency show as a
+/// hairline along the inner edge (powerTint / criticalTint) — the same shared
+/// indicator the workspace pager and the menu-group affordance use — not label
+/// tinting; labels stay neutral. `None` when the workspace has no windows.
+/// Clicking an entry focuses that window.
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
@@ -38,7 +42,11 @@ pub fn view<'a>(
             parts.push(icon);
         }
         parts.push(
-            text(window_label(&w)).size(size).font(sans).shaping(Shaping::Advanced).into(),
+            text(window_label(&w))
+                .size(size)
+                .font(sans)
+                .shaping(Shaping::Advanced)
+                .into(),
         );
         let content: Element<'a, Message> = Row::with_children(parts)
             .spacing(config.layout.horizontal_widget_spacing as f32 * 0.6)
@@ -52,7 +60,11 @@ pub fn view<'a>(
         } else {
             (config.palette.power_tint.0, 0.0)
         };
-        let focus = hairline(focus_color, focus_opacity, config.layout.focus_underline_thickness);
+        let focus = hairline(
+            focus_color,
+            focus_opacity,
+            config.layout.focus_underline_thickness,
+        );
 
         // Clicking a window focuses it (odin's Windowlist `onActivated`).
         mouse_area(edge_slot(position, content, focus, None))
@@ -67,11 +79,12 @@ pub fn view<'a>(
     )
 }
 
-/// A window's icon, resolved from its `app_id` via the installed `.desktop` entries and
-/// the icon theme (odin's `WindowIcon._resolveAppId`). `None` before the desktop-entry
-/// scan completes, or when nothing resolves (odin's generic fallback icon still applies
-/// inside `icon_for`, so this is only `None` on that final failure — kept as a graceful
-/// gap rather than a broken-image placeholder).
+/// A window's icon, resolved from its `app_id` via the installed `.desktop`
+/// entries and the icon theme (odin's `WindowIcon._resolveAppId`). `None`
+/// before the desktop-entry scan completes, or when nothing resolves (odin's
+/// generic fallback icon still applies inside `icon_for`, so this is only
+/// `None` on that final failure — kept as a graceful gap rather than a
+/// broken-image placeholder).
 fn window_icon<'a>(
     config: &Config,
     desktop_entries: Option<&DesktopEntries>,
@@ -79,16 +92,21 @@ fn window_icon<'a>(
 ) -> Option<Element<'a, Message>> {
     let path = desktop_entries?.icon_for(&w.app_id)?;
     let side = config.image_icon_size() as f32;
-    Some(image(image::Handle::from_path(path)).width(side).height(side).into())
+    Some(
+        image(image::Handle::from_path(path))
+            .width(side)
+            .height(side)
+            .into(),
+    )
 }
 
-/// A short label for a window: its title, else its app id.
+/// A window's label: its full title, else its app id. No truncation/ellipsis —
+/// odin renders the whole title (`WindowTitle`), so we do too; the slot sizes to
+/// the text.
 fn window_label(w: &niri::WinEntry) -> String {
-    let raw = if w.title.is_empty() { &w.app_id } else { &w.title };
-    let trimmed: String = raw.chars().take(24).collect();
-    if raw.chars().count() > 24 {
-        format!("{trimmed}…")
+    if w.title.is_empty() {
+        w.app_id.clone()
     } else {
-        trimmed
+        w.title.clone()
     }
 }

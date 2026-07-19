@@ -1,12 +1,14 @@
-//! odin's `WidgetGroup/Battery.qml`: a single-widget static group. Owns its own polled
-//! reading.
+//! odin's `WidgetGroup/Battery.qml`: a single-widget static group. Owns its own
+//! polled reading.
 
 use iced::Element;
 
-use crate::bar_program::Message;
-use crate::data_sources::sysfs_sensors::Battery;
-use crate::user_config::Config;
-use crate::visual_elements::{as_bar_widget, leaf};
+use crate::{
+    bar_program::Message,
+    data_sources::sysfs_sensors::Battery,
+    user_config::Config,
+    visual_elements::{as_bar_widget, leaf},
+};
 
 #[derive(Default)]
 pub struct BatteryGroup {

@@ -1,16 +1,20 @@
-//! odin's `System` group: cpu handle expands to temperature/memory/disk. The only
-//! expandable menu group today, so it owns its own open/hover state directly rather than
-//! going through a cross-group menu coordinator (odin's `MenuGroup`/`GroupMenuState`).
+//! odin's `System` group: cpu handle expands to temperature/memory/disk. The
+//! only expandable menu group today, so it owns its own open/hover state
+//! directly rather than going through a cross-group menu coordinator (odin's
+//! `MenuGroup`/`GroupMenuState`).
 
-use iced::widget::Row;
-use iced::{Alignment, Element};
+use iced::{Alignment, Element, widget::Row};
 
-use crate::bar_program::Message;
-use crate::data_sources::sysfs_sensors::{CpuUsage, Memory, Temperature};
-use crate::data_sources::disk::Disk;
-use crate::layer_surface::Position;
-use crate::user_config::Config;
-use crate::visual_elements::{as_bar_widget, edge_slot, hairline, leaf};
+use crate::{
+    bar_program::Message,
+    data_sources::{
+        disk::Disk,
+        sysfs_sensors::{CpuUsage, Memory, Temperature},
+    },
+    layer_surface::Position,
+    user_config::Config,
+    visual_elements::{as_bar_widget, edge_slot, hairline, leaf},
+};
 
 #[derive(Default)]
 pub struct SystemGroup {
@@ -53,19 +57,24 @@ impl SystemGroup {
         self.open = false;
     }
 
-    /// The handle, plus content when open, under a hairline that marks it expandable
-    /// (faint at rest, brighter on hover, solid when open). The whole group toggles on
-    /// click; hover drives the hairline. `None` if the handle (cpu) is unavailable.
+    /// The handle, plus content when open, under a hairline that marks it
+    /// expandable (faint at rest, brighter on hover, solid when open). The
+    /// whole group toggles on click; hover drives the hairline. `None` if
+    /// the handle (cpu) is unavailable.
     pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
         let handle = leaf(config, self.cpu.as_ref().map(as_bar_widget))?;
 
         let mut items = vec![handle];
         if self.open {
-            items.extend([
-                leaf(config, self.temperature.as_ref().map(as_bar_widget)),
-                leaf(config, self.memory.as_ref().map(as_bar_widget)),
-                leaf(config, self.disk.as_ref().map(as_bar_widget)),
-            ].into_iter().flatten());
+            items.extend(
+                [
+                    leaf(config, self.temperature.as_ref().map(as_bar_widget)),
+                    leaf(config, self.memory.as_ref().map(as_bar_widget)),
+                    leaf(config, self.disk.as_ref().map(as_bar_widget)),
+                ]
+                .into_iter()
+                .flatten(),
+            );
         }
         let inner = Row::with_children(items)
             .spacing(config.layout.horizontal_widget_spacing as f32)

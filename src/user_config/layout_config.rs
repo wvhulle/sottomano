@@ -16,10 +16,12 @@ pub struct Layout {
     pub blur: bool,
     pub shadow: bool,
     pub float_offset: f32,
-    /// Thickness of the thin state bars (menu-group affordance, pager focus/urgent).
+    /// Thickness of the thin state bars (menu-group affordance, pager
+    /// focus/urgent).
     pub focus_underline_thickness: f32,
-    /// Thickness of the per-window tick segments under each workspace label. Thinner than
-    /// the focus bar, so they read as secondary detail (odin's `windowSegmentThickness`).
+    /// Thickness of the per-window tick segments under each workspace label.
+    /// Thinner than the focus bar, so they read as secondary detail (odin's
+    /// `windowSegmentThickness`).
     pub window_segment_thickness: f32,
 }
 

@@ -1,11 +1,12 @@
 //! Disk usage on `/` (`disk.nu`), read in-process via `statvfs(2)`.
 //!
-//! odin's script shells out to `btrfs filesystem usage` for an allocation-aware view
-//! (data vs metadata block groups, unallocated space) on btrfs, falling back to `df`.
-//! That block-group detail is only reachable through the btrfs CLI or ioctls; the
-//! in-process `statvfs` port gives the filesystem-wide total/free/used that drives the
-//! gauge and the core tooltip. The btrfs allocation breakdown (Data/Metadata/Unallocated
-//! rows, allocation-pressure severity) is deferred to a future btrfs-ioctl pass.
+//! odin's script shells out to `btrfs filesystem usage` for an allocation-aware
+//! view (data vs metadata block groups, unallocated space) on btrfs, falling
+//! back to `df`. That block-group detail is only reachable through the btrfs
+//! CLI or ioctls; the in-process `statvfs` port gives the filesystem-wide
+//! total/free/used that drives the gauge and the core tooltip. The btrfs
+//! allocation breakdown (Data/Metadata/Unallocated rows, allocation-pressure
+//! severity) is deferred to a future btrfs-ioctl pass.
 
 use std::ffi::CStr;
 
@@ -76,7 +77,8 @@ impl Source for Disk {
 /// unprivileged users) matches what `df` reports as free.
 fn statvfs_root() -> Option<Disk> {
     let path = CStr::from_bytes_with_nul(b"/\0").ok()?;
-    // SAFETY: `stat` is zeroed then filled by `statvfs`; we read it only on success (0).
+    // SAFETY: `stat` is zeroed then filled by `statvfs`; we read it only on success
+    // (0).
     let mut stat = unsafe { std::mem::zeroed::<libc::statvfs>() };
     let rc = unsafe { libc::statvfs(path.as_ptr(), &mut stat) };
     if rc != 0 {

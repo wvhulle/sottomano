@@ -1,8 +1,7 @@
 //! Battery charge level + power-source state, ported from odin's `battery.nu`.
 
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
-
 use super::{first_power_supply, read_trimmed};
+use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
 
 /// Power-source charge state, from `/sys/class/power_supply/*/status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

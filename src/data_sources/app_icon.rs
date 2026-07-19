@@ -1,42 +1,46 @@
-//! App icon resolution, ported from odin's `WindowIcon._resolveAppId`: a window's
-//! `app_id` → an icon file on disk, via the same three-step fallback odin uses —
-//! 1. the matching `.desktop` entry's `Icon=` field, resolved through the icon theme;
-//! 2. theme-name lookups of the app_id itself (as-is, lowercased, last dotted segment —
-//!    `org.kde.dolphin` → `dolphin`);
+//! App icon resolution, ported from odin's `WindowIcon._resolveAppId`: a
+//! window's `app_id` → an icon file on disk, via the same three-step fallback
+//! odin uses —
+//! 1. the matching `.desktop` entry's `Icon=` field, resolved through the icon
+//!    theme;
+//! 2. theme-name lookups of the app_id itself (as-is, lowercased, last dotted
+//!    segment — `org.kde.dolphin` → `dolphin`);
 //! 3. a generic fallback icon, so something always renders.
 //!
-//! `freedesktop-desktop-entry` supplies the `.desktop` index; `freedesktop-icons` walks
-//! the on-disk icon theme (respecting the user's configured theme via `default_theme_gtk`).
+//! `freedesktop-desktop-entry` supplies the `.desktop` index;
+//! `freedesktop-icons` walks the on-disk icon theme (respecting the user's
+//! configured theme via `default_theme_gtk`).
 
-use std::sync::RwLock;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf, sync::RwLock};
 
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
 /// A snapshot of installed `.desktop` entries, read once at startup (odin's
-/// `DesktopEntries` singleton). Re-scanning per lookup would mean a directory walk on
-/// every window-list render; app installs changing mid-session is rare enough that a
-/// process-lifetime snapshot is the right tradeoff.
+/// `DesktopEntries` singleton). Re-scanning per lookup would mean a directory
+/// walk on every window-list render; app installs changing mid-session is rare
+/// enough that a process-lifetime snapshot is the right tradeoff.
 #[derive(Debug)]
 pub struct DesktopEntries {
     entries: Vec<DesktopEntry>,
     theme: Option<String>,
-    /// Memoised `app_id` → icon-path results. `icon_for` is called for every window on
-    /// every frame from `view()`, but resolution (a `.desktop` scan plus an on-disk
-    /// icon-theme walk via `freedesktop_icons`) costs ~10 ms per app — turning one
-    /// window-list render into ~130 ms and stalling the whole bar surface. The mapping
-    /// is stable for a given app_id, so we resolve once and reuse; `view()` then only
-    /// does a cheap map lookup, keeping it free of I/O (the iced rule). Interior
-    /// mutability because `view()` takes `&self`, and a `RwLock` (not `RefCell`) because
-    /// the bar state must be `Sync`; contention is nil (reads dominate, on one thread).
+    /// Memoised `app_id` → icon-path results. `icon_for` is called for every
+    /// window on every frame from `view()`, but resolution (a `.desktop`
+    /// scan plus an on-disk icon-theme walk via `freedesktop_icons`) costs
+    /// ~10 ms per app — turning one window-list render into ~130 ms and
+    /// stalling the whole bar surface. The mapping is stable for a given
+    /// app_id, so we resolve once and reuse; `view()` then only
+    /// does a cheap map lookup, keeping it free of I/O (the iced rule).
+    /// Interior mutability because `view()` takes `&self`, and a `RwLock`
+    /// (not `RefCell`) because the bar state must be `Sync`; contention is
+    /// nil (reads dominate, on one thread).
     icon_cache: RwLock<HashMap<String, Option<PathBuf>>>,
 }
 
 impl DesktopEntries {
-    /// An empty index — used only if the startup scan task itself panics, so the window
-    /// list still renders (icons just fall back to the generic executable icon).
+    /// An empty index — used only if the startup scan task itself panics, so
+    /// the window list still renders (icons just fall back to the generic
+    /// executable icon).
     pub fn empty() -> Self {
         Self {
             entries: Vec::new(),
@@ -57,8 +61,9 @@ impl DesktopEntries {
         }
     }
 
-    /// Resolve a window's `app_id` to an icon file (memoised — see `icon_cache`). Cheap
-    /// on the hot `view()` path; the expensive lookup happens once per app_id.
+    /// Resolve a window's `app_id` to an icon file (memoised — see
+    /// `icon_cache`). Cheap on the hot `view()` path; the expensive lookup
+    /// happens once per app_id.
     pub fn icon_for(&self, app_id: &str) -> Option<PathBuf> {
         if app_id.is_empty() {
             return None;
@@ -67,12 +72,15 @@ impl DesktopEntries {
             return cached.clone();
         }
         let resolved = self.resolve_icon(app_id);
-        self.icon_cache.write().unwrap().insert(app_id.to_string(), resolved.clone());
+        self.icon_cache
+            .write()
+            .unwrap()
+            .insert(app_id.to_string(), resolved.clone());
         resolved
     }
 
-    /// The actual fallback chain, odin's `WindowIcon._resolveAppId`. Called once per
-    /// app_id by `icon_for`, which memoises the result.
+    /// The actual fallback chain, odin's `WindowIcon._resolveAppId`. Called
+    /// once per app_id by `icon_for`, which memoises the result.
     fn resolve_icon(&self, app_id: &str) -> Option<PathBuf> {
         if let Some(entry) = self.find(app_id)
             && let Some(icon_name) = entry.icon()
@@ -83,7 +91,11 @@ impl DesktopEntries {
         // Theme-name variants of the app_id itself: as-is, lowercased, last dotted
         // segment lowercased (`org.kde.dolphin` → `dolphin`) — odin's exact tries list.
         let lower = app_id.to_lowercase();
-        let dotted_suffix = lower.rsplit('.').next().filter(|s| *s != lower).map(str::to_string);
+        let dotted_suffix = lower
+            .rsplit('.')
+            .next()
+            .filter(|s| *s != lower)
+            .map(str::to_string);
         [Some(app_id.to_string()), Some(lower), dotted_suffix]
             .into_iter()
             .flatten()
