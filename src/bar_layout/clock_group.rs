@@ -1,35 +1,44 @@
-//! The centered clock: a single-widget static group. Owns its own ticking text.
+use std::time::Duration;
 
-use chrono::Local;
-use iced::Element;
+use chrono::{DateTime, Local};
+use iced::{Element, Subscription, Task};
 
-use crate::{bar_program::Message, user_config::Config, visual_elements::bar_text};
+use crate::{bar_program::Message, user_config::Config, widgets::bar_text};
 
-/// A single-widget static group holding the centered clock text.
 pub struct ClockGroup {
     text: String,
 }
 
 impl Default for ClockGroup {
     fn default() -> Self {
-        Self { text: now_hm() }
+        Self {
+            text: format_hm(Local::now()),
+        }
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum ClockMessage {
+    Tick(DateTime<Local>),
+}
+
 impl ClockGroup {
-    /// Refresh the displayed text from the local-time clock.
-    pub fn tick(&mut self) {
-        self.text = now_hm();
+    pub fn update(&mut self, msg: ClockMessage) -> Task<Message> {
+        let ClockMessage::Tick(now) = msg;
+        self.text = format_hm(now);
+        Task::none()
     }
 
-    /// The clock as a centered text widget.
+    pub fn subscription() -> Subscription<Message> {
+        iced::time::every(Duration::from_secs(1))
+            .map(|_| Message::Clock(ClockMessage::Tick(Local::now())))
+    }
+
     pub fn view<'a>(&self, _config: &Config) -> Element<'a, Message> {
         bar_text(self.text.clone()).into()
     }
 }
 
-/// Local-time `HH:MM` in 24-hour form. Re-evaluated on every
-/// [`ClockGroup::tick`].
-fn now_hm() -> String {
-    Local::now().format("%H:%M").to_string()
+fn format_hm(now: DateTime<Local>) -> String {
+    now.format("%H:%M").to_string()
 }

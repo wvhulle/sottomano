@@ -13,6 +13,8 @@ pub struct Palette {
     #[serde(with = "css_color")]
     pub bar_background: DynamicColor,
     #[serde(with = "css_color")]
+    pub bar_foreground: DynamicColor,
+    #[serde(with = "css_color")]
     pub inactive: DynamicColor,
     #[serde(with = "css_color")]
     pub urgent: DynamicColor,
@@ -28,6 +30,7 @@ impl Default for Palette {
     fn default() -> Self {
         Self {
             bar_background: srgb("#504945b3"),
+            bar_foreground: srgb("#ffffff"),
             inactive: srgb("#bdae93"),
             urgent: srgb("#fb4934"),
             warning: srgb("#fabd2f"),
@@ -70,6 +73,10 @@ impl Palette {
 
     pub fn bar_background(&self) -> Color {
         Self::to_iced(self.bar_background)
+    }
+
+    pub fn bar_foreground(&self) -> Color {
+        Self::to_iced(self.bar_foreground)
     }
 
     pub fn inactive(&self) -> Color {

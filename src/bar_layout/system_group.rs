@@ -1,9 +1,9 @@
-//! odin's `System` group: cpu handle expands to temperature/memory/disk. The
-//! only expandable menu group today, so it owns its own open/hover state
-//! directly rather than going through a cross-group menu coordinator (odin's
-//! `MenuGroup`/`GroupMenuState`).
+//! Expandable system group: cpu handle expands to temperature/memory/disk.
 
-use iced::{Alignment, Element, Task, widget::Row};
+use iced::{
+    Alignment, Element, Task,
+    widget::{Row, mouse_area},
+};
 
 use crate::{
     bar_program::Message,
@@ -14,11 +14,9 @@ use crate::{
     },
     layer_surface::Position,
     user_config::Config,
-    visual_elements::{edge_slot, hairline, leaf},
+    widgets::{activity_line, pager_slot, source_reading},
 };
 
-/// The expandable cpu/temperature/memory/disk group, with its own hover/open
-/// state.
 #[derive(Default)]
 pub struct SystemGroup {
     cpu: Option<CpuUsage>,
@@ -29,7 +27,6 @@ pub struct SystemGroup {
     hovered: bool,
 }
 
-/// Messages handled by [`SystemGroup::update`].
 #[derive(Debug, Clone)]
 pub enum SystemMessage {
     LoadedCpu(Option<CpuUsage>),
@@ -42,7 +39,6 @@ pub enum SystemMessage {
 }
 
 impl SystemGroup {
-    /// Apply a [`SystemMessage`].
     pub fn update(&mut self, msg: SystemMessage) -> Task<Message> {
         match msg {
             SystemMessage::LoadedCpu(data) => self.cpu = data,
@@ -56,30 +52,26 @@ impl SystemGroup {
         Task::none()
     }
 
-    /// The handle, plus content when open, under a hairline that marks it
-    /// expandable (faint at rest, brighter on hover, solid when open). The
-    /// whole group toggles on click; hover drives the hairline. `None` if
-    /// the handle (cpu) is unavailable.
     pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
-        let handle = leaf(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget))?;
+        let handle = source_reading(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget))?;
 
         let mut items = vec![handle];
         if self.open {
             items.extend(
                 [
-                    leaf(
+                    source_reading(
                         config,
                         self.temperature.as_ref().map(|w| w as &dyn BarWidget),
                     ),
-                    leaf(config, self.memory.as_ref().map(|w| w as &dyn BarWidget)),
-                    leaf(config, self.disk.as_ref().map(|w| w as &dyn BarWidget)),
+                    source_reading(config, self.memory.as_ref().map(|w| w as &dyn BarWidget)),
+                    source_reading(config, self.disk.as_ref().map(|w| w as &dyn BarWidget)),
                 ]
                 .into_iter()
                 .flatten(),
             );
         }
         let inner = Row::with_children(items)
-            .spacing(config.layout.horizontal_widget_spacing as f32)
+            .spacing(config.layout.horizontal_widget_spacing)
             .align_y(Alignment::Center);
 
         let opacity = if self.open {
@@ -89,14 +81,14 @@ impl SystemGroup {
         } else {
             0.2
         };
-        let indicator = hairline(
+        let indicator = activity_line(
             config.palette.focus(),
             opacity,
             config.layout.focus_underline_thickness,
         );
 
         Some(
-            iced::widget::mouse_area(edge_slot(position, inner.into(), indicator, None))
+            mouse_area(pager_slot(position, inner.into(), indicator, None))
                 .on_press(Message::System(SystemMessage::Toggle))
                 .on_enter(Message::System(SystemMessage::Hover(true)))
                 .on_exit(Message::System(SystemMessage::Hover(false)))

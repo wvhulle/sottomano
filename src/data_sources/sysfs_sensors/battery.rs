@@ -1,4 +1,4 @@
-//! Battery charge level + power-source state, ported from odin's `battery.nu`.
+//! Battery charge level and power-source state.
 
 use super::{first_power_supply, read_trimmed};
 use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
@@ -34,13 +34,11 @@ impl ChargeStatus {
         }
     }
 
-    /// odin treats Full as "on AC / charged" — same logo as charging.
     fn charging(self) -> bool {
         matches!(self, Self::Charging | Self::Full)
     }
 }
 
-/// Battery charge level + power-source state (`battery.nu`).
 #[derive(Debug, Clone)]
 pub struct Battery {
     pub capacity: u8,
@@ -48,7 +46,6 @@ pub struct Battery {
 }
 
 impl BarWidget for Battery {
-    /// Two-state logo for the power source; the level is shown by the gauge.
     fn icon(&self) -> &'static str {
         if self.status.charging() {
             "plug-circle-bolt"
@@ -67,7 +64,7 @@ impl BarWidget for Battery {
 
     fn value(&self) -> Option<Value> {
         Some(Value::Gauge {
-            percent: self.capacity as i64,
+            percent: i64::from(self.capacity),
             unit: Unit::Percent,
         })
     }

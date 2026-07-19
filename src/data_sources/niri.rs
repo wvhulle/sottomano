@@ -1,14 +1,6 @@
 //! niri integration via the `niri-ipc` event stream.
-//!
-//! Replaces the ~380-line derivation machinery in Odin's
-//! `DataProvider/NiriService.qml`. Instead of mirroring two
-//! `QAbstractListModel`s and diffing a JSON signature to suppress churn,
-//! `niri-ipc` gives us `EventStreamState`: it delivers the full current state
-//! up-front, then deltas, and `EventStreamStatePart::apply` keeps it
-//! consistent. Per-output active workspace becomes a trivial filter over
-//! `state.workspaces.workspaces`.
 
-use std::thread;
+use std::{fmt, io::Error, thread};
 
 use niri_ipc::{
     Event, Request, Response,
@@ -17,27 +9,24 @@ use niri_ipc::{
 };
 use tokio::sync::mpsc;
 
-/// A failed `Request::Outputs` round-trip. Flattens niri's nested reply
-/// (`io::Result<Result<Response, _>>`) into one error type so the query reads
-/// as a straight `?` chain.
 #[derive(Debug)]
 pub enum OutputsError {
     /// Socket connect or transport failure.
-    Transport(std::io::Error),
+    Transport(Error),
     /// niri understood the request but refused it (its own error message).
     Rejected(String),
     /// niri answered, but not with the `Outputs` variant we asked for.
     Unexpected(Response),
 }
 
-impl From<std::io::Error> for OutputsError {
-    fn from(e: std::io::Error) -> Self {
+impl From<Error> for OutputsError {
+    fn from(e: Error) -> Self {
         Self::Transport(e)
     }
 }
 
-impl std::fmt::Display for OutputsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for OutputsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Transport(e) => write!(f, "outputs request transport failed: {e}"),
             Self::Rejected(m) => write!(f, "niri rejected outputs request: {m}"),
@@ -46,22 +35,6 @@ impl std::fmt::Display for OutputsError {
     }
 }
 
-/// One-shot query of the currently-enabled outputs, by niri name (e.g. `DP-1`).
-/// Phase 1 opens one bar per (output, position) at startup; this is the
-/// enumeration step (`niri msg outputs`). A one-time blocking request on its
-/// own socket — call it off the async executor (`spawn_blocking`).
-///
-/// Filters to outputs mapped to a logical output; a disabled/unmapped output
-/// has `logical == None` and gets no bar. Sorted for a stable surface-open
-/// order.
-///
-/// Hotplug is deliberately NOT handled here: layershellev only auto-creates
-/// surfaces on new displays in `StartMode::AllScreens`, and even then with an
-/// internal window id we never registered; in the named-output mode we use it
-/// silently swallows the new-display event. Output *removal* still arrives as
-/// an iced `window::close_events` close (see `app::subscription`). Adding a
-/// monitor therefore needs a re-enumeration trigger — left to a later,
-/// event-driven pass rather than a poll timer.
 pub fn list_outputs() -> Result<Vec<String>, OutputsError> {
     let mut socket = Socket::connect()?;
     let response = socket
@@ -89,8 +62,6 @@ pub struct WsPill {
     pub is_urgent: bool,
 }
 
-/// Workspaces on a given output, ordered by on-monitor index. This is the exact
-/// question `NiriService.activeWsId(output)` / the Workspaces widget answers.
 pub fn workspaces_for_output(state: &EventStreamState, output: &str) -> Vec<WsPill> {
     let mut pills: Vec<WsPill> = state
         .workspaces
@@ -109,17 +80,6 @@ pub fn workspaces_for_output(state: &EventStreamState, output: &str) -> Vec<WsPi
     pills
 }
 
-/// Spawn a dedicated OS thread that opens a second niri socket, requests the
-/// event stream, and forwards every `Event` over an mpsc channel. The niri
-/// stream read is *blocking* (`read_events` hands back a blocking `FnMut`), so
-/// it must not run on the async executor — this thread is the bridge. The
-/// returned receiver is consumed by the iced Subscription in `app.rs`.
-///
-/// On socket error (e.g. niri restart) the thread logs and exits; a full port
-/// would reconnect with backoff here.
-///
-/// Uses a tokio mpsc so the blocking thread can `blocking_send` while the async
-/// iced Subscription `recv().await`s — see `app::niri_subscription`.
 pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
     let (tx, rx) = mpsc::channel(256);
     thread::spawn(move || {
@@ -205,18 +165,18 @@ pub fn windows_on_workspace(state: &EventStreamState, workspace: u64) -> Vec<Win
 /// [`OutputsError`] for the read half.
 #[derive(Debug)]
 pub enum ActionError {
-    Transport(std::io::Error),
+    Transport(Error),
     Rejected(String),
 }
 
-impl From<std::io::Error> for ActionError {
-    fn from(e: std::io::Error) -> Self {
+impl From<Error> for ActionError {
+    fn from(e: Error) -> Self {
         Self::Transport(e)
     }
 }
 
-impl std::fmt::Display for ActionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ActionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Transport(e) => write!(f, "action transport failed: {e}"),
             Self::Rejected(m) => write!(f, "niri rejected action: {m}"),

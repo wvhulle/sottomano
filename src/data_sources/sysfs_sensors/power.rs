@@ -1,4 +1,4 @@
-//! Live system power draw, ported from odin's `power-consumption.nu`.
+//! Live system power draw in watts.
 
 use std::path::Path;
 
@@ -9,8 +9,6 @@ const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
 const POWER_GAUGE_MAX_W: f64 = 40.0;
 
-/// Live system power draw in watts (`power-consumption.nu`), from
-/// `BAT0/power_now`.
 #[derive(Debug, Clone)]
 pub struct PowerDraw {
     pub watts: f64,
@@ -38,7 +36,6 @@ impl BarWidget for PowerDraw {
     }
 
     fn value(&self) -> Option<Value> {
-        // Map 0..GAUGE_MAX watts onto 0..100.
         let pct = (self.watts / POWER_GAUGE_MAX_W * 100.0).clamp(0.0, 100.0);
         Some(Value::Gauge {
             percent: pct.round() as i64,
@@ -63,8 +60,7 @@ impl Source for PowerDraw {
         let dir = Path::new("/sys/class/power_supply/BAT0");
         let uw: f64 = read_trimmed(dir.join("power_now"))?.parse().ok()?;
         let status = read_trimmed(dir.join("status"))
-            .map(|s| ChargeStatus::parse(&s))
-            .unwrap_or(ChargeStatus::Unknown);
+            .map_or(ChargeStatus::Unknown, |s| ChargeStatus::parse(&s));
         Some(PowerDraw {
             watts: uw / 1_000_000.0,
             status,

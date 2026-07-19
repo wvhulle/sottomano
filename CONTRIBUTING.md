@@ -42,11 +42,23 @@ Kill a running instance with `pkill -f target/debug/odin-rs` (⚠ don't
 put that exact string in a larger shell command — pkill will match
 its own wrapper).
 
-## Design preferences
+## Comments
 
-- **Distrust always-on timers.** Prefer signal/event-driven updates
-  and infrequent polls. Surface visible failure over silent retry
-  loops.
+Keep comments to an absolute minimum. Well-named functions, types, and variables
+should make code self-documenting. Only add a comment when the *why* is non-obvious
+to future maintainers—typically explaining a subtle invariant, hidden constraint,
+or workaround for a specific bug.
+
+**Don't write comments that:**
+- Explain what code does (`// increment counter` on `count += 1`)
+- Reference other code, functions, fields, or modules
+- Discuss implementation status, phases, or future work
+- Mention issues, callers, or prior versions
+- Explain design tradeoffs without being load-bearing (belongs in commit message)
+
+**Avoid multi-line docstrings.** One short line max if necessary.
+
+
 - **`view()` must be cheap.** iced rebuilds the entire surface's
   widget tree synchronously on every update — no I/O, no filesystem,
   no heavy compute in `view()`. Resolve or memoise derived data in
