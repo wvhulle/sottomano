@@ -22,7 +22,7 @@ overhead, and wants to fix accumulated bugs during the rewrite.
 ## Verified stack (all version-aligned, on this machine)
 
 - `iced` 0.14, `iced_layershell` 0.19.1, `niri-ipc` 26.4.0 (matches niri 26.04).
-- Build/link deps come from `shell.nix` (wayland, libxkbcommon, libGL, vulkan-loader).
+- Build/link deps come from `flake.nix` (wayland, libxkbcommon, libGL, vulkan-loader).
 - Toolchain: cargo/rustc nightly, present in the dev shell.
 
 ## THE feedback loop — how to reliably *see* your change
@@ -35,11 +35,11 @@ do not trust "it compiles".**
 
 ```sh
 # 1. build
-nix-shell --run 'cargo build'
+nix develop -c cargo build
 
 # 2. run alongside the live odin bar (background; keeps rendering)
 WAYLAND_DISPLAY=wayland-1 XDG_RUNTIME_DIR=/run/user/1000 \
-  nix-shell --run './target/debug/odin-rs' &
+  nix develop -c ./target/debug/odin-rs &
 
 # 3. screenshot. grim uses LOGICAL coordinates. Get output geometry first:
 niri msg --json outputs        # DP-1 is currently 2258x1270 @ scale 1.7
@@ -52,7 +52,7 @@ magick top.png -resize 300% top-big.png
 Then look at `top-big.png`: odin-rs shows an orange `odin-rs ▸` marker so it's unmistakable.
 Compare its clock / battery / workspaces against odin's own bar in the same image.
 
-- **Headless data-layer check** (no display): `nix-shell --run './target/debug/odin-rs --smoke'`
+- **Headless data-layer check** (no display): `nix develop -c ./target/debug/odin-rs -- --smoke`
   runs the script + niri data paths and prints parsed output — use when you only changed a
   data source.
 - Kill a running instance with `pkill -f target/debug/odin-rs` (⚠ don't put that exact
@@ -268,13 +268,14 @@ for any residual runtime deps). Replace odin in the home-manager module once at 
   change, suspend/resume), so a resilient render loop *must* recover from them; this isn't a
   workaround, it's the mandatory handling that stock iced (`iced_winit`) already has and the
   `iced_layershell` daemon path was missing. The fix mirrors `iced_winit`: `Outdated` →
-  reconfigure the surface; `Lost` → recreate it — then re-request a redraw. Lives in a local
-  checkout at `../exwlshelleventloop` (`iced_layershell/src/multi_window.rs`, the
-  present-error match) and is wired in via `[patch.crates-io]` in `Cargo.toml`. **This should
-  be upstreamed** to `waycrate/exwlshelleventloop` (same bug as their unresolved #275/#360);
-  until then the `../exwlshelleventloop` checkout must exist for odin-rs to build. Because a
-  single layer surface never hit this, `daemon()`/multi-surface stays viable — no
-  one-surface-per-process rearchitecture needed.
+  reconfigure the surface; `Lost` → recreate it — then re-request a redraw. Lives in
+  `wvhulle/exwlshelleventloop` (`iced_layershell/src/multi_window.rs`, the
+  present-error match) and is wired in via a git dependency on the `master` branch
+  in `Cargo.toml`. **This should be upstreamed** to `waycrate/exwlshelleventloop`
+  (same bug as their unresolved #275/#360); until then the fix must live in
+  `wvhulle/exwlshelleventloop`'s `master`. Because a single layer surface never
+  hit this, `daemon()`/multi-surface stays viable — no one-surface-per-process
+  rearchitecture needed.
 
 ## Reference docs
 

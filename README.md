@@ -25,8 +25,8 @@ before committing to a full rewrite. See the full plan at
 Requires a running **niri** session for the GUI (layer surface + IPC socket).
 
 ```sh
-nix-shell --run 'cargo run'             # launch the bar
-nix-shell --run 'cargo run -- --smoke'  # headless: test the data layer, no display
+nix develop -c cargo run             # launch the bar
+nix develop -c cargo run -- --smoke  # headless: test the data layer, no display
 ```
 
 `--smoke` exercises `script.rs` (parses `battery.nu`) and `niri.rs` (prints the first
