@@ -9,7 +9,10 @@
 use iced::{
     Alignment, Border, Color, Element, Length,
     alignment::Vertical,
-    widget::{Column, Space, container, row, text, text::Shaping},
+    widget::{
+        Column, Space, Text, container, row, text,
+        text::{IntoFragment, Shaping},
+    },
 };
 use iced_font_awesome::fa_icon_solid;
 
@@ -17,8 +20,18 @@ use crate::{
     bar_program::Message,
     data_sources::{BarWidget, Level},
     layer_surface::Position,
-    user_config::Config,
+    user_config::{Config, font},
 };
+
+/// A text widget pre-styled with the bar's resolved font, size, and advanced
+/// shaping (needed for workspace names / window titles with special chars).
+/// Callers can still chain `.color(…)` etc. on the returned builder.
+pub fn bar_text<'a>(content: impl IntoFragment<'a>) -> Text<'a, iced::Theme, iced::Renderer> {
+    text(content)
+        .size(font::size())
+        .font(font::iced_font())
+        .shaping(Shaping::Advanced)
+}
 
 /// A pager/menu slot: `content` centred over the bar height, with an `inner`
 /// state bar (a hairline) pinned to the inner screen edge and an optional
@@ -70,26 +83,21 @@ pub fn edge_slot<'a>(
 pub fn leaf<'a>(config: &Config, widget: Option<&dyn BarWidget>) -> Option<Element<'a, Message>> {
     let widget = widget?;
     let color = level_color(config, widget.level());
-    let icon = fa_icon_solid(widget.icon()).color(color);
+    let icon = fa_icon_solid(widget.icon()).size(font::size()).color(color);
 
     match widget.value() {
         Some(value) => Some(
             row![icon, gauge(value.percent(), color)]
-                .spacing(config.layout.horizontal_widget_spacing as f32)
+                .spacing(f32::from(config.layout.horizontal_widget_spacing))
                 .align_y(Alignment::Center)
                 .into(),
         ),
         None => match widget.label() {
             Some(label) if !label.is_empty() => Some(
-                row![
-                    icon,
-                    text(label)
-                        .color(color)
-                        .shaping(Shaping::Advanced)
-                ]
-                .spacing(config.layout.horizontal_widget_spacing as f32)
-                .align_y(Alignment::Center)
-                .into(),
+                row![icon, bar_text(label).color(color)]
+                    .spacing(f32::from(config.layout.horizontal_widget_spacing))
+                    .align_y(Alignment::Center)
+                    .into(),
             ),
             _ => Some(icon.into()),
         },

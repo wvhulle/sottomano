@@ -3,8 +3,8 @@
 //! no owned fields.
 
 use iced::{
-    Alignment, Element, Font,
-    widget::{Row, image, mouse_area, text, text::Shaping},
+    Alignment, Element,
+    widget::{Row, image, mouse_area},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -12,8 +12,8 @@ use crate::{
     bar_program::Message,
     data_sources::{app_icon::DesktopEntries, niri},
     layer_surface::Position,
-    user_config::{IMAGE_ICON_SIZE, Config},
-    visual_elements::{edge_slot, hairline},
+    user_config::{Config, IMAGE_ICON_SIZE},
+    visual_elements::{bar_text, edge_slot, hairline},
 };
 
 /// The window list (odin's `Windowlist`): icon + title of the windows on the
@@ -39,12 +39,7 @@ pub fn view<'a>(
         if let Some(icon) = window_icon(config, desktop_entries, &w) {
             parts.push(icon);
         }
-        parts.push(
-            text(window_label(&w))
-                .font(Font::DEFAULT)
-                .shaping(Shaping::Advanced)
-                .into(),
-        );
+        parts.push(bar_text(window_label(&w)).into());
         let content: Element<'a, Message> = Row::with_children(parts)
             .spacing(config.layout.horizontal_widget_spacing as f32 * 0.6)
             .align_y(Alignment::Center)
@@ -98,8 +93,8 @@ fn window_icon<'a>(
 }
 
 /// A window's label: its full title, else its app id. No truncation/ellipsis —
-/// odin renders the whole title (`WindowTitle`), so we do too; the slot sizes to
-/// the text.
+/// odin renders the whole title (`WindowTitle`), so we do too; the slot sizes
+/// to the text.
 fn window_label(w: &niri::WinEntry) -> String {
     if w.title.is_empty() {
         w.app_id.clone()

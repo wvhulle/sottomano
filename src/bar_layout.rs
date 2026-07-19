@@ -28,9 +28,12 @@ pub mod workspaces_group;
 pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let start = Row::with_children(
-        [bar.battery_group.view(config), bar.system_group.view(config, position)]
-            .into_iter()
-            .flatten(),
+        [
+            bar.battery_group.view(config),
+            bar.system_group.view(config, position),
+        ]
+        .into_iter()
+        .flatten(),
     )
     .spacing(f32::from(config.layout.horizontal_widget_spacing))
     .align_y(Alignment::Center);
@@ -42,20 +45,11 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
 
 /// The bottom bar: the niri workspace pager (start-anchored), the window list
 /// (centered).
-pub fn bottom_row<'a>(
-    bar: &'a Bar,
-    output: &'a str,
-    position: Position,
-) -> Element<'a, Message> {
+pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<'a, Message> {
     let config = &bar.config;
-    let start = Row::with_children([workspaces_group::view(
-        &bar.niri,
-        output,
-        config,
-        position,
-    )])
-    .spacing(f32::from(config.layout.horizontal_group_spacing))
-    .align_y(Alignment::Center);
+    let start = Row::with_children([workspaces_group::view(&bar.niri, output, config, position)])
+        .spacing(f32::from(config.layout.horizontal_group_spacing))
+        .align_y(Alignment::Center);
     let center = Row::with_children(window_list_group::view(
         &bar.niri,
         output,
@@ -71,7 +65,11 @@ pub fn bottom_row<'a>(
 /// Compose the zone content into a strip: start-anchored group, fill, center
 /// group, fill — the iced stand-in for odin's per-zone edge anchors. No group
 /// is assigned to the end anchor yet.
-fn bar_row<'a>(start: Element<'a, Message>, center: Element<'a, Message>, config: &Config) -> Element<'a, Message> {
+fn bar_row<'a>(
+    start: Element<'a, Message>,
+    center: Element<'a, Message>,
+    config: &Config,
+) -> Element<'a, Message> {
     row![
         start,
         Space::new().width(Length::Fill),

@@ -3,8 +3,8 @@
 //! no owned fields.
 
 use iced::{
-    Alignment, Element, Font,
-    widget::{Row, mouse_area, row, text, text::Shaping},
+    Alignment, Element,
+    widget::{Row, mouse_area, row},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -13,7 +13,7 @@ use crate::{
     data_sources::niri,
     layer_surface::Position,
     user_config::Config,
-    visual_elements::{edge_slot, hairline},
+    visual_elements::{bar_text, edge_slot, hairline},
 };
 
 /// The workspace pager (odin's `Workspaces`): this output's workspaces in index
@@ -103,24 +103,13 @@ fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Message
         Some(name) if named && p.idx <= 10 => {
             // Smaller, dim, top-aligned index reads as a superscript before the name.
             row![
-                text(key)
-                    .font(Font::DEFAULT)
-                    .color(config.palette.dim())
-                    .shaping(Shaping::Advanced),
-                text(name.clone())
-                    .font(Font::DEFAULT)
-                    .shaping(Shaping::Advanced),
+                bar_text(key).color(config.palette.dim()),
+                bar_text(name.clone()),
             ]
             .align_y(Alignment::Start)
             .into()
         }
-        Some(name) if named => text(name.clone())
-            .font(Font::DEFAULT)
-            .shaping(Shaping::Advanced)
-            .into(),
-        _ => text(key)
-            .font(Font::DEFAULT)
-            .shaping(Shaping::Advanced)
-            .into(),
+        Some(name) if named => bar_text(name.clone()).into(),
+        _ => bar_text(key).into(),
     }
 }

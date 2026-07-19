@@ -137,16 +137,17 @@ impl Bar {
                 Task::none()
             }
             Message::Poll(kind) => match kind {
-                SourceKind::Battery => {
-                    poll::<sysfs_sensors::Battery>().map(|d| Message::Battery(BatteryMessage::Loaded(d)))
-                }
+                SourceKind::Battery => poll::<sysfs_sensors::Battery>()
+                    .map(|d| Message::Battery(BatteryMessage::Loaded(d))),
                 SourceKind::Cpu => poll::<sysfs_sensors::CpuUsage>()
                     .map(|d| Message::System(SystemMessage::LoadedCpu(d))),
                 SourceKind::Memory => poll::<sysfs_sensors::Memory>()
                     .map(|d| Message::System(SystemMessage::LoadedMemory(d))),
                 SourceKind::Temperature => poll::<sysfs_sensors::Temperature>()
                     .map(|d| Message::System(SystemMessage::LoadedTemperature(d))),
-                SourceKind::Disk => poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d))),
+                SourceKind::Disk => {
+                    poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d)))
+                }
             },
             Message::Battery(msg) => self.battery_group.update(msg),
             Message::System(msg) => self.system_group.update(msg),

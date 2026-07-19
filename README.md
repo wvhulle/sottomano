@@ -49,15 +49,37 @@ surface, useful when only a data source changed.
 
 ## Configuration
 
-The bar reads its config from `$XDG_CONFIG_HOME/odin/config.json` —
-shared with Odin for now. The dark/light symlink is followed, and
-defaults match Odin's gruvbox-dark palette. A standalone config file
-is on the roadmap (see `TODO.md`).
+The bar reads its config from `$XDG_CONFIG_HOME/odin.toml` — its own file,
+not shared with Odin. Missing keys keep the gruvbox-dark defaults. Colors
+are any CSS Color Level 4 string the `linebender/color` crate accepts
+(hex, `rgb()`, `hsl()`, named, `oklab()`, …).
 
-The font resolution follows Odin's `sans-serif`/`monospace` aliases
-through `fc-match` so text rendering matches Odin's rendering, given the
-same system fonts (IBM Plex Sans / Lilex Nerd Font Mono on this
-machine).
+```toml
+[palette]
+bar_background = "#504945b3"   # bar panel fill (alpha honored)
+inactive       = "#bdae93"     # non-focused window on an inactive workspace
+urgent         = "#fb4934"     # urgent state + critical severity
+warning        = "#fabd2f"     # warning severity
+focus          = "#8ec07c"     # focus indicator + focused window
+dim            = "#FFFFFF80"   # fixed dim foreground (superscript prefix)
+
+[layout]
+corner_radius = 8
+vertical_padding = 3
+horizontal_group_padding = 6
+horizontal_widget_spacing = 5
+horizontal_group_spacing = 9
+floating = true
+blur = true
+shadow = false
+float_offset = 0.0
+focus_underline_thickness = 3.4
+window_segment_thickness = 2.0
+```
+
+Text uses `iced::Font::DEFAULT` / `iced::Font::MONOSPACE` from the
+user's login-session font configuration — no font overrides in the
+odin-rs config.
 
 ## Limitations
 

@@ -9,15 +9,17 @@ use std::path::PathBuf;
 use iced::Color;
 use serde::Deserialize;
 
+pub mod font;
 pub mod layout;
 pub mod palette;
 
+pub use font::FontSpec;
 pub use layout::Layout;
 pub use palette::Palette;
 
 /// Icon box side — odin's `imageIconSize`. Kept as a constant since the icon
-/// size is a design knob, not tied to font size (which now follows iced's
-/// default).
+/// size is a design knob, not tied to font size (which now follows the
+/// fontconfig-derived default).
 pub const IMAGE_ICON_SIZE: u16 = 17;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -25,6 +27,7 @@ pub const IMAGE_ICON_SIZE: u16 = 17;
 pub struct Config {
     pub palette: Palette,
     pub layout: Layout,
+    pub font: FontSpec,
 }
 
 impl Config {
@@ -94,14 +97,17 @@ fn read(path: &std::path::Path) -> Result<Config, LoadError> {
 }
 
 /// Load the config, falling back to the gruvbox-dark defaults on any failure
-/// so the bar always has a usable theme.
+/// so the bar always has a usable theme. Also initialises the font statics
+/// from the user's `[font]` overrides + fontconfig before returning.
 pub fn load() -> Config {
     let path = config_path();
-    match read(&path) {
-        Ok(config) => config,
+    let config = match read(&path) {
+        Ok(c) => c,
         Err(e) => {
             eprintln!("config: {} {e}; using defaults", path.display());
             Config::default()
         }
-    }
+    };
+    font::init(config.font.name.as_deref(), config.font.size_px);
+    config
 }

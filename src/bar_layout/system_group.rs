@@ -67,7 +67,10 @@ impl SystemGroup {
         if self.open {
             items.extend(
                 [
-                    leaf(config, self.temperature.as_ref().map(|w| w as &dyn BarWidget)),
+                    leaf(
+                        config,
+                        self.temperature.as_ref().map(|w| w as &dyn BarWidget),
+                    ),
                     leaf(config, self.memory.as_ref().map(|w| w as &dyn BarWidget)),
                     leaf(config, self.disk.as_ref().map(|w| w as &dyn BarWidget)),
                 ]

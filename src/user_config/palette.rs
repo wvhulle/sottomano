@@ -5,8 +5,7 @@
 
 use color::{ColorSpaceTag, DynamicColor, Srgb, parse_color};
 use iced::Color;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::str::FromStr;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "snake_case")]
@@ -48,22 +47,24 @@ fn srgb(s: &str) -> DynamicColor {
 /// a struct, so this string adapter is needed for the TOML config to be just
 /// `key = "#rrggbb"`.
 mod css_color {
-    use super::{Color, Deserializer, DynamicColor, Serialize, Serializer};
     use std::str::FromStr;
+
+    use serde::{Deserialize, Deserializer, de::Error as _};
+
+    use super::DynamicColor;
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<DynamicColor, D::Error> {
         let s = String::deserialize(d)?;
-        DynamicColor::from_str(&s).map_err(serde::de::Error::custom)
-    }
-
-    pub fn serialize<S: Serializer>(c: &DynamicColor, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&c.to_string())
+        DynamicColor::from_str(&s).map_err(D::Error::custom)
     }
 }
 
 impl Palette {
     fn to_iced(c: DynamicColor) -> Color {
-        let [r, g, b, a] = c.convert(ColorSpaceTag::Srgb).to_alpha_color::<Srgb>().components;
+        let [r, g, b, a] = c
+            .convert(ColorSpaceTag::Srgb)
+            .to_alpha_color::<Srgb>()
+            .components;
         Color { r, g, b, a }
     }
 

@@ -9,7 +9,7 @@ pedantic = { priority = -1, level = "warn" }
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-color = { version = "0.3", features = ["serde"] }
+color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
 iced = { version = "0.14.0", features = ["tokio", "image"] }
@@ -21,6 +21,7 @@ iced_font_awesome = "0.4.2"
 iced_layershell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 libc = "0.2.176"
 niri-ipc = "26.4.0"
+rust-fontconfig = "4.4.6"
 serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",
@@ -28,4 +29,4 @@ tokio = { version = "1.53.0", features = [
   "time",
   "sync",
 ] }
-toml = "0.8"
+toml = "0.8.23"
