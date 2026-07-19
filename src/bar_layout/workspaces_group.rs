@@ -13,7 +13,7 @@ use crate::{
     data_sources::niri,
     layer_surface::Position,
     user_config::Config,
-    visual_elements::{edge_slot, font_family, hairline},
+    visual_elements::{edge_slot, hairline},
 };
 
 /// The workspace pager (odin's `Workspaces`): this output's workspaces in index
@@ -48,7 +48,7 @@ pub fn view<'a>(
             );
 
             // Outer-edge per-window tick segments for this workspace.
-            let ticks = window_ticks(config, niri, p.id, p.is_active);
+            let ticks = window_ticks(config, niri, p.id);
 
             mouse_area(edge_slot(position, label, focus, Some(ticks)))
                 .on_press(Message::FocusWorkspace(p.id))
@@ -63,13 +63,11 @@ pub fn view<'a>(
 /// odin's `WorkspaceWindowIndicators`: one thin tick per window on the
 /// workspace (capped so a busy workspace can't outgrow the label), equal widths
 /// across the slot. Colour per odin's `WindowSegment`: urgent → criticalTint,
-/// focused → powerTint, otherwise white if this is the active workspace, else
-/// dimmed white.
+/// focused → powerTint, otherwise dimmed white.
 fn window_ticks<'a>(
     config: &Config,
     niri: &EventStreamState,
     workspace: u64,
-    is_active_workspace: bool,
 ) -> Element<'a, Message> {
     let thickness = config.layout.window_segment_thickness;
     let segments = niri::windows_on_workspace(niri, workspace)
@@ -95,7 +93,7 @@ fn window_ticks<'a>(
 /// when unnamed.
 fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Message> {
     let size = config.font.size as f32;
-    let sans = font_family(&config.font.family);
+    let sans = config.font.sans;
     // Workspace 10 is bound to "0"; above 10 the number is useless as a hint.
     let key = if p.idx == 10 {
         "0".to_string()

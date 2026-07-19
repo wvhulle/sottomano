@@ -13,7 +13,7 @@ use crate::{
     data_sources::{app_icon::DesktopEntries, niri},
     layer_surface::Position,
     user_config::Config,
-    visual_elements::{edge_slot, font_family, hairline},
+    visual_elements::{edge_slot, hairline},
 };
 
 /// The window list (odin's `Windowlist`): icon + title of the windows on the
@@ -35,7 +35,6 @@ pub fn view<'a>(
         return None;
     }
     let size = config.font.size as f32;
-    let sans = font_family(&config.font.family);
     let entries = windows.into_iter().map(|w| {
         let mut parts: Vec<Element<'a, Message>> = Vec::new();
         if let Some(icon) = window_icon(config, desktop_entries, &w) {
@@ -44,7 +43,7 @@ pub fn view<'a>(
         parts.push(
             text(window_label(&w))
                 .size(size)
-                .font(sans)
+                .font(config.font.sans)
                 .shaping(Shaping::Advanced)
                 .into(),
         );

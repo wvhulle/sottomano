@@ -23,30 +23,30 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     bar_layout,
-    bar_layout::{battery_group::BatteryGroup, clock_group::ClockGroup, system_group::SystemGroup},
-    data_sources::{app_icon::DesktopEntries, disk, niri, sysfs_sensors},
+    bar_layout::{
+        battery_group::{BatteryGroup, BatteryMessage},
+        clock_group::ClockGroup,
+        system_group::{SystemGroup, SystemMessage},
+    },
+    data_sources::{app_icon::DesktopEntries, disk::Disk, niri, sysfs_sensors},
     layer_surface::{Position, Surface, layer_settings},
     message_subscriptions::{SourceKind, niri_action, poll},
     user_config::Config,
+    visual_elements::BAR_FOREGROUND,
 };
 
-/// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits
-/// over a (blurred/shadowed) backdrop rather than a `surface`-colored panel, so
-/// it wants a constant light foreground regardless of which palette is active.
-const BAR_TEXT: Color = Color::WHITE;
-
 pub struct Bar {
-    config: Config,
-    battery_group: BatteryGroup,
-    system_group: SystemGroup,
-    clock_group: ClockGroup,
-    niri: EventStreamState,
+    pub(crate) config: Config,
+    pub(crate) battery_group: BatteryGroup,
+    pub(crate) system_group: SystemGroup,
+    pub(crate) clock_group: ClockGroup,
+    pub(crate) niri: EventStreamState,
     /// Installed `.desktop` entries for window→icon resolution, scanned once at
     /// startup (odin's `DesktopEntries` singleton); `None` until that scan
     /// completes.
-    desktop_entries: Option<Arc<DesktopEntries>>,
+    pub(crate) desktop_entries: Option<Arc<DesktopEntries>>,
     /// Every live layer-shell surface, keyed by its iced `window::Id`.
-    surfaces: BTreeMap<Id, Surface>,
+    pub(crate) surfaces: BTreeMap<Id, Surface>,
 }
 
 /// `#[to_layer_message(multi)]` injects the multi-surface action variants
@@ -55,23 +55,22 @@ pub struct Bar {
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
-    OpenBars(Vec<String>), // enumerated output names → open surfaces
-    DesktopEntriesLoaded(Arc<DesktopEntries>), // .desktop scan finished
-    Tick,                  // 1 Hz clock
-    Poll(SourceKind),      // a source's timer fired
-    // Poll results — typed per source (trait objects can't satisfy Message: Clone).
-    BatteryLoaded(Option<sysfs_sensors::Battery>),
-    CpuLoaded(Option<sysfs_sensors::CpuUsage>),
-    MemoryLoaded(Option<sysfs_sensors::Memory>),
-    TemperatureLoaded(Option<sysfs_sensors::Temperature>),
-    DiskLoaded(Option<disk::Disk>),
-    ToggleMenu,            // click the System group's handle → open/close it
-    HoverMenu(bool),       // pointer entered/left the handle (hairline hover state)
-    CloseMenus,            // click bar background → collapse any open menu
-    FocusWindow(u64),      // click a window-list entry → focus that window
-    FocusWorkspace(u64),   // click a workspace pill → focus that workspace
-    Niri(niri_ipc::Event), // event-stream delta
-    WindowClosed(Id),      // surface gone (e.g. output unplugged)
+    OpenBars(Vec<String>),
+    DesktopEntriesLoaded(Arc<DesktopEntries>),
+    Tick,
+    Poll(SourceKind),
+    Battery(BatteryMessage),
+    System(SystemMessage),
+    /// Click the bar background → collapse any open menu.
+    CloseMenus,
+    /// Click a window-list entry → focus that window.
+    FocusWindow(u64),
+    /// Click a workspace pill → focus that workspace.
+    FocusWorkspace(u64),
+    /// Niri event-stream delta.
+    Niri(niri_ipc::Event),
+    /// Surface gone (e.g. output unplugged).
+    WindowClosed(Id),
 }
 
 impl Bar {
@@ -138,46 +137,20 @@ impl Bar {
                 Task::none()
             }
             Message::Poll(kind) => match kind {
-                SourceKind::Battery => poll::<sysfs_sensors::Battery>().map(Message::BatteryLoaded),
-                SourceKind::Cpu => poll::<sysfs_sensors::CpuUsage>().map(Message::CpuLoaded),
-                SourceKind::Memory => poll::<sysfs_sensors::Memory>().map(Message::MemoryLoaded),
-                SourceKind::Temperature => {
-                    poll::<sysfs_sensors::Temperature>().map(Message::TemperatureLoaded)
+                SourceKind::Battery => {
+                    poll::<sysfs_sensors::Battery>().map(|d| Message::Battery(BatteryMessage::Loaded(d)))
                 }
-                SourceKind::Disk => poll::<disk::Disk>().map(Message::DiskLoaded),
+                SourceKind::Cpu => poll::<sysfs_sensors::CpuUsage>()
+                    .map(|d| Message::System(SystemMessage::LoadedCpu(d))),
+                SourceKind::Memory => poll::<sysfs_sensors::Memory>()
+                    .map(|d| Message::System(SystemMessage::LoadedMemory(d))),
+                SourceKind::Temperature => poll::<sysfs_sensors::Temperature>()
+                    .map(|d| Message::System(SystemMessage::LoadedTemperature(d))),
+                SourceKind::Disk => poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d))),
             },
-            Message::BatteryLoaded(data) => {
-                self.battery_group.set(data);
-                Task::none()
-            }
-            Message::CpuLoaded(data) => {
-                self.system_group.set_cpu(data);
-                Task::none()
-            }
-            Message::MemoryLoaded(data) => {
-                self.system_group.set_memory(data);
-                Task::none()
-            }
-            Message::TemperatureLoaded(data) => {
-                self.system_group.set_temperature(data);
-                Task::none()
-            }
-            Message::DiskLoaded(data) => {
-                self.system_group.set_disk(data);
-                Task::none()
-            }
-            Message::ToggleMenu => {
-                self.system_group.toggle();
-                Task::none()
-            }
-            Message::HoverMenu(hovered) => {
-                self.system_group.hover(hovered);
-                Task::none()
-            }
-            Message::CloseMenus => {
-                self.system_group.close();
-                Task::none()
-            }
+            Message::Battery(msg) => self.battery_group.update(msg),
+            Message::System(msg) => self.system_group.update(msg),
+            Message::CloseMenus => self.system_group.update(SystemMessage::Close),
             Message::FocusWindow(window) => niri_action(move || niri::focus_window(window)),
             Message::FocusWorkspace(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
@@ -200,6 +173,7 @@ impl Bar {
     /// `view(id)` that follows the compositor's configure already knows
     /// what to draw.
     fn open_bars(&mut self, outputs: Vec<String>) -> Task<Message> {
+        let height = self.config.bar_outer_height();
         let opens: Vec<Task<Message>> = outputs
             .iter()
             .flat_map(|output| {
@@ -209,7 +183,7 @@ impl Bar {
             })
             .map(|(output, position)| {
                 let id = Id::unique();
-                let settings = layer_settings(&output, position, self.config.bar_outer_height());
+                let settings = layer_settings(&output, position, height);
                 self.surfaces.insert(id, Surface { output, position });
                 Task::done(Message::NewLayerShell { settings, id })
             })
@@ -224,20 +198,8 @@ impl Bar {
             return container(text("")).into();
         };
         let content = match surface.position {
-            Position::Top => bar_layout::top_row(
-                &self.battery_group,
-                &self.system_group,
-                &self.clock_group,
-                &self.config,
-                surface.position,
-            ),
-            Position::Bottom => bar_layout::bottom_row(
-                &self.niri,
-                &surface.output,
-                self.desktop_entries.as_deref(),
-                &self.config,
-                surface.position,
-            ),
+            Position::Top => bar_layout::top_row(self, surface.position),
+            Position::Bottom => bar_layout::bottom_row(self, &surface.output, surface.position),
         };
 
         // Click-anywhere-empty collapses any open menu (odin's dismiss MouseArea). It
@@ -264,7 +226,7 @@ impl Bar {
                     radius: self.config.chrome_radius().into(),
                     ..Default::default()
                 },
-                text_color: Some(BAR_TEXT),
+                text_color: Some(BAR_FOREGROUND),
                 ..Default::default()
             })
             .into()
@@ -276,7 +238,7 @@ impl Bar {
             // is painted by the view's container so `bgOpacity 0` yields a genuinely
             // transparent bar, like odin. Requires the compositor to composite alpha.
             background_color: Color::TRANSPARENT,
-            text_color: BAR_TEXT,
+            text_color: BAR_FOREGROUND,
         }
     }
 }

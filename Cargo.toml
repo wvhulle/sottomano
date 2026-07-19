@@ -8,6 +8,7 @@ absolute_paths = "warn"
 pedantic = { priority = -1, level = "warn" }
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
 iced = { version = "0.14.0", features = ["tokio", "image"] }

@@ -7,7 +7,7 @@
 //! `Position`) rather than a shared render context.
 
 use iced::{
-    Alignment, Border, Color, Element, Font, Length,
+    Alignment, Border, Color, Element, Length,
     alignment::Vertical,
     widget::{container, row, stack, text, text::Shaping},
 };
@@ -19,12 +19,6 @@ use crate::{
     layer_surface::Position,
     user_config::Config,
 };
-
-/// Coerce a concrete source reference to `&dyn BarWidget` for uniform
-/// rendering.
-pub fn as_bar_widget<W: BarWidget>(w: &W) -> &dyn BarWidget {
-    w
-}
 
 /// A pager/menu slot: `content` centred over the bar height, with an `inner`
 /// state bar (a hairline) pinned to the inner screen edge and an optional
@@ -155,27 +149,17 @@ pub fn hairline<'a>(color: Color, opacity: f32, thickness: f32) -> Element<'a, M
         .into()
 }
 
-/// Map an odin font-family string to an iced `Font`. odin's
-/// `sans-serif`/`monospace` are fontconfig generic aliases; Qt resolves them to
-/// concrete system fonts (here IBM Plex Sans / Lilex Nerd Font Mono) and
-/// renders those. iced loads system fonts too, so we resolve the aliases to the
-/// same concrete families to match odin's rendering rather than falling back to
-/// iced's built-in Fira Sans. TODO: resolve the alias via fontconfig at startup
-/// instead of hardcoding the current machine's default.
-pub fn font_family(family: &str) -> Font {
-    match family {
-        "sans-serif" | "" => Font::with_name("IBM Plex Sans"),
-        "monospace" => Font::with_name("Lilex Nerd Font Mono"),
-        name => Font::with_name(Box::leak(name.to_string().into_boxed_str())),
-    }
-}
+/// Bar foreground: fixed white, mirroring odin's `Config.barText`. The bar sits
+/// over a (blurred/shadowed) backdrop rather than a `surface`-colored panel, so
+/// it wants a constant light foreground regardless of which palette is active.
+pub(crate) const BAR_FOREGROUND: Color = Color::WHITE;
 
 /// Severity → foreground, mirroring odin's per-level tints: ok stays the white
 /// bar foreground; warning/critical take the palette's brightness/critical
 /// tints.
 pub fn level_color(config: &Config, level: Level) -> Color {
     match level {
-        Level::Ok => Color::WHITE,
+        Level::Ok => BAR_FOREGROUND,
         Level::Warning => config.palette.brightness_tint.0,
         Level::Critical => config.palette.critical_tint.0,
     }

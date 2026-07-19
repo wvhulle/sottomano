@@ -1,45 +1,44 @@
 //! The centered clock: a single-widget static group. Owns its own ticking text.
 
+use chrono::Local;
 use iced::{
     Element,
     widget::{text, text::Shaping},
 };
 
-use crate::{bar_program::Message, user_config::Config, visual_elements::font_family};
+use crate::{bar_program::Message, user_config::Config};
 
+/// A single-widget static group holding the centered clock text.
 pub struct ClockGroup {
     text: String,
 }
 
 impl Default for ClockGroup {
     fn default() -> Self {
-        Self { text: now_hm() }
+        Self {
+            text: now_hm(),
+        }
     }
 }
 
 impl ClockGroup {
+    /// Refresh the displayed text from the local-time clock.
     pub fn tick(&mut self) {
         self.text = now_hm();
     }
 
+    /// The clock as a centered text widget.
     pub fn view<'a>(&self, config: &Config) -> Element<'a, Message> {
         let size = config.font.size as f32;
         text(self.text.clone())
             .size(size)
-            .font(font_family(&config.font.family))
+            .font(config.font.sans)
             .shaping(Shaping::Advanced)
             .into()
     }
 }
 
+/// Local-time `HH:MM` in 24-hour form. Re-evaluated on every [`ClockGroup::tick`].
 fn now_hm() -> String {
-    // Minimal, dependency-free HH:MM from the system clock (UTC). A real bar would
-    // use chrono with the local timezone; the spike only needs a ticking value.
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let h = (secs / 3600) % 24;
-    let m = (secs / 60) % 60;
-    format!("{h:02}:{m:02}")
+    Local::now().format("%H:%M").to_string()
 }

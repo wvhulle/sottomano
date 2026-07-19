@@ -15,14 +15,33 @@ pub mod font_config;
 pub mod layout_config;
 
 pub use color_palette::Palette;
-pub use font_config::Font;
+pub use font_config::FontConfig;
 pub use layout_config::Layout;
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
+struct Raw {
+    pub palette: Palette,
+    pub font: font_config::Spec,
+    pub layout: Layout,
+}
+
+impl Raw {
+    fn resolve(self) -> Config {
+        Config {
+            palette: self.palette,
+            font: self.font.resolve(),
+            layout: self.layout,
+        }
+    }
+}
+
+/// The runtime config: every string-typed font alias has been resolved into a
+/// concrete [`iced::Font`] by [`font_config::Spec::resolve`].
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     pub palette: Palette,
-    pub font: Font,
+    pub font: FontConfig,
     pub layout: Layout,
 }
 
@@ -97,8 +116,8 @@ fn config_path() -> PathBuf {
 
 fn read(path: &std::path::Path) -> Result<Config, LoadError> {
     let text = std::fs::read_to_string(path)?;
-    let config = serde_json::from_str(&text)?;
-    Ok(config)
+    let config: Raw = serde_json::from_str(&text)?;
+    Ok(config.resolve())
 }
 
 /// Load odin's config, falling back to the gruvbox-dark defaults on any failure
