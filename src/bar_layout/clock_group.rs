@@ -1,10 +1,7 @@
 //! The centered clock: a single-widget static group. Owns its own ticking text.
 
 use chrono::Local;
-use iced::{
-    Element,
-    widget::{text, text::Shaping},
-};
+use iced::{Element, Font, widget::{text, text::Shaping}};
 
 use crate::{bar_program::Message, user_config::Config};
 
@@ -28,11 +25,9 @@ impl ClockGroup {
     }
 
     /// The clock as a centered text widget.
-    pub fn view<'a>(&self, config: &Config) -> Element<'a, Message> {
-        let size = config.font.size as f32;
+    pub fn view<'a>(&self, _config: &Config) -> Element<'a, Message> {
         text(self.text.clone())
-            .size(size)
-            .font(config.font.sans)
+            .font(Font::DEFAULT)
             .shaping(Shaping::Advanced)
             .into()
     }

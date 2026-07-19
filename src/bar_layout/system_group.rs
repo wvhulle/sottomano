@@ -87,7 +87,7 @@ impl SystemGroup {
             0.2
         };
         let indicator = hairline(
-            config.palette.power_tint.0,
+            config.palette.focus(),
             opacity,
             config.layout.focus_underline_thickness,
         );

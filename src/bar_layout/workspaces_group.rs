@@ -3,7 +3,7 @@
 //! no owned fields.
 
 use iced::{
-    Alignment, Color, Element,
+    Alignment, Element, Font,
     widget::{Row, mouse_area, row, text, text::Shaping},
 };
 use niri_ipc::state::EventStreamState;
@@ -18,10 +18,10 @@ use crate::{
 
 /// The workspace pager (odin's `Workspaces`): this output's workspaces in index
 /// order, as clickable slots. Focus/urgency show as a hairline along the
-/// *inner* edge of each slot (powerTint / criticalTint, hidden otherwise), and
-/// the windows on each workspace show as a row of thin tick segments along the
-/// *outer* edge — never as label tinting, so labels stay neutral, matching
-/// odin. Clicking a workspace focuses it.
+/// *inner* edge of each slot (`focus` / `urgent`, hidden otherwise), and the
+/// windows on each workspace show as a row of thin tick segments along the
+/// *outer* edge — never as label tinting, so labels stay neutral. Clicking a
+/// workspace focuses it.
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
@@ -35,11 +35,11 @@ pub fn view<'a>(
 
             // Inner-edge focus/urgent hairline — always present, opacity conveys state.
             let (focus_color, focus_opacity) = if p.is_urgent {
-                (config.palette.critical_tint.0, 1.0)
+                (config.palette.urgent(), 1.0)
             } else if p.is_active {
-                (config.palette.power_tint.0, 1.0)
+                (config.palette.focus(), 1.0)
             } else {
-                (config.palette.power_tint.0, 0.0)
+                (config.palette.focus(), 0.0)
             };
             let focus = hairline(
                 focus_color,
@@ -61,9 +61,10 @@ pub fn view<'a>(
 }
 
 /// odin's `WorkspaceWindowIndicators`: one thin tick per window on the
-/// workspace (capped so a busy workspace can't outgrow the label), equal widths
-/// across the slot. Colour per odin's `WindowSegment`: urgent → criticalTint,
-/// focused → powerTint, otherwise dimmed white.
+/// workspace, equal widths across the slot. Colour: urgent → `urgent`,
+/// focused → `focus`, otherwise `inactive`. The active/inactive workspace
+/// distinction for non-focused ticks is dropped — the focus hairline on the
+/// slot itself carries that state.
 fn window_ticks<'a>(
     config: &Config,
     niri: &EventStreamState,
@@ -72,16 +73,14 @@ fn window_ticks<'a>(
     let thickness = config.layout.window_segment_thickness;
     let segments = niri::windows_on_workspace(niri, workspace)
         .into_iter()
-        .take(8)
         .map(move |w| {
             let color = if w.is_urgent {
-                config.palette.critical_tint.0
+                config.palette.urgent()
             } else if w.is_focused {
-                config.palette.power_tint.0
+                config.palette.focus()
             } else {
-                config.palette.muted.0
+                config.palette.inactive()
             };
-            // Each tick fills its equal share of the segment row (Fill width).
             hairline(color, 1.0, thickness)
         });
     Row::with_children(segments).spacing(1.0).into()
@@ -92,8 +91,6 @@ fn window_ticks<'a>(
 /// index prefix before its name; otherwise just the name, or the bare index
 /// when unnamed.
 fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Message> {
-    let size = config.font.size as f32;
-    let sans = config.font.sans;
     // Workspace 10 is bound to "0"; above 10 the number is useless as a hint.
     let key = if p.idx == 10 {
         "0".to_string()
@@ -104,33 +101,25 @@ fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Message
 
     match &p.name {
         Some(name) if named && p.idx <= 10 => {
-            // Smaller, dimmed, top-aligned index reads as a superscript before the name.
-            let dim = Color {
-                a: 0.5,
-                ..Color::WHITE
-            };
+            // Smaller, dim, top-aligned index reads as a superscript before the name.
             row![
                 text(key)
-                    .size(size * 0.7)
-                    .font(sans)
-                    .color(dim)
+                    .font(Font::DEFAULT)
+                    .color(config.palette.dim())
                     .shaping(Shaping::Advanced),
                 text(name.clone())
-                    .size(size)
-                    .font(sans)
+                    .font(Font::DEFAULT)
                     .shaping(Shaping::Advanced),
             ]
             .align_y(Alignment::Start)
             .into()
         }
         Some(name) if named => text(name.clone())
-            .size(size)
-            .font(sans)
+            .font(Font::DEFAULT)
             .shaping(Shaping::Advanced)
             .into(),
         _ => text(key)
-            .size(size)
-            .font(sans)
+            .font(Font::DEFAULT)
             .shaping(Shaping::Advanced)
             .into(),
     }

@@ -1,12 +1,11 @@
-//! The `layout` config group (matches odin's `LayoutConfig.qml`).
+//! The `layout` config group.
 
 use serde::Deserialize;
 
 /// Only the chrome-relevant knobs so far.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default)]
 pub struct Layout {
-    pub bg_opacity: f32,
     pub corner_radius: u16,
     pub vertical_padding: u16,
     pub horizontal_group_padding: u16,
@@ -28,7 +27,6 @@ pub struct Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
-            bg_opacity: 0.70,
             corner_radius: 8,
             vertical_padding: 3,
             horizontal_group_padding: 6,

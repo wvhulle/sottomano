@@ -9,7 +9,7 @@
 use iced::{
     Alignment, Border, Color, Element, Length,
     alignment::Vertical,
-    widget::{container, row, stack, text, text::Shaping},
+    widget::{Column, Space, container, row, text, text::Shaping},
 };
 use iced_font_awesome::fa_icon_solid;
 
@@ -69,13 +69,12 @@ pub fn edge_slot<'a>(
 /// is unavailable.
 pub fn leaf<'a>(config: &Config, widget: Option<&dyn BarWidget>) -> Option<Element<'a, Message>> {
     let widget = widget?;
-    let size = config.font.size as f32;
     let color = level_color(config, widget.level());
-    let icon = fa_icon_solid(widget.icon()).size(size).color(color);
+    let icon = fa_icon_solid(widget.icon()).color(color);
 
     match widget.value() {
         Some(value) => Some(
-            row![icon, gauge(value.percent(), color, size)]
+            row![icon, gauge(value.percent(), color)]
                 .spacing(config.layout.horizontal_widget_spacing as f32)
                 .align_y(Alignment::Center)
                 .into(),
@@ -85,7 +84,6 @@ pub fn leaf<'a>(config: &Config, widget: Option<&dyn BarWidget>) -> Option<Eleme
                 row![
                     icon,
                     text(label)
-                        .size(size)
                         .color(color)
                         .shaping(Shaping::Advanced)
                 ]
@@ -100,30 +98,32 @@ pub fn leaf<'a>(config: &Config, widget: Option<&dyn BarWidget>) -> Option<Eleme
 
 /// odin's `PercentGauge`: a thin vertical fill bar for a 0..100 value. A faint
 /// full-height track keeps the frame visible; a solid bar fills from the bottom
-/// in proportion.
-pub fn gauge<'a>(percent: i64, color: Color, font_size: f32) -> Element<'a, Message> {
+/// in proportion. Stretches with `Length::Fill` to match the parent height
+/// (typically the icon's row), no hardcoded gauge height.
+pub fn gauge<'a>(percent: i64, color: Color) -> Element<'a, Message> {
     let frac = (percent as f32 / 100.0).clamp(0.0, 1.0);
-    let fill_height = (font_size * frac).max(1.0);
-    let bar = |height: f32, alpha: f32| {
-        container(iced::widget::Space::new())
+    let total: u16 = 1000;
+    let fill_portions: u16 = (frac * total as f32).round() as u16;
+    let track_portions: u16 = total - fill_portions;
+
+    let bar = |portions: u16, alpha: f32| {
+        container(Space::new())
             .width(3.0)
-            .height(height)
+            .height(Length::FillPortion(portions))
             .style(move |_| container::Style {
                 background: Some(Color { a: alpha, ..color }.into()),
                 border: Border::default().rounded(1.0),
                 ..Default::default()
             })
     };
-    // Fill sits at the bottom of the track's band; the outer box adds odin's +3
-    // padding.
-    let track = bar(font_size, 0.27);
-    let fill = container(bar(fill_height, 1.0))
-        .height(font_size)
-        .align_y(Vertical::Bottom);
-    container(stack![track, fill])
-        .height(font_size + 3.0)
-        .align_y(Vertical::Center)
-        .into()
+
+    Column::with_children([
+        bar(track_portions, 0.27).into(),
+        bar(fill_portions, 1.0).into(),
+    ])
+    .width(3.0)
+    .height(Length::Fill)
+    .into()
 }
 
 /// odin's `Hairline`: a thin rounded bar, the shared state-indicator primitive
@@ -155,12 +155,11 @@ pub fn hairline<'a>(color: Color, opacity: f32, thickness: f32) -> Element<'a, M
 pub(crate) const BAR_FOREGROUND: Color = Color::WHITE;
 
 /// Severity → foreground, mirroring odin's per-level tints: ok stays the white
-/// bar foreground; warning/critical take the palette's brightness/critical
-/// tints.
+/// bar foreground; warning/critical take the palette's warning/urgent tints.
 pub fn level_color(config: &Config, level: Level) -> Color {
     match level {
         Level::Ok => BAR_FOREGROUND,
-        Level::Warning => config.palette.brightness_tint.0,
-        Level::Critical => config.palette.critical_tint.0,
+        Level::Warning => config.palette.warning(),
+        Level::Critical => config.palette.urgent(),
     }
 }

@@ -3,7 +3,7 @@
 //! no owned fields.
 
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Font,
     widget::{Row, image, mouse_area, text, text::Shaping},
 };
 use niri_ipc::state::EventStreamState;
@@ -12,7 +12,7 @@ use crate::{
     bar_program::Message,
     data_sources::{app_icon::DesktopEntries, niri},
     layer_surface::Position,
-    user_config::Config,
+    user_config::{IMAGE_ICON_SIZE, Config},
     visual_elements::{edge_slot, hairline},
 };
 
@@ -34,7 +34,6 @@ pub fn view<'a>(
     if windows.is_empty() {
         return None;
     }
-    let size = config.font.size as f32;
     let entries = windows.into_iter().map(|w| {
         let mut parts: Vec<Element<'a, Message>> = Vec::new();
         if let Some(icon) = window_icon(config, desktop_entries, &w) {
@@ -42,8 +41,7 @@ pub fn view<'a>(
         }
         parts.push(
             text(window_label(&w))
-                .size(size)
-                .font(config.font.sans)
+                .font(Font::DEFAULT)
                 .shaping(Shaping::Advanced)
                 .into(),
         );
@@ -53,11 +51,11 @@ pub fn view<'a>(
             .into();
 
         let (focus_color, focus_opacity) = if w.is_urgent {
-            (config.palette.critical_tint.0, 1.0)
+            (config.palette.urgent(), 1.0)
         } else if w.is_focused {
-            (config.palette.power_tint.0, 1.0)
+            (config.palette.focus(), 1.0)
         } else {
-            (config.palette.power_tint.0, 0.0)
+            (config.palette.focus(), 0.0)
         };
         let focus = hairline(
             focus_color,
@@ -85,12 +83,12 @@ pub fn view<'a>(
 /// `None` on that final failure — kept as a graceful gap rather than a
 /// broken-image placeholder).
 fn window_icon<'a>(
-    config: &Config,
+    _config: &Config,
     desktop_entries: Option<&DesktopEntries>,
     w: &niri::WinEntry,
 ) -> Option<Element<'a, Message>> {
     let path = desktop_entries?.icon_for(&w.app_id)?;
-    let side = config.image_icon_size() as f32;
+    let side = IMAGE_ICON_SIZE as f32;
     Some(
         image(image::Handle::from_path(path))
             .width(side)

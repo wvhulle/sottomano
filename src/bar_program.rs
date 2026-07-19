@@ -212,10 +212,10 @@ impl Bar {
         )
         .on_press(Message::CloseMenus);
 
-        // The bar chrome: `surface` at `bgOpacity`, rounded only when floating —
-        // exactly odin's `BarChrome`. The surface itself is fully transparent
-        // (see `style`), so at `bgOpacity 0` this paints nothing and any
-        // backdrop shows through.
+        // The bar chrome: `bar_background` from the config (alpha honored from
+        // the CSS string), rounded only when floating. The surface itself is
+        // fully transparent (see `style`), so a fully transparent chrome
+        // paints nothing and any backdrop shows through.
         container(stack![dismiss, content])
             .width(Length::Fill)
             .height(Length::Fill)
@@ -234,9 +234,10 @@ impl Bar {
 
     pub fn style(&self, _theme: &iced::Theme) -> iced::theme::Style {
         iced::theme::Style {
-            // Fully transparent layer surface — the chrome fill (surface at bgOpacity)
-            // is painted by the view's container so `bgOpacity 0` yields a genuinely
-            // transparent bar, like odin. Requires the compositor to composite alpha.
+            // Fully transparent layer surface — the chrome fill (`bar_background`
+            // from the config) is painted by the view's container so a fully
+            // transparent chrome yields a genuinely transparent bar, like odin.
+            // Requires the compositor to composite alpha.
             background_color: Color::TRANSPARENT,
             text_color: BAR_FOREGROUND,
         }
