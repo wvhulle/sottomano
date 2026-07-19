@@ -8,6 +8,8 @@
 //! `freedesktop-desktop-entry` supplies the `.desktop` index; `freedesktop-icons` walks
 //! the on-disk icon theme (respecting the user's configured theme via `default_theme_gtk`).
 
+use std::sync::RwLock;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
@@ -21,6 +23,15 @@ use freedesktop_icons::lookup;
 pub struct DesktopEntries {
     entries: Vec<DesktopEntry>,
     theme: Option<String>,
+    /// Memoised `app_id` → icon-path results. `icon_for` is called for every window on
+    /// every frame from `view()`, but resolution (a `.desktop` scan plus an on-disk
+    /// icon-theme walk via `freedesktop_icons`) costs ~10 ms per app — turning one
+    /// window-list render into ~130 ms and stalling the whole bar surface. The mapping
+    /// is stable for a given app_id, so we resolve once and reuse; `view()` then only
+    /// does a cheap map lookup, keeping it free of I/O (the iced rule). Interior
+    /// mutability because `view()` takes `&self`, and a `RwLock` (not `RefCell`) because
+    /// the bar state must be `Sync`; contention is nil (reads dominate, on one thread).
+    icon_cache: RwLock<HashMap<String, Option<PathBuf>>>,
 }
 
 impl DesktopEntries {
@@ -30,6 +41,7 @@ impl DesktopEntries {
         Self {
             entries: Vec::new(),
             theme: freedesktop_icons::default_theme_gtk(),
+            icon_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -41,14 +53,27 @@ impl DesktopEntries {
         Self {
             entries,
             theme: freedesktop_icons::default_theme_gtk(),
+            icon_cache: RwLock::new(HashMap::new()),
         }
     }
 
-    /// Resolve a window's `app_id` to an icon file, odin's exact fallback chain.
+    /// Resolve a window's `app_id` to an icon file (memoised — see `icon_cache`). Cheap
+    /// on the hot `view()` path; the expensive lookup happens once per app_id.
     pub fn icon_for(&self, app_id: &str) -> Option<PathBuf> {
         if app_id.is_empty() {
             return None;
         }
+        if let Some(cached) = self.icon_cache.read().unwrap().get(app_id) {
+            return cached.clone();
+        }
+        let resolved = self.resolve_icon(app_id);
+        self.icon_cache.write().unwrap().insert(app_id.to_string(), resolved.clone());
+        resolved
+    }
+
+    /// The actual fallback chain, odin's `WindowIcon._resolveAppId`. Called once per
+    /// app_id by `icon_for`, which memoises the result.
+    fn resolve_icon(&self, app_id: &str) -> Option<PathBuf> {
         if let Some(entry) = self.find(app_id)
             && let Some(icon_name) = entry.icon()
             && let Some(path) = self.theme_lookup(icon_name)

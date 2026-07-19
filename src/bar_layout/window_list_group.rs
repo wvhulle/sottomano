@@ -2,26 +2,28 @@
 //! always renders live niri state, so unlike battery/system it has no owned fields.
 
 use iced::widget::text::Shaping;
-use iced::widget::{Row, button, image, text};
-use iced::{Alignment, Color, Element};
+use iced::widget::{Row, image, mouse_area, text};
+use iced::{Alignment, Element};
 use niri_ipc::state::EventStreamState;
 
 use crate::bar_program::Message;
 use crate::data_sources::app_icon::DesktopEntries;
 use crate::data_sources::niri;
+use crate::layer_surface::Position;
 use crate::user_config::Config;
-use crate::visual_elements::{button_style, font_family};
+use crate::visual_elements::{edge_slot, font_family, hairline};
 
 /// The window list (odin's `Windowlist`): icon + title of the windows on the output's
-/// active workspace, in on-screen order. The focused entry carries a pill background
-/// (powerTint), an urgent one criticalTint — the button's own style, not a separate
-/// sized indicator element (see `visual_elements::button_style`'s doc comment for why).
-/// `None` when the workspace has no windows. Clicking an entry focuses that window.
+/// active workspace, in on-screen order. Focus/urgency show as a hairline along the inner
+/// edge (powerTint / criticalTint) — the same shared indicator the workspace pager and the
+/// menu-group affordance use — not label tinting; labels stay neutral. `None` when the
+/// workspace has no windows. Clicking an entry focuses that window.
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
     config: &Config,
     desktop_entries: Option<&DesktopEntries>,
+    position: Position,
 ) -> Option<Element<'a, Message>> {
     let workspace = niri::active_workspace_id(niri, output)?;
     let windows = niri::windows_on_workspace(niri, workspace);
@@ -31,36 +33,30 @@ pub fn view<'a>(
     let size = config.font.size as f32;
     let sans = font_family(&config.font.family);
     let entries = windows.into_iter().map(|w| {
-        let label_color = if w.is_focused || w.is_urgent {
-            Color::WHITE
-        } else {
-            config.palette.muted.0
-        };
         let mut parts: Vec<Element<'a, Message>> = Vec::new();
         if let Some(icon) = window_icon(config, desktop_entries, &w) {
             parts.push(icon);
         }
         parts.push(
-            text(window_label(&w)).size(size).font(sans).color(label_color).shaping(Shaping::Advanced).into(),
+            text(window_label(&w)).size(size).font(sans).shaping(Shaping::Advanced).into(),
         );
         let content: Element<'a, Message> = Row::with_children(parts)
             .spacing(config.layout.horizontal_widget_spacing as f32 * 0.6)
             .align_y(Alignment::Center)
             .into();
 
-        let indicator_color = if w.is_urgent {
-            Some(config.palette.critical_tint.0)
+        let (focus_color, focus_opacity) = if w.is_urgent {
+            (config.palette.critical_tint.0, 1.0)
         } else if w.is_focused {
-            Some(config.palette.power_tint.0)
+            (config.palette.power_tint.0, 1.0)
         } else {
-            None
+            (config.palette.power_tint.0, 0.0)
         };
+        let focus = hairline(focus_color, focus_opacity, config.layout.focus_underline_thickness);
 
         // Clicking a window focuses it (odin's Windowlist `onActivated`).
-        button(content)
-            .padding([2.0, config.layout.horizontal_widget_spacing as f32 * 0.5])
+        mouse_area(edge_slot(position, content, focus, None))
             .on_press(Message::FocusWindow(w.id))
-            .style(move |_theme, status| button_style(indicator_color, status))
             .into()
     });
     Some(

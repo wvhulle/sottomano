@@ -48,11 +48,12 @@ pub fn bottom_row<'a>(
     output: &str,
     desktop_entries: Option<&DesktopEntries>,
     config: &Config,
+    position: Position,
 ) -> Element<'a, Message> {
-    let start = Row::with_children([workspaces_group::view(niri, output, config)])
+    let start = Row::with_children([workspaces_group::view(niri, output, config, position)])
         .spacing(config.layout.horizontal_group_spacing as f32)
         .align_y(Alignment::Center);
-    let center = Row::with_children(window_list_group::view(niri, output, config, desktop_entries))
+    let center = Row::with_children(window_list_group::view(niri, output, config, desktop_entries, position))
         .spacing(config.layout.horizontal_group_spacing as f32)
         .align_y(Alignment::Center);
     bar_row(start.into(), center.into(), config)

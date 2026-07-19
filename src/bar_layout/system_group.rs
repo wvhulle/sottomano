@@ -10,7 +10,7 @@ use crate::data_sources::sysfs_sensors::{CpuUsage, Memory, Temperature};
 use crate::data_sources::disk::Disk;
 use crate::layer_surface::Position;
 use crate::user_config::Config;
-use crate::visual_elements::{as_bar_widget, edge_overlay, hairline, leaf};
+use crate::visual_elements::{as_bar_widget, edge_slot, hairline, leaf};
 
 #[derive(Default)]
 pub struct SystemGroup {
@@ -78,10 +78,14 @@ impl SystemGroup {
         } else {
             0.2
         };
-        let indicator = hairline(config, config.palette.power_tint.0, opacity);
+        let indicator = hairline(
+            config.palette.power_tint.0,
+            opacity,
+            config.layout.focus_underline_thickness,
+        );
 
         Some(
-            iced::widget::mouse_area(edge_overlay(position, inner.into(), indicator))
+            iced::widget::mouse_area(edge_slot(position, inner.into(), indicator, None))
                 .on_press(Message::ToggleMenu)
                 .on_enter(Message::HoverMenu(true))
                 .on_exit(Message::HoverMenu(false))

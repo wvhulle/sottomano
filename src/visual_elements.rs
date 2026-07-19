@@ -7,8 +7,8 @@
 
 use iced::alignment::Vertical;
 use iced::widget::text::Shaping;
-use iced::widget::{button, container, row, stack, text};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length};
+use iced::widget::{container, row, stack, text};
+use iced::{Alignment, Border, Color, Element, Font, Length};
 use iced_font_awesome::fa_icon_solid;
 
 use crate::bar_program::Message;
@@ -16,34 +16,46 @@ use crate::data_sources::{BarWidget, Level};
 use crate::layer_surface::Position;
 use crate::user_config::Config;
 
-/// Gap (px) between a widget and its inner-edge hairline indicator.
-const HAIRLINE_GAP: f32 = 3.0;
-
 /// Coerce a concrete source reference to `&dyn BarWidget` for uniform rendering.
 pub fn as_bar_widget<W: BarWidget>(w: &W) -> &dyn BarWidget {
     w
 }
 
-/// Place a state `indicator` (a hairline) against the inner screen edge of `content` —
-/// the shared basis for menu affordances and pager focus/urgent bars. A real in-flow
-/// `Column` sibling (not a `Stack` overlay): the indicator's height is unconditionally
-/// part of the layout, so it never depends on resolving `Length::Fill` against a
-/// `Shrink`-sized ancestor (a real bug: the overlay approach silently failed to paint
-/// when this widget's parent row didn't happen to stretch to the bar's full height).
-/// The indicator sits below `content` on a top bar, above it on a bottom bar, so it
-/// always points into the screen; a spacer of `HAIRLINE_GAP` separates the two.
-pub fn edge_overlay<'a>(
+/// A pager/menu slot: `content` centred over the bar height, with an `inner` state bar
+/// (a hairline) pinned to the inner screen edge and an optional `outer` row (the workspace
+/// window-tick segments) pinned to the outer edge. The shared layout for menu affordances,
+/// pager focus indicators, and the workspace window indicators — odin's `Hairline` +
+/// `SlotHighlight` + `WorkspaceWindowIndicators` composition.
+///
+/// A `Stack` (overlay, not an in-flow `Column`) so the bars sit *on* the bar's own
+/// vertical padding rather than adding height — the slot stays the bar's height, `content`
+/// centred, bars at the edges. The `Stack` sizes to its base layer (`content`), so the
+/// Fill-width bars are constrained to the content width and the slot is exactly as wide as
+/// its label. Inner edge = top on a bottom bar, bottom on a top bar, so a bar always
+/// points into the screen.
+pub fn edge_slot<'a>(
     position: Position,
     content: Element<'a, Message>,
-    indicator: Element<'a, Message>,
+    inner: Element<'a, Message>,
+    outer: Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let gap = container(iced::widget::Space::new()).height(HAIRLINE_GAP);
-    match position {
-        Position::Top => iced::widget::column![content, gap, indicator],
-        Position::Bottom => iced::widget::column![indicator, gap, content],
+    let (inner_edge, outer_edge) = match position {
+        Position::Bottom => (Vertical::Top, Vertical::Bottom),
+        Position::Top => (Vertical::Bottom, Vertical::Top),
+    };
+    let edge_layer = |element, edge| {
+        container(element)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding([0.0, 3.0])
+            .align_y(edge)
+    };
+    let base = container(content).height(Length::Fill).align_y(Vertical::Center);
+    let mut layers: Vec<Element<'a, Message>> = vec![base.into(), edge_layer(inner, inner_edge).into()];
+    if let Some(outer) = outer {
+        layers.push(edge_layer(outer, outer_edge).into());
     }
-    .align_x(Alignment::Center)
-    .into()
+    iced::widget::Stack::with_children(layers).into()
 }
 
 /// A source-backed leaf: Font Awesome icon + thin vertical gauge (or a text label for a
@@ -99,41 +111,11 @@ pub fn gauge<'a>(percent: i64, color: Color, font_size: f32) -> Element<'a, Mess
         .into()
 }
 
-/// A clickable list entry's state style, keyed on both its selection color and iced's
-/// own built-in `button::Status` (Active/Hovered/Pressed/Disabled) — the pattern real
-/// shipped iced panels use for "selected" (cosmic-panel's workspace applet renders its
-/// focused pill via `.class(Button::Suggested)` on the button itself; cosmic-app-list's
-/// window entries use `button::custom(content).selected(is_focused).class(style_fn)`).
-/// Pair with `iced::widget::button(content).on_press(msg).style(move |theme, status|
-/// button_style(color, status))` — no separate sized/positioned indicator widget needed,
-/// since the indicator *is* the button's own background/border, trivially and always
-/// correctly sized to it. `color: None` means "not selected" (plain/transparent, tinted
-/// only by hover/press); `Some(color)` marks focused/urgent.
-pub fn button_style(color: Option<Color>, status: button::Status) -> button::Style {
-    let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-    let background = match (color, hovered) {
-        (Some(color), true) => Some(Background::Color(Color { a: 0.32, ..color })),
-        (Some(color), false) => Some(Background::Color(Color { a: 0.22, ..color })),
-        (None, true) => Some(Background::Color(Color { a: 0.10, ..Color::WHITE })),
-        (None, false) => None,
-    };
-    button::Style {
-        background,
-        text_color: Color::WHITE,
-        border: Border {
-            color: color.unwrap_or(Color::TRANSPARENT),
-            width: if color.is_some() { 1.0 } else { 0.0 },
-            radius: 4.0.into(),
-        },
-        ..button::Style::default()
-    }
-}
-
-/// odin's `Hairline`: a thin rounded bar marking an expandable group or focus/urgent
-/// state. A fixed-height, content-width sibling (see `edge_overlay`), at the caller's
-/// opacity.
-pub fn hairline<'a>(config: &Config, color: Color, opacity: f32) -> Element<'a, Message> {
-    let thickness = config.layout.focus_underline_thickness;
+/// odin's `Hairline`: a thin rounded bar, the shared state-indicator primitive for the
+/// menu-group expand affordance, the pager focus/urgent bars, and the per-window tick
+/// segments — each just picks a `color`, `opacity`, and `thickness`. Fill-width (the
+/// caller's slot sizes it); the caller pins it to an edge via `edge_slot`.
+pub fn hairline<'a>(color: Color, opacity: f32, thickness: f32) -> Element<'a, Message> {
     container(iced::widget::Space::new().width(Length::Fill))
         .width(Length::Fill)
         .height(thickness)

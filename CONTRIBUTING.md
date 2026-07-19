@@ -231,20 +231,19 @@ for any residual runtime deps). Replace odin in the home-manager module once at 
 - Small, shippable commits; keep the bar building & runnable at every step.
 - The maintainer distrusts always-on/auto-heal timers — prefer signal/event-driven updates,
   infrequent polls, and visible failure over silent retry loops.
-- **Selected/focused state → the widget's own style, not a separate indicator element.**
-  Render "this item is selected" as a plain `iced::widget::button`'s own
-  `.style(|theme, status| ...)` closure (background/border keyed on the item's
-  `is_focused`/`is_urgent`, folded with iced's built-in `Hovered`/`Pressed`
-  `button::Status`), not a second sized/positioned widget (a hairline, an overlay)
-  laid on top of or beside the content. This is how real shipped iced panels do it
-  (cosmic-panel's workspace/app-list applets: `button::custom(content).class(state_fn)`)
-  — see `src/visual_elements.rs`'s `button_style` — and it sidesteps a real
-  `Length::Fill`-vs-`Shrink`-compression subtlety a separate overlay/underline element
-  must navigate correctly (documented in git history if you need the trace). When a
-  group of entries only some of which are selected/urgent, always build every entry
-  through the *same* code path (button with a style closure), varying only the
-  captured color/state — never conditionally swap between "plain" and "decorated"
-  element shapes across renders, which defeats iced's widget-tree diffing.
+- **Focus/urgent state → a shared `hairline`, odin's design.** The pager slots (workspace
+  + window list) and the menu-group expand affordance all mark state with the same
+  `visual_elements::hairline` primitive (a thin rounded bar: pick `color`/`opacity`/
+  `thickness`), placed by `visual_elements::edge_slot(position, content, inner, outer)` —
+  a `Stack` that centres `content` over the bar height and pins the `inner` hairline to the
+  inner screen edge (focus/urgent, powerTint/criticalTint) and an optional `outer` row to
+  the outer edge (the workspace's per-window tick segments, odin's `WorkspaceWindowIndicators`
+  / `WindowSegment`). Always build the hairline (opacity 0 when inactive) so the widget tree
+  shape stays identical across renders — never conditionally omit it (that defeats iced's
+  diffing). An earlier detour used a per-item `button` background pill (cosmic-panel style)
+  because the hairline "wouldn't render"; that was actually the multi-surface present stall
+  (see the patched-dependency note below), not the hairline — with the surface fixed, odin's
+  shared-hairline design renders correctly and is what's used.
 - **Patched dependency — `iced_layershell` multi-surface "frozen bar" fix.** The second
   layer-shell surface in the `daemon()` (the bottom bar) used to render once at startup
   then freeze: focus changes never updated it even though `view()`/the data layer were
@@ -252,12 +251,16 @@ for any residual runtime deps). Replace odin in the home-manager module once at 
   swapchain goes `SurfaceError::Outdated` (its swapchain is created before the compositor's
   final `configure`), and upstream `iced_layershell`'s multi-window present path treated
   `Outdated` as a soft "log and give up" error — so `compositor.present()` failed every
-  frame, never fired its present callback, and the surface never committed again. Stock
-  iced (`iced_winit`) handles this by **reconfiguring the surface + re-requesting a redraw**
-  on `Outdated`/`Lost`; the daemon path was simply missing it. Fix lives in a local checkout
-  at `../exwlshelleventloop` (`iced_layershell/src/multi_window.rs`, the present-error match)
-  and is wired in via `[patch.crates-io]` in `Cargo.toml`. **This should be upstreamed** to
-  `waycrate/exwlshelleventloop` (it's the same bug as their unresolved issues #275/#360);
+  frame, never fired its present callback, and the surface never committed again.
+  `SurfaceError::Outdated`/`Lost` are **normal, expected wgpu transients** (the swapchain is
+  invalidated by compositor-driven events — startup configure race, resize, output/scale
+  change, suspend/resume), so a resilient render loop *must* recover from them; this isn't a
+  workaround, it's the mandatory handling that stock iced (`iced_winit`) already has and the
+  `iced_layershell` daemon path was missing. The fix mirrors `iced_winit`: `Outdated` →
+  reconfigure the surface; `Lost` → recreate it — then re-request a redraw. Lives in a local
+  checkout at `../exwlshelleventloop` (`iced_layershell/src/multi_window.rs`, the
+  present-error match) and is wired in via `[patch.crates-io]` in `Cargo.toml`. **This should
+  be upstreamed** to `waycrate/exwlshelleventloop` (same bug as their unresolved #275/#360);
   until then the `../exwlshelleventloop` checkout must exist for odin-rs to build. Because a
   single layer surface never hit this, `daemon()`/multi-surface stays viable — no
   one-surface-per-process rearchitecture needed.

@@ -232,6 +232,7 @@ impl Bar {
                 &surface.output,
                 self.desktop_entries.as_deref(),
                 &self.config,
+                surface.position,
             ),
         };
 
