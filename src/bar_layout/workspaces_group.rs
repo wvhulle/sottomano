@@ -80,13 +80,8 @@ fn window_ticks<'a>(
                 config.palette.critical_tint.0
             } else if w.is_focused {
                 config.palette.power_tint.0
-            } else if is_active_workspace {
-                Color::WHITE
             } else {
-                Color {
-                    a: 0.45,
-                    ..Color::WHITE
-                }
+                config.palette.muted.0
             };
             // Each tick fills its equal share of the segment row (Fill width).
             hairline(color, 1.0, thickness)

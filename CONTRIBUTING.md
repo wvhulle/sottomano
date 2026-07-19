@@ -1,284 +1,114 @@
-# CONTRIBUTING — odin-rs
+# Contributing
 
-Guidance for an AI agent working in this repo. Read this first; it overrides defaults.
+Conventions and workflow for working on odin-rs. Read this before
+touching the code.
 
-## What this repo is
+## Workflow
 
-**odin-rs is a ground-up rewrite of [Odin](../odin) in Rust.** Odin is a Quickshell/QML
-desktop shell for the [niri](https://github.com/YaLTeR/niri) compositor: ~8,500 lines of
-QML + ~4,600 lines of Nushell scripts. The end goal here is a **single pure-Rust binary**
-built on [`iced`](https://iced.rs) + [`iced_layershell`](https://crates.io/crates/iced_layershell):
+- **Verify visually on every UI change.** Run alongside Odin (the
+  reference bar), screenshot the top strip, and diff against Odin's
+  rendering — "it compiles" is not a green light.
+- **Parity first.** Match Odin's behaviour before improving it. Note
+  intentional deviations when you make them.
+- **Keep the bar building & runnable at every step.** Small,
+  shippable commits; never land a commit that breaks the build.
+- **Version control is [jujutsu](https://martinvonz.github.io/jj/),
+  not git.** See the maintainer's global rules.
 
-- **No QML** — every widget/bar is an iced view.
-- **No Nushell** — every one of the 49 `scripts/*.nu` data sources becomes native Rust
-  (D-Bus via `zbus`, HTTP via `reqwest`, sysfs/proc via direct fs, niri via `niri-ipc`).
+## Manual verification (the feedback loop)
 
-`../odin` is the **behavioral source of truth**. When porting a widget or data source, read
-its QML/Nu counterpart and match its behavior; verify parity visually (see below).
-
-Motivation (from the maintainer): dislikes QML, wants one compiled binary with lower
-overhead, and wants to fix accumulated bugs during the rewrite.
-
-## Verified stack (all version-aligned, on this machine)
-
-- `iced` 0.14, `iced_layershell` 0.19.1, `niri-ipc` 26.4.0 (matches niri 26.04).
-- Build/link deps come from `flake.nix` (wayland, libxkbcommon, libGL, vulkan-loader).
-- Toolchain: cargo/rustc nightly, present in the dev shell.
-
-## THE feedback loop — how to reliably *see* your change
-
-There is a live niri session with the **original odin bar running**. odin-rs is designed to
-run *alongside* it and render **flush below odin's top bar** (it sets `exclusive_zone: 0`, so
-niri drops it below odin's reserved top zone automatically). This lets you screenshot both
-bars stacked and visually diff odin-rs against the reference. **Use this on every UI change —
-do not trust "it compiles".**
+There is a live niri session with the **original Odin bar running**.
+odin-rs is designed to run *alongside* it and render **flush below
+odin's top bar** (it sets `exclusive_zone: 0`, so niri drops it below
+odin's reserved top zone automatically). This lets you screenshot
+both bars stacked and visually diff odin-rs against the reference.
 
 ```sh
 # 1. build
 nix develop -c cargo build
 
-# 2. run alongside the live odin bar (background; keeps rendering)
+# 2. run alongside the live Odin bar (background; keeps rendering)
 WAYLAND_DISPLAY=wayland-1 XDG_RUNTIME_DIR=/run/user/1000 \
   nix develop -c ./target/debug/odin-rs &
 
-# 3. screenshot. grim uses LOGICAL coordinates. Get output geometry first:
-niri msg --json outputs        # DP-1 is currently 2258x1270 @ scale 1.7
+# 3. screenshot. grim uses logical coordinates — get output geometry first:
+niri msg --json outputs        # find your output's logical geometry
 grim -g "0,0 900x70" top.png   # top strip: odin bar + odin-rs below it
 
 # 4. enlarge a region to read widgets, then view the PNG
 magick top.png -resize 300% top-big.png
 ```
 
-Then look at `top-big.png`: odin-rs shows an orange `odin-rs ▸` marker so it's unmistakable.
-Compare its clock / battery / workspaces against odin's own bar in the same image.
+odin-rs shows an orange marker so it's unmistakable next to the
+Odin bar. Compare its clock / battery / workspaces against Odin's
+own bar in the same image.
 
-- **Headless data-layer check** (no display): `nix develop -c ./target/debug/odin-rs -- --smoke`
-  runs the script + niri data paths and prints parsed output — use when you only changed a
-  data source.
-- Kill a running instance with `pkill -f target/debug/odin-rs` (⚠ don't put that exact
-  string in a larger shell command — pkill will match its own wrapper).
+What to check on each pass:
 
-## Current state (Phase 1 done; Phase 2 sysfs group done; Phase 3 group/menu system started)
+1. **Anchored top bar + exclusive zone** — maximize a terminal; its
+   top edge should sit below the original Odin bar (niri drops it
+   under odin's reserved zone). Niri keyboard shortcuts and terminal
+   input must work on the first keypress — the bar never steals focus.
+2. **Data sources** — battery / cpu / temperature values update as
+   the sources poll. Break one source (e.g. make a sysfs file
+   unreadable) and confirm the clock keeps ticking and the last value
+   is retained.
+3. **Live niri workspaces** — switch workspaces in niri; the active
+   pill should follow within a frame. There should be no `niri msg`
+   subprocess running (it's the event stream, not polling).
 
-Multi-surface daemon via `iced_layershell::build_pattern::daemon` + `#[to_layer_message(multi)]`.
-`StartMode::Background` opens no surface up-front; `Bar` enumerates niri outputs and opens one
-`NewLayerShell` per (output, edge) itself, bound by name via `OutputOption::OutputName`. Files:
+For a headless data-layer check (no display, no compositor):
+`nix develop -c ./target/debug/odin-rs -- --smoke` runs the data
+paths and prints parsed output — use when only a data source changed.
 
-- `src/main.rs` — `daemon()` builder with `StartMode::Background` + `--smoke`.
-- `src/bar_program.rs` — Elm `Bar` state with shared data (clock/battery/niri) + a
-  `BTreeMap<window::Id, Surface>` of open surfaces; `#[to_layer_message(multi)] Message`,
-  `view(&self, id)` renders the surface's own output's workspaces. `close_events()` drops a
-  surface's state on teardown. Layer-shell surface/output bookkeeping (`Surface`, `Position`,
-  `layer_settings`) lives in `src/layer_surface.rs`; the async polling/subscription glue
-  (`poll`, `niri_action`, `niri_subscription`, `now_hm`, `SourceKind`) lives in
-  `src/message_subscriptions.rs`.
-- `src/data_sources/niri.rs` — `niri-ipc` event-stream thread → tokio mpsc → iced Subscription
-  (replaces the ~380-line derivation in `../odin/DataProvider/NiriService.qml`) +
-  `list_outputs()` one-shot `Request::Outputs` enumeration.
-- `src/user_config.rs` (+ `user_config/{color_palette,font_config,layout_config}.rs`) — reads
-  odin's **own** `$XDG_CONFIG_HOME/odin/config.json` (shared for now; the dark/light symlink is
-  followed) into `palette`/`font`/`layout`, with odin's exact gruvbox-dark defaults. Schema is
-  `../odin/UserConfig/*.qml`. Later we split to our own file.
-- `src/concrete_widgets.rs` (+ `concrete_widgets/{workspace_pager,window_title_list}.rs`) and
-  `src/widget_groups.rs` (+ `widget_groups/{battery_group,system_group,workspaces_group,
-  window_list_group,clock_group}.rs`) — odin's bar as data (Phase 3 start): `layout(position)`
-  (in `widget_groups.rs`) returns per-bar `Zone`s
-  (`shell.qml`'s exact top/bottom composition & order — top and bottom now differ), each holding
-  ordered `Group`s. A `Group` is `Static` (odin's `WidgetGroup`: a row of widgets), `Menu` (odin's
-  `MenuGroup`: a handle that expands content **in place** — no popup — under a `Hairline` affordance
-  that's faint at rest / brighter on hover / solid when open), `Workspaces`, or `WindowList`.
-  Source-backed leaf widgets render as a Font Awesome icon (**`iced_font_awesome`** `fa_icon_solid`,
-  odin's `icon` names verbatim; self-registers the FA font) + a thin vertical `gauge` (odin's
-  `PercentGauge`), tinted by `level`. Unavailable sources render nothing (empty groups vanish).
-  The `gauge`/`hairline`/`edge_overlay`/`leaf`/`font_family`/`level_color` rendering primitives
-  (odin's `ReusableComponent` equivalent) live in `src/visual_elements.rs`, not inside
-  `concrete_widgets`/`widget_groups` — they're what widgets are drawn with, not a widget.
-  Font: odin's `sans-serif`/`monospace` are resolved to the same concrete families Qt uses (IBM
-  Plex Sans / Lilex Nerd Font Mono, from `fc-match`) so text matches odin's rendering; iced loads
-  system fonts so `Font::with_name` finds them.
-  - **Menu interaction**: single-open (odin's `GroupMenuState`) — `open_menu`/`hovered_menu` on
-    `Bar`; a menu handle click toggles (`ToggleMenu`), hover drives the hairline (`HoverMenu`), and
-    a click on the bar background collapses any open menu (`CloseMenus`, via a dismiss `mouse_area`
-    stacked *under* the content so widget clicks are captured first). odin's `System` group is the
-    flagship: cpu handle → temperature/memory/disk expand.
-  - **Hairline indicators** (this pass): workspace pills and window-list entries now carry a
-    `Hairline` along the inner screen edge (powerTint focused, criticalTint urgent) via the shared
-    `edge_overlay` helper, instead of text-color tinting — matching odin's focus-is-an-underline
-    convention. Labels stay neutral/dim, not colored, except the focused/urgent entry's own text
-    which goes full white. Not yet ported: the *sliding* animation between slots (odin's
-    `Behavior on x/width`) — the indicator currently snaps to the focused slot.
-  - **App icons** (this pass): `src/data_sources/app_icon.rs` ports `WindowIcon._resolveAppId` — `.desktop` entry
-    lookup (`freedesktop-desktop-entry`, scanned once at startup off the executor) → its `Icon=`
-    field resolved through the icon theme (`freedesktop-icons`, respecting `default_theme_gtk`) →
-    theme-name variants of the app_id itself (as-is / lowercased / last dotted segment) → generic
-    `application-x-executable` fallback. Rendered via iced's `image` widget (needs the `image`
-    Cargo feature). `DesktopEntries` is loaded once into `Bar` behind an `Arc` (cheap to clone
-    through `Message`, which iced requires `Clone` on) and passed through `Context`.
-  - **Click-to-focus**: both the workspace pager and window list now dispatch niri
-    `Action::FocusWorkspace`/`FocusWindow` on click (`niri::focus_workspace`/`focus_window`,
-    fire-and-forget via the shared `niri_action` helper — the resulting state change arrives back
-    through the event stream, no local optimistic update).
-  - **Still to port** (Phase 3 cont.): most groups whose data sources are unported (Weather,
-    network, media, audio, tray, notifications, quicklaunch) are omitted, not stubbed; the sliding
-    hairline animation; per-window tick row above each workspace slot (`WorkspaceWindowIndicators`);
-    click-on-active-workspace → toggle niri overview; drag-to-reorder for both pagers.
-- `src/data_sources.rs` (+ `data_sources/disk.rs`, `data_sources/sysfs_sensors.rs` +
-  `data_sources/sysfs_sensors/{battery,power,cpu_usage,cpu_clock,memory,temperature}.rs`) —
-  native data sources (Phase 2). Each
-  is a rich domain type (real fields, status enums, `Option` for "no hardware") rather than one
-  stringly JSON bag, sharing two traits: `BarWidget` (render: icon/label/level/value/tooltip) and
-  `Source` (`poll()`). **No Nu subprocess** — all reads are direct `std::fs` on `/proc`/`/sys`
-  (`disk` via `statvfs(2)`). `script.rs` (the old Nu-runner) is deleted.
+Kill a running instance with `pkill -f target/debug/odin-rs` (⚠ don't
+put that exact string in a larger shell command — pkill will match
+its own wrapper).
 
-**Styling (matches odin, consuming its config):** the layer surface is fully transparent; the
-chrome fill is `surface` at `bgOpacity` (rounded only when floating) painted by the view container —
-so the active light config's `bgOpacity: 0` yields a genuinely see-through bar. Text is white
-(`Config.barText`), sized/spaced from the config. Each bar reserves its strip via
-`exclusive_zone = barOuterHeight` (odin's behaviour), so niri tiles windows clear of it.
+## Design preferences
 
-**Deferred to Phase 4 — the backdrop.** odin's white text is legible only because niri casts a
-dark drop-shadow behind it (off-screen `odin-backdrop-{pos}` caster + a niri `layer-rule`). odin-rs
-has none yet, so over light wallpaper the text is low-contrast. Reproducing it is Phase 4 item 5
-(niri blur region / gradient backdrop) — an off-screen caster surface per bar + a niri layer-rule,
-entangled with the run-below-odin dev arrangement. Left transparent (odin-faithful) until then.
+- **Distrust always-on timers.** Prefer signal/event-driven updates
+  and infrequent polls. Surface visible failure over silent retry
+  loops.
+- **`view()` must be cheap.** iced rebuilds the entire surface's
+  widget tree synchronously on every update — no I/O, no filesystem,
+  no heavy compute in `view()`. Resolve or memoise derived data in
+  `update()` (or behind interior mutability) before the widget code
+  reads it. When something visually lags, time each group's `view()`
+  before touching the render loop; the stall is almost always work
+  inside `view()`, not the compositor. See the
+  [iced architecture docs](https://docs.iced.rs/) for the model.
+- **Build the same widget tree shape across renders.** Never
+  conditionally omit a widget to swap in a different one — that
+  defeats iced's diffing. Use opacity / visibility / size changes
+  to express "off" states.
+- **One visual primitive per semantic concept.** If multiple places
+  need the same visual (focus, urgent, hover, etc.), factor a single
+  primitive and reuse it everywhere. Don't re-implement the same
+  look inline at each call site.
 
-Validated visually (single-output machine, DP-1): top bar lands flush below odin's QML top bar,
-bottom bar above odin's bottom bar, each showing DP-1's workspaces with `[odin]` active — plus the
-Phase 0 checks (anchored full-width bar + exclusive zone, subprocess→JSON→battery, live niri
-workspaces).
+## Upstream patches
 
-**Hotplug — open question settled:** layershellev auto-creates a surface on a newly-connected
-display **only** in `StartMode::AllScreens`, and even then with an internal `window::Id` we never
-registered (so `view(id)` would miss our `surfaces` map — it renders empty, doesn't panic). In the
-named-output `Background` mode we use, the new-display event is silently swallowed
-(`DispatchMessageInner::NewDisplay` → the public conversion is `unimplemented!()`, never reached).
-Output *removal* IS surfaced — layershellev closes the surface, arriving as `window::close_events`.
-So: **removal is handled; addition needs a manual re-enumeration trigger** (re-run `list_outputs` +
-`open_bars` for new names). Deferred to a later event-driven pass rather than a poll timer, per the
-maintainer's distrust of always-on timers.
+When carrying an upstream patch:
 
-## Conversion plan (phased — keep each phase shippable & visually verified)
+1. Vendor it as a git dependency pointing at a fork (not a `[patch]`
+   section — git deps work in Nix builds; relative path patches
+   don't). Track a branch so the fix is rebasable.
+2. Document the divergence with a comment in `Cargo.toml` linking to
+   the upstream issue/PR.
+3. Drive an upstream PR. Until the patch lands, the fork's branch
+   must keep the fix.
 
-### Phase 1 — multi-output daemon ✅ DONE
-Switched `application()` → `daemon()`, `#[to_layer_message(multi)]`, state keyed by `window::Id`
-in a `BTreeMap`. Enumerate outputs (`niri_ipc::Request::Outputs`) and open one `NewLayerShell` per
-(output, position: top & bottom, mirroring `../odin/shell.qml` `Variants`), bound by name via
-`NewLayerShellSettings.output_option = OutputOption::OutputName`. Hotplug open question settled —
-see "Current state" above (removal handled via `close_events`; addition needs a manual
-re-enumeration trigger, deferred).
+## Project pointers
 
-### Phase 2 — port the 49 Nu scripts → native Rust data sources (IN PROGRESS)
-**Hard rule (maintainer):** no reuse of the `.nu` scripts and no subprocesses — every source is
-in-process Rust. `script.rs` is deleted; there is no Nu fallback.
-
-**Done — sysfs/procfs group** (`data_sources/sysfs_sensors/`, `data_sources/disk.rs`): battery, power-consumption,
-cpu, cpu-clock, memory, temperature (hwmon, not `sensors`), disk (`statvfs`; the btrfs block-group
-detail is deferred to a future btrfs-ioctl pass). All seven wired into the bar and rendered with FA
-icons + level tints. `backlight` is **not** in this group despite the table below — it's clightd /
-wl-gammarelay D-Bus with write actions, so it moves to the D-Bus phase.
-
-Remaining categories below are unported.
-
-Each `../odin/scripts/*.nu` emits one JSON object matching the contract in
-`../odin/ReusableComponent/ScriptDataSource.qml` (`icon`, `label`, `badge`, `level`, `tooltip`,
-`available`, and a tagged-union `value` facet: `slider|gauge|chart|none`). That JSON **is the
-spec**. Port each to a Rust module producing the same typed data as an async task/subscription,
-then delete its `script::run` call. Group by source type:
-
-| Category | Scripts | Rust approach |
-|---|---|---|
-| sysfs / procfs | battery, backlight, cpu, cpu-clock, memory, disk, temperature, power-consumption | direct `std::fs` / `sysinfo` / `procfs` |
-| NetworkManager (D-Bus) | network, ethernet, wifi | `zbus` → `org.freedesktop.NetworkManager` |
-| ModemManager (D-Bus) | mobile-broadband | `zbus` → `org.freedesktop.ModemManager1` |
-| bluez (D-Bus) | bluetooth, radio | `zbus` → `org.bluez` |
-| PipeWire/WirePlumber | wireplumber-sink, -source, -device-type, -watch | `pipewire` crate or WirePlumber D-Bus |
-| power-profiles-daemon | power-profile | `zbus` → `net.hadess.PowerProfiles` |
-| wl-gammarelay-rs | color-temperature | `zbus` (its D-Bus iface) |
-| systemd / journald | systemd-failed, kernel-errors | `zbus` systemd manager / journal reader |
-| niri | workspaces (native already), tray-activate, idle-mode, idle-timeout | `niri-ipc` |
-| HTTP | weather-temp/-rain/-*-forecast, pollen, claude-usage-*, copilot-usage-*, openrouter-usage, nvidia-usage | `reqwest` (nvidia via NVML if local) |
-| app / CLI | cliphist, firefox-favicon, spotify-like, quicklaunch, tailscale, vpn, stopwatch, umbra | clipboard/`rusqlite` (Firefox places), desktop-entry crate, tailscale LocalAPI, internal state |
-| lifecycle (drop/replace) | paths, odin-reload, wait-network | fold into Rust consts / startup logic |
-
-Keep `../odin/scripts` as the reference while porting; a ported source should produce
-byte-equivalent widget state.
-
-### Phase 3 — port QML widgets → iced components
-Map `../odin`'s layers onto iced: `UserConfig` (6) → a Rust config/theme module;
-`ReusableComponent` (27) → generic iced widgets (gauges, sliders, pagers, popups);
-`ConcreteWidget` (16) + `WidgetGroup` (18) → per-widget view fns composed into the bars in
-`shell.qml` order. Verify each against the live odin bar via the feedback loop.
-
-### Phase 4 — the hard services (highest risk; do a spike before committing)
-1. **Popups/menus** — `BarPopup`/`HoverPopup`/`MenuGroup`/inline sliders. iced_layershell's
-   author calls popup support "only a toy"; this is the top risk. Spike ONE popup early.
-2. **System tray** — StatusNotifierItem host + DBusMenu over `zbus` (iced has none).
-3. **Notification server** — own `org.freedesktop.Notifications` over `zbus` + toast surfaces.
-4. **MPRIS** — `mpris`/`zbus`.
-5. **niri blur region** — likely no iced equivalent; the drop-shadow gradient backdrop trick
-   (bottom-layer surface + niri layer-rules) may be reproducible compositor-side.
-
-### Phase 5 — config, packaging, cutover
-Port `ConfigLoader`/`UserConfig` to a config-file layer (no QML hot-reload equivalent). Add a
-Nix build (crane + rust-overlay per the ../odin flake conventions; `makeWrapper --prefix PATH`
-for any residual runtime deps). Replace odin in the home-manager module once at parity.
-
-## Conventions
-
-- **Verify visually.** Every widget/UI change → run alongside odin + screenshot + compare.
-- **Parity first.** Match `../odin` behavior before improving it; note intentional deviations.
-- Version control is **jj** (jujutsu), not `git` — see the maintainer's global rules.
-- Small, shippable commits; keep the bar building & runnable at every step.
-- The maintainer distrusts always-on/auto-heal timers — prefer signal/event-driven updates,
-  infrequent polls, and visible failure over silent retry loops.
-- **`view()` must be cheap — no I/O, no filesystem, no heavy compute.** iced rebuilds the
-  *entire* surface's widget tree (view + layout) synchronously on every update, and a bar
-  is one surface, so an expensive `view()` in one widget stalls the whole strip — the
-  workspace hairline lagged only because the window list shared its surface. Resolve/memoise
-  anything costly outside the hot path: e.g. `app_icon::DesktopEntries::icon_for` caches its
-  `app_id`→path result (an on-disk icon-theme walk cost ~130 ms/frame → ~20 µs cached,
-  dropping focus-change latency from ~130 ms to ~2 ms). If a widget needs derived data,
-  compute it in `update()` and store it, or memoise behind interior mutability (`RwLock`,
-  since the bar state must be `Sync`) — never recompute it per frame in `view()`. When a
-  visual update feels laggy, time the `view()` of each group before touching the render loop;
-  the stall is almost always work-in-`view()`, not the compositor.
-- **Focus/urgent state → a shared `hairline`, odin's design.** The pager slots (workspace
-  + window list) and the menu-group expand affordance all mark state with the same
-  `visual_elements::hairline` primitive (a thin rounded bar: pick `color`/`opacity`/
-  `thickness`), placed by `visual_elements::edge_slot(position, content, inner, outer)` —
-  a `Stack` that centres `content` over the bar height and pins the `inner` hairline to the
-  inner screen edge (focus/urgent, powerTint/criticalTint) and an optional `outer` row to
-  the outer edge (the workspace's per-window tick segments, odin's `WorkspaceWindowIndicators`
-  / `WindowSegment`). Always build the hairline (opacity 0 when inactive) so the widget tree
-  shape stays identical across renders — never conditionally omit it (that defeats iced's
-  diffing). An earlier detour used a per-item `button` background pill (cosmic-panel style)
-  because the hairline "wouldn't render"; that was actually the multi-surface present stall
-  (see the patched-dependency note below), not the hairline — with the surface fixed, odin's
-  shared-hairline design renders correctly and is what's used.
-- **Patched dependency — `iced_layershell` multi-surface "frozen bar" fix.** The second
-  layer-shell surface in the `daemon()` (the bottom bar) used to render once at startup
-  then freeze: focus changes never updated it even though `view()`/the data layer were
-  correct. Root cause (found by instrumenting a local checkout): the second window's wgpu
-  swapchain goes `SurfaceError::Outdated` (its swapchain is created before the compositor's
-  final `configure`), and upstream `iced_layershell`'s multi-window present path treated
-  `Outdated` as a soft "log and give up" error — so `compositor.present()` failed every
-  frame, never fired its present callback, and the surface never committed again.
-  `SurfaceError::Outdated`/`Lost` are **normal, expected wgpu transients** (the swapchain is
-  invalidated by compositor-driven events — startup configure race, resize, output/scale
-  change, suspend/resume), so a resilient render loop *must* recover from them; this isn't a
-  workaround, it's the mandatory handling that stock iced (`iced_winit`) already has and the
-  `iced_layershell` daemon path was missing. The fix mirrors `iced_winit`: `Outdated` →
-  reconfigure the surface; `Lost` → recreate it — then re-request a redraw. Lives in
-  `wvhulle/exwlshelleventloop` (`iced_layershell/src/multi_window.rs`, the
-  present-error match) and is wired in via a git dependency on the `master` branch
-  in `Cargo.toml`. **This should be upstreamed** to `waycrate/exwlshelleventloop`
-  (same bug as their unresolved #275/#360); until then the fix must live in
-  `wvhulle/exwlshelleventloop`'s `master`. Because a single layer surface never
-  hit this, `daemon()`/multi-surface stays viable — no one-surface-per-process
-  rearchitecture needed.
-
-## Reference docs
-
-- `README.md` — quick run/verify.
-- `~/.claude/plans/would-it-be-possible-parsed-patterson.md` — the original feasibility plan.
-- `../odin` — the QML + Nu source being ported (behavioral source of truth).
+- `README.md` — build, launch, configure.
+- `TODO.md` — current phase, deferred work, open questions, upstream
+  patches to chase.
+- The Odin repo (`../odin`) is the **behavioural source of truth**.
+  When porting a widget or data source, match Odin's QML/Nu
+  counterpart.
+- Upstream docs you will read repeatedly:
+  - [iced book](https://book.iced.rs/) and [API docs](https://docs.iced.rs/)
+  - [iced_layershell](https://github.com/waycrate/exwlshelleventloop) (and the fork carrying the active patch)
+  - [niri IPC](https://github.com/YaLTeR/niri) for the compositor protocol
+  - [zbus](https://dbus2.github.io/zbus/) for D-Bus data sources

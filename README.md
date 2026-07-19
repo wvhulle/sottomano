@@ -1,72 +1,74 @@
-# odin-spike
+# odin-rs
 
-Feasibility spike for porting [Odin](../odin) (a Quickshell/QML bar for niri) to
-**iced + iced_layershell**. Throwaway crate — validates the load-bearing mechanics
-before committing to a full rewrite. See the full plan at
-`~/.claude/plans/would-it-be-possible-parsed-patterson.md`.
+Native-Rust port of the Odin status bar for the [niri](https://github.com/YaLTeR/niri)
+compositor. One compiled binary built on
+[iced](https://iced.rs) + [iced_layershell](https://crates.io/crates/iced_layershell):
+no QML, no Nushell subprocesses.
 
-## What it validates
+## Status
 
-| Target | What | Where |
-|--------|------|-------|
-| **A** | Anchored top bar + fixed exclusive zone on niri, no keyboard focus | `main.rs` `LayerShellSettings` |
-| **B** | Subprocess → JSON → widget (reuses Odin's `battery.nu`) | `script.rs`, `Message::PollBattery` |
-| **C** | Live niri workspaces via `niri-ipc` event stream (replaces `NiriService.qml`) | `niri.rs`, `Message::Niri` |
-| **D** | Multi-monitor (one bar per output) | **phase 2 — not yet wired**, see below |
+See `TODO.md` for the full phased plan. Verified end-to-end on a single-output
+niri session: top + bottom bars render with the correct exclusive zones, live
+niri workspaces, and the sysfs/procfs data sources (battery, cpu, memory,
+temperature, disk, power).
 
 ## Verified stack
 
-- `iced` 0.14.0, `iced_layershell` 0.19.1, `niri-ipc` 26.4.0 (matches niri 26.04) — all
-  version-aligned on this machine.
-- The ~4,600 lines of Nu scripts in `../odin/scripts/` are reused verbatim.
+- `iced` 0.14, `iced_layershell` 0.19.1 (vendored as a git dep on a fork —
+  see `TODO.md`), `niri-ipc` 26.4 (matches niri 26.04).
+- Runtime: a niri session.
+- Dev environment: Nix flake with a nightly Rust toolchain
+  (rust-src, rustfmt, clippy, rust-analyzer) and the system libraries
+  needed at build/link/dlopen time (wayland, libxkbcommon, libGL,
+  vulkan-loader).
 
-## Run
+## Build
 
-Requires a running **niri** session for the GUI (layer surface + IPC socket).
+```sh
+nix develop -c cargo build
+```
+
+Or build a runnable bundle in the Nix store:
+
+```sh
+nix build .#default
+./result/bin/odin-rs
+```
+
+## Launch
+
+Requires a running niri session for the GUI (layer surface + IPC socket).
 
 ```sh
 nix develop -c cargo run             # launch the bar
-nix develop -c cargo run -- --smoke  # headless: test the data layer, no display
+nix develop -c cargo run -- --smoke  # headless: print parsed data-layer output
 ```
 
-`--smoke` exercises `script.rs` (parses `battery.nu`) and `niri.rs` (prints the first
-~10 workspace events) so B and C logic can be checked without watching pixels.
+`--smoke` runs the data-layer code paths without opening any wayland
+surface, useful when only a data source changed.
 
-## Manual verification (A–D), in a niri session
+## Configuration
 
-1. **A** — maximize a terminal; its top edge should sit at y = 32 px (not 0), and niri
-   keyboard shortcuts / terminal input must work on the first keypress (bar never steals
-   focus).
-2. **B** — battery % and icon update; `chmod -x ../odin/scripts/battery.nu` (or break it)
-   and confirm the clock keeps ticking and the last value is retained.
-3. **C** — switch workspaces in niri; the `[active]`-bracketed pill should follow within a
-   frame. `ps` should show **no** `niri msg` subprocess (it's the event stream, not polling).
-4. **D** — phase 2 (below).
+The bar reads its config from `$XDG_CONFIG_HOME/odin/config.json` —
+shared with Odin for now. The dark/light symlink is followed, and
+defaults match Odin's gruvbox-dark palette. A standalone config file
+is on the roadmap (see `TODO.md`).
 
-## Phase 2 — multi-output (D)
+The font resolution follows Odin's `sans-serif`/`monospace` aliases
+through `fc-match` so text rendering matches Odin's rendering, given the
+same system fonts (IBM Plex Sans / Lilex Nerd Font Mono on this
+machine).
 
-The spike runs a single `application()` bound to `StartMode::Active`. For one bar per
-monitor, switch to the **daemon** builder (verified in iced_layershell's `multi_window`
-example):
+## Limitations
 
-- `iced_layershell::build_pattern::daemon(Bar::new, "odin-spike", Bar::update, Bar::view)`
-- `#[to_layer_message(multi)]` on `Message` (note the `(multi)`), state keyed by
-  `window::Id` in a `BTreeMap`.
-- At boot, enumerate outputs (via `niri_ipc::Request::Outputs`) and, per output, return
-  `Message::NewLayerShell { settings: NewLayerShellSettings { anchor, exclusive_zone,
-  keyboard_interactivity: None, output_option: <that output> }, id: window::Id::unique() }`.
-- Route `view(id)` / per-surface state by `window::Id`; each bar renders
-  `niri::workspaces_for_output(state, its_output_name)`.
-- **Open question the phase-2 build settles:** whether `OutputOption` has a by-name/by-output
-  variant (single-app `StartMode::TargetScreen("HDMI-1")` is confirmed), and whether output
-  **hotplug** is observable so bars can be added/removed reactively.
+- **Backdrop** — Odin casts a dark drop-shadow behind its white text via
+  an off-screen layer + a niri `layer-rule`. odin-rs renders against a
+  transparent layer, so over light wallpaper the text is low-contrast.
+  Reproducing the backdrop trick is on the roadmap (see `TODO.md`).
+- **Hot reload** — none for a compiled binary; runtime config requires a
+  restart until the config-file layer lands.
+- **Hotplug** — output removal is handled; output addition needs a
+  manual re-enumeration trigger (deferred, see `TODO.md`).
 
-## Known limitations / next risks (not in this spike)
-
-- **Popups/menus** — iced_layershell's author calls popup support "only a toy". Odin's
-  `BarPopup`/`HoverPopup`/`MenuGroup`/inline sliders are the top full-port risk; do a
-  one-popup mini-spike before committing.
-- Tray (StatusNotifierItem host), notification **server**, MPRIS — three D-Bus services
-  Quickshell provides that iced does not; reimplement over `zbus`.
-- niri blur region + drop-shadow gradient backdrop — blur likely has no iced equivalent.
-- Hot reload — none for a compiled binary; runtime config needs a config-file layer.
+For service-level limitations (popups, tray, notifications, MPRIS,
+blurred backdrop) see `TODO.md`.
