@@ -5,7 +5,6 @@ use std::{collections::HashMap, path::PathBuf, sync::RwLock};
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
-/// Cached desktop entries and icon theme lookups.
 #[derive(Debug)]
 pub struct DesktopEntries {
     entries: Vec<DesktopEntry>,

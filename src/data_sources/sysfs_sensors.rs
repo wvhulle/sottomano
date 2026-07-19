@@ -12,33 +12,17 @@ pub mod memory;
 pub mod power;
 pub mod temperature;
 
-// Not every re-export is consumed yet (CpuClock/PowerDraw/TempReading are
-// ported for parity but not rendered until Phase 4's popups/tooltips land — see
-// data_sources.rs).
-#[allow(unused_imports)]
-pub use battery::Battery;
-#[allow(unused_imports)]
-pub use cpu_clock::{CoreFreq, CpuClock};
-#[allow(unused_imports)]
-pub use cpu_usage::CpuUsage;
-#[allow(unused_imports)]
-pub use memory::Memory;
-#[allow(unused_imports)]
-pub use power::PowerDraw;
-#[allow(unused_imports)]
-pub use temperature::{TempReading, Temperature};
-
 /// Per-core current frequency in GHz, from cpufreq sysfs, sorted by core index.
 /// Shared by `cpu_clock` (per-core detail) and `cpu_usage` (the bar's average
 /// summary).
-pub(super) fn core_freqs() -> Vec<CoreFreq> {
-    let mut cores: Vec<CoreFreq> = list_dir("/sys/devices/system/cpu")
+pub(super) fn core_freqs() -> Vec<cpu_clock::CoreFreq> {
+    let mut cores: Vec<cpu_clock::CoreFreq> = list_dir("/sys/devices/system/cpu")
         .iter()
         .filter_map(|dir| {
             let name = dir.file_name()?.to_str()?;
             let core: u32 = cpu_core_index(name)?;
             let khz = read_i64(dir.join("cpufreq/scaling_cur_freq"))?;
-            Some(CoreFreq {
+            Some(cpu_clock::CoreFreq {
                 core,
                 ghz: khz as f64 / 1_000_000.0,
             })

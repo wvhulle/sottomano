@@ -10,11 +10,11 @@ use crate::{
     data_sources::{
         BarWidget,
         disk::Disk,
-        sysfs_sensors::{CpuUsage, Memory, Temperature},
+        sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     layer_surface::Position,
     user_config::Config,
-    widgets::{activity_line, pager_slot, source_reading},
+    widgets::{activity_line::activity_line, icon_gauge::source_reading, pager_slot::pager_slot},
 };
 
 #[derive(Default)]

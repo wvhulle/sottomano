@@ -2,9 +2,9 @@ use iced::{Element, Task};
 
 use crate::{
     bar_program::Message,
-    data_sources::{BarWidget, sysfs_sensors::Battery},
+    data_sources::{BarWidget, sysfs_sensors::battery::Battery},
     user_config::Config,
-    widgets::source_reading,
+    widgets::icon_gauge::source_reading,
 };
 
 #[derive(Default)]

@@ -26,7 +26,9 @@ serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",
   "macros",
+  "net",
   "time",
   "sync",
 ] }
 toml = "0.8.23"
+wayland-client = "0.31.14"

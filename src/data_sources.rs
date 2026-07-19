@@ -16,8 +16,8 @@ pub mod app_icon;
 pub mod disk;
 pub mod niri;
 pub mod sysfs_sensors;
+pub mod wayland_outputs;
 
-/// Severity band, driving the widget tint.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Level {
     #[default]
@@ -26,7 +26,6 @@ pub enum Level {
     Critical,
 }
 
-/// A gauge/slider unit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
     Percent,
@@ -42,12 +41,9 @@ impl Display for Unit {
     }
 }
 
-/// A widget's fill facet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
-    /// Read-only fill (battery, cpu, memory, disk, …).
     Gauge { percent: i64, unit: Unit },
-    /// Draggable fill (backlight, volume, …).
     Slider { percent: i64, unit: Unit },
 }
 
@@ -57,22 +53,14 @@ impl Value {
             Value::Gauge { percent, .. } | Value::Slider { percent, .. } => percent,
         }
     }
-
-    pub fn unit(self) -> Unit {
-        match self {
-            Value::Gauge { unit, .. } | Value::Slider { unit, .. } => unit,
-        }
-    }
 }
 
-/// One ordered tooltip line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
     pub key: String,
     pub value: String,
 }
 
-/// Build a tooltip row.
 pub fn row(key: &str, value: impl Into<String>) -> Row {
     Row {
         key: key.to_string(),
@@ -83,22 +71,18 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
 pub trait BarWidget {
     fn icon(&self) -> &'static str;
 
-    /// Optional short bar label next to the icon.
     fn label(&self) -> Option<String> {
         None
     }
 
-    /// Severity tint band.
     fn level(&self) -> Level {
         Level::Ok
     }
 
-    /// Gauge/slider fill, if this widget has one.
     fn value(&self) -> Option<Value> {
         None
     }
 
-    /// Hover tooltip rows, in order.
     fn tooltip(&self) -> Vec<Row>;
 }
 

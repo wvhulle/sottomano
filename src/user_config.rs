@@ -2,30 +2,21 @@
 
 use std::path::PathBuf;
 
-use iced::Color;
 use serde::Deserialize;
 
 pub mod font;
 pub mod layout;
 pub mod palette;
 
-pub use font::FontSpec;
-pub use layout::Layout;
-pub use palette::Palette;
-
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub palette: Palette,
-    pub layout: Layout,
-    pub font: FontSpec,
+    pub palette: palette::Palette,
+    pub layout: layout::Layout,
+    pub font: font::FontSpec,
 }
 
 impl Config {
-    pub fn chrome_color(&self) -> Color {
-        self.palette.bar_background()
-    }
-
     pub fn chrome_radius(&self) -> f32 {
         if self.layout.floating {
             f32::from(self.layout.corner_radius)
@@ -63,14 +54,8 @@ impl std::fmt::Display for LoadError {
 }
 
 fn config_path() -> PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME").map_or_else(
-        || {
-            let home = std::env::var_os("HOME").unwrap_or_default();
-            PathBuf::from(home).join(".config")
-        },
-        PathBuf::from,
-    );
-    base.join("odin.toml")
+    let base: PathBuf = std::env::var_os("HOME").unwrap().into();
+    base.join(".config").join("odin.toml")
 }
 
 fn read(path: &std::path::Path) -> Result<Config, LoadError> {

@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, Local};
 use iced::{Element, Subscription, Task};
 
-use crate::{bar_program::Message, user_config::Config, widgets::bar_text};
+use crate::{bar_program::Message, user_config::Config, widgets::text::bar_text};
 
 pub struct ClockGroup {
     text: String,

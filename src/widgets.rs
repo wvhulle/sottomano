@@ -10,8 +10,3 @@ pub mod activity_line;
 pub mod icon_gauge;
 pub mod pager_slot;
 pub mod text;
-
-pub use activity_line::activity_line;
-pub use icon_gauge::source_reading;
-pub use pager_slot::pager_slot;
-pub use text::bar_text;

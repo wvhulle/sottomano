@@ -11,7 +11,7 @@ use crate::{
     data_sources::{app_icon::DesktopEntries, niri},
     layer_surface::Position,
     user_config::Config,
-    widgets::{activity_line, bar_text, pager_slot},
+    widgets::{activity_line::activity_line, pager_slot::pager_slot, text::bar_text},
 };
 
 pub fn view<'a>(

@@ -8,7 +8,6 @@ const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 const FREE_WARN_BYTES: u64 = 100_000_000_000; // 100 GB
 const FREE_CRITICAL_BYTES: u64 = 2_000_000_000; // 2 GB
 
-/// Filesystem usage on `/`.
 #[derive(Debug, Clone)]
 pub struct Disk {
     pub total_bytes: u64,
@@ -61,22 +60,18 @@ impl Source for Disk {
     const NAME: &'static str = "disk";
 
     fn poll() -> Option<Self> {
-        statvfs_root()
+        let path = CStr::from_bytes_with_nul(b"/\0").ok()?;
+        // SAFETY: `stat` is zeroed then filled by `statvfs`; we read it only on success
+        // (0).
+        let mut stat = unsafe { zeroed::<libc::statvfs>() };
+        let rc = unsafe { libc::statvfs(path.as_ptr(), &raw mut stat) };
+        if rc != 0 {
+            return None;
+        }
+        let frsize = stat.f_frsize as u64;
+        Some(Disk {
+            total_bytes: stat.f_blocks as u64 * frsize,
+            free_bytes: stat.f_bavail as u64 * frsize,
+        })
     }
-}
-
-fn statvfs_root() -> Option<Disk> {
-    let path = CStr::from_bytes_with_nul(b"/\0").ok()?;
-    // SAFETY: `stat` is zeroed then filled by `statvfs`; we read it only on success
-    // (0).
-    let mut stat = unsafe { zeroed::<libc::statvfs>() };
-    let rc = unsafe { libc::statvfs(path.as_ptr(), &raw mut stat) };
-    if rc != 0 {
-        return None;
-    }
-    let frsize = stat.f_frsize as u64;
-    Some(Disk {
-        total_bytes: stat.f_blocks as u64 * frsize,
-        free_bytes: stat.f_bavail as u64 * frsize,
-    })
 }

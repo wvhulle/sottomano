@@ -10,7 +10,7 @@ use iced::{
     window::Id,
 };
 use iced_layershell::to_layer_message;
-use niri_ipc::state::EventStreamState;
+use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use tokio::task::spawn_blocking;
 
 use crate::{
@@ -33,14 +33,14 @@ pub struct Bar {
     pub(crate) clock_group: ClockGroup,
     pub(crate) niri: EventStreamState,
     pub(crate) desktop_entries: Option<Arc<DesktopEntries>>,
-    /// Every live layer-shell surface, keyed by its iced `window::Id`.
     pub(crate) surfaces: BTreeMap<Id, Surface>,
 }
 
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
-    OpenBars(Vec<String>),
+    OutputAdded(String),
+    OutputRemoved(String),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     Poll(SourceKind),
     Battery(BatteryMessage),
@@ -67,20 +67,6 @@ impl Bar {
             },
             Task::batch([
                 Task::perform(
-                    async { spawn_blocking(niri::list_outputs).await },
-                    |joined| match joined {
-                        Ok(Ok(names)) => Message::OpenBars(names),
-                        Ok(Err(e)) => {
-                            eprintln!("niri: {e}");
-                            Message::OpenBars(Vec::new())
-                        }
-                        Err(e) => {
-                            eprintln!("niri: output enumeration task panicked: {e}");
-                            Message::OpenBars(Vec::new())
-                        }
-                    },
-                ),
-                Task::perform(
                     async { spawn_blocking(DesktopEntries::load).await },
                     |joined| match joined {
                         Ok(entries) => Message::DesktopEntriesLoaded(Arc::new(entries)),
@@ -101,19 +87,20 @@ impl Bar {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::OpenBars(outputs) => self.open_bars(&outputs),
+            Message::OutputAdded(output) => self.open_bars(&output),
+            Message::OutputRemoved(output) => self.close_bars(&output),
             Message::DesktopEntriesLoaded(entries) => {
                 self.desktop_entries = Some(entries);
                 Task::none()
             }
             Message::Poll(kind) => match kind {
-                SourceKind::Battery => poll::<sysfs_sensors::Battery>()
+                SourceKind::Battery => poll::<sysfs_sensors::battery::Battery>()
                     .map(|d| Message::Battery(BatteryMessage::Loaded(d))),
-                SourceKind::Cpu => poll::<sysfs_sensors::CpuUsage>()
+                SourceKind::Cpu => poll::<sysfs_sensors::cpu_usage::CpuUsage>()
                     .map(|d| Message::System(SystemMessage::LoadedCpu(d))),
-                SourceKind::Memory => poll::<sysfs_sensors::Memory>()
+                SourceKind::Memory => poll::<sysfs_sensors::memory::Memory>()
                     .map(|d| Message::System(SystemMessage::LoadedMemory(d))),
-                SourceKind::Temperature => poll::<sysfs_sensors::Temperature>()
+                SourceKind::Temperature => poll::<sysfs_sensors::temperature::Temperature>()
                     .map(|d| Message::System(SystemMessage::LoadedTemperature(d))),
                 SourceKind::Disk => {
                     poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d)))
@@ -128,7 +115,7 @@ impl Bar {
                 niri_action(move || niri::focus_workspace(workspace))
             }
             Message::Niri(event) => {
-                niri::apply(&mut self.niri, event);
+                let _ = self.niri.apply(event);
                 Task::none()
             }
             Message::WindowClosed(id) => {
@@ -139,23 +126,37 @@ impl Bar {
         }
     }
 
-    fn open_bars(&mut self, outputs: &[String]) -> Task<Message> {
+    fn open_bars(&mut self, output: &str) -> Task<Message> {
         let height = self.config.layout.outer_height as u32;
-        let opens: Vec<Task<Message>> = outputs
-            .iter()
-            .flat_map(|output| {
-                Position::ALL
-                    .into_iter()
-                    .map(move |position| (output.clone(), position))
-            })
-            .map(|(output, position)| {
+        let opens: Vec<Task<Message>> = Position::ALL
+            .into_iter()
+            .map(|position| {
                 let id = Id::unique();
-                let settings = layer_settings(&output, position, height);
-                self.surfaces.insert(id, Surface { output, position });
+                let settings = layer_settings(output, position, height);
+                self.surfaces.insert(
+                    id,
+                    Surface {
+                        output: output.to_string(),
+                        position,
+                    },
+                );
                 Task::done(Message::NewLayerShell { settings, id })
             })
             .collect();
         Task::batch(opens)
+    }
+
+    fn close_bars(&mut self, output: &str) -> Task<Message> {
+        let ids: Vec<Id> = self
+            .surfaces
+            .iter()
+            .filter(|(_, surface)| surface.output == output)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in &ids {
+            self.surfaces.remove(id);
+        }
+        Task::batch(ids.into_iter().map(Message::RemoveWindow).map(Task::done))
     }
 
     pub fn view(&self, id: Id) -> Element<'_, Message> {
@@ -179,7 +180,7 @@ impl Bar {
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .style(|_| container::Style {
-                background: Some(self.config.chrome_color().into()),
+                background: Some(self.config.palette.bar_background().into()),
                 border: iced::Border {
                     radius: self.config.chrome_radius().into(),
                     ..Default::default()
