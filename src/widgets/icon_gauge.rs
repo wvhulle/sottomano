@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Border, Color, Element, Length,
+    Alignment, Border, Color, Element,
     widget::{Column, Space, container, row},
 };
 use iced_font_awesome::fa_icon_solid;
@@ -7,7 +7,7 @@ use iced_font_awesome::fa_icon_solid;
 use crate::{
     bar_program::Message,
     data_sources::{BarWidget, Level},
-    user_config::{Config, font},
+    user_config::Config,
     widgets::text::bar_text,
 };
 
@@ -20,11 +20,13 @@ pub fn source_reading<'a>(
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
     let color = level_color(config, widget.level());
-    let icon = fa_icon_solid(widget.icon()).size(font::size()).color(color);
+    let icon = fa_icon_solid(widget.icon())
+        .size(config.font.icon_size)
+        .color(color);
 
     match widget.value() {
         Some(value) => Some(
-            row![icon, gauge(value.percent(), color)]
+            row![icon, gauge(value.percent(), color, config.font.icon_size)]
                 .spacing(config.layout.horizontal_widget_spacing)
                 .align_y(Alignment::Center)
                 .into(),
@@ -43,18 +45,16 @@ pub fn source_reading<'a>(
 
 /// odin's `PercentGauge`: a thin vertical fill bar for a 0..100 value. A faint
 /// full-height track keeps the frame visible; a solid bar fills from the bottom
-/// in proportion. Stretches with `Length::Fill` to match the parent height
-/// (typically the icon's row), no hardcoded gauge height.
-fn gauge<'a>(percent: i64, color: Color) -> Element<'a, Message> {
-    let frac = (percent as f32 / 100.0).clamp(0.0, 1.0);
-    let total: u16 = 1000;
-    let fill_portions: u16 = (frac * f32::from(total)).round() as u16;
-    let track_portions: u16 = total - fill_portions;
+/// in proportion. Height matches the icon size so it lines up with the
+/// Font Awesome icon beside it.
+fn gauge<'a>(percent: i64, color: Color, height: f32) -> Element<'a, Message> {
+    let fill_height = height * (percent as f32 / 100.0).clamp(0.0, 1.0);
+    let track_height = height - fill_height;
 
-    let bar = |portions: u16, alpha: f32| {
+    let bar = |bar_height: f32, alpha: f32| {
         container(Space::new())
             .width(3.0)
-            .height(Length::FillPortion(portions))
+            .height(bar_height)
             .style(move |_| container::Style {
                 background: Some(Color { a: alpha, ..color }.into()),
                 border: Border::default().rounded(1.0),
@@ -62,13 +62,10 @@ fn gauge<'a>(percent: i64, color: Color) -> Element<'a, Message> {
             })
     };
 
-    Column::with_children([
-        bar(track_portions, 0.27).into(),
-        bar(fill_portions, 1.0).into(),
-    ])
-    .width(3.0)
-    .height(Length::Fill)
-    .into()
+    Column::with_children([bar(track_height, 0.27).into(), bar(fill_height, 1.0).into()])
+        .width(3.0)
+        .height(height)
+        .into()
 }
 
 /// Severity → foreground, mirroring odin's per-level tints: ok stays the

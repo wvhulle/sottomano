@@ -10,7 +10,7 @@ use crate::{
     bar_program::Message,
     data_sources::niri,
     layer_surface::Position,
-    user_config::Config,
+    user_config::{Config, font},
     widgets::{activity_line, bar_text, pager_slot},
 };
 
@@ -79,7 +79,9 @@ fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Message
 
     match &p.name {
         Some(name) if named && p.idx <= 10 => row![
-            bar_text(key).color(config.palette.dim()),
+            bar_text(key)
+                .size(font::size() * 0.7)
+                .color(config.palette.dim()),
             bar_text(name.clone()),
         ]
         .align_y(Alignment::Start)
