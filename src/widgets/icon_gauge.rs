@@ -13,13 +13,15 @@ use crate::{
 
 /// A source-backed leaf: Font Awesome icon + thin vertical gauge (or a text
 /// label for a label-only source), tinted by severity. `None` when the source
-/// is unavailable.
+/// is unavailable. `alpha` scales every colour's opacity so a reading can fade
+/// in/out (1.0 = fully opaque).
 pub fn source_reading<'a>(
     config: &Config,
     widget: Option<&dyn BarWidget>,
+    alpha: f32,
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
-    let color = level_color(config, widget.level());
+    let color = level_color(config, widget.level()).scale_alpha(alpha);
     let icon = fa_icon_solid(widget.icon())
         .size(config.font.icon_size)
         .color(color);
@@ -56,7 +58,13 @@ fn gauge<'a>(percent: i64, color: Color, height: f32) -> Element<'a, Message> {
             .width(3.0)
             .height(bar_height)
             .style(move |_| container::Style {
-                background: Some(Color { a: alpha, ..color }.into()),
+                background: Some(
+                    Color {
+                        a: alpha * color.a,
+                        ..color
+                    }
+                    .into(),
+                ),
                 border: Border::default().rounded(1.0),
                 ..Default::default()
             })

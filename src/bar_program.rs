@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use iced::{
     Alignment, Color, Element, Length, Task,
     theme::Style,
+    time::Instant,
     widget::{Space, container, mouse_area, stack, text},
     window::Id,
 };
@@ -34,6 +35,7 @@ pub struct Bar {
     pub(crate) niri: EventStreamState,
     pub(crate) desktop_entries: Option<Arc<DesktopEntries>>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
+    pub(crate) now: Instant,
 }
 
 #[to_layer_message(multi)]
@@ -49,19 +51,22 @@ pub enum Message {
     FocusWorkspace(u64),
     Niri(niri_ipc::Event),
     WindowClosed(Id),
+    Animate,
 }
 
 impl Bar {
     pub fn new() -> (Self, Task<Message>) {
+        let config = load();
         (
             Self {
-                config: load(),
                 battery_group: BatteryGroup::default(),
-                system_group: SystemGroup::default(),
+                system_group: SystemGroup::new(config.layout.menu_expand_ms),
                 clock_group: ClockGroup::default(),
                 niri: EventStreamState::default(),
                 desktop_entries: None,
                 surfaces: BTreeMap::new(),
+                now: Instant::now(),
+                config,
             },
             Task::batch([
                 Task::perform(
@@ -83,8 +88,17 @@ impl Bar {
         "odin-rs".to_string()
     }
 
+    /// Whether any expandable group is mid-transition — drives the per-frame
+    /// animation subscription. Frame ticking is an app-level concern, so it is
+    /// aggregated here across all menu groups rather than exposed per group.
+    pub fn is_animating(&self, now: Instant) -> bool {
+        self.system_group.menu.is_animating(now)
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        self.now = Instant::now();
         match message {
+            Message::Animate => Task::none(),
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 self.open_bars(&name)
             }
@@ -106,9 +120,9 @@ impl Bar {
                 }
             },
             Message::Battery(msg) => self.battery_group.update(msg),
-            Message::System(msg) => self.system_group.update(msg),
+            Message::System(msg) => self.system_group.update(msg, self.now),
             Message::Clock(msg) => self.clock_group.update(msg),
-            Message::CloseMenus => self.system_group.update(SystemMessage::Close),
+            Message::CloseMenus => self.system_group.update(SystemMessage::Close, self.now),
             Message::FocusWindow(window) => niri_action(move || niri::focus_window(window)),
             Message::FocusWorkspace(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))

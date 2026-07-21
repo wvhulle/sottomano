@@ -15,6 +15,7 @@ pub struct Layout {
     pub outer_height: f32,
     pub focus_underline_thickness: f32,
     pub window_segment_thickness: f32,
+    pub menu_expand_ms: u64,
 }
 
 impl Default for Layout {
@@ -32,6 +33,7 @@ impl Default for Layout {
             outer_height: 24.0,
             focus_underline_thickness: 3.4,
             window_segment_thickness: 2.0,
+            menu_expand_ms: 130,
         }
     }
 }

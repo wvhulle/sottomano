@@ -29,7 +29,7 @@ pub struct Palette {
 impl Default for Palette {
     fn default() -> Self {
         Self {
-            bar_background: srgb("#504945b3"),
+            bar_background: srgb("transparent"),
             bar_foreground: srgb("#ffffff"),
             inactive: srgb("#bdae93"),
             urgent: srgb("#fb4934"),

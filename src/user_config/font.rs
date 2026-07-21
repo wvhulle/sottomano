@@ -18,7 +18,7 @@ impl Default for FontSpec {
         Self {
             name: None,
             size_px: 12.0,
-            icon_size: 17.0,
+            icon_size: 14.0,
         }
     }
 }

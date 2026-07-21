@@ -22,7 +22,7 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let start = Row::with_children(
         [
             bar.battery_group.view(config),
-            bar.system_group.view(config, position),
+            bar.system_group.view(config, position, bar.now),
         ]
         .into_iter()
         .flatten(),

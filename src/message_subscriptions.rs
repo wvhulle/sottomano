@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use iced::{Subscription, Task};
+use iced::{Subscription, Task, time::Instant};
 
 use crate::{
     bar_layout::clock_group::ClockGroup,
@@ -39,8 +39,13 @@ impl SourceKind {
     }
 }
 
-pub fn subscription(_state: &Bar) -> Subscription<Message> {
+pub fn subscription(state: &Bar) -> Subscription<Message> {
     use SourceKind::{Battery, Cpu, Disk, Memory, Temperature};
+    let animation = if state.is_animating(Instant::now()) {
+        iced::window::frames().map(|_| Message::Animate)
+    } else {
+        Subscription::none()
+    };
     Subscription::batch([
         iced::time::every(Battery.interval()).map(|_| Message::Poll(Battery)),
         iced::time::every(Cpu.interval()).map(|_| Message::Poll(Cpu)),
@@ -50,6 +55,7 @@ pub fn subscription(_state: &Bar) -> Subscription<Message> {
         ClockGroup::subscription(),
         iced::window::close_events().map(Message::WindowClosed),
         niri_subscription(),
+        animation,
     ])
 }
 

@@ -8,5 +8,7 @@
 
 pub mod activity_line;
 pub mod icon_gauge;
+pub mod menu_group;
 pub mod pager_slot;
+pub mod reveal;
 pub mod text;

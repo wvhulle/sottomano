@@ -28,6 +28,10 @@ impl BatteryGroup {
     }
 
     pub fn view<'a>(&self, config: &Config) -> Option<Element<'a, Message>> {
-        source_reading(config, self.battery.as_ref().map(|w| w as &dyn BarWidget))
+        source_reading(
+            config,
+            self.battery.as_ref().map(|w| w as &dyn BarWidget),
+            1.0,
+        )
     }
 }
