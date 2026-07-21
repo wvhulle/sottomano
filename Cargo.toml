@@ -8,7 +8,10 @@ absolute_paths = "warn"
 pedantic = { priority = -1, level = "warn" }
 
 [dependencies]
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4", default-features = false, features = [
+  "clock",
+  "std",
+] }
 color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
@@ -30,9 +33,3 @@ tokio = { version = "1.53.0", features = [
   "sync",
 ] }
 toml = "0.8.23"
-
-# Develop against the local checkout of the fork so output-event changes in
-# layershellev/iced_layershell are picked up without a push. Drop this once the
-# fork's master has them and bump the git dep above.
-[patch."https://github.com/wvhulle/exwlshelleventloop.git"]
-iced_layershell = { path = "/home/wvhulle/Code/exwlshelleventloop/iced_layershell" }
