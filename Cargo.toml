@@ -26,9 +26,13 @@ serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",
   "macros",
-  "net",
   "time",
   "sync",
 ] }
 toml = "0.8.23"
-wayland-client = "0.31.14"
+
+# Develop against the local checkout of the fork so output-event changes in
+# layershellev/iced_layershell are picked up without a push. Drop this once the
+# fork's master has them and bump the git dep above.
+[patch."https://github.com/wvhulle/exwlshelleventloop.git"]
+iced_layershell = { path = "/home/wvhulle/Code/exwlshelleventloop/iced_layershell" }

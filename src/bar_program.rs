@@ -9,7 +9,7 @@ use iced::{
     widget::{Space, container, mouse_area, stack, text},
     window::Id,
 };
-use iced_layershell::to_layer_message;
+use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use tokio::task::spawn_blocking;
 
@@ -39,8 +39,6 @@ pub struct Bar {
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
-    OutputAdded(String),
-    OutputRemoved(String),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     Poll(SourceKind),
     Battery(BatteryMessage),
@@ -87,8 +85,9 @@ impl Bar {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::OutputAdded(output) => self.open_bars(&output),
-            Message::OutputRemoved(output) => self.close_bars(&output),
+            Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
+                self.open_bars(&name)
+            }
             Message::DesktopEntriesLoaded(entries) => {
                 self.desktop_entries = Some(entries);
                 Task::none()
@@ -144,19 +143,6 @@ impl Bar {
             })
             .collect();
         Task::batch(opens)
-    }
-
-    fn close_bars(&mut self, output: &str) -> Task<Message> {
-        let ids: Vec<Id> = self
-            .surfaces
-            .iter()
-            .filter(|(_, surface)| surface.output == output)
-            .map(|(id, _)| *id)
-            .collect();
-        for id in &ids {
-            self.surfaces.remove(id);
-        }
-        Task::batch(ids.into_iter().map(Message::RemoveWindow).map(Task::done))
     }
 
     pub fn view(&self, id: Id) -> Element<'_, Message> {

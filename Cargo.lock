@@ -1652,7 +1652,6 @@ dependencies = [
 [[package]]
 name = "iced_exdevtools"
 version = "0.19.1"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#33e1aa49bd62163a56ee02dc23a087baebfb41d8"
 dependencies = [
  "iced_debug",
  "iced_devtools",
@@ -1712,7 +1711,6 @@ dependencies = [
 [[package]]
 name = "iced_layershell"
 version = "0.19.1"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#33e1aa49bd62163a56ee02dc23a087baebfb41d8"
 dependencies = [
  "enumflags2",
  "futures",
@@ -1737,7 +1735,6 @@ dependencies = [
 [[package]]
 name = "iced_layershell_macros"
 version = "0.19.1"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#33e1aa49bd62163a56ee02dc23a087baebfb41d8"
 dependencies = [
  "darling",
  "manyhow",
@@ -2071,7 +2068,6 @@ dependencies = [
 [[package]]
 name = "layershellev"
 version = "0.19.1"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#33e1aa49bd62163a56ee02dc23a087baebfb41d8"
 dependencies = [
  "calloop 0.14.4",
  "calloop-wayland-source 0.4.1",
@@ -2311,17 +2307,6 @@ checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
  "simd-adler32",
-]
-
-[[package]]
-name = "mio"
-version = "1.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30d65c71f1ce40ab09135ce117d742b9f8a19ff91a41a8b57ed50bc2de59c427"
-dependencies = [
- "libc",
- "wasi",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2951,7 +2936,6 @@ dependencies = [
  "serde",
  "tokio",
  "toml",
- "wayland-client",
 ]
 
 [[package]]
@@ -3870,16 +3854,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "socket2"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
-dependencies = [
- "libc",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "softbuffer"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4132,12 +4106,8 @@ version = "1.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d988bcd52dbe076d3d46903332f58c912b87a2c49b1428419a5845154762ffee"
 dependencies = [
- "libc",
- "mio",
  "pin-project-lite",
- "socket2",
  "tokio-macros",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4441,7 +4411,6 @@ dependencies = [
 [[package]]
 name = "waycrate_xkbkeycode"
 version = "0.19.1"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#33e1aa49bd62163a56ee02dc23a087baebfb41d8"
 dependencies = [
  "calloop 0.14.4",
  "log",

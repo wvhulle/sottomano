@@ -7,10 +7,7 @@ use iced::{Subscription, Task};
 use crate::{
     bar_layout::clock_group::ClockGroup,
     bar_program::{Bar, Message},
-    data_sources::{
-        Source, niri,
-        wayland_outputs::{self, OutputEvent},
-    },
+    data_sources::{Source, niri},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -53,7 +50,6 @@ pub fn subscription(_state: &Bar) -> Subscription<Message> {
         ClockGroup::subscription(),
         iced::window::close_events().map(Message::WindowClosed),
         niri_subscription(),
-        wayland_outputs_subscription(),
     ])
 }
 
@@ -91,17 +87,5 @@ fn niri_subscription() -> Subscription<Message> {
                 }
             },
         )
-    })
-}
-
-fn wayland_outputs_subscription() -> Subscription<Message> {
-    Subscription::run(|| {
-        iced::stream::channel(16, |mut output| async move {
-            wayland_outputs::listen(&mut output, |event| match event {
-                OutputEvent::Added(name) => Message::OutputAdded(name),
-                OutputEvent::Removed(name) => Message::OutputRemoved(name),
-            })
-            .await;
-        })
     })
 }

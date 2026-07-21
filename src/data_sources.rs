@@ -16,7 +16,6 @@ pub mod app_icon;
 pub mod disk;
 pub mod niri;
 pub mod sysfs_sensors;
-pub mod wayland_outputs;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Level {
