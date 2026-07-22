@@ -23,20 +23,23 @@ pub fn source_reading<'a>(
     let widget = widget?;
     let color = level_color(config, widget.level()).scale_alpha(alpha);
     let icon = fa_icon_solid(widget.icon())
-        .size(config.font.icon_size)
+        .size(config.font.icon_size_px)
         .color(color);
 
     match widget.value() {
         Some(value) => Some(
-            row![icon, gauge(value.percent(), color, config.font.icon_size)]
-                .spacing(config.layout.horizontal_widget_spacing)
-                .align_y(Alignment::Center)
-                .into(),
+            row![
+                icon,
+                gauge(value.percent(), color, config.font.icon_size_px)
+            ]
+            .spacing(config.layout.horizontal_widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into(),
         ),
         None => match widget.label() {
             Some(label) if !label.is_empty() => Some(
                 row![icon, bar_text(label).color(color)]
-                    .spacing(config.layout.horizontal_widget_spacing)
+                    .spacing(config.layout.horizontal_widget_spacing_px)
                     .align_y(Alignment::Center)
                     .into(),
             ),

@@ -62,19 +62,6 @@ urgent         = "#fb4934"     # urgent state + critical severity
 warning        = "#fabd2f"     # warning severity
 focus          = "#8ec07c"     # focus indicator + focused window
 dim            = "#FFFFFF80"   # fixed dim foreground (superscript prefix)
-
-[layout]
-corner_radius = 8
-vertical_padding = 3
-horizontal_group_padding = 6
-horizontal_widget_spacing = 5
-horizontal_group_spacing = 9
-floating = true
-blur = true
-shadow = false
-float_offset = 0.0
-focus_underline_thickness = 3.4
-window_segment_thickness = 2.0
 ```
 
 Text uses `iced::Font::DEFAULT` / `iced::Font::MONOSPACE` from the

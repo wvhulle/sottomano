@@ -78,7 +78,16 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        renderer.with_layer(layout.bounds(), |renderer| {
+        // Clip only horizontally — hide the not-yet-revealed width, but never
+        // trim a child that is taller than the row (e.g. a slider knob).
+        let bounds = layout.bounds();
+        let clip = Rectangle {
+            x: bounds.x,
+            width: bounds.width,
+            y: viewport.y,
+            height: viewport.height,
+        };
+        renderer.with_layer(clip, |renderer| {
             self.content.as_widget().draw(
                 tree,
                 renderer,

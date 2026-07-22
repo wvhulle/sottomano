@@ -12,7 +12,7 @@ pub struct ClockGroup {
 impl Default for ClockGroup {
     fn default() -> Self {
         Self {
-            text: format_hm(Local::now()),
+            text: format_hms(Local::now()),
         }
     }
 }
@@ -25,7 +25,7 @@ pub enum ClockMessage {
 impl ClockGroup {
     pub fn update(&mut self, msg: ClockMessage) -> Task<Message> {
         let ClockMessage::Tick(now) = msg;
-        self.text = format_hm(now);
+        self.text = format_hms(now);
         Task::none()
     }
 
@@ -39,6 +39,6 @@ impl ClockGroup {
     }
 }
 
-fn format_hm(now: DateTime<Local>) -> String {
-    now.format("%H:%M").to_string()
+fn format_hms(now: DateTime<Local>) -> String {
+    now.format("%H:%M:%S").to_string()
 }

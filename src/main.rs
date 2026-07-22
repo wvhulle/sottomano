@@ -7,6 +7,7 @@ mod bar_program;
 mod data_sources;
 mod layer_surface;
 mod message_subscriptions;
+mod tooltip;
 mod user_config;
 mod widgets;
 

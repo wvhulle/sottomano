@@ -3,17 +3,18 @@
 //!
 //! - [`BarWidget`] — the render contract: icon, optional label, severity,
 //!   gauge/slider fill, and tooltip rows.
-//! - [`Source`] — the fetch contract: `poll()` reads the hardware and returns
-//!   `Some(data)` or `None` when unavailable.
+//! - [`Source`] — the fetch contract: reading the hardware yields the data, or
+//!   nothing when unavailable.
 //!
-//! Sources run synchronously; the app runs them off the executor via
-//! `spawn_blocking`.
+//! Sources run synchronously; the app runs them off the executor.
 #![allow(dead_code)]
 
 use std::fmt::{Display, Formatter, Result};
 
 pub mod app_icon;
+pub mod app_rules;
 pub mod disk;
+pub mod favicons;
 pub mod niri;
 pub mod sysfs_sensors;
 

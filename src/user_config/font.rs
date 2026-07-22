@@ -9,16 +9,16 @@ use serde::Deserialize;
 #[serde(default)]
 pub struct FontSpec {
     pub name: Option<String>,
-    pub size_px: f32,
-    pub icon_size: f32,
+    pub text_size_px: f32,
+    pub icon_size_px: f32,
 }
 
 impl Default for FontSpec {
     fn default() -> Self {
         Self {
             name: None,
-            size_px: 12.0,
-            icon_size: 14.0,
+            text_size_px: 12.0,
+            icon_size_px: 12.0,
         }
     }
 }
@@ -47,15 +47,21 @@ pub fn iced_font() -> Font {
     Font::with_name(name())
 }
 
+/// Resolve the system `sans-serif` alias to a concrete family name via
+/// `fc-match`, which reads libfontconfig's prebuilt on-disk cache and returns
+/// in milliseconds. This deliberately avoids parsing every font file in-process
+/// (as a pure-Rust fontconfig cache build would), which stalled startup by
+/// seconds on every launch.
 fn query_fontconfig_family() -> Option<String> {
-    use rust_fontconfig::{FcFontCache, FcPattern};
-
-    let cache = FcFontCache::build();
-    let pattern = FcPattern {
-        family: Some("sans-serif".to_owned()),
-        ..Default::default()
-    };
-    let matched = cache.query(&pattern, &mut Vec::new())?;
-    let meta = cache.get_metadata_by_id(&matched.id)?;
-    meta.name.clone().or_else(|| meta.family.clone())
+    let output = std::process::Command::new("fc-match")
+        .args(["-f", "%{family}\n", "sans-serif"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    // fontconfig may emit a comma-separated family alias list; take the first.
+    let family = stdout.lines().next()?.split(',').next()?.trim().to_owned();
+    (!family.is_empty()).then_some(family)
 }

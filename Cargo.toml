@@ -24,8 +24,9 @@ iced_font_awesome = "0.4.2"
 iced_layershell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 libc = "0.2.176"
 niri-ipc = "26.4.0"
-rust-fontconfig = "4.4.6"
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
+sha2 = "0.10"
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",
   "macros",

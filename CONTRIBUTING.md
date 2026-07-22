@@ -6,8 +6,10 @@ touching the code.
 ## Workflow
 
 - **Verify visually on every UI change.** Run alongside Odin (the
-  reference bar), screenshot the top strip, and diff against Odin's
-  rendering — "it compiles" is not a green light.
+  reference bar) — "it compiles" is not a green light. **Do not
+  screenshot; it is unreliable here.** Instead, ask the user to
+  visually inspect the top strip against Odin's rendering and tell you
+  what they see.
 - **Parity first.** Match Odin's behaviour before improving it. Note
   intentional deviations when you make them.
 - **Keep the bar building & runnable at every step.** Small,
@@ -21,8 +23,9 @@ odin's top bar** (it sets `exclusive_zone: 0`, so niri drops it below
 odin's reserved top zone automatically).
 
 odin-rs shows an orange marker so it's unmistakable next to the
-Odin bar. Compare its clock / battery / workspaces against Odin's
-own bar in the same image.
+Odin bar. Ask the user to visually inspect its clock / battery /
+workspaces against Odin's own bar and report back — do not attempt
+to screenshot.
 
 What to check on each pass:
 

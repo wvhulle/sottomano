@@ -13,43 +13,58 @@ use crate::{
 
 pub mod battery_group;
 pub mod clock_group;
+pub mod panel_settings_group;
 pub mod system_group;
 pub mod window_list_group;
 pub mod workspaces_group;
 
-pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
+pub fn top_row(bar: &Bar, id: iced::window::Id, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
-    let start = Row::with_children(
+    let start = zone(
         [
-            bar.battery_group.view(config),
-            bar.system_group.view(config, position, bar.now),
-        ]
-        .into_iter()
-        .flatten(),
-    )
-    .spacing(config.layout.horizontal_widget_spacing)
-    .align_y(Alignment::Center);
-    let center = Row::with_children([bar.clock_group.view(config)])
-        .spacing(config.layout.horizontal_group_spacing)
-        .align_y(Alignment::Center);
-    bar_row(start.into(), center.into(), config)
+            bar.battery_group.view(config, id),
+            bar.system_group.view(config, id, position, bar.now),
+            bar.panel_settings_group.view(config, id, position, bar.now),
+        ],
+        config,
+    );
+    let center = zone([Some(bar.clock_group.view(config))], config);
+    bar_row(start, center, config)
+}
+
+/// A bar zone: the groups that want to show (the `Some` ones), spaced by the
+/// configured group spacing. Hidden groups (`None`) contribute no slot, so they
+/// never widen the gap between their visible neighbours.
+fn zone<'a>(
+    groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
+    config: &Config,
+) -> Element<'a, Message> {
+    Row::with_children(groups.into_iter().flatten())
+        .spacing(config.layout.horizontal_group_spacing_px)
+        .align_y(Alignment::Center)
+        .into()
 }
 
 pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<'a, Message> {
     let config = &bar.config;
-    let start = Row::with_children([workspaces_group::view(&bar.niri, output, config, position)])
-        .spacing(config.layout.horizontal_group_spacing)
-        .align_y(Alignment::Center);
+    let start = zone(
+        [Some(workspaces_group::view(
+            &bar.niri, output, config, position,
+        ))],
+        config,
+    );
     let center = Row::with_children(window_list_group::view(
         &bar.niri,
         output,
         config,
-        bar.desktop_entries.as_deref(),
+        &bar.app_icons,
+        &bar.theme_icons,
+        &bar.favicons,
         position,
     ))
-    .spacing(config.layout.horizontal_group_spacing)
+    .spacing(config.layout.horizontal_group_spacing_px)
     .align_y(Alignment::Center);
-    bar_row(start.into(), center.into(), config)
+    bar_row(start, center.into(), config)
 }
 
 fn bar_row<'a>(
@@ -65,8 +80,8 @@ fn bar_row<'a>(
     ]
     .align_y(Alignment::Center)
     .padding([
-        config.layout.vertical_padding,
-        config.layout.horizontal_group_padding,
+        config.layout.vertical_padding_px,
+        config.layout.horizontal_group_padding_px,
     ])
     .into()
 }

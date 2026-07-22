@@ -96,16 +96,24 @@ pub fn windows_on_workspace(state: &EventStreamState, workspace: u64) -> Vec<Win
             .unwrap_or((usize::MAX, usize::MAX));
         (col, tile, w.id)
     });
-    windows
-        .into_iter()
-        .map(|w| WinEntry {
-            id: w.id,
-            title: w.title.clone().unwrap_or_default(),
-            app_id: w.app_id.clone().unwrap_or_default(),
-            is_focused: w.is_focused,
-            is_urgent: w.is_urgent,
-        })
-        .collect()
+    windows.into_iter().map(win_entry).collect()
+}
+
+/// Every window niri currently knows about, regardless of workspace/output —
+/// used to gather icon keys that need resolving across the whole bar, not
+/// just the windows shown on one output's workspace.
+pub fn all_windows(state: &EventStreamState) -> Vec<WinEntry> {
+    state.windows.windows.values().map(win_entry).collect()
+}
+
+fn win_entry(w: &niri_ipc::Window) -> WinEntry {
+    WinEntry {
+        id: w.id,
+        title: w.title.clone().unwrap_or_default(),
+        app_id: w.app_id.clone().unwrap_or_default(),
+        is_focused: w.is_focused,
+        is_urgent: w.is_urgent,
+    }
 }
 
 #[derive(Debug)]

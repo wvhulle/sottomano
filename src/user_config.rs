@@ -19,7 +19,7 @@ pub struct Config {
 impl Config {
     pub fn chrome_radius(&self) -> f32 {
         if self.layout.floating {
-            f32::from(self.layout.corner_radius)
+            f32::from(self.layout.corner_radius_px)
         } else {
             0.0
         }
@@ -72,6 +72,6 @@ pub fn load() -> Config {
             Config::default()
         }
     };
-    font::init(config.font.name.as_deref(), config.font.size_px as f32);
+    font::init(config.font.name.as_deref(), config.font.text_size_px as f32);
     config
 }

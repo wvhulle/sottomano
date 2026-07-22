@@ -11,7 +11,7 @@ use crate::{
     data_sources::niri,
     layer_surface::Position,
     user_config::{Config, font},
-    widgets::{activity_line::activity_line, pager_slot::pager_slot, text::bar_text},
+    widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
 };
 
 pub fn view<'a>(
@@ -34,16 +34,16 @@ pub fn view<'a>(
             let focus = activity_line(
                 focus_color,
                 focus_opacity,
-                config.layout.focus_underline_thickness,
+                config.layout.focus_underline_thickness_px,
             );
             let ticks = window_ticks(config, niri, p.id);
 
-            mouse_area(pager_slot(position, label, focus, Some(ticks)))
+            mouse_area(PagerSlot::new(label, focus).outer(ticks).view(position))
                 .on_press(Message::FocusWorkspace(p.id))
                 .into()
         });
     Row::with_children(slots)
-        .spacing(config.layout.horizontal_widget_spacing * 1.5)
+        .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
         .align_y(Alignment::Center)
         .into()
 }
@@ -53,7 +53,7 @@ fn window_ticks<'a>(
     niri: &EventStreamState,
     workspace: u64,
 ) -> Element<'a, Message> {
-    let thickness = config.layout.window_segment_thickness;
+    let thickness = config.layout.window_segment_thickness_px;
     let segments = niri::windows_on_workspace(niri, workspace)
         .into_iter()
         .map(move |w| {

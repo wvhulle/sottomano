@@ -28,7 +28,7 @@ impl Position {
 }
 
 /// The identity of one open surface: which output it lives on and which edge it
-/// hugs. `Bar::view` renders that output's workspaces — the whole point of
+/// hugs. Rendering picks out that output's workspaces — the whole point of
 /// going multi-output.
 #[derive(Debug, Clone)]
 pub struct Surface {
@@ -36,13 +36,27 @@ pub struct Surface {
     pub position: Position,
 }
 
+/// Margin (top, right, bottom, left) that insets a bar from the screen edges
+/// in floating mode — `0` on every side flush-mounts it instead.
+pub fn float_margin(position: Position, offset_px: i32) -> (i32, i32, i32, i32) {
+    match position {
+        Position::Top => (offset_px, offset_px, 0, offset_px),
+        Position::Bottom => (0, offset_px, offset_px, offset_px),
+    }
+}
+
 /// Layer-shell settings for one bar. The bar reserves its own strip via an
 /// exclusive zone equal to its height (odin's `exclusiveZone: barOuterHeight`),
 /// so niri tiles windows clear of it instead of letting them overlap. `height`
 /// is odin's `barOuterHeight` from the shared config; it also stacks below
 /// odin's own reserved zone, so the two bars sit flush without overlapping
-/// windows.
-pub fn layer_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
+/// windows. `margin` is odin's floating inset — `(0, 0, 0, 0)` when flush.
+pub fn layer_settings(
+    output: &str,
+    position: Position,
+    height: u32,
+    margin: (i32, i32, i32, i32),
+) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: Some((0, height)),
         exclusive_zone: Some(height as i32),
@@ -52,6 +66,7 @@ pub fn layer_settings(output: &str, position: Position, height: u32) -> NewLayer
         keyboard_interactivity: KeyboardInteractivity::None,
         // Bind this surface to a specific niri output by name.
         output_option: OutputOption::OutputName(output.to_string()),
+        margin: Some(margin),
         ..Default::default()
     }
 }

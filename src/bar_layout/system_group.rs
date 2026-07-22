@@ -1,12 +1,13 @@
 //! Expandable system group: the cpu handle unfolds temperature/memory/disk.
-//! A thin instance of the reusable [`MenuGroup`] — it owns only the readings
-//! and supplies a handle and a content row; the expand animation lives in the
-//! group.
+//! A thin instance of the reusable menu-group primitive — it owns only the
+//! readings and supplies a handle and a content row; the expand animation
+//! lives in that primitive.
 
 use iced::{
     Alignment, Element, Task,
     time::Instant,
     widget::{Row, mouse_area},
+    window::Id,
 };
 
 use crate::{
@@ -17,9 +18,21 @@ use crate::{
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     layer_surface::Position,
+    tooltip::hoverable,
     user_config::Config,
     widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
 };
+
+/// A reading wrapped so hovering it opens its tooltip.
+fn hover_reading<'a>(
+    config: &Config,
+    surface: Id,
+    widget: &dyn BarWidget,
+    alpha: f32,
+) -> Option<Element<'a, Message>> {
+    let reading = source_reading(config, Some(widget), alpha)?;
+    Some(hoverable(reading, surface, widget.tooltip()))
+}
 
 pub struct SystemGroup {
     cpu: Option<CpuUsage>,
@@ -67,34 +80,29 @@ impl SystemGroup {
     pub fn view<'a>(
         &self,
         config: &Config,
+        surface: Id,
         position: Position,
         now: Instant,
     ) -> Option<Element<'a, Message>> {
-        let handle = source_reading(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget), 1.0)?;
+        let handle = hover_reading(
+            config,
+            surface,
+            self.cpu.as_ref().map(|w| w as &dyn BarWidget)?,
+            1.0,
+        )?;
 
         let reveal = self.menu.reveal(now);
         let content = Row::with_children(
             [
-                source_reading(
-                    config,
-                    self.temperature.as_ref().map(|w| w as &dyn BarWidget),
-                    reveal,
-                ),
-                source_reading(
-                    config,
-                    self.memory.as_ref().map(|w| w as &dyn BarWidget),
-                    reveal,
-                ),
-                source_reading(
-                    config,
-                    self.disk.as_ref().map(|w| w as &dyn BarWidget),
-                    reveal,
-                ),
+                self.temperature.as_ref().map(|w| w as &dyn BarWidget),
+                self.memory.as_ref().map(|w| w as &dyn BarWidget),
+                self.disk.as_ref().map(|w| w as &dyn BarWidget),
             ]
             .into_iter()
-            .flatten(),
+            .flatten()
+            .filter_map(|widget| hover_reading(config, surface, widget, reveal)),
         )
-        .spacing(config.layout.horizontal_widget_spacing)
+        .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);
 
         let group = self

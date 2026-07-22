@@ -17,7 +17,7 @@ use crate::{
     bar_program::Message,
     layer_surface::Position,
     user_config::Config,
-    widgets::{activity_line::activity_line, pager_slot::pager_slot, reveal::reveal_x},
+    widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 
 pub struct MenuGroup {
@@ -56,12 +56,11 @@ impl MenuGroup {
     }
 
     /// Compose the group's visuals: `handle` (always shown) beside the revealed
-    /// `content`, under the shared `pager_slot` with an edge hairline. `reveal`
-    /// is passed in so the caller computes it once and fades `content`'s
-    /// colours by the same factor. The caller wraps the result in its own
-    /// `mouse_area` (routing `toggle`/`set_hover`), so the interaction
-    /// lives with the group's messages rather than being threaded through
-    /// here.
+    /// `content`, laid out in the shared pager slot with an edge hairline.
+    /// `reveal` is passed in so the caller computes it once and fades
+    /// `content`'s colours by the same factor. The caller wraps the result in
+    /// its own mouse area (routing toggle and hover), so the interaction lives
+    /// with the group's messages rather than being threaded through here.
     pub fn view<'a>(
         &self,
         config: &Config,
@@ -72,7 +71,7 @@ impl MenuGroup {
     ) -> Element<'a, Message> {
         // Pad the content on its left so the handle→content gap grows with the
         // reveal too (odin's `anim * (gap + content)`).
-        let gap = config.layout.horizontal_widget_spacing;
+        let gap = config.layout.horizontal_widget_spacing_px;
         let expanded = reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal);
 
         let inner = Row::with_children([handle, expanded]).align_y(Alignment::Center);
@@ -81,9 +80,9 @@ impl MenuGroup {
         let indicator = activity_line(
             config.palette.focus(),
             base + (1.0 - base) * reveal,
-            config.layout.focus_underline_thickness,
+            config.layout.focus_underline_thickness_px,
         );
 
-        pager_slot(position, inner.into(), indicator, None)
+        PagerSlot::new(inner.into(), indicator).view(position)
     }
 }
