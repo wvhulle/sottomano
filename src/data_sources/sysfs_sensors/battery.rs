@@ -1,7 +1,7 @@
 //! Battery charge level and power-source state.
 
 use super::{first_power_supply, read_trimmed};
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 /// Power-source charge state, from `/sys/class/power_supply/*/status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,11 +46,11 @@ pub struct Battery {
 }
 
 impl BarWidget for Battery {
-    fn icon(&self) -> &'static str {
+    fn icon(&self) -> Icon {
         if self.status.charging() {
-            "plug-circle-bolt"
+            Icon::PlugCircleBolt
         } else {
-            "car-battery"
+            Icon::CarBattery
         }
     }
 

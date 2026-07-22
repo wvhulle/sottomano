@@ -1,6 +1,6 @@
 //! RAM usage, ported from odin's `memory.nu`.
 
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 const KIB_PER_GIB: f64 = 1_048_576.0;
 
@@ -18,8 +18,8 @@ impl Memory {
 }
 
 impl BarWidget for Memory {
-    fn icon(&self) -> &'static str {
-        "memory"
+    fn icon(&self) -> Icon {
+        Icon::Memory
     }
 
     fn level(&self) -> Level {

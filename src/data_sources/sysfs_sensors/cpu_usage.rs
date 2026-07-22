@@ -3,7 +3,7 @@
 use std::{thread, time::Duration};
 
 use super::{core_ghz, favg, fmax, fmin, ghz};
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 /// CPU busy percent over a 200 ms `/proc/stat` delta, plus per-core GHz
 /// (`cpu.nu`).
@@ -14,8 +14,8 @@ pub struct CpuUsage {
 }
 
 impl BarWidget for CpuUsage {
-    fn icon(&self) -> &'static str {
-        "microchip"
+    fn icon(&self) -> Icon {
+        Icon::Microchip
     }
 
     fn level(&self) -> Level {

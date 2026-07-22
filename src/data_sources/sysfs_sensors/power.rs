@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use super::{battery::ChargeStatus, read_trimmed};
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
@@ -16,10 +16,10 @@ pub struct PowerDraw {
 }
 
 impl BarWidget for PowerDraw {
-    fn icon(&self) -> &'static str {
+    fn icon(&self) -> Icon {
         match self.status {
-            ChargeStatus::Discharging | ChargeStatus::Unknown => "plug-circle-minus",
-            _ => "plug-circle-plus",
+            ChargeStatus::Discharging | ChargeStatus::Unknown => Icon::PlugCircleMinus,
+            _ => Icon::PlugCirclePlus,
         }
     }
 

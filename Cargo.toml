@@ -15,9 +15,8 @@ chrono = { version = "0.4", default-features = false, features = [
 color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
-iced = { version = "0.14.0", features = ["tokio", "image"] }
+iced = { version = "0.14.0", features = ["tokio", "image", "svg"] }
 iced_font_awesome = "0.4.2"
-iced_fonts = { version = "0.3", features = ["fontawesome"] }
 # Local fork of wvhulle/exwlshelleventloop with the multi-surface present-error
 # fix (Outdated/Lost → reconfigure/recreate). Track master; force-push to update.
 # https (not ssh) so both local cargo and the Nix build sandbox can fetch without
@@ -28,6 +27,7 @@ niri-ipc = "26.4.0"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 sha2 = "0.10"
+ttf-parser = "0.25"
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",
   "macros",
@@ -35,3 +35,9 @@ tokio = { version = "1.53.0", features = [
   "sync",
 ] }
 toml = "0.8.23"
+# Trim the transparent margin themed icon SVGs ship with (see data_sources::icon_trim).
+# Pinned to the version iced_tiny_skia already resolves, so no second usvg copy.
+usvg = "0.45"
+
+[build-dependencies]
+serde_json = "1"

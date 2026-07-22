@@ -17,11 +17,14 @@ use iced::{
     time::Instant,
     widget::{Row, mouse_area, slider},
 };
-use iced_font_awesome::fa_icon_solid;
 
 use crate::{
-    bar_program::Message, data_sources::row, layer_surface::Position, tooltip::hoverable,
-    user_config::Config, widgets::menu_group::MenuGroup,
+    bar_program::Message,
+    data_sources::row,
+    layer_surface::Position,
+    tooltip::hoverable,
+    user_config::Config,
+    widgets::{icon::Icon, menu_group::MenuGroup},
 };
 
 pub struct PanelSettingsGroup {
@@ -51,7 +54,8 @@ impl PanelSettingsGroup {
         now: Instant,
     ) -> Option<Element<'a, Message>> {
         let foreground = config.palette.bar_foreground();
-        let handle: Element<'a, Message> = fa_icon_solid("sliders")
+        let handle: Element<'a, Message> = Icon::Sliders
+            .solid()
             .size(config.font.icon_size_px)
             .color(foreground)
             .into();
@@ -59,7 +63,8 @@ impl PanelSettingsGroup {
         let floating = config.layout.floating;
         let floating_toggle = {
             let color = foreground.scale_alpha(if floating { 1.0 } else { 0.4 });
-            let icon = fa_icon_solid("compress")
+            let icon = Icon::Compress
+                .solid()
                 .size(config.font.icon_size_px)
                 .color(color);
             hoverable(
@@ -79,7 +84,7 @@ impl PanelSettingsGroup {
 
         let offset = floating.then(|| {
             Knob {
-                icon: "arrows-to-circle",
+                icon: Icon::ArrowsToCircle,
                 range: 0.0..=24.0,
                 step: 1.0,
             }
@@ -107,7 +112,7 @@ impl PanelSettingsGroup {
 }
 
 struct Knob {
-    icon: &'static str,
+    icon: Icon,
     range: RangeInclusive<f32>,
     step: f32,
 }
@@ -119,7 +124,9 @@ impl Knob {
         value: f32,
         on_change: impl Fn(f32) -> Message + 'a,
     ) -> Element<'a, Message> {
-        let icon = fa_icon_solid(self.icon)
+        let icon = self
+            .icon
+            .solid()
             .size(config.font.icon_size_px)
             .color(config.palette.bar_foreground());
         Row::with_children([

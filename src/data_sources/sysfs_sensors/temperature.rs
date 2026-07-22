@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use super::{favg, fmax, fmin, list_dir, read_i64, read_trimmed};
-use crate::data_sources::{BarWidget, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
@@ -31,8 +31,8 @@ impl Temperature {
 }
 
 impl BarWidget for Temperature {
-    fn icon(&self) -> &'static str {
-        "temperature-half"
+    fn icon(&self) -> Icon {
+        Icon::TemperatureHalf
     }
 
     fn level(&self) -> Level {

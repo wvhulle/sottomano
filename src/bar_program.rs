@@ -30,7 +30,7 @@ use crate::{
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::{SourceKind, niri_action, poll},
     tooltip::{self, TooltipHost, TooltipMessage},
-    user_config::{Config, load},
+    user_config::Config,
 };
 
 pub struct Bar {
@@ -71,8 +71,7 @@ pub enum Message {
 }
 
 impl Bar {
-    pub fn new() -> (Self, Task<Message>) {
-        let config = load();
+    pub fn new(config: Config) -> (Self, Task<Message>) {
         (
             Self {
                 battery_group: BatteryGroup::default(),

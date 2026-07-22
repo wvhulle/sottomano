@@ -198,10 +198,10 @@ impl TooltipHost {
     }
 }
 
-/// Wrap a widget so hovering it opens a tooltip with `rows`. No-op when there is
-/// nothing to show. The widget reports only its anchor on hover; the surface it
-/// lives on is stamped later by [`on_surface`] at the bar root, so a hoverable
-/// widget need not know which surface it is drawn into.
+/// Wrap a widget so hovering it opens a tooltip with `rows`. No-op when there
+/// is nothing to show. The widget reports only its anchor on hover; the surface
+/// it lives on is stamped later by [`on_surface`] at the bar root, so a
+/// hoverable widget need not know which surface it is drawn into.
 pub fn hoverable(content: Element<'_, Message>, rows: Vec<Row>) -> Element<'_, Message> {
     if rows.is_empty() {
         return content;

@@ -3,9 +3,9 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use iced::{
-    Alignment, Border, Element,
+    Alignment, Element,
     font::Style as FontStyle,
-    widget::{Row, container, image, mouse_area},
+    widget::{Row, image, mouse_area, rich_text, svg},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -17,7 +17,7 @@ use crate::{
     },
     layer_surface::Position,
     user_config::{Config, font},
-    widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
+    widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans},
 };
 
 pub fn view<'a>(
@@ -92,24 +92,22 @@ pub fn view<'a>(
 /// `WindowTitleBody`. The lead block is skipped entirely when there is no
 /// rewritten prefix, so the main text sits alone with no stray dot.
 fn title_element<'a>(config: &Config, parts: &TitleParts) -> Element<'a, Message> {
-    if parts.lead.is_empty() {
-        return bar_text(parts.main.clone()).into();
-    }
-    let italic = iced::Font {
-        style: FontStyle::Italic,
-        ..font::iced_font()
-    };
-    Row::with_children([
-        bar_text(parts.lead.clone())
-            .font(italic)
-            .color(config.palette.dim())
-            .into(),
-        bar_text("·").color(config.palette.dim()).into(),
-        bar_text(parts.main.clone()).into(),
-    ])
-    .spacing(4.0)
-    .align_y(Alignment::Center)
-    .into()
+    let dim = config.palette.dim();
+    let lead = (!parts.lead.is_empty()).then(|| {
+        let italic = iced::Font {
+            style: FontStyle::Italic,
+            ..font::iced_font()
+        };
+        fallback_spans(&parts.lead, italic, Some(dim))
+            .into_iter()
+            .chain(fallback_spans(" · ", font::iced_font(), Some(dim)))
+    });
+    let spans: Vec<_> = lead
+        .into_iter()
+        .flatten()
+        .chain(fallback_spans(&parts.main, font::iced_font(), None))
+        .collect();
+    rich_text(spans).size(font::size()).into()
 }
 
 fn window_icon<'a>(
@@ -125,22 +123,20 @@ fn window_icon<'a>(
         .icon_candidates(w, favicon)
         .into_iter()
         .find_map(|c| resolve_candidate(app_icons, theme_icons, c))?;
-    let img = image(image::Handle::from_path(path))
-        .width(side)
-        .height(side);
-    let radius = side * config.layout.icon_corner_fraction;
-    Some(if radius > 0.0 {
-        container(img)
+    // Icon themes (e.g. Colloid) ship scalable SVGs; hicolor app icons and
+    // browser favicons are raster. iced's `image` widget only decodes raster
+    // formats, so SVGs must go through the `svg` widget or they render blank.
+    let is_svg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg"));
+    Some(if is_svg {
+        svg(svg::Handle::from_path(path))
             .width(side)
             .height(side)
-            .clip(true)
-            .style(move |_| container::Style {
-                border: Border::default().rounded(radius),
-                ..Default::default()
-            })
             .into()
     } else {
-        img.into()
+        image(image::Handle::from_path(path))
+            .width(side)
+            .height(side)
+            .into()
     })
 }
 

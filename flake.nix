@@ -59,10 +59,34 @@
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
+      # `freedesktop_icons::default_theme_gtk()` (used to pin the icon-theme for
+      # window-list app icons) picks the theme by shelling out to
+      # `gsettings get org.gnome.desktop.interface icon-theme`. That needs the
+      # `gsettings` binary on PATH, the `org.gnome.desktop.interface` schema on
+      # XDG_DATA_DIRS, and the dconf GIO backend on GIO_EXTRA_MODULES (without
+      # dconf, gsettings returns the schema default instead of the value the
+      # session persisted). Missing any of the three makes the call return None,
+      # leaving only hicolor-backed icons (Firefox, kitty) visible. Shared by
+      # the wrapper and the devShell so the two can't drift.
+      gsettingsRuntime = {
+        binPath = "${pkgs.glib.bin}/bin";
+        schemaDir = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}";
+        gioModules = "${pkgs.dconf.lib}/lib/gio/modules";
+      };
+
       odin-rs = craneLib.buildPackage (
         commonArgs
         // {
           inherit cargoArtifacts;
+          nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
+          # `--prefix` (prepend), not `--set`: compose with any values the
+          # session already exports rather than clobbering them.
+          postInstall = ''
+            wrapProgram $out/bin/odin-rs \
+              --prefix PATH : ${gsettingsRuntime.binPath} \
+              --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
+              --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
+          '';
           meta.mainProgram = "odin-rs";
           meta.platforms = pkgs.lib.platforms.linux;
         }
@@ -80,9 +104,19 @@
       # dlopen libvulkan / libwayland-egl with no static-link option. Declare
       # the loader path here so the dev shell mirrors what the package's
       # RUNPATH provides.
+      #
+      # The dev-built binary is also unwrapped, so mirror the wrapper's
+      # gsettings runtime (see `gsettingsRuntime` above) here too — otherwise
+      # `nix develop -c cargo run` resolves no icon theme. `pkgs.glib.bin` puts
+      # `gsettings` on PATH; the shellHook prepends the schema and dconf paths,
+      # composing with any session values.
       devShells.${system}.default = craneLib.devShell {
-        packages = commonArgs.nativeBuildInputs ++ commonArgs.buildInputs;
+        packages = commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ];
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
+        shellHook = ''
+          export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+          export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
+        '';
       };
     };
 }

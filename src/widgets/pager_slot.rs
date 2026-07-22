@@ -2,11 +2,12 @@ use iced::{Element, Length, alignment::Vertical, widget::container};
 
 use crate::{bar_program::Message, layer_surface::Position};
 
-/// A pager/menu slot: `content` centred over the bar height, with an `indicator`
-/// hairline pinned to the inner screen edge and optional `ticks` (the per-window
-/// segments) pinned to the outer edge. The shared layout for menu affordances,
-/// pager focus indicators, and the workspace window indicators — odin's
-/// `Hairline` + `SlotHighlight` + `WorkspaceWindowIndicators` composition.
+/// A pager/menu slot: `content` centred over the bar height, with an
+/// `indicator` hairline pinned to the inner screen edge and optional `ticks`
+/// (the per-window segments) pinned to the outer edge. The shared layout for
+/// menu affordances, pager focus indicators, and the workspace window
+/// indicators — odin's `Hairline` + `SlotHighlight` +
+/// `WorkspaceWindowIndicators` composition.
 ///
 /// A `Stack` (overlay, not an in-flow `Column`) so the bars sit *on* the bar's
 /// own vertical padding rather than adding height — the slot stays the bar's
@@ -55,8 +56,10 @@ impl<'a> PagerSlot<'a> {
         let base = container(self.content)
             .height(Length::Fill)
             .align_y(Vertical::Center);
-        let mut layers: Vec<Element<'a, Message>> =
-            vec![base.into(), edge_layer(self.indicator, indicator_edge).into()];
+        let mut layers: Vec<Element<'a, Message>> = vec![
+            base.into(),
+            edge_layer(self.indicator, indicator_edge).into(),
+        ];
         if let Some(ticks) = self.ticks {
             layers.push(edge_layer(ticks, ticks_edge).into());
         }

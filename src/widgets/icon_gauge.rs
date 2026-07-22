@@ -2,7 +2,6 @@ use iced::{
     Alignment, Border, Color, Element,
     widget::{Column, Space, container, row},
 };
-use iced_font_awesome::fa_icon_solid;
 
 use crate::{
     bar_program::Message,
@@ -22,7 +21,9 @@ pub fn source_reading<'a>(
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
     let color = level_color(config, widget.level()).scale_alpha(alpha);
-    let icon = fa_icon_solid(widget.icon())
+    let icon = widget
+        .icon()
+        .solid()
         .size(config.font.icon_size_px)
         .color(color);
 

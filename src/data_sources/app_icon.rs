@@ -129,7 +129,7 @@ fn icon_keys(
 /// absent from the result.
 pub fn resolve_app_icons(entries: &DesktopEntries, ids: Vec<String>) -> HashMap<String, PathBuf> {
     ids.into_iter()
-        .filter_map(|id| entries.icon_for(&id).map(|path| (id, path)))
+        .filter_map(|id| entries.icon_for(&id).map(|path| (id, super::icon_trim::trimmed(&path))))
         .collect()
 }
 
@@ -140,6 +140,10 @@ pub fn resolve_theme_icons(
 ) -> HashMap<String, PathBuf> {
     names
         .into_iter()
-        .filter_map(|name| entries.theme_icon(&name).map(|path| (name, path)))
+        .filter_map(|name| {
+            entries
+                .theme_icon(&name)
+                .map(|path| (name, super::icon_trim::trimmed(&path)))
+        })
         .collect()
 }

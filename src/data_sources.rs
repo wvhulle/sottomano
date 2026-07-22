@@ -11,10 +11,13 @@
 
 use std::fmt::{Display, Formatter, Result};
 
+use crate::widgets::icon::Icon;
+
 pub mod app_icon;
 pub mod app_rules;
 pub mod disk;
 pub mod favicons;
+pub mod icon_trim;
 pub mod niri;
 pub mod sysfs_sensors;
 
@@ -69,7 +72,7 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
 }
 
 pub trait BarWidget {
-    fn icon(&self) -> &'static str;
+    fn icon(&self) -> Icon;
 
     fn label(&self) -> Option<String> {
         None

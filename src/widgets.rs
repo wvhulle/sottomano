@@ -7,6 +7,7 @@
 //! `Position`) rather than a shared render context.
 
 pub mod activity_line;
+pub mod icon;
 pub mod icon_gauge;
 pub mod menu_group;
 pub mod pager_slot;

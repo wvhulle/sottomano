@@ -19,10 +19,6 @@ pub struct Layout {
     pub focus_underline_thickness_px: f32,
     pub window_segment_thickness_px: f32,
     pub menu_expand_ms: u64,
-    /// Corner radius applied to window-list icons, as a fraction of the icon
-    /// side — `0.0` (the default) leaves them square. Applied uniformly to
-    /// every icon regardless of source (app, theme, or favicon).
-    pub icon_corner_fraction: f32,
 }
 
 impl Default for Layout {
@@ -42,7 +38,6 @@ impl Default for Layout {
             focus_underline_thickness_px: 3.4,
             window_segment_thickness_px: 2.0,
             menu_expand_ms: 90,
-            icon_corner_fraction: 0.0,
         }
     }
 }

@@ -16,18 +16,36 @@ use iced_layershell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
 };
+use user_config::font;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    daemon(Bar::new, Bar::namespace, Bar::update, Bar::view)
-        .style(Bar::style)
-        .subscription(message_subscriptions::subscription)
-        .settings(Settings {
-            layer_settings: LayerShellSettings {
-                start_mode: StartMode::Background,
-                ..Default::default()
-            },
+    // Load config (which resolves the sans-serif font) before building the daemon,
+    // so we can register that font and make it the default *before* the first
+    // frame — otherwise iced resolves no matching family and text renders in the
+    // Font Awesome icon font (tofu). Hand the same config to the bar.
+    let config = user_config::load();
+
+    let mut settings = Settings {
+        layer_settings: LayerShellSettings {
+            start_mode: StartMode::Background,
             ..Default::default()
-        })
-        .run()?;
+        },
+        default_font: font::iced_font(),
+        ..Default::default()
+    };
+    if let Some(data) = font::sans_serif_data() {
+        settings.fonts.push(data.into());
+    }
+
+    daemon(
+        move || Bar::new(config.clone()),
+        Bar::namespace,
+        Bar::update,
+        Bar::view,
+    )
+    .style(Bar::style)
+    .subscription(message_subscriptions::subscription)
+    .settings(settings)
+    .run()?;
     Ok(())
 }

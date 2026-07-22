@@ -1,7 +1,7 @@
 //! Per-core CPU clock speeds, ported from odin's `cpu-clock.nu`.
 
 use super::{core_freqs, favg, fmax, fmin, ghz};
-use crate::data_sources::{BarWidget, Row, Source, row};
+use crate::data_sources::{BarWidget, Icon, Row, Source, row};
 
 /// One core's current frequency.
 #[derive(Debug, Clone, Copy)]
@@ -23,8 +23,8 @@ impl CpuClock {
 }
 
 impl BarWidget for CpuClock {
-    fn icon(&self) -> &'static str {
-        "gauge-high"
+    fn icon(&self) -> Icon {
+        Icon::GaugeHigh
     }
 
     fn label(&self) -> Option<String> {

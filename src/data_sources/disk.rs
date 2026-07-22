@@ -2,7 +2,7 @@
 
 use std::{ffi::CStr, mem::zeroed};
 
-use super::{BarWidget, Level, Row, Source, Unit, Value, row};
+use super::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 const FREE_WARN_BYTES: u64 = 100_000_000_000; // 100 GB
@@ -25,8 +25,8 @@ impl Disk {
 }
 
 impl BarWidget for Disk {
-    fn icon(&self) -> &'static str {
-        "hard-drive"
+    fn icon(&self) -> Icon {
+        Icon::HardDrive
     }
 
     fn level(&self) -> Level {

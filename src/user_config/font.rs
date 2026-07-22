@@ -1,6 +1,9 @@
 //! Font configuration.
 
-use std::sync::OnceLock;
+use std::{
+    collections::HashMap,
+    sync::{Mutex, OnceLock},
+};
 
 use iced::Font;
 use serde::Deserialize;
@@ -18,21 +21,30 @@ impl Default for FontSpec {
         Self {
             name: None,
             text_size_px: 12.0,
-            icon_size_px: 12.0,
+            icon_size_px: 14.0,
         }
     }
 }
 
 static FONT_NAME: OnceLock<String> = OnceLock::new();
 static FONT_SIZE: OnceLock<f32> = OnceLock::new();
+static FONT_DATA: OnceLock<Option<Vec<u8>>> = OnceLock::new();
 
 pub fn init(name_override: Option<&str>, size_px: f32) {
     let resolved = name_override
         .map(str::to_owned)
-        .or_else(query_fontconfig_family)
+        .or_else(|| fc_match("sans-serif", "%{family}"))
         .unwrap_or_else(|| "sans-serif".to_owned());
+    // Read the resolved family's actual font file so it can be registered with
+    // iced at startup (see `sans_serif_data`). iced's cosmic-text DB only resolves
+    // `Font::with_name` against faces it was explicitly handed, and its generic
+    // sans-serif fallback points at "Open Sans" (not installed here); without the
+    // real file, bar text falls back to whatever else is loaded — the Font Awesome
+    // icon font — and renders as tofu.
+    let data = fc_match(&resolved, "%{file}").and_then(|path| std::fs::read(path).ok());
     let _ = FONT_NAME.set(resolved);
     let _ = FONT_SIZE.set(size_px);
+    let _ = FONT_DATA.set(data);
 }
 
 pub fn name() -> &'static str {
@@ -47,21 +59,70 @@ pub fn iced_font() -> Font {
     Font::with_name(name())
 }
 
-/// Resolve the system `sans-serif` alias to a concrete family name via
-/// `fc-match`, which reads libfontconfig's prebuilt on-disk cache and returns
-/// in milliseconds. This deliberately avoids parsing every font file in-process
-/// (as a pure-Rust fontconfig cache build would), which stalled startup by
-/// seconds on every launch.
-fn query_fontconfig_family() -> Option<String> {
+/// Bytes of the resolved sans-serif font file, for registering with iced at
+/// startup so [`iced_font`] actually resolves instead of falling back to the icon
+/// font. `None` if the file could not be resolved or read.
+pub fn sans_serif_data() -> Option<&'static [u8]> {
+    FONT_DATA.get().and_then(|d| d.as_deref())
+}
+
+/// The font to render `ch` with: `base` (the bar font) when it covers the glyph,
+/// otherwise the font fontconfig would pick for it.
+///
+/// This mirrors how Qt/GTK — and thus odin-qml — resolve glyphs the bar font
+/// lacks. iced's cosmic-text uses its own hardcoded per-script fallback table
+/// instead of fontconfig (e.g. it forces `FreeMono` for Braille), so a glyph like
+/// the terminal-title progress marker `⠐` (U+2810) would render from a different
+/// font than everywhere else on the desktop. Selecting the font explicitly here
+/// bypasses that table: cosmic-text renders `ch` from the named family directly.
+pub fn font_for_char(ch: char, base: Font) -> Font {
+    if bar_font_covers(ch) {
+        base
+    } else {
+        fallback_font(ch).unwrap_or(base)
+    }
+}
+
+/// Whether the resolved bar font has a glyph for `ch`. Assumes covered if the
+/// font file could not be read or parsed, degrading to cosmic-text's own fallback.
+fn bar_font_covers(ch: char) -> bool {
+    static FACE: OnceLock<Option<ttf_parser::Face<'static>>> = OnceLock::new();
+    FACE.get_or_init(|| sans_serif_data().and_then(|d| ttf_parser::Face::parse(d, 0).ok()))
+        .as_ref()
+        .is_none_or(|face| face.glyph_index(ch).is_some())
+}
+
+/// The family fontconfig would pick for a single codepoint, as an iced [`Font`],
+/// cached per char. The family's file is already in iced's font DB (loaded from
+/// the system), so [`Font::with_name`] resolves it and cosmic-text renders the
+/// glyph from it without consulting its per-script fallback table.
+fn fallback_font(ch: char) -> Option<Font> {
+    static CACHE: OnceLock<Mutex<HashMap<char, Option<Font>>>> = OnceLock::new();
+    let mut cache = CACHE.get_or_init(Mutex::default).lock().unwrap();
+    if let Some(font) = cache.get(&ch) {
+        return *font;
+    }
+    let font = fc_match(&format!(":charset={:x}", ch as u32), "%{family}")
+        .map(|family| Font::with_name(String::leak(family)));
+    cache.insert(ch, font);
+    font
+}
+
+/// Query one field (`format`, e.g. `%{family}` or `%{file}`) of fontconfig's best
+/// match for `pattern` via `fc-match`, which reads libfontconfig's prebuilt
+/// on-disk cache and returns in milliseconds. This deliberately avoids parsing
+/// every font file in-process (as a pure-Rust fontconfig cache build would),
+/// which stalled startup by seconds on every launch.
+fn fc_match(pattern: &str, format: &str) -> Option<String> {
     let output = std::process::Command::new("fc-match")
-        .args(["-f", "%{family}\n", "sans-serif"])
+        .args(["-f", format, pattern])
         .output()
         .ok()?;
     if !output.status.success() {
         return None;
     }
     let stdout = String::from_utf8(output.stdout).ok()?;
-    // fontconfig may emit a comma-separated family alias list; take the first.
-    let family = stdout.lines().next()?.split(',').next()?.trim().to_owned();
-    (!family.is_empty()).then_some(family)
+    // fontconfig may emit a comma-separated list (e.g. family aliases); take the first.
+    let value = stdout.lines().next()?.split(',').next()?.trim().to_owned();
+    (!value.is_empty()).then_some(value)
 }
