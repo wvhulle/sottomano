@@ -38,7 +38,7 @@ pub fn view<'a>(
             );
             let ticks = window_ticks(config, niri, p.id);
 
-            mouse_area(PagerSlot::new(label, focus).outer(ticks).view(position))
+            mouse_area(PagerSlot::new(label, focus).ticks(ticks).view(position))
                 .on_press(Message::FocusWorkspace(p.id))
                 .into()
         });

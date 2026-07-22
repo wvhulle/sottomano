@@ -7,7 +7,6 @@ use iced::{
     Alignment, Element, Task,
     time::Instant,
     widget::{Row, mouse_area},
-    window::Id,
 };
 
 use crate::{
@@ -26,12 +25,11 @@ use crate::{
 /// A reading wrapped so hovering it opens its tooltip.
 fn hover_reading<'a>(
     config: &Config,
-    surface: Id,
     widget: &dyn BarWidget,
     alpha: f32,
 ) -> Option<Element<'a, Message>> {
     let reading = source_reading(config, Some(widget), alpha)?;
-    Some(hoverable(reading, surface, widget.tooltip()))
+    Some(hoverable(reading, widget.tooltip()))
 }
 
 pub struct SystemGroup {
@@ -80,16 +78,10 @@ impl SystemGroup {
     pub fn view<'a>(
         &self,
         config: &Config,
-        surface: Id,
         position: Position,
         now: Instant,
     ) -> Option<Element<'a, Message>> {
-        let handle = hover_reading(
-            config,
-            surface,
-            self.cpu.as_ref().map(|w| w as &dyn BarWidget)?,
-            1.0,
-        )?;
+        let handle = hover_reading(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget)?, 1.0)?;
 
         let reveal = self.menu.reveal(now);
         let content = Row::with_children(
@@ -100,7 +92,7 @@ impl SystemGroup {
             ]
             .into_iter()
             .flatten()
-            .filter_map(|widget| hover_reading(config, surface, widget, reveal)),
+            .filter_map(|widget| hover_reading(config, widget, reveal)),
         )
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);

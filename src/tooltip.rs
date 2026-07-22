@@ -50,6 +50,15 @@ const PROVISIONAL_SIZE: (u32, u32) = (600, 800);
 
 #[derive(Debug, Clone)]
 pub enum TooltipMessage {
+    /// Emitted by a hovered [`HoverArea`], which knows its anchor but not which
+    /// surface it lives on. [`on_surface`] completes it into an [`Enter`] by
+    /// stamping the surface id.
+    ///
+    /// [`Enter`]: TooltipMessage::Enter
+    EnterAnchor {
+        rows: Vec<Row>,
+        anchor: Rectangle,
+    },
     Enter {
         surface: Id,
         rows: Vec<Row>,
@@ -93,6 +102,9 @@ impl TooltipHost {
                 rows,
                 anchor,
             } => self.open(surface, rows, anchor, surfaces, config),
+            // Completed into `Enter` by `on_surface` at the bar root before it
+            // reaches here; a bare anchor means a hoverable escaped that wrapper.
+            TooltipMessage::EnterAnchor { .. } => Task::none(),
             TooltipMessage::Exit { anchor } => self.exit(anchor),
             TooltipMessage::Resized { id, size } => self.resize(id, size),
         }
@@ -186,21 +198,35 @@ impl TooltipHost {
     }
 }
 
-/// Wrap a widget so hovering it opens a tooltip with `rows`. `surface` is the
-/// bar surface the widget lives on — the host uses it to pick the tooltip's
-/// output and above/below placement. No-op when there is nothing to show.
-pub fn hoverable(
-    content: Element<'_, Message>,
-    surface: Id,
-    rows: Vec<Row>,
-) -> Element<'_, Message> {
+/// Wrap a widget so hovering it opens a tooltip with `rows`. No-op when there is
+/// nothing to show. The widget reports only its anchor on hover; the surface it
+/// lives on is stamped later by [`on_surface`] at the bar root, so a hoverable
+/// widget need not know which surface it is drawn into.
+pub fn hoverable(content: Element<'_, Message>, rows: Vec<Row>) -> Element<'_, Message> {
     if rows.is_empty() {
         return content;
     }
-    Element::new(HoverArea {
-        content,
-        surface,
-        rows,
+    Element::new(HoverArea { content, rows })
+}
+
+/// Stamp the surface `id` onto every tooltip [`EnterAnchor`] bubbling out of
+/// `content`, turning it into an [`Enter`] the host can place. Applied once, at
+/// the bar root, by the code that owns the surface→id table — the only layer
+/// that knows a widget's surface (iced strips the window id from widget-emitted
+/// messages, so a `HoverArea` cannot supply it itself).
+///
+/// [`EnterAnchor`]: TooltipMessage::EnterAnchor
+/// [`Enter`]: TooltipMessage::Enter
+pub fn on_surface(id: Id, content: Element<'_, Message>) -> Element<'_, Message> {
+    content.map(move |message| match message {
+        Message::Tooltip(TooltipMessage::EnterAnchor { rows, anchor }) => {
+            Message::Tooltip(TooltipMessage::Enter {
+                surface: id,
+                rows,
+                anchor,
+            })
+        }
+        other => other,
     })
 }
 
@@ -209,7 +235,6 @@ pub fn hoverable(
 /// layout and drawing.
 struct HoverArea<'a> {
     content: Element<'a, Message>,
-    surface: Id,
     rows: Vec<Row>,
 }
 
@@ -294,8 +319,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for HoverArea<'_> {
         if hovered != state.hovered {
             state.hovered = hovered;
             shell.publish(Message::Tooltip(if hovered {
-                TooltipMessage::Enter {
-                    surface: self.surface,
+                TooltipMessage::EnterAnchor {
                     rows: self.rows.clone(),
                     anchor,
                 }

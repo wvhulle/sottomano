@@ -12,6 +12,9 @@ pub struct Layout {
     pub blur: bool,
     pub shadow: bool,
     pub float_offset_px: f32,
+    /// Track width of a settings slider (e.g. the panel-settings float-offset
+    /// knob). Chrome of the session-only settings UI, not a bar element.
+    pub slider_width_px: f32,
     pub outer_height_px: f32,
     pub focus_underline_thickness_px: f32,
     pub window_segment_thickness_px: f32,
@@ -34,6 +37,7 @@ impl Default for Layout {
             blur: true,
             shadow: false,
             float_offset_px: 0.0,
+            slider_width_px: 60.0,
             outer_height_px: 28.0,
             focus_underline_thickness_px: 3.4,
             window_segment_thickness_px: 2.0,

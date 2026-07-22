@@ -29,7 +29,7 @@ use crate::{
     data_sources::{app_icon, app_icon::DesktopEntries, disk::Disk, favicons, niri, sysfs_sensors},
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::{SourceKind, niri_action, poll},
-    tooltip::{TooltipHost, TooltipMessage},
+    tooltip::{self, TooltipHost, TooltipMessage},
     user_config::{Config, load},
 };
 
@@ -344,9 +344,13 @@ impl Bar {
             return container(text("")).into();
         };
         let content = match surface.position {
-            Position::Top => bar_layout::top_row(self, id, surface.position),
+            Position::Top => bar_layout::top_row(self, surface.position),
             Position::Bottom => bar_layout::bottom_row(self, &surface.output, surface.position),
         };
+        // Stamp this surface's id onto tooltip hovers bubbling out of the bar,
+        // so leaf groups need not carry it. Only the bar subtree is wrapped —
+        // the tooltip panel returns early above.
+        let content = tooltip::on_surface(id, content);
 
         let dismiss = mouse_area(
             container(Space::new())

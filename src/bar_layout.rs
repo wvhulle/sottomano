@@ -18,13 +18,13 @@ pub mod system_group;
 pub mod window_list_group;
 pub mod workspaces_group;
 
-pub fn top_row(bar: &Bar, id: iced::window::Id, position: Position) -> Element<'_, Message> {
+pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let start = zone(
         [
-            bar.battery_group.view(config, id),
-            bar.system_group.view(config, id, position, bar.now),
-            bar.panel_settings_group.view(config, id, position, bar.now),
+            bar.battery_group.view(config),
+            bar.system_group.view(config, position, bar.now),
+            bar.panel_settings_group.view(config, position, bar.now),
         ],
         config,
     );

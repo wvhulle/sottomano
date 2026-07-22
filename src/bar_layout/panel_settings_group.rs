@@ -16,7 +16,6 @@ use iced::{
     Alignment, Element,
     time::Instant,
     widget::{Row, mouse_area, slider},
-    window::Id,
 };
 use iced_font_awesome::fa_icon_solid;
 
@@ -48,7 +47,6 @@ impl PanelSettingsGroup {
     pub fn view<'a>(
         &self,
         config: &Config,
-        surface: Id,
         position: Position,
         now: Instant,
     ) -> Option<Element<'a, Message>> {
@@ -68,7 +66,6 @@ impl PanelSettingsGroup {
                 mouse_area(icon)
                     .on_press(Message::PanelSettings(PanelSettingsMessage::ToggleFloating))
                     .into(),
-                surface,
                 vec![row(
                     "Floating",
                     if floating {
@@ -129,7 +126,7 @@ impl Knob {
             icon.into(),
             slider(self.range, value, on_change)
                 .step(self.step)
-                .width(60.0)
+                .width(config.layout.slider_width_px)
                 .into(),
         ])
         .spacing(config.layout.horizontal_widget_spacing_px)

@@ -2,12 +2,11 @@ use iced::{Element, Length, alignment::Vertical, widget::container};
 
 use crate::{bar_program::Message, layer_surface::Position};
 
-/// A pager/menu slot: `content` centred over the bar height, with an `inner`
-/// state bar (a hairline) pinned to the inner screen edge and an optional
-/// `outer` row (the workspace window-tick segments) pinned to the outer edge.
-/// The shared layout for menu affordances, pager focus indicators, and the
-/// workspace window indicators — odin's `Hairline` + `SlotHighlight` +
-/// `WorkspaceWindowIndicators` composition.
+/// A pager/menu slot: `content` centred over the bar height, with an `indicator`
+/// hairline pinned to the inner screen edge and optional `ticks` (the per-window
+/// segments) pinned to the outer edge. The shared layout for menu affordances,
+/// pager focus indicators, and the workspace window indicators — odin's
+/// `Hairline` + `SlotHighlight` + `WorkspaceWindowIndicators` composition.
 ///
 /// A `Stack` (overlay, not an in-flow `Column`) so the bars sit *on* the bar's
 /// own vertical padding rather than adding height — the slot stays the bar's
@@ -17,29 +16,29 @@ use crate::{bar_program::Message, layer_surface::Position};
 /// bottom bar, bottom on a top bar, so a bar always points into the screen.
 pub struct PagerSlot<'a> {
     content: Element<'a, Message>,
-    inner: Element<'a, Message>,
-    outer: Option<Element<'a, Message>>,
+    indicator: Element<'a, Message>,
+    ticks: Option<Element<'a, Message>>,
 }
 
 impl<'a> PagerSlot<'a> {
-    /// A slot with its centred `content` and the inner-edge state bar.
-    pub fn new(content: Element<'a, Message>, inner: Element<'a, Message>) -> Self {
+    /// A slot with its centred `content` and the inner-edge state hairline.
+    pub fn new(content: Element<'a, Message>, indicator: Element<'a, Message>) -> Self {
         Self {
             content,
-            inner,
-            outer: None,
+            indicator,
+            ticks: None,
         }
     }
 
-    /// Add the outer-edge row (the workspace window-tick segments).
+    /// Add the outer-edge per-window tick segments.
     #[must_use]
-    pub fn outer(mut self, outer: Element<'a, Message>) -> Self {
-        self.outer = Some(outer);
+    pub fn ticks(mut self, ticks: Element<'a, Message>) -> Self {
+        self.ticks = Some(ticks);
         self
     }
 
     pub fn view(self, position: Position) -> Element<'a, Message> {
-        let (inner_edge, outer_edge) = match position {
+        let (indicator_edge, ticks_edge) = match position {
             Position::Bottom => (Vertical::Top, Vertical::Bottom),
             Position::Top => (Vertical::Bottom, Vertical::Top),
         };
@@ -57,9 +56,9 @@ impl<'a> PagerSlot<'a> {
             .height(Length::Fill)
             .align_y(Vertical::Center);
         let mut layers: Vec<Element<'a, Message>> =
-            vec![base.into(), edge_layer(self.inner, inner_edge).into()];
-        if let Some(outer) = self.outer {
-            layers.push(edge_layer(outer, outer_edge).into());
+            vec![base.into(), edge_layer(self.indicator, indicator_edge).into()];
+        if let Some(ticks) = self.ticks {
+            layers.push(edge_layer(ticks, ticks_edge).into());
         }
         iced::widget::Stack::with_children(layers).into()
     }
