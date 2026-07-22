@@ -2,8 +2,6 @@
 //! candidates, ported from odin's
 //! `DataProvider/{AppRule,BrowserRule,FirefoxRule,TerminalRule}.qml`.
 
-use std::path::{Path, PathBuf};
-
 use super::niri::WinEntry;
 
 const SEPARATORS: [&str; 3] = [" — ", " · ", " - "];
@@ -51,11 +49,10 @@ pub struct TitleParts {
 }
 
 /// An ordered icon source; the first candidate that resolves to an actual
-/// image wins.
+/// image wins. A browser tab's favicon is handled separately (rendered from
+/// memory), so it is not a candidate here.
 #[derive(Debug, Clone)]
 pub enum IconCandidate {
-    /// An already-resolved image path (e.g. a browser tab's favicon).
-    Path(PathBuf),
     /// An icon-theme name, resolved directly (not via a `.desktop` entry).
     Theme(String),
     /// Resolved via the app's `.desktop` entry / icon-theme fallback chain.
@@ -94,16 +91,9 @@ impl AppRule {
         }
     }
 
-    pub fn icon_candidates(self, win: &WinEntry, favicon: Option<&Path>) -> Vec<IconCandidate> {
+    pub fn icon_candidates(self, win: &WinEntry) -> Vec<IconCandidate> {
         match self {
-            AppRule::Firefox => {
-                let mut candidates = Vec::with_capacity(2);
-                if let Some(path) = favicon {
-                    candidates.push(IconCandidate::Path(path.to_path_buf()));
-                }
-                candidates.push(IconCandidate::AppId(win.app_id.clone()));
-                candidates
-            }
+            AppRule::Firefox => vec![IconCandidate::AppId(win.app_id.clone())],
             AppRule::Terminal => {
                 let mut candidates = Vec::with_capacity(2);
                 if let Some(theme) = terminal_icon(win) {

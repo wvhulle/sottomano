@@ -1,6 +1,6 @@
 //! Niri window list.
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use iced::{
     Alignment, Element,
@@ -13,6 +13,7 @@ use crate::{
     bar_program::Message,
     data_sources::{
         app_rules::{self, AppRule, IconCandidate, TitleParts},
+        favicons::{FaviconKind, RawFavicon},
         niri,
     },
     layer_surface::Position,
@@ -20,13 +21,58 @@ use crate::{
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans},
 };
 
+/// A resolved favicon ready to render: an iced handle built once from the blob,
+/// plus the blob itself so a re-poll that finds the same bytes can keep this
+/// same handle. Raster handles (`image::Handle::from_bytes`) get a fresh cache
+/// id on every construction, so rebuilding one every poll would re-upload the
+/// GPU texture; reusing the handle keeps the id — and thus the texture — stable.
+#[derive(Clone)]
+pub struct Favicon {
+    bytes: Arc<[u8]>,
+    handle: FaviconHandle,
+}
+
+#[derive(Clone)]
+enum FaviconHandle {
+    Raster(image::Handle),
+    Svg(svg::Handle),
+}
+
+impl Favicon {
+    /// Build the iced handle from the blob. Call once per distinct blob, not
+    /// per frame (see the type-level note).
+    pub fn new(raw: RawFavicon) -> Self {
+        let handle = match raw.kind {
+            FaviconKind::Raster => FaviconHandle::Raster(image::Handle::from_bytes(raw.bytes.clone())),
+            FaviconKind::Svg => FaviconHandle::Svg(svg::Handle::from_memory(raw.bytes.clone())),
+        };
+        Self {
+            bytes: Arc::from(raw.bytes),
+            handle,
+        }
+    }
+
+    /// Whether `raw` is byte-for-byte the favicon this was built from, so its
+    /// handle can be reused instead of rebuilt.
+    pub fn is(&self, raw: &RawFavicon) -> bool {
+        *self.bytes == *raw.bytes
+    }
+
+    fn view<'a>(&self, side: f32) -> Element<'a, Message> {
+        match &self.handle {
+            FaviconHandle::Raster(h) => image(h.clone()).width(side).height(side).into(),
+            FaviconHandle::Svg(h) => svg(h.clone()).width(side).height(side).into(),
+        }
+    }
+}
+
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
     config: &Config,
     app_icons: &HashMap<String, PathBuf>,
     theme_icons: &HashMap<String, PathBuf>,
-    favicons: &HashMap<String, PathBuf>,
+    favicons: &HashMap<String, Favicon>,
     position: Position,
 ) -> Option<Element<'a, Message>> {
     let workspace = niri::active_workspace_id(niri, output)?;
@@ -47,14 +93,7 @@ pub fn view<'a>(
             .and_then(|key| favicons.get(&key));
 
         let mut row: Vec<Element<'a, Message>> = Vec::new();
-        if let Some(icon) = window_icon(
-            config,
-            app_icons,
-            theme_icons,
-            rule,
-            &w,
-            favicon.map(AsRef::as_ref),
-        ) {
+        if let Some(icon) = window_icon(config, app_icons, theme_icons, rule, &w, favicon) {
             row.push(icon);
         }
         row.push(title_element(config, &parts));
@@ -116,16 +155,21 @@ fn window_icon<'a>(
     theme_icons: &HashMap<String, PathBuf>,
     rule: AppRule,
     w: &niri::WinEntry,
-    favicon: Option<&std::path::Path>,
+    favicon: Option<&Favicon>,
 ) -> Option<Element<'a, Message>> {
     let side = config.font.icon_size_px;
+    // A tab's favicon (Firefox) always wins over the app-id icon; it is rendered
+    // straight from its in-memory blob rather than a resolved file path.
+    if let Some(favicon) = favicon {
+        return Some(favicon.view(side));
+    }
     let path = rule
-        .icon_candidates(w, favicon)
+        .icon_candidates(w)
         .into_iter()
         .find_map(|c| resolve_candidate(app_icons, theme_icons, c))?;
-    // Icon themes (e.g. Colloid) ship scalable SVGs; hicolor app icons and
-    // browser favicons are raster. iced's `image` widget only decodes raster
-    // formats, so SVGs must go through the `svg` widget or they render blank.
+    // Icon themes (e.g. Colloid) ship scalable SVGs; hicolor app icons are
+    // raster. iced's `image` widget only decodes raster formats, so SVGs must
+    // go through the `svg` widget or they render blank.
     let is_svg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg"));
     Some(if is_svg {
         svg(svg::Handle::from_path(path))
@@ -146,7 +190,6 @@ fn resolve_candidate(
     candidate: IconCandidate,
 ) -> Option<PathBuf> {
     match candidate {
-        IconCandidate::Path(path) => Some(path),
         IconCandidate::Theme(name) => theme_icons.get(&name).cloned(),
         IconCandidate::AppId(app_id) => app_icons.get(&app_id).cloned(),
     }

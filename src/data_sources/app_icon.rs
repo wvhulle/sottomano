@@ -115,7 +115,7 @@ fn icon_keys(
         .iter()
         .flat_map(|w| {
             super::app_rules::rule_for(&w.app_id)
-                .icon_candidates(w, None)
+                .icon_candidates(w)
                 .into_iter()
                 .filter_map(&pick)
         })

@@ -1,6 +1,5 @@
-//! Firefox favicon resolution: page title -> cached favicon image path,
-//! ported from odin's `DataProvider/Favicons.qml` +
-//! `scripts/firefox-favicon.nu`.
+//! Firefox favicon resolution: page title -> favicon image bytes, ported from
+//! odin's `DataProvider/Favicons.qml` + `scripts/firefox-favicon.nu`.
 //!
 //! niri exposes only a toplevel's app-id + title, never the active tab's URL
 //! or favicon, so the favicon is recovered from Firefox's own profile: the
@@ -8,6 +7,11 @@
 //! the caller) matches a `places.sqlite` history entry (title -> url), and
 //! `favicons.sqlite` maps that url -> the stored favicon blob. Same title =>
 //! same page => same favicon, so duplicate window titles are not a problem.
+//!
+//! The blob is returned in memory rather than written to disk: iced renders it
+//! directly (see `bar_layout::window_list_group::Favicon`), so there is no
+//! favicon cache file to manage. Only the WAL-locked profile DBs are copied to
+//! disk, since they cannot be queried in place.
 
 use std::{
     collections::HashMap,
@@ -17,9 +21,22 @@ use std::{
 
 use niri_ipc::state::EventStreamState;
 use rusqlite::Connection;
-use sha2::{Digest, Sha256};
 
 use super::app_rules::{self, AppRule};
+
+/// A favicon blob plus which iced widget family decodes it. `Svg` covers both
+/// plain SVG text and gzip-compressed SVGz; `Raster` covers PNG/ICO/etc.
+#[derive(Debug, Clone)]
+pub struct RawFavicon {
+    pub bytes: Vec<u8>,
+    pub kind: FaviconKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaviconKind {
+    Raster,
+    Svg,
+}
 
 /// Distinct favicon lookup keys for every Firefox window currently open.
 pub fn firefox_keys(niri: &EventStreamState) -> Vec<String> {
@@ -40,10 +57,10 @@ pub fn firefox_keys(niri: &EventStreamState) -> Vec<String> {
     keys
 }
 
-/// Resolve favicon paths for `titles` (Firefox history page titles). Titles
+/// Resolve favicon blobs for `titles` (Firefox history page titles). Titles
 /// with no match (not in history, or no stored favicon) are simply absent
 /// from the result.
-pub fn resolve(titles: Vec<String>) -> HashMap<String, PathBuf> {
+pub fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
     let mut out = HashMap::new();
     if titles.is_empty() {
         return out;
@@ -68,21 +85,19 @@ pub fn resolve(titles: Vec<String>) -> HashMap<String, PathBuf> {
     let Ok(places_conn) = Connection::open(&places) else {
         return out;
     };
+    let Ok(favicons_conn) = Connection::open(&favicons_db) else {
+        return out;
+    };
 
     for title in titles {
-        if let Some(path) = resolve_one(&places_conn, &favicons_db, &cache_dir, &title) {
-            out.insert(title, path);
+        if let Some(favicon) = resolve_one(&places_conn, &favicons_conn, &title) {
+            out.insert(title, favicon);
         }
     }
     out
 }
 
-fn resolve_one(
-    places: &Connection,
-    favicons_db: &Path,
-    cache_dir: &Path,
-    title: &str,
-) -> Option<PathBuf> {
+fn resolve_one(places: &Connection, favicons: &Connection, title: &str) -> Option<RawFavicon> {
     let url: String = places
         .query_row(
             "SELECT url FROM moz_places WHERE title = ?1 ORDER BY last_visit_date DESC LIMIT 1",
@@ -91,13 +106,7 @@ fn resolve_one(
         )
         .ok()?;
 
-    let stem = cache_dir.join(sha256_hex(&url));
-    if let Some(existing) = find_cached(&stem) {
-        return Some(existing);
-    }
-
-    let favicons_conn = Connection::open(favicons_db).ok()?;
-    let blob: Vec<u8> = favicons_conn
+    let blob: Vec<u8> = favicons
         .query_row(
             "SELECT i.data FROM moz_pages_w_icons p JOIN moz_icons_to_pages m ON m.page_id = p.id \
              JOIN moz_icons i ON i.id = m.icon_id WHERE p.page_url = ?1 ORDER BY i.width DESC \
@@ -110,9 +119,8 @@ fn resolve_one(
         return None;
     }
 
-    let path = stem.with_extension(blob_ext(&blob));
-    fs::write(&path, &blob).ok()?;
-    Some(path)
+    let kind = classify(&blob);
+    Some(RawFavicon { bytes: blob, kind })
 }
 
 /// The Firefox profile directory whose `places.sqlite` was modified most
@@ -132,9 +140,10 @@ fn profile_dir() -> Option<PathBuf> {
         .map(|(_, path)| path)
 }
 
-/// Per-user favicon cache (and transient profile-DB copies), under
-/// `$XDG_STATE_HOME/odin/favicons` — shared with odin's own QML favicon
-/// cache, since the on-disk format (blob keyed by URL hash) is identical.
+/// Scratch directory for the transient profile-DB copies, under
+/// `$XDG_STATE_HOME/odin/favicons`. The live DBs are WAL-locked (so callers
+/// query a copy); no favicon images are cached here — they are rendered
+/// straight from memory.
 fn state_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
@@ -166,34 +175,46 @@ fn fresh_copy(src: &Path, cache_dir: &Path, name: &str) -> Option<PathBuf> {
     Some(dst)
 }
 
-fn find_cached(stem: &Path) -> Option<PathBuf> {
-    let parent = stem.parent()?;
-    let name = stem.file_name()?;
-    fs::read_dir(parent)
-        .ok()?
-        .filter_map(Result::ok)
-        .find(|entry| entry.path().file_stem() == Some(name))
-        .map(|entry| entry.path())
-}
-
-/// A file extension picked from the favicon blob's magic bytes: ICO
-/// `00 00 01 00`, SVG/XML starts with `<`, else PNG (covers the `‰PNG` magic
-/// and anything else — raster formats QML's `Image` loader sniffs anyway).
-fn blob_ext(blob: &[u8]) -> &'static str {
-    match blob {
-        [0x00, 0x00, 0x01, 0x00, ..] => "ico",
-        [0x3C, ..] => "svg",
-        _ => "png",
+/// Which iced widget family decodes a favicon blob, from its magic bytes.
+/// Firefox stores raster favicons as PNG and scalable ones as SVG/XML *text*,
+/// which may lead with a UTF-8 BOM, whitespace, an XML declaration, or a
+/// comment before the first `<` — so skip those before sniffing rather than
+/// testing only byte 0 (which mislabels BOM/newline-led SVGs as raster, making
+/// iced's `image` widget render them blank). A gzip header (`1F 8B`) is treated
+/// as SVGz: iced's `svg` widget ungzips it, whereas `image` cannot. Everything
+/// else — PNG (`89 50 4E 47`, never whitespace or `<`), ICO, etc. — is raster,
+/// which iced's `image` widget auto-detects from the bytes.
+fn classify(blob: &[u8]) -> FaviconKind {
+    let body = blob.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(blob);
+    match body.trim_ascii_start() {
+        [b'<', ..] | [0x1f, 0x8b, ..] => FaviconKind::Svg,
+        _ => FaviconKind::Raster,
     }
 }
 
-fn sha256_hex(s: &str) -> String {
-    use std::fmt::Write;
+#[cfg(test)]
+mod tests {
+    use super::{FaviconKind, classify};
 
-    let mut hasher = Sha256::new();
-    hasher.update(s.as_bytes());
-    hasher.finalize().iter().fold(String::new(), |mut out, b| {
-        let _ = write!(out, "{b:02x}");
-        out
-    })
+    #[test]
+    fn sniffs_svg_past_bom_and_whitespace() {
+        // Real leading bytes observed in Firefox's favicons.sqlite (width=65535).
+        for blob in [
+            b"<svg xmlns=...".as_slice(),
+            b"<?xml version=\"1.0\"?><svg/>",
+            b"<!-- comment --><svg/>",
+            b"\n<svg/>",
+            &[0xEF, 0xBB, 0xBF, b'<', b's', b'v', b'g'],
+            &[0xEF, 0xBB, 0xBF, b'\n', b'<'],
+            &[0x1f, 0x8b, 0x08], // gzip-compressed SVGz
+        ] {
+            assert_eq!(classify(blob), FaviconKind::Svg);
+        }
+    }
+
+    #[test]
+    fn sniffs_raster() {
+        assert_eq!(classify(&[0x89, 0x50, 0x4E, 0x47]), FaviconKind::Raster);
+        assert_eq!(classify(&[0x00, 0x00, 0x01, 0x00, 0x10]), FaviconKind::Raster);
+    }
 }

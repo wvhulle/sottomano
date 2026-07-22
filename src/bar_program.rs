@@ -25,8 +25,12 @@ use crate::{
         clock_group::{ClockGroup, ClockMessage},
         panel_settings_group::{PanelSettingsGroup, PanelSettingsMessage},
         system_group::{SystemGroup, SystemMessage},
+        window_list_group::Favicon,
     },
-    data_sources::{app_icon, app_icon::DesktopEntries, disk::Disk, favicons, niri, sysfs_sensors},
+    data_sources::{
+        app_icon, app_icon::DesktopEntries, disk::Disk, favicons, favicons::RawFavicon, niri,
+        sysfs_sensors,
+    },
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::{SourceKind, niri_action, poll},
     tooltip::{self, TooltipHost, TooltipMessage},
@@ -41,7 +45,7 @@ pub struct Bar {
     pub(crate) clock_group: ClockGroup,
     pub(crate) niri: EventStreamState,
     pub(crate) desktop_entries: Option<Arc<DesktopEntries>>,
-    pub(crate) favicons: HashMap<String, PathBuf>,
+    pub(crate) favicons: HashMap<String, Favicon>,
     pub(crate) app_icons: HashMap<String, PathBuf>,
     pub(crate) theme_icons: HashMap<String, PathBuf>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
@@ -53,7 +57,7 @@ pub struct Bar {
 #[derive(Debug, Clone)]
 pub enum Message {
     DesktopEntriesLoaded(Arc<DesktopEntries>),
-    FaviconsLoaded(HashMap<String, PathBuf>),
+    FaviconsLoaded(HashMap<String, RawFavicon>),
     AppIconsResolved(HashMap<String, PathBuf>),
     ThemeIconsResolved(HashMap<String, PathBuf>),
     Poll(SourceKind),
@@ -136,7 +140,20 @@ impl Bar {
                 Task::batch([self.poll_app_icons(), self.poll_theme_icons()])
             }
             Message::FaviconsLoaded(favicons) => {
-                self.favicons = favicons;
+                // Reuse the existing handle when a re-poll returns the same
+                // blob, so its GPU texture stays cached (raster handles get a
+                // fresh cache id on every rebuild — see `Favicon`).
+                let previous = std::mem::take(&mut self.favicons);
+                self.favicons = favicons
+                    .into_iter()
+                    .map(|(title, raw)| {
+                        let favicon = match previous.get(&title) {
+                            Some(existing) if existing.is(&raw) => existing.clone(),
+                            _ => Favicon::new(raw),
+                        };
+                        (title, favicon)
+                    })
+                    .collect();
                 Task::none()
             }
             Message::AppIconsResolved(map) => {
