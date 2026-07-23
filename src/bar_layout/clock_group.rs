@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
-use iced::{Element, Subscription, Task};
+use iced::{Element, Subscription};
 
-use crate::{bar_program::Message, user_config::Config, widgets::text::bar_text};
+use crate::{user_config::Config, widgets::text::bar_text};
 
 pub struct ClockGroup {
     text: String,
@@ -17,24 +17,22 @@ impl Default for ClockGroup {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum ClockMessage {
     Tick(DateTime<Local>),
 }
 
 impl ClockGroup {
-    pub fn update(&mut self, msg: ClockMessage) -> Task<Message> {
+    pub fn update(&mut self, msg: ClockMessage) {
         let ClockMessage::Tick(now) = msg;
         self.text = format_hms(now);
-        Task::none()
     }
 
-    pub fn subscription() -> Subscription<Message> {
-        iced::time::every(Duration::from_secs(1))
-            .map(|_| Message::Clock(ClockMessage::Tick(Local::now())))
+    pub fn subscription() -> Subscription<ClockMessage> {
+        iced::time::every(Duration::from_secs(1)).map(|_| ClockMessage::Tick(Local::now()))
     }
 
-    pub fn view<'a>(&self, _config: &Config) -> Element<'a, Message> {
+    pub fn view<'a>(&self, _config: &Config) -> Element<'a, ClockMessage> {
         bar_text(self.text.clone()).into()
     }
 }

@@ -4,19 +4,18 @@
 //! lives in that primitive.
 
 use iced::{
-    Alignment, Element, Task,
+    Alignment, Element,
     widget::{Row, mouse_area},
 };
 
 use crate::{
-    bar_program::Message,
     data_sources::{
         BarWidget,
         disk::Disk,
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     layer_surface::Position,
-    tooltip::hoverable,
+    tooltip::{TooltipMessage, hoverable},
     user_config::Config,
     widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
 };
@@ -26,9 +25,9 @@ fn hover_reading<'a>(
     config: &Config,
     widget: &dyn BarWidget,
     alpha: f32,
-) -> Option<Element<'a, Message>> {
+) -> Option<Element<'a, SystemMessage>> {
     let reading = source_reading(config, Some(widget), alpha)?;
-    Some(hoverable(reading, widget.tooltip(), Message::Tooltip))
+    Some(hoverable(reading, widget.tooltip(), SystemMessage::Tooltip))
 }
 
 pub struct SystemGroup {
@@ -48,6 +47,7 @@ pub enum SystemMessage {
     Toggle,
     Hover(bool),
     Close,
+    Tooltip(TooltipMessage),
 }
 
 impl SystemGroup {
@@ -61,7 +61,7 @@ impl SystemGroup {
         }
     }
 
-    pub fn update(&mut self, msg: SystemMessage) -> Task<Message> {
+    pub fn update(&mut self, msg: SystemMessage) {
         match msg {
             SystemMessage::LoadedCpu(data) => self.cpu = data,
             SystemMessage::LoadedMemory(data) => self.memory = data,
@@ -70,11 +70,15 @@ impl SystemGroup {
             SystemMessage::Toggle => self.menu.toggle(),
             SystemMessage::Hover(hovered) => self.menu.set_hover(hovered),
             SystemMessage::Close => self.menu.close(),
+            SystemMessage::Tooltip(_) => {}
         }
-        Task::none()
     }
 
-    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(
+        &self,
+        config: &Config,
+        position: Position,
+    ) -> Option<Element<'a, SystemMessage>> {
         let handle = hover_reading(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget)?, 1.0)?;
 
         let reveal = self.menu.reveal();
@@ -97,9 +101,9 @@ impl SystemGroup {
 
         Some(
             mouse_area(group)
-                .on_press(Message::System(SystemMessage::Toggle))
-                .on_enter(Message::System(SystemMessage::Hover(true)))
-                .on_exit(Message::System(SystemMessage::Hover(false)))
+                .on_press(SystemMessage::Toggle)
+                .on_enter(SystemMessage::Hover(true))
+                .on_exit(SystemMessage::Hover(false))
                 .into(),
         )
     }

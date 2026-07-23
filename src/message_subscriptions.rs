@@ -64,7 +64,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         iced::time::every(Disk.interval()).map(|_| Message::Poll(Disk)),
         iced::time::every(WindowIcons.interval()).map(|_| Message::Poll(WindowIcons)),
         iced::time::every(DesktopEntries.interval()).map(|_| Message::Poll(DesktopEntries)),
-        ClockGroup::subscription(),
+        ClockGroup::subscription().map(Message::Clock),
         iced::window::close_events().map(Message::WindowClosed),
         niri_subscription(),
         animation,

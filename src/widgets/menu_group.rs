@@ -14,7 +14,6 @@ use iced::{
 };
 
 use crate::{
-    bar_program::Message,
     layer_surface::Position,
     user_config::Config,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
@@ -71,7 +70,7 @@ impl MenuGroup {
     /// `content`'s colours by the same factor. The caller wraps the result in
     /// its own mouse area (routing toggle and hover), so the interaction lives
     /// with the group's messages rather than being threaded through here.
-    pub fn view<'a>(
+    pub fn view<'a, Message: 'a>(
         &self,
         config: &Config,
         position: Position,

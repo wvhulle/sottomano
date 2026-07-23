@@ -1,9 +1,8 @@
-use iced::{Element, Task};
+use iced::Element;
 
 use crate::{
-    bar_program::Message,
     data_sources::{BarWidget, sysfs_sensors::battery::Battery},
-    tooltip::hoverable,
+    tooltip::{TooltipMessage, hoverable},
     user_config::Config,
     widgets::icon_gauge::source_reading,
 };
@@ -16,21 +15,20 @@ pub struct BatteryGroup {
 #[derive(Debug, Clone)]
 pub enum BatteryMessage {
     Loaded(Option<Battery>),
+    Tooltip(TooltipMessage),
 }
 
 impl BatteryGroup {
-    pub fn update(&mut self, msg: BatteryMessage) -> Task<Message> {
+    pub fn update(&mut self, msg: BatteryMessage) {
         match msg {
-            BatteryMessage::Loaded(data) => {
-                self.battery = data;
-                Task::none()
-            }
+            BatteryMessage::Loaded(data) => self.battery = data,
+            BatteryMessage::Tooltip(_) => {}
         }
     }
 
-    pub fn view<'a>(&self, config: &Config) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&self, config: &Config) -> Option<Element<'a, BatteryMessage>> {
         let battery = self.battery.as_ref()?;
         let reading = source_reading(config, Some(battery as &dyn BarWidget), 1.0)?;
-        Some(hoverable(reading, battery.tooltip(), Message::Tooltip))
+        Some(hoverable(reading, battery.tooltip(), BatteryMessage::Tooltip))
     }
 }

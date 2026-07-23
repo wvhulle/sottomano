@@ -1,6 +1,6 @@
 use iced::{Element, Length, alignment::Vertical, widget::container};
 
-use crate::{bar_program::Message, layer_surface::Position};
+use crate::layer_surface::Position;
 
 /// A pager/menu slot: `content` centred over the bar height, with an
 /// `indicator` hairline pinned to the inner screen edge and optional `ticks`
@@ -15,13 +15,13 @@ use crate::{bar_program::Message, layer_surface::Position};
 /// layer (`content`), so the Fill-width bars are constrained to the content
 /// width and the slot is exactly as wide as its label. Inner edge = top on a
 /// bottom bar, bottom on a top bar, so a bar always points into the screen.
-pub struct PagerSlot<'a> {
+pub struct PagerSlot<'a, Message> {
     content: Element<'a, Message>,
     indicator: Element<'a, Message>,
     ticks: Option<Element<'a, Message>>,
 }
 
-impl<'a> PagerSlot<'a> {
+impl<'a, Message: 'a> PagerSlot<'a, Message> {
     /// A slot with its centred `content` and the inner-edge state hairline.
     pub fn new(content: Element<'a, Message>, indicator: Element<'a, Message>) -> Self {
         Self {

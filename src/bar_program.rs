@@ -172,33 +172,25 @@ impl Bar {
                 self.theme_icons = map;
                 Task::none()
             }
-            Message::Poll(kind) => match kind {
-                SourceKind::Battery => poll::<sysfs_sensors::battery::Battery>()
-                    .map(|d| Message::Battery(BatteryMessage::Loaded(d))),
-                SourceKind::Cpu => poll::<sysfs_sensors::cpu_usage::CpuUsage>()
-                    .map(|d| Message::System(SystemMessage::LoadedCpu(d))),
-                SourceKind::Memory => poll::<sysfs_sensors::memory::Memory>()
-                    .map(|d| Message::System(SystemMessage::LoadedMemory(d))),
-                SourceKind::Temperature => poll::<sysfs_sensors::temperature::Temperature>()
-                    .map(|d| Message::System(SystemMessage::LoadedTemperature(d))),
-                SourceKind::Disk => {
-                    poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d)))
-                }
-                SourceKind::WindowIcons => Task::batch([
-                    self.poll_favicons(),
-                    self.poll_app_icons(),
-                    self.poll_theme_icons(),
-                ]),
-                SourceKind::DesktopEntries => self.load_desktop_entries(),
-            },
-            Message::Battery(msg) => self.battery_group.update(msg),
-            Message::System(msg) => self.system_group.update(msg),
+            Message::Poll(kind) => self.poll_source(kind),
+            Message::Battery(msg) => {
+                self.battery_group.update(msg);
+                Task::none()
+            }
+            Message::System(msg) => {
+                self.system_group.update(msg);
+                Task::none()
+            }
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
-            Message::Clock(msg) => self.clock_group.update(msg),
-            Message::CloseMenus => Task::batch([
-                self.system_group.update(SystemMessage::Close),
-                self.update_panel_settings(PanelSettingsMessage::Close),
-            ]),
+            Message::Clock(msg) => {
+                self.clock_group.update(msg);
+                Task::none()
+            }
+            Message::CloseMenus => {
+                self.system_group.update(SystemMessage::Close);
+                self.panel_settings_group.update(PanelSettingsMessage::Close);
+                Task::none()
+            }
             Message::FocusWindow(window) => niri_action(move || niri::focus_window(window)),
             Message::FocusWorkspace(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
@@ -236,6 +228,28 @@ impl Bar {
     /// Re-resolve favicons for every Firefox window currently open. Firefox's
     /// history/favicon DBs are read synchronously off-thread, keyed by the
     /// brand-stripped page title.
+    fn poll_source(&mut self, kind: SourceKind) -> Task<Message> {
+        match kind {
+            SourceKind::Battery => poll::<sysfs_sensors::battery::Battery>()
+                .map(|d| Message::Battery(BatteryMessage::Loaded(d))),
+            SourceKind::Cpu => poll::<sysfs_sensors::cpu_usage::CpuUsage>()
+                .map(|d| Message::System(SystemMessage::LoadedCpu(d))),
+            SourceKind::Memory => poll::<sysfs_sensors::memory::Memory>()
+                .map(|d| Message::System(SystemMessage::LoadedMemory(d))),
+            SourceKind::Temperature => poll::<sysfs_sensors::temperature::Temperature>()
+                .map(|d| Message::System(SystemMessage::LoadedTemperature(d))),
+            SourceKind::Disk => {
+                poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d)))
+            }
+            SourceKind::WindowIcons => Task::batch([
+                self.poll_favicons(),
+                self.poll_app_icons(),
+                self.poll_theme_icons(),
+            ]),
+            SourceKind::DesktopEntries => self.load_desktop_entries(),
+        }
+    }
+
     fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
         let window_change = matches!(
             event,
@@ -297,24 +311,12 @@ impl Bar {
         task
     }
 
-    /// Config-mutating knobs live here rather than in the panel-settings group
-    /// itself: that group owns only its expand state, while the config and the
-    /// open-surface table (needed to re-margin open surfaces) both belong to
-    /// the application.
+    /// The config-mutating knobs are intercepted here rather than handled in
+    /// the panel-settings group: the config and the open-surface table (needed
+    /// to re-margin open surfaces) both belong to the application. Everything
+    /// else is the group's own menu state.
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
         match msg {
-            PanelSettingsMessage::Toggle => {
-                self.panel_settings_group.menu.toggle();
-                Task::none()
-            }
-            PanelSettingsMessage::Hover(hovered) => {
-                self.panel_settings_group.menu.set_hover(hovered);
-                Task::none()
-            }
-            PanelSettingsMessage::Close => {
-                self.panel_settings_group.menu.close();
-                Task::none()
-            }
             PanelSettingsMessage::ToggleFloating => {
                 self.config.layout.floating = !self.config.layout.floating;
                 self.remargin_surfaces()
@@ -322,6 +324,10 @@ impl Bar {
             PanelSettingsMessage::SetFloatOffset(offset) => {
                 self.config.layout.float_offset_px = offset;
                 self.remargin_surfaces()
+            }
+            msg => {
+                self.panel_settings_group.update(msg);
+                Task::none()
             }
         }
     }

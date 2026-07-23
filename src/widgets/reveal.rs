@@ -9,14 +9,12 @@ use iced::{
     mouse::Cursor,
 };
 
-use crate::bar_program::Message;
-
 /// Horizontally reveals `content`, clipped to `fraction` (0..1) of its natural
 /// width — the width growth half of odin's `MenuGroup` expand. Stateless: the
 /// caller animates `fraction` and re-renders; this measures the child at its
 /// full width every layout and clips the overflow, so the reveal is pixel-exact
 /// without measuring back into application state.
-pub fn reveal_x<'a>(
+pub fn reveal_x<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
 ) -> Element<'a, Message> {

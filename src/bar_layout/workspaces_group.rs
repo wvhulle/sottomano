@@ -7,19 +7,23 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    bar_program::Message,
     data_sources::niri,
     layer_surface::Position,
     user_config::{Config, font},
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
 };
 
+#[derive(Debug, Clone, Copy)]
+pub enum WorkspacesMessage {
+    Clicked(u64),
+}
+
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
     config: &Config,
     position: Position,
-) -> Element<'a, Message> {
+) -> Element<'a, WorkspacesMessage> {
     let slots = niri::workspaces_for_output(niri, output)
         .into_iter()
         .map(|p| {
@@ -39,7 +43,7 @@ pub fn view<'a>(
             let ticks = window_ticks(config, niri, p.id);
 
             mouse_area(PagerSlot::new(label, focus).ticks(ticks).view(position))
-                .on_press(Message::FocusWorkspace(p.id))
+                .on_press(WorkspacesMessage::Clicked(p.id))
                 .into()
         });
     Row::with_children(slots)
@@ -52,7 +56,7 @@ fn window_ticks<'a>(
     config: &Config,
     niri: &EventStreamState,
     workspace: u64,
-) -> Element<'a, Message> {
+) -> Element<'a, WorkspacesMessage> {
     let thickness = config.layout.window_segment_thickness_px;
     let segments = niri::windows_on_workspace(niri, workspace)
         .into_iter()
@@ -69,7 +73,7 @@ fn window_ticks<'a>(
     Row::with_children(segments).spacing(1.0).into()
 }
 
-fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Message> {
+fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
     let key = if p.idx == 10 {
         "0".to_string()
     } else {

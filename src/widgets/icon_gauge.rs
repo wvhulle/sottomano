@@ -4,7 +4,6 @@ use iced::{
 };
 
 use crate::{
-    bar_program::Message,
     data_sources::{BarWidget, Level},
     user_config::Config,
     widgets::text::bar_text,
@@ -14,7 +13,7 @@ use crate::{
 /// label for a label-only source), tinted by severity. `None` when the source
 /// is unavailable. `alpha` scales every colour's opacity so a reading can fade
 /// in/out (1.0 = fully opaque).
-pub fn source_reading<'a>(
+pub fn source_reading<'a, Message: 'a>(
     config: &Config,
     widget: Option<&dyn BarWidget>,
     alpha: f32,
@@ -53,7 +52,7 @@ pub fn source_reading<'a>(
 /// full-height track keeps the frame visible; a solid bar fills from the bottom
 /// in proportion. Height matches the icon size so it lines up with the
 /// Font Awesome icon beside it.
-fn gauge<'a>(percent: i64, color: Color, height: f32) -> Element<'a, Message> {
+fn gauge<'a, Message: 'a>(percent: i64, color: Color, height: f32) -> Element<'a, Message> {
     let fill_height = height * (percent as f32 / 100.0).clamp(0.0, 1.0);
     let track_height = height - fill_height;
 

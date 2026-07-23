@@ -11,6 +11,11 @@ use crate::{
     user_config::Config,
 };
 
+use battery_group::BatteryMessage;
+use panel_settings_group::PanelSettingsMessage;
+use system_group::SystemMessage;
+use workspaces_group::WorkspacesMessage;
+
 pub mod battery_group;
 pub mod clock_group;
 pub mod panel_settings_group;
@@ -22,13 +27,31 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let start = zone(
         [
-            bar.battery_group.view(config),
-            bar.system_group.view(config, position),
-            bar.panel_settings_group.view(config, position),
+            bar.battery_group.view(config).map(|e| {
+                e.map(|m| match m {
+                    BatteryMessage::Tooltip(t) => Message::Tooltip(t),
+                    m @ BatteryMessage::Loaded(_) => Message::Battery(m),
+                })
+            }),
+            bar.system_group.view(config, position).map(|e| {
+                e.map(|m| match m {
+                    SystemMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::System(m),
+                })
+            }),
+            bar.panel_settings_group.view(config, position).map(|e| {
+                e.map(|m| match m {
+                    PanelSettingsMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::PanelSettings(m),
+                })
+            }),
         ],
         config,
     );
-    let center = zone([Some(bar.clock_group.view(config))], config);
+    let center = zone(
+        [Some(bar.clock_group.view(config).map(Message::Clock))],
+        config,
+    );
     bar_row(start, center, config)
 }
 
@@ -48,9 +71,11 @@ fn zone<'a>(
 pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<'a, Message> {
     let config = &bar.config;
     let start = zone(
-        [Some(workspaces_group::view(
-            &bar.niri, output, config, position,
-        ))],
+        [Some(
+            workspaces_group::view(&bar.niri, output, config, position).map(
+                |WorkspacesMessage::Clicked(id)| Message::FocusWorkspace(id),
+            ),
+        )],
         config,
     );
     let center = Row::with_children(window_list_group::view(

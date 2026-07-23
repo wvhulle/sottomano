@@ -18,10 +18,9 @@ use iced::{
 };
 
 use crate::{
-    bar_program::Message,
     data_sources::row,
     layer_surface::Position,
-    tooltip::hoverable,
+    tooltip::{TooltipMessage, hoverable},
     user_config::Config,
     widgets::{icon::Icon, menu_group::MenuGroup},
 };
@@ -30,13 +29,14 @@ pub struct PanelSettingsGroup {
     pub(crate) menu: MenuGroup,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
     Toggle,
     Hover(bool),
     Close,
     ToggleFloating,
     SetFloatOffset(f32),
+    Tooltip(TooltipMessage),
 }
 
 impl PanelSettingsGroup {
@@ -46,9 +46,26 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
+    /// Menu-only state transitions; the config-mutating variants are handled
+    /// by the application, which owns the config and the open surfaces.
+    pub fn update(&mut self, msg: PanelSettingsMessage) {
+        match msg {
+            PanelSettingsMessage::Toggle => self.menu.toggle(),
+            PanelSettingsMessage::Hover(hovered) => self.menu.set_hover(hovered),
+            PanelSettingsMessage::Close => self.menu.close(),
+            PanelSettingsMessage::ToggleFloating
+            | PanelSettingsMessage::SetFloatOffset(_)
+            | PanelSettingsMessage::Tooltip(_) => {}
+        }
+    }
+
+    pub fn view<'a>(
+        &self,
+        config: &Config,
+        position: Position,
+    ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground();
-        let handle: Element<'a, Message> = Icon::Sliders
+        let handle: Element<'a, PanelSettingsMessage> = Icon::Sliders
             .solid()
             .size(config.font.icon_size_px)
             .color(foreground)
@@ -63,7 +80,7 @@ impl PanelSettingsGroup {
                 .color(color);
             hoverable(
                 mouse_area(icon)
-                    .on_press(Message::PanelSettings(PanelSettingsMessage::ToggleFloating))
+                    .on_press(PanelSettingsMessage::ToggleFloating)
                     .into(),
                 vec![row(
                     "Floating",
@@ -73,7 +90,7 @@ impl PanelSettingsGroup {
                         "off — flush, square"
                     },
                 )],
-                Message::Tooltip,
+                PanelSettingsMessage::Tooltip,
             )
         };
 
@@ -83,9 +100,7 @@ impl PanelSettingsGroup {
                 range: 0.0..=24.0,
                 step: 1.0,
             }
-            .view(config, config.layout.float_offset_px, |v| {
-                Message::PanelSettings(PanelSettingsMessage::SetFloatOffset(v))
-            })
+            .view(config, config.layout.float_offset_px, PanelSettingsMessage::SetFloatOffset)
         });
 
         let reveal = self.menu.reveal();
@@ -98,9 +113,9 @@ impl PanelSettingsGroup {
 
         Some(
             mouse_area(group)
-                .on_press(Message::PanelSettings(PanelSettingsMessage::Toggle))
-                .on_enter(Message::PanelSettings(PanelSettingsMessage::Hover(true)))
-                .on_exit(Message::PanelSettings(PanelSettingsMessage::Hover(false)))
+                .on_press(PanelSettingsMessage::Toggle)
+                .on_enter(PanelSettingsMessage::Hover(true))
+                .on_exit(PanelSettingsMessage::Hover(false))
                 .into(),
         )
     }
@@ -117,8 +132,8 @@ impl Knob {
         self,
         config: &Config,
         value: f32,
-        on_change: impl Fn(f32) -> Message + 'a,
-    ) -> Element<'a, Message> {
+        on_change: impl Fn(f32) -> PanelSettingsMessage + 'a,
+    ) -> Element<'a, PanelSettingsMessage> {
         let icon = self
             .icon
             .solid()
