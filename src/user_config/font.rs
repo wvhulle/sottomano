@@ -17,8 +17,8 @@ impl Default for FontSpec {
     fn default() -> Self {
         Self {
             name: None,
-            text_size_px: 12.0,
-            icon_size_px: 14.0,
+            text_size_px: 14.0,
+            icon_size_px: 15.0,
         }
     }
 }
@@ -85,11 +85,8 @@ pub fn bar_font_covers(ch: char) -> bool {
 /// `bar_layout::workspaces_group`). Derived from the font's real metrics, so it
 /// tracks the font and size; `0` when the font can't be read.
 pub fn descent_px() -> f32 {
-    static DESCENT: OnceLock<f32> = OnceLock::new();
-    *DESCENT.get_or_init(|| {
-        face().map_or(0.0, |face| {
-            f32::from(face.descender().unsigned_abs()) / f32::from(face.units_per_em()) * size()
-        })
+    face().map_or(0.0, |face| {
+        f32::from(face.descender().unsigned_abs()) / f32::from(face.units_per_em()) * size()
     })
 }
 

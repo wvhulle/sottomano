@@ -3,7 +3,7 @@
 use std::{thread, time::Duration};
 
 use super::{core_ghz, favg, fmax, fmin, ghz};
-use crate::data_sources::{BarWidget, Icon, Level, Source, Tooltip, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
 
 /// CPU busy percent over a 200 ms `/proc/stat` delta, plus per-core GHz
 /// (`cpu.nu`).
@@ -33,7 +33,7 @@ impl BarWidget for CpuUsage {
         })
     }
 
-    fn tooltip(&self) -> Tooltip {
+    fn tooltip(&self) -> TooltipBody {
         let mut rows = vec![row("CPU", format!("{}%", self.percent))];
         if self.freqs_ghz.is_empty() {
             rows.push(row("Frequency", "unavailable"));
@@ -42,7 +42,7 @@ impl BarWidget for CpuUsage {
             rows.push(row("Frequency avg", ghz(favg(&self.freqs_ghz))));
             rows.push(row("Frequency max", ghz(fmax(&self.freqs_ghz))));
         }
-        Tooltip::Table(rows)
+        TooltipBody::Table(rows)
     }
 }
 

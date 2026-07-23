@@ -87,11 +87,11 @@ pub struct LogEntry {
     pub level: Level,
 }
 
-/// Tooltip content, strictly one of odin's two shapes (it branches on
-/// `Array.isArray`): a key/value [`Table`](Tooltip::Table) or a timestamped
-/// event [`Log`](Tooltip::Log). Never mixed.
+/// Tooltip body, strictly one of odin's two shapes (it branches on
+/// `Array.isArray`): a key/value [`Table`](TooltipBody::Table) or a timestamped
+/// event [`Log`](TooltipBody::Log). Never mixed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Tooltip {
+pub enum TooltipBody {
     Table(Vec<Row>),
     /// Rendered and gated on, but not emitted by any wired source yet (odin's
     /// journal widgets — kernel errors, failed units — are not ported).
@@ -99,12 +99,45 @@ pub enum Tooltip {
     Log(Vec<LogEntry>),
 }
 
-impl Tooltip {
-    pub fn is_empty(&self) -> bool {
+impl TooltipBody {
+    fn is_empty(&self) -> bool {
         match self {
-            Tooltip::Table(rows) => rows.is_empty(),
-            Tooltip::Log(entries) => entries.is_empty(),
+            TooltipBody::Table(rows) => rows.is_empty(),
+            TooltipBody::Log(entries) => entries.is_empty(),
         }
+    }
+}
+
+/// When a polled reading was last refreshed and how often it refreshes, shown
+/// as a dim tooltip footer so the user can tell how fresh — and how throttled —
+/// the value is (e.g. rate-limited API-backed sources).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RefreshInfo {
+    pub every: Duration,
+    pub last: SystemTime,
+}
+
+/// A tooltip: a [`TooltipBody`] plus an optional refresh [`footer`](Tooltip::footer).
+/// The footer is orthogonal to the body shape (as in odin) and present only for
+/// polled sources.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tooltip {
+    pub body: TooltipBody,
+    pub footer: Option<RefreshInfo>,
+}
+
+impl Tooltip {
+    pub fn empty() -> Self {
+        Self {
+            body: TooltipBody::Table(Vec::new()),
+            footer: None,
+        }
+    }
+
+    /// Whether there is nothing to show — the footer alone is not content, so a
+    /// source with an empty body suppresses its tooltip (odin drops `{}`).
+    pub fn is_empty(&self) -> bool {
+        self.body.is_empty()
     }
 }
 
@@ -134,7 +167,7 @@ pub trait BarWidget {
         None
     }
 
-    fn tooltip(&self) -> Tooltip;
+    fn tooltip(&self) -> TooltipBody;
 }
 
 pub trait Source: BarWidget + Sized {

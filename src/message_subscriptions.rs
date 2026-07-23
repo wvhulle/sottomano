@@ -21,7 +21,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     };
     // Only ticks while a Log tooltip is shown, to advance its relative times —
     // gated like the animation frames so it stays idle otherwise.
-    let tooltip_tick = if state.tooltip_shows_log() {
+    let tooltip_tick = if state.tooltip_has_relative_time() {
         iced::time::every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
     } else {
         Subscription::none()

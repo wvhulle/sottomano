@@ -18,7 +18,7 @@ use iced::{
 };
 
 use crate::{
-    data_sources::{Tooltip, row},
+    data_sources::{Tooltip, TooltipBody, row},
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
     user_config::Config,
@@ -27,16 +27,19 @@ use crate::{
 
 /// The floating-toggle tooltip, derived from the current layout config. A free
 /// function so the application's tooltip resolver can build it without the
-/// group's view state.
+/// group's view state. No footer — the toggle is config-derived, not polled.
 pub fn floating_tooltip(config: &Config) -> Tooltip {
-    Tooltip::Table(vec![row(
-        "Floating",
-        if config.layout.floating {
-            "on — rounded, inset from edges"
-        } else {
-            "off — flush, square"
-        },
-    )])
+    Tooltip {
+        body: TooltipBody::Table(vec![row(
+            "Floating",
+            if config.layout.floating {
+                "on — rounded, inset from edges"
+            } else {
+                "off — flush, square"
+            },
+        )]),
+        footer: None,
+    }
 }
 
 pub struct PanelSettingsGroup {

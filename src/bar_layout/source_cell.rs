@@ -3,17 +3,27 @@
 //! [`Source::INTERVAL`]), and the off-thread poll task. Groups compose cells
 //! and keep only their visuals.
 
+use std::time::SystemTime;
+
 use iced::{Subscription, Task};
 
-use crate::{data_sources::Source, message_subscriptions::poll};
+use crate::{
+    data_sources::{RefreshInfo, Source, Tooltip},
+    message_subscriptions::poll,
+};
 
 pub struct SourceCell<S> {
     data: Option<S>,
+    /// When the last poll completed, for the tooltip's staleness footer.
+    last_refreshed: Option<SystemTime>,
 }
 
 impl<S> Default for SourceCell<S> {
     fn default() -> Self {
-        Self { data: None }
+        Self {
+            data: None,
+            last_refreshed: None,
+        }
     }
 }
 
@@ -36,6 +46,7 @@ impl<S: Source + Send + 'static> SourceCell<S> {
         match msg {
             SourceMessage::Loaded(data) => {
                 self.data = data;
+                self.last_refreshed = Some(SystemTime::now());
                 Task::none()
             }
             SourceMessage::PollElapsed => Self::init(),
@@ -44,5 +55,19 @@ impl<S: Source + Send + 'static> SourceCell<S> {
 
     pub fn get(&self) -> Option<&S> {
         self.data.as_ref()
+    }
+
+    /// The tooltip for this cell's reading — its body plus a refresh footer
+    /// carrying the cadence ([`Source::INTERVAL`]) and when it last polled.
+    /// `None` until the first reading arrives.
+    pub fn tooltip(&self) -> Option<Tooltip> {
+        let data = self.data.as_ref()?;
+        Some(Tooltip {
+            body: data.tooltip(),
+            footer: self.last_refreshed.map(|last| RefreshInfo {
+                every: S::INTERVAL,
+                last,
+            }),
+        })
     }
 }

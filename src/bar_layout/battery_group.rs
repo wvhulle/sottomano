@@ -35,8 +35,8 @@ impl BatteryGroup {
         }
     }
 
-    pub fn reading(&self) -> Option<&Battery> {
-        self.cell.get()
+    pub fn cell(&self) -> &SourceCell<Battery> {
+        &self.cell
     }
 
     pub fn view<'a>(&self, config: &Config) -> Option<Element<'a, BatteryMessage>> {

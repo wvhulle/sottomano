@@ -22,7 +22,7 @@ use crate::{
         system_group::{SystemGroup, SystemMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
-    data_sources::{BarWidget, Tooltip, niri},
+    data_sources::{Tooltip, TooltipBody, niri},
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::niri_action,
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
@@ -166,27 +166,29 @@ impl Bar {
         }
     }
 
-    /// Live content for a hovered widget, derived from its current reading.
-    /// Called only while its tooltip surface is shown, so nothing is computed
-    /// when no tooltip is open. An absent reading yields an empty tooltip.
+    /// Live content for a hovered widget, derived from its current reading (and
+    /// the owning cell's refresh footer). Called only while its tooltip surface
+    /// is shown, so nothing is computed when no tooltip is open. An absent
+    /// reading yields an empty tooltip.
     pub(crate) fn tooltip_of(&self, source: TooltipSource) -> Tooltip {
-        let widget: Option<&dyn BarWidget> = match source {
-            TooltipSource::Cpu => self.system_group.cpu().map(|w| w as _),
-            TooltipSource::Memory => self.system_group.memory().map(|w| w as _),
-            TooltipSource::Temperature => self.system_group.temperature().map(|w| w as _),
-            TooltipSource::Disk => self.system_group.disk().map(|w| w as _),
-            TooltipSource::Battery => self.battery_group.reading().map(|w| w as _),
-            TooltipSource::Floating => return panel_settings_group::floating_tooltip(&self.config),
-        };
-        widget.map_or(Tooltip::Table(Vec::new()), BarWidget::tooltip)
+        match source {
+            TooltipSource::Cpu => self.system_group.cpu_cell().tooltip(),
+            TooltipSource::Memory => self.system_group.memory_cell().tooltip(),
+            TooltipSource::Temperature => self.system_group.temperature_cell().tooltip(),
+            TooltipSource::Disk => self.system_group.disk_cell().tooltip(),
+            TooltipSource::Battery => self.battery_group.cell().tooltip(),
+            TooltipSource::Floating => Some(panel_settings_group::floating_tooltip(&self.config)),
+        }
+        .unwrap_or_else(Tooltip::empty)
     }
 
-    /// Whether the open tooltip (if any) is a [`Tooltip::Log`] — gates the 1 Hz
-    /// relative-time tick so it runs only when a log is on screen.
-    pub fn tooltip_shows_log(&self) -> bool {
-        self.tooltip
-            .source()
-            .is_some_and(|source| matches!(self.tooltip_of(source), Tooltip::Log(_)))
+    /// Whether the open tooltip (if any) has live relative time — a refresh
+    /// footer or a [`TooltipBody::Log`] — to gate the 1 Hz tick that advances it.
+    pub fn tooltip_has_relative_time(&self) -> bool {
+        self.tooltip.source().is_some_and(|source| {
+            let tooltip = self.tooltip_of(source);
+            tooltip.footer.is_some() || matches!(tooltip.body, TooltipBody::Log(_))
+        })
     }
 
     fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {

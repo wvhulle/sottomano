@@ -107,20 +107,20 @@ impl SystemGroup {
         }
     }
 
-    pub fn cpu(&self) -> Option<&CpuUsage> {
-        self.cpu.get()
+    pub fn cpu_cell(&self) -> &SourceCell<CpuUsage> {
+        &self.cpu
     }
 
-    pub fn memory(&self) -> Option<&Memory> {
-        self.memory.get()
+    pub fn memory_cell(&self) -> &SourceCell<Memory> {
+        &self.memory
     }
 
-    pub fn temperature(&self) -> Option<&Temperature> {
-        self.temperature.get()
+    pub fn temperature_cell(&self) -> &SourceCell<Temperature> {
+        &self.temperature
     }
 
-    pub fn disk(&self) -> Option<&Disk> {
-        self.disk.get()
+    pub fn disk_cell(&self) -> &SourceCell<Disk> {
+        &self.disk
     }
 
     pub fn view<'a>(

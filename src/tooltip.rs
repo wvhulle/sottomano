@@ -31,7 +31,7 @@ use iced_layershell::reexport::{
 
 use crate::{
     bar_program::Message,
-    data_sources::{Tooltip, level_color},
+    data_sources::{Tooltip, TooltipBody, level_color},
     layer_surface::{Position, Surface},
     user_config::Config,
     widgets::text::bar_text,
@@ -58,6 +58,8 @@ const GAP_PX: i32 = 6;
 const PANEL_PADDING_PX: f32 = 10.0;
 const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
+/// Gap between the tooltip body grid and its refresh footer.
+const FOOTER_GAP_PX: f32 = 6.0;
 /// A generous initial surface size. The panel lays itself out (shrink-to-fit)
 /// inside it, iced reports the real size via a [`Sensor`], and the surface is
 /// then shrunk to match — so no dimension is computed by hand. Only an upper
@@ -425,8 +427,9 @@ fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
     // content (no `Fill`, which would make it greedy and defeat the `Sensor`
     // measurement). A Table shows dimmed key | value; a Log shows dimmed
     // relative time | level-tinted message.
-    let (left, right) = match tooltip {
-        Tooltip::Table(rows) => (
+    let now = SystemTime::now();
+    let (left, right) = match &tooltip.body {
+        TooltipBody::Table(rows) => (
             Column::with_children(
                 rows.iter()
                     .map(|entry| bar_text(entry.key.clone()).color(dim).into()),
@@ -436,27 +439,42 @@ fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
                     .map(|entry| bar_text(entry.value.clone()).color(foreground).into()),
             ),
         ),
-        Tooltip::Log(entries) => {
-            let now = SystemTime::now();
-            (
-                Column::with_children(
-                    entries
-                        .iter()
-                        .map(|entry| bar_text(relative(entry.at, now)).color(dim).into()),
-                ),
-                Column::with_children(entries.iter().map(|entry| {
-                    bar_text(entry.message.clone())
-                        .color(level_color(config, entry.level))
-                        .into()
-                })),
-            )
-        }
+        TooltipBody::Log(entries) => (
+            Column::with_children(
+                entries
+                    .iter()
+                    .map(|entry| bar_text(relative(entry.at, now)).color(dim).into()),
+            ),
+            Column::with_children(entries.iter().map(|entry| {
+                bar_text(entry.message.clone())
+                    .color(level_color(config, entry.level))
+                    .into()
+            })),
+        ),
     };
-    let body = row![
+    let grid = row![
         left.spacing(ROW_SPACING_PX),
         right.spacing(ROW_SPACING_PX)
     ]
     .spacing(COLUMN_GAP_PX);
+
+    // A dim footer below the grid, for polled sources: how stale the shown value
+    // is and how often it refreshes, so a throttled source reads as intentional.
+    let body = match tooltip.footer {
+        Some(info) => Column::with_children([
+            grid.into(),
+            bar_text(format!(
+                "updated {} · every {}",
+                relative(info.last, now),
+                humantime::format_duration(info.every),
+            ))
+            .color(dim)
+            .into(),
+        ])
+        .spacing(FOOTER_GAP_PX)
+        .into(),
+        None => Element::from(grid),
+    };
 
     let background = Color {
         a: 1.0,
