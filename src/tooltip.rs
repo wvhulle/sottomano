@@ -118,6 +118,15 @@ impl TooltipHost {
         surfaces: &BTreeMap<Id, Surface>,
         config: &Config,
     ) -> Task<Message> {
+        // A re-publish from the widget already shown: refresh the panel's rows
+        // in place (the size sensor re-shrinks the surface if they re-measure)
+        // instead of tearing down and reopening the surface.
+        if let Some(shown) = &mut self.shown
+            && shown.anchor == anchor
+        {
+            shown.rows = rows;
+            return Task::none();
+        }
         let Some(surface) = surfaces.get(&surface) else {
             return Task::none();
         };
@@ -250,6 +259,9 @@ struct HoverArea<'a, M> {
 #[derive(Default)]
 struct HoverState {
     hovered: bool,
+    /// The rows last published, so a data refresh while hovered re-publishes
+    /// exactly once instead of every redraw.
+    published: Vec<Row>,
 }
 
 impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
@@ -330,6 +342,9 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
         let hovered = cursor.is_over(anchor);
         if hovered != state.hovered {
             state.hovered = hovered;
+            if hovered {
+                state.published.clone_from(&self.rows);
+            }
             shell.publish((self.wrap)(if hovered {
                 TooltipMessage::EnterAnchor {
                     rows: self.rows.clone(),
@@ -337,6 +352,14 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
                 }
             } else {
                 TooltipMessage::Exit { anchor }
+            }));
+        } else if hovered && state.published != self.rows {
+            // Fresh data while the tooltip is open: re-publish so the shown
+            // panel tracks the reading instead of its enter-time snapshot.
+            state.published.clone_from(&self.rows);
+            shell.publish((self.wrap)(TooltipMessage::EnterAnchor {
+                rows: self.rows.clone(),
+                anchor,
             }));
         }
     }
