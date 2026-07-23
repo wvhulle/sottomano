@@ -7,7 +7,6 @@
 //!   nothing when unavailable.
 //!
 //! Sources run synchronously; the app runs them off the executor.
-#![allow(dead_code)]
 
 use std::{
     fmt::{Display, Formatter, Result},
@@ -50,6 +49,8 @@ impl Display for Unit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     Gauge { percent: i64, unit: Unit },
+    /// Not yet emitted by any wired source.
+    #[allow(dead_code)]
     Slider { percent: i64, unit: Unit },
 }
 

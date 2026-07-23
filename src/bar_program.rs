@@ -49,11 +49,11 @@ pub enum Message {
     PanelSettings(PanelSettingsMessage),
     Clock(ClockMessage),
     WindowList(WindowListMessage),
-    CloseMenus,
-    FocusWorkspace(u64),
+    DismissPressed,
+    WorkspaceClicked(u64),
     Niri(niri_ipc::Event),
     WindowClosed(Id),
-    Animate,
+    FrameTicked,
     Tooltip(TooltipMessage),
 }
 
@@ -91,7 +91,7 @@ impl Bar {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Animate => {
+            Message::FrameTicked => {
                 let now = Instant::now();
                 self.system_group.menu.tick(now);
                 self.panel_settings_group.menu.tick(now);
@@ -114,13 +114,13 @@ impl Bar {
                 self.clock_group.update(msg);
                 Task::none()
             }
-            Message::CloseMenus => {
+            Message::DismissPressed => {
                 self.panel_settings_group.update(PanelSettingsMessage::Close);
                 self.system_group
                     .update(SystemMessage::Close)
                     .map(Message::System)
             }
-            Message::FocusWorkspace(workspace) => {
+            Message::WorkspaceClicked(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
             }
             Message::Niri(event) => self.apply_niri_event(event),
@@ -153,9 +153,6 @@ impl Bar {
         }
     }
 
-    /// Re-resolve favicons for every Firefox window currently open. Firefox's
-    /// history/favicon DBs are read synchronously off-thread, keyed by the
-    /// brand-stripped page title.
     fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
         let window_change = matches!(
             event,
@@ -258,7 +255,7 @@ impl Bar {
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
-        .on_press(Message::CloseMenus);
+        .on_press(Message::DismissPressed);
 
         container(stack![dismiss, content])
             .width(Length::Fill)

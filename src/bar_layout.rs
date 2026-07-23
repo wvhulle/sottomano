@@ -74,7 +74,7 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
     let start = zone(
         [Some(
             workspaces_group::view(&bar.niri, output, config, position).map(
-                |WorkspacesMessage::Clicked(id)| Message::FocusWorkspace(id),
+                |WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id),
             ),
         )],
         config,

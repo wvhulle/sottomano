@@ -13,7 +13,7 @@ use crate::{
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
     let animation = if state.is_animating() {
-        iced::window::frames().map(|_| Message::Animate)
+        iced::window::frames().map(|_| Message::FrameTicked)
     } else {
         Subscription::none()
     };
