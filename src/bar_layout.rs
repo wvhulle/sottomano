@@ -23,8 +23,8 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let start = zone(
         [
             bar.battery_group.view(config),
-            bar.system_group.view(config, position, bar.now),
-            bar.panel_settings_group.view(config, position, bar.now),
+            bar.system_group.view(config, position),
+            bar.panel_settings_group.view(config, position),
         ],
         config,
     );

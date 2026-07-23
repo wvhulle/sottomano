@@ -5,7 +5,6 @@
 
 use iced::{
     Alignment, Element, Task,
-    time::Instant,
     widget::{Row, mouse_area},
 };
 
@@ -62,28 +61,23 @@ impl SystemGroup {
         }
     }
 
-    pub fn update(&mut self, msg: SystemMessage, now: Instant) -> Task<Message> {
+    pub fn update(&mut self, msg: SystemMessage) -> Task<Message> {
         match msg {
             SystemMessage::LoadedCpu(data) => self.cpu = data,
             SystemMessage::LoadedMemory(data) => self.memory = data,
             SystemMessage::LoadedTemperature(data) => self.temperature = data,
             SystemMessage::LoadedDisk(data) => self.disk = data,
-            SystemMessage::Toggle => self.menu.toggle(now),
+            SystemMessage::Toggle => self.menu.toggle(),
             SystemMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            SystemMessage::Close => self.menu.close(now),
+            SystemMessage::Close => self.menu.close(),
         }
         Task::none()
     }
 
-    pub fn view<'a>(
-        &self,
-        config: &Config,
-        position: Position,
-        now: Instant,
-    ) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
         let handle = hover_reading(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget)?, 1.0)?;
 
-        let reveal = self.menu.reveal(now);
+        let reveal = self.menu.reveal();
         let content = Row::with_children(
             [
                 self.temperature.as_ref().map(|w| w as &dyn BarWidget),

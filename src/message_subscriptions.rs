@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use iced::{Subscription, Task, time::Instant};
+use iced::{Subscription, Task};
 
 use crate::{
     bar_layout::clock_group::ClockGroup,
@@ -51,7 +51,7 @@ impl SourceKind {
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
     use SourceKind::{Battery, Cpu, DesktopEntries, Disk, Memory, Temperature, WindowIcons};
-    let animation = if state.is_animating(Instant::now()) {
+    let animation = if state.is_animating() {
         iced::window::frames().map(|_| Message::Animate)
     } else {
         Subscription::none()

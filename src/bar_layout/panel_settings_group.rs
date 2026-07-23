@@ -14,7 +14,6 @@ use std::ops::RangeInclusive;
 
 use iced::{
     Alignment, Border, Color, Element,
-    time::Instant,
     widget::{Row, mouse_area, slider},
 };
 
@@ -47,12 +46,7 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn view<'a>(
-        &self,
-        config: &Config,
-        position: Position,
-        now: Instant,
-    ) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
         let foreground = config.palette.bar_foreground();
         let handle: Element<'a, Message> = Icon::Sliders
             .solid()
@@ -93,7 +87,7 @@ impl PanelSettingsGroup {
             })
         });
 
-        let reveal = self.menu.reveal(now);
+        let reveal = self.menu.reveal();
         let content = Row::with_children([Some(floating_toggle), offset].into_iter().flatten())
             .spacing(config.layout.horizontal_widget_spacing_px)
             .align_y(Alignment::Center);

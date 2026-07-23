@@ -23,6 +23,9 @@ use crate::{
 pub struct MenuGroup {
     expand: Animation<bool>,
     hovered: bool,
+    /// Timestamp the pure view samples the expand curve at; refreshed by every
+    /// state change and by [`tick`](Self::tick) on each animation frame.
+    last_tick: Instant,
 }
 
 impl MenuGroup {
@@ -32,27 +35,34 @@ impl MenuGroup {
                 .easing(Easing::EaseOutCubic)
                 .duration(Duration::from_millis(expand_ms)),
             hovered: false,
+            last_tick: Instant::now(),
         }
     }
 
-    pub fn toggle(&mut self, now: Instant) {
-        self.expand.go_mut(!self.expand.value(), now);
+    pub fn toggle(&mut self) {
+        self.last_tick = Instant::now();
+        self.expand.go_mut(!self.expand.value(), self.last_tick);
     }
 
-    pub fn close(&mut self, now: Instant) {
-        self.expand.go_mut(false, now);
+    pub fn close(&mut self) {
+        self.last_tick = Instant::now();
+        self.expand.go_mut(false, self.last_tick);
     }
 
     pub fn set_hover(&mut self, hovered: bool) {
         self.hovered = hovered;
     }
 
-    pub fn is_animating(&self, now: Instant) -> bool {
-        self.expand.is_animating(now)
+    pub fn tick(&mut self, now: Instant) {
+        self.last_tick = now;
     }
 
-    pub fn reveal(&self, now: Instant) -> f32 {
-        self.expand.interpolate(0.0, 1.0, now)
+    pub fn is_animating(&self) -> bool {
+        self.expand.is_animating(Instant::now())
+    }
+
+    pub fn reveal(&self) -> f32 {
+        self.expand.interpolate(0.0, 1.0, self.last_tick)
     }
 
     /// Compose the group's visuals: `handle` (always shown) beside the revealed

@@ -60,7 +60,6 @@ pub struct Bar {
     pub(crate) app_icons: HashMap<String, PathBuf>,
     pub(crate) theme_icons: HashMap<String, PathBuf>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
-    pub(crate) now: Instant,
     pub(crate) tooltip: TooltipHost,
 }
 
@@ -99,7 +98,6 @@ impl Bar {
             app_icons: HashMap::new(),
             theme_icons: HashMap::new(),
             surfaces: BTreeMap::new(),
-            now: Instant::now(),
             tooltip: TooltipHost::default(),
             config,
         };
@@ -128,13 +126,18 @@ impl Bar {
     /// Whether any expandable group is mid-transition — drives the per-frame
     /// animation subscription. Frame ticking is an app-level concern, so it is
     /// aggregated here across all menu groups rather than exposed per group.
-    pub fn is_animating(&self, now: Instant) -> bool {
-        self.system_group.menu.is_animating(now) || self.panel_settings_group.menu.is_animating(now)
+    pub fn is_animating(&self) -> bool {
+        self.system_group.menu.is_animating() || self.panel_settings_group.menu.is_animating()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        self.now = Instant::now();
         match message {
+            Message::Animate => {
+                let now = Instant::now();
+                self.system_group.menu.tick(now);
+                self.panel_settings_group.menu.tick(now);
+                Task::none()
+            }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 self.open_bars(&name)
             }
@@ -189,11 +192,11 @@ impl Bar {
                 SourceKind::DesktopEntries => self.load_desktop_entries(),
             },
             Message::Battery(msg) => self.battery_group.update(msg),
-            Message::System(msg) => self.system_group.update(msg, self.now),
+            Message::System(msg) => self.system_group.update(msg),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::Clock(msg) => self.clock_group.update(msg),
             Message::CloseMenus => Task::batch([
-                self.system_group.update(SystemMessage::Close, self.now),
+                self.system_group.update(SystemMessage::Close),
                 self.update_panel_settings(PanelSettingsMessage::Close),
             ]),
             Message::FocusWindow(window) => niri_action(move || niri::focus_window(window)),
@@ -207,11 +210,10 @@ impl Bar {
                 Task::none()
             }
             Message::Tooltip(msg) => self.tooltip.update(msg, &self.surfaces, &self.config),
-            // Animate only refreshes `now`; disconnected outputs are handled
-            // via the WindowClosed each surface receives; the rest are
-            // layer-shell actions the runtime intercepts before update.
-            Message::Animate
-            | Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
+            // Disconnected outputs are handled via the WindowClosed each
+            // surface receives; the rest are layer-shell actions the runtime
+            // intercepts before update.
+            Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
             | Message::AnchorChange { .. }
             | Message::SetInputRegion { .. }
             | Message::AnchorSizeChange { .. }
@@ -302,7 +304,7 @@ impl Bar {
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
         match msg {
             PanelSettingsMessage::Toggle => {
-                self.panel_settings_group.menu.toggle(self.now);
+                self.panel_settings_group.menu.toggle();
                 Task::none()
             }
             PanelSettingsMessage::Hover(hovered) => {
@@ -310,7 +312,7 @@ impl Bar {
                 Task::none()
             }
             PanelSettingsMessage::Close => {
-                self.panel_settings_group.menu.close(self.now);
+                self.panel_settings_group.menu.close();
                 Task::none()
             }
             PanelSettingsMessage::ToggleFloating => {
