@@ -9,7 +9,7 @@ use niri_ipc::state::EventStreamState;
 use crate::{
     data_sources::niri,
     layer_surface::Position,
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
 };
 
@@ -21,7 +21,7 @@ pub enum WorkspacesMessage {
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
     let slots = niri::workspaces_for_output(niri, output)
@@ -29,11 +29,11 @@ pub fn view<'a>(
         .map(|p| {
             let label = workspace_label(config, &p);
             let (focus_color, focus_opacity) = if p.is_urgent {
-                (config.palette.urgent(), 1.0)
+                (config.palette.urgent, 1.0)
             } else if p.is_active {
-                (config.palette.focus(), 1.0)
+                (config.palette.focus, 1.0)
             } else {
-                (config.palette.focus(), 0.0)
+                (config.palette.focus, 0.0)
             };
             let focus = activity_line(
                 focus_color,
@@ -53,7 +53,7 @@ pub fn view<'a>(
 }
 
 fn window_ticks<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     niri: &EventStreamState,
     workspace: u64,
 ) -> Element<'a, WorkspacesMessage> {
@@ -62,18 +62,18 @@ fn window_ticks<'a>(
         .into_iter()
         .map(move |w| {
             let color = if w.is_urgent {
-                config.palette.urgent()
+                config.palette.urgent
             } else if w.is_focused {
-                config.palette.focus()
+                config.palette.focus
             } else {
-                config.palette.inactive()
+                config.palette.inactive
             };
             activity_line(color, 1.0, thickness)
         });
     Row::with_children(segments).spacing(1.0).into()
 }
 
-fn workspace_label<'a>(config: &RuntimeConfig, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
+fn workspace_label<'a>(config: &ResolvedConfig, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
     let key = if p.idx == 10 {
         "0".to_string()
     } else {
@@ -84,8 +84,8 @@ fn workspace_label<'a>(config: &RuntimeConfig, p: &niri::WsPill) -> Element<'a, 
     let label: Element<'a, WorkspacesMessage> = match &p.name {
         Some(name) if named && p.idx <= 10 => row![
             bar_text(&config.font, key)
-                .size(config.font.size() * 0.7)
-                .color(config.palette.dim()),
+                .size(config.font.text_size_px * 0.7)
+                .color(config.palette.dim),
             bar_text(&config.font, name.clone()),
         ]
         .align_y(Alignment::Start)
@@ -100,7 +100,7 @@ fn workspace_label<'a>(config: &RuntimeConfig, p: &niri::WsPill) -> Element<'a, 
     // exactly the reserved descent; padding the top by that cancels it.
     container(label)
         .padding(Padding {
-            top: config.font.descent_px(),
+            top: config.font.descent_px,
             ..Padding::ZERO
         })
         .into()

@@ -26,11 +26,11 @@ use crate::{
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::niri_action,
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
 };
 
 pub struct Bar {
-    pub(crate) config: RuntimeConfig,
+    pub(crate) config: ResolvedConfig,
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
@@ -61,7 +61,7 @@ pub enum Message {
 }
 
 impl Bar {
-    pub fn new(config: RuntimeConfig) -> (Self, Task<Message>) {
+    pub fn new(config: ResolvedConfig) -> (Self, Task<Message>) {
         let mut bar = Self {
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::new(config.layout.menu_expand_ms),
@@ -304,12 +304,12 @@ impl Bar {
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .style(|_| container::Style {
-                background: Some(self.config.palette.bar_background().into()),
+                background: Some(self.config.palette.bar_background.into()),
                 border: iced::Border {
-                    radius: self.config.chrome_radius().into(),
+                    radius: self.config.chrome_radius.into(),
                     ..Default::default()
                 },
-                text_color: Some(self.config.palette.bar_foreground()),
+                text_color: Some(self.config.palette.bar_foreground),
                 ..Default::default()
             })
             .into()
@@ -318,7 +318,7 @@ impl Bar {
     pub fn style(&self, _theme: &iced::Theme) -> Style {
         Style {
             background_color: Color::TRANSPARENT,
-            text_color: self.config.palette.bar_foreground(),
+            text_color: self.config.palette.bar_foreground,
         }
     }
 }

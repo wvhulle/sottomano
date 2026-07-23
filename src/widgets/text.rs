@@ -8,18 +8,18 @@ use iced::{
     },
 };
 
-use crate::user_config::font::RuntimeFont;
+use crate::config::resolved::ResolvedFontConfig;
 
 /// A text widget pre-styled with the bar's resolved font, size, and advanced
 /// shaping (needed for workspace names / window titles with special chars).
 /// Callers can still chain `.color(…)` etc. on the returned builder.
 pub fn bar_text<'a>(
-    font: &RuntimeFont,
+    font: &ResolvedFontConfig,
     content: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     text(content)
-        .size(font.size())
-        .font(font.iced_font())
+        .size(font.text_size_px)
+        .font(font.iced_font)
         .shaping(Shaping::Advanced)
 }
 
@@ -32,7 +32,7 @@ pub fn bar_text<'a>(
 /// color); adjacent characters sharing a font are merged into one span. Wrap
 /// the result in [`iced::widget::rich_text`].
 pub fn fallback_spans<'a>(
-    spec: &RuntimeFont,
+    font: &ResolvedFontConfig,
     content: &str,
     base: Font,
     color: Option<Color>,
@@ -41,12 +41,12 @@ pub fn fallback_spans<'a>(
     let tagged: Vec<(char, Font)> = content
         .chars()
         .map(|ch| {
-            let font = if spec.covers(ch) {
+            let glyph_font = if font.covered.contains(&ch) {
                 base
             } else {
                 fallbacks.get(&ch).copied().unwrap_or(base)
             };
-            (ch, font)
+            (ch, glyph_font)
         })
         .collect();
     tagged

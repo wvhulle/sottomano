@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, Local};
 use iced::{Element, Subscription};
 
-use crate::{user_config::RuntimeConfig, widgets::text::bar_text};
+use crate::{config::resolved::ResolvedConfig, widgets::text::bar_text};
 
 pub struct ClockGroup {
     text: String,
@@ -32,7 +32,7 @@ impl ClockGroup {
         iced::time::every(Duration::from_secs(1)).map(|_| ClockMessage::Tick(Local::now()))
     }
 
-    pub fn view<'a>(&self, config: &RuntimeConfig) -> Element<'a, ClockMessage> {
+    pub fn view<'a>(&self, config: &ResolvedConfig) -> Element<'a, ClockMessage> {
         bar_text(&config.font, self.text.clone()).into()
     }
 }

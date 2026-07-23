@@ -26,7 +26,7 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    user_config::{RuntimeConfig, font},
+    config::resolved::{ResolvedConfig, ResolvedFontConfig, fallback_font},
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans},
 };
 
@@ -135,7 +135,7 @@ impl WindowListGroup {
         &mut self,
         msg: WindowListMessage,
         niri: &EventStreamState,
-        spec: &font::RuntimeFont,
+        font: &ResolvedFontConfig,
     ) -> Task<WindowListMessage> {
         match msg {
             WindowListMessage::Clicked(_) => Task::none(),
@@ -174,7 +174,7 @@ impl WindowListGroup {
                 self.fallback_fonts.extend(map);
                 Task::none()
             }
-            WindowListMessage::IconsBackstopElapsed => self.refresh(niri, spec),
+            WindowListMessage::IconsBackstopElapsed => self.refresh(niri, font),
             WindowListMessage::EntriesReloadElapsed => self.load_desktop_entries(),
         }
     }
@@ -183,13 +183,13 @@ impl WindowListGroup {
     pub fn refresh(
         &mut self,
         niri: &EventStreamState,
-        spec: &font::RuntimeFont,
+        font: &ResolvedFontConfig,
     ) -> Task<WindowListMessage> {
         Task::batch([
             self.poll_favicons(niri),
             self.poll_app_icons(niri),
             self.poll_theme_icons(niri),
-            self.resolve_fallback_fonts(niri, spec),
+            self.resolve_fallback_fonts(niri, font),
         ])
     }
 
@@ -249,21 +249,21 @@ impl WindowListGroup {
     fn resolve_fallback_fonts(
         &mut self,
         niri: &EventStreamState,
-        spec: &font::RuntimeFont,
+        font: &ResolvedFontConfig,
     ) -> Task<WindowListMessage> {
         let pending: Vec<char> = niri::all_windows(niri)
             .iter()
             .flat_map(|win| win.title.chars())
-            .filter(|ch| !spec.covers(*ch) && !self.fallback_fonts.contains_key(ch))
+            .filter(|ch| !font.covered.contains(ch) && !self.fallback_fonts.contains_key(ch))
             .collect();
         if pending.is_empty() {
             return Task::none();
         }
-        let base = spec.iced_font();
+        let base = font.iced_font;
         let (task, handle) = blocking("fallback fonts", move || {
             pending
                 .into_iter()
-                .map(|ch| (ch, font::fallback_font(ch).unwrap_or(base)))
+                .map(|ch| (ch, fallback_font(ch).unwrap_or(base)))
                 .collect::<HashMap<char, Font>>()
         })
         .map(WindowListMessage::FallbackFontsResolved)
@@ -276,7 +276,7 @@ impl WindowListGroup {
         &'a self,
         niri: &EventStreamState,
         output: &str,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, WindowListMessage>> {
         let workspace = niri::active_workspace_id(niri, output)?;
@@ -315,7 +315,7 @@ struct Icons<'a> {
 /// One window's clickable button: its content (icon + title) laid over the
 /// focus underline, as a single element that focuses the window when pressed.
 fn window_button<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     icons: Icons<'a>,
     win: &niri::WinEntry,
     position: Position,
@@ -333,7 +333,7 @@ fn window_button<'a>(
 /// They currently share one icon-beside-title layout, so a new app that wants a
 /// distinct arrangement gets its own arm here without disturbing the others.
 fn button_content<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
@@ -354,7 +354,7 @@ fn button_content<'a>(
 /// Icon (when resolved) and title in a horizontal row — the shared arrangement
 /// every current app-rule uses.
 fn icon_beside_title<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     icon: Option<Element<'a, WindowListMessage>>,
     title: Element<'a, WindowListMessage>,
 ) -> Element<'a, WindowListMessage> {
@@ -368,13 +368,13 @@ fn icon_beside_title<'a>(
 
 /// The focus/urgency underline for a window: fully shown when urgent or
 /// focused, invisible otherwise.
-fn focus_line<'a>(config: &RuntimeConfig, win: &niri::WinEntry) -> Element<'a, WindowListMessage> {
+fn focus_line<'a>(config: &ResolvedConfig, win: &niri::WinEntry) -> Element<'a, WindowListMessage> {
     let (color, opacity) = if win.is_urgent {
-        (config.palette.urgent(), 1.0)
+        (config.palette.urgent, 1.0)
     } else if win.is_focused {
-        (config.palette.focus(), 1.0)
+        (config.palette.focus, 1.0)
     } else {
-        (config.palette.focus(), 0.0)
+        (config.palette.focus, 0.0)
     };
     activity_line(color, opacity, config.layout.focus_underline_thickness_px)
 }
@@ -395,34 +395,34 @@ fn label_for(win: &niri::WinEntry) -> &str {
 /// main text leads (terminals: "binary · cwd"). An empty lead is skipped
 /// entirely, so the main text sits alone with no stray dot.
 fn title_element<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     parts: &TitleParts,
     fallbacks: &HashMap<char, Font>,
     lead_first: bool,
 ) -> Element<'a, WindowListMessage> {
-    let dim = config.palette.dim();
-    let spec = &config.font;
-    let main = fallback_spans(spec, &parts.main, spec.iced_font(), None, fallbacks);
+    let dim = config.palette.dim;
+    let font = &config.font;
+    let main = fallback_spans(font, &parts.main, font.iced_font, None, fallbacks);
     let spans: Vec<_> = if parts.lead.is_empty() {
         main.into_iter().collect()
     } else {
         let italic = iced::Font {
             style: FontStyle::Italic,
-            ..spec.iced_font()
+            ..font.iced_font
         };
-        let context = fallback_spans(spec, &parts.lead, italic, Some(dim), fallbacks);
-        let separator = fallback_spans(spec, " · ", spec.iced_font(), Some(dim), fallbacks);
+        let context = fallback_spans(font, &parts.lead, italic, Some(dim), fallbacks);
+        let separator = fallback_spans(font, " · ", font.iced_font, Some(dim), fallbacks);
         if lead_first {
             context.into_iter().chain(separator).chain(main).collect()
         } else {
             main.into_iter().chain(separator).chain(context).collect()
         }
     };
-    rich_text(spans).size(spec.size()).into()
+    rich_text(spans).size(font.text_size_px).into()
 }
 
 fn window_icon<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,

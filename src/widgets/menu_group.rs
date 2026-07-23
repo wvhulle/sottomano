@@ -15,7 +15,7 @@ use iced::{
 
 use crate::{
     layer_surface::Position,
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 
@@ -72,7 +72,7 @@ impl MenuGroup {
     /// with the group's messages rather than being threaded through here.
     pub fn view<'a, Message: 'a>(
         &self,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
         position: Position,
         reveal: f32,
         handle: Element<'a, Message>,
@@ -87,7 +87,7 @@ impl MenuGroup {
 
         let base = if self.hovered { 0.5 } else { 0.2 };
         let indicator = activity_line(
-            config.palette.focus(),
+            config.palette.focus,
             base + (1.0 - base) * reveal,
             config.layout.focus_underline_thickness_px,
         );

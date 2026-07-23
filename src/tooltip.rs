@@ -33,7 +33,7 @@ use crate::{
     bar_program::Message,
     data_sources::{Tooltip, TooltipBody, level_color},
     layer_surface::{Position, Surface},
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
     widgets::text::bar_text,
 };
 
@@ -111,7 +111,7 @@ impl TooltipHost {
         &mut self,
         message: TooltipMessage,
         surfaces: &BTreeMap<Id, Surface>,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
     ) -> Task<Message> {
         match message {
             TooltipMessage::Enter {
@@ -133,7 +133,7 @@ impl TooltipHost {
         source: TooltipSource,
         anchor: Rectangle,
         surfaces: &BTreeMap<Id, Surface>,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
     ) -> Task<Message> {
         // Already showing this source (a stray re-enter): keep the open surface
         // rather than tearing it down — content refreshes at view time.
@@ -229,7 +229,7 @@ impl TooltipHost {
 pub fn panel_surface<'a>(
     id: Id,
     tooltip: &Tooltip,
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
 ) -> Element<'a, Message> {
     Sensor::new(panel(tooltip, config))
         .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { id, size }))
@@ -424,8 +424,8 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 }
 
-fn panel<'a>(tooltip: &Tooltip, config: &RuntimeConfig) -> Element<'a, Message> {
-    let foreground = config.palette.bar_foreground();
+fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message> {
+    let foreground = config.palette.bar_foreground;
     let dim = Color {
         a: 0.7,
         ..foreground
@@ -487,9 +487,9 @@ fn panel<'a>(tooltip: &Tooltip, config: &RuntimeConfig) -> Element<'a, Message> 
 
     let background = Color {
         a: 1.0,
-        ..config.palette.bar_background()
+        ..config.palette.bar_background
     };
-    let radius = config.chrome_radius();
+    let radius = config.chrome_radius;
     container(body)
         .padding(PANEL_PADDING_PX)
         .style(move |_| container::Style {
@@ -526,7 +526,7 @@ fn tooltip_settings(
     output: &str,
     position: Position,
     anchor: Rectangle,
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
 ) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
     // Left-align the panel under the hovered widget. Because the panel draws at

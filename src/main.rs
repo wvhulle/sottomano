@@ -8,7 +8,7 @@ mod data_sources;
 mod layer_surface;
 mod message_subscriptions;
 mod tooltip;
-mod user_config;
+mod config;
 mod widgets;
 
 use bar_program::Bar;
@@ -22,17 +22,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // so we can register that font and make it the default *before* the first
     // frame — otherwise iced resolves no matching family and text renders in the
     // Font Awesome icon font (tofu). Hand the same config to the bar.
-    let config = user_config::load();
+    let config = config::resolved::load();
 
     let mut settings = Settings {
         layer_settings: LayerShellSettings {
             start_mode: StartMode::Background,
             ..Default::default()
         },
-        default_font: config.font.iced_font(),
+        default_font: config.font.iced_font,
         ..Default::default()
     };
-    settings.fonts.push(config.font.data().to_vec().into());
+    settings.fonts.push(config.font.data.to_vec().into());
 
     daemon(
         move || Bar::new(config.clone()),

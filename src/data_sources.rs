@@ -15,7 +15,7 @@ use std::{
 
 use iced::Color;
 
-use crate::{user_config::RuntimeConfig, widgets::icon::Icon};
+use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
 
 pub mod app_icon;
 pub mod app_rules;
@@ -150,11 +150,11 @@ impl Tooltip {
 /// Severity → foreground, mirroring odin's per-level tints: ok stays the
 /// palette's bar foreground; warning/critical take the palette's
 /// warning/urgent tints. Shared by the bar gauges and the tooltip log.
-pub fn level_color(config: &RuntimeConfig, level: Level) -> Color {
+pub fn level_color(config: &ResolvedConfig, level: Level) -> Color {
     match level {
-        Level::Ok => config.palette.bar_foreground(),
-        Level::Warning => config.palette.warning(),
-        Level::Critical => config.palette.urgent(),
+        Level::Ok => config.palette.bar_foreground,
+        Level::Warning => config.palette.warning,
+        Level::Critical => config.palette.urgent,
     }
 }
 

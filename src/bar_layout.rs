@@ -12,7 +12,7 @@ use workspaces_group::WorkspacesMessage;
 use crate::{
     bar_program::{Bar, Message},
     layer_surface::Position,
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
 };
 
 pub mod battery_group;
@@ -60,7 +60,7 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
 /// never widen the gap between their visible neighbours.
 fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
 ) -> Element<'a, Message> {
     Row::with_children(groups.into_iter().flatten())
         .spacing(config.layout.horizontal_group_spacing_px)
@@ -90,7 +90,7 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
 fn bar_row<'a>(
     start: Element<'a, Message>,
     center: Element<'a, Message>,
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
 ) -> Element<'a, Message> {
     row![
         start,

@@ -4,7 +4,7 @@ use crate::{
     bar_layout::source_cell::{SourceCell, SourceMessage},
     data_sources::{BarWidget, sysfs_sensors::battery::Battery},
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
     widgets::icon_gauge::source_reading,
 };
 
@@ -39,7 +39,7 @@ impl BatteryGroup {
         &self.cell
     }
 
-    pub fn view<'a>(&self, config: &RuntimeConfig) -> Option<Element<'a, BatteryMessage>> {
+    pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, BatteryMessage>> {
         let battery = self.cell.get()?;
         let reading = source_reading(config, Some(battery as &dyn BarWidget), 1.0)?;
         Some(hoverable(

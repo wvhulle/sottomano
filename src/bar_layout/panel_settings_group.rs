@@ -21,14 +21,14 @@ use crate::{
     data_sources::{Tooltip, TooltipBody, row},
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
     widgets::{icon::Icon, menu_group::MenuGroup},
 };
 
 /// The floating-toggle tooltip, derived from the current layout config. A free
 /// function so the application's tooltip resolver can build it without the
 /// group's view state. No footer — the toggle is config-derived, not polled.
-pub fn floating_tooltip(config: &RuntimeConfig) -> Tooltip {
+pub fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Floating",
@@ -78,10 +78,10 @@ impl PanelSettingsGroup {
 
     pub fn view<'a>(
         &self,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
-        let foreground = config.palette.bar_foreground();
+        let foreground = config.palette.bar_foreground;
         let handle: Element<'a, PanelSettingsMessage> = Icon::Sliders
             .solid()
             .size(config.font.icon_size_px)
@@ -144,7 +144,7 @@ struct Knob {
 impl Knob {
     fn view<'a>(
         self,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
         value: f32,
         on_change: impl Fn(f32) -> PanelSettingsMessage + 'a,
     ) -> Element<'a, PanelSettingsMessage> {
@@ -152,11 +152,11 @@ impl Knob {
             .icon
             .solid()
             .size(config.font.icon_size_px)
-            .color(config.palette.bar_foreground());
+            .color(config.palette.bar_foreground);
         // Fill with the palette's `focus` accent rather than iced's default
         // bright-blue primary, which clashes with the bar's gruvbox tones.
-        let accent = config.palette.focus();
-        let track = config.palette.bar_foreground().scale_alpha(0.25);
+        let accent = config.palette.focus;
+        let track = config.palette.bar_foreground.scale_alpha(0.25);
         Row::with_children([
             icon.into(),
             slider(self.range, value, on_change)

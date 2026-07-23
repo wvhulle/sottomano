@@ -17,7 +17,7 @@ use crate::{
     },
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    user_config::RuntimeConfig,
+    config::resolved::ResolvedConfig,
     widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
 };
 
@@ -25,7 +25,7 @@ use crate::{
 /// `source` identity — the panel content is derived from the live reading at
 /// render time, not snapshotted here.
 fn hover_reading<'a>(
-    config: &RuntimeConfig,
+    config: &ResolvedConfig,
     widget: &dyn BarWidget,
     alpha: f32,
     source: TooltipSource,
@@ -125,7 +125,7 @@ impl SystemGroup {
 
     pub fn view<'a>(
         &self,
-        config: &RuntimeConfig,
+        config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, SystemMessage>> {
         let handle = hover_reading(
