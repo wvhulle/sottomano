@@ -3,7 +3,7 @@
 use std::{path::Path, time::Duration};
 
 use super::{favg, fmax, fmin, list_dir, read_i64, read_trimmed};
-use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Source, Tooltip, Unit, Value, row};
 
 const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
@@ -55,17 +55,17 @@ impl BarWidget for Temperature {
         })
     }
 
-    fn tooltip(&self) -> Vec<Row> {
+    fn tooltip(&self) -> Tooltip {
         let temps = self.temps();
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
-        vec![
+        Tooltip::Table(vec![
             row("Chips", chips.join(", ")),
             row("Samples", self.readings.len().to_string()),
             row("Min", format!("{}°C", fmin(&temps).round() as i64)),
             row("Avg", format!("{}°C", favg(&temps).round() as i64)),
             row("Max", format!("{}°C", fmax(&temps).round() as i64)),
-        ]
+        ])
     }
 }
 

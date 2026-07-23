@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::{first_power_supply, read_trimmed};
-use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Source, Tooltip, Unit, Value, row};
 
 /// Power-source charge state, from `/sys/class/power_supply/*/status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,11 +71,11 @@ impl BarWidget for Battery {
         })
     }
 
-    fn tooltip(&self) -> Vec<Row> {
-        vec![
+    fn tooltip(&self) -> Tooltip {
+        Tooltip::Table(vec![
             row("Battery", format!("{}%", self.capacity)),
             row("Status", self.status.as_str()),
-        ]
+        ])
     }
 }
 

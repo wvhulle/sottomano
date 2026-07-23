@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Source, Tooltip, Unit, Value, row};
 
 const KIB_PER_GIB: f64 = 1_048_576.0;
 
@@ -39,8 +39,8 @@ impl BarWidget for Memory {
         })
     }
 
-    fn tooltip(&self) -> Vec<Row> {
-        vec![
+    fn tooltip(&self) -> Tooltip {
+        Tooltip::Table(vec![
             row("Memory", format!("{}%", self.percent())),
             row(
                 "Used",
@@ -50,7 +50,7 @@ impl BarWidget for Memory {
                 "Total",
                 format!("{:.1} GiB", self.total_kb as f64 / KIB_PER_GIB),
             ),
-        ]
+        ])
     }
 }
 

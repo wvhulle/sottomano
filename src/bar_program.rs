@@ -18,14 +18,14 @@ use crate::{
         self,
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
-        panel_settings_group::{PanelSettingsGroup, PanelSettingsMessage},
+        panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         system_group::{SystemGroup, SystemMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
-    data_sources::niri,
+    data_sources::{BarWidget, Tooltip, niri},
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::niri_action,
-    tooltip::{self, TooltipHost, TooltipMessage},
+    tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
     user_config::Config,
 };
 
@@ -54,6 +54,9 @@ pub enum Message {
     Niri(niri_ipc::Event),
     WindowClosed(Id),
     FrameTicked,
+    /// 1 Hz tick, live only while a Log tooltip is shown, to advance its
+    /// relative timestamps.
+    TooltipTick,
     Tooltip(TooltipMessage),
 }
 
@@ -129,7 +132,17 @@ impl Bar {
                 self.tooltip.forget(id);
                 Task::none()
             }
+            // A source with empty content suppresses its tooltip (odin drops
+            // `{}`); the emptiness is decided here against the live reading.
+            Message::Tooltip(TooltipMessage::Enter { source, .. })
+                if self.tooltip_of(source).is_empty() =>
+            {
+                Task::none()
+            }
             Message::Tooltip(msg) => self.tooltip.update(msg, &self.surfaces, &self.config),
+            // A redraw is all the tick needs — the tooltip view re-derives and
+            // re-formats its relative times.
+            Message::TooltipTick => Task::none(),
             // Disconnected outputs are handled via the WindowClosed each
             // surface receives; the rest are layer-shell actions the runtime
             // intercepts before update.
@@ -151,6 +164,29 @@ impl Bar {
             | Message::RemoveWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    /// Live content for a hovered widget, derived from its current reading.
+    /// Called only while its tooltip surface is shown, so nothing is computed
+    /// when no tooltip is open. An absent reading yields an empty tooltip.
+    pub(crate) fn tooltip_of(&self, source: TooltipSource) -> Tooltip {
+        let widget: Option<&dyn BarWidget> = match source {
+            TooltipSource::Cpu => self.system_group.cpu().map(|w| w as _),
+            TooltipSource::Memory => self.system_group.memory().map(|w| w as _),
+            TooltipSource::Temperature => self.system_group.temperature().map(|w| w as _),
+            TooltipSource::Disk => self.system_group.disk().map(|w| w as _),
+            TooltipSource::Battery => self.battery_group.reading().map(|w| w as _),
+            TooltipSource::Floating => return panel_settings_group::floating_tooltip(&self.config),
+        };
+        widget.map_or(Tooltip::Table(Vec::new()), BarWidget::tooltip)
+    }
+
+    /// Whether the open tooltip (if any) is a [`Tooltip::Log`] — gates the 1 Hz
+    /// relative-time tick so it runs only when a log is on screen.
+    pub fn tooltip_shows_log(&self) -> bool {
+        self.tooltip
+            .source()
+            .is_some_and(|source| matches!(self.tooltip_of(source), Tooltip::Log(_)))
     }
 
     fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
@@ -235,8 +271,10 @@ impl Bar {
     }
 
     pub fn view(&self, id: Id) -> Element<'_, Message> {
-        if let Some(tooltip) = self.tooltip.view(id, &self.config) {
-            return tooltip;
+        // The tooltip surface derives its content live from the hovered source,
+        // so it always tracks the reading and costs nothing while unhovered.
+        if let Some(source) = self.tooltip.source_for(id) {
+            return tooltip::panel_surface(id, &self.tooltip_of(source), &self.config);
         }
         let Some(surface) = self.surfaces.get(&id) else {
             return container(text("")).into();

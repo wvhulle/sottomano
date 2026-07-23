@@ -63,13 +63,34 @@ pub fn sans_serif_data() -> Option<&'static [u8]> {
     FONT_DATA.get().and_then(|d| d.as_deref())
 }
 
-/// Whether the resolved bar font has a glyph for `ch`. Assumes covered if the
-/// font file could not be read or parsed, degrading to cosmic-text's own fallback.
-pub fn bar_font_covers(ch: char) -> bool {
+/// The parsed bar font face, or `None` if the font file could not be read or
+/// parsed. Parsed once and cached.
+fn face() -> Option<&'static ttf_parser::Face<'static>> {
     static FACE: OnceLock<Option<ttf_parser::Face<'static>>> = OnceLock::new();
     FACE.get_or_init(|| sans_serif_data().and_then(|d| ttf_parser::Face::parse(d, 0).ok()))
         .as_ref()
-        .is_none_or(|face| face.glyph_index(ch).is_some())
+}
+
+/// Whether the resolved bar font has a glyph for `ch`. Assumes covered if the
+/// font file could not be read or parsed, degrading to cosmic-text's own fallback.
+pub fn bar_font_covers(ch: char) -> bool {
+    face().is_none_or(|face| face.glyph_index(ch).is_some())
+}
+
+/// The font's descent (space below the baseline) in px at the bar text size.
+/// iced lays text out in its full line box — ascent + descent + leading — and
+/// centres that box, so a label with no descenders (e.g. "odin") sits too high
+/// by exactly this much. Callers that centre a label between edge indicators pad
+/// its top by this to drop the glyphs back onto the centre line (see
+/// `bar_layout::workspaces_group`). Derived from the font's real metrics, so it
+/// tracks the font and size; `0` when the font can't be read.
+pub fn descent_px() -> f32 {
+    static DESCENT: OnceLock<f32> = OnceLock::new();
+    *DESCENT.get_or_init(|| {
+        face().map_or(0.0, |face| {
+            f32::from(face.descender().unsigned_abs()) / f32::from(face.units_per_em()) * size()
+        })
+    })
 }
 
 /// The family fontconfig would pick for a single codepoint, as an iced [`Font`].

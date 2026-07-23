@@ -16,19 +16,22 @@ use crate::{
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     layer_surface::Position,
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{TooltipMessage, TooltipSource, hoverable},
     user_config::Config,
     widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
 };
 
-/// A reading wrapped so hovering it opens its tooltip.
+/// A reading wrapped so hovering it opens its tooltip. Carries only the
+/// `source` identity — the panel content is derived from the live reading at
+/// render time, not snapshotted here.
 fn hover_reading<'a>(
     config: &Config,
     widget: &dyn BarWidget,
     alpha: f32,
+    source: TooltipSource,
 ) -> Option<Element<'a, SystemMessage>> {
     let reading = source_reading(config, Some(widget), alpha)?;
-    Some(hoverable(reading, widget.tooltip(), SystemMessage::Tooltip))
+    Some(hoverable(reading, source, SystemMessage::Tooltip))
 }
 
 pub struct SystemGroup {
@@ -104,23 +107,50 @@ impl SystemGroup {
         }
     }
 
+    pub fn cpu(&self) -> Option<&CpuUsage> {
+        self.cpu.get()
+    }
+
+    pub fn memory(&self) -> Option<&Memory> {
+        self.memory.get()
+    }
+
+    pub fn temperature(&self) -> Option<&Temperature> {
+        self.temperature.get()
+    }
+
+    pub fn disk(&self) -> Option<&Disk> {
+        self.disk.get()
+    }
+
     pub fn view<'a>(
         &self,
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, SystemMessage>> {
-        let handle = hover_reading(config, self.cpu.get().map(|w| w as &dyn BarWidget)?, 1.0)?;
+        let handle = hover_reading(
+            config,
+            self.cpu.get().map(|w| w as &dyn BarWidget)?,
+            1.0,
+            TooltipSource::Cpu,
+        )?;
 
         let reveal = self.menu.reveal();
         let content = Row::with_children(
             [
-                self.temperature.get().map(|w| w as &dyn BarWidget),
-                self.memory.get().map(|w| w as &dyn BarWidget),
-                self.disk.get().map(|w| w as &dyn BarWidget),
+                self.temperature
+                    .get()
+                    .map(|w| (w as &dyn BarWidget, TooltipSource::Temperature)),
+                self.memory
+                    .get()
+                    .map(|w| (w as &dyn BarWidget, TooltipSource::Memory)),
+                self.disk
+                    .get()
+                    .map(|w| (w as &dyn BarWidget, TooltipSource::Disk)),
             ]
             .into_iter()
             .flatten()
-            .filter_map(|widget| hover_reading(config, widget, reveal)),
+            .filter_map(|(widget, source)| hover_reading(config, widget, reveal, source)),
         )
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);

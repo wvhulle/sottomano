@@ -12,7 +12,7 @@
 //! tooltip anchor on hover — no global cursor. The panel then sizes itself: a
 //! `Sensor` reports iced's measured size, which shrinks the surface to fit.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::SystemTime};
 
 use iced::{
     Border, Color, Element, Event, Length, Rectangle, Size, Task, Vector,
@@ -31,11 +31,27 @@ use iced_layershell::reexport::{
 
 use crate::{
     bar_program::Message,
-    data_sources::Row,
+    data_sources::{Tooltip, level_color},
     layer_surface::{Position, Surface},
     user_config::Config,
     widgets::text::bar_text,
 };
+
+/// Identifies the widget a tooltip belongs to. The hovered widget publishes
+/// only this; the panel content is derived from the live reading at render time
+/// (see [`Bar::tooltip_of`]), so an open tooltip always tracks its source and no
+/// content is computed while nothing is hovered.
+///
+/// [`Bar::tooltip_of`]: crate::bar_program::Bar
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TooltipSource {
+    Cpu,
+    Memory,
+    Temperature,
+    Disk,
+    Battery,
+    Floating,
+}
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
 const GAP_PX: i32 = 6;
@@ -48,7 +64,7 @@ const COLUMN_GAP_PX: f32 = 14.0;
 /// bound; the surface is transparent and click-through until it settles.
 const PROVISIONAL_SIZE: (u32, u32) = (600, 800);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum TooltipMessage {
     /// Emitted by a hovered [`HoverArea`], which knows its anchor but not which
     /// surface it lives on. [`on_surface`] completes it into an [`Enter`] by
@@ -56,16 +72,16 @@ pub enum TooltipMessage {
     ///
     /// [`Enter`]: TooltipMessage::Enter
     EnterAnchor {
-        rows: Vec<Row>,
+        source: TooltipSource,
         anchor: Rectangle,
     },
     Enter {
         surface: Id,
-        rows: Vec<Row>,
+        source: TooltipSource,
         anchor: Rectangle,
     },
     Exit {
-        anchor: Rectangle,
+        source: TooltipSource,
     },
     Resized {
         id: Id,
@@ -75,10 +91,9 @@ pub enum TooltipMessage {
 
 struct Shown {
     id: Id,
-    rows: Vec<Row>,
-    /// The widget the tooltip belongs to, so a stray exit event from a sibling
-    /// doesn't close it.
-    anchor: Rectangle,
+    /// The widget this tooltip belongs to: drives content derivation and guards
+    /// against a stray exit from a sibling closing it.
+    source: TooltipSource,
     /// Last surface size we requested, to ignore no-op resize reports.
     size: Option<(u32, u32)>,
 }
@@ -99,13 +114,13 @@ impl TooltipHost {
         match message {
             TooltipMessage::Enter {
                 surface,
-                rows,
+                source,
                 anchor,
-            } => self.open(surface, rows, anchor, surfaces, config),
+            } => self.open(surface, source, anchor, surfaces, config),
             // Completed into `Enter` by `on_surface` at the bar root before it
             // reaches here; a bare anchor means a hoverable escaped that wrapper.
             TooltipMessage::EnterAnchor { .. } => Task::none(),
-            TooltipMessage::Exit { anchor } => self.exit(anchor),
+            TooltipMessage::Exit { source } => self.exit(source),
             TooltipMessage::Resized { id, size } => self.resize(id, size),
         }
     }
@@ -113,18 +128,14 @@ impl TooltipHost {
     fn open(
         &mut self,
         surface: Id,
-        rows: Vec<Row>,
+        source: TooltipSource,
         anchor: Rectangle,
         surfaces: &BTreeMap<Id, Surface>,
         config: &Config,
     ) -> Task<Message> {
-        // A re-publish from the widget already shown: refresh the panel's rows
-        // in place (the size sensor re-shrinks the surface if they re-measure)
-        // instead of tearing down and reopening the surface.
-        if let Some(shown) = &mut self.shown
-            && shown.anchor == anchor
-        {
-            shown.rows = rows;
+        // Already showing this source (a stray re-enter): keep the open surface
+        // rather than tearing it down — content refreshes at view time.
+        if self.shown.as_ref().is_some_and(|s| s.source == source) {
             return Task::none();
         }
         let Some(surface) = surfaces.get(&surface) else {
@@ -135,8 +146,7 @@ impl TooltipHost {
         let close = self.close();
         self.shown = Some(Shown {
             id,
-            rows,
-            anchor,
+            source,
             size: None,
         });
         Task::batch([close, Task::done(Message::NewLayerShell { settings, id })])
@@ -145,12 +155,8 @@ impl TooltipHost {
     /// Close only when the widget being left is the one the tooltip belongs to:
     /// moving between adjacent readings can deliver the new enter before the
     /// old exit, and this keeps the newer hover.
-    fn exit(&mut self, anchor: Rectangle) -> Task<Message> {
-        if self
-            .shown
-            .as_ref()
-            .is_some_and(|shown| shown.anchor == anchor)
-        {
+    fn exit(&mut self, source: TooltipSource) -> Task<Message> {
+        if self.shown.as_ref().is_some_and(|shown| shown.source == source) {
             self.close()
         } else {
             Task::none()
@@ -194,34 +200,46 @@ impl TooltipHost {
         }
     }
 
-    /// Render the tooltip panel if `id` is the open tooltip surface. The panel
-    /// is wrapped in a size sensor so iced's layout pass reports its true size
-    /// back, which then drives the surface resize.
-    pub fn view(&self, id: Id, config: &Config) -> Option<Element<'_, Message>> {
-        let shown = self.shown.as_ref()?;
-        (shown.id == id).then(|| {
-            Sensor::new(panel(&shown.rows, config))
-                .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { id, size }))
-                .into()
-        })
+    /// The source of the tooltip drawn on surface `id`, if that is the open
+    /// tooltip. The caller derives live content from it and passes it to
+    /// [`panel_surface`].
+    pub fn source_for(&self, id: Id) -> Option<TooltipSource> {
+        self.shown
+            .as_ref()
+            .filter(|shown| shown.id == id)
+            .map(|shown| shown.source)
+    }
+
+    /// The source of the open tooltip, if any — for gating the relative-time
+    /// tick on whether a [`Tooltip::Log`] is shown.
+    pub fn source(&self) -> Option<TooltipSource> {
+        self.shown.as_ref().map(|shown| shown.source)
     }
 }
 
-/// Wrap a widget so hovering it opens a tooltip with `rows`, delivered as
-/// `wrap(..)` so callers with their own message enums can embed the tooltip
-/// messages. Inert (never publishes) when `rows` is empty, but still wraps, so
-/// the widget tree keeps the same shape whether or not there is content. The
-/// widget reports only its anchor on hover; the surface it lives on is stamped
-/// later by [`on_surface`] at the bar root, so a hoverable widget need not know
-/// which surface it is drawn into.
+/// Render `tooltip` as the panel for surface `id`, wrapped in a size sensor so
+/// iced's layout pass reports its true size back, which drives the surface
+/// resize. Content is derived by the caller from the live reading each render.
+pub fn panel_surface<'a>(id: Id, tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
+    Sensor::new(panel(tooltip, config))
+        .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { id, size }))
+        .into()
+}
+
+/// Wrap a widget so hovering it opens a tooltip for `source`, with the tooltip
+/// messages delivered as `wrap(..)` so callers with their own message enums can
+/// embed them. The widget reports only its `source` and anchor on hover — the
+/// panel content is derived from the live reading at render time — and the
+/// surface it lives on is stamped later by [`on_surface`] at the bar root, so a
+/// hoverable widget need not know which surface it is drawn into.
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
-    rows: Vec<Row>,
+    source: TooltipSource,
     wrap: impl Fn(TooltipMessage) -> M + 'a,
 ) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
-        rows,
+        source,
         wrap: Box::new(wrap),
     })
 }
@@ -236,10 +254,10 @@ pub fn hoverable<'a, M: 'a>(
 /// [`Enter`]: TooltipMessage::Enter
 pub fn on_surface(id: Id, content: Element<'_, Message>) -> Element<'_, Message> {
     content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor { rows, anchor }) => {
+        Message::Tooltip(TooltipMessage::EnterAnchor { source, anchor }) => {
             Message::Tooltip(TooltipMessage::Enter {
                 surface: id,
-                rows,
+                source,
                 anchor,
             })
         }
@@ -252,16 +270,13 @@ pub fn on_surface(id: Id, content: Element<'_, Message>) -> Element<'_, Message>
 /// layout and drawing.
 struct HoverArea<'a, M> {
     content: Element<'a, M>,
-    rows: Vec<Row>,
+    source: TooltipSource,
     wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
 }
 
 #[derive(Default)]
 struct HoverState {
     hovered: bool,
-    /// The rows last published, so a data refresh while hovered re-publishes
-    /// exactly once instead of every redraw.
-    published: Vec<Row>,
 }
 
 impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
@@ -334,32 +349,20 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
             viewport,
         );
 
-        if self.rows.is_empty() {
-            return;
-        }
         let state: &mut HoverState = tree.state.downcast_mut();
         let anchor = layout.bounds();
         let hovered = cursor.is_over(anchor);
         if hovered != state.hovered {
             state.hovered = hovered;
-            if hovered {
-                state.published.clone_from(&self.rows);
-            }
             shell.publish((self.wrap)(if hovered {
                 TooltipMessage::EnterAnchor {
-                    rows: self.rows.clone(),
+                    source: self.source,
                     anchor,
                 }
             } else {
-                TooltipMessage::Exit { anchor }
-            }));
-        } else if hovered && state.published != self.rows {
-            // Fresh data while the tooltip is open: re-publish so the shown
-            // panel tracks the reading instead of its enter-time snapshot.
-            state.published.clone_from(&self.rows);
-            shell.publish((self.wrap)(TooltipMessage::EnterAnchor {
-                rows: self.rows.clone(),
-                anchor,
+                TooltipMessage::Exit {
+                    source: self.source,
+                }
             }));
         }
     }
@@ -411,27 +414,49 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 }
 
-fn panel<'a>(rows: &[Row], config: &Config) -> Element<'a, Message> {
+fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
     let foreground = config.palette.bar_foreground();
     let dim = Color {
         a: 0.7,
         ..foreground
     };
-    // Two shrink-to-content columns (keys, values) side by side — like odin's
-    // `TooltipRows` grid. Both size to their widest cell, so the panel is exactly
-    // as wide as its content (no `Fill`, which would make it greedy and defeat
-    // the `Sensor` measurement).
-    let keys = Column::with_children(
-        rows.iter()
-            .map(|entry| bar_text(entry.key.clone()).color(dim).into()),
-    )
-    .spacing(ROW_SPACING_PX);
-    let values = Column::with_children(
-        rows.iter()
-            .map(|entry| bar_text(entry.value.clone()).color(foreground).into()),
-    )
-    .spacing(ROW_SPACING_PX);
-    let body = row![keys, values].spacing(COLUMN_GAP_PX);
+    // Two shrink-to-content columns side by side — odin's `TooltipRows` grid.
+    // Both size to their widest cell, so the panel is exactly as wide as its
+    // content (no `Fill`, which would make it greedy and defeat the `Sensor`
+    // measurement). A Table shows dimmed key | value; a Log shows dimmed
+    // relative time | level-tinted message.
+    let (left, right) = match tooltip {
+        Tooltip::Table(rows) => (
+            Column::with_children(
+                rows.iter()
+                    .map(|entry| bar_text(entry.key.clone()).color(dim).into()),
+            ),
+            Column::with_children(
+                rows.iter()
+                    .map(|entry| bar_text(entry.value.clone()).color(foreground).into()),
+            ),
+        ),
+        Tooltip::Log(entries) => {
+            let now = SystemTime::now();
+            (
+                Column::with_children(
+                    entries
+                        .iter()
+                        .map(|entry| bar_text(relative(entry.at, now)).color(dim).into()),
+                ),
+                Column::with_children(entries.iter().map(|entry| {
+                    bar_text(entry.message.clone())
+                        .color(level_color(config, entry.level))
+                        .into()
+                })),
+            )
+        }
+    };
+    let body = row![
+        left.spacing(ROW_SPACING_PX),
+        right.spacing(ROW_SPACING_PX)
+    ]
+    .spacing(COLUMN_GAP_PX);
 
     let background = Color {
         a: 1.0,
@@ -454,6 +479,20 @@ fn panel<'a>(rows: &[Row], config: &Config) -> Element<'a, Message> {
             ..Default::default()
         })
         .into()
+}
+
+/// `at` as a coarse relative time, ported from odin's `RelativeTime.format`:
+/// `just now` under 5 s, then `N s|min|h|d ago`. `now` is passed so the caller
+/// samples the clock once per render; a future `at` degrades to `just now`.
+fn relative(at: SystemTime, now: SystemTime) -> String {
+    let secs = now.duration_since(at).map_or(0, |d| d.as_secs());
+    match secs {
+        0..=4 => "just now".to_string(),
+        5..=59 => format!("{secs} s ago"),
+        60..=3599 => format!("{} min ago", secs / 60),
+        3600..=86_399 => format!("{} h ago", secs / 3600),
+        _ => format!("{} d ago", secs / 86_400),
+    }
 }
 
 fn tooltip_settings(
@@ -481,5 +520,36 @@ fn tooltip_settings(
         output_option: OutputOption::OutputName(output.to_string()),
         events_transparent: true,
         namespace: Some("odin-rs-tooltip".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    fn ago(secs: u64) -> String {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        relative(now - Duration::from_secs(secs), now)
+    }
+
+    #[test]
+    fn relative_time_buckets() {
+        assert_eq!(ago(0), "just now");
+        assert_eq!(ago(4), "just now");
+        assert_eq!(ago(5), "5 s ago");
+        assert_eq!(ago(59), "59 s ago");
+        assert_eq!(ago(60), "1 min ago");
+        assert_eq!(ago(3599), "59 min ago");
+        assert_eq!(ago(3600), "1 h ago");
+        assert_eq!(ago(86_399), "23 h ago");
+        assert_eq!(ago(86_400), "1 d ago");
+    }
+
+    #[test]
+    fn future_timestamp_is_just_now() {
+        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        assert_eq!(relative(now + Duration::from_secs(60), now), "just now");
     }
 }

@@ -2,7 +2,7 @@
 
 use std::{ffi::CStr, mem::zeroed, time::Duration};
 
-use super::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
+use super::{BarWidget, Icon, Level, Source, Tooltip, Unit, Value, row};
 
 const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 const FREE_WARN_BYTES: u64 = 100_000_000_000; // 100 GB
@@ -46,13 +46,13 @@ impl BarWidget for Disk {
         })
     }
 
-    fn tooltip(&self) -> Vec<Row> {
-        vec![
+    fn tooltip(&self) -> Tooltip {
+        Tooltip::Table(vec![
             row("Mount", "/"),
             row("Used", format!("{}%", self.used_pct())),
             row("Free", format!("{:.1} GiB", self.free_bytes as f64 / GIB)),
             row("Total", format!("{:.1} GiB", self.total_bytes as f64 / GIB)),
-        ]
+        ])
     }
 }
 

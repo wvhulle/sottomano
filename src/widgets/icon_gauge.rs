@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    data_sources::{BarWidget, Level},
+    data_sources::{BarWidget, level_color},
     user_config::Config,
     widgets::text::bar_text,
 };
@@ -77,15 +77,4 @@ fn gauge<'a, Message: 'a>(percent: i64, color: Color, height: f32) -> Element<'a
         .width(3.0)
         .height(height)
         .into()
-}
-
-/// Severity → foreground, mirroring odin's per-level tints: ok stays the
-/// palette's bar foreground; warning/critical take the palette's
-/// warning/urgent tints.
-fn level_color(config: &Config, level: Level) -> Color {
-    match level {
-        Level::Ok => config.palette.bar_foreground(),
-        Level::Warning => config.palette.warning(),
-        Level::Critical => config.palette.urgent(),
-    }
 }

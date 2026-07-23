@@ -3,7 +3,7 @@
 use std::{path::Path, time::Duration};
 
 use super::{battery::ChargeStatus, read_trimmed};
-use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
+use crate::data_sources::{BarWidget, Icon, Level, Source, Tooltip, Unit, Value, row};
 
 const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
@@ -43,13 +43,13 @@ impl BarWidget for PowerDraw {
         })
     }
 
-    fn tooltip(&self) -> Vec<Row> {
+    fn tooltip(&self) -> Tooltip {
         let w = format!("{:.1} W", self.watts);
-        match self.status {
+        Tooltip::Table(match self.status {
             ChargeStatus::Charging => vec![row("Rate", w)],
             ChargeStatus::Full | ChargeStatus::NotCharging => vec![row("Power", "AC")],
             _ => vec![row("Draw", w)],
-        }
+        })
     }
 }
 

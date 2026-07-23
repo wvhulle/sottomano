@@ -1,5 +1,7 @@
 //! Subscriptions and tasks for polling sources, niri events, and timers.
 
+use std::time::Duration;
+
 use iced::{Subscription, Task};
 
 use crate::{
@@ -17,6 +19,13 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
+    // Only ticks while a Log tooltip is shown, to advance its relative times —
+    // gated like the animation frames so it stays idle otherwise.
+    let tooltip_tick = if state.tooltip_shows_log() {
+        iced::time::every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
+    } else {
+        Subscription::none()
+    };
     Subscription::batch([
         BatteryGroup::subscription().map(Message::Battery),
         SystemGroup::subscription().map(Message::System),
@@ -25,6 +34,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         iced::window::close_events().map(Message::WindowClosed),
         niri_subscription(),
         animation,
+        tooltip_tick,
     ])
 }
 

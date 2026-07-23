@@ -10,10 +10,12 @@
 
 use std::{
     fmt::{Display, Formatter, Result},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
-use crate::widgets::icon::Icon;
+use iced::Color;
+
+use crate::{user_config::Config, widgets::icon::Icon};
 
 pub mod app_icon;
 pub mod app_rules;
@@ -75,6 +77,48 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
     }
 }
 
+/// One entry of a [`Tooltip::Log`]: an absolute timestamp (formatted relative at
+/// render, so it stays live between updates), a message, and a severity that
+/// tints it — mirroring odin's journal-widget tooltip rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogEntry {
+    pub at: SystemTime,
+    pub message: String,
+    pub level: Level,
+}
+
+/// Tooltip content, strictly one of odin's two shapes (it branches on
+/// `Array.isArray`): a key/value [`Table`](Tooltip::Table) or a timestamped
+/// event [`Log`](Tooltip::Log). Never mixed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Tooltip {
+    Table(Vec<Row>),
+    /// Rendered and gated on, but not emitted by any wired source yet (odin's
+    /// journal widgets — kernel errors, failed units — are not ported).
+    #[allow(dead_code)]
+    Log(Vec<LogEntry>),
+}
+
+impl Tooltip {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Tooltip::Table(rows) => rows.is_empty(),
+            Tooltip::Log(entries) => entries.is_empty(),
+        }
+    }
+}
+
+/// Severity → foreground, mirroring odin's per-level tints: ok stays the
+/// palette's bar foreground; warning/critical take the palette's
+/// warning/urgent tints. Shared by the bar gauges and the tooltip log.
+pub fn level_color(config: &Config, level: Level) -> Color {
+    match level {
+        Level::Ok => config.palette.bar_foreground(),
+        Level::Warning => config.palette.warning(),
+        Level::Critical => config.palette.urgent(),
+    }
+}
+
 pub trait BarWidget {
     fn icon(&self) -> Icon;
 
@@ -90,7 +134,7 @@ pub trait BarWidget {
         None
     }
 
-    fn tooltip(&self) -> Vec<Row>;
+    fn tooltip(&self) -> Tooltip;
 }
 
 pub trait Source: BarWidget + Sized {

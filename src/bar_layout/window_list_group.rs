@@ -10,11 +10,10 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use iced::{
-    Alignment, Element, Font, Length, Subscription, Task,
-    alignment::Vertical,
+    Alignment, Element, Font, Subscription, Task,
     font::Style as FontStyle,
     task::Handle,
-    widget::{Row, container, image, mouse_area, rich_text, svg},
+    widget::{Row, image, mouse_area, rich_text, svg},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -341,25 +340,15 @@ fn button_content<'a>(
 }
 
 /// Icon (when resolved) and title in a horizontal row — the shared arrangement
-/// every current app-rule uses. Each element is wrapped in a full-height,
-/// centred container so the icon and the title box are *each* centred on the
-/// slot's true vertical centre, independently — rather than centred against the
-/// taller sibling (the title's line box exceeds the icon), which would leave
-/// the label sitting off-centre relative to the edge focus tick.
+/// every current app-rule uses.
 fn icon_beside_title<'a>(
     config: &Config,
     icon: Option<Element<'a, WindowListMessage>>,
     title: Element<'a, WindowListMessage>,
 ) -> Element<'a, WindowListMessage> {
-    let centered = |element: Element<'a, WindowListMessage>| {
-        container(element)
-            .height(Length::Fill)
-            .align_y(Vertical::Center)
-            .into()
-    };
     Row::new()
-        .extend(icon.map(centered))
-        .push(centered(title))
+        .extend(icon)
+        .push(title)
         .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
         .align_y(Alignment::Center)
         .into()

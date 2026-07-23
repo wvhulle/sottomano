@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::{core_freqs, favg, fmax, fmin, ghz};
-use crate::data_sources::{BarWidget, Icon, Row, Source, row};
+use crate::data_sources::{BarWidget, Icon, Source, Tooltip, row};
 
 /// One core's current frequency.
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ impl BarWidget for CpuClock {
         Some(ghz(self.avg()))
     }
 
-    fn tooltip(&self) -> Vec<Row> {
+    fn tooltip(&self) -> Tooltip {
         let ghzs: Vec<f64> = self.cores.iter().map(|c| c.ghz).collect();
         let mut rows = vec![
             row("Average", ghz(favg(&ghzs))),
@@ -45,7 +45,7 @@ impl BarWidget for CpuClock {
                 .iter()
                 .map(|c| row(&format!("Core {}", c.core), ghz(c.ghz))),
         );
-        rows
+        Tooltip::Table(rows)
     }
 }
 
