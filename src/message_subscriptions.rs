@@ -71,24 +71,29 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     ])
 }
 
-pub(crate) fn poll<S: Source + Send + 'static>() -> Task<Option<S>> {
+/// Run blocking work off-thread as a [`Task`], degrading to `T::default()` if
+/// the work panics.
+pub(crate) fn blocking<T: Default + Send + 'static>(
+    context: &'static str,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Task<T> {
     Task::perform(
-        async { tokio::task::spawn_blocking(S::poll).await },
-        |joined| match joined {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("source {}: poll task panicked: {e}", S::NAME);
-                None
-            }
+        async move { tokio::task::spawn_blocking(work).await },
+        move |joined| {
+            joined.unwrap_or_else(|e| {
+                eprintln!("{context}: task panicked: {e}");
+                T::default()
+            })
         },
     )
 }
 
+pub(crate) fn poll<S: Source + Send + 'static>() -> Task<Option<S>> {
+    blocking(S::NAME, S::poll)
+}
+
 pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {
-    Task::future(async move {
-        let _ = tokio::task::spawn_blocking(action).await;
-    })
-    .discard()
+    blocking("niri action", action).discard()
 }
 
 fn niri_subscription() -> Subscription<Message> {

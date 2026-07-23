@@ -9,6 +9,7 @@ use std::{
 
 use iced::{
     Alignment, Color, Element, Length, Task,
+    task::Handle,
     theme::Style,
     time::Instant,
     widget::{Space, container, mouse_area, stack, text},
@@ -16,7 +17,6 @@ use iced::{
 };
 use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
-use tokio::task::spawn_blocking;
 
 use crate::{
     bar_layout::{
@@ -32,10 +32,20 @@ use crate::{
         sysfs_sensors,
     },
     layer_surface::{Position, Surface, float_margin, layer_settings},
-    message_subscriptions::{SourceKind, niri_action, poll},
+    message_subscriptions::{SourceKind, blocking, niri_action, poll},
     tooltip::{self, TooltipHost, TooltipMessage},
     user_config::Config,
 };
+
+/// Abort-on-drop handles for in-flight resolves; replacing one cancels the
+/// superseded task, so a stale result can never overwrite a newer map.
+#[derive(Default)]
+struct IconResolves {
+    desktop_entries: Option<Handle>,
+    favicons: Option<Handle>,
+    app_icons: Option<Handle>,
+    theme_icons: Option<Handle>,
+}
 
 pub struct Bar {
     pub(crate) config: Config,
@@ -45,6 +55,7 @@ pub struct Bar {
     pub(crate) clock_group: ClockGroup,
     pub(crate) niri: EventStreamState,
     pub(crate) desktop_entries: Option<Arc<DesktopEntries>>,
+    icon_resolves: IconResolves,
     pub(crate) favicons: HashMap<String, Favicon>,
     pub(crate) app_icons: HashMap<String, PathBuf>,
     pub(crate) theme_icons: HashMap<String, PathBuf>,
@@ -76,43 +87,38 @@ pub enum Message {
 
 impl Bar {
     pub fn new(config: Config) -> (Self, Task<Message>) {
-        (
-            Self {
-                battery_group: BatteryGroup::default(),
-                system_group: SystemGroup::new(config.layout.menu_expand_ms),
-                panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
-                clock_group: ClockGroup::default(),
-                niri: EventStreamState::default(),
-                desktop_entries: None,
-                favicons: HashMap::new(),
-                app_icons: HashMap::new(),
-                theme_icons: HashMap::new(),
-                surfaces: BTreeMap::new(),
-                now: Instant::now(),
-                tooltip: TooltipHost::default(),
-                config,
-            },
-            Task::batch([
-                Self::load_desktop_entries(),
-                Task::batch(SourceKind::ALL.map(|kind| Task::done(Message::Poll(kind)))),
-            ]),
-        )
+        let mut bar = Self {
+            battery_group: BatteryGroup::default(),
+            system_group: SystemGroup::new(config.layout.menu_expand_ms),
+            panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
+            clock_group: ClockGroup::default(),
+            niri: EventStreamState::default(),
+            desktop_entries: None,
+            icon_resolves: IconResolves::default(),
+            favicons: HashMap::new(),
+            app_icons: HashMap::new(),
+            theme_icons: HashMap::new(),
+            surfaces: BTreeMap::new(),
+            now: Instant::now(),
+            tooltip: TooltipHost::default(),
+            config,
+        };
+        let init = Task::batch([
+            bar.load_desktop_entries(),
+            Task::batch(SourceKind::ALL.map(|kind| Task::done(Message::Poll(kind)))),
+        ]);
+        (bar, init)
     }
 
     /// Scan `.desktop` entries + the configured icon theme off-thread, so a
     /// newly installed app or a live theme switch is picked up without a
     /// restart.
-    fn load_desktop_entries() -> Task<Message> {
-        Task::perform(
-            async { spawn_blocking(DesktopEntries::load).await },
-            |joined| match joined {
-                Ok(entries) => Message::DesktopEntriesLoaded(Arc::new(entries)),
-                Err(e) => {
-                    eprintln!("desktop entries: scan task panicked: {e}");
-                    Message::DesktopEntriesLoaded(Arc::new(DesktopEntries::empty()))
-                }
-            },
-        )
+    fn load_desktop_entries(&mut self) -> Task<Message> {
+        let (task, handle) = blocking("desktop entries", DesktopEntries::load)
+            .map(|entries| Message::DesktopEntriesLoaded(Arc::new(entries)))
+            .abortable();
+        self.icon_resolves.desktop_entries = Some(handle.abort_on_drop());
+        task
     }
 
     pub fn namespace() -> String {
@@ -129,7 +135,6 @@ impl Bar {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         self.now = Instant::now();
         match message {
-            Message::Animate => Task::none(),
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 self.open_bars(&name)
             }
@@ -181,7 +186,7 @@ impl Bar {
                     self.poll_app_icons(),
                     self.poll_theme_icons(),
                 ]),
-                SourceKind::DesktopEntries => Self::load_desktop_entries(),
+                SourceKind::DesktopEntries => self.load_desktop_entries(),
             },
             Message::Battery(msg) => self.battery_group.update(msg),
             Message::System(msg) => self.system_group.update(msg, self.now),
@@ -195,89 +200,99 @@ impl Bar {
             Message::FocusWorkspace(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
             }
-            Message::Niri(event) => {
-                let window_change = matches!(
-                    event,
-                    niri_ipc::Event::WindowsChanged { .. }
-                        | niri_ipc::Event::WindowOpenedOrChanged { .. }
-                        | niri_ipc::Event::WindowClosed { .. }
-                );
-                let _ = self.niri.apply(event);
-                if window_change {
-                    Task::batch([
-                        self.poll_favicons(),
-                        self.poll_app_icons(),
-                        self.poll_theme_icons(),
-                    ])
-                } else {
-                    Task::none()
-                }
-            }
+            Message::Niri(event) => self.apply_niri_event(event),
             Message::WindowClosed(id) => {
                 self.surfaces.remove(&id);
                 self.tooltip.forget(id);
                 Task::none()
             }
             Message::Tooltip(msg) => self.tooltip.update(msg, &self.surfaces, &self.config),
-            _ => Task::none(),
+            // Animate only refreshes `now`; disconnected outputs are handled
+            // via the WindowClosed each surface receives; the rest are
+            // layer-shell actions the runtime intercepts before update.
+            Message::Animate
+            | Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
+            | Message::AnchorChange { .. }
+            | Message::SetInputRegion { .. }
+            | Message::AnchorSizeChange { .. }
+            | Message::LayerChange { .. }
+            | Message::MarginChange { .. }
+            | Message::SizeChange { .. }
+            | Message::ExclusiveZoneChange { .. }
+            | Message::KeyboardInteractivityChange { .. }
+            | Message::VirtualKeyboardPressed { .. }
+            | Message::NewLayerShell { .. }
+            | Message::NewBaseWindow { .. }
+            | Message::NewPopUp { .. }
+            | Message::NewMenu { .. }
+            | Message::NewInputPanel { .. }
+            | Message::RemoveWindow(_)
+            | Message::ForgetLastOutput => Task::none(),
         }
     }
 
     /// Re-resolve favicons for every Firefox window currently open. Firefox's
     /// history/favicon DBs are read synchronously off-thread, keyed by the
     /// brand-stripped page title.
-    fn poll_favicons(&self) -> Task<Message> {
+    fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
+        let window_change = matches!(
+            event,
+            niri_ipc::Event::WindowsChanged { .. }
+                | niri_ipc::Event::WindowOpenedOrChanged { .. }
+                | niri_ipc::Event::WindowClosed { .. }
+        );
+        let _ = self.niri.apply(event);
+        if window_change {
+            Task::batch([
+                self.poll_favicons(),
+                self.poll_app_icons(),
+                self.poll_theme_icons(),
+            ])
+        } else {
+            Task::none()
+        }
+    }
+
+    fn poll_favicons(&mut self) -> Task<Message> {
         let keys = favicons::firefox_keys(&self.niri);
-        Task::perform(
-            async move { spawn_blocking(move || favicons::resolve(keys)).await },
-            |joined| match joined {
-                Ok(map) => Message::FaviconsLoaded(map),
-                Err(e) => {
-                    eprintln!("favicons: resolve task panicked: {e}");
-                    Message::FaviconsLoaded(HashMap::new())
-                }
-            },
-        )
+        let (task, handle) = blocking("favicons", move || favicons::resolve(keys))
+            .map(Message::FaviconsLoaded)
+            .abortable();
+        self.icon_resolves.favicons = Some(handle.abort_on_drop());
+        task
     }
 
     /// Re-resolve `.desktop`-entry app-id icons for every window currently
     /// open, against the last-loaded desktop-entry index. A no-op until that
     /// index has loaded.
-    fn poll_app_icons(&self) -> Task<Message> {
+    fn poll_app_icons(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.clone() else {
             return Task::none();
         };
         let ids = app_icon::app_icon_keys(&self.niri);
-        Task::perform(
-            async move { spawn_blocking(move || app_icon::resolve_app_icons(&entries, ids)).await },
-            |joined| match joined {
-                Ok(map) => Message::AppIconsResolved(map),
-                Err(e) => {
-                    eprintln!("app icons: resolve task panicked: {e}");
-                    Message::AppIconsResolved(HashMap::new())
-                }
-            },
-        )
+        let (task, handle) =
+            blocking("app icons", move || app_icon::resolve_app_icons(&entries, ids))
+                .map(Message::AppIconsResolved)
+                .abortable();
+        self.icon_resolves.app_icons = Some(handle.abort_on_drop());
+        task
     }
 
     /// Re-resolve icon-theme-name icons (e.g. a terminal's command-word
     /// icon) for every window currently open. A no-op until the desktop-entry
     /// index has loaded.
-    fn poll_theme_icons(&self) -> Task<Message> {
+    fn poll_theme_icons(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.clone() else {
             return Task::none();
         };
         let names = app_icon::theme_icon_keys(&self.niri);
-        Task::perform(
-            async move { spawn_blocking(move || app_icon::resolve_theme_icons(&entries, names)).await },
-            |joined| match joined {
-                Ok(map) => Message::ThemeIconsResolved(map),
-                Err(e) => {
-                    eprintln!("theme icons: resolve task panicked: {e}");
-                    Message::ThemeIconsResolved(HashMap::new())
-                }
-            },
-        )
+        let (task, handle) = blocking("theme icons", move || {
+            app_icon::resolve_theme_icons(&entries, names)
+        })
+        .map(Message::ThemeIconsResolved)
+        .abortable();
+        self.icon_resolves.theme_icons = Some(handle.abort_on_drop());
+        task
     }
 
     /// Config-mutating knobs live here rather than in the panel-settings group

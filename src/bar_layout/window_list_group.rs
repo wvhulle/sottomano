@@ -66,13 +66,22 @@ impl Favicon {
     }
 }
 
+/// The icon maps a window button draws from, bundled so they thread through the
+/// per-button helpers as one cheap `Copy` handle instead of three arguments.
+#[derive(Clone, Copy)]
+struct Icons<'a> {
+    app: &'a HashMap<String, PathBuf>,
+    theme: &'a HashMap<String, PathBuf>,
+    favicons: &'a HashMap<String, Favicon>,
+}
+
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
     config: &Config,
-    app_icons: &HashMap<String, PathBuf>,
-    theme_icons: &HashMap<String, PathBuf>,
-    favicons: &HashMap<String, Favicon>,
+    app_icons: &'a HashMap<String, PathBuf>,
+    theme_icons: &'a HashMap<String, PathBuf>,
+    favicons: &'a HashMap<String, Favicon>,
     position: Position,
 ) -> Option<Element<'a, Message>> {
     let workspace = niri::active_workspace_id(niri, output)?;
@@ -80,51 +89,94 @@ pub fn view<'a>(
     if windows.is_empty() {
         return None;
     }
-    let entries = windows.into_iter().map(|w| {
-        let rule = app_rules::rule_for(&w.app_id);
-        let label = if w.title.is_empty() {
-            w.app_id.clone()
-        } else {
-            w.title.clone()
-        };
-        let parts = rule.rewrite(&label);
-        let favicon = rule
-            .favicon_key(&w.title)
-            .and_then(|key| favicons.get(&key));
-
-        let mut row: Vec<Element<'a, Message>> = Vec::new();
-        if let Some(icon) = window_icon(config, app_icons, theme_icons, rule, &w, favicon) {
-            row.push(icon);
-        }
-        row.push(title_element(config, &parts));
-        let content: Element<'a, Message> = Row::with_children(row)
-            .spacing(config.layout.horizontal_widget_spacing_px * 0.6)
-            .align_y(Alignment::Center)
-            .into();
-
-        let (focus_color, focus_opacity) = if w.is_urgent {
-            (config.palette.urgent(), 1.0)
-        } else if w.is_focused {
-            (config.palette.focus(), 1.0)
-        } else {
-            (config.palette.focus(), 0.0)
-        };
-        let focus = activity_line(
-            focus_color,
-            focus_opacity,
-            config.layout.focus_underline_thickness_px,
-        );
-
-        mouse_area(PagerSlot::new(content, focus).view(position))
-            .on_press(Message::FocusWindow(w.id))
-            .into()
-    });
+    let icons = Icons {
+        app: app_icons,
+        theme: theme_icons,
+        favicons,
+    };
+    let buttons = windows
+        .iter()
+        .map(|win| window_button(config, icons, win, position));
     Some(
-        Row::with_children(entries)
+        Row::with_children(buttons)
             .spacing(config.layout.horizontal_widget_spacing_px * 2.0)
             .align_y(Alignment::Center)
             .into(),
     )
+}
+
+/// One window's clickable button: its content (icon + title) laid over the
+/// focus underline, as a single element that focuses the window when pressed.
+fn window_button<'a>(
+    config: &Config,
+    icons: Icons<'a>,
+    win: &niri::WinEntry,
+    position: Position,
+) -> Element<'a, Message> {
+    let rule = app_rules::rule_for(&win.app_id);
+    let content = button_content(config, icons, rule, win);
+    let focus = focus_line(config, win);
+    mouse_area(PagerSlot::new(content, focus).view(position))
+        .on_press(Message::FocusWindow(win.id))
+        .into()
+}
+
+/// Assemble a window's parsed title and icon into the button's content. This
+/// `match` is the per-app seam: each rule can arrange its pieces differently.
+/// They currently share one icon-beside-title layout, so a new app that wants a
+/// distinct arrangement gets its own arm here without disturbing the others.
+fn button_content<'a>(
+    config: &Config,
+    icons: Icons<'a>,
+    rule: AppRule,
+    win: &niri::WinEntry,
+) -> Element<'a, Message> {
+    let icon = window_icon(config, icons, rule, win);
+    let title = title_element(config, &rule.rewrite(label_for(win)));
+    match rule {
+        AppRule::Firefox
+        | AppRule::Browser { .. }
+        | AppRule::Terminal
+        | AppRule::Fallback => icon_beside_title(config, icon, title),
+    }
+}
+
+/// Icon (when resolved) and title in a horizontal row — the shared arrangement
+/// every current app-rule uses.
+fn icon_beside_title<'a>(
+    config: &Config,
+    icon: Option<Element<'a, Message>>,
+    title: Element<'a, Message>,
+) -> Element<'a, Message> {
+    Row::new()
+        .extend(icon)
+        .push(title)
+        .spacing(config.layout.horizontal_widget_spacing_px * 0.6)
+        .align_y(Alignment::Center)
+        .into()
+}
+
+/// The focus/urgency underline for a window: fully shown when urgent or
+/// focused, invisible otherwise.
+fn focus_line<'a>(config: &Config, win: &niri::WinEntry) -> Element<'a, Message> {
+    let (color, opacity) = if win.is_urgent {
+        (config.palette.urgent(), 1.0)
+    } else if win.is_focused {
+        (config.palette.focus(), 1.0)
+    } else {
+        (config.palette.focus(), 0.0)
+    };
+    activity_line(color, opacity, config.layout.focus_underline_thickness_px)
+}
+
+/// The window's own title, or its app-id when the title is empty — the string
+/// each rule's `rewrite` parses.
+fn label_for(win: &niri::WinEntry) -> &str {
+    if win.title.is_empty() {
+        &win.app_id
+    } else {
+        &win.title
+    }
 }
 
 /// Lead (muted, italic) + "·" + main, mirroring odin's `WindowTitleContext` /
@@ -151,22 +203,23 @@ fn title_element<'a>(config: &Config, parts: &TitleParts) -> Element<'a, Message
 
 fn window_icon<'a>(
     config: &Config,
-    app_icons: &HashMap<String, PathBuf>,
-    theme_icons: &HashMap<String, PathBuf>,
+    icons: Icons<'a>,
     rule: AppRule,
-    w: &niri::WinEntry,
-    favicon: Option<&Favicon>,
+    win: &niri::WinEntry,
 ) -> Option<Element<'a, Message>> {
     let side = config.font.icon_size_px;
     // A tab's favicon (Firefox) always wins over the app-id icon; it is rendered
     // straight from its in-memory blob rather than a resolved file path.
-    if let Some(favicon) = favicon {
+    if let Some(favicon) = rule
+        .favicon_key(&win.title)
+        .and_then(|key| icons.favicons.get(&key))
+    {
         return Some(favicon.view(side));
     }
     let path = rule
-        .icon_candidates(w)
+        .icon_candidates(win)
         .into_iter()
-        .find_map(|c| resolve_candidate(app_icons, theme_icons, c))?;
+        .find_map(|c| resolve_candidate(icons, c))?;
     // Icon themes (e.g. Colloid) ship scalable SVGs; hicolor app icons are
     // raster. iced's `image` widget only decodes raster formats, so SVGs must
     // go through the `svg` widget or they render blank.
@@ -184,13 +237,9 @@ fn window_icon<'a>(
     })
 }
 
-fn resolve_candidate(
-    app_icons: &HashMap<String, PathBuf>,
-    theme_icons: &HashMap<String, PathBuf>,
-    candidate: IconCandidate,
-) -> Option<PathBuf> {
+fn resolve_candidate(icons: Icons, candidate: IconCandidate) -> Option<PathBuf> {
     match candidate {
-        IconCandidate::Theme(name) => theme_icons.get(&name).cloned(),
-        IconCandidate::AppId(app_id) => app_icons.get(&app_id).cloned(),
+        IconCandidate::Theme(name) => icons.theme.get(&name).cloned(),
+        IconCandidate::AppId(app_id) => icons.app.get(&app_id).cloned(),
     }
 }

@@ -20,6 +20,12 @@ pub struct DesktopEntries {
     theme: Option<String>,
 }
 
+impl Default for DesktopEntries {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 impl DesktopEntries {
     pub fn empty() -> Self {
         Self {
