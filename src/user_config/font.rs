@@ -1,9 +1,6 @@
 //! Font configuration.
 
-use std::{
-    collections::HashMap,
-    sync::{Mutex, OnceLock},
-};
+use std::sync::OnceLock;
 
 use iced::Font;
 use serde::Deserialize;
@@ -66,46 +63,25 @@ pub fn sans_serif_data() -> Option<&'static [u8]> {
     FONT_DATA.get().and_then(|d| d.as_deref())
 }
 
-/// The font to render `ch` with: `base` (the bar font) when it covers the glyph,
-/// otherwise the font fontconfig would pick for it.
-///
-/// This mirrors how Qt/GTK — and thus odin-qml — resolve glyphs the bar font
-/// lacks. iced's cosmic-text uses its own hardcoded per-script fallback table
-/// instead of fontconfig (e.g. it forces `FreeMono` for Braille), so a glyph like
-/// the terminal-title progress marker `⠐` (U+2810) would render from a different
-/// font than everywhere else on the desktop. Selecting the font explicitly here
-/// bypasses that table: cosmic-text renders `ch` from the named family directly.
-pub fn font_for_char(ch: char, base: Font) -> Font {
-    if bar_font_covers(ch) {
-        base
-    } else {
-        fallback_font(ch).unwrap_or(base)
-    }
-}
-
 /// Whether the resolved bar font has a glyph for `ch`. Assumes covered if the
 /// font file could not be read or parsed, degrading to cosmic-text's own fallback.
-fn bar_font_covers(ch: char) -> bool {
+pub fn bar_font_covers(ch: char) -> bool {
     static FACE: OnceLock<Option<ttf_parser::Face<'static>>> = OnceLock::new();
     FACE.get_or_init(|| sans_serif_data().and_then(|d| ttf_parser::Face::parse(d, 0).ok()))
         .as_ref()
         .is_none_or(|face| face.glyph_index(ch).is_some())
 }
 
-/// The family fontconfig would pick for a single codepoint, as an iced [`Font`],
-/// cached per char. The family's file is already in iced's font DB (loaded from
-/// the system), so [`Font::with_name`] resolves it and cosmic-text renders the
-/// glyph from it without consulting its per-script fallback table.
-fn fallback_font(ch: char) -> Option<Font> {
-    static CACHE: OnceLock<Mutex<HashMap<char, Option<Font>>>> = OnceLock::new();
-    let mut cache = CACHE.get_or_init(Mutex::default).lock().unwrap();
-    if let Some(font) = cache.get(&ch) {
-        return *font;
-    }
-    let font = fc_match(&format!(":charset={:x}", ch as u32), "%{family}")
-        .map(|family| Font::with_name(String::leak(family)));
-    cache.insert(ch, font);
-    font
+/// The family fontconfig would pick for a single codepoint, as an iced [`Font`].
+/// The family's file is already in iced's font DB (loaded from the system), so
+/// [`Font::with_name`] resolves it and cosmic-text renders the glyph from it
+/// without consulting its per-script fallback table — matching how Qt/GTK (and
+/// thus odin-qml) render glyphs the bar font lacks, e.g. the terminal-title
+/// progress marker `⠐` (U+2810). Spawns `fc-match`; call from a blocking task
+/// and cache the result, never from the render path.
+pub fn fallback_font(ch: char) -> Option<Font> {
+    fc_match(&format!(":charset={:x}", ch as u32), "%{family}")
+        .map(|family| Font::with_name(String::leak(family)))
 }
 
 /// Query one field (`format`, e.g. `%{family}` or `%{file}`) of fontconfig's best

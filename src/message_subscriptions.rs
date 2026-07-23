@@ -5,7 +5,7 @@ use std::time::Duration;
 use iced::{Subscription, Task};
 
 use crate::{
-    bar_layout::clock_group::ClockGroup,
+    bar_layout::{clock_group::ClockGroup, window_list_group::WindowListGroup},
     bar_program::{Bar, Message},
     data_sources::{Source, niri},
 };
@@ -17,23 +17,15 @@ pub enum SourceKind {
     Memory,
     Temperature,
     Disk,
-    /// Periodic backstop that re-runs all three window-icon polls (favicon,
-    /// app-id, theme) in case a niri window-change event was missed.
-    WindowIcons,
-    /// Reload the `.desktop` index + icon theme, so a newly installed app or
-    /// a live theme switch is picked up without a restart.
-    DesktopEntries,
 }
 
 impl SourceKind {
-    pub(crate) const ALL: [SourceKind; 7] = [
+    pub(crate) const ALL: [SourceKind; 5] = [
         SourceKind::Battery,
         SourceKind::Cpu,
         SourceKind::Memory,
         SourceKind::Temperature,
         SourceKind::Disk,
-        SourceKind::WindowIcons,
-        SourceKind::DesktopEntries,
     ];
 
     fn interval(self) -> Duration {
@@ -42,15 +34,13 @@ impl SourceKind {
             SourceKind::Memory | SourceKind::Temperature => 5,
             SourceKind::Battery => 30,
             SourceKind::Disk => 60,
-            SourceKind::WindowIcons => 20,
-            SourceKind::DesktopEntries => 300,
         };
         Duration::from_secs(secs)
     }
 }
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    use SourceKind::{Battery, Cpu, DesktopEntries, Disk, Memory, Temperature, WindowIcons};
+    use SourceKind::{Battery, Cpu, Disk, Memory, Temperature};
     let animation = if state.is_animating() {
         iced::window::frames().map(|_| Message::Animate)
     } else {
@@ -62,9 +52,8 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         iced::time::every(Memory.interval()).map(|_| Message::Poll(Memory)),
         iced::time::every(Temperature.interval()).map(|_| Message::Poll(Temperature)),
         iced::time::every(Disk.interval()).map(|_| Message::Poll(Disk)),
-        iced::time::every(WindowIcons.interval()).map(|_| Message::Poll(WindowIcons)),
-        iced::time::every(DesktopEntries.interval()).map(|_| Message::Poll(DesktopEntries)),
         ClockGroup::subscription().map(Message::Clock),
+        WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),
         niri_subscription(),
         animation,

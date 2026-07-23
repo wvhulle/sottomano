@@ -41,11 +41,7 @@ Requires a running niri session for the GUI (layer surface + IPC socket).
 
 ```sh
 nix develop -c cargo run             # launch the bar
-nix develop -c cargo run -- --smoke  # headless: print parsed data-layer output
 ```
-
-`--smoke` runs the data-layer code paths without opening any wayland
-surface, useful when only a data source changed.
 
 ## Configuration
 

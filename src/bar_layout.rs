@@ -78,15 +78,11 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
         )],
         config,
     );
-    let center = Row::with_children(window_list_group::view(
-        &bar.niri,
-        output,
-        config,
-        &bar.app_icons,
-        &bar.theme_icons,
-        &bar.favicons,
-        position,
-    ))
+    let center = Row::with_children(
+        bar.window_list
+            .view(&bar.niri, output, config, position)
+            .map(|e| e.map(Message::WindowList)),
+    )
     .spacing(config.layout.horizontal_group_spacing_px)
     .align_y(Alignment::Center);
     bar_row(start, center.into(), config)
