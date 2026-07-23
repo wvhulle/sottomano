@@ -1,6 +1,7 @@
-use iced::Element;
+use iced::{Element, Subscription, Task};
 
 use crate::{
+    bar_layout::source_cell::{SourceCell, SourceMessage},
     data_sources::{BarWidget, sysfs_sensors::battery::Battery},
     tooltip::{TooltipMessage, hoverable},
     user_config::Config,
@@ -9,25 +10,33 @@ use crate::{
 
 #[derive(Default)]
 pub struct BatteryGroup {
-    battery: Option<Battery>,
+    cell: SourceCell<Battery>,
 }
 
 #[derive(Debug, Clone)]
 pub enum BatteryMessage {
-    Loaded(Option<Battery>),
+    Source(SourceMessage<Battery>),
     Tooltip(TooltipMessage),
 }
 
 impl BatteryGroup {
-    pub fn update(&mut self, msg: BatteryMessage) {
+    pub fn init() -> Task<BatteryMessage> {
+        SourceCell::init().map(BatteryMessage::Source)
+    }
+
+    pub fn subscription() -> Subscription<BatteryMessage> {
+        SourceCell::subscription().map(BatteryMessage::Source)
+    }
+
+    pub fn update(&mut self, msg: BatteryMessage) -> Task<BatteryMessage> {
         match msg {
-            BatteryMessage::Loaded(data) => self.battery = data,
-            BatteryMessage::Tooltip(_) => {}
+            BatteryMessage::Source(msg) => self.cell.update(msg).map(BatteryMessage::Source),
+            BatteryMessage::Tooltip(_) => Task::none(),
         }
     }
 
     pub fn view<'a>(&self, config: &Config) -> Option<Element<'a, BatteryMessage>> {
-        let battery = self.battery.as_ref()?;
+        let battery = self.cell.get()?;
         let reading = source_reading(config, Some(battery as &dyn BarWidget), 1.0)?;
         Some(hoverable(reading, battery.tooltip(), BatteryMessage::Tooltip))
     }

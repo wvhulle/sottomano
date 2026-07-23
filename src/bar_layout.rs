@@ -19,6 +19,7 @@ use workspaces_group::WorkspacesMessage;
 pub mod battery_group;
 pub mod clock_group;
 pub mod panel_settings_group;
+pub mod source_cell;
 pub mod system_group;
 pub mod window_list_group;
 pub mod workspaces_group;
@@ -30,7 +31,7 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
             bar.battery_group.view(config).map(|e| {
                 e.map(|m| match m {
                     BatteryMessage::Tooltip(t) => Message::Tooltip(t),
-                    m @ BatteryMessage::Loaded(_) => Message::Battery(m),
+                    m @ BatteryMessage::Source(_) => Message::Battery(m),
                 })
             }),
             bar.system_group.view(config, position).map(|e| {

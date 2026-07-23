@@ -1,5 +1,7 @@
 //! Battery charge level and power-source state.
 
+use std::time::Duration;
+
 use super::{first_power_supply, read_trimmed};
 use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
@@ -79,6 +81,7 @@ impl BarWidget for Battery {
 
 impl Source for Battery {
     const NAME: &'static str = "battery";
+    const INTERVAL: Duration = Duration::from_secs(30);
 
     fn poll() -> Option<Self> {
         let dir = first_power_supply("BAT")?;

@@ -10,10 +10,11 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use iced::{
-    Alignment, Element, Font, Subscription, Task,
+    Alignment, Element, Font, Length, Subscription, Task,
+    alignment::Vertical,
     font::Style as FontStyle,
     task::Handle,
-    widget::{Row, image, mouse_area, rich_text, svg},
+    widget::{Row, container, image, mouse_area, rich_text, svg},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -327,26 +328,39 @@ fn button_content<'a>(
     win: &niri::WinEntry,
 ) -> Element<'a, WindowListMessage> {
     let icon = window_icon(config, icons, rule, win);
-    let title = title_element(config, &rule.rewrite(label_for(win)), icons.fallbacks);
-    match rule {
-        AppRule::Firefox
-        | AppRule::Browser { .. }
-        | AppRule::Terminal
-        | AppRule::Fallback => icon_beside_title(config, icon, title),
-    }
+    let parts = rule.rewrite(label_for(win));
+    // Per-app seam: terminals lead with the binary and trail the cwd; every
+    // other app leads with its dim context and trails the prominent title.
+    let title = match rule {
+        AppRule::Terminal => title_element(config, &parts, icons.fallbacks, false),
+        AppRule::Firefox | AppRule::Browser { .. } | AppRule::Fallback => {
+            title_element(config, &parts, icons.fallbacks, true)
+        }
+    };
+    icon_beside_title(config, icon, title)
 }
 
 /// Icon (when resolved) and title in a horizontal row — the shared arrangement
-/// every current app-rule uses.
+/// every current app-rule uses. Each element is wrapped in a full-height,
+/// centred container so the icon and the title box are *each* centred on the
+/// slot's true vertical centre, independently — rather than centred against the
+/// taller sibling (the title's line box exceeds the icon), which would leave
+/// the label sitting off-centre relative to the edge focus tick.
 fn icon_beside_title<'a>(
     config: &Config,
     icon: Option<Element<'a, WindowListMessage>>,
     title: Element<'a, WindowListMessage>,
 ) -> Element<'a, WindowListMessage> {
+    let centered = |element: Element<'a, WindowListMessage>| {
+        container(element)
+            .height(Length::Fill)
+            .align_y(Vertical::Center)
+            .into()
+    };
     Row::new()
-        .extend(icon)
-        .push(title)
-        .spacing(config.layout.horizontal_widget_spacing_px * 0.6)
+        .extend(icon.map(centered))
+        .push(centered(title))
+        .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
         .align_y(Alignment::Center)
         .into()
 }
@@ -374,29 +388,34 @@ fn label_for(win: &niri::WinEntry) -> &str {
     }
 }
 
-/// Lead (muted, italic) + "·" + main, mirroring odin's `WindowTitleContext` /
-/// `WindowTitleBody`. The lead block is skipped entirely when there is no
-/// rewritten prefix, so the main text sits alone with no stray dot.
+/// The prominent `main` text and the muted italic `lead` context joined by
+/// " · ", mirroring odin's `WindowTitleContext` / `WindowTitleBody`. With
+/// `lead_first` the context leads (browsers: "site · page"); without it the main
+/// text leads (terminals: "binary · cwd"). An empty lead is skipped entirely, so
+/// the main text sits alone with no stray dot.
 fn title_element<'a>(
     config: &Config,
     parts: &TitleParts,
     fallbacks: &HashMap<char, Font>,
+    lead_first: bool,
 ) -> Element<'a, WindowListMessage> {
     let dim = config.palette.dim();
-    let lead = (!parts.lead.is_empty()).then(|| {
+    let main = fallback_spans(&parts.main, font::iced_font(), None, fallbacks);
+    let spans: Vec<_> = if parts.lead.is_empty() {
+        main.into_iter().collect()
+    } else {
         let italic = iced::Font {
             style: FontStyle::Italic,
             ..font::iced_font()
         };
-        fallback_spans(&parts.lead, italic, Some(dim), fallbacks)
-            .into_iter()
-            .chain(fallback_spans(" · ", font::iced_font(), Some(dim), fallbacks))
-    });
-    let spans: Vec<_> = lead
-        .into_iter()
-        .flatten()
-        .chain(fallback_spans(&parts.main, font::iced_font(), None, fallbacks))
-        .collect();
+        let context = fallback_spans(&parts.lead, italic, Some(dim), fallbacks);
+        let separator = fallback_spans(" · ", font::iced_font(), Some(dim), fallbacks);
+        if lead_first {
+            context.into_iter().chain(separator).chain(main).collect()
+        } else {
+            main.into_iter().chain(separator).chain(context).collect()
+        }
+    };
     rich_text(spans).size(font::size()).into()
 }
 

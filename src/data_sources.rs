@@ -9,7 +9,10 @@
 //! Sources run synchronously; the app runs them off the executor.
 #![allow(dead_code)]
 
-use std::fmt::{Display, Formatter, Result};
+use std::{
+    fmt::{Display, Formatter, Result},
+    time::Duration,
+};
 
 use crate::widgets::icon::Icon;
 
@@ -91,6 +94,8 @@ pub trait BarWidget {
 
 pub trait Source: BarWidget + Sized {
     const NAME: &'static str;
+    /// How often the reading is re-polled.
+    const INTERVAL: Duration;
 
     fn poll() -> Option<Self>;
 }

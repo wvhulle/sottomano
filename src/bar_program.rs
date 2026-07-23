@@ -22,9 +22,9 @@ use crate::{
         system_group::{SystemGroup, SystemMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
-    data_sources::{disk::Disk, niri, sysfs_sensors},
+    data_sources::niri,
     layer_surface::{Position, Surface, float_margin, layer_settings},
-    message_subscriptions::{SourceKind, niri_action, poll},
+    message_subscriptions::niri_action,
     tooltip::{self, TooltipHost, TooltipMessage},
     user_config::Config,
 };
@@ -44,7 +44,6 @@ pub struct Bar {
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
-    Poll(SourceKind),
     Battery(BatteryMessage),
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
@@ -73,7 +72,8 @@ impl Bar {
         };
         let init = Task::batch([
             bar.window_list.init().map(Message::WindowList),
-            Task::batch(SourceKind::ALL.map(|kind| Task::done(Message::Poll(kind)))),
+            BatteryGroup::init().map(Message::Battery),
+            SystemGroup::init().map(Message::System),
         ]);
         (bar, init)
     }
@@ -100,7 +100,6 @@ impl Bar {
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 self.open_bars(&name)
             }
-            Message::Poll(kind) => self.poll_source(kind),
             Message::WindowList(WindowListMessage::Clicked(window)) => {
                 niri_action(move || niri::focus_window(window))
             }
@@ -108,23 +107,18 @@ impl Bar {
                 .window_list
                 .update(msg, &self.niri)
                 .map(Message::WindowList),
-            Message::Battery(msg) => {
-                self.battery_group.update(msg);
-                Task::none()
-            }
-            Message::System(msg) => {
-                self.system_group.update(msg);
-                Task::none()
-            }
+            Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
+            Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::Clock(msg) => {
                 self.clock_group.update(msg);
                 Task::none()
             }
             Message::CloseMenus => {
-                self.system_group.update(SystemMessage::Close);
                 self.panel_settings_group.update(PanelSettingsMessage::Close);
-                Task::none()
+                self.system_group
+                    .update(SystemMessage::Close)
+                    .map(Message::System)
             }
             Message::FocusWorkspace(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
@@ -162,22 +156,6 @@ impl Bar {
     /// Re-resolve favicons for every Firefox window currently open. Firefox's
     /// history/favicon DBs are read synchronously off-thread, keyed by the
     /// brand-stripped page title.
-    fn poll_source(&mut self, kind: SourceKind) -> Task<Message> {
-        match kind {
-            SourceKind::Battery => poll::<sysfs_sensors::battery::Battery>()
-                .map(|d| Message::Battery(BatteryMessage::Loaded(d))),
-            SourceKind::Cpu => poll::<sysfs_sensors::cpu_usage::CpuUsage>()
-                .map(|d| Message::System(SystemMessage::LoadedCpu(d))),
-            SourceKind::Memory => poll::<sysfs_sensors::memory::Memory>()
-                .map(|d| Message::System(SystemMessage::LoadedMemory(d))),
-            SourceKind::Temperature => poll::<sysfs_sensors::temperature::Temperature>()
-                .map(|d| Message::System(SystemMessage::LoadedTemperature(d))),
-            SourceKind::Disk => {
-                poll::<Disk>().map(|d| Message::System(SystemMessage::LoadedDisk(d)))
-            }
-        }
-    }
-
     fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
         let window_change = matches!(
             event,

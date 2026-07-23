@@ -1,57 +1,25 @@
 //! Subscriptions and tasks for polling sources, niri events, and timers.
 
-use std::time::Duration;
-
 use iced::{Subscription, Task};
 
 use crate::{
-    bar_layout::{clock_group::ClockGroup, window_list_group::WindowListGroup},
+    bar_layout::{
+        battery_group::BatteryGroup, clock_group::ClockGroup, system_group::SystemGroup,
+        window_list_group::WindowListGroup,
+    },
     bar_program::{Bar, Message},
     data_sources::{Source, niri},
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum SourceKind {
-    Battery,
-    Cpu,
-    Memory,
-    Temperature,
-    Disk,
-}
-
-impl SourceKind {
-    pub(crate) const ALL: [SourceKind; 5] = [
-        SourceKind::Battery,
-        SourceKind::Cpu,
-        SourceKind::Memory,
-        SourceKind::Temperature,
-        SourceKind::Disk,
-    ];
-
-    fn interval(self) -> Duration {
-        let secs = match self {
-            SourceKind::Cpu => 3,
-            SourceKind::Memory | SourceKind::Temperature => 5,
-            SourceKind::Battery => 30,
-            SourceKind::Disk => 60,
-        };
-        Duration::from_secs(secs)
-    }
-}
-
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    use SourceKind::{Battery, Cpu, Disk, Memory, Temperature};
     let animation = if state.is_animating() {
         iced::window::frames().map(|_| Message::Animate)
     } else {
         Subscription::none()
     };
     Subscription::batch([
-        iced::time::every(Battery.interval()).map(|_| Message::Poll(Battery)),
-        iced::time::every(Cpu.interval()).map(|_| Message::Poll(Cpu)),
-        iced::time::every(Memory.interval()).map(|_| Message::Poll(Memory)),
-        iced::time::every(Temperature.interval()).map(|_| Message::Poll(Temperature)),
-        iced::time::every(Disk.interval()).map(|_| Message::Poll(Disk)),
+        BatteryGroup::subscription().map(Message::Battery),
+        SystemGroup::subscription().map(Message::System),
         ClockGroup::subscription().map(Message::Clock),
         WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),

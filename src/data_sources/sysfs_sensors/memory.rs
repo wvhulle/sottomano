@@ -1,5 +1,7 @@
 //! RAM usage, ported from odin's `memory.nu`.
 
+use std::time::Duration;
+
 use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
 const KIB_PER_GIB: f64 = 1_048_576.0;
@@ -54,6 +56,7 @@ impl BarWidget for Memory {
 
 impl Source for Memory {
     const NAME: &'static str = "memory";
+    const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll() -> Option<Self> {
         let info = std::fs::read_to_string("/proc/meminfo").ok()?;

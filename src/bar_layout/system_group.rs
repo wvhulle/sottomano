@@ -1,14 +1,15 @@
 //! Expandable system group: the cpu handle unfolds temperature/memory/disk.
-//! A thin instance of the reusable menu-group primitive — it owns only the
-//! readings and supplies a handle and a content row; the expand animation
-//! lives in that primitive.
+//! A thin instance of the reusable menu-group primitive — it composes four
+//! self-polling source cells and supplies a handle and a content row; the
+//! expand animation lives in that primitive.
 
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Subscription, Task,
     widget::{Row, mouse_area},
 };
 
 use crate::{
+    bar_layout::source_cell::{SourceCell, SourceMessage},
     data_sources::{
         BarWidget,
         disk::Disk,
@@ -31,19 +32,19 @@ fn hover_reading<'a>(
 }
 
 pub struct SystemGroup {
-    cpu: Option<CpuUsage>,
-    memory: Option<Memory>,
-    temperature: Option<Temperature>,
-    disk: Option<Disk>,
+    cpu: SourceCell<CpuUsage>,
+    memory: SourceCell<Memory>,
+    temperature: SourceCell<Temperature>,
+    disk: SourceCell<Disk>,
     pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
 pub enum SystemMessage {
-    LoadedCpu(Option<CpuUsage>),
-    LoadedMemory(Option<Memory>),
-    LoadedTemperature(Option<Temperature>),
-    LoadedDisk(Option<Disk>),
+    Cpu(SourceMessage<CpuUsage>),
+    Memory(SourceMessage<Memory>),
+    Temperature(SourceMessage<Temperature>),
+    Disk(SourceMessage<Disk>),
     Toggle,
     Hover(bool),
     Close,
@@ -53,24 +54,53 @@ pub enum SystemMessage {
 impl SystemGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
-            cpu: None,
-            memory: None,
-            temperature: None,
-            disk: None,
+            cpu: SourceCell::default(),
+            memory: SourceCell::default(),
+            temperature: SourceCell::default(),
+            disk: SourceCell::default(),
             menu: MenuGroup::new(menu_expand_ms),
         }
     }
 
-    pub fn update(&mut self, msg: SystemMessage) {
+    pub fn init() -> Task<SystemMessage> {
+        Task::batch([
+            SourceCell::init().map(SystemMessage::Cpu),
+            SourceCell::init().map(SystemMessage::Memory),
+            SourceCell::init().map(SystemMessage::Temperature),
+            SourceCell::init().map(SystemMessage::Disk),
+        ])
+    }
+
+    pub fn subscription() -> Subscription<SystemMessage> {
+        Subscription::batch([
+            SourceCell::subscription().map(SystemMessage::Cpu),
+            SourceCell::subscription().map(SystemMessage::Memory),
+            SourceCell::subscription().map(SystemMessage::Temperature),
+            SourceCell::subscription().map(SystemMessage::Disk),
+        ])
+    }
+
+    pub fn update(&mut self, msg: SystemMessage) -> Task<SystemMessage> {
         match msg {
-            SystemMessage::LoadedCpu(data) => self.cpu = data,
-            SystemMessage::LoadedMemory(data) => self.memory = data,
-            SystemMessage::LoadedTemperature(data) => self.temperature = data,
-            SystemMessage::LoadedDisk(data) => self.disk = data,
-            SystemMessage::Toggle => self.menu.toggle(),
-            SystemMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            SystemMessage::Close => self.menu.close(),
-            SystemMessage::Tooltip(_) => {}
+            SystemMessage::Cpu(msg) => self.cpu.update(msg).map(SystemMessage::Cpu),
+            SystemMessage::Memory(msg) => self.memory.update(msg).map(SystemMessage::Memory),
+            SystemMessage::Temperature(msg) => {
+                self.temperature.update(msg).map(SystemMessage::Temperature)
+            }
+            SystemMessage::Disk(msg) => self.disk.update(msg).map(SystemMessage::Disk),
+            SystemMessage::Toggle => {
+                self.menu.toggle();
+                Task::none()
+            }
+            SystemMessage::Hover(hovered) => {
+                self.menu.set_hover(hovered);
+                Task::none()
+            }
+            SystemMessage::Close => {
+                self.menu.close();
+                Task::none()
+            }
+            SystemMessage::Tooltip(_) => Task::none(),
         }
     }
 
@@ -79,14 +109,14 @@ impl SystemGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, SystemMessage>> {
-        let handle = hover_reading(config, self.cpu.as_ref().map(|w| w as &dyn BarWidget)?, 1.0)?;
+        let handle = hover_reading(config, self.cpu.get().map(|w| w as &dyn BarWidget)?, 1.0)?;
 
         let reveal = self.menu.reveal();
         let content = Row::with_children(
             [
-                self.temperature.as_ref().map(|w| w as &dyn BarWidget),
-                self.memory.as_ref().map(|w| w as &dyn BarWidget),
-                self.disk.as_ref().map(|w| w as &dyn BarWidget),
+                self.temperature.get().map(|w| w as &dyn BarWidget),
+                self.memory.get().map(|w| w as &dyn BarWidget),
+                self.disk.get().map(|w| w as &dyn BarWidget),
             ]
             .into_iter()
             .flatten()

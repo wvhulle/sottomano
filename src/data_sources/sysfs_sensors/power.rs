@@ -1,6 +1,6 @@
 //! Live system power draw in watts.
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use super::{battery::ChargeStatus, read_trimmed};
 use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
@@ -55,6 +55,7 @@ impl BarWidget for PowerDraw {
 
 impl Source for PowerDraw {
     const NAME: &'static str = "power-consumption";
+    const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll() -> Option<Self> {
         let dir = Path::new("/sys/class/power_supply/BAT0");

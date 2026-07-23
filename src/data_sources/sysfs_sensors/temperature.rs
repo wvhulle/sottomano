@@ -1,6 +1,6 @@
 //! CPU temperature, ported from odin's `temperature.nu`.
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use super::{favg, fmax, fmin, list_dir, read_i64, read_trimmed};
 use crate::data_sources::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
@@ -71,6 +71,7 @@ impl BarWidget for Temperature {
 
 impl Source for Temperature {
     const NAME: &'static str = "temperature";
+    const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll() -> Option<Self> {
         let readings = cpu_temp_readings();

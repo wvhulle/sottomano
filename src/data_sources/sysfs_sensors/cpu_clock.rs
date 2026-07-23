@@ -1,5 +1,7 @@
 //! Per-core CPU clock speeds, ported from odin's `cpu-clock.nu`.
 
+use std::time::Duration;
+
 use super::{core_freqs, favg, fmax, fmin, ghz};
 use crate::data_sources::{BarWidget, Icon, Row, Source, row};
 
@@ -49,6 +51,7 @@ impl BarWidget for CpuClock {
 
 impl Source for CpuClock {
     const NAME: &'static str = "cpu-clock";
+    const INTERVAL: Duration = Duration::from_secs(3);
 
     fn poll() -> Option<Self> {
         let cores = core_freqs();

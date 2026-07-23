@@ -1,6 +1,6 @@
 //! Disk usage on `/`, read via `statvfs(2)`.
 
-use std::{ffi::CStr, mem::zeroed};
+use std::{ffi::CStr, mem::zeroed, time::Duration};
 
 use super::{BarWidget, Icon, Level, Row, Source, Unit, Value, row};
 
@@ -58,6 +58,7 @@ impl BarWidget for Disk {
 
 impl Source for Disk {
     const NAME: &'static str = "disk";
+    const INTERVAL: Duration = Duration::from_secs(60);
 
     fn poll() -> Option<Self> {
         let path = CStr::from_bytes_with_nul(b"/\0").ok()?;

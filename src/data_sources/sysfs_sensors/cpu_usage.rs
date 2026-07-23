@@ -48,6 +48,7 @@ impl BarWidget for CpuUsage {
 
 impl Source for CpuUsage {
     const NAME: &'static str = "cpu";
+    const INTERVAL: Duration = Duration::from_secs(3);
 
     fn poll() -> Option<Self> {
         let s1 = cpu_stat()?;
