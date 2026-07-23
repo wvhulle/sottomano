@@ -26,11 +26,11 @@ use crate::{
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::niri_action,
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
-    user_config::Config,
+    user_config::RuntimeConfig,
 };
 
 pub struct Bar {
-    pub(crate) config: Config,
+    pub(crate) config: RuntimeConfig,
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
@@ -61,7 +61,7 @@ pub enum Message {
 }
 
 impl Bar {
-    pub fn new(config: Config) -> (Self, Task<Message>) {
+    pub fn new(config: RuntimeConfig) -> (Self, Task<Message>) {
         let mut bar = Self {
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::new(config.layout.menu_expand_ms),
@@ -108,7 +108,7 @@ impl Bar {
             }
             Message::WindowList(msg) => self
                 .window_list
-                .update(msg, &self.niri)
+                .update(msg, &self.niri, &self.config.font)
                 .map(Message::WindowList),
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
@@ -118,7 +118,8 @@ impl Bar {
                 Task::none()
             }
             Message::DismissPressed => {
-                self.panel_settings_group.update(PanelSettingsMessage::Close);
+                self.panel_settings_group
+                    .update(PanelSettingsMessage::Close);
                 self.system_group
                     .update(SystemMessage::Close)
                     .map(Message::System)
@@ -183,7 +184,8 @@ impl Bar {
     }
 
     /// Whether the open tooltip (if any) has live relative time — a refresh
-    /// footer or a [`TooltipBody::Log`] — to gate the 1 Hz tick that advances it.
+    /// footer or a [`TooltipBody::Log`] — to gate the 1 Hz tick that advances
+    /// it.
     pub fn tooltip_has_relative_time(&self) -> bool {
         self.tooltip.source().is_some_and(|source| {
             let tooltip = self.tooltip_of(source);
@@ -201,7 +203,7 @@ impl Bar {
         let _ = self.niri.apply(event);
         if window_change {
             self.window_list
-                .refresh(&self.niri)
+                .refresh(&self.niri, &self.config.font)
                 .map(Message::WindowList)
         } else {
             Task::none()

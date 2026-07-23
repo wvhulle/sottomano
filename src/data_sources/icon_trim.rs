@@ -31,7 +31,10 @@ const CACHE_VERSION: u32 = 2;
 /// is not an SVG, can't be parsed, or already fills its canvas. Never fails: on
 /// any error it falls back to the original path so the icon still renders.
 pub fn trimmed(path: &Path) -> PathBuf {
-    if path.extension().is_none_or(|e| !e.eq_ignore_ascii_case("svg")) {
+    if path
+        .extension()
+        .is_none_or(|e| !e.eq_ignore_ascii_case("svg"))
+    {
         return path.to_path_buf();
     }
     trim_svg(path).unwrap_or_else(|| path.to_path_buf())

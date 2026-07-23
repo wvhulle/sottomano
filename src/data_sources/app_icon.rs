@@ -135,7 +135,11 @@ fn icon_keys(
 /// absent from the result.
 pub fn resolve_app_icons(entries: &DesktopEntries, ids: Vec<String>) -> HashMap<String, PathBuf> {
     ids.into_iter()
-        .filter_map(|id| entries.icon_for(&id).map(|path| (id, super::icon_trim::trimmed(&path))))
+        .filter_map(|id| {
+            entries
+                .icon_for(&id)
+                .map(|path| (id, super::icon_trim::trimmed(&path)))
+        })
         .collect()
 }
 

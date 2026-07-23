@@ -1,20 +1,19 @@
 //! Bar composition and layout.
 
+use battery_group::BatteryMessage;
 use iced::{
     Alignment, Element, Length,
     widget::{Row, Space, row},
 };
+use panel_settings_group::PanelSettingsMessage;
+use system_group::SystemMessage;
+use workspaces_group::WorkspacesMessage;
 
 use crate::{
     bar_program::{Bar, Message},
     layer_surface::Position,
-    user_config::Config,
+    user_config::RuntimeConfig,
 };
-
-use battery_group::BatteryMessage;
-use panel_settings_group::PanelSettingsMessage;
-use system_group::SystemMessage;
-use workspaces_group::WorkspacesMessage;
 
 pub mod battery_group;
 pub mod clock_group;
@@ -61,7 +60,7 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
 /// never widen the gap between their visible neighbours.
 fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
-    config: &Config,
+    config: &RuntimeConfig,
 ) -> Element<'a, Message> {
     Row::with_children(groups.into_iter().flatten())
         .spacing(config.layout.horizontal_group_spacing_px)
@@ -73,9 +72,8 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
     let config = &bar.config;
     let start = zone(
         [Some(
-            workspaces_group::view(&bar.niri, output, config, position).map(
-                |WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id),
-            ),
+            workspaces_group::view(&bar.niri, output, config, position)
+                .map(|WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id)),
         )],
         config,
     );
@@ -92,7 +90,7 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
 fn bar_row<'a>(
     start: Element<'a, Message>,
     center: Element<'a, Message>,
-    config: &Config,
+    config: &RuntimeConfig,
 ) -> Element<'a, Message> {
     row![
         start,

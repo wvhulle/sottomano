@@ -15,7 +15,7 @@ use std::{
 
 use iced::Color;
 
-use crate::{user_config::Config, widgets::icon::Icon};
+use crate::{user_config::RuntimeConfig, widgets::icon::Icon};
 
 pub mod app_icon;
 pub mod app_rules;
@@ -50,10 +50,16 @@ impl Display for Unit {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
-    Gauge { percent: i64, unit: Unit },
+    Gauge {
+        percent: i64,
+        unit: Unit,
+    },
     /// Not yet emitted by any wired source.
     #[allow(dead_code)]
-    Slider { percent: i64, unit: Unit },
+    Slider {
+        percent: i64,
+        unit: Unit,
+    },
 }
 
 impl Value {
@@ -77,8 +83,8 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
     }
 }
 
-/// One entry of a [`Tooltip::Log`]: an absolute timestamp (formatted relative at
-/// render, so it stays live between updates), a message, and a severity that
+/// One entry of a [`Tooltip::Log`]: an absolute timestamp (formatted relative
+/// at render, so it stays live between updates), a message, and a severity that
 /// tints it — mirroring odin's journal-widget tooltip rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogEntry {
@@ -117,9 +123,9 @@ pub struct RefreshInfo {
     pub last: SystemTime,
 }
 
-/// A tooltip: a [`TooltipBody`] plus an optional refresh [`footer`](Tooltip::footer).
-/// The footer is orthogonal to the body shape (as in odin) and present only for
-/// polled sources.
+/// A tooltip: a [`TooltipBody`] plus an optional refresh
+/// [`footer`](Tooltip::footer). The footer is orthogonal to the body shape (as
+/// in odin) and present only for polled sources.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tooltip {
     pub body: TooltipBody,
@@ -144,7 +150,7 @@ impl Tooltip {
 /// Severity → foreground, mirroring odin's per-level tints: ok stays the
 /// palette's bar foreground; warning/critical take the palette's
 /// warning/urgent tints. Shared by the bar gauges and the tooltip log.
-pub fn level_color(config: &Config, level: Level) -> Color {
+pub fn level_color(config: &RuntimeConfig, level: Level) -> Color {
     match level {
         Level::Ok => config.palette.bar_foreground(),
         Level::Warning => config.palette.warning(),

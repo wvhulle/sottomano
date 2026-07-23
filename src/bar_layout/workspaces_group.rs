@@ -9,7 +9,7 @@ use niri_ipc::state::EventStreamState;
 use crate::{
     data_sources::niri,
     layer_surface::Position,
-    user_config::{Config, font},
+    user_config::RuntimeConfig,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
 };
 
@@ -21,7 +21,7 @@ pub enum WorkspacesMessage {
 pub fn view<'a>(
     niri: &EventStreamState,
     output: &str,
-    config: &Config,
+    config: &RuntimeConfig,
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
     let slots = niri::workspaces_for_output(niri, output)
@@ -53,7 +53,7 @@ pub fn view<'a>(
 }
 
 fn window_ticks<'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     niri: &EventStreamState,
     workspace: u64,
 ) -> Element<'a, WorkspacesMessage> {
@@ -73,7 +73,7 @@ fn window_ticks<'a>(
     Row::with_children(segments).spacing(1.0).into()
 }
 
-fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
+fn workspace_label<'a>(config: &RuntimeConfig, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
     let key = if p.idx == 10 {
         "0".to_string()
     } else {
@@ -83,15 +83,15 @@ fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Workspa
 
     let label: Element<'a, WorkspacesMessage> = match &p.name {
         Some(name) if named && p.idx <= 10 => row![
-            bar_text(key)
-                .size(font::size() * 0.7)
+            bar_text(&config.font, key)
+                .size(config.font.size() * 0.7)
                 .color(config.palette.dim()),
-            bar_text(name.clone()),
+            bar_text(&config.font, name.clone()),
         ]
         .align_y(Alignment::Start)
         .into(),
-        Some(name) if named => bar_text(name.clone()).into(),
-        _ => bar_text(key).into(),
+        Some(name) if named => bar_text(&config.font, name.clone()).into(),
+        _ => bar_text(&config.font, key).into(),
     };
 
     // Drop the label by the font's descent so its glyphs sit centred between the
@@ -100,7 +100,7 @@ fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, Workspa
     // exactly the reserved descent; padding the top by that cancels it.
     container(label)
         .padding(Padding {
-            top: font::descent_px(),
+            top: config.font.descent_px(),
             ..Padding::ZERO
         })
         .into()

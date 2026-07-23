@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{
     data_sources::{BarWidget, level_color},
-    user_config::Config,
+    user_config::RuntimeConfig,
     widgets::text::bar_text,
 };
 
@@ -14,7 +14,7 @@ use crate::{
 /// is unavailable. `alpha` scales every colour's opacity so a reading can fade
 /// in/out (1.0 = fully opaque).
 pub fn source_reading<'a, Message: 'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     widget: Option<&dyn BarWidget>,
     alpha: f32,
 ) -> Option<Element<'a, Message>> {
@@ -38,7 +38,7 @@ pub fn source_reading<'a, Message: 'a>(
         ),
         None => match widget.label() {
             Some(label) if !label.is_empty() => Some(
-                row![icon, bar_text(label).color(color)]
+                row![icon, bar_text(&config.font, label).color(color)]
                     .spacing(config.layout.horizontal_widget_spacing_px)
                     .align_y(Alignment::Center)
                     .into(),

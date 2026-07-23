@@ -26,7 +26,7 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    user_config::{Config, font},
+    user_config::{RuntimeConfig, font},
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans},
 };
 
@@ -37,7 +37,8 @@ const ENTRIES_RELOAD: Duration = Duration::from_secs(300);
 /// plus the blob itself so a re-poll that finds the same bytes can keep this
 /// same handle. Raster handles (`image::Handle::from_bytes`) get a fresh cache
 /// id on every construction, so rebuilding one every poll would re-upload the
-/// GPU texture; reusing the handle keeps the id — and thus the texture — stable.
+/// GPU texture; reusing the handle keeps the id — and thus the texture —
+/// stable.
 #[derive(Clone)]
 pub struct Favicon {
     bytes: Arc<[u8]>,
@@ -134,6 +135,7 @@ impl WindowListGroup {
         &mut self,
         msg: WindowListMessage,
         niri: &EventStreamState,
+        spec: &font::RuntimeFont,
     ) -> Task<WindowListMessage> {
         match msg {
             WindowListMessage::Clicked(_) => Task::none(),
@@ -172,18 +174,22 @@ impl WindowListGroup {
                 self.fallback_fonts.extend(map);
                 Task::none()
             }
-            WindowListMessage::IconsBackstopElapsed => self.refresh(niri),
+            WindowListMessage::IconsBackstopElapsed => self.refresh(niri, spec),
             WindowListMessage::EntriesReloadElapsed => self.load_desktop_entries(),
         }
     }
 
     /// Re-run every pipeline against the current window set.
-    pub fn refresh(&mut self, niri: &EventStreamState) -> Task<WindowListMessage> {
+    pub fn refresh(
+        &mut self,
+        niri: &EventStreamState,
+        spec: &font::RuntimeFont,
+    ) -> Task<WindowListMessage> {
         Task::batch([
             self.poll_favicons(niri),
             self.poll_app_icons(niri),
             self.poll_theme_icons(niri),
-            self.resolve_fallback_fonts(niri),
+            self.resolve_fallback_fonts(niri, spec),
         ])
     }
 
@@ -213,10 +219,11 @@ impl WindowListGroup {
             return Task::none();
         };
         let ids = app_icon::app_icon_keys(niri);
-        let (task, handle) =
-            blocking("app icons", move || app_icon::resolve_app_icons(&entries, ids))
-                .map(WindowListMessage::AppIconsResolved)
-                .abortable();
+        let (task, handle) = blocking("app icons", move || {
+            app_icon::resolve_app_icons(&entries, ids)
+        })
+        .map(WindowListMessage::AppIconsResolved)
+        .abortable();
         self.resolves.app_icons = Some(handle.abort_on_drop());
         task
     }
@@ -239,19 +246,24 @@ impl WindowListGroup {
 
     /// Ask fontconfig (off-thread) which font to use for title glyphs the bar
     /// font lacks, so `view` renders them from a plain map lookup.
-    fn resolve_fallback_fonts(&mut self, niri: &EventStreamState) -> Task<WindowListMessage> {
+    fn resolve_fallback_fonts(
+        &mut self,
+        niri: &EventStreamState,
+        spec: &font::RuntimeFont,
+    ) -> Task<WindowListMessage> {
         let pending: Vec<char> = niri::all_windows(niri)
             .iter()
             .flat_map(|win| win.title.chars())
-            .filter(|ch| !font::bar_font_covers(*ch) && !self.fallback_fonts.contains_key(ch))
+            .filter(|ch| !spec.covers(*ch) && !self.fallback_fonts.contains_key(ch))
             .collect();
         if pending.is_empty() {
             return Task::none();
         }
+        let base = spec.iced_font();
         let (task, handle) = blocking("fallback fonts", move || {
             pending
                 .into_iter()
-                .map(|ch| (ch, font::fallback_font(ch).unwrap_or_else(font::iced_font)))
+                .map(|ch| (ch, font::fallback_font(ch).unwrap_or(base)))
                 .collect::<HashMap<char, Font>>()
         })
         .map(WindowListMessage::FallbackFontsResolved)
@@ -264,7 +276,7 @@ impl WindowListGroup {
         &'a self,
         niri: &EventStreamState,
         output: &str,
-        config: &Config,
+        config: &RuntimeConfig,
         position: Position,
     ) -> Option<Element<'a, WindowListMessage>> {
         let workspace = niri::active_workspace_id(niri, output)?;
@@ -303,7 +315,7 @@ struct Icons<'a> {
 /// One window's clickable button: its content (icon + title) laid over the
 /// focus underline, as a single element that focuses the window when pressed.
 fn window_button<'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     icons: Icons<'a>,
     win: &niri::WinEntry,
     position: Position,
@@ -321,7 +333,7 @@ fn window_button<'a>(
 /// They currently share one icon-beside-title layout, so a new app that wants a
 /// distinct arrangement gets its own arm here without disturbing the others.
 fn button_content<'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
@@ -342,7 +354,7 @@ fn button_content<'a>(
 /// Icon (when resolved) and title in a horizontal row — the shared arrangement
 /// every current app-rule uses.
 fn icon_beside_title<'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     icon: Option<Element<'a, WindowListMessage>>,
     title: Element<'a, WindowListMessage>,
 ) -> Element<'a, WindowListMessage> {
@@ -356,7 +368,7 @@ fn icon_beside_title<'a>(
 
 /// The focus/urgency underline for a window: fully shown when urgent or
 /// focused, invisible otherwise.
-fn focus_line<'a>(config: &Config, win: &niri::WinEntry) -> Element<'a, WindowListMessage> {
+fn focus_line<'a>(config: &RuntimeConfig, win: &niri::WinEntry) -> Element<'a, WindowListMessage> {
     let (color, opacity) = if win.is_urgent {
         (config.palette.urgent(), 1.0)
     } else if win.is_focused {
@@ -379,37 +391,38 @@ fn label_for(win: &niri::WinEntry) -> &str {
 
 /// The prominent `main` text and the muted italic `lead` context joined by
 /// " · ", mirroring odin's `WindowTitleContext` / `WindowTitleBody`. With
-/// `lead_first` the context leads (browsers: "site · page"); without it the main
-/// text leads (terminals: "binary · cwd"). An empty lead is skipped entirely, so
-/// the main text sits alone with no stray dot.
+/// `lead_first` the context leads (browsers: "site · page"); without it the
+/// main text leads (terminals: "binary · cwd"). An empty lead is skipped
+/// entirely, so the main text sits alone with no stray dot.
 fn title_element<'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     parts: &TitleParts,
     fallbacks: &HashMap<char, Font>,
     lead_first: bool,
 ) -> Element<'a, WindowListMessage> {
     let dim = config.palette.dim();
-    let main = fallback_spans(&parts.main, font::iced_font(), None, fallbacks);
+    let spec = &config.font;
+    let main = fallback_spans(spec, &parts.main, spec.iced_font(), None, fallbacks);
     let spans: Vec<_> = if parts.lead.is_empty() {
         main.into_iter().collect()
     } else {
         let italic = iced::Font {
             style: FontStyle::Italic,
-            ..font::iced_font()
+            ..spec.iced_font()
         };
-        let context = fallback_spans(&parts.lead, italic, Some(dim), fallbacks);
-        let separator = fallback_spans(" · ", font::iced_font(), Some(dim), fallbacks);
+        let context = fallback_spans(spec, &parts.lead, italic, Some(dim), fallbacks);
+        let separator = fallback_spans(spec, " · ", spec.iced_font(), Some(dim), fallbacks);
         if lead_first {
             context.into_iter().chain(separator).chain(main).collect()
         } else {
             main.into_iter().chain(separator).chain(context).collect()
         }
     };
-    rich_text(spans).size(font::size()).into()
+    rich_text(spans).size(spec.size()).into()
 }
 
 fn window_icon<'a>(
-    config: &Config,
+    config: &RuntimeConfig,
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
@@ -430,7 +443,9 @@ fn window_icon<'a>(
     // Icon themes (e.g. Colloid) ship scalable SVGs; hicolor app icons are
     // raster. iced's `image` widget only decodes raster formats, so SVGs must
     // go through the `svg` widget or they render blank.
-    let is_svg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg"));
+    let is_svg = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
     Some(if is_svg {
         svg(svg::Handle::from_path(path))
             .width(side)

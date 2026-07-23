@@ -8,15 +8,28 @@ pub mod font;
 pub mod layout;
 pub mod palette;
 
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default)]
-pub struct Config {
+/// The runtime config handed to the bar: same shape as the TOML, but with the
+/// font resolved to a concrete [`RuntimeFont`](font::RuntimeFont). Constructed
+/// by [`load`] from a [`UserConfig`]; not deserialized directly (a resolved
+/// font has no `Default`/`Deserialize`).
+#[derive(Debug, Clone)]
+pub struct RuntimeConfig {
     pub palette: palette::Palette,
     pub layout: layout::Layout,
-    pub font: font::FontSpec,
+    pub font: font::RuntimeFont,
 }
 
-impl Config {
+/// The config exactly as it appears in the TOML file on disk, before the font
+/// is resolved.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct UserConfig {
+    palette: palette::Palette,
+    layout: layout::Layout,
+    font: font::FontConfig,
+}
+
+impl RuntimeConfig {
     pub fn chrome_radius(&self) -> f32 {
         if self.layout.floating {
             f32::from(self.layout.corner_radius_px)
@@ -58,20 +71,26 @@ fn config_path() -> PathBuf {
     base.join(".config").join("odin.toml")
 }
 
-fn read(path: &std::path::Path) -> Result<Config, LoadError> {
+fn read(path: &std::path::Path) -> Result<UserConfig, LoadError> {
     let text = std::fs::read_to_string(path)?;
     Ok(toml::from_str(&text)?)
 }
 
-pub fn load() -> Config {
+pub fn load() -> RuntimeConfig {
     let path = config_path();
-    let config = match read(&path) {
+    let user = match read(&path) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("config: {} {e}; using defaults", path.display());
-            Config::default()
+            UserConfig::default()
         }
     };
-    font::init(config.font.name.as_deref(), config.font.text_size_px as f32);
-    config
+    // Resolve the family + load its file up front, so the whole font context
+    // rides along in `RuntimeConfig` and the first frame renders in the right
+    // font.
+    RuntimeConfig {
+        palette: user.palette,
+        layout: user.layout,
+        font: font::RuntimeFont::resolve(&user.font),
+    }
 }

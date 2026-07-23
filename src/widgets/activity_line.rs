@@ -5,7 +5,11 @@ use iced::{Border, Color, Element, Length, widget::container};
 /// per-window tick segments — each just picks a `color`, `opacity`, and
 /// `thickness`. Fill-width (the caller's slot sizes it); the caller pins it to
 /// an edge via `pager_slot`.
-pub fn activity_line<'a, Message: 'a>(color: Color, opacity: f32, thickness: f32) -> Element<'a, Message> {
+pub fn activity_line<'a, Message: 'a>(
+    color: Color,
+    opacity: f32,
+    thickness: f32,
+) -> Element<'a, Message> {
     container(iced::widget::Space::new().width(Length::Fill))
         .width(Length::Fill)
         .height(thickness)

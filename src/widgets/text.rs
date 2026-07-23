@@ -8,15 +8,18 @@ use iced::{
     },
 };
 
-use crate::user_config::font;
+use crate::user_config::font::RuntimeFont;
 
 /// A text widget pre-styled with the bar's resolved font, size, and advanced
 /// shaping (needed for workspace names / window titles with special chars).
 /// Callers can still chain `.color(…)` etc. on the returned builder.
-pub fn bar_text<'a>(content: impl IntoFragment<'a>) -> Text<'a, iced::Theme, iced::Renderer> {
+pub fn bar_text<'a>(
+    font: &RuntimeFont,
+    content: impl IntoFragment<'a>,
+) -> Text<'a, iced::Theme, iced::Renderer> {
     text(content)
-        .size(font::size())
-        .font(font::iced_font())
+        .size(font.size())
+        .font(font.iced_font())
         .shaping(Shaping::Advanced)
 }
 
@@ -29,6 +32,7 @@ pub fn bar_text<'a>(content: impl IntoFragment<'a>) -> Text<'a, iced::Theme, ice
 /// color); adjacent characters sharing a font are merged into one span. Wrap
 /// the result in [`iced::widget::rich_text`].
 pub fn fallback_spans<'a>(
+    spec: &RuntimeFont,
     content: &str,
     base: Font,
     color: Option<Color>,
@@ -37,7 +41,7 @@ pub fn fallback_spans<'a>(
     let tagged: Vec<(char, Font)> = content
         .chars()
         .map(|ch| {
-            let font = if font::bar_font_covers(ch) {
+            let font = if spec.covers(ch) {
                 base
             } else {
                 fallbacks.get(&ch).copied().unwrap_or(base)

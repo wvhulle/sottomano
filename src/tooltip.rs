@@ -33,14 +33,14 @@ use crate::{
     bar_program::Message,
     data_sources::{Tooltip, TooltipBody, level_color},
     layer_surface::{Position, Surface},
-    user_config::Config,
+    user_config::RuntimeConfig,
     widgets::text::bar_text,
 };
 
 /// Identifies the widget a tooltip belongs to. The hovered widget publishes
 /// only this; the panel content is derived from the live reading at render time
-/// (see [`Bar::tooltip_of`]), so an open tooltip always tracks its source and no
-/// content is computed while nothing is hovered.
+/// (see [`Bar::tooltip_of`]), so an open tooltip always tracks its source and
+/// no content is computed while nothing is hovered.
 ///
 /// [`Bar::tooltip_of`]: crate::bar_program::Bar
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +111,7 @@ impl TooltipHost {
         &mut self,
         message: TooltipMessage,
         surfaces: &BTreeMap<Id, Surface>,
-        config: &Config,
+        config: &RuntimeConfig,
     ) -> Task<Message> {
         match message {
             TooltipMessage::Enter {
@@ -133,7 +133,7 @@ impl TooltipHost {
         source: TooltipSource,
         anchor: Rectangle,
         surfaces: &BTreeMap<Id, Surface>,
-        config: &Config,
+        config: &RuntimeConfig,
     ) -> Task<Message> {
         // Already showing this source (a stray re-enter): keep the open surface
         // rather than tearing it down — content refreshes at view time.
@@ -158,7 +158,11 @@ impl TooltipHost {
     /// moving between adjacent readings can deliver the new enter before the
     /// old exit, and this keeps the newer hover.
     fn exit(&mut self, source: TooltipSource) -> Task<Message> {
-        if self.shown.as_ref().is_some_and(|shown| shown.source == source) {
+        if self
+            .shown
+            .as_ref()
+            .is_some_and(|shown| shown.source == source)
+        {
             self.close()
         } else {
             Task::none()
@@ -222,7 +226,11 @@ impl TooltipHost {
 /// Render `tooltip` as the panel for surface `id`, wrapped in a size sensor so
 /// iced's layout pass reports its true size back, which drives the surface
 /// resize. Content is derived by the caller from the live reading each render.
-pub fn panel_surface<'a>(id: Id, tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
+pub fn panel_surface<'a>(
+    id: Id,
+    tooltip: &Tooltip,
+    config: &RuntimeConfig,
+) -> Element<'a, Message> {
     Sensor::new(panel(tooltip, config))
         .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { id, size }))
         .into()
@@ -416,7 +424,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 }
 
-fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
+fn panel<'a>(tooltip: &Tooltip, config: &RuntimeConfig) -> Element<'a, Message> {
     let foreground = config.palette.bar_foreground();
     let dim = Color {
         a: 0.7,
@@ -432,42 +440,43 @@ fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
         TooltipBody::Table(rows) => (
             Column::with_children(
                 rows.iter()
-                    .map(|entry| bar_text(entry.key.clone()).color(dim).into()),
+                    .map(|entry| bar_text(&config.font, entry.key.clone()).color(dim).into()),
             ),
-            Column::with_children(
-                rows.iter()
-                    .map(|entry| bar_text(entry.value.clone()).color(foreground).into()),
-            ),
+            Column::with_children(rows.iter().map(|entry| {
+                bar_text(&config.font, entry.value.clone())
+                    .color(foreground)
+                    .into()
+            })),
         ),
         TooltipBody::Log(entries) => (
-            Column::with_children(
-                entries
-                    .iter()
-                    .map(|entry| bar_text(relative(entry.at, now)).color(dim).into()),
-            ),
             Column::with_children(entries.iter().map(|entry| {
-                bar_text(entry.message.clone())
+                bar_text(&config.font, relative(entry.at, now))
+                    .color(dim)
+                    .into()
+            })),
+            Column::with_children(entries.iter().map(|entry| {
+                bar_text(&config.font, entry.message.clone())
                     .color(level_color(config, entry.level))
                     .into()
             })),
         ),
     };
-    let grid = row![
-        left.spacing(ROW_SPACING_PX),
-        right.spacing(ROW_SPACING_PX)
-    ]
-    .spacing(COLUMN_GAP_PX);
+    let grid =
+        row![left.spacing(ROW_SPACING_PX), right.spacing(ROW_SPACING_PX)].spacing(COLUMN_GAP_PX);
 
     // A dim footer below the grid, for polled sources: how stale the shown value
     // is and how often it refreshes, so a throttled source reads as intentional.
     let body = match tooltip.footer {
         Some(info) => Column::with_children([
             grid.into(),
-            bar_text(format!(
-                "updated {} · every {}",
-                relative(info.last, now),
-                humantime::format_duration(info.every),
-            ))
+            bar_text(
+                &config.font,
+                format!(
+                    "updated {} · every {}",
+                    relative(info.last, now),
+                    humantime::format_duration(info.every),
+                ),
+            )
             .color(dim)
             .into(),
         ])
@@ -517,7 +526,7 @@ fn tooltip_settings(
     output: &str,
     position: Position,
     anchor: Rectangle,
-    config: &Config,
+    config: &RuntimeConfig,
 ) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
     // Left-align the panel under the hovered widget. Because the panel draws at

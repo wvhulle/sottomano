@@ -215,6 +215,9 @@ mod tests {
     #[test]
     fn sniffs_raster() {
         assert_eq!(classify(&[0x89, 0x50, 0x4E, 0x47]), FaviconKind::Raster);
-        assert_eq!(classify(&[0x00, 0x00, 0x01, 0x00, 0x10]), FaviconKind::Raster);
+        assert_eq!(
+            classify(&[0x00, 0x00, 0x01, 0x00, 0x10]),
+            FaviconKind::Raster
+        );
     }
 }

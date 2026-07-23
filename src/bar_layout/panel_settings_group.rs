@@ -21,14 +21,14 @@ use crate::{
     data_sources::{Tooltip, TooltipBody, row},
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    user_config::Config,
+    user_config::RuntimeConfig,
     widgets::{icon::Icon, menu_group::MenuGroup},
 };
 
 /// The floating-toggle tooltip, derived from the current layout config. A free
 /// function so the application's tooltip resolver can build it without the
 /// group's view state. No footer — the toggle is config-derived, not polled.
-pub fn floating_tooltip(config: &Config) -> Tooltip {
+pub fn floating_tooltip(config: &RuntimeConfig) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Floating",
@@ -78,7 +78,7 @@ impl PanelSettingsGroup {
 
     pub fn view<'a>(
         &self,
-        config: &Config,
+        config: &RuntimeConfig,
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground();
@@ -110,7 +110,11 @@ impl PanelSettingsGroup {
                 range: 0.0..=24.0,
                 step: 1.0,
             }
-            .view(config, config.layout.float_offset_px, PanelSettingsMessage::SetFloatOffset)
+            .view(
+                config,
+                config.layout.float_offset_px,
+                PanelSettingsMessage::SetFloatOffset,
+            )
         });
 
         let reveal = self.menu.reveal();
@@ -140,7 +144,7 @@ struct Knob {
 impl Knob {
     fn view<'a>(
         self,
-        config: &Config,
+        config: &RuntimeConfig,
         value: f32,
         on_change: impl Fn(f32) -> PanelSettingsMessage + 'a,
     ) -> Element<'a, PanelSettingsMessage> {

@@ -16,7 +16,6 @@ use iced_layershell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
 };
-use user_config::font;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load config (which resolves the sans-serif font) before building the daemon,
@@ -30,12 +29,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             start_mode: StartMode::Background,
             ..Default::default()
         },
-        default_font: font::iced_font(),
+        default_font: config.font.iced_font(),
         ..Default::default()
     };
-    if let Some(data) = font::sans_serif_data() {
-        settings.fonts.push(data.into());
-    }
+    settings.fonts.push(config.font.data().to_vec().into());
 
     daemon(
         move || Bar::new(config.clone()),

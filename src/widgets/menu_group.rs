@@ -15,7 +15,7 @@ use iced::{
 
 use crate::{
     layer_surface::Position,
-    user_config::Config,
+    user_config::RuntimeConfig,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 
@@ -72,7 +72,7 @@ impl MenuGroup {
     /// with the group's messages rather than being threaded through here.
     pub fn view<'a, Message: 'a>(
         &self,
-        config: &Config,
+        config: &RuntimeConfig,
         position: Position,
         reveal: f32,
         handle: Element<'a, Message>,
