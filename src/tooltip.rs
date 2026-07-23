@@ -198,15 +198,23 @@ impl TooltipHost {
     }
 }
 
-/// Wrap a widget so hovering it opens a tooltip with `rows`. No-op when there
-/// is nothing to show. The widget reports only its anchor on hover; the surface
-/// it lives on is stamped later by [`on_surface`] at the bar root, so a
-/// hoverable widget need not know which surface it is drawn into.
-pub fn hoverable(content: Element<'_, Message>, rows: Vec<Row>) -> Element<'_, Message> {
-    if rows.is_empty() {
-        return content;
-    }
-    Element::new(HoverArea { content, rows })
+/// Wrap a widget so hovering it opens a tooltip with `rows`, delivered as
+/// `wrap(..)` so callers with their own message enums can embed the tooltip
+/// messages. Inert (never publishes) when `rows` is empty, but still wraps, so
+/// the widget tree keeps the same shape whether or not there is content. The
+/// widget reports only its anchor on hover; the surface it lives on is stamped
+/// later by [`on_surface`] at the bar root, so a hoverable widget need not know
+/// which surface it is drawn into.
+pub fn hoverable<'a, M: 'a>(
+    content: Element<'a, M>,
+    rows: Vec<Row>,
+    wrap: impl Fn(TooltipMessage) -> M + 'a,
+) -> Element<'a, M> {
+    Element::new(HoverArea {
+        content,
+        rows,
+        wrap: Box::new(wrap),
+    })
 }
 
 /// Stamp the surface `id` onto every tooltip [`EnterAnchor`] bubbling out of
@@ -233,9 +241,10 @@ pub fn on_surface(id: Id, content: Element<'_, Message>) -> Element<'_, Message>
 /// Reports its content's absolute bounds as the tooltip anchor when hovered.
 /// Everything else delegates straight to the content, so it is invisible to
 /// layout and drawing.
-struct HoverArea<'a> {
-    content: Element<'a, Message>,
+struct HoverArea<'a, M> {
+    content: Element<'a, M>,
     rows: Vec<Row>,
+    wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
 }
 
 #[derive(Default)]
@@ -243,7 +252,7 @@ struct HoverState {
     hovered: bool,
 }
 
-impl Widget<Message, iced::Theme, iced::Renderer> for HoverArea<'_> {
+impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<HoverState>()
     }
@@ -299,7 +308,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for HoverArea<'_> {
         cursor: mouse::Cursor,
         renderer: &iced::Renderer,
         clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
+        shell: &mut Shell<'_, M>,
         viewport: &Rectangle,
     ) {
         self.content.as_widget_mut().update(
@@ -313,12 +322,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for HoverArea<'_> {
             viewport,
         );
 
+        if self.rows.is_empty() {
+            return;
+        }
         let state: &mut HoverState = tree.state.downcast_mut();
         let anchor = layout.bounds();
         let hovered = cursor.is_over(anchor);
         if hovered != state.hovered {
             state.hovered = hovered;
-            shell.publish(Message::Tooltip(if hovered {
+            shell.publish((self.wrap)(if hovered {
                 TooltipMessage::EnterAnchor {
                     rows: self.rows.clone(),
                     anchor,
@@ -365,7 +377,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for HoverArea<'_> {
         renderer: &iced::Renderer,
         viewport: &Rectangle,
         translation: Vector,
-    ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
+    ) -> Option<overlay::Element<'b, M, iced::Theme, iced::Renderer>> {
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout,

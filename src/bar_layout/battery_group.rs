@@ -31,6 +31,6 @@ impl BatteryGroup {
     pub fn view<'a>(&self, config: &Config) -> Option<Element<'a, Message>> {
         let battery = self.battery.as_ref()?;
         let reading = source_reading(config, Some(battery as &dyn BarWidget), 1.0)?;
-        Some(hoverable(reading, battery.tooltip()))
+        Some(hoverable(reading, battery.tooltip(), Message::Tooltip))
     }
 }

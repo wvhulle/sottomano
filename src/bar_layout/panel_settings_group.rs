@@ -73,6 +73,7 @@ impl PanelSettingsGroup {
                         "off — flush, square"
                     },
                 )],
+                Message::Tooltip,
             )
         };
 

@@ -28,7 +28,7 @@ fn hover_reading<'a>(
     alpha: f32,
 ) -> Option<Element<'a, Message>> {
     let reading = source_reading(config, Some(widget), alpha)?;
-    Some(hoverable(reading, widget.tooltip()))
+    Some(hoverable(reading, widget.tooltip(), Message::Tooltip))
 }
 
 pub struct SystemGroup {
