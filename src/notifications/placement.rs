@@ -2,12 +2,10 @@
 //! `NotificationPlacement` — the toast points back toward its producer window,
 //! falling back to the configured corner only when no window resolves.
 
-use niri_ipc::state::EventStreamState;
-
 use super::model::NotificationData;
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::niri::{self, HEdge, Placement, VEdge},
+    data_sources::niri::{HEdge, Placement, VEdge},
 };
 
 pub struct ToastPlacement {
@@ -19,8 +17,9 @@ pub struct ToastPlacement {
 }
 
 /// The window a notification is about: the `x-niri-window-id` hint, else a
-/// best-effort app-id/title match against live niri windows.
-pub fn resolve_window_id(data: &NotificationData, niri: &EventStreamState) -> Option<u64> {
+/// best-effort app-id/title match against live niri windows (via `Placement`,
+/// which carries the window identities).
+pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Option<u64> {
     if let Some(hint) = data.window_id_hint {
         return Some(hint);
     }
@@ -32,16 +31,15 @@ pub fn resolve_window_id(data: &NotificationData, niri: &EventStreamState) -> Op
         app_ids.push(data.app_name.clone());
     }
     let title = (!data.app_name.is_empty()).then_some(data.app_name.as_str());
-    niri::window_id_by_source(niri, &app_ids, title)
+    placement.window_by_source(&app_ids, title)
 }
 
 pub fn placement_for(
     data: &NotificationData,
-    niri: &EventStreamState,
     placement: &Placement,
     config: &ResolvedConfig,
 ) -> ToastPlacement {
-    let id = resolve_window_id(data, niri)
+    let id = resolve_window_id(data, placement)
         .filter(|&id| placement.workspace_of_window(id).is_some());
 
     let Some(id) = id else {

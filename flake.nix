@@ -8,6 +8,15 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Theme-blind niri module. The home-manager module contributes
+    # services.niri.settings.layer-rules (the gradient-shadow casters), so it
+    # imports this to keep that option in scope and validated. niri-hm exports
+    # its module as a path, so a desktop that also imports it deduplicates to one
+    # instance.
+    niri-hm = {
+      url = "git+https://codeberg.org/wvhulle/niri-hm";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -16,6 +25,7 @@
       nixpkgs,
       crane,
       rust-overlay,
+      niri-hm,
     }:
     let
       system = "x86_64-linux";
@@ -91,10 +101,24 @@
           meta.platforms = pkgs.lib.platforms.linux;
         }
       );
+
+      # Home-manager module lives in ./hm-module.nix to keep this file focused on
+      # packaging. It needs the flake-level `self` (for the default package).
+      homeModule = import ./hm-module.nix { inherit self; };
     in
     {
       packages.${system} = {
         default = odin-rs;
+      };
+
+      # niri-hm provides the services.niri option surface the module's
+      # layer-rules contribution writes to; its path-exported module dedupes when
+      # a desktop also imports it directly.
+      homeModules.default = {
+        imports = [
+          niri-hm.homeModules.default
+          homeModule
+        ];
       };
 
       # `autoAddDriverRunpath` (above) patches RUNPATH on the installed binary

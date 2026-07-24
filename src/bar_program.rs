@@ -1,7 +1,10 @@
 //! The bar application: a multi-output daemon with one layer-shell surface per
 //! output/edge.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use chrono::Utc;
 use iced::{
@@ -34,7 +37,9 @@ use crate::{
         launch_tracker::{Buckets, LaunchTracker},
         niri,
     },
-    layer_surface::{Position, Surface, float_margin, layer_settings},
+    layer_surface::{
+        Position, Surface, SurfaceKind, backdrop_settings, float_margin, layer_settings,
+    },
     message_subscriptions::{blocking, niri_action},
     notifications::{NotificationGroup, NotificationMessage},
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
@@ -59,6 +64,10 @@ pub struct Bar {
     /// Notification-placement facts (window edges, focus), recomputed per niri
     /// event so a toast can point back toward its producer window.
     pub(crate) niri_placement: niri::Placement,
+    /// Per-output logical geometry, from a niri `Outputs` query — general
+    /// compositor state (currently read by notification placement to centre a
+    /// stack against the screen, available to any future consumer).
+    pub(crate) outputs: HashMap<String, niri::OutputGeometry>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationGroup,
@@ -91,6 +100,9 @@ pub enum Message {
     TooltipTick,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
+    /// The connected outputs' logical geometry arrived from a niri `Outputs`
+    /// query (at boot and on output connect).
+    OutputsResolved(HashMap<String, niri::OutputGeometry>),
     ReloadDesktopEntries,
 }
 
@@ -108,6 +120,7 @@ impl Bar {
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
             niri_placement: niri::Placement::default(),
+            outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             tooltip: TooltipHost::default(),
             notifications: NotificationGroup::default(),
@@ -117,7 +130,7 @@ impl Bar {
         let init = Task::batch([
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(launch_store::load(), Message::TrackerLoaded),
-            query_output_heights(),
+            query_outputs(),
         ]);
         (bar, init)
     }
@@ -147,7 +160,7 @@ impl Bar {
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 // Re-query output sizes too: a new output changes where a centred
                 // notification stack lands.
-                Task::batch([self.open_bars(&name), query_output_heights()])
+                Task::batch([self.open_bars(&name), query_outputs()])
             }
             Message::WindowList(WindowListMessage::Clicked(window)) => {
                 niri_action(move || niri::focus_window(window))
@@ -226,11 +239,20 @@ impl Bar {
             Message::Tooltip(msg) => self.tooltip.update(msg, &self.surfaces, &self.config),
             Message::Notification(msg) => self.notifications.update(
                 msg,
-                &self.niri,
                 &self.niri_placement,
+                &self.outputs,
                 self.desktop_entries.get(),
                 &self.config,
             ),
+            Message::OutputsResolved(outputs) => {
+                self.outputs = outputs;
+                // Re-place existing toasts now the screen size is known.
+                self.notifications.on_niri_changed(
+                    &self.niri_placement,
+                    &self.outputs,
+                    &self.config,
+                )
+            }
             // A redraw is all the tick needs — the tooltip view re-derives and
             // re-formats its relative times.
             Message::TooltipTick => Task::none(),
@@ -323,8 +345,8 @@ impl Bar {
         // move a toast's corner or re-home it to another output.
         if self.notifications.is_active() {
             tasks.push(self.notifications.on_niri_changed(
-                &self.niri,
                 &self.niri_placement,
+                &self.outputs,
                 &self.config,
             ));
         }
@@ -396,37 +418,59 @@ impl Bar {
         } else {
             0
         };
-        Task::batch(self.surfaces.iter().map(|(&id, surface)| {
-            Task::done(Message::MarginChange {
-                id,
-                margin: float_margin(surface.position, offset),
-            })
-        }))
+        Task::batch(
+            self.surfaces
+                .iter()
+                .filter(|(_, surface)| surface.kind == SurfaceKind::Bar)
+                .map(|(&id, surface)| {
+                    Task::done(Message::MarginChange {
+                        id,
+                        margin: float_margin(surface.position, offset),
+                    })
+                }),
+        )
     }
 
-    fn open_bars(&mut self, output: &str) -> Task<Message> {
+    fn open_surface(&mut self, output: &str, position: Position, kind: SurfaceKind) -> Task<Message> {
         let height = self.config.layout.outer_height_px as u32;
-        let offset = if self.config.layout.floating {
-            self.config.layout.float_offset_px as i32
-        } else {
-            0
+        let settings = match kind {
+            SurfaceKind::Bar => {
+                let offset = if self.config.layout.floating {
+                    self.config.layout.float_offset_px as i32
+                } else {
+                    0
+                };
+                layer_settings(output, position, height, float_margin(position, offset))
+            }
+            SurfaceKind::Backdrop => backdrop_settings(output, position, height),
         };
-        let opens: Vec<Task<Message>> = Position::ALL
+        let id = Id::unique();
+        self.surfaces.insert(
+            id,
+            Surface {
+                output: output.to_string(),
+                position,
+                kind,
+            },
+        );
+        Task::done(Message::NewLayerShell { settings, id })
+    }
+
+    /// Open both bar strips for a new output, plus the two shadow casters when
+    /// `layout.shadow` is on (the casters exist only to bloom niri's gradient
+    /// drop-shadow onto the screen edge for text legibility).
+    fn open_bars(&mut self, output: &str) -> Task<Message> {
+        let mut opens: Vec<Task<Message>> = Position::ALL
             .into_iter()
-            .map(|position| {
-                let id = Id::unique();
-                let settings =
-                    layer_settings(output, position, height, float_margin(position, offset));
-                self.surfaces.insert(
-                    id,
-                    Surface {
-                        output: output.to_string(),
-                        position,
-                    },
-                );
-                Task::done(Message::NewLayerShell { settings, id })
-            })
+            .map(|position| self.open_surface(output, position, SurfaceKind::Bar))
             .collect();
+        if self.config.layout.shadow {
+            opens.extend(
+                Position::ALL
+                    .into_iter()
+                    .map(|position| self.open_surface(output, position, SurfaceKind::Backdrop)),
+            );
+        }
         Task::batch(opens)
     }
 
@@ -442,6 +486,19 @@ impl Bar {
         let Some(surface) = self.surfaces.get(&id) else {
             return container(text("")).into();
         };
+        // The caster is off-screen; niri casts from its silhouette, so it only
+        // needs to be fully opaque. The shadow's colour/alpha comes from the
+        // layer-rule, not from this fill.
+        if surface.kind == SurfaceKind::Backdrop {
+            return container(Space::new())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Color::BLACK.into()),
+                    ..Default::default()
+                })
+                .into();
+        }
         let content = match surface.position {
             Position::Top => bar_layout::top_row(self, surface.position),
             Position::Bottom => bar_layout::bottom_row(self, &surface.output, surface.position),
@@ -482,10 +539,8 @@ impl Bar {
     }
 }
 
-/// Query niri for the connected outputs' logical heights off-thread, delivering
-/// them to the notification group so a centred toast stack can place itself
-/// against the screen height.
-fn query_output_heights() -> Task<Message> {
-    blocking("niri outputs", niri::output_heights)
-        .map(|heights| Message::Notification(NotificationMessage::OutputsResolved(heights)))
+/// Query niri for the connected outputs' logical geometry off-thread, into the
+/// app's shared output registry.
+fn query_outputs() -> Task<Message> {
+    blocking("niri outputs", niri::output_geometry).map(Message::OutputsResolved)
 }

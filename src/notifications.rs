@@ -14,14 +14,13 @@ use std::{collections::HashMap, time::SystemTime};
 
 use iced::{Element, Task, widget::Sensor, window::Id};
 use iced_layershell::reexport::Anchor;
-use niri_ipc::state::EventStreamState;
 
 use crate::{
     bar_program::Message,
     config::resolved::ResolvedConfig,
     data_sources::{
         app_icon::DesktopEntries,
-        niri::{self, HEdge, Placement, VEdge},
+        niri::{self, HEdge, OutputGeometry, Placement, VEdge},
     },
     message_subscriptions::niri_action,
 };
@@ -55,9 +54,6 @@ pub enum NotificationMessage {
     Dismiss(u32),
     /// An action button was pressed.
     ActionClicked { id: u32, key: String },
-    /// The connected outputs' logical heights arrived, so a centred stack can be
-    /// placed against the screen height.
-    OutputsResolved(HashMap<String, i32>),
 }
 
 /// One tracked notification. The freedesktop notification carries no timestamp,
@@ -87,8 +83,6 @@ pub struct NotificationGroup {
     heights: HashMap<u32, f32>,
     /// The card the pointer is currently over, for its hover-border highlight.
     hovered: Option<u32>,
-    /// Each output's logical height (by name), for centring a vertical stack.
-    output_heights: HashMap<String, i32>,
     dnd: bool,
 }
 
@@ -96,8 +90,8 @@ impl NotificationGroup {
     pub fn update(
         &mut self,
         message: NotificationMessage,
-        niri: &EventStreamState,
         placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
         entries: Option<&DesktopEntries>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
@@ -136,7 +130,7 @@ impl NotificationGroup {
                     created_at: SystemTime::now(),
                     icons,
                 });
-                tasks.push(self.reconcile(niri, placement, config));
+                tasks.push(self.reconcile(placement, outputs, config));
                 Task::batch(tasks)
             }
             NotificationMessage::CardMeasured { id, height } => {
@@ -144,17 +138,19 @@ impl NotificationGroup {
                     return Task::none();
                 }
                 self.heights.insert(id, height);
-                self.reconcile(niri, placement, config)
+                self.reconcile(placement, outputs, config)
             }
             // Left-clicking the body invokes the primary action: jump to the
             // source window and dismiss when there is one, else just dismiss.
             NotificationMessage::BodyClicked(id) => {
-                match self.window_of(id, niri, placement) {
+                match self.window_of(id, placement) {
                     Some(window) => Task::batch([
                         niri_action(move || niri::focus_window(window)),
-                        self.dismiss(id, close_reason::DISMISSED, niri, placement, config),
+                        self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
                     ]),
-                    None => self.dismiss(id, close_reason::DISMISSED, niri, placement, config),
+                    None => {
+                        self.dismiss(id, close_reason::DISMISSED, placement, outputs, config)
+                    }
                 }
             }
             // Hover changes only the border tint/width — a pure repaint, no
@@ -169,19 +165,13 @@ impl NotificationGroup {
                 Task::none()
             }
             NotificationMessage::Dismiss(id) => {
-                self.dismiss(id, close_reason::DISMISSED, niri, placement, config)
+                self.dismiss(id, close_reason::DISMISSED, placement, outputs, config)
             }
             NotificationMessage::ActionClicked { id, key } => {
-                self.activate_action(id, &key, niri, placement, config)
+                self.activate_action(id, &key, placement, outputs, config)
             }
             NotificationMessage::CloseRequested(id) => {
-                self.dismiss(id, close_reason::CLOSED_BY_CALL, niri, placement, config)
-            }
-            // Re-place existing toasts now that the screen height is known, so a
-            // centred stack settles onto the true centre.
-            NotificationMessage::OutputsResolved(heights) => {
-                self.output_heights = heights;
-                self.reconcile(niri, placement, config)
+                self.dismiss(id, close_reason::CLOSED_BY_CALL, placement, outputs, config)
             }
         }
     }
@@ -191,14 +181,14 @@ impl NotificationGroup {
     /// toasts' corners. Driven from `Bar::apply_niri_event`.
     pub fn on_niri_changed(
         &mut self,
-        niri: &EventStreamState,
         placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .live
             .iter()
-            .filter(|n| is_stale(&n.data, niri, placement))
+            .filter(|n| is_stale(&n.data, placement))
             .map(|n| n.data.id)
             .collect();
         let mut tasks = Vec::new();
@@ -210,7 +200,7 @@ impl NotificationGroup {
                 reason: close_reason::UNDEFINED,
             }));
         }
-        tasks.push(self.reconcile(niri, placement, config));
+        tasks.push(self.reconcile(placement, outputs, config));
         Task::batch(tasks)
     }
 
@@ -218,11 +208,11 @@ impl NotificationGroup {
     fn window_of(
         &self,
         id: u32,
-        niri: &EventStreamState,
         placement: &Placement,
     ) -> Option<u64> {
         let notif = self.live.iter().find(|n| n.data.id == id)?;
-        resolve_window_id(&notif.data, niri).filter(|&w| placement.workspace_of_window(w).is_some())
+        resolve_window_id(&notif.data, placement)
+            .filter(|&w| placement.workspace_of_window(w).is_some())
     }
 
     /// Run a clicked action. A recognised window action on a resolvable window is
@@ -234,11 +224,11 @@ impl NotificationGroup {
         &mut self,
         id: u32,
         key: &str,
-        niri: &EventStreamState,
         placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        if let Some(window) = self.window_of(id, niri, placement).filter(|_| is_window_action(key))
+        if let Some(window) = self.window_of(id, placement).filter(|_| is_window_action(key))
         {
             let action = match key {
                 "default" => niri_action(move || niri::focus_window(window)),
@@ -251,7 +241,7 @@ impl NotificationGroup {
             };
             return Task::batch([
                 action,
-                self.dismiss(id, close_reason::DISMISSED, niri, placement, config),
+                self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
             ]);
         }
         self.emit(Outbound::ActionInvoked {
@@ -290,8 +280,8 @@ impl NotificationGroup {
         &mut self,
         id: u32,
         reason: u32,
-        niri: &EventStreamState,
         placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
         let existed = self.live.iter().any(|n| n.data.id == id);
@@ -300,7 +290,7 @@ impl NotificationGroup {
         let closed = existed
             .then(|| self.emit(Outbound::Closed { id, reason }))
             .unwrap_or_else(Task::none);
-        Task::batch([closed, self.reconcile(niri, placement, config)])
+        Task::batch([closed, self.reconcile(placement, outputs, config)])
     }
 
     /// Send an outbound signal to the D-Bus side, fire-and-forget.
@@ -323,12 +313,12 @@ impl NotificationGroup {
     /// toasts. Emits only the changes each surface actually needs.
     fn reconcile(
         &mut self,
-        niri: &EventStreamState,
         placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
         let width = config.notifications.width_px.round() as u32;
-        let desired = self.desired_slots(niri, placement, config);
+        let desired = self.desired_slots(placement, outputs, config);
         let live_ids: std::collections::HashSet<u32> = desired.iter().map(|s| s.id).collect();
 
         let mut tasks = Vec::new();
@@ -416,8 +406,8 @@ impl NotificationGroup {
     /// Empty while DND is on.
     fn desired_slots(
         &self,
-        niri: &EventStreamState,
         placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Vec<Slot> {
         if self.dnd {
@@ -431,7 +421,7 @@ impl NotificationGroup {
         let placed: Vec<(&Notification, ToastPlacement, f32)> = order
             .iter()
             .map(|notif| {
-                let place = placement_for(&notif.data, niri, placement, config);
+                let place = placement_for(&notif.data, placement, config);
                 let height = self.heights.get(&notif.data.id).copied().unwrap_or(0.0);
                 (*notif, place, height)
             })
@@ -457,7 +447,8 @@ impl NotificationGroup {
                 let output_height = place
                     .output
                     .as_deref()
-                    .and_then(|output| self.output_heights.get(output).copied());
+                    .and_then(|output| outputs.get(output))
+                    .map(|geometry| geometry.height);
                 let (anchor, margin) = stack::slot_placement(
                     place.vertical,
                     place.horizontal,
@@ -496,8 +487,8 @@ struct Slot {
 /// with a resolvable window and no foreign action — go stale; a notification
 /// carrying an allow/deny action is a question the client is blocked on and must
 /// never be auto-dismissed.
-fn is_stale(data: &NotificationData, niri: &EventStreamState, placement: &Placement) -> bool {
-    let Some(window) = resolve_window_id(data, niri) else {
+fn is_stale(data: &NotificationData, placement: &Placement) -> bool {
+    let Some(window) = resolve_window_id(data, placement) else {
         return false;
     };
     let window_owned = data.actions.iter().all(|a| is_window_action(&a.key));

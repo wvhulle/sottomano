@@ -15,6 +15,26 @@
         "type": "github"
       }
     },
+    "niri-hm": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784216357,
+        "narHash": "sha256-sAW3iUr++2tlyZs3cpJNzc9q1fI4e2wAwXOJ5VFxNWs=",
+        "ref": "refs/heads/main",
+        "rev": "7e053eb145e2c566f5afaea18fb1b6c369926636",
+        "revCount": 15,
+        "type": "git",
+        "url": "https://codeberg.org/wvhulle/niri-hm"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://codeberg.org/wvhulle/niri-hm"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1784364478,
@@ -34,6 +54,7 @@
     "root": {
       "inputs": {
         "crane": "crane",
+        "niri-hm": "niri-hm",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"
       }

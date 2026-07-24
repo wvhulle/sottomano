@@ -218,6 +218,15 @@ pub struct Placement {
     focused_window: Option<u64>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
+    /// Live windows' identities, for resolving a notification to its source
+    /// window by app-id / title when it carries no `x-niri-window-id` hint.
+    windows: Vec<WindowIdentity>,
+}
+
+struct WindowIdentity {
+    id: u64,
+    app_id: Option<String>,
+    title: Option<String>,
 }
 
 impl Placement {
@@ -242,6 +251,7 @@ impl Placement {
         let mut workspace_by_window = HashMap::new();
         let mut column_by_window = HashMap::new();
         let mut focused_window = None;
+        let mut windows = Vec::new();
         for w in state.windows.windows.values() {
             if let Some(ws) = w.workspace_id {
                 workspace_by_window.insert(w.id, ws);
@@ -252,6 +262,11 @@ impl Placement {
             if w.is_focused {
                 focused_window = Some(w.id);
             }
+            windows.push(WindowIdentity {
+                id: w.id,
+                app_id: w.app_id.clone(),
+                title: w.title.clone(),
+            });
         }
 
         let edges = workspace_by_window
@@ -282,6 +297,7 @@ impl Placement {
             focused_window,
             output_by_workspace,
             edges,
+            windows,
         }
     }
 
@@ -338,33 +354,35 @@ fn horizontal_edge(window_col: Option<usize>, ws_focused_col: Option<usize>) -> 
 /// (case-insensitive) app-id match first, then substring title match. Returns
 /// `None` when zero or multiple windows match at each stage — ambiguity is
 /// treated the same as absence. Ports odin's `NiriService.windowIdBySource`.
-pub fn window_id_by_source(
-    state: &EventStreamState,
-    app_ids: &[String],
-    title: Option<&str>,
-) -> Option<u64> {
-    let app_id_needles: Vec<String> = app_ids
-        .iter()
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_lowercase())
-        .collect();
-    let mut app_match = state.windows.windows.values().filter(|w| {
-        w.app_id
-            .as_ref()
-            .map(|a| a.to_lowercase())
-            .is_some_and(|a| !a.is_empty() && app_id_needles.contains(&a))
-    });
-    if let Some(only) = unique(&mut app_match) {
-        return Some(only.id);
-    }
+impl Placement {
+    /// The window a source matches: a unique live window whose app-id is one of
+    /// `app_ids`, else a unique one whose title contains `title`. `None` on zero
+    /// or ambiguous matches. Used to resolve a notification with no
+    /// `x-niri-window-id` hint back to its producer window.
+    pub fn window_by_source(&self, app_ids: &[String], title: Option<&str>) -> Option<u64> {
+        let app_id_needles: Vec<String> = app_ids
+            .iter()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_lowercase())
+            .collect();
+        let mut app_match = self.windows.iter().filter(|w| {
+            w.app_id
+                .as_ref()
+                .map(|a| a.to_lowercase())
+                .is_some_and(|a| !a.is_empty() && app_id_needles.contains(&a))
+        });
+        if let Some(only) = unique(&mut app_match) {
+            return Some(only.id);
+        }
 
-    let needle = title?.to_lowercase();
-    let mut title_match = state.windows.windows.values().filter(|w| {
-        w.title
-            .as_ref()
-            .is_some_and(|t| !t.is_empty() && t.to_lowercase().contains(&needle))
-    });
-    unique(&mut title_match).map(|w| w.id)
+        let needle = title?.to_lowercase();
+        let mut title_match = self.windows.iter().filter(|w| {
+            w.title
+                .as_ref()
+                .is_some_and(|t| !t.is_empty() && t.to_lowercase().contains(&needle))
+        });
+        unique(&mut title_match).map(|w| w.id)
+    }
 }
 
 /// The single element of an iterator, or `None` if it has zero or more than one.
@@ -442,18 +460,38 @@ pub fn spawn(command: Vec<String>) {
     }
 }
 
-/// The logical pixel height of each connected output, by name, from a one-shot
-/// `Outputs` query. The niri event stream carries no output sizes, but a centred
-/// notification stack needs the screen height to place itself. Empty on any
-/// failure (the caller then falls back to edge-anchored stacking).
-pub fn output_heights() -> HashMap<String, i32> {
+/// The logical pixel size of one output.
+#[derive(Debug, Clone, Copy)]
+pub struct OutputGeometry {
+    /// Kept alongside `height` so a future consumer (horizontal placement,
+    /// bar-width math) needn't re-plumb the query; only `height` is read today.
+    #[allow(dead_code)]
+    pub width: i32,
+    pub height: i32,
+}
+
+/// The logical size of each connected output, by name, from a one-shot `Outputs`
+/// query. The niri event stream carries no output sizes, but placing a surface
+/// against the screen (e.g. centring a notification stack) needs them. Empty on
+/// any failure (the caller then falls back to edge-anchored placement).
+pub fn output_geometry() -> HashMap<String, OutputGeometry> {
     let Ok(reply) = Socket::connect().and_then(|mut socket| socket.send(Request::Outputs)) else {
         return HashMap::new();
     };
     match reply {
         Ok(Response::Outputs(outputs)) => outputs
             .into_iter()
-            .filter_map(|(name, output)| output.logical.map(|logical| (name, logical.height as i32)))
+            .filter_map(|(name, output)| {
+                output.logical.map(|logical| {
+                    (
+                        name,
+                        OutputGeometry {
+                            width: logical.width as i32,
+                            height: logical.height as i32,
+                        },
+                    )
+                })
+            })
             .collect(),
         _ => HashMap::new(),
     }

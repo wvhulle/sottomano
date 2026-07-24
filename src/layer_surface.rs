@@ -27,6 +27,14 @@ impl Position {
     }
 }
 
+/// A bar strip vs. the off-screen caster whose only job is to make niri bloom a
+/// gradient drop-shadow onto the screen edge (odin's `GradientBackdrop`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SurfaceKind {
+    Bar,
+    Backdrop,
+}
+
 /// The identity of one open surface: which output it lives on and which edge it
 /// hugs. Rendering picks out that output's workspaces — the whole point of
 /// going multi-output.
@@ -34,6 +42,16 @@ impl Position {
 pub struct Surface {
     pub output: String,
     pub position: Position,
+    pub kind: SurfaceKind,
+}
+
+/// niri layer-shell namespace of the shadow caster for this edge, matched by the
+/// `^odin-rs-backdrop-<pos>$` layer-rules that carry the gradient shadow.
+pub fn backdrop_namespace(position: Position) -> &'static str {
+    match position {
+        Position::Top => "odin-rs-backdrop-top",
+        Position::Bottom => "odin-rs-backdrop-bottom",
+    }
 }
 
 /// Margin (top, right, bottom, left) that insets a bar from the screen edges
@@ -68,5 +86,30 @@ pub fn layer_settings(
         output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(margin),
         ..Default::default()
+    }
+}
+
+/// The off-screen caster surface that makes the bar's white text legible: a
+/// full-width opaque strip on the background layer, pushed entirely off-screen by
+/// a negative margin equal to its height so only its niri drop-shadow (from the
+/// `^odin-rs-backdrop-<pos>$` layer-rules) blooms back onto the screen. A niri
+/// shadow never draws inside its own surface rect, so the caster must sit off the
+/// edge with its inner edge flush to it — odin's `GradientBackdrop`.
+pub fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
+    let h = height as i32;
+    let margin = match position {
+        Position::Top => (-h, 0, 0, 0),
+        Position::Bottom => (0, 0, -h, 0),
+    };
+    NewLayerShellSettings {
+        size: Some((0, height)),
+        exclusive_zone: Some(0),
+        anchor: position.anchor(),
+        layer: Layer::Background,
+        keyboard_interactivity: KeyboardInteractivity::None,
+        output_option: OutputOption::OutputName(output.to_string()),
+        margin: Some(margin),
+        events_transparent: true,
+        namespace: Some(backdrop_namespace(position).to_string()),
     }
 }
