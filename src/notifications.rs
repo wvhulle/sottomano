@@ -10,7 +10,10 @@ pub mod placement;
 pub mod server;
 pub mod stack;
 
-use std::{collections::HashMap, time::SystemTime};
+use std::{
+    collections::{HashMap, HashSet},
+    time::SystemTime,
+};
 
 use iced::{Element, Task, widget::Sensor, window::Id};
 use iced_layershell::reexport::Anchor;
@@ -308,111 +311,140 @@ impl NotificationGroup {
     }
 
     /// Bring the live layer-shell surfaces in line with the live notifications:
-    /// open a surface per toast, keep each anchored/margined/sized to its
-    /// computed corner slot, and close surfaces for gone (or DND-suppressed)
-    /// toasts. Emits only the changes each surface actually needs.
+    /// a pure [`plan_changes`](Self::plan_changes) of the differences, then
+    /// [`apply_changes`](Self::apply_changes) performs them — the decision is a
+    /// value, and only the apply step touches the surface bookkeeping or emits
+    /// commands.
     fn reconcile(
         &mut self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        let width = config.notifications.width_px.round() as u32;
-        let desired = self.desired_slots(placement, outputs, config);
-        let live_ids: std::collections::HashSet<u32> = desired.iter().map(|s| s.id).collect();
+        let desired = self.desired_surfaces(placement, outputs, config);
+        let changes = self.plan_changes(&desired);
+        self.apply_changes(changes)
+    }
 
-        let mut tasks = Vec::new();
-
-        for slot in &desired {
-            let anchor = slot.anchor;
-            let margin = slot.margin;
-            let size = (width, stack::surface_height(self.heights.get(&slot.id).copied()));
-
-            match self.surfaces.get_mut(&slot.id) {
-                None => {
-                    let id = Id::unique();
-                    self.surfaces.insert(
-                        slot.id,
-                        ToastSurface {
-                            id,
-                            output: slot.output.clone(),
+    /// The surface changes that would bring the open set in line with `desired`.
+    /// Pure — reads the current surfaces but mutates nothing and emits nothing,
+    /// so it reads as a diff of two sets: open the new, adjust the moved, close
+    /// the gone (or DND-suppressed).
+    fn plan_changes(&self, desired: &[DesiredSurface]) -> Vec<SurfaceChange> {
+        let desired_ids: HashSet<u32> = desired.iter().map(|wanted| wanted.id).collect();
+        let opens_and_adjusts = desired
+            .iter()
+            .flat_map(|wanted| match self.surfaces.get(&wanted.id) {
+                None => vec![SurfaceChange::Open(wanted.clone())],
+                // A surface cannot move between outputs; close and reopen.
+                Some(existing) if existing.output != wanted.output => {
+                    vec![
+                        SurfaceChange::Close(wanted.id),
+                        SurfaceChange::Open(wanted.clone()),
+                    ]
+                }
+                Some(existing) => {
+                    let anchor = (existing.anchor != wanted.anchor).then_some(wanted.anchor);
+                    let margin = (existing.margin != wanted.margin).then_some(wanted.margin);
+                    let size = (existing.size != wanted.size).then_some(wanted.size);
+                    if anchor.is_none() && margin.is_none() && size.is_none() {
+                        vec![]
+                    } else {
+                        vec![SurfaceChange::Adjust {
+                            id: wanted.id,
                             anchor,
                             margin,
                             size,
-                        },
-                    );
-                    let settings =
-                        stack::toast_settings(slot.output.as_deref(), anchor, margin, size);
-                    tasks.push(Task::done(Message::NewLayerShell { settings, id }));
-                }
-                Some(surface) if surface.output != slot.output => {
-                    // A surface cannot move between outputs; close and reopen.
-                    tasks.push(Task::done(Message::RemoveWindow(surface.id)));
-                    let id = Id::unique();
-                    surface.id = id;
-                    surface.output = slot.output.clone();
-                    surface.anchor = anchor;
-                    surface.margin = margin;
-                    surface.size = size;
-                    let settings =
-                        stack::toast_settings(slot.output.as_deref(), anchor, margin, size);
-                    tasks.push(Task::done(Message::NewLayerShell { settings, id }));
-                }
-                Some(surface) => {
-                    if surface.anchor != anchor {
-                        surface.anchor = anchor;
-                        tasks.push(Task::done(Message::AnchorChange {
-                            id: surface.id,
-                            anchor,
-                        }));
-                    }
-                    if surface.margin != margin {
-                        surface.margin = margin;
-                        tasks.push(Task::done(Message::MarginChange {
-                            id: surface.id,
-                            margin,
-                        }));
-                    }
-                    if surface.size != size {
-                        surface.size = size;
-                        tasks.push(Task::done(Message::SizeChange {
-                            id: surface.id,
-                            size,
-                        }));
+                        }]
                     }
                 }
-            }
-        }
-
-        // Close surfaces for toasts that are gone or DND-suppressed.
-        let stale: Vec<u32> = self
+            });
+        let closes = self
             .surfaces
             .keys()
             .copied()
-            .filter(|id| !live_ids.contains(id))
-            .collect();
-        for id in stale {
-            if let Some(surface) = self.surfaces.remove(&id) {
-                tasks.push(Task::done(Message::RemoveWindow(surface.id)));
-            }
-        }
+            .filter(|id| !desired_ids.contains(id))
+            .map(SurfaceChange::Close);
+        opens_and_adjusts.chain(closes).collect()
+    }
 
-        Task::batch(tasks)
+    /// Perform the planned changes: the sole place surfaces are opened, moved, or
+    /// closed, and the sole place layer-shell commands are emitted.
+    fn apply_changes(&mut self, changes: Vec<SurfaceChange>) -> Task<Message> {
+        Task::batch(changes.into_iter().map(|change| self.perform_change(change)))
+    }
+
+    fn perform_change(&mut self, change: SurfaceChange) -> Task<Message> {
+        match change {
+            SurfaceChange::Open(wanted) => {
+                let window = Id::unique();
+                let settings = stack::toast_settings(
+                    wanted.output.as_deref(),
+                    wanted.anchor,
+                    wanted.margin,
+                    wanted.size,
+                );
+                self.surfaces.insert(
+                    wanted.id,
+                    ToastSurface {
+                        id: window,
+                        output: wanted.output,
+                        anchor: wanted.anchor,
+                        margin: wanted.margin,
+                        size: wanted.size,
+                    },
+                );
+                Task::done(Message::NewLayerShell {
+                    settings,
+                    id: window,
+                })
+            }
+            SurfaceChange::Adjust {
+                id,
+                anchor,
+                margin,
+                size,
+            } => {
+                let Some(existing) = self.surfaces.get_mut(&id) else {
+                    return Task::none();
+                };
+                let window = existing.id;
+                let mut tasks = Vec::new();
+                if let Some(anchor) = anchor {
+                    existing.anchor = anchor;
+                    tasks.push(Task::done(Message::AnchorChange { id: window, anchor }));
+                }
+                if let Some(margin) = margin {
+                    existing.margin = margin;
+                    tasks.push(Task::done(Message::MarginChange { id: window, margin }));
+                }
+                if let Some(size) = size {
+                    existing.size = size;
+                    tasks.push(Task::done(Message::SizeChange { id: window, size }));
+                }
+                Task::batch(tasks)
+            }
+            SurfaceChange::Close(id) => match self.surfaces.remove(&id) {
+                Some(existing) => Task::done(Message::RemoveWindow(existing.id)),
+                None => Task::none(),
+            },
+        }
     }
 
     /// Each visible toast's placement: its output plus the anchor and margin its
     /// surface should take. Freshest hugs the edge, older siblings step inward;
     /// a centred vertical group is centred as a whole against the output height.
     /// Empty while DND is on.
-    fn desired_slots(
+    fn desired_surfaces(
         &self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
-    ) -> Vec<Slot> {
+    ) -> Vec<DesiredSurface> {
         if self.dnd {
             return Vec::new();
         }
+        let width = config.notifications.width_px.round() as u32;
         // Newest first, so walking a corner group meets the freshest toast first.
         let mut order: Vec<&Notification> = self.live.iter().collect();
         order.sort_by_key(|n| std::cmp::Reverse(n.created_at));
@@ -458,11 +490,15 @@ impl NotificationGroup {
                     config,
                 );
                 *offset += height + stack::STACK_SPACING;
-                Slot {
+                DesiredSurface {
                     id: notif.data.id,
                     output: place.output.clone(),
                     anchor,
                     margin,
+                    size: (
+                        width,
+                        stack::surface_height(self.heights.get(&notif.data.id).copied()),
+                    ),
                 }
             })
             .collect()
@@ -476,11 +512,28 @@ fn group_key(place: &ToastPlacement) -> GroupKey {
     (place.output.clone(), place.vertical, place.horizontal)
 }
 
-struct Slot {
+/// One change to reconcile a toast's surface with the desired set. Produced by
+/// [`NotificationGroup::plan_changes`], performed by
+/// [`NotificationGroup::perform_change`].
+enum SurfaceChange {
+    Open(DesiredSurface),
+    Adjust {
+        id: u32,
+        anchor: Option<Anchor>,
+        margin: Option<(i32, i32, i32, i32)>,
+        size: Option<(u32, u32)>,
+    },
+    Close(u32),
+}
+
+/// A toast's fully-resolved desired surface: where it goes and how big.
+#[derive(Clone)]
+struct DesiredSurface {
     id: u32,
     output: Option<String>,
     anchor: Anchor,
     margin: (i32, i32, i32, i32),
+    size: (u32, u32),
 }
 
 /// Whether a notification's window has closed. Only "window-owned" toasts — one
