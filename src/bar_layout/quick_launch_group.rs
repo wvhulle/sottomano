@@ -101,7 +101,7 @@ impl QuickLaunchGroup {
     /// Launch a ranked app through niri: resolve its command from the desktop
     /// entry's `Exec` (falling back to the bare app-id), then hand it to
     /// `niri msg action spawn`. Spawning via the compositor lands the window in
-    /// niri's scope and avoids forking a new process from odin-rs's own
+    /// niri's scope and avoids forking a new process from vetrata's own
     /// GPU-heavy address space (slow, and it would make the app a child of the
     /// bar). Fire-and-forget — the launched window arrives back as a niri event.
     fn launch(&self, app_id: String) -> Task<QuickLaunchMessage> {

@@ -1,7 +1,7 @@
 //! On-disk persistence for the quick-launch [`LaunchTracker`], backed by Turso
 //! (pure-Rust SQLite) via its local-file API.
 //!
-//! The database lives at `$XDG_STATE_HOME/odin-rs/launch-frequency.db`. The
+//! The database lives at `$XDG_STATE_HOME/vetrata/launch-frequency.db`. The
 //! model is loaded from it once at startup and each counted launch is written
 //! back as an upsert of the absolute count, so the table mirrors the in-memory
 //! model rather than re-incrementing. Both operations are async (Turso runs on
@@ -122,11 +122,11 @@ fn integer(row: &turso::Row, index: usize) -> Result<i64, BoxError> {
         .ok_or_else(|| format!("column {index} is not an integer").into())
 }
 
-/// odin-rs's own launch-frequency database
-/// (`$XDG_STATE_HOME/odin-rs/launch-frequency.db`).
+/// vetrata's own launch-frequency database
+/// (`$XDG_STATE_HOME/vetrata/launch-frequency.db`).
 fn db_path() -> Option<PathBuf> {
     let state = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
-    Some(state.join("odin-rs/launch-frequency.db"))
+    Some(state.join("vetrata/launch-frequency.db"))
 }

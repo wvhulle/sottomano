@@ -561,7 +561,7 @@ fn tooltip_settings(
         keyboard_interactivity: KeyboardInteractivity::None,
         output_option: OutputOption::OutputName(output.to_string()),
         events_transparent: true,
-        namespace: Some("odin-rs-tooltip".to_string()),
+        namespace: Some("vetrata-tooltip".to_string()),
     }
 }
 

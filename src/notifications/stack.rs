@@ -13,7 +13,7 @@ use crate::{
     data_sources::niri::{HEdge, VEdge},
 };
 
-pub const NAMESPACE: &str = "odin-rs-notifications";
+pub const NAMESPACE: &str = "vetrata-notifications";
 /// Vertical gap between two cards sharing a corner.
 pub const STACK_SPACING: f32 = 8.0;
 /// Height a toast surface opens at before its card is measured. Generous on

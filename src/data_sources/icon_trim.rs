@@ -6,7 +6,7 @@
 //! themed icon then looks noticeably smaller and lighter than its neighbours.
 //!
 //! The QML original couldn't fix this: Quickshell served themed icons as opaque
-//! `image://` URLs, so the padding couldn't be measured. odin-rs resolves the
+//! `image://` URLs, so the padding couldn't be measured. vetrata resolves the
 //! actual SVG *file*, so we can parse it, measure the artwork's tight bounding
 //! box, and rewrite the root `viewBox` to crop the margin — staying vector, so
 //! it renders crisply at any size. The trimmed copy is cached on disk and its
@@ -109,12 +109,12 @@ fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<St
     ))
 }
 
-/// Per-user cache for trimmed icons, under `$XDG_STATE_HOME/odin/icon-trim`.
+/// Per-user cache for trimmed icons, under `$XDG_STATE_HOME/vetrata/icon-trim`.
 fn cache_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))?;
-    let dir = base.join("odin/icon-trim");
+    let dir = base.join("vetrata/icon-trim");
     fs::create_dir_all(&dir).ok()?;
     Some(dir)
 }

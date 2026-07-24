@@ -1,5 +1,5 @@
 //! The notification system: an `org.freedesktop.Notifications` server feeding
-//! one layer-shell toast surface per live notification. odin-rs owns the daemon
+//! one layer-shell toast surface per live notification. vetrata owns the daemon
 //! so a notification's action can jump to the niri window that sent it,
 //! in-process, after the posting client dies.
 

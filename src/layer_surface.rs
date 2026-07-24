@@ -46,11 +46,11 @@ pub struct Surface {
 }
 
 /// niri layer-shell namespace of the shadow caster for this edge, matched by the
-/// `^odin-rs-backdrop-<pos>$` layer-rules that carry the gradient shadow.
+/// `^vetrata-backdrop-<pos>$` layer-rules that carry the gradient shadow.
 pub fn backdrop_namespace(position: Position) -> &'static str {
     match position {
-        Position::Top => "odin-rs-backdrop-top",
-        Position::Bottom => "odin-rs-backdrop-bottom",
+        Position::Top => "vetrata-backdrop-top",
+        Position::Bottom => "vetrata-backdrop-bottom",
     }
 }
 
@@ -92,7 +92,7 @@ pub fn layer_settings(
 /// The off-screen caster surface that makes the bar's white text legible: a
 /// full-width opaque strip on the background layer, pushed entirely off-screen by
 /// a negative margin equal to its height so only its niri drop-shadow (from the
-/// `^odin-rs-backdrop-<pos>$` layer-rules) blooms back onto the screen. A niri
+/// `^vetrata-backdrop-<pos>$` layer-rules) blooms back onto the screen. A niri
 /// shadow never draws inside its own surface rect, so the caster must sit off the
 /// edge with its inner edge flush to it — odin's `GradientBackdrop`.
 pub fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {

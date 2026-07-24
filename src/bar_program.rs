@@ -136,7 +136,7 @@ impl Bar {
     }
 
     pub fn namespace() -> String {
-        "odin-rs".to_string()
+        "vetrata".to_string()
     }
 
     /// Whether any expandable group is mid-transition — drives the per-frame

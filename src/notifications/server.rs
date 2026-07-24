@@ -92,7 +92,7 @@ impl NotificationServer {
 
     fn get_server_information(&self) -> (String, String, String, String) {
         (
-            "odin-rs".to_owned(),
+            "vetrata".to_owned(),
             "wvhulle".to_owned(),
             env!("CARGO_PKG_VERSION").to_owned(),
             "1.2".to_owned(),

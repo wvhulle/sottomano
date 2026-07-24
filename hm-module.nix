@@ -1,9 +1,9 @@
-# Home-manager module for odin-rs, factored out of flake.nix to keep it
+# Home-manager module for vetrata, factored out of flake.nix to keep it
 # readable. The caller passes the flake-level `self` (for the default package).
 #
-# Unlike the Quickshell Odin, odin-rs has no umbra theme registry and no
+# Unlike the Quickshell Odin, vetrata has no umbra theme registry and no
 # Quickshell wrapper: its config is a single static TOML file at
-# ~/.config/odin.toml, and it runs its own niri window tracker (Turso), so this
+# ~/.config/vetrata.toml, and it runs its own niri window tracker (Turso), so this
 # module neither imports umbra nor enables services.niri.windowTracker.
 { self }:
 {
@@ -13,15 +13,15 @@
   ...
 }:
 let
-  cfg = config.services.odin-rs;
+  cfg = config.services.vetrata;
   tomlFormat = pkgs.formats.toml { };
 
-  # odin-rs's niri layer-rules. The bar surface ("odin-rs") wants square corners
+  # vetrata's niri layer-rules. The bar surface ("vetrata") wants square corners
   # and no drop shadow of its own; the two off-screen background-layer casters
-  # ("odin-rs-backdrop-<pos>") are the surfaces that bloom the gradient shadow
+  # ("vetrata-backdrop-<pos>") are the surfaces that bloom the gradient shadow
   # onto the screen edge so the bar's white text stays legible over light
   # wallpaper (see src/layer_surface.rs `backdrop_settings`). The casters only
-  # exist when layout.shadow is set in odin.toml — the same toggle these rules
+  # exist when layout.shadow is set in vetrata.toml — the same toggle these rules
   # target, so the two stay in agreement.
   radius0 = {
     top-left = 0.0;
@@ -37,41 +37,41 @@ let
       y = sign * cfg.niri.gradientShadow.offset;
     };
   };
-  odinRsLayerRules = [
+  vetrataLayerRules = [
     {
-      matches = [ { namespace = "^odin-rs$"; } ];
+      matches = [ { namespace = "^vetrata$"; } ];
       geometry-corner-radius = radius0;
       shadow.enable = false;
     }
     {
-      matches = [ { namespace = "^odin-rs-backdrop-top$"; } ];
+      matches = [ { namespace = "^vetrata-backdrop-top$"; } ];
       geometry-corner-radius = radius0;
       shadow = gradientShadow (-1);
     }
     {
-      matches = [ { namespace = "^odin-rs-backdrop-bottom$"; } ];
+      matches = [ { namespace = "^vetrata-backdrop-bottom$"; } ];
       geometry-corner-radius = radius0;
       shadow = gradientShadow 1;
     }
   ];
 in
 {
-  options.services.odin-rs = {
-    enable = lib.mkEnableOption "odin-rs bar";
+  options.services.vetrata = {
+    enable = lib.mkEnableOption "vetrata bar";
 
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.system}.default;
-      defaultText = lib.literalExpression "odin-rs.packages.\${system}.default";
-      description = "The odin-rs package to install.";
+      defaultText = lib.literalExpression "vetrata.packages.\${system}.default";
+      description = "The vetrata package to install.";
     };
 
     systemdUnit = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = ''
-        Whether to create a systemd user service that starts odin-rs with
-        graphical-session.target. Disable to spawn odin-rs from a
+        Whether to create a systemd user service that starts vetrata with
+        graphical-session.target. Disable to spawn vetrata from a
         compositor-specific hook instead.
       '';
     };
@@ -92,9 +92,9 @@ in
         }
       '';
       description = ''
-        Contents of ~/.config/odin.toml, written verbatim. Maps to the
+        Contents of ~/.config/vetrata.toml, written verbatim. Maps to the
         `[palette]`, `[layout]`, `[font]` and `[notifications]` tables in
-        odin-rs (src/config/disk.rs). Every key has a default, so set only the
+        vetrata (src/config/disk.rs). Every key has a default, so set only the
         ones you override; leave this empty to keep the built-in gruvbox-dark
         defaults. Set `layout.shadow = true` to enable the legibility shadow.
       '';
@@ -131,23 +131,23 @@ in
   config = lib.mkIf cfg.enable {
     home.packages = [ cfg.package ];
 
-    # odin-rs reads ~/.config/odin.toml directly (HOME/.config, not
+    # vetrata reads ~/.config/vetrata.toml directly (HOME/.config, not
     # XDG_CONFIG_HOME); xdg.configFile lands there. Only write it when the user
-    # set something, so an empty config keeps odin-rs's built-in defaults rather
+    # set something, so an empty config keeps vetrata's built-in defaults rather
     # than pinning an empty file.
-    xdg.configFile."odin.toml" = lib.mkIf (cfg.settings != { }) {
-      source = tomlFormat.generate "odin.toml" cfg.settings;
+    xdg.configFile."vetrata.toml" = lib.mkIf (cfg.settings != { }) {
+      source = tomlFormat.generate "vetrata.toml" cfg.settings;
     };
 
-    # Contribute odin-rs's niri layer-rules. niri merges multi-matching rules in
+    # Contribute vetrata's niri layer-rules. niri merges multi-matching rules in
     # order with later fields winning, so these MUST land after any catch-all
-    # `namespace=".*"` rule; `lib.mkAfter` appends them. odin-rs only runs under
+    # `namespace=".*"` rule; `lib.mkAfter` appends them. vetrata only runs under
     # niri, so this is unconditional.
-    services.niri.settings.layer-rules = lib.mkAfter odinRsLayerRules;
+    services.niri.settings.layer-rules = lib.mkAfter vetrataLayerRules;
 
-    systemd.user.services.odin-rs = lib.mkIf cfg.systemdUnit {
+    systemd.user.services.vetrata = lib.mkIf cfg.systemdUnit {
       Unit = {
-        Description = "odin-rs bar";
+        Description = "vetrata bar";
         PartOf = [ "graphical-session.target" ];
         After = [ "graphical-session.target" ];
       };

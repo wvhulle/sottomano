@@ -1,5 +1,5 @@
 {
-  description = "odin-rs — iced + iced_layershell bar for niri";
+  description = "vetrata — iced + iced_layershell bar for niri";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
@@ -51,7 +51,7 @@
       # `autoAddDriverRunpath` is a setup hook: it patches the built binary's
       # RUNPATH to include every library in `buildInputs`, so dlopen'd libs
       # (vulkan-loader, libGL) resolve at run time without any LD_LIBRARY_PATH
-      # on the *installed* binary (`nix build .#odin-rs` / `nix run`).
+      # on the *installed* binary (`nix build .#vetrata` / `nix run`).
       commonArgs = {
         inherit src;
         strictDeps = true;
@@ -84,7 +84,7 @@
         gioModules = "${pkgs.dconf.lib}/lib/gio/modules";
       };
 
-      odin-rs = craneLib.buildPackage (
+      vetrata = craneLib.buildPackage (
         commonArgs
         // {
           inherit cargoArtifacts;
@@ -92,12 +92,12 @@
           # `--prefix` (prepend), not `--set`: compose with any values the
           # session already exports rather than clobbering them.
           postInstall = ''
-            wrapProgram $out/bin/odin-rs \
+            wrapProgram $out/bin/vetrata \
               --prefix PATH : ${gsettingsRuntime.binPath} \
               --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
               --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
           '';
-          meta.mainProgram = "odin-rs";
+          meta.mainProgram = "vetrata";
           meta.platforms = pkgs.lib.platforms.linux;
         }
       );
@@ -108,7 +108,7 @@
     in
     {
       packages.${system} = {
-        default = odin-rs;
+        default = vetrata;
       };
 
       # niri-hm provides the services.niri option surface the module's
@@ -122,7 +122,7 @@
       };
 
       # `autoAddDriverRunpath` (above) patches RUNPATH on the installed binary
-      # at build time, so `nix build .#odin-rs && ./result/bin/odin-rs`
+      # at build time, so `nix build .#vetrata && ./result/bin/vetrata`
       # resolves dlopen'd libs. For `nix develop -c cargo run`, the dev-built
       # binary has no such RUNPATH, and `ash` (wgpu) + `wayland-egl` always
       # dlopen libvulkan / libwayland-egl with no static-link option. Declare

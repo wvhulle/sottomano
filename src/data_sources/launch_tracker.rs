@@ -1,7 +1,7 @@
 //! Native per-workspace launch-frequency tracking for quick-launch, replacing
 //! the external `niri-window-tracker` daemon.
 //!
-//! Driven by the niri event stream odin-rs already owns: the first sighting of a
+//! Driven by the niri event stream vetrata already owns: the first sighting of a
 //! new window counts as a launch of its `app_id` on the window's *named*
 //! workspace, stamped with the time. The snapshot seeded at connect (windows
 //! already open) is never counted. Ranking is a recency-weighted frequency

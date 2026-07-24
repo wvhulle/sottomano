@@ -141,7 +141,7 @@ fn profile_dir() -> Option<PathBuf> {
 }
 
 /// Scratch directory for the transient profile-DB copies, under
-/// `$XDG_STATE_HOME/odin/favicons`. The live DBs are WAL-locked (so callers
+/// `$XDG_STATE_HOME/vetrata/favicons`. The live DBs are WAL-locked (so callers
 /// query a copy); no favicon images are cached here — they are rendered
 /// straight from memory.
 fn state_dir() -> Option<PathBuf> {
@@ -150,7 +150,7 @@ fn state_dir() -> Option<PathBuf> {
         .or_else(|| {
             std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state"))
         })?;
-    let dir = base.join("odin/favicons");
+    let dir = base.join("vetrata/favicons");
     fs::create_dir_all(&dir).ok()?;
     Some(dir)
 }

@@ -1,4 +1,4 @@
-//! odin-rs — a pure-Rust niri bar on iced + `iced_layershell`. Launches a
+//! vetrata — a pure-Rust niri bar on iced + `iced_layershell`. Launches a
 //! multi-output layer-shell daemon (one bar per output/edge); must run inside a
 //! niri session.
 

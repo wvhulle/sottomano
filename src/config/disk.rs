@@ -192,7 +192,7 @@ impl std::fmt::Display for LoadError {
 
 pub fn config_path() -> PathBuf {
     let base: PathBuf = std::env::var_os("HOME").unwrap().into();
-    base.join(".config").join("odin.toml")
+    base.join(".config").join("vetrata.toml")
 }
 
 pub fn read(path: &std::path::Path) -> Result<DiskConfig, LoadError> {

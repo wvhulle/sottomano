@@ -4,7 +4,7 @@
 //! floating) an offset slider to its right.
 //!
 //! Odin's `merged`/`blur`/`shadow` toggles are omitted here: nothing in
-//! odin-rs's renderer currently reads those config fields (no per-group pill
+//! vetrata's renderer currently reads those config fields (no per-group pill
 //! chrome, no compositor blur region, no shadow backdrop caster — see
 //! `TODO.md`), so a toggle for them would have no visible effect. Odin's
 //! click-to-expand `SettingKnob` is also simplified to a directly draggable

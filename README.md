@@ -1,4 +1,4 @@
-# odin-rs
+# vetrata
 
 Native-Rust port of the Odin status bar for the [niri](https://github.com/YaLTeR/niri)
 compositor. One compiled binary built on
@@ -32,7 +32,7 @@ Or build a runnable bundle in the Nix store:
 
 ```sh
 nix build .#default
-./result/bin/odin-rs
+./result/bin/vetrata
 ```
 
 ## Launch
@@ -45,7 +45,7 @@ nix develop -c cargo run             # launch the bar
 
 ## Configuration
 
-The bar reads its config from `$XDG_CONFIG_HOME/odin.toml` — its own file,
+The bar reads its config from `$XDG_CONFIG_HOME/vetrata.toml` — its own file,
 not shared with Odin. Missing keys keep the gruvbox-dark defaults. Colors
 are any CSS Color Level 4 string the `linebender/color` crate accepts
 (hex, `rgb()`, `hsl()`, named, `oklab()`, …).
@@ -62,12 +62,12 @@ dim            = "#FFFFFF80"   # fixed dim foreground (superscript prefix)
 
 Text uses `iced::Font::DEFAULT` / `iced::Font::MONOSPACE` from the
 user's login-session font configuration — no font overrides in the
-odin-rs config.
+vetrata config.
 
 ## Limitations
 
 - **Backdrop** — Odin casts a dark drop-shadow behind its white text via
-  an off-screen layer + a niri `layer-rule`. odin-rs renders against a
+  an off-screen layer + a niri `layer-rule`. vetrata renders against a
   transparent layer, so over light wallpaper the text is low-contrast.
   Reproducing the backdrop trick is on the roadmap (see `TODO.md`).
 - **Hot reload** — none for a compiled binary; runtime config requires a
