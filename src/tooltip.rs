@@ -15,7 +15,8 @@
 use std::{collections::BTreeMap, time::SystemTime};
 
 use iced::{
-    Border, Color, Element, Event, Length, Rectangle, Size, Task, Vector,
+    Border, Color, Element, Event, Font, Length, Rectangle, Size, Task, Vector,
+    font::Style as FontStyle,
     advanced::{
         Clipboard, Layout, Shell, Widget,
         layout::{Limits, Node},
@@ -51,6 +52,8 @@ pub enum TooltipSource {
     Disk,
     Battery,
     Floating,
+    JournalSystem,
+    JournalUser,
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
@@ -466,22 +469,34 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
 
     // A dim footer below the grid, for polled sources: how stale the shown value
     // is and how often it refreshes, so a throttled source reads as intentional.
+    // Set apart as its own section by smaller italic type in an (invisibly
+    // bordered) padded box, rather than a rule — a Fill-width rule would balloon
+    // the panel to the whole provisional surface, since the cross-axis compress
+    // does not reach here.
+    let italic = Font {
+        style: FontStyle::Italic,
+        ..config.font.iced_font
+    };
     let body = match tooltip.footer {
-        Some(info) => Column::with_children([
-            grid.into(),
-            bar_text(
-                &config.font,
-                format!(
-                    "updated {} · every {}",
-                    relative(info.last, now),
-                    humantime::format_duration(info.every),
-                ),
+        Some(info) => {
+            let footer = container(
+                bar_text(
+                    &config.font,
+                    format!(
+                        "updated {} · every {}",
+                        relative(info.last, now),
+                        humantime::format_duration(info.every),
+                    ),
+                )
+                .size(config.font.text_size_px * 0.85)
+                .font(italic)
+                .color(dim),
             )
-            .color(dim)
-            .into(),
-        ])
-        .spacing(FOOTER_GAP_PX)
-        .into(),
+            .padding([2.0, 6.0]);
+            Column::with_children([grid.into(), footer.into()])
+                .spacing(FOOTER_GAP_PX)
+                .into()
+        }
         None => Element::from(grid),
     };
 

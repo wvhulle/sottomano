@@ -27,6 +27,7 @@ libc = "0.2.176"
 niri-ipc = "26.4.0"
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1"
 sha2 = "0.10"
 ttf-parser = "0.25"
 tokio = { version = "1.53.0", features = [
@@ -39,13 +40,20 @@ tokio-stream = { version = "0.1", default-features = false, features = [
   "time",
 ] }
 toml = "0.8.23"
+# Pure-Rust SQLite (the Turso/Limbo rewrite) for odin-rs's own persistent state,
+# e.g. the quick-launch frequency store. Async; runs on the iced/tokio runtime.
+turso = "0.8.0-pre.1"
 # Trim the transparent margin themed icon SVGs ship with (see data_sources::icon_trim).
 # Pinned to the version iced_tiny_skia already resolves, so no second usvg copy.
 usvg = "0.45"
-# The freedesktop notification server (org.freedesktop.Notifications). The tokio
-# feature runs the connection on iced's runtime; already resolved transitively so
-# promoting it to a direct dep adds no new lockfile entry.
-zbus = { version = "5.18", default-features = false, features = ["tokio"] }
+# Pure-Rust D-Bus (no libdbus). Two uses: the async notification server
+# (org.freedesktop.Notifications) on iced's tokio runtime, and the blocking API
+# from sync source polls (systemd's Manager for failed units) — hence both the
+# `tokio` and `blocking-api` features.
+zbus = { version = "5.18", default-features = false, features = [
+  "tokio",
+  "blocking-api",
+] }
 
 [build-dependencies]
 serde_json = "1"

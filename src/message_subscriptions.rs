@@ -11,8 +11,8 @@ use tokio_stream::wrappers::IntervalStream;
 
 use crate::{
     bar_layout::{
-        battery_group::BatteryGroup, clock_group::ClockGroup, system_group::SystemGroup,
-        window_list_group::WindowListGroup,
+        battery_group::BatteryGroup, clock_group::ClockGroup, journal_group::JournalGroup,
+        system_group::SystemGroup, window_list_group::WindowListGroup,
     },
     bar_program::{Bar, Message},
     data_sources::{Source, desktop_entries, niri},
@@ -40,8 +40,12 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         BatteryGroup::subscription().map(Message::Battery),
         SystemGroup::subscription().map(Message::System),
         ClockGroup::subscription().map(Message::Clock),
+        JournalGroup::subscription().map(Message::Journal),
         WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),
+        // The shared `.desktop` index reload (new app installed, theme switch)
+        // lives here, at the app that owns it. Quick-launch re-ranks off niri
+        // events (from its own in-memory tracker), so it needs no timer.
         iced::time::every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
         niri_subscription(),
         notifications_subscription(),

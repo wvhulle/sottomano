@@ -29,6 +29,19 @@ struct RevealX<'a, Message> {
     fraction: f32,
 }
 
+/// Hide the cursor from the child whenever it sits over the clipped-away width.
+/// `layout` reports only `fraction` of the child's natural width, but the child
+/// node keeps its full width, so widgets in the not-yet-revealed remainder would
+/// otherwise still see the cursor as `is_over` and react (e.g. open a tooltip).
+/// Reporting `Unavailable` past the visible edge keeps interaction in step with
+/// what `draw` actually shows.
+fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
+    match cursor.position() {
+        Some(position) if visible.contains(position) => cursor,
+        _ => Cursor::Unavailable,
+    }
+}
+
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Message> {
     fn tag(&self) -> tree::Tag {
         self.content.as_widget().tag()
@@ -128,7 +141,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
             tree,
             event,
             layout.children().next().unwrap(),
-            cursor,
+            clip_cursor(cursor, layout.bounds()),
             renderer,
             clipboard,
             shell,
@@ -147,7 +160,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
         self.content.as_widget().mouse_interaction(
             tree,
             layout.children().next().unwrap(),
-            cursor,
+            clip_cursor(cursor, layout.bounds()),
             viewport,
             renderer,
         )
@@ -161,6 +174,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+        // An overlay from a not-yet-revealed child (past the clipped edge) would
+        // otherwise pop up detached from anything visible.
+        if self.fraction <= 0.0 {
+            return None;
+        }
         self.content.as_widget_mut().overlay(
             tree,
             layout.children().next().unwrap(),

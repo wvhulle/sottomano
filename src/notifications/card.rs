@@ -92,8 +92,22 @@ fn fade(color: Color, opacity: f32) -> Color {
     }
 }
 
+/// Alpha-composite `fg` over an opaque `bg`, returning an opaque colour. Used for
+/// the faint resting border: a translucent border would let the desktop bleed
+/// through the 2px border ring on the otherwise-transparent toast surface, so
+/// the faint look is baked into an opaque colour over the card fill instead.
+fn over(fg: Color, bg: Color) -> Color {
+    Color {
+        r: bg.r * (1.0 - fg.a) + fg.r * fg.a,
+        g: bg.g * (1.0 - fg.a) + fg.g * fg.a,
+        b: bg.b * (1.0 - fg.a) + fg.b * fg.a,
+        a: 1.0,
+    }
+}
+
 pub fn card<'a>(
     notif: &Notification,
+    hovered: bool,
     opacity: f32,
     config: &ResolvedConfig,
 ) -> Element<'a, NotificationMessage> {
@@ -190,24 +204,30 @@ pub fn card<'a>(
     body_row = body_row.push(column);
 
     let radius = f32::from(config.layout.corner_radius_px);
-    let background = fade(
-        Color {
-            a: 1.0,
-            ..palette.bar_background
-        },
-        opacity,
-    );
-    let border_color = if critical {
-        fade(palette.urgent, opacity)
+    let fill = Color {
+        a: 1.0,
+        ..palette.bar_background
+    };
+    let background = fade(fill, opacity);
+    // Border: a faint hairline at rest, thicker in the accent tint on hover
+    // (odin's `NotificationCard`). Critical keeps its urgent tint throughout;
+    // others rest as a faint foreground hairline and reach for the focus accent
+    // on hover. The resting hairline is composited opaque over the fill so the
+    // border ring never lets the desktop bleed through it.
+    let rest = if critical {
+        palette.urgent
     } else {
-        fade(
+        over(
             Color {
                 a: 0.25,
                 ..palette.bar_foreground
             },
-            opacity,
+            fill,
         )
     };
+    let accent = if critical { palette.urgent } else { palette.focus };
+    let border_color = fade(if hovered { accent } else { rest }, opacity);
+    let border_width = if hovered { 3.0 } else { 2.0 };
 
     let panel = container(body_row)
         .width(Length::Fixed(config.notifications.width_px))
@@ -216,7 +236,7 @@ pub fn card<'a>(
             background: Some(background.into()),
             border: Border {
                 color: border_color,
-                width: 2.0,
+                width: border_width,
                 radius: radius.into(),
             },
             text_color: Some(foreground),
@@ -224,6 +244,8 @@ pub fn card<'a>(
         });
 
     mouse_area(panel)
+        .on_enter(NotificationMessage::HoverChanged { id, hovered: true })
+        .on_exit(NotificationMessage::HoverChanged { id, hovered: false })
         .on_press(NotificationMessage::BodyClicked(id))
         .on_right_press(NotificationMessage::Dismiss(id))
         .into()

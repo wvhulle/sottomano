@@ -22,40 +22,69 @@ pub const STACK_SPACING: f32 = 8.0;
 /// clamped to the surface — then `SizeChange` shrinks the surface to match.
 const PROVISIONAL_HEIGHT: u32 = 900;
 
-/// The anchor for a corner. A `Center` axis is left unanchored so the compositor
-/// centres the surface on that axis.
-pub fn corner_anchor(vertical: VEdge, horizontal: HEdge) -> Anchor {
-    let mut anchor = Anchor::empty();
-    match vertical {
-        VEdge::Top => anchor |= Anchor::Top,
-        VEdge::Bottom => anchor |= Anchor::Bottom,
-        VEdge::Center => {}
-    }
-    match horizontal {
-        HEdge::Left => anchor |= Anchor::Left,
-        HEdge::Right => anchor |= Anchor::Right,
-        HEdge::Center => {}
-    }
-    anchor
-}
-
-/// Margin (top, right, bottom, left) placing a card `offset` px in from its
-/// corner along the stacking axis. The bar height plus the configured gap insets
-/// the freshest card from the panel edge; `offset` pushes older siblings inward.
-/// A centered axis takes no margin (the compositor centres it).
-pub fn corner_margin(
+/// The anchor and margin (top, right, bottom, left) for one card in its corner
+/// group. Anchored axes (top / bottom) inset the freshest card from the panel
+/// edge and push older siblings inward by `offset`.
+///
+/// A centred *vertical* stack has no edge to offset against — the compositor
+/// would centre each surface's own midpoint, so cards of different heights
+/// overlap. It is instead anchored to the top and given an absolute margin that
+/// centres the whole `group_height` on the output (odin's
+/// `(win.height - groupHeight) / 2 + offset`), with `offset` stepping within it.
+/// When the output height is unknown it falls back to top-anchoring, so cards
+/// still stack rather than pile up. A centred *horizontal* axis stays unanchored
+/// (the compositor centres it, which is what we want).
+pub fn slot_placement(
     vertical: VEdge,
     horizontal: HEdge,
     offset: f32,
+    group_height: f32,
+    output_height: Option<i32>,
     config: &ResolvedConfig,
-) -> (i32, i32, i32, i32) {
-    let edge = (config.layout.outer_height_px + config.notifications.gap_px + offset).round() as i32;
+) -> (Anchor, (i32, i32, i32, i32)) {
     let side = config.notifications.gap_px.round() as i32;
-    let top = i32::from(vertical == VEdge::Top) * edge;
-    let bottom = i32::from(vertical == VEdge::Bottom) * edge;
-    let left = i32::from(horizontal == HEdge::Left) * side;
-    let right = i32::from(horizontal == HEdge::Right) * side;
-    (top, right, bottom, left)
+    let mut anchor = Anchor::empty();
+    let (mut left, mut right) = (0, 0);
+    match horizontal {
+        HEdge::Left => {
+            anchor |= Anchor::Left;
+            left = side;
+        }
+        HEdge::Right => {
+            anchor |= Anchor::Right;
+            right = side;
+        }
+        HEdge::Center => {}
+    }
+
+    let (top, bottom) = match vertical {
+        VEdge::Top => {
+            anchor |= Anchor::Top;
+            (edge_inset(offset, config), 0)
+        }
+        VEdge::Bottom => {
+            anchor |= Anchor::Bottom;
+            (0, edge_inset(offset, config))
+        }
+        VEdge::Center => {
+            anchor |= Anchor::Top;
+            let top = match output_height {
+                Some(height) => {
+                    let origin = ((height as f32 - group_height) / 2.0).max(0.0);
+                    (origin + offset).round() as i32
+                }
+                None => edge_inset(offset, config),
+            };
+            (top, 0)
+        }
+    };
+    (anchor, (top, right, bottom, left))
+}
+
+/// How far a card's edge sits from the panel edge on an anchored axis: the bar
+/// height, the configured gap, and the stacking `offset` for older siblings.
+fn edge_inset(offset: f32, config: &ResolvedConfig) -> i32 {
+    (config.layout.outer_height_px + config.notifications.gap_px + offset).round() as i32
 }
 
 /// Layer-shell settings for one toast surface, bound to `output` (or the active

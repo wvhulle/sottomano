@@ -77,6 +77,25 @@ impl DesktopEntries {
         freedesktop_desktop_entry::find_app_by_id(&self.entries, Ascii::new(app_id))
     }
 
+    /// Whether an app-id is one a normal launcher would show: it has a desktop
+    /// entry that is neither `NoDisplay` nor `Hidden`. Excludes a shell's own
+    /// hidden entry and wrapped binaries with no entry, so quick-launch only
+    /// ranks apps whose icon it can actually show and launch (odin's
+    /// `launchable`).
+    pub fn is_launchable(&self, app_id: &str) -> bool {
+        self.find(app_id)
+            .is_some_and(|entry| !entry.no_display() && !entry.hidden())
+    }
+
+    /// The command to spawn for an app-id, parsed from its desktop entry's
+    /// `Exec` by the crate's spec-compliant parser (quoting honoured, field
+    /// codes like `%U`/`%f` resolved against no files) — enough to launch it
+    /// directly (odin's `DesktopEntries.byId(id).execute()`). `None` when there
+    /// is no entry or its `Exec` is missing/empty/malformed.
+    pub fn exec_command(&self, app_id: &str) -> Option<Vec<String>> {
+        self.find(app_id)?.parse_exec().ok().filter(|c| !c.is_empty())
+    }
+
     /// Resolve an icon-theme name directly, bypassing the `.desktop`/app-id
     /// lookup — for icons picked by convention rather than by app-id, e.g. a
     /// terminal's command-word icon.

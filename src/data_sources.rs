@@ -23,8 +23,11 @@ pub mod desktop_entries;
 pub mod disk;
 pub mod favicons;
 pub mod icon_trim;
+pub mod launch_store;
+pub mod launch_tracker;
 pub mod niri;
 pub mod sysfs_sensors;
+pub mod systemd_failed;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Level {
@@ -172,6 +175,20 @@ pub trait BarWidget {
 
     fn value(&self) -> Option<Value> {
         None
+    }
+
+    /// A superscript count drawn over the icon (odin's `badge`); `None` or `0`
+    /// draws nothing. Used by count-carrying indicators (failed units, tray
+    /// items, connected peers).
+    fn badge(&self) -> Option<u32> {
+        None
+    }
+
+    /// Whether the reading is present but inactive (odin's `disabled`): drawn
+    /// dimmed rather than at full strength (e.g. a muted sink, a powered-off
+    /// radio). Distinct from unavailable, which takes the widget off the bar.
+    fn disabled(&self) -> bool {
+        false
     }
 
     fn tooltip(&self) -> TooltipBody;

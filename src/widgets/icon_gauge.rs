@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Border, Color, Element,
-    widget::{Column, Space, container, row},
+    widget::{Column, Row, Space, container, row, text},
 };
 
 use crate::{
@@ -10,41 +10,67 @@ use crate::{
 };
 
 /// A source-backed leaf: Font Awesome icon + thin vertical gauge (or a text
-/// label for a label-only source), tinted by severity. `None` when the source
-/// is unavailable. `alpha` scales every colour's opacity so a reading can fade
-/// in/out (1.0 = fully opaque).
+/// label for a label-only source), tinted by severity, with an optional
+/// superscript badge. `None` when the source is unavailable. `alpha` scales
+/// every colour's opacity so a reading can fade in/out (1.0 = fully opaque); a
+/// `disabled` reading is dimmed further.
 pub fn source_reading<'a, Message: 'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,
     alpha: f32,
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
-    let color = level_color(config, widget.level()).scale_alpha(alpha);
+    let dim = if widget.disabled() { 0.4 } else { 1.0 };
+    let color = level_color(config, widget.level()).scale_alpha(alpha * dim);
     let icon = widget
         .icon()
         .solid()
         .size(config.font.icon_size_px)
         .color(color);
 
-    match widget.value() {
-        Some(value) => Some(
-            row![
-                icon,
-                gauge(value.percent(), color, config.font.icon_size_px)
-            ]
-            .spacing(config.layout.horizontal_widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into(),
-        ),
+    let reading = match widget.value() {
+        Some(value) => row![
+            icon,
+            gauge(value.percent(), color, config.font.icon_size_px)
+        ]
+        .spacing(config.layout.horizontal_widget_spacing_px)
+        .align_y(Alignment::Center)
+        .into(),
         None => match widget.label() {
-            Some(label) if !label.is_empty() => Some(
+            Some(label) if !label.is_empty() => {
                 row![icon, bar_text(&config.font, label).color(color)]
                     .spacing(config.layout.horizontal_widget_spacing_px)
                     .align_y(Alignment::Center)
-                    .into(),
-            ),
-            _ => Some(icon.into()),
+                    .into()
+            }
+            _ => Element::from(icon),
         },
+    };
+
+    Some(badged(config, reading, widget.badge(), color))
+}
+
+/// Attach a superscript count to a reading (odin's `badge`), top-aligned to the
+/// right so it rides above the glyph's baseline. `None` or `0` leaves the
+/// reading untouched.
+fn badged<'a, Message: 'a>(
+    config: &ResolvedConfig,
+    reading: Element<'a, Message>,
+    badge: Option<u32>,
+    color: Color,
+) -> Element<'a, Message> {
+    match badge {
+        Some(count) if count > 0 => {
+            let superscript = text(count.to_string())
+                .size(config.font.text_size_px * 0.62)
+                .font(config.font.iced_font)
+                .color(color);
+            Row::with_children([reading, superscript.into()])
+                .spacing(1.0)
+                .align_y(Alignment::Start)
+                .into()
+        }
+        _ => reading,
     }
 }
 

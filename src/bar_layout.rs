@@ -5,6 +5,7 @@ use iced::{
     Alignment, Element, Length,
     widget::{Row, Space, row},
 };
+use journal_group::JournalMessage;
 use panel_settings_group::PanelSettingsMessage;
 use system_group::SystemMessage;
 use workspaces_group::WorkspacesMessage;
@@ -17,7 +18,9 @@ use crate::{
 
 pub mod battery_group;
 pub mod clock_group;
+pub mod journal_group;
 pub mod panel_settings_group;
+pub mod quick_launch_group;
 pub mod source_cell;
 pub mod system_group;
 pub mod window_list_group;
@@ -37,6 +40,12 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                 e.map(|m| match m {
                     SystemMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::System(m),
+                })
+            }),
+            bar.journal_group.view(config).map(|e| {
+                e.map(|m| match m {
+                    JournalMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Journal(m),
                 })
             }),
             bar.panel_settings_group.view(config, position).map(|e| {
@@ -77,13 +86,19 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
         )],
         config,
     );
-    let center = Row::with_children(
-        bar.window_list
-            .view(&bar.niri_snapshot, output, config, position)
-            .map(|e| e.map(Message::WindowList)),
-    )
-    .spacing(config.layout.horizontal_group_spacing_px)
-    .align_y(Alignment::Center);
+    let quick_launch = bar
+        .quick_launch
+        .view(output, config, position)
+        .map(|e| e.map(Message::QuickLaunch));
+    let window_list = bar
+        .window_list
+        .view(&bar.niri_snapshot, output, config, position)
+        .map(|e| e.map(Message::WindowList));
+    let center = Row::new()
+        .extend(quick_launch)
+        .extend(window_list)
+        .spacing(config.layout.horizontal_group_spacing_px)
+        .align_y(Alignment::Center);
     bar_row(start, center.into(), config)
 }
 

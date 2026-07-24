@@ -1,8 +1,9 @@
 //! The bar application: a multi-output daemon with one layer-shell surface per
 //! output/edge.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
+use chrono::Utc;
 use iced::{
     Alignment, Color, Element, Length, Task,
     theme::Style,
@@ -18,7 +19,9 @@ use crate::{
         self,
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
+        journal_group::{JournalGroup, JournalMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
+        quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
         system_group::{SystemGroup, SystemMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
@@ -27,10 +30,12 @@ use crate::{
         Tooltip, TooltipBody,
         app_icon::DesktopEntries,
         desktop_entries::{self, DesktopIndex},
+        launch_store,
+        launch_tracker::{Buckets, LaunchTracker},
         niri,
     },
     layer_surface::{Position, Surface, float_margin, layer_settings},
-    message_subscriptions::niri_action,
+    message_subscriptions::{blocking, niri_action},
     notifications::{NotificationGroup, NotificationMessage},
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
 };
@@ -41,7 +46,12 @@ pub struct Bar {
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
     pub(crate) clock_group: ClockGroup,
+    pub(crate) journal_group: JournalGroup,
     pub(crate) window_list: WindowListGroup,
+    pub(crate) quick_launch: QuickLaunchGroup,
+    /// In-memory launch-frequency model feeding quick-launch, persisted to disk
+    /// by [`launch_store`].
+    pub(crate) launch_tracker: LaunchTracker,
     pub(crate) niri: EventStreamState,
     /// Bar-facing derivation of `niri`, recomputed once per niri event so
     /// `view` reads borrowed slices instead of re-collecting per redraw.
@@ -64,7 +74,13 @@ pub enum Message {
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
     Clock(ClockMessage),
+    Journal(JournalMessage),
     WindowList(WindowListMessage),
+    QuickLaunch(QuickLaunchMessage),
+    /// The persisted launch-frequency model finished loading from disk.
+    TrackerLoaded(Buckets),
+    /// The shared `.desktop` index finished (re)loading.
+    DesktopEntriesLoaded(Arc<DesktopEntries>),
     DismissPressed,
     WorkspaceClicked(u64),
     Niri(niri_ipc::Event),
@@ -75,7 +91,6 @@ pub enum Message {
     TooltipTick,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
-    DesktopEntriesLoaded(std::sync::Arc<DesktopEntries>),
     ReloadDesktopEntries,
 }
 
@@ -86,7 +101,10 @@ impl Bar {
             system_group: SystemGroup::new(config.layout.menu_expand_ms),
             panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
             clock_group: ClockGroup::default(),
+            journal_group: JournalGroup::default(),
             window_list: WindowListGroup::default(),
+            quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
+            launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
             niri_placement: niri::Placement::default(),
@@ -96,7 +114,11 @@ impl Bar {
             desktop_entries: DesktopIndex::default(),
             config,
         };
-        let init = desktop_entries::load().map(Message::DesktopEntriesLoaded);
+        let init = Task::batch([
+            desktop_entries::load().map(Message::DesktopEntriesLoaded),
+            Task::perform(launch_store::load(), Message::TrackerLoaded),
+            query_output_heights(),
+        ]);
         (bar, init)
     }
 
@@ -108,7 +130,9 @@ impl Bar {
     /// animation subscription. Frame ticking is an app-level concern, so it is
     /// aggregated here across all menu groups rather than exposed per group.
     pub fn is_animating(&self) -> bool {
-        self.system_group.menu.is_animating() || self.panel_settings_group.menu.is_animating()
+        self.system_group.menu.is_animating()
+            || self.panel_settings_group.menu.is_animating()
+            || self.quick_launch.menu.is_animating()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -117,10 +141,13 @@ impl Bar {
                 let now = Instant::now();
                 self.system_group.menu.tick(now);
                 self.panel_settings_group.menu.tick(now);
+                self.quick_launch.menu.tick(now);
                 Task::none()
             }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
-                self.open_bars(&name)
+                // Re-query output sizes too: a new output changes where a centred
+                // notification stack lands.
+                Task::batch([self.open_bars(&name), query_output_heights()])
             }
             Message::WindowList(WindowListMessage::Clicked(window)) => {
                 niri_action(move || niri::focus_window(window))
@@ -131,11 +158,26 @@ impl Bar {
                     .update(msg, &self.niri, &self.config.font, entries.as_ref())
                     .map(Message::WindowList)
             }
+            Message::QuickLaunch(msg) => self.quick_launch.update(msg).map(Message::QuickLaunch),
+            Message::TrackerLoaded(buckets) => {
+                self.launch_tracker.load_from(buckets);
+                self.refresh_quick_launch()
+            }
             Message::DesktopEntriesLoaded(entries) => {
+                // The app owns the reload cadence, keeps the index for the
+                // launchability check, and fans it out to the icon-resolving
+                // groups (window list, quick-launch). Re-rank once it lands so
+                // the launchable gate applies.
                 self.desktop_entries.set(entries.clone());
-                self.window_list
-                    .on_entries_loaded(&self.niri, &entries)
-                    .map(Message::WindowList)
+                Task::batch([
+                    self.window_list
+                        .on_entries_loaded(&self.niri, &entries)
+                        .map(Message::WindowList),
+                    self.quick_launch
+                        .set_desktop_entries(entries)
+                        .map(Message::QuickLaunch),
+                    self.refresh_quick_launch(),
+                ])
             }
             Message::ReloadDesktopEntries => {
                 desktop_entries::load().map(Message::DesktopEntriesLoaded)
@@ -153,10 +195,15 @@ impl Bar {
                 self.clock_group.update(msg);
                 Task::none()
             }
+            Message::Journal(msg) => {
+                self.journal_group.update(msg);
+                Task::none()
+            }
             Message::DismissPressed => {
                 self.panel_settings_group
                     .update(PanelSettingsMessage::Close);
                 self.system_group.update(SystemMessage::Close);
+                let _ = self.quick_launch.update(QuickLaunchMessage::Close);
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
@@ -222,6 +269,8 @@ impl Bar {
             TooltipSource::Disk => self.system_group.disk_cell().tooltip(),
             TooltipSource::Battery => self.battery_group.cell().tooltip(),
             TooltipSource::Floating => Some(panel_settings_group::floating_tooltip(&self.config)),
+            TooltipSource::JournalSystem => self.journal_group.system_cell().tooltip(),
+            TooltipSource::JournalUser => self.journal_group.user_cell().tooltip(),
         }
         .unwrap_or_else(Tooltip::empty)
     }
@@ -243,10 +292,22 @@ impl Bar {
                 | niri_ipc::Event::WindowOpenedOrChanged { .. }
                 | niri_ipc::Event::WindowClosed { .. }
         );
+        // The active-workspace change and the open-app-set change are exactly
+        // when quick-launch's ranking can change.
+        let workspace_change = matches!(
+            event,
+            niri_ipc::Event::WorkspacesChanged { .. } | niri_ipc::Event::WorkspaceActivated { .. }
+        );
+        // Fold the event into the launch tracker before it is consumed; a
+        // counted launch is persisted to disk (fire-and-forget).
+        let launched = self.launch_tracker.observe(&event);
         let _ = self.niri.apply(event);
         self.niri_snapshot = niri::Snapshot::derive(&self.niri);
         self.niri_placement = niri::Placement::derive(&self.niri);
         let mut tasks = Vec::new();
+        if let Some(delta) = launched {
+            tasks.push(Task::future(launch_store::record(delta)).discard());
+        }
         if window_change {
             let entries = self.desktop_entries.arc();
             tasks.push(
@@ -254,6 +315,9 @@ impl Bar {
                     .refresh(&self.niri, &self.config.font, entries.as_ref())
                     .map(Message::WindowList),
             );
+        }
+        if window_change || workspace_change {
+            tasks.push(self.refresh_quick_launch());
         }
         // Only recompute toast placement while toasts are up — a niri change can
         // move a toast's corner or re-home it to another output.
@@ -265,6 +329,41 @@ impl Bar {
             ));
         }
         Task::batch(tasks)
+    }
+
+    /// Re-rank quick-launch for every open output from the in-memory tracker:
+    /// for each distinct output (a top and bottom surface share one), rank its
+    /// active workspace's candidates against the currently-open set, gated to
+    /// launchable apps. Cheap and synchronous; only the icon resolve it triggers
+    /// runs off-thread. A no-op until the `.desktop` index has loaded.
+    fn refresh_quick_launch(&mut self) -> Task<Message> {
+        let Some(entries) = self.desktop_entries.arc() else {
+            return Task::none();
+        };
+        let now = Utc::now();
+        let mut outputs: Vec<String> = self
+            .surfaces
+            .values()
+            .map(|surface| surface.output.clone())
+            .collect();
+        outputs.sort_unstable();
+        outputs.dedup();
+        let ranked = outputs
+            .into_iter()
+            .filter_map(|output| {
+                let workspace = self.niri_snapshot.active_workspace_name(&output)?;
+                let open = self.niri_snapshot.open_app_ids(&output);
+                let apps = self.launch_tracker.rank(
+                    workspace,
+                    &open,
+                    quick_launch_group::MAX_ITEMS,
+                    now,
+                    |app_id| entries.is_launchable(app_id),
+                );
+                (!apps.is_empty()).then_some((output, apps))
+            })
+            .collect();
+        self.quick_launch.set_ranked(ranked).map(Message::QuickLaunch)
     }
 
     /// The config-mutating knobs are intercepted here rather than handled in
@@ -381,4 +480,12 @@ impl Bar {
             text_color: self.config.palette.bar_foreground,
         }
     }
+}
+
+/// Query niri for the connected outputs' logical heights off-thread, delivering
+/// them to the notification group so a centred toast stack can place itself
+/// against the screen height.
+fn query_output_heights() -> Task<Message> {
+    blocking("niri outputs", niri::output_heights)
+        .map(|heights| Message::Notification(NotificationMessage::OutputsResolved(heights)))
 }

@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, fmt, io::Error, thread};
 
-use niri_ipc::{Event, Request, socket::Socket, state::EventStreamState};
+use niri_ipc::{Event, Request, Response, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
 
 /// Vertical half of a screen position: a notification toast anchors to the top
@@ -114,6 +114,35 @@ impl Snapshot {
 
     pub fn active_workspace_id(&self, output: &str) -> Option<u64> {
         self.active.get(output).copied()
+    }
+
+    /// The name of the output's active workspace, if it has one. Quick-launch
+    /// buckets are keyed by workspace name, so an unnamed active workspace has
+    /// no bucket (and thus no quick-launch offerings).
+    pub fn active_workspace_name(&self, output: &str) -> Option<&str> {
+        let id = self.active_workspace_id(output)?;
+        self.workspaces
+            .get(output)?
+            .iter()
+            .find(|pill| pill.id == id)
+            .and_then(|pill| pill.name.as_deref())
+    }
+
+    /// Distinct, non-empty app-ids of the windows open on the output's active
+    /// workspace — the set quick-launch excludes as already-open.
+    pub fn open_app_ids(&self, output: &str) -> Vec<String> {
+        let Some(id) = self.active_workspace_id(output) else {
+            return Vec::new();
+        };
+        let mut ids: Vec<String> = self
+            .windows_on_workspace(id)
+            .iter()
+            .map(|win| win.app_id.clone())
+            .filter(|app_id| !app_id.is_empty())
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
     }
 }
 
@@ -399,6 +428,34 @@ pub fn move_window_here(id: u64, target_ws: u64) {
     };
     if let Err(e) = send_action(action) {
         eprintln!("niri: move window {id} to workspace {target_ws}: {e}");
+    }
+}
+
+/// Spawn a command through niri, so the resulting window lands in niri's scope
+/// (odin's `niri msg action spawn`). The last-resort quick-launch path when an
+/// app has neither a cwd-aware launch command nor a resolvable desktop entry.
+pub fn spawn(command: Vec<String>) {
+    if let Err(e) = send_action(niri_ipc::Action::Spawn {
+        command: command.clone(),
+    }) {
+        eprintln!("niri: spawn {command:?}: {e}");
+    }
+}
+
+/// The logical pixel height of each connected output, by name, from a one-shot
+/// `Outputs` query. The niri event stream carries no output sizes, but a centred
+/// notification stack needs the screen height to place itself. Empty on any
+/// failure (the caller then falls back to edge-anchored stacking).
+pub fn output_heights() -> HashMap<String, i32> {
+    let Ok(reply) = Socket::connect().and_then(|mut socket| socket.send(Request::Outputs)) else {
+        return HashMap::new();
+    };
+    match reply {
+        Ok(Response::Outputs(outputs)) => outputs
+            .into_iter()
+            .filter_map(|(name, output)| output.logical.map(|logical| (name, logical.height as i32)))
+            .collect(),
+        _ => HashMap::new(),
     }
 }
 

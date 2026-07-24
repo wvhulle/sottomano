@@ -26,7 +26,7 @@ use crate::{
     message_subscriptions::niri_action,
 };
 use model::{NotifHandle, NotificationData, Outbound, close_reason};
-use placement::{placement_for, resolve_window_id};
+use placement::{ToastPlacement, placement_for, resolve_window_id};
 
 /// Action keys odin runs itself against the hinted window instead of handing
 /// back to the client: `default` (the freedesktop primary action) and the
@@ -49,10 +49,15 @@ pub enum NotificationMessage {
     CardMeasured { id: u32, height: f32 },
     /// The card body was left-clicked.
     BodyClicked(u32),
+    /// The pointer entered or left a card, for its hover-border highlight.
+    HoverChanged { id: u32, hovered: bool },
     /// The card was right-clicked, or otherwise dismissed by the user.
     Dismiss(u32),
     /// An action button was pressed.
     ActionClicked { id: u32, key: String },
+    /// The connected outputs' logical heights arrived, so a centred stack can be
+    /// placed against the screen height.
+    OutputsResolved(HashMap<String, i32>),
 }
 
 /// One tracked notification. The freedesktop notification carries no timestamp,
@@ -80,6 +85,10 @@ pub struct NotificationGroup {
     live: Vec<Notification>,
     surfaces: HashMap<u32, ToastSurface>,
     heights: HashMap<u32, f32>,
+    /// The card the pointer is currently over, for its hover-border highlight.
+    hovered: Option<u32>,
+    /// Each output's logical height (by name), for centring a vertical stack.
+    output_heights: HashMap<String, i32>,
     dnd: bool,
 }
 
@@ -148,6 +157,17 @@ impl NotificationGroup {
                     None => self.dismiss(id, close_reason::DISMISSED, niri, placement, config),
                 }
             }
+            // Hover changes only the border tint/width — a pure repaint, no
+            // geometry change, so no reconcile. Guard the exit so a stray leave
+            // from a card the pointer already left doesn't clear a newer hover.
+            NotificationMessage::HoverChanged { id, hovered } => {
+                if hovered {
+                    self.hovered = Some(id);
+                } else if self.hovered == Some(id) {
+                    self.hovered = None;
+                }
+                Task::none()
+            }
             NotificationMessage::Dismiss(id) => {
                 self.dismiss(id, close_reason::DISMISSED, niri, placement, config)
             }
@@ -156,6 +176,12 @@ impl NotificationGroup {
             }
             NotificationMessage::CloseRequested(id) => {
                 self.dismiss(id, close_reason::CLOSED_BY_CALL, niri, placement, config)
+            }
+            // Re-place existing toasts now that the screen height is known, so a
+            // centred stack settles onto the true centre.
+            NotificationMessage::OutputsResolved(heights) => {
+                self.output_heights = heights;
+                self.reconcile(niri, placement, config)
             }
         }
     }
@@ -240,7 +266,8 @@ impl NotificationGroup {
     pub fn view(&self, id: Id, config: &ResolvedConfig) -> Option<Element<'_, Message>> {
         let (&notif_id, _) = self.surfaces.iter().find(|(_, s)| s.id == id)?;
         let notif = self.live.iter().find(|n| n.data.id == notif_id)?;
-        let sensor = Sensor::new(card::card(notif, 1.0, config)).on_resize(move |size| {
+        let hovered = self.hovered == Some(notif_id);
+        let sensor = Sensor::new(card::card(notif, hovered, 1.0, config)).on_resize(move |size| {
             NotificationMessage::CardMeasured {
                 id: notif_id,
                 height: size.height,
@@ -307,8 +334,8 @@ impl NotificationGroup {
         let mut tasks = Vec::new();
 
         for slot in &desired {
-            let anchor = stack::corner_anchor(slot.vertical, slot.horizontal);
-            let margin = stack::corner_margin(slot.vertical, slot.horizontal, slot.offset, config);
+            let anchor = slot.anchor;
+            let margin = slot.margin;
             let size = (width, stack::surface_height(self.heights.get(&slot.id).copied()));
 
             match self.surfaces.get_mut(&slot.id) {
@@ -383,8 +410,9 @@ impl NotificationGroup {
         Task::batch(tasks)
     }
 
-    /// Each visible toast's corner slot: its output, corner, and the stacking
-    /// offset from that corner (freshest hugs the edge, older pushed inward).
+    /// Each visible toast's placement: its output plus the anchor and margin its
+    /// surface should take. Freshest hugs the edge, older siblings step inward;
+    /// a centred vertical group is centred as a whole against the output height.
     /// Empty while DND is on.
     fn desired_slots(
         &self,
@@ -399,34 +427,69 @@ impl NotificationGroup {
         let mut order: Vec<&Notification> = self.live.iter().collect();
         order.sort_by_key(|n| std::cmp::Reverse(n.created_at));
 
-        let mut offsets: HashMap<(Option<String>, VEdge, HEdge), f32> = HashMap::new();
-        order
+        // Resolve each toast's placement and measured height once.
+        let placed: Vec<(&Notification, ToastPlacement, f32)> = order
             .iter()
             .map(|notif| {
                 let place = placement_for(&notif.data, niri, placement, config);
-                let key = (place.output.clone(), place.vertical, place.horizontal);
-                let offset = offsets.entry(key).or_insert(0.0);
-                let slot = Slot {
-                    id: notif.data.id,
-                    output: place.output,
-                    vertical: place.vertical,
-                    horizontal: place.horizontal,
-                    offset: *offset,
-                };
                 let height = self.heights.get(&notif.data.id).copied().unwrap_or(0.0);
+                (*notif, place, height)
+            })
+            .collect();
+
+        // Total height of each corner group (card heights plus the gaps between
+        // them), so a centred stack can be centred as one block.
+        let mut totals: HashMap<GroupKey, (f32, usize)> = HashMap::new();
+        for (_, place, height) in &placed {
+            let entry = totals.entry(group_key(place)).or_insert((0.0, 0));
+            entry.0 += height;
+            entry.1 += 1;
+        }
+
+        let mut offsets: HashMap<GroupKey, f32> = HashMap::new();
+        placed
+            .iter()
+            .map(|(notif, place, height)| {
+                let key = group_key(place);
+                let (sum, count) = totals[&key];
+                let group_height = sum + stack::STACK_SPACING * (count.saturating_sub(1)) as f32;
+                let offset = offsets.entry(key).or_insert(0.0);
+                let output_height = place
+                    .output
+                    .as_deref()
+                    .and_then(|output| self.output_heights.get(output).copied());
+                let (anchor, margin) = stack::slot_placement(
+                    place.vertical,
+                    place.horizontal,
+                    *offset,
+                    group_height,
+                    output_height,
+                    config,
+                );
                 *offset += height + stack::STACK_SPACING;
-                slot
+                Slot {
+                    id: notif.data.id,
+                    output: place.output.clone(),
+                    anchor,
+                    margin,
+                }
             })
             .collect()
     }
 }
 
+/// The corner a toast groups into: its output and both edges.
+type GroupKey = (Option<String>, VEdge, HEdge);
+
+fn group_key(place: &ToastPlacement) -> GroupKey {
+    (place.output.clone(), place.vertical, place.horizontal)
+}
+
 struct Slot {
     id: u32,
     output: Option<String>,
-    vertical: VEdge,
-    horizontal: HEdge,
-    offset: f32,
+    anchor: Anchor,
+    margin: (i32, i32, i32, i32),
 }
 
 /// Whether a notification's window has closed. Only "window-owned" toasts — one
