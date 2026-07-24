@@ -4,12 +4,13 @@
 //! expand animation lives in that primitive.
 
 use iced::{
-    Alignment, Element, Subscription, Task,
+    Alignment, Element, Subscription,
     widget::{Row, mouse_area},
 };
 
 use crate::{
-    bar_layout::source_cell::{SourceCell, SourceMessage},
+    bar_layout::source_cell::SourceCell,
+    config::resolved::ResolvedConfig,
     data_sources::{
         BarWidget,
         disk::Disk,
@@ -17,7 +18,6 @@ use crate::{
     },
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    config::resolved::ResolvedConfig,
     widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
 };
 
@@ -44,10 +44,10 @@ pub struct SystemGroup {
 
 #[derive(Debug, Clone)]
 pub enum SystemMessage {
-    Cpu(SourceMessage<CpuUsage>),
-    Memory(SourceMessage<Memory>),
-    Temperature(SourceMessage<Temperature>),
-    Disk(SourceMessage<Disk>),
+    Cpu(Option<CpuUsage>),
+    Memory(Option<Memory>),
+    Temperature(Option<Temperature>),
+    Disk(Option<Disk>),
     Toggle,
     Hover(bool),
     Close,
@@ -65,15 +65,6 @@ impl SystemGroup {
         }
     }
 
-    pub fn init() -> Task<SystemMessage> {
-        Task::batch([
-            SourceCell::init().map(SystemMessage::Cpu),
-            SourceCell::init().map(SystemMessage::Memory),
-            SourceCell::init().map(SystemMessage::Temperature),
-            SourceCell::init().map(SystemMessage::Disk),
-        ])
-    }
-
     pub fn subscription() -> Subscription<SystemMessage> {
         Subscription::batch([
             SourceCell::subscription().map(SystemMessage::Cpu),
@@ -83,27 +74,16 @@ impl SystemGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: SystemMessage) -> Task<SystemMessage> {
+    pub fn update(&mut self, msg: SystemMessage) {
         match msg {
-            SystemMessage::Cpu(msg) => self.cpu.update(msg).map(SystemMessage::Cpu),
-            SystemMessage::Memory(msg) => self.memory.update(msg).map(SystemMessage::Memory),
-            SystemMessage::Temperature(msg) => {
-                self.temperature.update(msg).map(SystemMessage::Temperature)
-            }
-            SystemMessage::Disk(msg) => self.disk.update(msg).map(SystemMessage::Disk),
-            SystemMessage::Toggle => {
-                self.menu.toggle();
-                Task::none()
-            }
-            SystemMessage::Hover(hovered) => {
-                self.menu.set_hover(hovered);
-                Task::none()
-            }
-            SystemMessage::Close => {
-                self.menu.close();
-                Task::none()
-            }
-            SystemMessage::Tooltip(_) => Task::none(),
+            SystemMessage::Cpu(reading) => self.cpu.load(reading),
+            SystemMessage::Memory(reading) => self.memory.load(reading),
+            SystemMessage::Temperature(reading) => self.temperature.load(reading),
+            SystemMessage::Disk(reading) => self.disk.load(reading),
+            SystemMessage::Toggle => self.menu.toggle(),
+            SystemMessage::Hover(hovered) => self.menu.set_hover(hovered),
+            SystemMessage::Close => self.menu.close(),
+            SystemMessage::Tooltip(_) => {}
         }
     }
 

@@ -4,8 +4,8 @@ use iced::{
 };
 
 use crate::{
-    data_sources::{BarWidget, level_color},
     config::resolved::ResolvedConfig,
+    data_sources::{BarWidget, level_color},
     widgets::text::bar_text,
 };
 

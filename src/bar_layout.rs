@@ -11,8 +11,8 @@ use workspaces_group::WorkspacesMessage;
 
 use crate::{
     bar_program::{Bar, Message},
-    layer_surface::Position,
     config::resolved::ResolvedConfig,
+    layer_surface::Position,
 };
 
 pub mod battery_group;
@@ -30,7 +30,7 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
             bar.battery_group.view(config).map(|e| {
                 e.map(|m| match m {
                     BatteryMessage::Tooltip(t) => Message::Tooltip(t),
-                    m @ BatteryMessage::Source(_) => Message::Battery(m),
+                    m @ BatteryMessage::Reading(_) => Message::Battery(m),
                 })
             }),
             bar.system_group.view(config, position).map(|e| {
@@ -72,14 +72,14 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
     let config = &bar.config;
     let start = zone(
         [Some(
-            workspaces_group::view(&bar.niri, output, config, position)
+            workspaces_group::view(&bar.niri_snapshot, output, config, position)
                 .map(|WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id)),
         )],
         config,
     );
     let center = Row::with_children(
         bar.window_list
-            .view(&bar.niri, output, config, position)
+            .view(&bar.niri_snapshot, output, config, position)
             .map(|e| e.map(Message::WindowList)),
     )
     .spacing(config.layout.horizontal_group_spacing_px)

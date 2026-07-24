@@ -1,15 +1,15 @@
-//! A self-polling holder for one [`Source`] reading: owns the latest data,
-//! its poll timer (cadence declared by the source itself via
-//! [`Source::INTERVAL`]), and the off-thread poll task. Groups compose cells
-//! and keep only their visuals.
+//! A holder for one [`Source`] reading: owns the latest data and delegates
+//! its refresh cadence to the [`polling`] stream (declared by the source
+//! itself via [`Source::INTERVAL`]). Groups compose cells and keep only their
+//! visuals.
 
 use std::time::SystemTime;
 
-use iced::{Subscription, Task};
+use iced::Subscription;
 
 use crate::{
     data_sources::{RefreshInfo, Source, Tooltip},
-    message_subscriptions::poll,
+    message_subscriptions::polling,
 };
 
 pub struct SourceCell<S> {
@@ -27,30 +27,17 @@ impl<S> Default for SourceCell<S> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum SourceMessage<S> {
-    Loaded(Option<S>),
-    PollElapsed,
-}
-
 impl<S: Source + Send + 'static> SourceCell<S> {
-    pub fn init() -> Task<SourceMessage<S>> {
-        poll::<S>().map(SourceMessage::Loaded)
+    /// The cell's readings: an immediate first poll (the initial load), then
+    /// one per [`Source::INTERVAL`]. `None` clears the reading — a poll that
+    /// finds no sensor takes the cell off the bar rather than freezing it.
+    pub fn subscription() -> Subscription<Option<S>> {
+        polling::<S>()
     }
 
-    pub fn subscription() -> Subscription<SourceMessage<S>> {
-        iced::time::every(S::INTERVAL).map(|_| SourceMessage::PollElapsed)
-    }
-
-    pub fn update(&mut self, msg: SourceMessage<S>) -> Task<SourceMessage<S>> {
-        match msg {
-            SourceMessage::Loaded(data) => {
-                self.data = data;
-                self.last_refreshed = Some(SystemTime::now());
-                Task::none()
-            }
-            SourceMessage::PollElapsed => Self::init(),
-        }
+    pub fn load(&mut self, data: Option<S>) {
+        self.data = data;
+        self.last_refreshed = Some(SystemTime::now());
     }
 
     pub fn get(&self) -> Option<&S> {

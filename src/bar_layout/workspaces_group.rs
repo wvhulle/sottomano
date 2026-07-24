@@ -4,12 +4,11 @@ use iced::{
     Alignment, Element, Padding,
     widget::{Row, container, mouse_area, row},
 };
-use niri_ipc::state::EventStreamState;
 
 use crate::{
+    config::resolved::ResolvedConfig,
     data_sources::niri,
     layer_surface::Position,
-    config::resolved::ResolvedConfig,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
 };
 
@@ -19,33 +18,31 @@ pub enum WorkspacesMessage {
 }
 
 pub fn view<'a>(
-    niri: &EventStreamState,
+    niri: &niri::Snapshot,
     output: &str,
     config: &ResolvedConfig,
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
-    let slots = niri::workspaces_for_output(niri, output)
-        .into_iter()
-        .map(|p| {
-            let label = workspace_label(config, &p);
-            let (focus_color, focus_opacity) = if p.is_urgent {
-                (config.palette.urgent, 1.0)
-            } else if p.is_active {
-                (config.palette.focus, 1.0)
-            } else {
-                (config.palette.focus, 0.0)
-            };
-            let focus = activity_line(
-                focus_color,
-                focus_opacity,
-                config.layout.focus_underline_thickness_px,
-            );
-            let ticks = window_ticks(config, niri, p.id);
+    let slots = niri.workspaces_for_output(output).iter().map(|p| {
+        let label = workspace_label(config, p);
+        let (focus_color, focus_opacity) = if p.is_urgent {
+            (config.palette.urgent, 1.0)
+        } else if p.is_active {
+            (config.palette.focus, 1.0)
+        } else {
+            (config.palette.focus, 0.0)
+        };
+        let focus = activity_line(
+            focus_color,
+            focus_opacity,
+            config.layout.focus_underline_thickness_px,
+        );
+        let ticks = window_ticks(config, niri, p.id);
 
-            mouse_area(PagerSlot::new(label, focus).ticks(ticks).view(position))
-                .on_press(WorkspacesMessage::Clicked(p.id))
-                .into()
-        });
+        mouse_area(PagerSlot::new(label, focus).ticks(ticks).view(position))
+            .on_press(WorkspacesMessage::Clicked(p.id))
+            .into()
+    });
     Row::with_children(slots)
         .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
         .align_y(Alignment::Center)
@@ -54,26 +51,27 @@ pub fn view<'a>(
 
 fn window_ticks<'a>(
     config: &ResolvedConfig,
-    niri: &EventStreamState,
+    niri: &niri::Snapshot,
     workspace: u64,
 ) -> Element<'a, WorkspacesMessage> {
     let thickness = config.layout.window_segment_thickness_px;
-    let segments = niri::windows_on_workspace(niri, workspace)
-        .into_iter()
-        .map(move |w| {
-            let color = if w.is_urgent {
-                config.palette.urgent
-            } else if w.is_focused {
-                config.palette.focus
-            } else {
-                config.palette.inactive
-            };
-            activity_line(color, 1.0, thickness)
-        });
+    let segments = niri.windows_on_workspace(workspace).iter().map(|w| {
+        let color = if w.is_urgent {
+            config.palette.urgent
+        } else if w.is_focused {
+            config.palette.focus
+        } else {
+            config.palette.inactive
+        };
+        activity_line(color, 1.0, thickness)
+    });
     Row::with_children(segments).spacing(1.0).into()
 }
 
-fn workspace_label<'a>(config: &ResolvedConfig, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
+fn workspace_label<'a>(
+    config: &ResolvedConfig,
+    p: &niri::WsPill,
+) -> Element<'a, WorkspacesMessage> {
     let key = if p.idx == 10 {
         "0".to_string()
     } else {

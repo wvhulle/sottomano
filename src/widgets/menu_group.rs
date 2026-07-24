@@ -14,8 +14,8 @@ use iced::{
 };
 
 use crate::{
-    layer_surface::Position,
     config::resolved::ResolvedConfig,
+    layer_surface::Position,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 

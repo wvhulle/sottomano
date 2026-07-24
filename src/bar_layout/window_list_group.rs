@@ -18,6 +18,7 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 
 use crate::{
+    config::resolved::{ResolvedConfig, ResolvedFontConfig, fallback_font},
     data_sources::{
         app_icon::{self, DesktopEntries},
         app_rules::{self, AppRule, IconCandidate, TitleParts},
@@ -26,7 +27,6 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    config::resolved::{ResolvedConfig, ResolvedFontConfig, fallback_font},
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans},
 };
 
@@ -274,13 +274,13 @@ impl WindowListGroup {
 
     pub fn view<'a>(
         &'a self,
-        niri: &EventStreamState,
+        niri: &niri::Snapshot,
         output: &str,
         config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, WindowListMessage>> {
-        let workspace = niri::active_workspace_id(niri, output)?;
-        let windows = niri::windows_on_workspace(niri, workspace);
+        let workspace = niri.active_workspace_id(output)?;
+        let windows = niri.windows_on_workspace(workspace);
         if windows.is_empty() {
             return None;
         }

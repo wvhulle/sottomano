@@ -1,6 +1,6 @@
 //! niri integration via the `niri-ipc` event stream.
 
-use std::{fmt, io::Error, thread};
+use std::{collections::HashMap, fmt, io::Error, thread};
 
 use niri_ipc::{Event, Request, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
@@ -14,22 +14,79 @@ pub struct WsPill {
     pub is_urgent: bool,
 }
 
-pub fn workspaces_for_output(state: &EventStreamState, output: &str) -> Vec<WsPill> {
-    let mut pills: Vec<WsPill> = state
-        .workspaces
-        .workspaces
-        .values()
-        .filter(|w| w.output.as_deref() == Some(output))
-        .map(|w| WsPill {
-            id: w.id,
-            idx: w.idx,
-            name: w.name.clone(),
-            is_active: w.is_active,
-            is_urgent: w.is_urgent,
-        })
-        .collect();
-    pills.sort_by_key(|p| p.idx);
-    pills
+/// The bar-facing derivation of [`EventStreamState`]: workspaces grouped and
+/// sorted per output, windows grouped and sorted per workspace. Recomputed once
+/// per niri event (see `Bar::apply_niri_event`), so `view` reads borrowed
+/// slices instead of re-collecting and re-cloning on every redraw.
+#[derive(Default)]
+pub struct Snapshot {
+    workspaces: HashMap<String, Vec<WsPill>>,
+    windows: HashMap<u64, Vec<WinEntry>>,
+    active: HashMap<String, u64>,
+}
+
+impl Snapshot {
+    pub fn derive(state: &EventStreamState) -> Self {
+        let mut workspaces: HashMap<String, Vec<WsPill>> = HashMap::new();
+        let mut active = HashMap::new();
+        for w in state.workspaces.workspaces.values() {
+            let Some(output) = &w.output else { continue };
+            if w.is_active {
+                active.insert(output.clone(), w.id);
+            }
+            workspaces.entry(output.clone()).or_default().push(WsPill {
+                id: w.id,
+                idx: w.idx,
+                name: w.name.clone(),
+                is_active: w.is_active,
+                is_urgent: w.is_urgent,
+            });
+        }
+        for pills in workspaces.values_mut() {
+            pills.sort_by_key(|p| p.idx);
+        }
+
+        let mut grouped: HashMap<u64, Vec<&niri_ipc::Window>> = HashMap::new();
+        for w in state.windows.windows.values() {
+            let Some(workspace) = w.workspace_id else {
+                continue;
+            };
+            grouped.entry(workspace).or_default().push(w);
+        }
+        let windows = grouped
+            .into_iter()
+            .map(|(workspace, mut group)| {
+                group.sort_by_key(|w| {
+                    let (col, tile) = w
+                        .layout
+                        .pos_in_scrolling_layout
+                        .unwrap_or((usize::MAX, usize::MAX));
+                    (col, tile, w.id)
+                });
+                (workspace, group.into_iter().map(win_entry).collect())
+            })
+            .collect();
+
+        Self {
+            workspaces,
+            windows,
+            active,
+        }
+    }
+
+    /// The output's workspaces, sorted by index.
+    pub fn workspaces_for_output(&self, output: &str) -> &[WsPill] {
+        self.workspaces.get(output).map_or(&[], Vec::as_slice)
+    }
+
+    /// The workspace's windows, in scrolling-layout order.
+    pub fn windows_on_workspace(&self, workspace: u64) -> &[WinEntry] {
+        self.windows.get(&workspace).map_or(&[], Vec::as_slice)
+    }
+
+    pub fn active_workspace_id(&self, output: &str) -> Option<u64> {
+        self.active.get(output).copied()
+    }
 }
 
 pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
@@ -64,15 +121,6 @@ pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
     rx
 }
 
-pub fn active_workspace_id(state: &EventStreamState, output: &str) -> Option<u64> {
-    state
-        .workspaces
-        .workspaces
-        .values()
-        .find(|w| w.output.as_deref() == Some(output) && w.is_active)
-        .map(|w| w.id)
-}
-
 #[derive(Debug, Clone)]
 pub struct WinEntry {
     pub id: u64,
@@ -80,23 +128,6 @@ pub struct WinEntry {
     pub app_id: String,
     pub is_focused: bool,
     pub is_urgent: bool,
-}
-
-pub fn windows_on_workspace(state: &EventStreamState, workspace: u64) -> Vec<WinEntry> {
-    let mut windows: Vec<&niri_ipc::Window> = state
-        .windows
-        .windows
-        .values()
-        .filter(|w| w.workspace_id == Some(workspace))
-        .collect();
-    windows.sort_by_key(|w| {
-        let (col, tile) = w
-            .layout
-            .pos_in_scrolling_layout
-            .unwrap_or((usize::MAX, usize::MAX));
-        (col, tile, w.id)
-    });
-    windows.into_iter().map(win_entry).collect()
 }
 
 /// Every window niri currently knows about, regardless of workspace/output —

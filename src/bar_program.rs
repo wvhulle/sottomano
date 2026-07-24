@@ -22,11 +22,11 @@ use crate::{
         system_group::{SystemGroup, SystemMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
+    config::resolved::ResolvedConfig,
     data_sources::{Tooltip, TooltipBody, niri},
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::niri_action,
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
-    config::resolved::ResolvedConfig,
 };
 
 pub struct Bar {
@@ -37,6 +37,9 @@ pub struct Bar {
     pub(crate) clock_group: ClockGroup,
     pub(crate) window_list: WindowListGroup,
     pub(crate) niri: EventStreamState,
+    /// Bar-facing derivation of `niri`, recomputed once per niri event so
+    /// `view` reads borrowed slices instead of re-collecting per redraw.
+    pub(crate) niri_snapshot: niri::Snapshot,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) tooltip: TooltipHost,
 }
@@ -69,15 +72,12 @@ impl Bar {
             clock_group: ClockGroup::default(),
             window_list: WindowListGroup::default(),
             niri: EventStreamState::default(),
+            niri_snapshot: niri::Snapshot::default(),
             surfaces: BTreeMap::new(),
             tooltip: TooltipHost::default(),
             config,
         };
-        let init = Task::batch([
-            bar.window_list.init().map(Message::WindowList),
-            BatteryGroup::init().map(Message::Battery),
-            SystemGroup::init().map(Message::System),
-        ]);
+        let init = bar.window_list.init().map(Message::WindowList);
         (bar, init)
     }
 
@@ -110,8 +110,14 @@ impl Bar {
                 .window_list
                 .update(msg, &self.niri, &self.config.font)
                 .map(Message::WindowList),
-            Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
-            Message::System(msg) => self.system_group.update(msg).map(Message::System),
+            Message::Battery(msg) => {
+                self.battery_group.update(msg);
+                Task::none()
+            }
+            Message::System(msg) => {
+                self.system_group.update(msg);
+                Task::none()
+            }
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::Clock(msg) => {
                 self.clock_group.update(msg);
@@ -120,9 +126,8 @@ impl Bar {
             Message::DismissPressed => {
                 self.panel_settings_group
                     .update(PanelSettingsMessage::Close);
-                self.system_group
-                    .update(SystemMessage::Close)
-                    .map(Message::System)
+                self.system_group.update(SystemMessage::Close);
+                Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
@@ -201,6 +206,7 @@ impl Bar {
                 | niri_ipc::Event::WindowClosed { .. }
         );
         let _ = self.niri.apply(event);
+        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
         if window_change {
             self.window_list
                 .refresh(&self.niri, &self.config.font)
@@ -306,7 +312,7 @@ impl Bar {
             .style(|_| container::Style {
                 background: Some(self.config.palette.bar_background.into()),
                 border: iced::Border {
-                    radius: self.config.chrome_radius.into(),
+                    radius: self.config.chrome_radius().into(),
                     ..Default::default()
                 },
                 text_color: Some(self.config.palette.bar_foreground),

@@ -1,8 +1,13 @@
 //! Subscriptions and tasks for polling sources, niri events, and timers.
 
-use std::time::Duration;
+use std::{convert::identity, time::Duration};
 
 use iced::{Subscription, Task};
+use tokio::{
+    task::spawn_blocking,
+    time::{MissedTickBehavior, interval},
+};
+use tokio_stream::wrappers::IntervalStream;
 
 use crate::{
     bar_layout::{
@@ -38,25 +43,37 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     ])
 }
 
-/// Run blocking work off-thread as a [`Task`], degrading to `T::default()` if
-/// the work panics.
+/// Run blocking work off the executor, degrading to `T::default()` if the
+/// work panics.
+async fn off_thread<T: Default + Send + 'static>(
+    context: &'static str,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> T {
+    spawn_blocking(work).await.unwrap_or_else(|e| {
+        eprintln!("{context}: task panicked: {e}");
+        T::default()
+    })
+}
+
+/// [`off_thread`] as a one-shot [`Task`].
 pub(crate) fn blocking<T: Default + Send + 'static>(
     context: &'static str,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Task<T> {
-    Task::perform(
-        async move { tokio::task::spawn_blocking(work).await },
-        move |joined| {
-            joined.unwrap_or_else(|e| {
-                eprintln!("{context}: task panicked: {e}");
-                T::default()
-            })
-        },
-    )
+    Task::perform(off_thread(context, work), identity)
 }
 
-pub(crate) fn poll<S: Source + Send + 'static>() -> Task<Option<S>> {
-    blocking(S::NAME, S::poll)
+/// Readings for one source: an immediate first poll, then one per
+/// [`Source::INTERVAL`], each run off-thread. Keyed by [`Source::NAME`], so
+/// the stream survives the per-update subscription rebuild.
+pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
+    use iced::futures::StreamExt;
+    Subscription::run_with(S::NAME, |_| {
+        let mut timer = interval(S::INTERVAL);
+        // After a suspend/resume, take one catch-up poll, not a burst.
+        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        IntervalStream::new(timer).then(|_| off_thread(S::NAME, S::poll))
+    })
 }
 
 pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {

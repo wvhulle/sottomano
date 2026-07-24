@@ -18,10 +18,10 @@ use iced::{
 };
 
 use crate::{
+    config::resolved::ResolvedConfig,
     data_sources::{Tooltip, TooltipBody, row},
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    config::resolved::ResolvedConfig,
     widgets::{icon::Icon, menu_group::MenuGroup},
 };
 

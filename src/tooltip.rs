@@ -31,9 +31,9 @@ use iced_layershell::reexport::{
 
 use crate::{
     bar_program::Message,
+    config::resolved::ResolvedConfig,
     data_sources::{Tooltip, TooltipBody, level_color},
     layer_surface::{Position, Surface},
-    config::resolved::ResolvedConfig,
     widgets::text::bar_text,
 };
 
@@ -489,7 +489,7 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
         a: 1.0,
         ..config.palette.bar_background
     };
-    let radius = config.chrome_radius;
+    let radius = config.chrome_radius();
     container(body)
         .padding(PANEL_PADDING_PX)
         .style(move |_| container::Style {

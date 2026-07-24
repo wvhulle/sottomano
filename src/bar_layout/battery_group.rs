@@ -1,10 +1,10 @@
-use iced::{Element, Subscription, Task};
+use iced::{Element, Subscription};
 
 use crate::{
-    bar_layout::source_cell::{SourceCell, SourceMessage},
+    bar_layout::source_cell::SourceCell,
+    config::resolved::ResolvedConfig,
     data_sources::{BarWidget, sysfs_sensors::battery::Battery},
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    config::resolved::ResolvedConfig,
     widgets::icon_gauge::source_reading,
 };
 
@@ -15,23 +15,19 @@ pub struct BatteryGroup {
 
 #[derive(Debug, Clone)]
 pub enum BatteryMessage {
-    Source(SourceMessage<Battery>),
+    Reading(Option<Battery>),
     Tooltip(TooltipMessage),
 }
 
 impl BatteryGroup {
-    pub fn init() -> Task<BatteryMessage> {
-        SourceCell::init().map(BatteryMessage::Source)
-    }
-
     pub fn subscription() -> Subscription<BatteryMessage> {
-        SourceCell::subscription().map(BatteryMessage::Source)
+        SourceCell::subscription().map(BatteryMessage::Reading)
     }
 
-    pub fn update(&mut self, msg: BatteryMessage) -> Task<BatteryMessage> {
+    pub fn update(&mut self, msg: BatteryMessage) {
         match msg {
-            BatteryMessage::Source(msg) => self.cell.update(msg).map(BatteryMessage::Source),
-            BatteryMessage::Tooltip(_) => Task::none(),
+            BatteryMessage::Reading(reading) => self.cell.load(reading),
+            BatteryMessage::Tooltip(_) => {}
         }
     }
 

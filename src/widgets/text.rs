@@ -10,9 +10,8 @@ use iced::{
 
 use crate::config::resolved::ResolvedFontConfig;
 
-/// A text widget pre-styled with the bar's resolved font, size, and advanced
-/// shaping (needed for workspace names / window titles with special chars).
-/// Callers can still chain `.color(…)` etc. on the returned builder.
+/// A text widget pre-styled with the bar font, size, and advanced shaping
+/// (needed for workspace names and window titles with special characters).
 pub fn bar_text<'a>(
     font: &ResolvedFontConfig,
     content: impl IntoFragment<'a>,
@@ -23,14 +22,11 @@ pub fn bar_text<'a>(
         .shaping(Shaping::Advanced)
 }
 
-/// Rich-text spans for `content`: the bar font where it covers the glyph, the
-/// caller's pre-resolved fontconfig pick (`fallbacks`) where it doesn't. This
-/// makes glyphs the bar font lacks (e.g. the `⠐` progress marker in terminal
-/// titles) match the rest of the desktop instead of cosmic-text's hardcoded
-/// per-script fallback. Uncovered chars not in `fallbacks` (yet) render with
-/// `base`. `color` styles every span (`None` keeps the theme's default text
-/// color); adjacent characters sharing a font are merged into one span. Wrap
-/// the result in [`iced::widget::rich_text`].
+/// Split `content` into rich-text spans: the bar font for glyphs it has, the
+/// pre-resolved `fallbacks` for glyphs it lacks (so glyphs the bar font is
+/// missing still match the rest of the desktop), and `base` for uncovered
+/// glyphs with no fallback yet. `color` styles every span; `None` keeps the
+/// theme default.
 pub fn fallback_spans<'a>(
     font: &ResolvedFontConfig,
     content: &str,

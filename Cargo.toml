@@ -35,6 +35,9 @@ tokio = { version = "1.53.0", features = [
   "time",
   "sync",
 ] }
+tokio-stream = { version = "0.1", default-features = false, features = [
+  "time",
+] }
 toml = "0.8.23"
 # Trim the transparent margin themed icon SVGs ship with (see data_sources::icon_trim).
 # Pinned to the version iced_tiny_skia already resolves, so no second usvg copy.

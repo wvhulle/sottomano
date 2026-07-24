@@ -4,11 +4,11 @@
 
 mod bar_layout;
 mod bar_program;
+mod config;
 mod data_sources;
 mod layer_surface;
 mod message_subscriptions;
 mod tooltip;
-mod config;
 mod widgets;
 
 use bar_program::Bar;

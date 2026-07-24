@@ -1,6 +1,5 @@
-//! The config exactly as it appears in `$XDG_CONFIG_HOME/odin.toml` — raw, as
-//! specified, before the font is loaded and the colors are converted to iced's
-//! representation. See [`super::resolved`] for the form built from this.
+//! Config as read from the TOML file on disk, before the font is loaded and
+//! colours are converted.
 
 use std::path::PathBuf;
 
@@ -33,10 +32,8 @@ impl Default for DiskFontConfig {
     }
 }
 
-/// The `palette` config group. Colors are CSS Color Level 4 strings (hex,
-/// `rgb()`, `rgba()`, `hsl()`, named, `oklab()`, …) parsed via the
-/// `linebender/color` crate — see the crate docs for the full grammar. Defaults
-/// are gruvbox-dark. Converted to `iced::Color` in [`super::resolved`].
+/// Colours are CSS Color Level 4 strings (hex, `rgb()`, `hsl()`, named,
+/// `oklab()`, …). Defaults are gruvbox-dark.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "snake_case")]
 pub struct DiskPaletteConfig {
@@ -74,11 +71,8 @@ fn srgb(s: &str) -> DynamicColor {
     color::parse_color(s).expect("invalid default color")
 }
 
-/// `#[serde(with = "...")]` adapter: deserialize a [`DynamicColor`] from any CSS
-/// Color Level 4 string the [`color`] crate accepts (hex, `rgb()`/`rgba()`,
-/// `hsl()`, named, `oklab()`, …). `DynamicColor`'s built-in serde derives from a
-/// struct, so this string adapter is needed for the TOML to be just
-/// `key = "#rrggbb"`.
+/// Deserialize a colour from a CSS Color Level 4 string, so the TOML can be
+/// just `key = "#rrggbb"`.
 mod css_color {
     use std::str::FromStr;
 
@@ -104,8 +98,8 @@ pub struct Layout {
     pub blur: bool,
     pub shadow: bool,
     pub float_offset_px: f32,
-    /// Track width of a settings slider (e.g. the panel-settings float-offset
-    /// knob). Chrome of the session-only settings UI, not a bar element.
+    /// Track width of a settings-panel slider (session UI chrome, not a bar
+    /// element).
     pub slider_width_px: f32,
     pub outer_height_px: f32,
     pub focus_underline_thickness_px: f32,
