@@ -8,6 +8,7 @@ mod config;
 mod data_sources;
 mod layer_surface;
 mod message_subscriptions;
+mod notifications;
 mod tooltip;
 mod widgets;
 

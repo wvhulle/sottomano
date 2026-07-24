@@ -42,6 +42,10 @@ toml = "0.8.23"
 # Trim the transparent margin themed icon SVGs ship with (see data_sources::icon_trim).
 # Pinned to the version iced_tiny_skia already resolves, so no second usvg copy.
 usvg = "0.45"
+# The freedesktop notification server (org.freedesktop.Notifications). The tokio
+# feature runs the connection on iced's runtime; already resolved transitively so
+# promoting it to a direct dep adds no new lockfile entry.
+zbus = { version = "5.18", default-features = false, features = ["tokio"] }
 
 [build-dependencies]
 serde_json = "1"

@@ -23,9 +23,15 @@ use crate::{
         window_list_group::{WindowListGroup, WindowListMessage},
     },
     config::resolved::ResolvedConfig,
-    data_sources::{Tooltip, TooltipBody, niri},
+    data_sources::{
+        Tooltip, TooltipBody,
+        app_icon::DesktopEntries,
+        desktop_entries::{self, DesktopIndex},
+        niri,
+    },
     layer_surface::{Position, Surface, float_margin, layer_settings},
     message_subscriptions::niri_action,
+    notifications::{NotificationGroup, NotificationMessage},
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
 };
 
@@ -40,8 +46,15 @@ pub struct Bar {
     /// Bar-facing derivation of `niri`, recomputed once per niri event so
     /// `view` reads borrowed slices instead of re-collecting per redraw.
     pub(crate) niri_snapshot: niri::Snapshot,
+    /// Notification-placement facts (window edges, focus), recomputed per niri
+    /// event so a toast can point back toward its producer window.
+    pub(crate) niri_placement: niri::Placement,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) tooltip: TooltipHost,
+    pub(crate) notifications: NotificationGroup,
+    /// The shared `.desktop` index (app metadata + icon resolution), consumed by
+    /// both the window list and the notification cards.
+    pub(crate) desktop_entries: DesktopIndex,
 }
 
 #[to_layer_message(multi)]
@@ -61,11 +74,14 @@ pub enum Message {
     /// relative timestamps.
     TooltipTick,
     Tooltip(TooltipMessage),
+    Notification(NotificationMessage),
+    DesktopEntriesLoaded(std::sync::Arc<DesktopEntries>),
+    ReloadDesktopEntries,
 }
 
 impl Bar {
     pub fn new(config: ResolvedConfig) -> (Self, Task<Message>) {
-        let mut bar = Self {
+        let bar = Self {
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::new(config.layout.menu_expand_ms),
             panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
@@ -73,11 +89,14 @@ impl Bar {
             window_list: WindowListGroup::default(),
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
+            niri_placement: niri::Placement::default(),
             surfaces: BTreeMap::new(),
             tooltip: TooltipHost::default(),
+            notifications: NotificationGroup::default(),
+            desktop_entries: DesktopIndex::default(),
             config,
         };
-        let init = bar.window_list.init().map(Message::WindowList);
+        let init = desktop_entries::load().map(Message::DesktopEntriesLoaded);
         (bar, init)
     }
 
@@ -106,10 +125,21 @@ impl Bar {
             Message::WindowList(WindowListMessage::Clicked(window)) => {
                 niri_action(move || niri::focus_window(window))
             }
-            Message::WindowList(msg) => self
-                .window_list
-                .update(msg, &self.niri, &self.config.font)
-                .map(Message::WindowList),
+            Message::WindowList(msg) => {
+                let entries = self.desktop_entries.arc();
+                self.window_list
+                    .update(msg, &self.niri, &self.config.font, entries.as_ref())
+                    .map(Message::WindowList)
+            }
+            Message::DesktopEntriesLoaded(entries) => {
+                self.desktop_entries.set(entries.clone());
+                self.window_list
+                    .on_entries_loaded(&self.niri, &entries)
+                    .map(Message::WindowList)
+            }
+            Message::ReloadDesktopEntries => {
+                desktop_entries::load().map(Message::DesktopEntriesLoaded)
+            }
             Message::Battery(msg) => {
                 self.battery_group.update(msg);
                 Task::none()
@@ -136,6 +166,7 @@ impl Bar {
             Message::WindowClosed(id) => {
                 self.surfaces.remove(&id);
                 self.tooltip.forget(id);
+                self.notifications.forget(id);
                 Task::none()
             }
             // A source with empty content suppresses its tooltip (odin drops
@@ -146,6 +177,13 @@ impl Bar {
                 Task::none()
             }
             Message::Tooltip(msg) => self.tooltip.update(msg, &self.surfaces, &self.config),
+            Message::Notification(msg) => self.notifications.update(
+                msg,
+                &self.niri,
+                &self.niri_placement,
+                self.desktop_entries.get(),
+                &self.config,
+            ),
             // A redraw is all the tick needs — the tooltip view re-derives and
             // re-formats its relative times.
             Message::TooltipTick => Task::none(),
@@ -207,13 +245,26 @@ impl Bar {
         );
         let _ = self.niri.apply(event);
         self.niri_snapshot = niri::Snapshot::derive(&self.niri);
+        self.niri_placement = niri::Placement::derive(&self.niri);
+        let mut tasks = Vec::new();
         if window_change {
-            self.window_list
-                .refresh(&self.niri, &self.config.font)
-                .map(Message::WindowList)
-        } else {
-            Task::none()
+            let entries = self.desktop_entries.arc();
+            tasks.push(
+                self.window_list
+                    .refresh(&self.niri, &self.config.font, entries.as_ref())
+                    .map(Message::WindowList),
+            );
         }
+        // Only recompute toast placement while toasts are up — a niri change can
+        // move a toast's corner or re-home it to another output.
+        if self.notifications.is_active() {
+            tasks.push(self.notifications.on_niri_changed(
+                &self.niri,
+                &self.niri_placement,
+                &self.config,
+            ));
+        }
+        Task::batch(tasks)
     }
 
     /// The config-mutating knobs are intercepted here rather than handled in
@@ -285,6 +336,9 @@ impl Bar {
         // so it always tracks the reading and costs nothing while unhovered.
         if let Some(source) = self.tooltip.source_for(id) {
             return tooltip::panel_surface(id, &self.tooltip_of(source), &self.config);
+        }
+        if let Some(element) = self.notifications.view(id, &self.config) {
+            return element;
         }
         let Some(surface) = self.surfaces.get(&id) else {
             return container(text("")).into();

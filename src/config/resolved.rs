@@ -6,13 +6,28 @@ use std::{collections::HashSet, sync::Arc};
 use color::{ColorSpaceTag, DynamicColor, Srgb};
 use iced::{Color, Font};
 
-use super::disk::{self, DiskConfig, DiskFontConfig, DiskPaletteConfig, Layout};
+use super::disk::{self, DiskConfig, DiskFontConfig, DiskPaletteConfig, Layout, NotificationConfig};
+use crate::data_sources::niri::{HEdge, VEdge};
 
 #[derive(Debug, Clone)]
 pub struct ResolvedConfig {
     pub palette: ResolvedPaletteConfig,
     pub layout: Layout,
     pub font: ResolvedFontConfig,
+    pub notifications: ResolvedNotificationConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedNotificationConfig {
+    /// The fallback corner, parsed once. Only the vertical/horizontal edges are
+    /// kept; an unrecognized `position` fails at load rather than silently
+    /// placing toasts in the wrong corner (odin throws for the same reason).
+    pub position: (VEdge, HEdge),
+    pub gap_px: f32,
+    pub width_px: f32,
+    pub icon_size_px: f32,
+    pub image_size_px: f32,
+    pub badge_size_px: f32,
 }
 
 impl ResolvedConfig {
@@ -68,7 +83,38 @@ pub fn load() -> ResolvedConfig {
         palette: resolve_palette(&user.palette),
         layout: user.layout,
         font: resolve_font(&user.font),
+        notifications: resolve_notifications(&user.notifications),
     }
+}
+
+fn resolve_notifications(config: &NotificationConfig) -> ResolvedNotificationConfig {
+    ResolvedNotificationConfig {
+        position: parse_position(&config.fallback_position),
+        gap_px: config.edge_gap,
+        width_px: config.card_width,
+        icon_size_px: config.app_icon_size,
+        image_size_px: config.image_size,
+        badge_size_px: config.badge_size,
+    }
+}
+
+/// `<top|bottom>-<left|center|right>` → edges. Panics on an unrecognized value:
+/// a mistyped corner that silently renders elsewhere is worse than a visible
+/// failure (odin throws here too).
+fn parse_position(position: &str) -> (VEdge, HEdge) {
+    let (vertical, horizontal) = position.split_once('-').unwrap_or(("", ""));
+    let vertical = match vertical {
+        "top" => VEdge::Top,
+        "bottom" => VEdge::Bottom,
+        _ => panic!("notifications.fallback_position: expected <top|bottom>-<left|center|right>, got {position:?}"),
+    };
+    let horizontal = match horizontal {
+        "left" => HEdge::Left,
+        "center" => HEdge::Center,
+        "right" => HEdge::Right,
+        _ => panic!("notifications.fallback_position: expected <top|bottom>-<left|center|right>, got {position:?}"),
+    };
+    (vertical, horizontal)
 }
 
 fn resolve_palette(palette: &DiskPaletteConfig) -> ResolvedPaletteConfig {

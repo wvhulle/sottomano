@@ -5,6 +5,34 @@ use std::{collections::HashMap, fmt, io::Error, thread};
 use niri_ipc::{Event, Request, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
 
+/// Vertical half of a screen position: a notification toast anchors to the top
+/// or bottom edge, or sits vertically centered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VEdge {
+    Top,
+    Center,
+    Bottom,
+}
+
+/// Horizontal half of a screen position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HEdge {
+    Left,
+    Center,
+    Right,
+}
+
+/// Where a window sits on its own output, relative to the active workspace
+/// (vertical) and its workspace's focused column (horizontal) — the signal a
+/// notification toast points back toward its producer with. `output` is `None`
+/// for a window niri no longer places.
+#[derive(Debug, Clone)]
+pub struct WindowEdge {
+    pub vertical: VEdge,
+    pub horizontal: HEdge,
+    pub output: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct WsPill {
     pub id: u64,
@@ -147,6 +175,178 @@ fn win_entry(w: &niri_ipc::Window) -> WinEntry {
     }
 }
 
+/// Notification-placement facts derived from niri per event: which workspace
+/// (and output) each window is on, the globally focused window, and each
+/// window's edge on its own output. Ports odin's `NiriService._recompute`.
+///
+/// Unlike odin — which had to remember each workspace's focused window in a
+/// stateful map because its Quickshell niri plugin exposed no per-workspace
+/// active window — this reads `Workspace::active_window_id` directly, so the
+/// derivation is a pure function of the event-stream state.
+#[derive(Default)]
+pub struct Placement {
+    workspace_by_window: HashMap<u64, u64>,
+    focused_window: Option<u64>,
+    output_by_workspace: HashMap<u64, String>,
+    edges: HashMap<u64, WindowEdge>,
+}
+
+impl Placement {
+    pub fn derive(state: &EventStreamState) -> Self {
+        let mut ws_idx = HashMap::new();
+        let mut output_by_workspace = HashMap::new();
+        let mut active_ws_by_output: HashMap<String, u64> = HashMap::new();
+        let mut ws_active_window = HashMap::new();
+        for w in state.workspaces.workspaces.values() {
+            ws_idx.insert(w.id, w.idx);
+            if let Some(output) = &w.output {
+                output_by_workspace.insert(w.id, output.clone());
+                if w.is_active {
+                    active_ws_by_output.insert(output.clone(), w.id);
+                }
+            }
+            if let Some(active) = w.active_window_id {
+                ws_active_window.insert(w.id, active);
+            }
+        }
+
+        let mut workspace_by_window = HashMap::new();
+        let mut column_by_window = HashMap::new();
+        let mut focused_window = None;
+        for w in state.windows.windows.values() {
+            if let Some(ws) = w.workspace_id {
+                workspace_by_window.insert(w.id, ws);
+            }
+            if let Some((col, _)) = w.layout.pos_in_scrolling_layout {
+                column_by_window.insert(w.id, col);
+            }
+            if w.is_focused {
+                focused_window = Some(w.id);
+            }
+        }
+
+        let edges = workspace_by_window
+            .iter()
+            .map(|(&id, &ws)| {
+                let output = output_by_workspace.get(&ws).cloned();
+                let active_ws = output
+                    .as_ref()
+                    .and_then(|o| active_ws_by_output.get(o).copied());
+                let vertical = vertical_edge(ws_idx.get(&ws).copied(), active_ws.and_then(|a| ws_idx.get(&a).copied()));
+                // Left/right only for a window on its output's visible (active)
+                // workspace; a background workspace points via the vertical axis
+                // alone.
+                let horizontal = if active_ws == Some(ws) {
+                    let ws_focused_col = ws_active_window
+                        .get(&ws)
+                        .and_then(|win| column_by_window.get(win).copied());
+                    horizontal_edge(column_by_window.get(&id).copied(), ws_focused_col)
+                } else {
+                    HEdge::Center
+                };
+                (id, WindowEdge { vertical, horizontal, output })
+            })
+            .collect();
+
+        Self {
+            workspace_by_window,
+            focused_window,
+            output_by_workspace,
+            edges,
+        }
+    }
+
+    pub fn window_edge(&self, id: u64) -> WindowEdge {
+        self.edges.get(&id).cloned().unwrap_or(WindowEdge {
+            vertical: VEdge::Center,
+            horizontal: HEdge::Center,
+            output: None,
+        })
+    }
+
+    pub fn focused_window(&self) -> Option<u64> {
+        self.focused_window
+    }
+
+    /// The workspace a window is on, or `None` when niri no longer places it —
+    /// the signal a notification's target window has closed.
+    pub fn workspace_of_window(&self, id: u64) -> Option<u64> {
+        self.workspace_by_window.get(&id).copied()
+    }
+
+    pub fn output_of_workspace(&self, ws: u64) -> Option<&str> {
+        self.output_by_workspace.get(&ws).map(String::as_str)
+    }
+
+    /// The workspace to move a window "here" to: the one the focused window is
+    /// on (odin's `workspaceByWindowId[focusedWindowId]`).
+    pub fn active_workspace_for_move(&self) -> Option<u64> {
+        self.workspace_by_window
+            .get(&self.focused_window?)
+            .copied()
+    }
+}
+
+/// Producer's workspace index vs the active workspace index on its own output.
+fn vertical_edge(window_ws_idx: Option<u8>, active_ws_idx: Option<u8>) -> VEdge {
+    match (window_ws_idx, active_ws_idx) {
+        (Some(w), Some(a)) if w < a => VEdge::Top,
+        (Some(w), Some(a)) if w > a => VEdge::Bottom,
+        _ => VEdge::Center,
+    }
+}
+
+/// Producer's column vs its workspace's focused column.
+fn horizontal_edge(window_col: Option<usize>, ws_focused_col: Option<usize>) -> HEdge {
+    match (window_col, ws_focused_col) {
+        (Some(w), Some(f)) if w < f => HEdge::Left,
+        (Some(w), Some(f)) if w > f => HEdge::Right,
+        _ => HEdge::Center,
+    }
+}
+
+/// A unique window matching the given source identifiers: exact
+/// (case-insensitive) app-id match first, then substring title match. Returns
+/// `None` when zero or multiple windows match at each stage — ambiguity is
+/// treated the same as absence. Ports odin's `NiriService.windowIdBySource`.
+pub fn window_id_by_source(
+    state: &EventStreamState,
+    app_ids: &[String],
+    title: Option<&str>,
+) -> Option<u64> {
+    let app_id_needles: Vec<String> = app_ids
+        .iter()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_lowercase())
+        .collect();
+    let mut app_match = state.windows.windows.values().filter(|w| {
+        w.app_id
+            .as_ref()
+            .map(|a| a.to_lowercase())
+            .is_some_and(|a| !a.is_empty() && app_id_needles.contains(&a))
+    });
+    if let Some(only) = unique(&mut app_match) {
+        return Some(only.id);
+    }
+
+    let needle = title?.to_lowercase();
+    let mut title_match = state.windows.windows.values().filter(|w| {
+        w.title
+            .as_ref()
+            .is_some_and(|t| !t.is_empty() && t.to_lowercase().contains(&needle))
+    });
+    unique(&mut title_match).map(|w| w.id)
+}
+
+/// The single element of an iterator, or `None` if it has zero or more than one.
+fn unique<T>(iter: &mut impl Iterator<Item = T>) -> Option<T> {
+    let first = iter.next()?;
+    match iter.next() {
+        Some(_) => None,
+        None => Some(first),
+    }
+}
+
 #[derive(Debug)]
 pub enum ActionError {
     Transport(Error),
@@ -180,6 +380,25 @@ pub fn focus_workspace(id: u64) {
     };
     if let Err(e) = send_action(action) {
         eprintln!("niri: focus workspace {id}: {e}");
+    }
+}
+
+pub fn close_window(id: u64) {
+    if let Err(e) = send_action(niri_ipc::Action::CloseWindow { id: Some(id) }) {
+        eprintln!("niri: close window {id}: {e}");
+    }
+}
+
+/// Move a window to workspace `target_ws` and focus it — a notification's "move
+/// here" action.
+pub fn move_window_here(id: u64, target_ws: u64) {
+    let action = niri_ipc::Action::MoveWindowToWorkspace {
+        window_id: Some(id),
+        reference: niri_ipc::WorkspaceReferenceArg::Id(target_ws),
+        focus: true,
+    };
+    if let Err(e) = send_action(action) {
+        eprintln!("niri: move window {id} to workspace {target_ws}: {e}");
     }
 }
 

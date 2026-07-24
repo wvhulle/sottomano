@@ -12,6 +12,41 @@ pub struct DiskConfig {
     pub palette: DiskPaletteConfig,
     pub layout: Layout,
     pub font: DiskFontConfig,
+    pub notifications: NotificationConfig,
+}
+
+/// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is no
+/// timeout: a toast is dismissed by an event (user action or its target window
+/// closing), never by a clock.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct NotificationConfig {
+    /// Fallback corner `<top|bottom>-<left|center|right>`, used only when a
+    /// notification has no producer window to point at.
+    pub fallback_position: String,
+    /// Extra gap from the panel edge, on top of the bar-height inset.
+    pub edge_gap: f32,
+    pub card_width: f32,
+    /// The app icon shown when a notification carries no image of its own.
+    pub app_icon_size: f32,
+    /// The notification's own image (album art, a screenshot), drawn larger and
+    /// central.
+    pub image_size: f32,
+    /// The app icon shown as a small badge over the corner of the image.
+    pub badge_size: f32,
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        Self {
+            fallback_position: "bottom-right".to_owned(),
+            edge_gap: 8.0,
+            card_width: 380.0,
+            app_icon_size: 40.0,
+            image_size: 48.0,
+            badge_size: 20.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -31,7 +31,6 @@ use crate::{
 };
 
 const ICONS_BACKSTOP: Duration = Duration::from_secs(20);
-const ENTRIES_RELOAD: Duration = Duration::from_secs(300);
 
 /// A resolved favicon ready to render: an iced handle built once from the blob,
 /// plus the blob itself so a re-poll that finds the same bytes can keep this
@@ -84,7 +83,6 @@ impl Favicon {
 /// Abort-on-drop handles for the in-flight resolves.
 #[derive(Default)]
 struct Resolves {
-    desktop_entries: Option<Handle>,
     favicons: Option<Handle>,
     app_icons: Option<Handle>,
     theme_icons: Option<Handle>,
@@ -93,7 +91,6 @@ struct Resolves {
 
 #[derive(Default)]
 pub struct WindowListGroup {
-    desktop_entries: Option<Arc<DesktopEntries>>,
     favicons: HashMap<String, Favicon>,
     app_icons: HashMap<String, PathBuf>,
     theme_icons: HashMap<String, PathBuf>,
@@ -107,28 +104,33 @@ pub struct WindowListGroup {
 #[derive(Debug, Clone)]
 pub enum WindowListMessage {
     Clicked(u64),
-    DesktopEntriesLoaded(Arc<DesktopEntries>),
     FaviconsLoaded(HashMap<String, RawFavicon>),
     AppIconsResolved(HashMap<String, PathBuf>),
     ThemeIconsResolved(HashMap<String, PathBuf>),
     FallbackFontsResolved(HashMap<char, Font>),
     IconsBackstopElapsed,
-    EntriesReloadElapsed,
 }
 
 impl WindowListGroup {
-    pub fn init(&mut self) -> Task<WindowListMessage> {
-        self.load_desktop_entries()
+    /// Re-resolve icons against a freshly (re)loaded `.desktop` index — the app
+    /// hands this in when the shared index changes.
+    pub fn on_entries_loaded(
+        &mut self,
+        niri: &EventStreamState,
+        entries: &Arc<DesktopEntries>,
+    ) -> Task<WindowListMessage> {
+        self.app_icons.clear();
+        self.theme_icons.clear();
+        Task::batch([
+            self.poll_app_icons(niri, entries),
+            self.poll_theme_icons(niri, entries),
+        ])
     }
 
-    /// Periodic backstop for the icon polls (in case a niri window-change
-    /// event was missed) and the `.desktop`-index reload (so a newly installed
-    /// app or a live theme switch is picked up without a restart).
+    /// Periodic backstop for the icon polls, in case a niri window-change event
+    /// was missed. The `.desktop`-index reload is driven by the app, not here.
     pub fn subscription() -> Subscription<WindowListMessage> {
-        Subscription::batch([
-            iced::time::every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
-            iced::time::every(ENTRIES_RELOAD).map(|_| WindowListMessage::EntriesReloadElapsed),
-        ])
+        iced::time::every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed)
     }
 
     pub fn update(
@@ -136,15 +138,10 @@ impl WindowListGroup {
         msg: WindowListMessage,
         niri: &EventStreamState,
         font: &ResolvedFontConfig,
+        entries: Option<&Arc<DesktopEntries>>,
     ) -> Task<WindowListMessage> {
         match msg {
             WindowListMessage::Clicked(_) => Task::none(),
-            WindowListMessage::DesktopEntriesLoaded(entries) => {
-                self.desktop_entries = Some(entries);
-                self.app_icons.clear();
-                self.theme_icons.clear();
-                Task::batch([self.poll_app_icons(niri), self.poll_theme_icons(niri)])
-            }
             WindowListMessage::FaviconsLoaded(raw) => {
                 // Reuse the existing handle when a re-poll returns the same
                 // blob, so its GPU texture stays cached (raster handles get a
@@ -174,31 +171,27 @@ impl WindowListGroup {
                 self.fallback_fonts.extend(map);
                 Task::none()
             }
-            WindowListMessage::IconsBackstopElapsed => self.refresh(niri, font),
-            WindowListMessage::EntriesReloadElapsed => self.load_desktop_entries(),
+            WindowListMessage::IconsBackstopElapsed => self.refresh(niri, font, entries),
         }
     }
 
-    /// Re-run every pipeline against the current window set.
+    /// Re-run every pipeline against the current window set. Icon polls need the
+    /// shared `.desktop` index; favicons and fallback fonts do not.
     pub fn refresh(
         &mut self,
         niri: &EventStreamState,
         font: &ResolvedFontConfig,
+        entries: Option<&Arc<DesktopEntries>>,
     ) -> Task<WindowListMessage> {
-        Task::batch([
+        let mut tasks = vec![
             self.poll_favicons(niri),
-            self.poll_app_icons(niri),
-            self.poll_theme_icons(niri),
             self.resolve_fallback_fonts(niri, font),
-        ])
-    }
-
-    fn load_desktop_entries(&mut self) -> Task<WindowListMessage> {
-        let (task, handle) = blocking("desktop entries", DesktopEntries::load)
-            .map(|entries| WindowListMessage::DesktopEntriesLoaded(Arc::new(entries)))
-            .abortable();
-        self.resolves.desktop_entries = Some(handle.abort_on_drop());
-        task
+        ];
+        if let Some(entries) = entries {
+            tasks.push(self.poll_app_icons(niri, entries));
+            tasks.push(self.poll_theme_icons(niri, entries));
+        }
+        Task::batch(tasks)
     }
 
     /// Firefox favicons, read synchronously off-thread from Firefox's
@@ -212,12 +205,13 @@ impl WindowListGroup {
         task
     }
 
-    /// `.desktop`-entry app-id icons, against the last-loaded desktop-entry
-    /// index. A no-op until that index has loaded.
-    fn poll_app_icons(&mut self, niri: &EventStreamState) -> Task<WindowListMessage> {
-        let Some(entries) = self.desktop_entries.clone() else {
-            return Task::none();
-        };
+    /// `.desktop`-entry app-id icons, against the shared desktop-entry index.
+    fn poll_app_icons(
+        &mut self,
+        niri: &EventStreamState,
+        entries: &Arc<DesktopEntries>,
+    ) -> Task<WindowListMessage> {
+        let entries = entries.clone();
         let ids = app_icon::app_icon_keys(niri);
         let (task, handle) = blocking("app icons", move || {
             app_icon::resolve_app_icons(&entries, ids)
@@ -228,12 +222,14 @@ impl WindowListGroup {
         task
     }
 
-    /// Icon-theme-name icons (e.g. a terminal's command-word icon). A no-op
-    /// until the desktop-entry index has loaded.
-    fn poll_theme_icons(&mut self, niri: &EventStreamState) -> Task<WindowListMessage> {
-        let Some(entries) = self.desktop_entries.clone() else {
-            return Task::none();
-        };
+    /// Icon-theme-name icons (e.g. a terminal's command-word icon), against the
+    /// shared desktop-entry index.
+    fn poll_theme_icons(
+        &mut self,
+        niri: &EventStreamState,
+        entries: &Arc<DesktopEntries>,
+    ) -> Task<WindowListMessage> {
+        let entries = entries.clone();
         let names = app_icon::theme_icon_keys(niri);
         let (task, handle) = blocking("theme icons", move || {
             app_icon::resolve_theme_icons(&entries, names)

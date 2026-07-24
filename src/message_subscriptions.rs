@@ -15,7 +15,12 @@ use crate::{
         window_list_group::WindowListGroup,
     },
     bar_program::{Bar, Message},
-    data_sources::{Source, niri},
+    data_sources::{Source, desktop_entries, niri},
+    notifications::{
+        NotificationMessage,
+        model::{NotifHandle, Outbound, ServerEvent},
+        server,
+    },
 };
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
@@ -37,7 +42,9 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         ClockGroup::subscription().map(Message::Clock),
         WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),
+        iced::time::every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
         niri_subscription(),
+        notifications_subscription(),
         animation,
         tooltip_tick,
     ])
@@ -89,6 +96,44 @@ fn niri_subscription() -> Subscription<Message> {
                 let mut rx = niri::spawn_event_thread();
                 while let Some(event) = rx.recv().await {
                     if output.send(Message::Niri(event)).await.is_err() {
+                        break;
+                    }
+                }
+            },
+        )
+    })
+}
+
+/// The notification server and its bridge: builds the zbus connection (stealing
+/// the bus name), forwards each `ServerEvent` as a `Message::Notification`, and
+/// hands the app the outbound handle via a first `Connected` message. Same
+/// background-producer-into-a-channel shape as [`niri_subscription`].
+fn notifications_subscription() -> Subscription<Message> {
+    use iced::futures::SinkExt;
+    Subscription::run(|| {
+        iced::stream::channel(
+            256,
+            |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<ServerEvent>(256);
+                let (outbound_tx, outbound_rx) = tokio::sync::mpsc::channel::<Outbound>(256);
+                if let Err(e) = server::serve(event_tx, outbound_rx).await {
+                    eprintln!("notifications: server failed to start: {e}");
+                    return;
+                }
+                let handle = NotifHandle::new(outbound_tx);
+                if output
+                    .send(Message::Notification(NotificationMessage::Connected(handle)))
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
+                while let Some(event) = event_rx.recv().await {
+                    let message = match event {
+                        ServerEvent::Notify(data) => NotificationMessage::Served(data),
+                        ServerEvent::CloseRequested(id) => NotificationMessage::CloseRequested(id),
+                    };
+                    if output.send(Message::Notification(message)).await.is_err() {
                         break;
                     }
                 }

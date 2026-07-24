@@ -511,7 +511,7 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
 /// `at` as a coarse relative time, ported from odin's `RelativeTime.format`:
 /// `just now` under 5 s, then `N s|min|h|d ago`. `now` is passed so the caller
 /// samples the clock once per render; a future `at` degrades to `just now`.
-fn relative(at: SystemTime, now: SystemTime) -> String {
+pub(crate) fn relative(at: SystemTime, now: SystemTime) -> String {
     let secs = now.duration_since(at).map_or(0, |d| d.as_secs());
     match secs {
         0..=4 => "just now".to_string(),
