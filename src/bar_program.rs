@@ -284,22 +284,7 @@ impl Bar {
             }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
-                self.panel_settings_group
-                    .update(PanelSettingsMessage::Menu(MenuMessage::Close));
-                self.system_group
-                    .update(SystemMessage::Menu(MenuMessage::Close));
-                let _ = self
-                    .quick_launch
-                    .update(QuickLaunchMessage::Menu(MenuMessage::Close));
-                let _ = self
-                    .idle_timeouts_group
-                    .update(IdleTimeoutsMessage::Menu(MenuMessage::Close));
-                let _ = self
-                    .internet_group
-                    .update(InternetMessage::Menu(MenuMessage::Close));
-                self.weather_group
-                    .update(WeatherMessage::Menu(MenuMessage::Close));
-                let _ = self.media_group.update(MediaMessage::Menu(MenuMessage::Close));
+                self.dismiss_menus();
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
@@ -417,6 +402,28 @@ impl Bar {
         })
     }
 
+    /// Collapse every open expandable group. Close-tasks are discarded —
+    /// closing only mutates menu state (and, for idle/panel-settings, tears down
+    /// a child slider); none needs a follow-up Task.
+    fn dismiss_menus(&mut self) {
+        self.panel_settings_group
+            .update(PanelSettingsMessage::Menu(MenuMessage::Close));
+        self.system_group
+            .update(SystemMessage::Menu(MenuMessage::Close));
+        let _ = self
+            .quick_launch
+            .update(QuickLaunchMessage::Menu(MenuMessage::Close));
+        let _ = self
+            .idle_timeouts_group
+            .update(IdleTimeoutsMessage::Menu(MenuMessage::Close));
+        let _ = self
+            .internet_group
+            .update(InternetMessage::Menu(MenuMessage::Close));
+        self.weather_group
+            .update(WeatherMessage::Menu(MenuMessage::Close));
+        let _ = self.media_group.update(MediaMessage::Menu(MenuMessage::Close));
+    }
+
     fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
         let window_change = matches!(
             event,
@@ -430,6 +437,13 @@ impl Bar {
             event,
             niri_ipc::Event::WorkspacesChanged { .. } | niri_ipc::Event::WorkspaceActivated { .. }
         );
+        // Focus moving to another window (or to nothing) means the user left the
+        // bar — dismiss any open menu group. Gated to the focus event alone:
+        // window title/property churn must not collapse an open menu. The bar
+        // never takes keyboard focus, so opening a menu cannot self-trigger this.
+        if matches!(event, niri_ipc::Event::WindowFocusChanged { .. }) {
+            self.dismiss_menus();
+        }
         // Fold the event into the launch tracker before it is consumed; a
         // counted launch is persisted to disk (fire-and-forget).
         let launched = self.launch_tracker.observe(&event);

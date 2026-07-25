@@ -1,7 +1,7 @@
 //! odin's `Media`: album-art handle that unfolds the track title and transport
-//! controls for the current MPRIS player. Hidden when no player is present.
-//! Deviations: polled (not signal-driven), and odin's source-switch row and
-//! circular art clipping are not ported.
+//! controls for the current MPRIS player, updated signal-driven from
+//! [`mpris::subscription`]. Hidden when no player is present. Deviations: odin's
+//! source-switch row and circular art clipping are not ported.
 
 use iced::{
     Alignment, Element, Subscription, Task,
@@ -9,7 +9,6 @@ use iced::{
 };
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
         Tooltip, TooltipBody, mpris,
@@ -29,9 +28,9 @@ use crate::{
 const MAX_TITLE: usize = 40;
 
 pub struct MediaGroup {
-    cell: SourceCell<Media>,
-    /// Playback status shown right after a transport press, until the next poll
-    /// confirms it — so the button reacts instantly with no artificial delay.
+    media: Option<Media>,
+    /// Playback status shown right after a transport press, until the next
+    /// signal confirms it — so the button reacts instantly.
     optimistic: Option<Status>,
     pub(crate) menu: MenuGroup,
 }
@@ -47,34 +46,34 @@ pub enum MediaMessage {
 impl MediaGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
-            cell: SourceCell::default(),
+            media: None,
             optimistic: None,
             menu: MenuGroup::new(menu_expand_ms),
         }
     }
 
     pub fn subscription() -> Subscription<MediaMessage> {
-        SourceCell::subscription().map(MediaMessage::Reading)
+        mpris::subscription().map(MediaMessage::Reading)
     }
 
     /// The status to show: the optimistic override while a transport press is
-    /// in flight, else the last poll.
+    /// in flight, else the last reading.
     fn status(&self, media: &Media) -> Status {
         self.optimistic.unwrap_or(media.status)
     }
 
     pub fn update(&mut self, msg: MediaMessage) -> Task<MediaMessage> {
         match msg {
-            // A fresh poll is authoritative; drop the optimistic override.
+            // A fresh signal reading is authoritative; drop the optimistic override.
             MediaMessage::Reading(reading) => {
-                self.cell.load(reading);
+                self.media = reading;
                 self.optimistic = None;
             }
             MediaMessage::Menu(m) => {
                 self.menu.update(m);
             }
             MediaMessage::Transport(method) => {
-                let Some(media) = self.cell.get() else {
+                let Some(media) = self.media.as_ref() else {
                     return Task::none();
                 };
                 let bus = media.bus.clone();
@@ -97,7 +96,7 @@ impl MediaGroup {
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {
-        let media = self.cell.get()?;
+        let media = self.media.as_ref()?;
         let mut rows = Vec::new();
         if !media.title.is_empty() {
             rows.push(row("Track", media.title.clone()));
@@ -121,7 +120,7 @@ impl MediaGroup {
         config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, MediaMessage>> {
-        let media = self.cell.get()?;
+        let media = self.media.as_ref()?;
         let status = self.status(media);
         let alpha = if status == Status::Playing { 1.0 } else { 0.4 };
 
