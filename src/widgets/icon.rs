@@ -10,14 +10,20 @@
 //! generated table.
 
 use iced::widget::text::Catalog;
-use iced_font_awesome::{Icon as FaIcon, fa_icon_solid};
+use iced_font_awesome::{Icon as FaIcon, fa_icon_brands, fa_icon_solid};
 
-// Defines `pub enum Icon { .. }` and `Icon::name()`. See `build.rs`.
+// Defines `pub enum Icon { .. }`, `Icon::name()`, and `Icon::is_brand()`. See
+// `build.rs`.
 include!(concat!(env!("OUT_DIR"), "/icons.rs"));
 
 impl Icon {
-    /// A solid-weight widget for this icon, ready to `.size(..).color(..)`.
+    /// A widget for this icon in its own face — solid Free for most, the Brands
+    /// face for brand-only glyphs — ready to `.size(..).color(..)`.
     pub fn solid<'a, Theme: Catalog>(self) -> FaIcon<'a, Theme> {
-        fa_icon_solid(self.name())
+        if self.is_brand() {
+            fa_icon_brands(self.name())
+        } else {
+            fa_icon_solid(self.name())
+        }
     }
 }
