@@ -27,6 +27,7 @@ use crate::{
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
+        media_group::{MediaGroup, MediaMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
@@ -67,6 +68,7 @@ pub struct Bar {
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) brightness_group: BrightnessGroup,
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
+    pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
@@ -107,6 +109,7 @@ pub enum Message {
     NetInterfaces(NetInterfacesMessage),
     Brightness(BrightnessMessage),
     IdleTimeouts(IdleTimeoutsMessage),
+    Media(MediaMessage),
     /// The in-process idle daemon connected to wayland.
     Idle(IdleEvent),
     /// Persisted panel settings finished loading from the sqlite store.
@@ -147,6 +150,7 @@ impl Bar {
             net_interfaces_group: NetInterfacesGroup::default(),
             brightness_group: BrightnessGroup::default(),
             idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
+            media_group: MediaGroup::new(config.layout.menu_expand_ms),
             audio_group: AudioGroup::default(),
             window_list: WindowListGroup::default(),
             quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
@@ -188,6 +192,7 @@ impl Bar {
             || self.idle_timeouts_group.menu.is_animating()
             || self.internet_group.menu.is_animating()
             || self.weather_group.menu.is_animating()
+            || self.media_group.menu.is_animating()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -200,6 +205,7 @@ impl Bar {
                 self.idle_timeouts_group.menu.tick(now);
                 self.internet_group.menu.tick(now);
                 self.weather_group.menu.tick(now);
+                self.media_group.menu.tick(now);
                 Task::none()
             }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
@@ -269,6 +275,7 @@ impl Bar {
             Message::Brightness(msg) => {
                 self.brightness_group.update(msg).map(Message::Brightness)
             }
+            Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
             Message::IdleTimeouts(msg) => {
                 use crate::bar_layout::idle_timeouts_group::IdleChange;
                 match self.idle_timeouts_group.update(msg) {
@@ -309,6 +316,7 @@ impl Bar {
                 let _ = self.idle_timeouts_group.update(IdleTimeoutsMessage::Close);
                 let _ = self.internet_group.update(InternetMessage::Close);
                 self.weather_group.update(WeatherMessage::Close);
+                let _ = self.media_group.update(MediaMessage::Close);
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
@@ -408,6 +416,7 @@ impl Bar {
             TooltipSource::PollenBirch => self.weather_group.birch_cell().tooltip(),
             TooltipSource::PollenGrass => self.weather_group.grass_cell().tooltip(),
             TooltipSource::Location => self.weather_group.location_cell().tooltip(),
+            TooltipSource::Media => self.media_group.tooltip(),
         }
         .unwrap_or_else(Tooltip::empty)
     }

@@ -28,6 +28,7 @@ pub mod favicons;
 pub mod geolocation;
 pub mod icon_trim;
 pub mod launch_tracker;
+pub mod mpris;
 pub mod net_interfaces;
 pub mod niri;
 pub mod sysfs_sensors;

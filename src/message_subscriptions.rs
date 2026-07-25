@@ -13,8 +13,8 @@ use crate::{
     bar_layout::{
         audio_group::AudioGroup, battery_group::BatteryGroup, brightness_group::BrightnessGroup,
         clock_group::ClockGroup, internet_group::InternetGroup, journal_group::JournalGroup,
-        net_interfaces_group::NetInterfacesGroup, system_group::SystemGroup,
-        weather_group::WeatherGroup, window_list_group::WindowListGroup,
+        media_group::MediaGroup, net_interfaces_group::NetInterfacesGroup,
+        system_group::SystemGroup, weather_group::WeatherGroup, window_list_group::WindowListGroup,
     },
     bar_program::{Bar, Message},
     data_sources::{Source, desktop_entries, niri},
@@ -48,6 +48,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         InternetGroup::subscription().map(Message::Internet),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
         BrightnessGroup::subscription().map(Message::Brightness),
+        MediaGroup::subscription().map(Message::Media),
         idle::subscription().map(Message::Idle),
         AudioGroup::subscription().map(Message::Audio),
         WindowListGroup::subscription().map(Message::WindowList),

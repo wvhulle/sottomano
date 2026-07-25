@@ -10,6 +10,7 @@ use iced::{
 use idle_timeouts_group::IdleTimeoutsMessage;
 use internet_group::InternetMessage;
 use journal_group::JournalMessage;
+use media_group::MediaMessage;
 use net_interfaces_group::NetInterfacesMessage;
 use panel_settings_group::PanelSettingsMessage;
 use system_group::SystemMessage;
@@ -29,6 +30,7 @@ pub mod clock_group;
 pub mod idle_timeouts_group;
 pub mod internet_group;
 pub mod journal_group;
+pub mod media_group;
 pub mod net_interfaces_group;
 pub mod panel_settings_group;
 pub mod quick_launch_group;
@@ -104,6 +106,12 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                 IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::IdleTimeouts(m),
             })),
+            bar.media_group.view(config, position).map(|e| {
+                e.map(|m| match m {
+                    MediaMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Media(m),
+                })
+            }),
             bar.audio_group.view(config).map(|e| {
                 e.map(|m| match m {
                     AudioMessage::Tooltip(t) => Message::Tooltip(t),

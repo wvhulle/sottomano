@@ -76,6 +76,7 @@ pub enum TooltipSource {
     PollenBirch,
     PollenGrass,
     Location,
+    Media,
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
