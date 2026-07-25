@@ -1,7 +1,7 @@
 //! An icon that expands to an inline slider on click, shared by every
-//! write-back control (audio, idle, panel). It owns the expansion and the
-//! poll/write reconciliation; the live value stays with the caller and is
-//! passed in as `reading`, coming back out via [`Action::Commit`].
+//! write-back control (audio, idle, panel). It owns the expansion and scroll
+//! input and delegates the value model to [`Optimistic`]; the live value stays
+//! with the caller, passed in as `reading` and returned via [`Action::Commit`].
 
 use std::ops::RangeInclusive;
 
@@ -17,18 +17,17 @@ use crate::{
     config::resolved::ResolvedConfig,
     data_sources::BarWidget,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    widgets::{icon_gauge::source_reading, inline_slider::inline_slider, text::bar_text},
+    widgets::{
+        icon_gauge::source_reading, inline_slider::inline_slider, optimistic::Optimistic,
+        text::bar_text,
+    },
 };
 
 #[derive(Default)]
 pub struct SliderControl {
     open: bool,
     accum: f32,
-    /// Optimistic display value, overriding `reading` until a poll reconciles.
-    pending: Option<f32>,
-    dragging: bool,
-    /// Value believed to be in effect; a `Commit` matching it is dropped.
-    written: Option<f32>,
+    value: Optimistic,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -68,18 +67,11 @@ impl SliderControl {
     }
 
     pub fn value(&self, reading: f32) -> f32 {
-        self.pending.unwrap_or(reading)
+        self.value.value(reading)
     }
 
-    /// Reconcile with an authoritative reading (poll / load): trust it for
-    /// display unless the user is mid-drag, and follow it as the dedup baseline
-    /// so external changes are adopted.
     pub fn sync(&mut self, reading: f32) {
-        if self.dragging {
-            return;
-        }
-        self.pending = None;
-        self.written = Some(reading);
+        self.value.sync(reading);
     }
 
     pub fn update(
@@ -99,31 +91,21 @@ impl SliderControl {
                     return Action::None;
                 };
                 #[allow(clippy::cast_precision_loss)]
-                let target = (self.value(reading) + step as f32 * step_size)
+                let target = (self.value.value(reading) + step as f32 * step_size)
                     .clamp(*range.start(), *range.end());
-                self.commit(target)
+                into_action(self.value.commit(target))
             }
             ControlMessage::Set(pos) => {
-                self.dragging = true;
-                self.pending = Some(pos);
+                self.value.drag(pos);
                 Action::None
             }
             ControlMessage::Release => {
-                self.dragging = false;
-                self.commit(self.value(reading))
+                self.value.end_drag();
+                into_action(self.value.commit(self.value.value(reading)))
             }
             ControlMessage::Right => Action::Right,
             ControlMessage::Tooltip(_) => Action::None,
         }
-    }
-
-    fn commit(&mut self, value: f32) -> Action {
-        if self.written == Some(value) {
-            return Action::None;
-        }
-        self.written = Some(value);
-        self.pending = Some(value);
-        Action::Commit(value)
     }
 
     pub fn view<'a>(
@@ -168,5 +150,12 @@ impl SliderControl {
             area = area.on_right_press(ControlMessage::Right);
         }
         area.into()
+    }
+}
+
+fn into_action(commit: Option<f32>) -> Action {
+    match commit {
+        Some(value) => Action::Commit(value),
+        None => Action::None,
     }
 }

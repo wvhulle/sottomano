@@ -12,6 +12,7 @@ pub mod icon_gauge;
 pub mod idle;
 pub mod inline_slider;
 pub mod menu_group;
+pub mod optimistic;
 pub mod pager_slot;
 pub mod slider_control;
 pub mod reveal;
