@@ -7,6 +7,7 @@ use iced::{
     Alignment, Element, Length,
     widget::{Row, Space, row},
 };
+use idle_timeouts_group::IdleTimeoutsMessage;
 use journal_group::JournalMessage;
 use net_interfaces_group::NetInterfacesMessage;
 use panel_settings_group::PanelSettingsMessage;
@@ -23,6 +24,7 @@ pub mod audio_group;
 pub mod battery_group;
 pub mod brightness_group;
 pub mod clock_group;
+pub mod idle_timeouts_group;
 pub mod journal_group;
 pub mod net_interfaces_group;
 pub mod panel_settings_group;
@@ -80,6 +82,12 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                 e.map(|m| match m {
                     BrightnessMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::Brightness(m),
+                })
+            }),
+            bar.idle_timeouts_group.view(config, position).map(|e| {
+                e.map(|m| match m {
+                    IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::IdleTimeouts(m),
                 })
             }),
             bar.audio_group.view(config).map(|e| {

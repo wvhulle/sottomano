@@ -12,9 +12,9 @@ use tokio_stream::wrappers::IntervalStream;
 use crate::{
     bar_layout::{
         audio_group::AudioGroup, battery_group::BatteryGroup, brightness_group::BrightnessGroup,
-        clock_group::ClockGroup, journal_group::JournalGroup,
-        net_interfaces_group::NetInterfacesGroup, system_group::SystemGroup,
-        window_list_group::WindowListGroup,
+        clock_group::ClockGroup, idle_timeouts_group::IdleTimeoutsGroup,
+        journal_group::JournalGroup, net_interfaces_group::NetInterfacesGroup,
+        system_group::SystemGroup, window_list_group::WindowListGroup,
     },
     bar_program::{Bar, Message},
     data_sources::{Source, desktop_entries, niri},
@@ -45,6 +45,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         JournalGroup::subscription().map(Message::Journal),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
         BrightnessGroup::subscription().map(Message::Brightness),
+        IdleTimeoutsGroup::subscription().map(Message::IdleTimeouts),
         AudioGroup::subscription().map(Message::Audio),
         WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),

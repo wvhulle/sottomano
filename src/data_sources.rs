@@ -24,6 +24,7 @@ pub mod backlight;
 pub mod command;
 pub mod desktop_entries;
 pub mod disk;
+pub mod idle_timeout;
 pub mod net_interfaces;
 pub mod favicons;
 pub mod icon_trim;

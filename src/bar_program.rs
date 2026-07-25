@@ -24,6 +24,7 @@ use crate::{
         battery_group::{BatteryGroup, BatteryMessage},
         brightness_group::{BrightnessGroup, BrightnessMessage},
         clock_group::{ClockGroup, ClockMessage},
+        idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         journal_group::{JournalGroup, JournalMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
@@ -57,6 +58,7 @@ pub struct Bar {
     pub(crate) journal_group: JournalGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) brightness_group: BrightnessGroup,
+    pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) audio_group: AudioGroup,
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
@@ -92,6 +94,7 @@ pub enum Message {
     Journal(JournalMessage),
     NetInterfaces(NetInterfacesMessage),
     Brightness(BrightnessMessage),
+    IdleTimeouts(IdleTimeoutsMessage),
     Audio(AudioMessage),
     WindowList(WindowListMessage),
     QuickLaunch(QuickLaunchMessage),
@@ -125,6 +128,7 @@ impl Bar {
             journal_group: JournalGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
             brightness_group: BrightnessGroup::default(),
+            idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
             audio_group: AudioGroup::default(),
             window_list: WindowListGroup::default(),
             quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
@@ -158,6 +162,7 @@ impl Bar {
         self.system_group.menu.is_animating()
             || self.panel_settings_group.menu.is_animating()
             || self.quick_launch.menu.is_animating()
+            || self.idle_timeouts_group.menu.is_animating()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -167,6 +172,7 @@ impl Bar {
                 self.system_group.menu.tick(now);
                 self.panel_settings_group.menu.tick(now);
                 self.quick_launch.menu.tick(now);
+                self.idle_timeouts_group.menu.tick(now);
                 Task::none()
             }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
@@ -231,12 +237,16 @@ impl Bar {
             Message::Brightness(msg) => {
                 self.brightness_group.update(msg).map(Message::Brightness)
             }
+            Message::IdleTimeouts(msg) => {
+                self.idle_timeouts_group.update(msg).map(Message::IdleTimeouts)
+            }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
                 self.panel_settings_group
                     .update(PanelSettingsMessage::Close);
                 self.system_group.update(SystemMessage::Close);
                 let _ = self.quick_launch.update(QuickLaunchMessage::Close);
+                let _ = self.idle_timeouts_group.update(IdleTimeoutsMessage::Close);
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
@@ -320,6 +330,9 @@ impl Bar {
             TooltipSource::AudioSink => self.audio_group.sink_cell().tooltip(),
             TooltipSource::AudioSource => self.audio_group.source_cell().tooltip(),
             TooltipSource::Brightness => self.brightness_group.cell().tooltip(),
+            TooltipSource::IdleTimeout(index) => {
+                self.idle_timeouts_group.tooltip(index as usize)
+            }
         }
         .unwrap_or_else(Tooltip::empty)
     }

@@ -61,6 +61,9 @@ pub enum TooltipSource {
     AudioSink,
     AudioSource,
     Brightness,
+    /// One idle-timeout subsystem, by its index into
+    /// [`SUBSYSTEMS`](crate::data_sources::idle_timeout::SUBSYSTEMS).
+    IdleTimeout(u8),
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
