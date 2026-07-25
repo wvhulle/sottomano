@@ -14,7 +14,7 @@ use iced::{
 };
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
+    bar_layout::{scroll::scroll_step, source_cell::SourceCell},
     config::resolved::ResolvedConfig,
     data_sources::{
         BarWidget,
@@ -27,9 +27,6 @@ use crate::{
 
 /// Volume change per scroll notch (odin's ±5%).
 const STEP: i64 = 5;
-/// Touchpad pixels of travel per step, so a fine scroll doesn't slew the
-/// volume; mouse-wheel line events step once each regardless.
-const PIXELS_PER_STEP: f32 = 40.0;
 
 #[derive(Default)]
 pub struct AudioGroup {
@@ -50,33 +47,6 @@ pub enum AudioMessage {
     ScrollSource(ScrollDelta),
     MuteSource,
     Tooltip(TooltipMessage),
-}
-
-/// The step direction from a scroll event: `+1`/`-1`, or `None` for a
-/// touchpad nudge that hasn't yet accumulated a full step. `accum` carries the
-/// sub-step pixel travel between events.
-fn scroll_step(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
-    match delta {
-        ScrollDelta::Lines { y, .. } => {
-            if y > 0.0 {
-                Some(1)
-            } else if y < 0.0 {
-                Some(-1)
-            } else {
-                None
-            }
-        }
-        ScrollDelta::Pixels { y, .. } => {
-            *accum += y;
-            if accum.abs() >= PIXELS_PER_STEP {
-                let step = if *accum > 0.0 { 1 } else { -1 };
-                *accum = 0.0;
-                Some(step)
-            } else {
-                None
-            }
-        }
-    }
 }
 
 impl AudioGroup {

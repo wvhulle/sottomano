@@ -22,6 +22,7 @@ use crate::{
         self,
         audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
+        brightness_group::{BrightnessGroup, BrightnessMessage},
         clock_group::{ClockGroup, ClockMessage},
         journal_group::{JournalGroup, JournalMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
@@ -55,6 +56,7 @@ pub struct Bar {
     pub(crate) clock_group: ClockGroup,
     pub(crate) journal_group: JournalGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
+    pub(crate) brightness_group: BrightnessGroup,
     pub(crate) audio_group: AudioGroup,
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
@@ -89,6 +91,7 @@ pub enum Message {
     Clock(ClockMessage),
     Journal(JournalMessage),
     NetInterfaces(NetInterfacesMessage),
+    Brightness(BrightnessMessage),
     Audio(AudioMessage),
     WindowList(WindowListMessage),
     QuickLaunch(QuickLaunchMessage),
@@ -121,6 +124,7 @@ impl Bar {
             clock_group: ClockGroup::default(),
             journal_group: JournalGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
+            brightness_group: BrightnessGroup::default(),
             audio_group: AudioGroup::default(),
             window_list: WindowListGroup::default(),
             quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
@@ -224,6 +228,9 @@ impl Bar {
                 self.net_interfaces_group.update(msg);
                 Task::none()
             }
+            Message::Brightness(msg) => {
+                self.brightness_group.update(msg).map(Message::Brightness)
+            }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
                 self.panel_settings_group
@@ -312,6 +319,7 @@ impl Bar {
             TooltipSource::Mobile => self.net_interfaces_group.mobile_cell().tooltip(),
             TooltipSource::AudioSink => self.audio_group.sink_cell().tooltip(),
             TooltipSource::AudioSource => self.audio_group.source_cell().tooltip(),
+            TooltipSource::Brightness => self.brightness_group.cell().tooltip(),
         }
         .unwrap_or_else(Tooltip::empty)
     }

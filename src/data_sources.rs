@@ -20,6 +20,7 @@ use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
 pub mod app_icon;
 pub mod app_rules;
 pub mod audio;
+pub mod backlight;
 pub mod command;
 pub mod desktop_entries;
 pub mod disk;

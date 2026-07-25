@@ -2,6 +2,7 @@
 
 use audio_group::AudioMessage;
 use battery_group::BatteryMessage;
+use brightness_group::BrightnessMessage;
 use iced::{
     Alignment, Element, Length,
     widget::{Row, Space, row},
@@ -20,11 +21,13 @@ use crate::{
 
 pub mod audio_group;
 pub mod battery_group;
+pub mod brightness_group;
 pub mod clock_group;
 pub mod journal_group;
 pub mod net_interfaces_group;
 pub mod panel_settings_group;
 pub mod quick_launch_group;
+pub mod scroll;
 pub mod source_cell;
 pub mod system_group;
 pub mod window_list_group;
@@ -72,12 +75,20 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
         config,
     );
     let end = zone(
-        [bar.audio_group.view(config).map(|e| {
-            e.map(|m| match m {
-                AudioMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Audio(m),
-            })
-        })],
+        [
+            bar.brightness_group.view(config).map(|e| {
+                e.map(|m| match m {
+                    BrightnessMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Brightness(m),
+                })
+            }),
+            bar.audio_group.view(config).map(|e| {
+                e.map(|m| match m {
+                    AudioMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Audio(m),
+                })
+            }),
+        ],
         config,
     );
     bar_row(start, center, end, config)

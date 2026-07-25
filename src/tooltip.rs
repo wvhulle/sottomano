@@ -60,6 +60,7 @@ pub enum TooltipSource {
     Mobile,
     AudioSink,
     AudioSource,
+    Brightness,
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
