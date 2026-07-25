@@ -10,7 +10,6 @@ use chrono::Utc;
 use iced::{
     Alignment, Color, Element, Length, Task,
     theme::Style,
-    time::Instant,
     widget::{Space, container, mouse_area, stack, text},
     window::Id,
 };
@@ -52,6 +51,7 @@ use crate::{
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
     widgets::{
         idle::{Arm, IdleEvent, IdleHandle},
+        menu_group::MenuMessage,
         slider_control::Action as SliderAction,
     },
 };
@@ -125,7 +125,6 @@ pub enum Message {
     WorkspaceClicked(u64),
     Niri(niri_ipc::Event),
     WindowClosed(Id),
-    FrameTicked,
     /// 1 Hz tick, live only while a Log tooltip is shown, to advance its
     /// relative timestamps.
     TooltipTick,
@@ -182,32 +181,8 @@ impl Bar {
         "vetrata".to_string()
     }
 
-    /// Whether any expandable group is mid-transition — drives the per-frame
-    /// animation subscription. Frame ticking is an app-level concern, so it is
-    /// aggregated here across all menu groups rather than exposed per group.
-    pub fn is_animating(&self) -> bool {
-        self.system_group.menu.is_animating()
-            || self.panel_settings_group.menu.is_animating()
-            || self.quick_launch.menu.is_animating()
-            || self.idle_timeouts_group.menu.is_animating()
-            || self.internet_group.menu.is_animating()
-            || self.weather_group.menu.is_animating()
-            || self.media_group.menu.is_animating()
-    }
-
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::FrameTicked => {
-                let now = Instant::now();
-                self.system_group.menu.tick(now);
-                self.panel_settings_group.menu.tick(now);
-                self.quick_launch.menu.tick(now);
-                self.idle_timeouts_group.menu.tick(now);
-                self.internet_group.menu.tick(now);
-                self.weather_group.menu.tick(now);
-                self.media_group.menu.tick(now);
-                Task::none()
-            }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 // Re-query output sizes too: a new output changes where a centred
                 // notification stack lands.
@@ -310,13 +285,21 @@ impl Bar {
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
                 self.panel_settings_group
-                    .update(PanelSettingsMessage::Close);
-                self.system_group.update(SystemMessage::Close);
-                let _ = self.quick_launch.update(QuickLaunchMessage::Close);
-                let _ = self.idle_timeouts_group.update(IdleTimeoutsMessage::Close);
-                let _ = self.internet_group.update(InternetMessage::Close);
-                self.weather_group.update(WeatherMessage::Close);
-                let _ = self.media_group.update(MediaMessage::Close);
+                    .update(PanelSettingsMessage::Menu(MenuMessage::Close));
+                self.system_group
+                    .update(SystemMessage::Menu(MenuMessage::Close));
+                let _ = self
+                    .quick_launch
+                    .update(QuickLaunchMessage::Menu(MenuMessage::Close));
+                let _ = self
+                    .idle_timeouts_group
+                    .update(IdleTimeoutsMessage::Menu(MenuMessage::Close));
+                let _ = self
+                    .internet_group
+                    .update(InternetMessage::Menu(MenuMessage::Close));
+                self.weather_group
+                    .update(WeatherMessage::Menu(MenuMessage::Close));
+                let _ = self.media_group.update(MediaMessage::Menu(MenuMessage::Close));
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {

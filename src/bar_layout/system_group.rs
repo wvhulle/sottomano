@@ -18,7 +18,10 @@ use crate::{
     },
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
+    widgets::{
+        icon_gauge::source_reading,
+        menu_group::{MenuGroup, MenuMessage},
+    },
 };
 
 /// A reading wrapped so hovering it opens its tooltip. Carries only the
@@ -48,9 +51,7 @@ pub enum SystemMessage {
     Memory(Option<Memory>),
     Temperature(Option<Temperature>),
     Disk(Option<Disk>),
-    Toggle,
-    Hover(bool),
-    Close,
+    Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -80,9 +81,9 @@ impl SystemGroup {
             SystemMessage::Memory(reading) => self.memory.load(reading),
             SystemMessage::Temperature(reading) => self.temperature.load(reading),
             SystemMessage::Disk(reading) => self.disk.load(reading),
-            SystemMessage::Toggle => self.menu.toggle(),
-            SystemMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            SystemMessage::Close => self.menu.close(),
+            SystemMessage::Menu(m) => {
+                self.menu.update(m);
+            }
             SystemMessage::Tooltip(_) => {}
         }
     }
@@ -114,6 +115,11 @@ impl SystemGroup {
             1.0,
             TooltipSource::Cpu,
         )?;
+        // The handle carries the toggle press (only the handle toggles, so
+        // clicking the revealed readings never collapses the group).
+        let handle = mouse_area(handle)
+            .on_press(SystemMessage::Menu(MenuMessage::Toggle))
+            .into();
 
         let reveal = self.menu.reveal();
         let content = Row::with_children(
@@ -135,16 +141,13 @@ impl SystemGroup {
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);
 
-        let group = self
-            .menu
-            .view(config, position, reveal, handle, content.into());
-
-        Some(
-            mouse_area(group)
-                .on_press(SystemMessage::Toggle)
-                .on_enter(SystemMessage::Hover(true))
-                .on_exit(SystemMessage::Hover(false))
-                .into(),
-        )
+        Some(self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            SystemMessage::Menu,
+        ))
     }
 }

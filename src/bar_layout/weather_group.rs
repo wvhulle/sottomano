@@ -16,7 +16,10 @@ use crate::{
     },
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
+    widgets::{
+        icon_gauge::source_reading,
+        menu_group::{MenuGroup, MenuMessage},
+    },
 };
 
 pub struct WeatherGroup {
@@ -35,9 +38,7 @@ pub enum WeatherMessage {
     Birch(Option<Pollen<false>>),
     Grass(Option<Pollen<true>>),
     Location(Option<Location>),
-    Toggle,
-    Hover(bool),
-    Close,
+    Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -70,9 +71,9 @@ impl WeatherGroup {
             WeatherMessage::Birch(reading) => self.birch.load(reading),
             WeatherMessage::Grass(reading) => self.grass.load(reading),
             WeatherMessage::Location(reading) => self.location.load(reading),
-            WeatherMessage::Toggle => self.menu.toggle(),
-            WeatherMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            WeatherMessage::Close => self.menu.close(),
+            WeatherMessage::Menu(m) => {
+                self.menu.update(m);
+            }
             WeatherMessage::Tooltip(_) => {}
         }
     }
@@ -110,7 +111,7 @@ impl WeatherGroup {
             TooltipSource::WeatherTemp,
             WeatherMessage::Tooltip,
         ))
-        .on_press(WeatherMessage::Toggle)
+        .on_press(WeatherMessage::Menu(MenuMessage::Toggle))
         .into();
 
         let reveal = self.menu.reveal();
@@ -138,15 +139,14 @@ impl WeatherGroup {
         let content = Row::with_children(pills)
             .spacing(config.layout.horizontal_widget_spacing_px)
             .align_y(Alignment::Center);
-        let group = self
-            .menu
-            .view(config, position, reveal, handle, content.into());
 
-        Some(
-            mouse_area(group)
-                .on_enter(WeatherMessage::Hover(true))
-                .on_exit(WeatherMessage::Hover(false))
-                .into(),
-        )
+        Some(self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            WeatherMessage::Menu,
+        ))
     }
 }

@@ -27,13 +27,11 @@ use crate::{
 };
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    let animation = if state.is_animating() {
-        iced::window::frames().map(|_| Message::FrameTicked)
-    } else {
-        Subscription::none()
-    };
-    // Only ticks while a Log tooltip is shown, to advance its relative times —
-    // gated like the animation frames so it stays idle otherwise.
+    // Menu expand animations are self-driving (each `MenuGroup` re-requests
+    // frames from within its widget tree while animating), so no frame-tick
+    // subscription is wired here.
+    //
+    // Only ticks while a Log tooltip is shown, to advance its relative times.
     let tooltip_tick = if state.tooltip_has_relative_time() {
         iced::time::every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
     } else {
@@ -59,7 +57,6 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         iced::time::every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
         niri_subscription(),
         notifications_subscription(),
-        animation,
         tooltip_tick,
     ])
 }

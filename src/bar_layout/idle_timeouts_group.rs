@@ -18,7 +18,7 @@ use crate::{
     widgets::{
         icon::Icon,
         idle::timer::{IdleTimer, TimerChange},
-        menu_group::MenuGroup,
+        menu_group::{MenuGroup, MenuMessage},
         slider_control::ControlMessage,
     },
 };
@@ -54,9 +54,7 @@ pub struct IdleTimeoutsGroup {
 #[derive(Debug, Clone, Copy)]
 pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
-    Toggle,
-    Hover(bool),
-    Close,
+    Menu(MenuMessage),
     Timer(TimerKind, ControlMessage),
     Tooltip(TooltipMessage),
 }
@@ -105,20 +103,11 @@ impl IdleTimeoutsGroup {
                 self.timers[TimerKind::PowerDown.index()].set_timeout(timeouts.power_down);
                 IdleChange::Rearm
             }
-            IdleTimeoutsMessage::Toggle => {
-                self.menu.toggle();
-                if !self.menu.is_open() {
+            // Collapsing the menu closes every pill's slider.
+            IdleTimeoutsMessage::Menu(m) => {
+                if self.menu.update(m) {
                     self.close_all();
                 }
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::Hover(hovered) => {
-                self.menu.set_hover(hovered);
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::Close => {
-                self.menu.close();
-                self.close_all();
                 IdleChange::None
             }
             IdleTimeoutsMessage::Timer(kind, msg) => match self.timers[kind.index()].update(msg) {
@@ -171,19 +160,20 @@ impl IdleTimeoutsGroup {
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
-        .on_press(IdleTimeoutsMessage::Toggle)
+        .on_press(IdleTimeoutsMessage::Menu(MenuMessage::Toggle))
         .into();
 
         let content = Row::with_children(pills)
             .spacing(config.layout.horizontal_widget_spacing_px)
             .align_y(Alignment::Center);
-        let group = self
-            .menu
-            .view(config, position, reveal, handle, content.into());
 
-        mouse_area(group)
-            .on_enter(IdleTimeoutsMessage::Hover(true))
-            .on_exit(IdleTimeoutsMessage::Hover(false))
-            .into()
+        self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            IdleTimeoutsMessage::Menu,
+        )
     }
 }

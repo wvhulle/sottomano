@@ -25,7 +25,10 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    widgets::{icon::Icon, menu_group::MenuGroup},
+    widgets::{
+        icon::Icon,
+        menu_group::{MenuGroup, MenuMessage},
+    },
 };
 
 /// How many ranked icons to show at most (odin's `maxItems`).
@@ -47,9 +50,7 @@ pub struct QuickLaunchGroup {
 
 #[derive(Debug, Clone)]
 pub enum QuickLaunchMessage {
-    Toggle,
-    Hover(bool),
-    Close,
+    Menu(MenuMessage),
     IconHover(Option<String>),
     /// A ranked icon was clicked; the group resolves it to a launch itself (it
     /// owns the desktop index and the niri-spawn fallback).
@@ -88,9 +89,9 @@ impl QuickLaunchGroup {
 
     pub fn update(&mut self, msg: QuickLaunchMessage) -> Task<QuickLaunchMessage> {
         match msg {
-            QuickLaunchMessage::Toggle => self.menu.toggle(),
-            QuickLaunchMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            QuickLaunchMessage::Close => self.menu.close(),
+            QuickLaunchMessage::Menu(m) => {
+                self.menu.update(m);
+            }
             QuickLaunchMessage::IconHover(app_id) => self.hovered = app_id,
             QuickLaunchMessage::IconsResolved(icons) => self.icons = icons,
             QuickLaunchMessage::Launch(app_id) => return self.launch(app_id),
@@ -146,7 +147,7 @@ impl QuickLaunchGroup {
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
-        .on_press(QuickLaunchMessage::Toggle)
+        .on_press(QuickLaunchMessage::Menu(MenuMessage::Toggle))
         .into();
 
         let reveal = self.menu.reveal();
@@ -158,19 +159,17 @@ impl QuickLaunchGroup {
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);
 
-        let group = self
-            .menu
-            .view(config, position, reveal, handle, content.into());
-
         // Hover on the whole group only brightens the activity line (via the
         // menu); the toggle lives on the handle so clicking an icon launches it
         // without also toggling the menu.
-        Some(
-            mouse_area(group)
-                .on_enter(QuickLaunchMessage::Hover(true))
-                .on_exit(QuickLaunchMessage::Hover(false))
-                .into(),
-        )
+        Some(self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            QuickLaunchMessage::Menu,
+        ))
     }
 
     /// One ranked icon: dimmed until hovered, fading in with the reveal, that

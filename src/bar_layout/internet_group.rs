@@ -23,7 +23,10 @@ use crate::{
     },
     layer_surface::Position,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    widgets::{icon_gauge::source_reading, menu_group::MenuGroup},
+    widgets::{
+        icon_gauge::source_reading,
+        menu_group::{MenuGroup, MenuMessage},
+    },
 };
 
 pub struct InternetGroup {
@@ -40,9 +43,7 @@ pub enum InternetMessage {
     Up(Option<Throughput<true>>),
     Wireguard(Option<Wireguard>),
     Tailscale(Option<Tailscale>),
-    Toggle,
-    Hover(bool),
-    Close,
+    Menu(MenuMessage),
     Disconnect(String),
     OpenTailscale,
     Tooltip(TooltipMessage),
@@ -75,9 +76,9 @@ impl InternetGroup {
             InternetMessage::Up(reading) => self.up.load(reading),
             InternetMessage::Wireguard(reading) => self.wireguard.load(reading),
             InternetMessage::Tailscale(reading) => self.tailscale.load(reading),
-            InternetMessage::Toggle => self.menu.toggle(),
-            InternetMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            InternetMessage::Close => self.menu.close(),
+            InternetMessage::Menu(m) => {
+                self.menu.update(m);
+            }
             InternetMessage::Disconnect(name) => {
                 return blocking("wireguard down", move || disconnect(&name)).discard();
             }
@@ -124,7 +125,7 @@ impl InternetGroup {
             TooltipSource::InternetDown,
             InternetMessage::Tooltip,
         ))
-        .on_press(InternetMessage::Toggle)
+        .on_press(InternetMessage::Menu(MenuMessage::Toggle))
         .into();
 
         let reveal = self.menu.reveal();
@@ -166,15 +167,14 @@ impl InternetGroup {
         let content = Row::with_children(pills)
             .spacing(config.layout.horizontal_widget_spacing_px)
             .align_y(Alignment::Center);
-        let group = self
-            .menu
-            .view(config, position, reveal, handle, content.into());
 
-        Some(
-            mouse_area(group)
-                .on_enter(InternetMessage::Hover(true))
-                .on_exit(InternetMessage::Hover(false))
-                .into(),
-        )
+        Some(self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            InternetMessage::Menu,
+        ))
     }
 }

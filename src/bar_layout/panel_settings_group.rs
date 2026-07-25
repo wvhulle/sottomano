@@ -17,7 +17,7 @@ use crate::{
     tooltip::{TooltipMessage, TooltipSource, hoverable},
     widgets::{
         icon::Icon,
-        menu_group::MenuGroup,
+        menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl, View},
     },
 };
@@ -56,9 +56,7 @@ pub struct PanelSettingsGroup {
 
 #[derive(Debug, Clone, Copy)]
 pub enum PanelSettingsMessage {
-    Toggle,
-    Hover(bool),
-    Close,
+    Menu(MenuMessage),
     ToggleFloating,
     Offset(ControlMessage),
     Tooltip(TooltipMessage),
@@ -74,16 +72,11 @@ impl PanelSettingsGroup {
 
     pub fn update(&mut self, msg: PanelSettingsMessage) {
         match msg {
-            PanelSettingsMessage::Toggle => {
-                self.menu.toggle();
-                if !self.menu.is_open() {
+            // Collapsing the menu also closes the offset slider.
+            PanelSettingsMessage::Menu(m) => {
+                if self.menu.update(m) {
                     self.offset.close();
                 }
-            }
-            PanelSettingsMessage::Hover(hovered) => self.menu.set_hover(hovered),
-            PanelSettingsMessage::Close => {
-                self.menu.close();
-                self.offset.close();
             }
             PanelSettingsMessage::ToggleFloating
             | PanelSettingsMessage::Offset(_)
@@ -108,11 +101,15 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let handle: Element<'a, PanelSettingsMessage> = Icon::Sliders
-            .solid()
-            .size(config.font.icon_size_px)
-            .color(foreground)
-            .into();
+        // The handle carries the toggle press (only the handle toggles).
+        let handle: Element<'a, PanelSettingsMessage> = mouse_area(
+            Icon::Sliders
+                .solid()
+                .size(config.font.icon_size_px)
+                .color(foreground),
+        )
+        .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
+        .into();
 
         let floating = config.layout.floating;
         let floating_toggle = {
@@ -131,15 +128,14 @@ impl PanelSettingsGroup {
         let content = Row::with_children([Some(floating_toggle), offset].into_iter().flatten())
             .spacing(config.layout.horizontal_widget_spacing_px)
             .align_y(Alignment::Center);
-        let group = self.menu.view(config, position, reveal, handle, content.into());
-
-        Some(
-            mouse_area(group)
-                .on_press(PanelSettingsMessage::Toggle)
-                .on_enter(PanelSettingsMessage::Hover(true))
-                .on_exit(PanelSettingsMessage::Hover(false))
-                .into(),
-        )
+        Some(self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            PanelSettingsMessage::Menu,
+        ))
     }
 
     #[allow(clippy::cast_possible_truncation)]
