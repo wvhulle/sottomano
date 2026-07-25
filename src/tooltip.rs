@@ -12,7 +12,10 @@
 //! tooltip anchor on hover — no global cursor. The panel then sizes itself: a
 //! `Sensor` reports iced's measured size, which shrinks the surface to fit.
 
-use std::{collections::BTreeMap, time::SystemTime};
+use std::{
+    collections::{BTreeMap, HashMap},
+    time::SystemTime,
+};
 
 use iced::{
     Border, Color, Element, Event, Font, Length, Rectangle, Size, Task, Vector,
@@ -33,7 +36,7 @@ use iced_layershell::reexport::{
 use crate::{
     bar_program::Message,
     config::resolved::ResolvedConfig,
-    data_sources::{Tooltip, TooltipBody, level_color},
+    data_sources::{Tooltip, TooltipBody, level_color, niri::OutputGeometry},
     layer_surface::{Position, Surface},
     widgets::text::bar_text,
 };
@@ -124,6 +127,21 @@ struct Shown {
     source: TooltipSource,
     /// Last surface size we requested, to ignore no-op resize reports.
     size: Option<(u32, u32)>,
+    /// The hovered widget's bounds; `anchor.x` positions the panel horizontally.
+    anchor: Rectangle,
+    /// The output's logical width, for right-edge placement math. `None` when
+    /// the output geometry is unknown — placement then falls back to `anchor.x`.
+    output_width: Option<i32>,
+    /// Which screen edge the parent bar hugs, to rebuild the vertical margin
+    /// when the surface settles.
+    position: Position,
+    /// False until the first [`resize`] has placed the panel at its true width.
+    /// Until then the panel paints transparent so the one provisional frame —
+    /// which may sit at a different horizontal offset near the right edge — is
+    /// invisible, avoiding a flash-and-jump.
+    ///
+    /// [`resize`]: TooltipHost::resize
+    settled: bool,
 }
 
 /// The single active tooltip surface, if any. One at a time.
@@ -137,6 +155,7 @@ impl TooltipHost {
         &mut self,
         message: TooltipMessage,
         surfaces: &BTreeMap<Id, Surface>,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
         match message {
@@ -144,12 +163,12 @@ impl TooltipHost {
                 surface,
                 source,
                 anchor,
-            } => self.open(surface, source, anchor, surfaces, config),
+            } => self.open(surface, source, anchor, surfaces, outputs, config),
             // Completed into `Enter` by `on_surface` at the bar root before it
             // reaches here; a bare anchor means a hoverable escaped that wrapper.
             TooltipMessage::EnterAnchor { .. } => Task::none(),
             TooltipMessage::Exit { source } => self.exit(source),
-            TooltipMessage::Resized { id, size } => self.resize(id, size),
+            TooltipMessage::Resized { id, size } => self.resize(id, size, config),
         }
     }
 
@@ -159,6 +178,7 @@ impl TooltipHost {
         source: TooltipSource,
         anchor: Rectangle,
         surfaces: &BTreeMap<Id, Surface>,
+        outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
         // Already showing this source (a stray re-enter): keep the open surface
@@ -169,13 +189,24 @@ impl TooltipHost {
         let Some(surface) = surfaces.get(&surface) else {
             return Task::none();
         };
-        let settings = tooltip_settings(&surface.output, surface.position, anchor, config);
+        let output_width = outputs.get(&surface.output).map(|geometry| geometry.width);
+        let settings = tooltip_settings(
+            &surface.output,
+            surface.position,
+            anchor,
+            output_width,
+            config,
+        );
         let id = Id::unique();
         let close = self.close();
         self.shown = Some(Shown {
             id,
             source,
             size: None,
+            anchor,
+            output_width,
+            position: surface.position,
+            settled: false,
         });
         Task::batch([close, Task::done(Message::NewLayerShell { settings, id })])
     }
@@ -196,8 +227,11 @@ impl TooltipHost {
     }
 
     /// The tooltip surface's own layout pass measured the panel; shrink the
-    /// surface to that exact size. Deduplicated so the settle doesn't loop.
-    fn resize(&mut self, id: Id, size: Size) -> Task<Message> {
+    /// surface to that exact size, and re-place its left margin now that the
+    /// true content width is known — so a near-right-edge panel sits flush to
+    /// the screen edge (drawn to the left of the cursor) at full width instead
+    /// of being clamped narrow. Deduplicated so the settle doesn't loop.
+    fn resize(&mut self, id: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
         let Some(shown) = &mut self.shown else {
             return Task::none();
         };
@@ -206,10 +240,17 @@ impl TooltipHost {
             return Task::none();
         }
         shown.size = Some(requested);
-        Task::done(Message::SizeChange {
-            id,
-            size: requested,
-        })
+        shown.settled = true;
+        let bar = config.layout.outer_height_px as i32;
+        let left = panel_left(shown.anchor.x, shown.output_width, requested.0);
+        let margin = tooltip_margin(shown.position, left, bar);
+        Task::batch([
+            Task::done(Message::MarginChange { id, margin }),
+            Task::done(Message::SizeChange {
+                id,
+                size: requested,
+            }),
+        ])
     }
 
     /// Close the open tooltip surface, if any.
@@ -247,6 +288,17 @@ impl TooltipHost {
     pub fn source(&self) -> Option<TooltipSource> {
         self.shown.as_ref().map(|shown| shown.source)
     }
+
+    /// Whether the tooltip on surface `id` has been placed at its true width.
+    /// Drives the panel's transparent-until-settled paint (see [`Shown::settled`]).
+    /// A surface that isn't the open tooltip reads as settled so it never paints
+    /// blank.
+    pub fn is_settled(&self, id: Id) -> bool {
+        self.shown
+            .as_ref()
+            .filter(|shown| shown.id == id)
+            .is_none_or(|shown| shown.settled)
+    }
 }
 
 /// Render `tooltip` as the panel for surface `id`, wrapped in a size sensor so
@@ -255,9 +307,10 @@ impl TooltipHost {
 pub fn panel_surface<'a>(
     id: Id,
     tooltip: &Tooltip,
+    settled: bool,
     config: &ResolvedConfig,
 ) -> Element<'a, Message> {
-    Sensor::new(panel(tooltip, config))
+    Sensor::new(panel(tooltip, settled, config))
         .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { id, size }))
         .into()
 }
@@ -450,12 +503,23 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 }
 
-fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message> {
-    let foreground = config.palette.bar_foreground;
-    let dim = Color {
-        a: 0.7,
-        ..foreground
+fn panel<'a>(tooltip: &Tooltip, settled: bool, config: &ResolvedConfig) -> Element<'a, Message> {
+    // Paint transparent on the one provisional frame before the surface has
+    // settled at its true width: layout (and thus the `Sensor` measurement) is
+    // identical, but a near-right-edge panel that re-places on settle stays fully
+    // invisible until it lands, so there is no flash-and-jump. Every colour —
+    // text, background, border — is faded together, since a transparent
+    // background alone would still present the glyphs at the provisional spot.
+    let paint = if settled { 1.0 } else { 0.0 };
+    let fade = |color: Color| Color {
+        a: color.a * paint,
+        ..color
     };
+    let foreground = fade(config.palette.bar_foreground);
+    let dim = fade(Color {
+        a: 0.7,
+        ..config.palette.bar_foreground
+    });
     // Two shrink-to-content columns side by side — odin's `TooltipRows` grid.
     // Both size to their widest cell, so the panel is exactly as wide as its
     // content (no `Fill`, which would make it greedy and defeat the `Sensor`
@@ -482,7 +546,7 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
             })),
             Column::with_children(entries.iter().map(|entry| {
                 bar_text(&config.font, entry.message.clone())
-                    .color(level_color(config, entry.level))
+                    .color(fade(level_color(config, entry.level)))
                     .into()
             })),
         ),
@@ -524,19 +588,20 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
     };
 
     let background = Color {
-        a: 1.0,
+        a: paint,
         ..config.palette.bar_background
     };
+    let border_color = fade(Color {
+        a: 0.25,
+        ..config.palette.bar_foreground
+    });
     let radius = config.chrome_radius();
     container(body)
         .padding(PANEL_PADDING_PX)
         .style(move |_| container::Style {
             background: Some(background.into()),
             border: Border {
-                color: Color {
-                    a: 0.25,
-                    ..foreground
-                },
+                color: border_color,
                 width: 1.0,
                 radius: radius.into(),
             },
@@ -560,26 +625,53 @@ pub(crate) fn relative(at: SystemTime, now: SystemTime) -> String {
     }
 }
 
+/// The panel's left margin for a surface `panel_width` px wide. Left-aligned
+/// under the hovered widget (`anchor_x`), but when the panel would overflow the
+/// right screen edge it is shifted left to sit flush against it — so a
+/// right-edge tooltip is drawn to the left of the cursor at full width instead
+/// of being clamped narrow. `output_width` is `None` when the geometry is
+/// unknown, in which case the widget's `anchor_x` is used unchanged (today's
+/// behaviour, no regression). Never negative.
+fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32 {
+    let left = anchor_x as i32;
+    let left = match output_width {
+        Some(width) => left.min(width - panel_width as i32),
+        None => left,
+    };
+    left.max(0)
+}
+
+/// The four-sided surface margin `(top, right, bottom, left)` placing the panel
+/// `left` px from the output's left edge and `bar + GAP_PX` off the bar edge.
+fn tooltip_margin(position: Position, left: i32, bar: i32) -> (i32, i32, i32, i32) {
+    match position {
+        Position::Top => (bar + GAP_PX, 0, 0, left),
+        Position::Bottom => (0, 0, bar + GAP_PX, left),
+    }
+}
+
 fn tooltip_settings(
     output: &str,
     position: Position,
     anchor: Rectangle,
+    output_width: Option<i32>,
     config: &ResolvedConfig,
 ) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
-    // Left-align the panel under the hovered widget. Because the panel draws at
-    // the surface's top-left, this edge stays put as the surface shrinks to fit,
-    // so there is no reposition when the surface resizes.
-    let left = (anchor.x as i32).max(0);
-    let (anchor, margin) = match position {
-        Position::Top => (Anchor::Top | Anchor::Left, (bar + GAP_PX, 0, 0, left)),
-        Position::Bottom => (Anchor::Bottom | Anchor::Left, (0, 0, bar + GAP_PX, left)),
+    // Place the provisional (600px-wide) surface so it fits on-screen unclamped
+    // even at the right edge — otherwise the compositor shrinks it and iced lays
+    // the panel out wrapped, so the `Sensor` never sees the true content width.
+    // Once measured, `resize` re-places the left margin against the real width.
+    let left = panel_left(anchor.x, output_width, PROVISIONAL_SIZE.0);
+    let anchor = match position {
+        Position::Top => Anchor::Top | Anchor::Left,
+        Position::Bottom => Anchor::Bottom | Anchor::Left,
     };
     NewLayerShellSettings {
         size: Some(PROVISIONAL_SIZE),
         exclusive_zone: Some(0),
         anchor,
-        margin: Some(margin),
+        margin: Some(tooltip_margin(position, left, bar)),
         layer: Layer::Overlay,
         keyboard_interactivity: KeyboardInteractivity::None,
         output_option: OutputOption::OutputName(output.to_string()),

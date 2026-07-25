@@ -463,9 +463,8 @@ pub fn spawn(command: Vec<String>) {
 /// The logical pixel size of one output.
 #[derive(Debug, Clone, Copy)]
 pub struct OutputGeometry {
-    /// Kept alongside `height` so a future consumer (horizontal placement,
-    /// bar-width math) needn't re-plumb the query; only `height` is read today.
-    #[allow(dead_code)]
+    /// Logical width, used to place hover tooltips against the right screen edge
+    /// (see `tooltip::panel_left`).
     pub width: i32,
     pub height: i32,
 }

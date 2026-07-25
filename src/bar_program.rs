@@ -319,7 +319,10 @@ impl Bar {
             {
                 Task::none()
             }
-            Message::Tooltip(msg) => self.tooltip.update(msg, &self.surfaces, &self.config),
+            Message::Tooltip(msg) => {
+                self.tooltip
+                    .update(msg, &self.surfaces, &self.outputs, &self.config)
+            }
             Message::Notification(msg) => self.notifications.update(
                 msg,
                 &self.niri_placement,
@@ -623,7 +626,12 @@ impl Bar {
         // The tooltip surface derives its content live from the hovered source,
         // so it always tracks the reading and costs nothing while unhovered.
         if let Some(source) = self.tooltip.source_for(id) {
-            return tooltip::panel_surface(id, &self.tooltip_of(source), &self.config);
+            return tooltip::panel_surface(
+                id,
+                &self.tooltip_of(source),
+                self.tooltip.is_settled(id),
+                &self.config,
+            );
         }
         if let Some(element) = self.notifications.view(id, &self.config) {
             return element;
