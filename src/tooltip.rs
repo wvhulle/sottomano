@@ -58,6 +58,8 @@ pub enum TooltipSource {
     Ethernet,
     Wifi,
     Mobile,
+    AudioSink,
+    AudioSource,
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).

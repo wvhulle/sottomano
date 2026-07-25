@@ -20,6 +20,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use crate::{
     bar_layout::{
         self,
+        audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
         journal_group::{JournalGroup, JournalMessage},
@@ -54,6 +55,7 @@ pub struct Bar {
     pub(crate) clock_group: ClockGroup,
     pub(crate) journal_group: JournalGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
+    pub(crate) audio_group: AudioGroup,
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
     /// In-memory launch-frequency model feeding quick-launch, persisted to disk
@@ -87,6 +89,7 @@ pub enum Message {
     Clock(ClockMessage),
     Journal(JournalMessage),
     NetInterfaces(NetInterfacesMessage),
+    Audio(AudioMessage),
     WindowList(WindowListMessage),
     QuickLaunch(QuickLaunchMessage),
     /// The persisted launch-frequency model finished loading from disk.
@@ -118,6 +121,7 @@ impl Bar {
             clock_group: ClockGroup::default(),
             journal_group: JournalGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
+            audio_group: AudioGroup::default(),
             window_list: WindowListGroup::default(),
             quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
             launch_tracker: LaunchTracker::default(),
@@ -220,6 +224,7 @@ impl Bar {
                 self.net_interfaces_group.update(msg);
                 Task::none()
             }
+            Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
                 self.panel_settings_group
                     .update(PanelSettingsMessage::Close);
@@ -305,6 +310,8 @@ impl Bar {
             TooltipSource::Ethernet => self.net_interfaces_group.ethernet_cell().tooltip(),
             TooltipSource::Wifi => self.net_interfaces_group.wifi_cell().tooltip(),
             TooltipSource::Mobile => self.net_interfaces_group.mobile_cell().tooltip(),
+            TooltipSource::AudioSink => self.audio_group.sink_cell().tooltip(),
+            TooltipSource::AudioSource => self.audio_group.source_cell().tooltip(),
         }
         .unwrap_or_else(Tooltip::empty)
     }

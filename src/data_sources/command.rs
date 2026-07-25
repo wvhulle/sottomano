@@ -16,3 +16,18 @@ pub fn output(program: &str, args: &[&str]) -> Option<String> {
         .success()
         .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
 }
+
+/// Run `program args…` for its side effect only, ignoring output; `true` if it
+/// exited successfully. For the write-back commands (set volume, toggle mute).
+pub fn run(program: &str, args: &[&str]) -> bool {
+    Command::new(program)
+        .args(args)
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+/// Whether `program` resolves on `PATH` — a cheap gate so a source backed by an
+/// uninstalled tool stays hidden instead of showing an error state every poll.
+pub fn exists(program: &str) -> bool {
+    output("sh", &["-c", &format!("command -v {program}")]).is_some()
+}

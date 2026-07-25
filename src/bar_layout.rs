@@ -1,5 +1,6 @@
 //! Bar composition and layout.
 
+use audio_group::AudioMessage;
 use battery_group::BatteryMessage;
 use iced::{
     Alignment, Element, Length,
@@ -17,6 +18,7 @@ use crate::{
     layer_surface::Position,
 };
 
+pub mod audio_group;
 pub mod battery_group;
 pub mod clock_group;
 pub mod journal_group;
@@ -69,7 +71,16 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
         [Some(bar.clock_group.view(config).map(Message::Clock))],
         config,
     );
-    bar_row(start, center, config)
+    let end = zone(
+        [bar.audio_group.view(config).map(|e| {
+            e.map(|m| match m {
+                AudioMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Audio(m),
+            })
+        })],
+        config,
+    );
+    bar_row(start, center, end, config)
 }
 
 /// A bar zone: the groups that want to show (the `Some` ones), spaced by the
@@ -107,12 +118,15 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
         .extend(window_list)
         .spacing(config.layout.horizontal_group_spacing_px)
         .align_y(Alignment::Center);
-    bar_row(start, center.into(), config)
+    // No bottom-right groups ported yet (odin's tray / ai-usage / notifications).
+    let end = Element::from(Space::new());
+    bar_row(start, center.into(), end, config)
 }
 
 fn bar_row<'a>(
     start: Element<'a, Message>,
     center: Element<'a, Message>,
+    end: Element<'a, Message>,
     config: &ResolvedConfig,
 ) -> Element<'a, Message> {
     row![
@@ -120,6 +134,7 @@ fn bar_row<'a>(
         Space::new().width(Length::Fill),
         center,
         Space::new().width(Length::Fill),
+        end,
     ]
     .align_y(Alignment::Center)
     .padding([
