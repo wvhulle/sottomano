@@ -23,6 +23,7 @@ use crate::{
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
         journal_group::{JournalGroup, JournalMessage},
+        net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
         system_group::{SystemGroup, SystemMessage},
@@ -52,6 +53,7 @@ pub struct Bar {
     pub(crate) panel_settings_group: PanelSettingsGroup,
     pub(crate) clock_group: ClockGroup,
     pub(crate) journal_group: JournalGroup,
+    pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
     /// In-memory launch-frequency model feeding quick-launch, persisted to disk
@@ -84,6 +86,7 @@ pub enum Message {
     PanelSettings(PanelSettingsMessage),
     Clock(ClockMessage),
     Journal(JournalMessage),
+    NetInterfaces(NetInterfacesMessage),
     WindowList(WindowListMessage),
     QuickLaunch(QuickLaunchMessage),
     /// The persisted launch-frequency model finished loading from disk.
@@ -114,6 +117,7 @@ impl Bar {
             panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
             clock_group: ClockGroup::default(),
             journal_group: JournalGroup::default(),
+            net_interfaces_group: NetInterfacesGroup::default(),
             window_list: WindowListGroup::default(),
             quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
             launch_tracker: LaunchTracker::default(),
@@ -212,6 +216,10 @@ impl Bar {
                 self.journal_group.update(msg);
                 Task::none()
             }
+            Message::NetInterfaces(msg) => {
+                self.net_interfaces_group.update(msg);
+                Task::none()
+            }
             Message::DismissPressed => {
                 self.panel_settings_group
                     .update(PanelSettingsMessage::Close);
@@ -293,6 +301,10 @@ impl Bar {
             TooltipSource::Floating => Some(panel_settings_group::floating_tooltip(&self.config)),
             TooltipSource::JournalSystem => self.journal_group.system_cell().tooltip(),
             TooltipSource::JournalUser => self.journal_group.user_cell().tooltip(),
+            TooltipSource::Bluetooth => self.net_interfaces_group.bluetooth_cell().tooltip(),
+            TooltipSource::Ethernet => self.net_interfaces_group.ethernet_cell().tooltip(),
+            TooltipSource::Wifi => self.net_interfaces_group.wifi_cell().tooltip(),
+            TooltipSource::Mobile => self.net_interfaces_group.mobile_cell().tooltip(),
         }
         .unwrap_or_else(Tooltip::empty)
     }

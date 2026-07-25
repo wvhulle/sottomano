@@ -19,8 +19,10 @@ use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
 
 pub mod app_icon;
 pub mod app_rules;
+pub mod command;
 pub mod desktop_entries;
 pub mod disk;
+pub mod net_interfaces;
 pub mod favicons;
 pub mod icon_trim;
 pub mod launch_store;

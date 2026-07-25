@@ -54,6 +54,10 @@ pub enum TooltipSource {
     Floating,
     JournalSystem,
     JournalUser,
+    Bluetooth,
+    Ethernet,
+    Wifi,
+    Mobile,
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).

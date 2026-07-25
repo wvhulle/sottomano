@@ -6,6 +6,7 @@ use iced::{
     widget::{Row, Space, row},
 };
 use journal_group::JournalMessage;
+use net_interfaces_group::NetInterfacesMessage;
 use panel_settings_group::PanelSettingsMessage;
 use system_group::SystemMessage;
 use workspaces_group::WorkspacesMessage;
@@ -19,6 +20,7 @@ use crate::{
 pub mod battery_group;
 pub mod clock_group;
 pub mod journal_group;
+pub mod net_interfaces_group;
 pub mod panel_settings_group;
 pub mod quick_launch_group;
 pub mod source_cell;
@@ -40,6 +42,12 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                 e.map(|m| match m {
                     SystemMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::System(m),
+                })
+            }),
+            bar.net_interfaces_group.view(config).map(|e| {
+                e.map(|m| match m {
+                    NetInterfacesMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::NetInterfaces(m),
                 })
             }),
             bar.journal_group.view(config).map(|e| {
