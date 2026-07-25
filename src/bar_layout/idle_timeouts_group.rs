@@ -1,62 +1,53 @@
 //! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-timeout pills —
-//! lock, screen-off, standby, power-down. Each pill shows its timeout as a
-//! ladder label; clicking it opens an inline slider to set the timeout,
-//! scrolling steps the ladder. Each subsystem is a named field; state is loaded
-//! from and persisted to the sqlite store and the in-process idle daemon is
-//! rearmed on change.
-
-use std::time::Duration;
+//! lock, screen-off, standby, power-down. Each pill is an [`IdleTimer`] that
+//! owns its own state, update, and view; this group holds the four, addresses
+//! them by [`TimerKind`], and mediates the menu, persistence, and daemon
+//! rearming. State is loaded from and persisted to the sqlite store.
 
 use iced::{
     Alignment, Element,
-    mouse::ScrollDelta,
     widget::{Row, mouse_area},
 };
 
 use crate::{
-    bar_layout::scroll::scroll_step,
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, Tooltip, TooltipBody, row},
+    data_sources::Tooltip,
     layer_surface::Position,
     state::idle::Timeouts,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, TooltipSource},
     widgets::{
         icon::Icon,
-        icon_gauge::source_reading,
-        idle::{MAX_POSITION, from_position, label_at, label_for, position},
-        inline_slider::inline_slider,
+        idle::timer::{IdleTimer, TimerChange},
         menu_group::MenuGroup,
-        text::bar_text,
+        slider_control::ControlMessage,
     },
 };
 
-#[derive(Default)]
-struct Timer {
-    timeout: Option<Duration>,
-    accum: f32,
-    open: bool,
+/// Which subsystem a [`TimerMessage`] targets; also the index into the group's
+/// timer array (declaration order == pill order).
+#[derive(Debug, Clone, Copy)]
+pub enum TimerKind {
+    LockUser,
+    ScreenOff,
+    Standby,
+    PowerDown,
 }
 
-impl Timer {
-    /// Step the ladder from a scroll; `true` if the timeout changed. Scrolling
-    /// up past the last rung reaches the top position (∞), clearing the timeout.
-    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-    fn scroll(&mut self, delta: ScrollDelta) -> bool {
-        let Some(step) = scroll_step(&mut self.accum, delta) else {
-            return false;
-        };
-        let pos = position(self.timeout).round() as i64;
-        let next = (pos + step).clamp(0, MAX_POSITION as i64);
-        self.timeout = from_position(next as f32);
-        true
+impl TimerKind {
+    const ALL: [TimerKind; 4] = [
+        Self::LockUser,
+        Self::ScreenOff,
+        Self::Standby,
+        Self::PowerDown,
+    ];
+
+    fn index(self) -> usize {
+        self as usize
     }
 }
 
 pub struct IdleTimeoutsGroup {
-    lock_user: Timer,
-    screen_off: Timer,
-    standby: Timer,
-    power_down: Timer,
+    timers: [IdleTimer; 4],
     pub(crate) menu: MenuGroup,
 }
 
@@ -66,22 +57,7 @@ pub enum IdleTimeoutsMessage {
     Toggle,
     Hover(bool),
     Close,
-    PressLockUser,
-    ScrollLockUser(ScrollDelta),
-    SetLockUser(f32),
-    CommitLockUser,
-    PressScreenOff,
-    ScrollScreenOff(ScrollDelta),
-    SetScreenOff(f32),
-    CommitScreenOff,
-    PressStandby,
-    ScrollStandby(ScrollDelta),
-    SetStandby(f32),
-    CommitStandby,
-    PressPowerDown,
-    ScrollPowerDown(ScrollDelta),
-    SetPowerDown(f32),
-    CommitPowerDown,
+    Timer(TimerKind, ControlMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -96,28 +72,37 @@ pub enum IdleChange {
 impl IdleTimeoutsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
-            lock_user: Timer::default(),
-            screen_off: Timer::default(),
-            standby: Timer::default(),
-            power_down: Timer::default(),
+            timers: [
+                IdleTimer::new(Icon::Lock, TooltipSource::IdleLockUser),
+                IdleTimer::new(Icon::Display, TooltipSource::IdleScreenOff),
+                IdleTimer::new(Icon::Bed, TooltipSource::IdleStandby),
+                IdleTimer::new(Icon::PowerOff, TooltipSource::IdlePowerDown),
+            ],
             menu: MenuGroup::new(menu_expand_ms),
         }
     }
 
     fn close_all(&mut self) {
-        self.lock_user.open = false;
-        self.screen_off.open = false;
-        self.standby.open = false;
-        self.power_down.open = false;
+        for timer in &mut self.timers {
+            timer.close();
+        }
+    }
+
+    fn close_others(&mut self, kept: usize) {
+        for (index, timer) in self.timers.iter_mut().enumerate() {
+            if index != kept {
+                timer.close();
+            }
+        }
     }
 
     pub fn update(&mut self, msg: IdleTimeoutsMessage) -> IdleChange {
         match msg {
             IdleTimeoutsMessage::Loaded(timeouts) => {
-                self.lock_user.timeout = timeouts.lock_user;
-                self.screen_off.timeout = timeouts.screen_off;
-                self.standby.timeout = timeouts.standby;
-                self.power_down.timeout = timeouts.power_down;
+                self.timers[TimerKind::LockUser.index()].set_timeout(timeouts.lock_user);
+                self.timers[TimerKind::ScreenOff.index()].set_timeout(timeouts.screen_off);
+                self.timers[TimerKind::Standby.index()].set_timeout(timeouts.standby);
+                self.timers[TimerKind::PowerDown.index()].set_timeout(timeouts.power_down);
                 IdleChange::Rearm
             }
             IdleTimeoutsMessage::Toggle => {
@@ -136,82 +121,33 @@ impl IdleTimeoutsGroup {
                 self.close_all();
                 IdleChange::None
             }
-            IdleTimeoutsMessage::PressLockUser => {
-                let open = !self.lock_user.open;
-                self.close_all();
-                self.lock_user.open = open;
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::ScrollLockUser(d) => persisted(self.lock_user.scroll(d)),
-            IdleTimeoutsMessage::SetLockUser(pos) => {
-                self.lock_user.timeout = from_position(pos);
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::PressScreenOff => {
-                let open = !self.screen_off.open;
-                self.close_all();
-                self.screen_off.open = open;
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::ScrollScreenOff(d) => persisted(self.screen_off.scroll(d)),
-            IdleTimeoutsMessage::SetScreenOff(pos) => {
-                self.screen_off.timeout = from_position(pos);
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::PressStandby => {
-                let open = !self.standby.open;
-                self.close_all();
-                self.standby.open = open;
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::ScrollStandby(d) => persisted(self.standby.scroll(d)),
-            IdleTimeoutsMessage::SetStandby(pos) => {
-                self.standby.timeout = from_position(pos);
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::PressPowerDown => {
-                let open = !self.power_down.open;
-                self.close_all();
-                self.power_down.open = open;
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::ScrollPowerDown(d) => persisted(self.power_down.scroll(d)),
-            IdleTimeoutsMessage::SetPowerDown(pos) => {
-                self.power_down.timeout = from_position(pos);
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::CommitLockUser
-            | IdleTimeoutsMessage::CommitScreenOff
-            | IdleTimeoutsMessage::CommitStandby
-            | IdleTimeoutsMessage::CommitPowerDown => IdleChange::Persist,
+            IdleTimeoutsMessage::Timer(kind, msg) => match self.timers[kind.index()].update(msg) {
+                TimerChange::None => IdleChange::None,
+                // This pill just opened — close the others (one slider at a time).
+                TimerChange::Opened => {
+                    self.close_others(kind.index());
+                    IdleChange::None
+                }
+                TimerChange::Persist => IdleChange::Persist,
+            },
             IdleTimeoutsMessage::Tooltip(_) => IdleChange::None,
         }
     }
 
     pub fn timeouts(&self) -> Timeouts {
         Timeouts {
-            lock_user: self.lock_user.timeout,
-            screen_off: self.screen_off.timeout,
-            standby: self.standby.timeout,
-            power_down: self.power_down.timeout,
+            lock_user: self.timers[TimerKind::LockUser.index()].timeout(),
+            screen_off: self.timers[TimerKind::ScreenOff.index()].timeout(),
+            standby: self.timers[TimerKind::Standby.index()].timeout(),
+            power_down: self.timers[TimerKind::PowerDown.index()].timeout(),
         }
     }
 
     pub fn tooltip_for(&self, source: TooltipSource) -> Option<Tooltip> {
-        let (name, timeout) = match source {
-            TooltipSource::IdleLockUser => ("lock-user", self.lock_user.timeout),
-            TooltipSource::IdleScreenOff => ("screen-off", self.screen_off.timeout),
-            TooltipSource::IdleStandby => ("standby", self.standby.timeout),
-            TooltipSource::IdlePowerDown => ("power-down", self.power_down.timeout),
-            _ => return None,
-        };
-        Some(Tooltip {
-            body: TooltipBody::Table(vec![
-                row("Subsystem", name),
-                row("State", timeout.map_or("∞", label_for)),
-            ]),
-            footer: None,
-        })
+        self.timers
+            .iter()
+            .find(|timer| timer.source() == source)
+            .map(IdleTimer::tooltip)
     }
 
     pub fn view<'a>(
@@ -220,60 +156,14 @@ impl IdleTimeoutsGroup {
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
         let reveal = self.menu.reveal();
-        let pills = [
-            pill(
-                config,
-                reveal,
-                Icon::Lock,
-                &self.lock_user,
-                Pill {
-                    press: IdleTimeoutsMessage::PressLockUser,
-                    scroll: IdleTimeoutsMessage::ScrollLockUser,
-                    set: IdleTimeoutsMessage::SetLockUser,
-                    commit: IdleTimeoutsMessage::CommitLockUser,
-                    source: TooltipSource::IdleLockUser,
-                },
-            ),
-            pill(
-                config,
-                reveal,
-                Icon::Display,
-                &self.screen_off,
-                Pill {
-                    press: IdleTimeoutsMessage::PressScreenOff,
-                    scroll: IdleTimeoutsMessage::ScrollScreenOff,
-                    set: IdleTimeoutsMessage::SetScreenOff,
-                    commit: IdleTimeoutsMessage::CommitScreenOff,
-                    source: TooltipSource::IdleScreenOff,
-                },
-            ),
-            pill(
-                config,
-                reveal,
-                Icon::Bed,
-                &self.standby,
-                Pill {
-                    press: IdleTimeoutsMessage::PressStandby,
-                    scroll: IdleTimeoutsMessage::ScrollStandby,
-                    set: IdleTimeoutsMessage::SetStandby,
-                    commit: IdleTimeoutsMessage::CommitStandby,
-                    source: TooltipSource::IdleStandby,
-                },
-            ),
-            pill(
-                config,
-                reveal,
-                Icon::PowerOff,
-                &self.power_down,
-                Pill {
-                    press: IdleTimeoutsMessage::PressPowerDown,
-                    scroll: IdleTimeoutsMessage::ScrollPowerDown,
-                    set: IdleTimeoutsMessage::SetPowerDown,
-                    commit: IdleTimeoutsMessage::CommitPowerDown,
-                    source: TooltipSource::IdlePowerDown,
-                },
-            ),
-        ];
+        let pills = TimerKind::ALL.map(|kind| {
+            self.timers[kind.index()]
+                .view(config, reveal)
+                .map(move |m| match m {
+                    ControlMessage::Tooltip(t) => IdleTimeoutsMessage::Tooltip(t),
+                    m => IdleTimeoutsMessage::Timer(kind, m),
+                })
+        });
 
         let handle = mouse_area(
             Icon::Stopwatch
@@ -295,113 +185,5 @@ impl IdleTimeoutsGroup {
             .on_enter(IdleTimeoutsMessage::Hover(true))
             .on_exit(IdleTimeoutsMessage::Hover(false))
             .into()
-    }
-
-}
-
-fn pill<'a>(
-    config: &ResolvedConfig,
-    reveal: f32,
-    icon: Icon,
-    timer: &Timer,
-    msgs: Pill,
-) -> Element<'a, IdleTimeoutsMessage> {
-    if timer.open {
-        open_pill(config, icon, timer.timeout, msgs)
-    } else {
-        closed_pill(config, reveal, icon, timer.timeout, msgs)
-    }
-}
-
-/// The per-subsystem message constructors a pill wires its interactions to.
-#[derive(Clone, Copy)]
-struct Pill {
-    press: IdleTimeoutsMessage,
-    scroll: fn(ScrollDelta) -> IdleTimeoutsMessage,
-    set: fn(f32) -> IdleTimeoutsMessage,
-    commit: IdleTimeoutsMessage,
-    source: TooltipSource,
-}
-
-/// A closed pill: icon + ladder label, hoverable, click to open the slider,
-/// scroll to step.
-fn closed_pill<'a>(
-    config: &ResolvedConfig,
-    reveal: f32,
-    icon: Icon,
-    timeout: Option<Duration>,
-    msgs: Pill,
-) -> Element<'a, IdleTimeoutsMessage> {
-    let reading = Reading {
-        icon,
-        label: timeout.map(|d| label_for(d).to_string()),
-        enabled: timeout.is_some(),
-    };
-    let element = source_reading(config, Some(&reading as &dyn BarWidget), reveal)
-        .unwrap_or_else(|| Row::new().into());
-    let hover = hoverable(element, msgs.source, IdleTimeoutsMessage::Tooltip);
-    mouse_area(hover)
-        .on_press(msgs.press)
-        .on_scroll(msgs.scroll)
-        .into()
-}
-
-/// An open pill: click the icon to close, drag the slider (0 = ∞, then the
-/// ladder), with the current label to its right.
-fn open_pill<'a>(
-    config: &ResolvedConfig,
-    icon: Icon,
-    timeout: Option<Duration>,
-    msgs: Pill,
-) -> Element<'a, IdleTimeoutsMessage> {
-    let glyph = mouse_area(
-        icon.solid()
-            .size(config.font.icon_size_px)
-            .color(config.palette.bar_foreground),
-    )
-    .on_press(msgs.press);
-
-    let pos = position(timeout);
-    let control = inline_slider(config, 0.0..=MAX_POSITION, pos, 1.0, msgs.set, msgs.commit);
-    let readout =
-        bar_text(&config.font, label_at(pos).to_string()).color(config.palette.bar_foreground);
-
-    Row::with_children([glyph.into(), control.into(), readout.into()])
-        .spacing(config.layout.horizontal_widget_spacing_px)
-        .align_y(Alignment::Center)
-        .into()
-}
-
-fn persisted(changed: bool) -> IdleChange {
-    if changed {
-        IdleChange::Persist
-    } else {
-        IdleChange::None
-    }
-}
-
-/// A closed pill's icon + label, rendered through the shared reading path so it
-/// dims when disabled.
-struct Reading {
-    icon: Icon,
-    label: Option<String>,
-    enabled: bool,
-}
-
-impl BarWidget for Reading {
-    fn icon(&self) -> Icon {
-        self.icon
-    }
-
-    fn disabled(&self) -> bool {
-        !self.enabled
-    }
-
-    fn label(&self) -> Option<String> {
-        self.label.clone()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
     }
 }

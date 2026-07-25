@@ -1,56 +1,42 @@
-//! odin's `Audio`: default sink (speakers) and source (microphone) volume,
-//! side by side in the top-right zone. Each is an icon + severity-tinted gauge;
-//! clicking opens an inline volume slider, scrolling adjusts the volume, and
-//! right-clicking the mic toggles its mute. The displayed percent is nudged
-//! optimistically until the next 1 Hz poll confirms it.
+//! odin's `Audio`: default sink and source volume, each a [`SliderControl`] that
+//! owns its expansion + poll/write reconciliation. The group holds the two,
+//! addresses them by [`ControlKind`], and runs the wpctl writes.
 
-use iced::{
-    Alignment, Element, Subscription, Task,
-    mouse::ScrollDelta,
-    widget::{Row, mouse_area},
-};
+use std::ops::RangeInclusive;
+
+use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
-    bar_layout::{scroll::scroll_step, source_cell::SourceCell},
+    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
-    data_sources::{
-        BarWidget,
-        audio::{Audio, set_volume, toggle_mute},
-    },
+    data_sources::audio::{Audio, set_volume, toggle_mute},
     message_subscriptions::blocking,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
-    widgets::{icon_gauge::source_reading, inline_slider::inline_slider, text::bar_text},
+    tooltip::{TooltipMessage, TooltipSource},
+    widgets::slider_control::{Action, ControlMessage, SliderControl, View},
 };
 
-/// Volume change per scroll notch (odin's ±5%).
-const STEP: i64 = 5;
+const RANGE: RangeInclusive<f32> = 0.0..=100.0;
+const SCROLL_STEP: f32 = 5.0;
+
+#[derive(Debug, Clone, Copy)]
+pub enum ControlKind {
+    Sink,
+    Source,
+}
 
 #[derive(Default)]
 pub struct AudioGroup {
     sink: SourceCell<Audio<false>>,
     source: SourceCell<Audio<true>>,
-    /// Optimistic percent shown until the next poll lands, per direction.
-    sink_pending: Option<i64>,
-    source_pending: Option<i64>,
-    sink_accum: f32,
-    source_accum: f32,
-    sink_open: bool,
-    source_open: bool,
+    sink_control: SliderControl,
+    source_control: SliderControl,
 }
 
 #[derive(Debug, Clone)]
 pub enum AudioMessage {
     Sink(Option<Audio<false>>),
     Source(Option<Audio<true>>),
-    PressSink,
-    ScrollSink(ScrollDelta),
-    SetSink(f32),
-    ReleaseSink,
-    PressSource,
-    ScrollSource(ScrollDelta),
-    SetSource(f32),
-    ReleaseSource,
-    MuteSource,
+    Control(ControlKind, ControlMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -62,81 +48,50 @@ impl AudioGroup {
         ])
     }
 
-    fn sink_percent(&self) -> Option<i64> {
-        self.sink_pending.or_else(|| self.sink.get().map(|a| a.percent))
-    }
-
-    fn source_percent(&self) -> Option<i64> {
-        self.source_pending
-            .or_else(|| self.source.get().map(|a| a.percent))
-    }
-
     pub fn update(&mut self, msg: AudioMessage) -> Task<AudioMessage> {
         match msg {
             AudioMessage::Sink(reading) => {
                 self.sink.load(reading);
-                self.sink_pending = None;
+                if let Some(percent) = self.sink.get().map(percent_of) {
+                    self.sink_control.sync(percent);
+                }
                 Task::none()
             }
             AudioMessage::Source(reading) => {
                 self.source.load(reading);
-                self.source_pending = None;
-                Task::none()
-            }
-            AudioMessage::PressSink => {
-                self.sink_open = !self.sink_open;
-                self.source_open = false;
-                Task::none()
-            }
-            AudioMessage::ScrollSink(delta) => {
-                let Some(step) = scroll_step(&mut self.sink_accum, delta) else {
-                    return Task::none();
-                };
-                let Some(current) = self.sink_percent() else {
-                    return Task::none();
-                };
-                let target = (current + step * STEP).clamp(0, 100);
-                self.sink_pending = Some(target);
-                blocking("audio set sink", move || set_volume::<false>(target)).discard()
-            }
-            AudioMessage::SetSink(pos) => {
-                self.sink_pending = Some(percent(pos));
-                Task::none()
-            }
-            AudioMessage::ReleaseSink => match self.sink_pending {
-                Some(target) => {
-                    blocking("audio set sink", move || set_volume::<false>(target)).discard()
+                if let Some(percent) = self.source.get().map(percent_of) {
+                    self.source_control.sync(percent);
                 }
-                None => Task::none(),
-            },
-            AudioMessage::PressSource => {
-                self.source_open = !self.source_open;
-                self.sink_open = false;
                 Task::none()
             }
-            AudioMessage::ScrollSource(delta) => {
-                let Some(step) = scroll_step(&mut self.source_accum, delta) else {
-                    return Task::none();
-                };
-                let Some(current) = self.source_percent() else {
-                    return Task::none();
-                };
-                let target = (current + step * STEP).clamp(0, 100);
-                self.source_pending = Some(target);
-                blocking("audio set source", move || set_volume::<true>(target)).discard()
-            }
-            AudioMessage::SetSource(pos) => {
-                self.source_pending = Some(percent(pos));
-                Task::none()
-            }
-            AudioMessage::ReleaseSource => match self.source_pending {
-                Some(target) => {
-                    blocking("audio set source", move || set_volume::<true>(target)).discard()
+            AudioMessage::Control(ControlKind::Sink, msg) => {
+                let reading = self.sink.get().map_or(0.0, percent_of);
+                match self.sink_control.update(msg, reading, &RANGE, SCROLL_STEP) {
+                    Action::Opened => {
+                        self.source_control.close();
+                        Task::none()
+                    }
+                    Action::Commit(value) => {
+                        let target = as_percent(value);
+                        blocking("audio set sink", move || set_volume::<false>(target)).discard()
+                    }
+                    Action::None | Action::Right => Task::none(),
                 }
-                None => Task::none(),
-            },
-            AudioMessage::MuteSource => {
-                blocking("audio mute source", toggle_mute::<true>).discard()
+            }
+            AudioMessage::Control(ControlKind::Source, msg) => {
+                let reading = self.source.get().map_or(0.0, percent_of);
+                match self.source_control.update(msg, reading, &RANGE, SCROLL_STEP) {
+                    Action::Opened => {
+                        self.sink_control.close();
+                        Task::none()
+                    }
+                    Action::Commit(value) => {
+                        let target = as_percent(value);
+                        blocking("audio set source", move || set_volume::<true>(target)).discard()
+                    }
+                    Action::Right => blocking("audio mute source", toggle_mute::<true>).discard(),
+                    Action::None => Task::none(),
+                }
             }
             AudioMessage::Tooltip(_) => Task::none(),
         }
@@ -152,36 +107,18 @@ impl AudioGroup {
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, AudioMessage>> {
         let source = self.source.get().map(|audio| {
-            widget(
-                config,
-                audio,
-                self.source_percent(),
-                self.source_open,
-                TooltipSource::AudioSource,
-                Handlers {
-                    press: AudioMessage::PressSource,
-                    scroll: AudioMessage::ScrollSource,
-                    set: AudioMessage::SetSource,
-                    release: AudioMessage::ReleaseSource,
-                    right: Some(AudioMessage::MuteSource),
-                },
-            )
+            let value = self.source_control.value(percent_of(audio));
+            let display = with_percent(audio, value);
+            self.source_control
+                .view(config, view_for(&display, value, TooltipSource::AudioSource, true))
+                .map(tag(ControlKind::Source))
         });
         let sink = self.sink.get().map(|audio| {
-            widget(
-                config,
-                audio,
-                self.sink_percent(),
-                self.sink_open,
-                TooltipSource::AudioSink,
-                Handlers {
-                    press: AudioMessage::PressSink,
-                    scroll: AudioMessage::ScrollSink,
-                    set: AudioMessage::SetSink,
-                    release: AudioMessage::ReleaseSink,
-                    right: None,
-                },
-            )
+            let value = self.sink_control.value(percent_of(audio));
+            let display = with_percent(audio, value);
+            self.sink_control
+                .view(config, view_for(&display, value, TooltipSource::AudioSink, false))
+                .map(tag(ControlKind::Sink))
         });
 
         let widgets: Vec<Element<'a, AudioMessage>> =
@@ -198,71 +135,44 @@ impl AudioGroup {
     }
 }
 
-/// The per-widget message wiring.
-struct Handlers {
-    press: AudioMessage,
-    scroll: fn(ScrollDelta) -> AudioMessage,
-    set: fn(f32) -> AudioMessage,
-    release: AudioMessage,
-    right: Option<AudioMessage>,
+#[allow(clippy::cast_precision_loss)]
+fn percent_of<const INPUT: bool>(audio: &Audio<INPUT>) -> f32 {
+    audio.percent as f32
 }
 
-/// A slider position (0..=100) to an integer percent.
 #[allow(clippy::cast_possible_truncation)]
-fn percent(pos: f32) -> i64 {
-    pos.round().clamp(0.0, 100.0) as i64
+fn as_percent(value: f32) -> i64 {
+    value.round() as i64
 }
 
-/// One audio widget: the open inline slider, or the closed icon + gauge with
-/// click-to-open, scroll, and (mic) right-click mute.
-fn widget<'a, const INPUT: bool>(
-    config: &ResolvedConfig,
-    audio: &Audio<INPUT>,
-    percent: Option<i64>,
-    open: bool,
-    source: TooltipSource,
-    handlers: Handlers,
-) -> Element<'a, AudioMessage> {
-    if open {
-        let value = percent.unwrap_or(0);
-        let glyph = mouse_area(
-            audio
-                .icon()
-                .solid()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground),
-        )
-        .on_press(handlers.press);
-        #[allow(clippy::cast_precision_loss)]
-        let control = inline_slider(
-            config,
-            0.0..=100.0,
-            value as f32,
-            1.0,
-            handlers.set,
-            handlers.release,
-        );
-        let readout =
-            bar_text(&config.font, format!("{value}%")).color(config.palette.bar_foreground);
-        return Row::with_children([glyph.into(), control.into(), readout.into()])
-            .spacing(config.layout.horizontal_widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into();
-    }
+fn with_percent<const INPUT: bool>(audio: &Audio<INPUT>, value: f32) -> Audio<INPUT> {
+    let mut audio = audio.clone();
+    audio.percent = as_percent(value);
+    audio
+}
 
-    // Closed: render the reading with the optimistic percent applied.
-    let mut display = audio.clone();
-    if let Some(p) = percent {
-        display.percent = p;
+fn view_for<const INPUT: bool>(
+    display: &Audio<INPUT>,
+    value: f32,
+    source: TooltipSource,
+    right_click: bool,
+) -> View<'_> {
+    View {
+        widget: display,
+        value,
+        readout: format!("{}%", as_percent(value)),
+        readout_width: 40.0,
+        range: RANGE,
+        step: 1.0,
+        source,
+        right_click,
+        alpha: 1.0,
     }
-    let reading = source_reading(config, Some(&display as &dyn BarWidget), 1.0)
-        .unwrap_or_else(|| Row::new().into());
-    let hover = hoverable(reading, source, AudioMessage::Tooltip);
-    let mut area = mouse_area(hover)
-        .on_press(handlers.press)
-        .on_scroll(handlers.scroll);
-    if let Some(right) = handlers.right {
-        area = area.on_right_press(right);
+}
+
+fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
+    move |msg| match msg {
+        ControlMessage::Tooltip(t) => AudioMessage::Tooltip(t),
+        m => AudioMessage::Control(kind, m),
     }
-    area.into()
 }

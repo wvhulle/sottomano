@@ -49,7 +49,10 @@ use crate::{
     notifications::{NotificationGroup, NotificationMessage},
     state,
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
-    widgets::idle::{Arm, IdleEvent, IdleHandle},
+    widgets::{
+        idle::{Arm, IdleEvent, IdleHandle},
+        slider_control::Action as SliderAction,
+    },
 };
 
 pub struct Bar {
@@ -293,6 +296,8 @@ impl Bar {
                 if let Some(offset) = settings.float_offset_px {
                     self.config.float_offset_px = offset;
                 }
+                self.panel_settings_group
+                    .sync_offset(self.config.float_offset_px);
                 self.remargin_surfaces()
             }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
@@ -378,6 +383,7 @@ impl Bar {
             TooltipSource::Disk => self.system_group.disk_cell().tooltip(),
             TooltipSource::Battery => self.battery_group.cell().tooltip(),
             TooltipSource::Floating => Some(panel_settings_group::floating_tooltip(&self.config)),
+            TooltipSource::FloatOffset => Some(panel_settings_group::offset_tooltip(&self.config)),
             TooltipSource::JournalSystem => self.journal_group.system_cell().tooltip(),
             TooltipSource::JournalUser => self.journal_group.user_cell().tooltip(),
             TooltipSource::Bluetooth => self.net_interfaces_group.bluetooth_cell().tooltip(),
@@ -511,12 +517,18 @@ impl Bar {
                     Task::future(state::panel::save_floating(floating)).discard(),
                 ])
             }
-            PanelSettingsMessage::SetFloatOffset(offset) => {
-                self.config.float_offset_px = offset;
-                Task::batch([
-                    self.remargin_surfaces(),
-                    Task::future(state::panel::save_float_offset(offset)).discard(),
-                ])
+            PanelSettingsMessage::Offset(msg) => {
+                let reading = self.config.float_offset_px;
+                match self.panel_settings_group.update_offset(msg, reading) {
+                    SliderAction::Commit(offset) => {
+                        self.config.float_offset_px = offset;
+                        Task::batch([
+                            self.remargin_surfaces(),
+                            Task::future(state::panel::save_float_offset(offset)).discard(),
+                        ])
+                    }
+                    _ => Task::none(),
+                }
             }
             msg => {
                 self.panel_settings_group.update(msg);

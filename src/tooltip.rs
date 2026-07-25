@@ -52,6 +52,7 @@ pub enum TooltipSource {
     Disk,
     Battery,
     Floating,
+    FloatOffset,
     JournalSystem,
     JournalUser,
     Bluetooth,

@@ -6,6 +6,7 @@
 //! change. Each armed notification fires independently; on idle its command is
 //! spawned.
 
+pub mod timer;
 pub mod wayland;
 
 use std::{process::Command, time::Duration};
