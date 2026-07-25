@@ -8,9 +8,10 @@
 //! The group also owns the shared interaction: a single [`MenuMessage`]
 //! (toggle / cursor-enter / cursor-exit / close) instead of each concrete group
 //! re-declaring those, and [`view`](MenuGroup::view) wraps the composed element
-//! in the hover mouse-area itself. The expand animation is self-driving — the
-//! [`redraw_while`] wrapper re-requests frames while the curve runs — so nothing
-//! about ticking leaks up to the application.
+//! in the hover mouse-area itself. The expand curve is a pure function of time
+//! ([`reveal`](MenuGroup::reveal) samples it at the current instant); the
+//! application paints the frames via a timer gated on
+//! [`is_animating`](MenuGroup::is_animating).
 
 use iced::{
     Alignment, Animation, Element, Padding,
@@ -23,7 +24,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     layer_surface::Position,
     widgets::{
-        activity_line::activity_line, animate::redraw_while, pager_slot::PagerSlot,
+        activity_line::activity_line, pager_slot::PagerSlot,
         reveal::reveal_x,
     },
 };
@@ -74,19 +75,27 @@ impl MenuGroup {
         self.expand.value()
     }
 
+    /// Whether the expand curve is still in flight — gates the app's frame-timer
+    /// subscription (see `Bar::any_menu_animating`). Under layer-shell a widget
+    /// cannot self-drive its redraws from a subscription-triggered state change,
+    /// so an app-level timer paints the frames while this is true.
+    pub fn is_animating(&self) -> bool {
+        self.expand.is_animating(Instant::now())
+    }
+
     /// The eased reveal fraction sampled at the current instant. Because the
     /// animation is a pure curve, this samples `Instant::now()` directly; the
-    /// [`redraw_while`] wrapper keeps frames coming so successive samples
-    /// advance the transition.
+    /// app's frame timer (gated on [`is_animating`](Self::is_animating)) keeps
+    /// frames coming so successive samples advance the transition.
     pub fn reveal(&self) -> f32 {
         self.expand.interpolate(0.0, 1.0, Instant::now())
     }
 
     /// Compose the group: `handle` (always shown) beside the revealed `content`,
     /// in the shared pager slot with an edge hairline, wrapped in the hover
-    /// mouse-area (its enter/exit mapped through `to_message`) and the
-    /// self-driving redraw wrapper. The handle owns the toggle press, so the
-    /// caller wires `.on_press(to_message(MenuMessage::Toggle))` onto it.
+    /// mouse-area (its enter/exit mapped through `to_message`). The handle owns
+    /// the toggle press, so the caller wires
+    /// `.on_press(to_message(MenuMessage::Toggle))` onto it.
     ///
     /// `reveal` is passed in so the caller can fade its own `content` colours by
     /// the same factor it computed once via [`reveal`](Self::reveal).
@@ -106,10 +115,10 @@ impl MenuGroup {
             .align_y(Alignment::Center);
         let slot =
             PagerSlot::new(inner.into(), edge_indicator(config, self.hovered, reveal)).view(position);
-        let hoverable = mouse_area(slot)
+        mouse_area(slot)
             .on_enter(to_message(MenuMessage::CursorEntered))
-            .on_exit(to_message(MenuMessage::CursorExited));
-        redraw_while(self.expand.clone(), hoverable)
+            .on_exit(to_message(MenuMessage::CursorExited))
+            .into()
     }
 }
 

@@ -4,6 +4,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
+    time::Duration,
 };
 
 use chrono::Utc;
@@ -23,7 +24,7 @@ use crate::{
         battery_group::{BatteryGroup, BatteryMessage},
         brightness_group::{BrightnessGroup, BrightnessMessage},
         clock_group::{ClockGroup, ClockMessage},
-        idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
+        idle_timeouts_group::{IdleChange, IdleTimeoutsGroup, IdleTimeoutsMessage, TimerKind},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
         media_group::{MediaGroup, MediaMessage},
@@ -40,7 +41,7 @@ use crate::{
         app_icon::DesktopEntries,
         desktop_entries::{self, DesktopIndex},
         launch_tracker::{Buckets, LaunchTracker},
-        niri,
+        logind, niri,
     },
     layer_surface::{
         Position, Surface, SurfaceKind, backdrop_settings, float_margin, layer_settings,
@@ -51,7 +52,7 @@ use crate::{
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
     widgets::{
         idle::{Arm, IdleEvent, IdleHandle},
-        menu_group::MenuMessage,
+        menu_group::{MenuGroup, MenuMessage},
         slider_control::Action as SliderAction,
     },
 };
@@ -121,6 +122,11 @@ pub enum Message {
     DismissPressed,
     WorkspaceClicked(u64),
     Niri(Vec<niri_ipc::Event>),
+    /// A periodic repaint while a menu animates (from the frame-timer
+    /// subscription gated on [`Bar::any_menu_animating`]); its handler does
+    /// nothing but trigger a redraw, and `MenuGroup::reveal` re-samples the eased
+    /// curve at the current instant.
+    Redraw,
     WindowClosed(Id),
     /// 1 Hz tick, live only while a Log tooltip is shown, to advance its
     /// relative timestamps.
@@ -248,7 +254,6 @@ impl Bar {
             }
             Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
             Message::IdleTimeouts(msg) => {
-                use crate::bar_layout::idle_timeouts_group::IdleChange;
                 match self.idle_timeouts_group.update(msg) {
                     IdleChange::None => Task::none(),
                     IdleChange::Rearm => {
@@ -260,6 +265,13 @@ impl Bar {
                         let timeouts = self.idle_timeouts_group.timeouts();
                         Task::future(state::idle::save(timeouts)).discard()
                     }
+                    IdleChange::Act(kind) => self.trigger_idle_action(kind),
+                    IdleChange::Arm(kind) => Task::perform(
+                        async { tokio::time::sleep(Duration::from_secs(3)).await },
+                        move |()| {
+                            Message::IdleTimeouts(IdleTimeoutsMessage::DisarmTrigger(kind))
+                        },
+                    ),
                 }
             }
             Message::Idle(IdleEvent::Connected(handle)) => {
@@ -321,9 +333,10 @@ impl Bar {
                 self.notifications
                     .on_niri_changed(&placement, &self.outputs, &self.config)
             }
-            // A redraw is all the tick needs — the tooltip view re-derives and
-            // re-formats its relative times.
-            Message::TooltipTick => Task::none(),
+            // Both need only a repaint: `Redraw` drives a niri-triggered menu
+            // collapse frame; `TooltipTick` lets the tooltip view re-derive and
+            // re-format its relative times.
+            Message::Redraw | Message::TooltipTick => Task::none(),
             // Disconnected outputs are handled via the WindowClosed each
             // surface receives; the rest are layer-shell actions the runtime
             // intercepts before update.
@@ -397,6 +410,28 @@ impl Bar {
             let tooltip = self.tooltip_of(source);
             tooltip.footer.is_some() || matches!(tooltip.body, TooltipBody::Log(_))
         })
+    }
+
+    /// The seven expandable groups' menus, in one place, for the cross-group
+    /// reads below.
+    fn menus(&self) -> [&MenuGroup; 7] {
+        [
+            &self.weather_group.menu,
+            &self.system_group.menu,
+            &self.media_group.menu,
+            &self.idle_timeouts_group.menu,
+            &self.panel_settings_group.menu,
+            &self.internet_group.menu,
+            &self.quick_launch.menu,
+        ]
+    }
+
+    /// Whether any group's expand curve is in flight — gates the frame-timer
+    /// subscription that paints menu animations. Under layer-shell a widget can't
+    /// self-drive redraws from a subscription-triggered state change, so this
+    /// app-level signal drives the frames instead.
+    pub fn any_menu_animating(&self) -> bool {
+        self.menus().iter().any(|menu| menu.is_animating())
     }
 
     /// Collapse every open expandable group. Close-tasks are discarded —
@@ -580,6 +615,24 @@ impl Bar {
         handle.arm(arms);
     }
 
+    /// Run a subsystem's action immediately, on click of its trigger button:
+    /// logind (system bus) for lock/suspend/power-off, the configured command
+    /// for screen-off (logind has no screen-off method).
+    fn trigger_idle_action(&self, kind: TimerKind) -> Task<Message> {
+        match kind {
+            TimerKind::LockUser => blocking("logind lock", logind::lock).discard(),
+            TimerKind::Standby => blocking("logind suspend", logind::suspend).discard(),
+            TimerKind::PowerDown => blocking("logind poweroff", logind::power_off).discard(),
+            TimerKind::ScreenOff => {
+                let command = self.config.idle_bindings.screen_off.clone();
+                if command.is_empty() {
+                    return Task::none();
+                }
+                blocking("idle screen-off", move || niri::spawn(command)).discard()
+            }
+        }
+    }
+
     /// Re-issue each open surface's margin from the current floating/offset
     /// config — the live counterpart of the margin applied when a surface is
     /// first opened.
@@ -720,3 +773,4 @@ impl Bar {
 fn query_outputs() -> Task<Message> {
     blocking("niri outputs", niri::output_geometry).map(Message::OutputsResolved)
 }
+

@@ -27,10 +27,16 @@ use crate::{
 };
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    // Menu expand animations are self-driving (each `MenuGroup` re-requests
-    // frames from within its widget tree while animating), so no frame-tick
-    // subscription is wired here.
-    //
+    // Paints menu expand/collapse frames while any group is mid-transition. A
+    // layer-shell widget can't self-drive its redraws from a subscription-
+    // triggered state change, so this app-level timer wakes the loop each frame;
+    // it stays idle otherwise. Re-evaluated after every update, so it starts and
+    // stops with the animation.
+    let animation = if state.any_menu_animating() {
+        iced::time::every(Duration::from_millis(16)).map(|_| Message::Redraw)
+    } else {
+        Subscription::none()
+    };
     // Only ticks while a Log tooltip is shown, to advance its relative times.
     let tooltip_tick = if state.tooltip_has_relative_time() {
         iced::time::every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
@@ -57,6 +63,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         iced::time::every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
         niri_subscription(),
         notifications_subscription(),
+        animation,
         tooltip_tick,
     ])
 }
