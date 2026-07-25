@@ -37,6 +37,7 @@ tokio = { version = "1.53.0", features = [
   "sync",
 ] }
 tokio-stream = { version = "0.1", default-features = false, features = [
+  "sync",
   "time",
 ] }
 toml = "0.8.23"

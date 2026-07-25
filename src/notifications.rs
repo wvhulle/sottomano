@@ -181,7 +181,7 @@ impl NotificationGroup {
 
     /// After a niri change: dismiss notifications whose target window has closed
     /// (they can never serve their purpose), then recompute the surviving
-    /// toasts' corners. Driven from `Bar::apply_niri_event`.
+    /// toasts' corners. Driven from `Bar::apply_niri_events`.
     pub fn on_niri_changed(
         &mut self,
         placement: &Placement,

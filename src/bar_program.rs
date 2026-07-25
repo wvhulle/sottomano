@@ -79,9 +79,6 @@ pub struct Bar {
     /// Bar-facing derivation of `niri`, recomputed once per niri event so
     /// `view` reads borrowed slices instead of re-collecting per redraw.
     pub(crate) niri_snapshot: niri::Snapshot,
-    /// Notification-placement facts (window edges, focus), recomputed per niri
-    /// event so a toast can point back toward its producer window.
-    pub(crate) niri_placement: niri::Placement,
     /// Per-output logical geometry, from a niri `Outputs` query — general
     /// compositor state (currently read by notification placement to centre a
     /// stack against the screen, available to any future consumer).
@@ -123,7 +120,7 @@ pub enum Message {
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     DismissPressed,
     WorkspaceClicked(u64),
-    Niri(niri_ipc::Event),
+    Niri(Vec<niri_ipc::Event>),
     WindowClosed(Id),
     /// 1 Hz tick, live only while a Log tooltip is shown, to advance its
     /// relative timestamps.
@@ -156,7 +153,6 @@ impl Bar {
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
-            niri_placement: niri::Placement::default(),
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             tooltip: TooltipHost::default(),
@@ -290,7 +286,7 @@ impl Bar {
             Message::WorkspaceClicked(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
             }
-            Message::Niri(event) => self.apply_niri_event(event),
+            Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(id) => {
                 self.surfaces.remove(&id);
                 self.tooltip.forget(id);
@@ -308,21 +304,22 @@ impl Bar {
                 self.tooltip
                     .update(msg, &self.surfaces, &self.outputs, &self.config)
             }
-            Message::Notification(msg) => self.notifications.update(
-                msg,
-                &self.niri_placement,
-                &self.outputs,
-                self.desktop_entries.get(),
-                &self.config,
-            ),
+            Message::Notification(msg) => {
+                let placement = niri::Placement::derive(&self.niri);
+                self.notifications.update(
+                    msg,
+                    &placement,
+                    &self.outputs,
+                    self.desktop_entries.get(),
+                    &self.config,
+                )
+            }
             Message::OutputsResolved(outputs) => {
                 self.outputs = outputs;
                 // Re-place existing toasts now the screen size is known.
-                self.notifications.on_niri_changed(
-                    &self.niri_placement,
-                    &self.outputs,
-                    &self.config,
-                )
+                let placement = niri::Placement::derive(&self.niri);
+                self.notifications
+                    .on_niri_changed(&placement, &self.outputs, &self.config)
             }
             // A redraw is all the tick needs — the tooltip view re-derives and
             // re-formats its relative times.
@@ -424,35 +421,45 @@ impl Bar {
         let _ = self.media_group.update(MediaMessage::Menu(MenuMessage::Close));
     }
 
-    fn apply_niri_event(&mut self, event: niri_ipc::Event) -> Task<Message> {
-        let window_change = matches!(
-            event,
-            niri_ipc::Event::WindowsChanged { .. }
-                | niri_ipc::Event::WindowOpenedOrChanged { .. }
-                | niri_ipc::Event::WindowClosed { .. }
-        );
-        // The active-workspace change and the open-app-set change are exactly
-        // when quick-launch's ranking can change.
-        let workspace_change = matches!(
-            event,
-            niri_ipc::Event::WorkspacesChanged { .. } | niri_ipc::Event::WorkspaceActivated { .. }
-        );
+    /// Apply a coalesced burst of niri events as one update: fold every event
+    /// into niri state, then derive and refresh **once**. A single focus/
+    /// workspace action emits 3-4 events, so per-event re-derivation (each an
+    /// O(all-windows) rebuild) was multiplying UI-thread work and stalling the
+    /// menu-close repaint.
+    fn apply_niri_events(&mut self, events: Vec<niri_ipc::Event>) -> Task<Message> {
+        let mut window_change = false;
+        let mut workspace_change = false;
+        let mut focus_change = false;
+        let mut tasks = Vec::new();
+        for event in events {
+            window_change |= matches!(
+                event,
+                niri_ipc::Event::WindowsChanged { .. }
+                    | niri_ipc::Event::WindowOpenedOrChanged { .. }
+                    | niri_ipc::Event::WindowClosed { .. }
+            );
+            // The active-workspace change and the open-app-set change are exactly
+            // when quick-launch's ranking can change.
+            workspace_change |= matches!(
+                event,
+                niri_ipc::Event::WorkspacesChanged { .. }
+                    | niri_ipc::Event::WorkspaceActivated { .. }
+            );
+            focus_change |= matches!(event, niri_ipc::Event::WindowFocusChanged { .. });
+            // Fold the event into the launch tracker before it is consumed; a
+            // counted launch is persisted to disk (fire-and-forget).
+            if let Some(delta) = self.launch_tracker.observe(&event) {
+                tasks.push(Task::future(state::launches::record(delta)).discard());
+            }
+            let _ = self.niri.apply(event);
+        }
+        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
         // Focus moving to another window (or to nothing) means the user left the
         // bar — dismiss any open menu group. Gated to the focus event alone:
         // window title/property churn must not collapse an open menu. The bar
         // never takes keyboard focus, so opening a menu cannot self-trigger this.
-        if matches!(event, niri_ipc::Event::WindowFocusChanged { .. }) {
+        if focus_change {
             self.dismiss_menus();
-        }
-        // Fold the event into the launch tracker before it is consumed; a
-        // counted launch is persisted to disk (fire-and-forget).
-        let launched = self.launch_tracker.observe(&event);
-        let _ = self.niri.apply(event);
-        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
-        self.niri_placement = niri::Placement::derive(&self.niri);
-        let mut tasks = Vec::new();
-        if let Some(delta) = launched {
-            tasks.push(Task::future(state::launches::record(delta)).discard());
         }
         if window_change {
             let entries = self.desktop_entries.arc();
@@ -465,14 +472,16 @@ impl Bar {
         if window_change || workspace_change {
             tasks.push(self.refresh_quick_launch());
         }
-        // Only recompute toast placement while toasts are up — a niri change can
-        // move a toast's corner or re-home it to another output.
+        // Toast placement is only needed while toasts are up — a niri change can
+        // move a toast's corner or re-home it. Derived on demand here (and at the
+        // other notification sites), never cached, so a bare focus change pays
+        // nothing for it.
         if self.notifications.is_active() {
-            tasks.push(self.notifications.on_niri_changed(
-                &self.niri_placement,
-                &self.outputs,
-                &self.config,
-            ));
+            let placement = niri::Placement::derive(&self.niri);
+            tasks.push(
+                self.notifications
+                    .on_niri_changed(&placement, &self.outputs, &self.config),
+            );
         }
         Task::batch(tasks)
     }

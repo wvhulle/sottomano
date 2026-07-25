@@ -7,7 +7,7 @@ use tokio::{
     task::spawn_blocking,
     time::{MissedTickBehavior, interval},
 };
-use tokio_stream::wrappers::IntervalStream;
+use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
     bar_layout::{
@@ -99,14 +99,20 @@ pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Messag
 }
 
 fn niri_subscription() -> Subscription<Message> {
-    use iced::futures::SinkExt;
+    use iced::futures::{SinkExt, StreamExt};
     Subscription::run(|| {
         iced::stream::channel(
             256,
             |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                let mut rx = niri::spawn_event_thread();
-                while let Some(event) = rx.recv().await {
-                    if output.send(Message::Niri(event)).await.is_err() {
+                let rx = niri::spawn_event_thread();
+                // Coalesce a burst: one user focus/workspace action emits 3-4
+                // niri events back-to-back. `ready_chunks` yields the first, then
+                // everything already buffered, as one Vec — so the burst collapses
+                // to a single update (one niri re-derivation, one repaint) instead
+                // of one per event.
+                let mut bursts = ReceiverStream::new(rx).ready_chunks(256);
+                while let Some(batch) = bursts.next().await {
+                    if output.send(Message::Niri(batch)).await.is_err() {
                         break;
                     }
                 }

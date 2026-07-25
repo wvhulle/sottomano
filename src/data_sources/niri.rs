@@ -44,8 +44,8 @@ pub struct WsPill {
 
 /// The bar-facing derivation of [`EventStreamState`]: workspaces grouped and
 /// sorted per output, windows grouped and sorted per workspace. Recomputed once
-/// per niri event (see `Bar::apply_niri_event`), so `view` reads borrowed
-/// slices instead of re-collecting and re-cloning on every redraw.
+/// per coalesced niri-event burst (see `Bar::apply_niri_events`), so `view` reads
+/// borrowed slices instead of re-collecting and re-cloning on every redraw.
 #[derive(Default)]
 pub struct Snapshot {
     workspaces: HashMap<String, Vec<WsPill>>,
