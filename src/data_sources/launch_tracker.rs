@@ -9,7 +9,7 @@
 //!
 //! This is a pure in-memory model — no I/O. It ranks synchronously (nothing on
 //! the render path), and persistence lives in
-//! [`launch_store`](crate::data_sources::launch_store), which loads the model at
+//! [`launches`](crate::state::launches), which loads the model at
 //! startup and writes back the [`LaunchDelta`] each counted launch yields.
 //!
 //! Unlike the daemon it replaces, this tracks only count and recency (no

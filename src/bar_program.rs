@@ -38,7 +38,6 @@ use crate::{
         Tooltip, TooltipBody,
         app_icon::DesktopEntries,
         desktop_entries::{self, DesktopIndex},
-        launch_store,
         launch_tracker::{Buckets, LaunchTracker},
         niri,
     },
@@ -47,7 +46,9 @@ use crate::{
     },
     message_subscriptions::{blocking, niri_action},
     notifications::{NotificationGroup, NotificationMessage},
+    state,
     tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
+    widgets::idle::{Arm, IdleEvent, IdleHandle},
 };
 
 pub struct Bar {
@@ -65,7 +66,7 @@ pub struct Bar {
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
     /// In-memory launch-frequency model feeding quick-launch, persisted to disk
-    /// by [`launch_store`].
+    /// by [`state::launches`].
     pub(crate) launch_tracker: LaunchTracker,
     pub(crate) niri: EventStreamState,
     /// Bar-facing derivation of `niri`, recomputed once per niri event so
@@ -84,6 +85,8 @@ pub struct Bar {
     /// The shared `.desktop` index (app metadata + icon resolution), consumed by
     /// both the window list and the notification cards.
     pub(crate) desktop_entries: DesktopIndex,
+    /// Handle to the in-process idle daemon, once it has connected to wayland.
+    pub(crate) idle_handle: Option<IdleHandle>,
 }
 
 #[to_layer_message(multi)]
@@ -98,6 +101,10 @@ pub enum Message {
     NetInterfaces(NetInterfacesMessage),
     Brightness(BrightnessMessage),
     IdleTimeouts(IdleTimeoutsMessage),
+    /// The in-process idle daemon connected to wayland.
+    Idle(IdleEvent),
+    /// Persisted panel settings finished loading from the sqlite store.
+    PanelLoaded(state::panel::PanelSettings),
     Audio(AudioMessage),
     WindowList(WindowListMessage),
     QuickLaunch(QuickLaunchMessage),
@@ -145,11 +152,16 @@ impl Bar {
             tooltip: TooltipHost::default(),
             notifications: NotificationGroup::default(),
             desktop_entries: DesktopIndex::default(),
+            idle_handle: None,
             config,
         };
         let init = Task::batch([
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
-            Task::perform(launch_store::load(), Message::TrackerLoaded),
+            Task::perform(state::launches::load(), Message::TrackerLoaded),
+            Task::perform(state::idle::load(), |t| {
+                Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
+            }),
+            Task::perform(state::panel::load(), Message::PanelLoaded),
             query_outputs(),
         ]);
         (bar, init)
@@ -245,7 +257,33 @@ impl Bar {
                 self.brightness_group.update(msg).map(Message::Brightness)
             }
             Message::IdleTimeouts(msg) => {
-                self.idle_timeouts_group.update(msg).map(Message::IdleTimeouts)
+                use crate::bar_layout::idle_timeouts_group::IdleChange;
+                match self.idle_timeouts_group.update(msg) {
+                    IdleChange::None => Task::none(),
+                    IdleChange::Rearm => {
+                        self.rearm_idle();
+                        Task::none()
+                    }
+                    IdleChange::Persist => {
+                        self.rearm_idle();
+                        let timeouts = self.idle_timeouts_group.timeouts();
+                        Task::future(state::idle::save(timeouts)).discard()
+                    }
+                }
+            }
+            Message::Idle(IdleEvent::Connected(handle)) => {
+                self.idle_handle = Some(handle);
+                self.rearm_idle();
+                Task::none()
+            }
+            Message::PanelLoaded(settings) => {
+                if let Some(floating) = settings.floating {
+                    self.config.layout.floating = floating;
+                }
+                if let Some(offset) = settings.float_offset_px {
+                    self.config.float_offset_px = offset;
+                }
+                self.remargin_surfaces()
             }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
@@ -338,9 +376,10 @@ impl Bar {
             TooltipSource::AudioSink => self.audio_group.sink_cell().tooltip(),
             TooltipSource::AudioSource => self.audio_group.source_cell().tooltip(),
             TooltipSource::Brightness => self.brightness_group.cell().tooltip(),
-            TooltipSource::IdleTimeout(index) => {
-                self.idle_timeouts_group.tooltip(index as usize)
-            }
+            TooltipSource::IdleLockUser
+            | TooltipSource::IdleScreenOff
+            | TooltipSource::IdleStandby
+            | TooltipSource::IdlePowerDown => self.idle_timeouts_group.tooltip_for(source),
             TooltipSource::InternetDown => self.internet_group.down_cell().tooltip(),
             TooltipSource::InternetUp => self.internet_group.up_cell().tooltip(),
             TooltipSource::Tailscale => self.internet_group.tailscale_cell().tooltip(),
@@ -382,7 +421,7 @@ impl Bar {
         self.niri_placement = niri::Placement::derive(&self.niri);
         let mut tasks = Vec::new();
         if let Some(delta) = launched {
-            tasks.push(Task::future(launch_store::record(delta)).discard());
+            tasks.push(Task::future(state::launches::record(delta)).discard());
         }
         if window_change {
             let entries = self.desktop_entries.arc();
@@ -450,11 +489,18 @@ impl Bar {
         match msg {
             PanelSettingsMessage::ToggleFloating => {
                 self.config.layout.floating = !self.config.layout.floating;
-                self.remargin_surfaces()
+                let floating = self.config.layout.floating;
+                Task::batch([
+                    self.remargin_surfaces(),
+                    Task::future(state::panel::save_floating(floating)).discard(),
+                ])
             }
             PanelSettingsMessage::SetFloatOffset(offset) => {
-                self.config.layout.float_offset_px = offset;
-                self.remargin_surfaces()
+                self.config.float_offset_px = offset;
+                Task::batch([
+                    self.remargin_surfaces(),
+                    Task::future(state::panel::save_float_offset(offset)).discard(),
+                ])
             }
             msg => {
                 self.panel_settings_group.update(msg);
@@ -463,12 +509,37 @@ impl Bar {
         }
     }
 
+    /// Push the current per-subsystem timeouts (with their configured commands)
+    /// to the idle daemon, if it has connected.
+    fn rearm_idle(&self) {
+        let Some(handle) = &self.idle_handle else {
+            return;
+        };
+        let timeouts = self.idle_timeouts_group.timeouts();
+        let bindings = &self.config.idle_bindings;
+        let arms = [
+            (timeouts.lock_user, &bindings.lock_user),
+            (timeouts.screen_off, &bindings.screen_off),
+            (timeouts.standby, &bindings.standby),
+            (timeouts.power_down, &bindings.power_down),
+        ]
+        .into_iter()
+        .filter_map(|(timeout, command)| {
+            Some(Arm {
+                timeout: timeout?,
+                command: command.clone(),
+            })
+        })
+        .collect();
+        handle.arm(arms);
+    }
+
     /// Re-issue each open surface's margin from the current floating/offset
     /// config — the live counterpart of the margin applied when a surface is
     /// first opened.
     fn remargin_surfaces(&self) -> Task<Message> {
         let offset = if self.config.layout.floating {
-            self.config.layout.float_offset_px as i32
+            self.config.float_offset_px as i32
         } else {
             0
         };
@@ -490,7 +561,7 @@ impl Bar {
         let settings = match kind {
             SurfaceKind::Bar => {
                 let offset = if self.config.layout.floating {
-                    self.config.layout.float_offset_px as i32
+                    self.config.float_offset_px as i32
                 } else {
                     0
                 };

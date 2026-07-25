@@ -9,6 +9,7 @@ mod data_sources;
 mod layer_surface;
 mod message_subscriptions;
 mod notifications;
+mod state;
 mod tooltip;
 mod widgets;
 

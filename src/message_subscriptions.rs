@@ -12,8 +12,7 @@ use tokio_stream::wrappers::IntervalStream;
 use crate::{
     bar_layout::{
         audio_group::AudioGroup, battery_group::BatteryGroup, brightness_group::BrightnessGroup,
-        clock_group::ClockGroup, idle_timeouts_group::IdleTimeoutsGroup,
-        internet_group::InternetGroup, journal_group::JournalGroup,
+        clock_group::ClockGroup, internet_group::InternetGroup, journal_group::JournalGroup,
         net_interfaces_group::NetInterfacesGroup, system_group::SystemGroup,
         window_list_group::WindowListGroup,
     },
@@ -24,6 +23,7 @@ use crate::{
         model::{NotifHandle, Outbound, ServerEvent},
         server,
     },
+    widgets::idle,
 };
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
@@ -47,7 +47,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         InternetGroup::subscription().map(Message::Internet),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
         BrightnessGroup::subscription().map(Message::Brightness),
-        IdleTimeoutsGroup::subscription().map(Message::IdleTimeouts),
+        idle::subscription().map(Message::Idle),
         AudioGroup::subscription().map(Message::Audio),
         WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),

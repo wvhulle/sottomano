@@ -60,6 +60,12 @@ impl MenuGroup {
         self.expand.is_animating(Instant::now())
     }
 
+    /// Whether the group is (targeting) open — for closing dependent state when
+    /// it collapses.
+    pub fn is_open(&self) -> bool {
+        self.expand.value()
+    }
+
     pub fn reveal(&self) -> f32 {
         self.expand.interpolate(0.0, 1.0, self.last_tick)
     }

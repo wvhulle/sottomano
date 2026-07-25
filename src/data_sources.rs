@@ -26,8 +26,6 @@ pub mod desktop_entries;
 pub mod disk;
 pub mod favicons;
 pub mod icon_trim;
-pub mod idle_timeout;
-pub mod launch_store;
 pub mod launch_tracker;
 pub mod net_interfaces;
 pub mod niri;

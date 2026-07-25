@@ -84,6 +84,24 @@
         gioModules = "${pkgs.dconf.lib}/lib/gio/modules";
       };
 
+      # Standard system CLIs the bar's data sources shell out to at run time.
+      # Put on the wrapped binary's PATH and into the dev shell, so both
+      # `nix run` and `nix develop -c cargo run` resolve them regardless of the
+      # ambient session. (The wvhulle daemons are not here: situo is read over
+      # its session D-Bus interface and the idle daemon is run in-process, so
+      # neither binary is needed — their daemons are the user's own config.)
+      runtimeDeps = with pkgs; [
+        iproute2 # ip route/addr — throughput, wireguard
+        networkmanager # nmcli — ethernet, wifi, connectivity, vpn
+        modemmanager # mmcli — mobile broadband
+        bluez # bluetoothctl — bluetooth
+        wireplumber # wpctl — audio volume
+        wireguard-tools # wg — wireguard peer state
+        brightnessctl # backlight write-back
+        tailscale # tailscale status
+        xdg-utils # xdg-open — tailscale admin console
+      ];
+
       vetrata = craneLib.buildPackage (
         commonArgs
         // {
@@ -94,6 +112,7 @@
           postInstall = ''
             wrapProgram $out/bin/vetrata \
               --prefix PATH : ${gsettingsRuntime.binPath} \
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
               --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
               --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
           '';
@@ -135,7 +154,8 @@
       # `gsettings` on PATH; the shellHook prepends the schema and dconf paths,
       # composing with any session values.
       devShells.${system}.default = craneLib.devShell {
-        packages = commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ];
+        packages =
+          commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"

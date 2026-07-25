@@ -6,7 +6,9 @@ use std::{collections::HashSet, sync::Arc};
 use color::{ColorSpaceTag, DynamicColor, Srgb};
 use iced::{Color, Font};
 
-use super::disk::{self, DiskConfig, DiskFontConfig, DiskPaletteConfig, Layout, NotificationConfig};
+use super::disk::{
+    self, DiskConfig, DiskFontConfig, DiskPaletteConfig, IdleConfig, Layout, NotificationConfig,
+};
 use crate::data_sources::niri::{HEdge, VEdge};
 
 #[derive(Debug, Clone)]
@@ -15,6 +17,22 @@ pub struct ResolvedConfig {
     pub layout: Layout,
     pub font: ResolvedFontConfig,
     pub notifications: ResolvedNotificationConfig,
+    /// Float inset in px — pure persisted UI state, not a `vetrata.toml` knob.
+    /// Starts at 0 and is loaded from the sqlite state DB (`state::panel`) at
+    /// startup, then mutated live by the panel-settings slider.
+    pub float_offset_px: f32,
+    /// Command per idle subsystem, for the in-process idle daemon.
+    pub idle_bindings: IdleBindings,
+}
+
+/// The command (argv) to spawn when each idle subsystem fires. Empty = arm but
+/// do nothing.
+#[derive(Debug, Clone, Default)]
+pub struct IdleBindings {
+    pub lock_user: Vec<String>,
+    pub screen_off: Vec<String>,
+    pub standby: Vec<String>,
+    pub power_down: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -84,6 +102,25 @@ pub fn load() -> ResolvedConfig {
         layout: user.layout,
         font: resolve_font(&user.font),
         notifications: resolve_notifications(&user.notifications),
+        // Overwritten by the persisted value once `state::panel` loads.
+        float_offset_px: 0.0,
+        idle_bindings: resolve_idle_bindings(&user.idle),
+    }
+}
+
+fn resolve_idle_bindings(config: &IdleConfig) -> IdleBindings {
+    let binding = |name: &str| {
+        config
+            .bindings
+            .get(name)
+            .map(|cmd| cmd.split_whitespace().map(str::to_string).collect())
+            .unwrap_or_default()
+    };
+    IdleBindings {
+        lock_user: binding("lock-user"),
+        screen_off: binding("screen-off"),
+        standby: binding("standby"),
+        power_down: binding("power-down"),
     }
 }
 

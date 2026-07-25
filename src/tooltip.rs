@@ -61,9 +61,10 @@ pub enum TooltipSource {
     AudioSink,
     AudioSource,
     Brightness,
-    /// One idle-timeout subsystem, by its index into
-    /// [`SUBSYSTEMS`](crate::data_sources::idle_timeout::SUBSYSTEMS).
-    IdleTimeout(u8),
+    IdleLockUser,
+    IdleScreenOff,
+    IdleStandby,
+    IdlePowerDown,
     InternetDown,
     InternetUp,
     Tailscale,

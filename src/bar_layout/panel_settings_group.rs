@@ -110,7 +110,7 @@ impl PanelSettingsGroup {
             }
             .view(
                 config,
-                config.layout.float_offset_px,
+                config.float_offset_px,
                 PanelSettingsMessage::SetFloatOffset,
             )
         });

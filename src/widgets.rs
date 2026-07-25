@@ -9,6 +9,7 @@
 pub mod activity_line;
 pub mod icon;
 pub mod icon_gauge;
+pub mod idle;
 pub mod knob;
 pub mod menu_group;
 pub mod pager_slot;

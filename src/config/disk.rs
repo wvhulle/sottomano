@@ -1,7 +1,7 @@
 //! Config as read from the TOML file on disk, before the font is loaded and
 //! colours are converted.
 
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use color::DynamicColor;
 use serde::Deserialize;
@@ -13,6 +13,15 @@ pub struct DiskConfig {
     pub layout: Layout,
     pub font: DiskFontConfig,
     pub notifications: NotificationConfig,
+    pub idle: IdleConfig,
+}
+
+/// Per-subsystem command run when an idle timeout fires, keyed by subsystem name
+/// (`lock-user`, `screen-off`, `standby`, `power-down`). Split on whitespace.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct IdleConfig {
+    pub bindings: HashMap<String, String>,
 }
 
 /// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is no
@@ -132,7 +141,6 @@ pub struct Layout {
     pub floating: bool,
     pub blur: bool,
     pub shadow: bool,
-    pub float_offset_px: f32,
     /// Track width of a settings-panel slider (session UI chrome, not a bar
     /// element).
     pub slider_width_px: f32,
@@ -153,7 +161,6 @@ impl Default for Layout {
             floating: true,
             blur: true,
             shadow: false,
-            float_offset_px: 0.0,
             slider_width_px: 60.0,
             outer_height_px: 28.0,
             focus_underline_thickness_px: 3.4,

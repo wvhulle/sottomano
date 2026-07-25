@@ -92,12 +92,10 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                     m => Message::Brightness(m),
                 })
             }),
-            bar.idle_timeouts_group.view(config, position).map(|e| {
-                e.map(|m| match m {
-                    IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::IdleTimeouts(m),
-                })
-            }),
+            Some(bar.idle_timeouts_group.view(config, position).map(|m| match m {
+                IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::IdleTimeouts(m),
+            })),
             bar.audio_group.view(config).map(|e| {
                 e.map(|m| match m {
                     AudioMessage::Tooltip(t) => Message::Tooltip(t),
