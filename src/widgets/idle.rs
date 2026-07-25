@@ -42,40 +42,18 @@ pub fn label_for(duration: Duration) -> &'static str {
         .map_or("∞", |(_, label)| label)
 }
 
-/// Next ladder value strictly greater than `current` (smallest when disabled),
-/// saturating at the largest.
-pub fn step_up(current: Option<Duration>) -> Duration {
-    let last = Duration::from_secs(LADDER[LADDER.len() - 1].0);
-    match current {
-        None => Duration::from_secs(LADDER[0].0),
-        Some(d) => LADDER
-            .iter()
-            .map(|(secs, _)| Duration::from_secs(*secs))
-            .find(|step| *step > d)
-            .unwrap_or(last),
-    }
-}
-
-/// Next ladder value strictly less than `current`; `None` disables (below the
-/// smallest rung).
-pub fn step_down(current: Duration) -> Option<Duration> {
-    LADDER
-        .iter()
-        .rev()
-        .map(|(secs, _)| Duration::from_secs(*secs))
-        .find(|step| *step < current)
-}
-
-/// The slider spans `0..=MAX_POSITION`: 0 disables the subsystem, 1..=11 select
-/// a ladder rung.
+/// The slider/scroll spans `0..=MAX_POSITION`: rungs `0..=10` are the ladder
+/// (10s..4h) and the top position is ∞ — disabling the subsystem. Scrolling
+/// above 4h therefore clears the timeout.
 #[allow(clippy::cast_precision_loss)]
 pub const MAX_POSITION: f32 = LADDER.len() as f32;
 
-/// Slider position for a timeout: 0 disabled, else 1 + the nearest ladder rung.
+/// Slider position for a timeout: the nearest ladder rung, or the top (∞) when
+/// disabled.
 #[allow(clippy::cast_precision_loss)]
 pub fn position(timeout: Option<Duration>) -> f32 {
     match timeout {
-        None => 0.0,
+        None => MAX_POSITION,
         Some(d) => {
             let secs = d.as_secs();
             let index = LADDER
@@ -83,21 +61,20 @@ pub fn position(timeout: Option<Duration>) -> f32 {
                 .enumerate()
                 .min_by_key(|(_, (rung, _))| rung.abs_diff(secs))
                 .map_or(0, |(index, _)| index);
-            (index + 1) as f32
+            index as f32
         }
     }
 }
 
-/// The timeout at a slider position (rounded); position 0 disables.
+/// The timeout at a slider position (rounded); the top position (past the last
+/// rung) disables the subsystem.
 pub fn from_position(pos: f32) -> Option<Duration> {
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let rung = pos.round().max(0.0) as usize;
-    rung.checked_sub(1)
-        .and_then(|i| LADDER.get(i))
-        .map(|(secs, _)| Duration::from_secs(*secs))
+    LADDER.get(rung).map(|(secs, _)| Duration::from_secs(*secs))
 }
 
-/// The label at a slider position, for the open slider's readout.
+/// The label at a slider position, for the readout.
 pub fn label_at(pos: f32) -> &'static str {
     from_position(pos).map_or("∞", label_for)
 }

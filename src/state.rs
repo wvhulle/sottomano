@@ -14,28 +14,48 @@ pub mod idle;
 pub mod launches;
 pub mod panel;
 
-use std::path::PathBuf;
+use std::{ops::Deref, path::PathBuf};
 
-use tokio::sync::OnceCell;
+use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-/// The one long-lived database handle. Every writer shares it (turso serializes
-/// on a single connection), so rapid writes — e.g. scrolling an idle timeout —
-/// queue instead of racing separate file handles into a "database is locked".
-/// The [`turso::Database`] is kept alive alongside the connection.
+/// The one long-lived database, opened once. turso forbids concurrent use of a
+/// connection, so all access is serialized behind [`LOCK`]; rapid writes (e.g.
+/// scrolling an idle timeout) queue rather than racing.
 struct Store {
     connection: turso::Connection,
     _database: turso::Database,
 }
 
 static STORE: OnceCell<Store> = OnceCell::const_new();
+static LOCK: Mutex<()> = Mutex::const_new(());
 
-/// A clone of the shared connection, opening the database (and creating every
-/// table) exactly once.
-pub(crate) async fn open() -> Result<turso::Connection, BoxError> {
+/// An exclusive handle to the shared connection: holds the serialization guard
+/// for as long as it is alive and derefs to the connection, so a caller uses it
+/// like a plain `Connection` while access stays serialized.
+pub(crate) struct Handle {
+    _guard: MutexGuard<'static, ()>,
+    connection: turso::Connection,
+}
+
+impl Deref for Handle {
+    type Target = turso::Connection;
+
+    fn deref(&self) -> &turso::Connection {
+        &self.connection
+    }
+}
+
+/// Acquire the shared connection, opening the database (and creating every
+/// table) exactly once. Held exclusively until the returned handle is dropped.
+pub(crate) async fn open() -> Result<Handle, BoxError> {
+    let guard = LOCK.lock().await;
     let store = STORE.get_or_try_init(build).await?;
-    Ok(store.connection.clone())
+    Ok(Handle {
+        _guard: guard,
+        connection: store.connection.clone(),
+    })
 }
 
 async fn build() -> Result<Store, BoxError> {

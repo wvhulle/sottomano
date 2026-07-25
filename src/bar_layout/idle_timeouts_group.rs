@@ -23,7 +23,7 @@ use crate::{
     widgets::{
         icon::Icon,
         icon_gauge::source_reading,
-        idle::{MAX_POSITION, from_position, label_at, label_for, position, step_down, step_up},
+        idle::{MAX_POSITION, from_position, label_at, label_for, position},
         menu_group::MenuGroup,
         text::bar_text,
     },
@@ -37,15 +37,16 @@ struct Timer {
 }
 
 impl Timer {
+    /// Step the ladder from a scroll; `true` if the timeout changed. Scrolling
+    /// up past the last rung reaches the top position (∞), clearing the timeout.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     fn scroll(&mut self, delta: ScrollDelta) -> bool {
         let Some(step) = scroll_step(&mut self.accum, delta) else {
             return false;
         };
-        self.timeout = if step > 0 {
-            Some(step_up(self.timeout))
-        } else {
-            self.timeout.and_then(step_down)
-        };
+        let pos = position(self.timeout).round() as i64;
+        let next = (pos + step).clamp(0, MAX_POSITION as i64);
+        self.timeout = from_position(next as f32);
         true
     }
 }
