@@ -25,6 +25,7 @@ pub mod command;
 pub mod desktop_entries;
 pub mod disk;
 pub mod favicons;
+pub mod geolocation;
 pub mod icon_trim;
 pub mod launch_tracker;
 pub mod net_interfaces;
@@ -33,6 +34,7 @@ pub mod sysfs_sensors;
 pub mod systemd_failed;
 pub mod tailscale;
 pub mod throughput;
+pub mod weather;
 pub mod wireguard;
 
 /// Severity, ordered least-to-most severe so `Level::max` picks the worse of

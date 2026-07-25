@@ -13,6 +13,7 @@ use journal_group::JournalMessage;
 use net_interfaces_group::NetInterfacesMessage;
 use panel_settings_group::PanelSettingsMessage;
 use system_group::SystemMessage;
+use weather_group::WeatherMessage;
 use workspaces_group::WorkspacesMessage;
 
 use crate::{
@@ -34,6 +35,7 @@ pub mod quick_launch_group;
 pub mod scroll;
 pub mod source_cell;
 pub mod system_group;
+pub mod weather_group;
 pub mod window_list_group;
 pub mod workspaces_group;
 
@@ -41,6 +43,12 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let start = zone(
         [
+            bar.weather_group.view(config, position).map(|e| {
+                e.map(|m| match m {
+                    WeatherMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Weather(m),
+                })
+            }),
             bar.battery_group.view(config).map(|e| {
                 e.map(|m| match m {
                     BatteryMessage::Tooltip(t) => Message::Tooltip(t),

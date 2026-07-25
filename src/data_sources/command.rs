@@ -31,3 +31,11 @@ pub fn run(program: &str, args: &[&str]) -> bool {
 pub fn exists(program: &str) -> bool {
     output("sh", &["-c", &format!("command -v {program}")]).is_some()
 }
+
+/// A silent, time-boxed HTTP GET via `curl` (odin's weather/usage scripts fetch
+/// the same way; there is no in-process HTTP client). `None` on failure or an
+/// empty body.
+pub fn http_get(url: &str, timeout_secs: u32) -> Option<String> {
+    output("curl", &["-s", "--max-time", &timeout_secs.to_string(), url])
+        .filter(|body| !body.trim().is_empty())
+}

@@ -70,6 +70,11 @@ pub enum TooltipSource {
     Tailscale,
     /// One WireGuard tunnel, by its index in the polled tunnel list.
     Wireguard(u8),
+    WeatherTemp,
+    WeatherRain,
+    PollenBirch,
+    PollenGrass,
+    Location,
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).

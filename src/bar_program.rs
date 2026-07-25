@@ -31,6 +31,7 @@ use crate::{
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
         system_group::{SystemGroup, SystemMessage},
+        weather_group::{WeatherGroup, WeatherMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
     config::resolved::ResolvedConfig,
@@ -53,6 +54,7 @@ use crate::{
 
 pub struct Bar {
     pub(crate) config: ResolvedConfig,
+    pub(crate) weather_group: WeatherGroup,
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
@@ -92,6 +94,7 @@ pub struct Bar {
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
+    Weather(WeatherMessage),
     Battery(BatteryMessage),
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
@@ -131,6 +134,7 @@ pub enum Message {
 impl Bar {
     pub fn new(config: ResolvedConfig) -> (Self, Task<Message>) {
         let bar = Self {
+            weather_group: WeatherGroup::new(config.layout.menu_expand_ms),
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::new(config.layout.menu_expand_ms),
             panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
@@ -180,6 +184,7 @@ impl Bar {
             || self.quick_launch.menu.is_animating()
             || self.idle_timeouts_group.menu.is_animating()
             || self.internet_group.menu.is_animating()
+            || self.weather_group.menu.is_animating()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -191,6 +196,7 @@ impl Bar {
                 self.quick_launch.menu.tick(now);
                 self.idle_timeouts_group.menu.tick(now);
                 self.internet_group.menu.tick(now);
+                self.weather_group.menu.tick(now);
                 Task::none()
             }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
@@ -230,6 +236,10 @@ impl Bar {
             }
             Message::ReloadDesktopEntries => {
                 desktop_entries::load().map(Message::DesktopEntriesLoaded)
+            }
+            Message::Weather(msg) => {
+                self.weather_group.update(msg);
+                Task::none()
             }
             Message::Battery(msg) => {
                 self.battery_group.update(msg);
@@ -293,6 +303,7 @@ impl Bar {
                 let _ = self.quick_launch.update(QuickLaunchMessage::Close);
                 let _ = self.idle_timeouts_group.update(IdleTimeoutsMessage::Close);
                 let _ = self.internet_group.update(InternetMessage::Close);
+                self.weather_group.update(WeatherMessage::Close);
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
@@ -386,6 +397,11 @@ impl Bar {
             TooltipSource::Wireguard(index) => {
                 self.internet_group.wireguard_tooltip(index as usize)
             }
+            TooltipSource::WeatherTemp => self.weather_group.temp_cell().tooltip(),
+            TooltipSource::WeatherRain => self.weather_group.rain_cell().tooltip(),
+            TooltipSource::PollenBirch => self.weather_group.birch_cell().tooltip(),
+            TooltipSource::PollenGrass => self.weather_group.grass_cell().tooltip(),
+            TooltipSource::Location => self.weather_group.location_cell().tooltip(),
         }
         .unwrap_or_else(Tooltip::empty)
     }

@@ -14,7 +14,7 @@ use crate::{
         audio_group::AudioGroup, battery_group::BatteryGroup, brightness_group::BrightnessGroup,
         clock_group::ClockGroup, internet_group::InternetGroup, journal_group::JournalGroup,
         net_interfaces_group::NetInterfacesGroup, system_group::SystemGroup,
-        window_list_group::WindowListGroup,
+        weather_group::WeatherGroup, window_list_group::WindowListGroup,
     },
     bar_program::{Bar, Message},
     data_sources::{Source, desktop_entries, niri},
@@ -40,6 +40,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         Subscription::none()
     };
     Subscription::batch([
+        WeatherGroup::subscription().map(Message::Weather),
         BatteryGroup::subscription().map(Message::Battery),
         SystemGroup::subscription().map(Message::System),
         ClockGroup::subscription().map(Message::Clock),
