@@ -8,9 +8,9 @@
 use std::time::Duration;
 
 use iced::{
-    Alignment, Border, Color, Element,
+    Alignment, Element,
     mouse::ScrollDelta,
-    widget::{Row, mouse_area, slider},
+    widget::{Row, mouse_area},
 };
 
 use crate::{
@@ -24,6 +24,7 @@ use crate::{
         icon::Icon,
         icon_gauge::source_reading,
         idle::{MAX_POSITION, from_position, label_at, label_for, position},
+        inline_slider::inline_slider,
         menu_group::MenuGroup,
         text::bar_text,
     },
@@ -360,38 +361,10 @@ fn open_pill<'a>(
     )
     .on_press(msgs.press);
 
-    let accent = config.palette.focus;
-    let track = config.palette.bar_foreground.scale_alpha(0.25);
     let pos = position(timeout);
-    let control = slider(0.0..=MAX_POSITION, pos, msgs.set)
-        .step(1.0_f32)
-        .on_release(msgs.commit)
-        .width(config.layout.slider_width_px)
-        .style(move |_theme, status| {
-            let fill = match status {
-                slider::Status::Dragged => accent.scale_alpha(0.8),
-                _ => accent,
-            };
-            slider::Style {
-                rail: slider::Rail {
-                    backgrounds: (fill.into(), track.into()),
-                    width: 4.0,
-                    border: Border {
-                        radius: 2.0.into(),
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                    },
-                },
-                handle: slider::Handle {
-                    shape: slider::HandleShape::Circle { radius: 7.0 },
-                    background: fill.into(),
-                    border_color: Color::TRANSPARENT,
-                    border_width: 0.0,
-                },
-            }
-        });
-
-    let readout = bar_text(&config.font, label_at(pos).to_string()).color(config.palette.bar_foreground);
+    let control = inline_slider(config, 0.0..=MAX_POSITION, pos, 1.0, msgs.set, msgs.commit);
+    let readout =
+        bar_text(&config.font, label_at(pos).to_string()).color(config.palette.bar_foreground);
 
     Row::with_children([glyph.into(), control.into(), readout.into()])
         .spacing(config.layout.horizontal_widget_spacing_px)

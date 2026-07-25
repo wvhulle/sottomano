@@ -1,11 +1,8 @@
 //! odin's `Audio`: default sink (speakers) and source (microphone) volume,
-//! side by side in the top-right zone. Each is an icon + signal-tinted gauge;
-//! scrolling adjusts the volume and right-clicking the mic toggles its mute.
-//!
-//! odin also opens a click-to-drag inline slider; that is deferred here in
-//! favour of scroll-to-adjust, the primary bar interaction. The displayed
-//! percent is nudged optimistically on scroll so the gauge tracks the wheel
-//! before the next 1 Hz poll confirms it.
+//! side by side in the top-right zone. Each is an icon + severity-tinted gauge;
+//! clicking opens an inline volume slider, scrolling adjusts the volume, and
+//! right-clicking the mic toggles its mute. The displayed percent is nudged
+//! optimistically until the next 1 Hz poll confirms it.
 
 use iced::{
     Alignment, Element, Subscription, Task,
@@ -22,7 +19,7 @@ use crate::{
     },
     message_subscriptions::blocking,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
-    widgets::icon_gauge::source_reading,
+    widgets::{icon_gauge::source_reading, inline_slider::inline_slider, text::bar_text},
 };
 
 /// Volume change per scroll notch (odin's ±5%).
@@ -37,14 +34,22 @@ pub struct AudioGroup {
     source_pending: Option<i64>,
     sink_accum: f32,
     source_accum: f32,
+    sink_open: bool,
+    source_open: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum AudioMessage {
     Sink(Option<Audio<false>>),
     Source(Option<Audio<true>>),
+    PressSink,
     ScrollSink(ScrollDelta),
+    SetSink(f32),
+    ReleaseSink,
+    PressSource,
     ScrollSource(ScrollDelta),
+    SetSource(f32),
+    ReleaseSource,
     MuteSource,
     Tooltip(TooltipMessage),
 }
@@ -55,6 +60,15 @@ impl AudioGroup {
             SourceCell::subscription().map(AudioMessage::Sink),
             SourceCell::subscription().map(AudioMessage::Source),
         ])
+    }
+
+    fn sink_percent(&self) -> Option<i64> {
+        self.sink_pending.or_else(|| self.sink.get().map(|a| a.percent))
+    }
+
+    fn source_percent(&self) -> Option<i64> {
+        self.source_pending
+            .or_else(|| self.source.get().map(|a| a.percent))
     }
 
     pub fn update(&mut self, msg: AudioMessage) -> Task<AudioMessage> {
@@ -69,32 +83,58 @@ impl AudioGroup {
                 self.source_pending = None;
                 Task::none()
             }
+            AudioMessage::PressSink => {
+                self.sink_open = !self.sink_open;
+                self.source_open = false;
+                Task::none()
+            }
             AudioMessage::ScrollSink(delta) => {
                 let Some(step) = scroll_step(&mut self.sink_accum, delta) else {
                     return Task::none();
                 };
-                let current = self.sink_pending.or_else(|| self.sink.get().map(|a| a.percent));
-                let Some(current) = current else {
+                let Some(current) = self.sink_percent() else {
                     return Task::none();
                 };
                 let target = (current + step * STEP).clamp(0, 100);
                 self.sink_pending = Some(target);
                 blocking("audio set sink", move || set_volume::<false>(target)).discard()
             }
+            AudioMessage::SetSink(pos) => {
+                self.sink_pending = Some(percent(pos));
+                Task::none()
+            }
+            AudioMessage::ReleaseSink => match self.sink_pending {
+                Some(target) => {
+                    blocking("audio set sink", move || set_volume::<false>(target)).discard()
+                }
+                None => Task::none(),
+            },
+            AudioMessage::PressSource => {
+                self.source_open = !self.source_open;
+                self.sink_open = false;
+                Task::none()
+            }
             AudioMessage::ScrollSource(delta) => {
                 let Some(step) = scroll_step(&mut self.source_accum, delta) else {
                     return Task::none();
                 };
-                let current = self
-                    .source_pending
-                    .or_else(|| self.source.get().map(|a| a.percent));
-                let Some(current) = current else {
+                let Some(current) = self.source_percent() else {
                     return Task::none();
                 };
                 let target = (current + step * STEP).clamp(0, 100);
                 self.source_pending = Some(target);
                 blocking("audio set source", move || set_volume::<true>(target)).discard()
             }
+            AudioMessage::SetSource(pos) => {
+                self.source_pending = Some(percent(pos));
+                Task::none()
+            }
+            AudioMessage::ReleaseSource => match self.source_pending {
+                Some(target) => {
+                    blocking("audio set source", move || set_volume::<true>(target)).discard()
+                }
+                None => Task::none(),
+            },
             AudioMessage::MuteSource => {
                 blocking("audio mute source", toggle_mute::<true>).discard()
             }
@@ -111,38 +151,41 @@ impl AudioGroup {
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, AudioMessage>> {
-        let sink = self.sink.get().map(|a| {
-            let mut a = a.clone();
-            if let Some(p) = self.sink_pending {
-                a.percent = p;
-            }
-            a
+        let source = self.source.get().map(|audio| {
+            widget(
+                config,
+                audio,
+                self.source_percent(),
+                self.source_open,
+                TooltipSource::AudioSource,
+                Handlers {
+                    press: AudioMessage::PressSource,
+                    scroll: AudioMessage::ScrollSource,
+                    set: AudioMessage::SetSource,
+                    release: AudioMessage::ReleaseSource,
+                    right: Some(AudioMessage::MuteSource),
+                },
+            )
         });
-        let source = self.source.get().map(|a| {
-            let mut a = a.clone();
-            if let Some(p) = self.source_pending {
-                a.percent = p;
-            }
-            a
-        });
-
-        let sink = sink.and_then(|a| {
-            let reading = source_reading(config, Some(&a as &dyn BarWidget), 1.0)?;
-            let hover = hoverable(reading, TooltipSource::AudioSink, AudioMessage::Tooltip);
-            Some(mouse_area(hover).on_scroll(AudioMessage::ScrollSink).into())
-        });
-        let source = source.and_then(|a| {
-            let reading = source_reading(config, Some(&a as &dyn BarWidget), 1.0)?;
-            let hover = hoverable(reading, TooltipSource::AudioSource, AudioMessage::Tooltip);
-            Some(
-                mouse_area(hover)
-                    .on_scroll(AudioMessage::ScrollSource)
-                    .on_right_press(AudioMessage::MuteSource)
-                    .into(),
+        let sink = self.sink.get().map(|audio| {
+            widget(
+                config,
+                audio,
+                self.sink_percent(),
+                self.sink_open,
+                TooltipSource::AudioSink,
+                Handlers {
+                    press: AudioMessage::PressSink,
+                    scroll: AudioMessage::ScrollSink,
+                    set: AudioMessage::SetSink,
+                    release: AudioMessage::ReleaseSink,
+                    right: None,
+                },
             )
         });
 
-        let widgets: Vec<Element<'a, AudioMessage>> = [source, sink].into_iter().flatten().collect();
+        let widgets: Vec<Element<'a, AudioMessage>> =
+            [source, sink].into_iter().flatten().collect();
         if widgets.is_empty() {
             return None;
         }
@@ -153,4 +196,73 @@ impl AudioGroup {
                 .into(),
         )
     }
+}
+
+/// The per-widget message wiring.
+struct Handlers {
+    press: AudioMessage,
+    scroll: fn(ScrollDelta) -> AudioMessage,
+    set: fn(f32) -> AudioMessage,
+    release: AudioMessage,
+    right: Option<AudioMessage>,
+}
+
+/// A slider position (0..=100) to an integer percent.
+#[allow(clippy::cast_possible_truncation)]
+fn percent(pos: f32) -> i64 {
+    pos.round().clamp(0.0, 100.0) as i64
+}
+
+/// One audio widget: the open inline slider, or the closed icon + gauge with
+/// click-to-open, scroll, and (mic) right-click mute.
+fn widget<'a, const INPUT: bool>(
+    config: &ResolvedConfig,
+    audio: &Audio<INPUT>,
+    percent: Option<i64>,
+    open: bool,
+    source: TooltipSource,
+    handlers: Handlers,
+) -> Element<'a, AudioMessage> {
+    if open {
+        let value = percent.unwrap_or(0);
+        let glyph = mouse_area(
+            audio
+                .icon()
+                .solid()
+                .size(config.font.icon_size_px)
+                .color(config.palette.bar_foreground),
+        )
+        .on_press(handlers.press);
+        #[allow(clippy::cast_precision_loss)]
+        let control = inline_slider(
+            config,
+            0.0..=100.0,
+            value as f32,
+            1.0,
+            handlers.set,
+            handlers.release,
+        );
+        let readout =
+            bar_text(&config.font, format!("{value}%")).color(config.palette.bar_foreground);
+        return Row::with_children([glyph.into(), control.into(), readout.into()])
+            .spacing(config.layout.horizontal_widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into();
+    }
+
+    // Closed: render the reading with the optimistic percent applied.
+    let mut display = audio.clone();
+    if let Some(p) = percent {
+        display.percent = p;
+    }
+    let reading = source_reading(config, Some(&display as &dyn BarWidget), 1.0)
+        .unwrap_or_else(|| Row::new().into());
+    let hover = hoverable(reading, source, AudioMessage::Tooltip);
+    let mut area = mouse_area(hover)
+        .on_press(handlers.press)
+        .on_scroll(handlers.scroll);
+    if let Some(right) = handlers.right {
+        area = area.on_right_press(right);
+    }
+    area.into()
 }
