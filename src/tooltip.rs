@@ -64,6 +64,11 @@ pub enum TooltipSource {
     /// One idle-timeout subsystem, by its index into
     /// [`SUBSYSTEMS`](crate::data_sources::idle_timeout::SUBSYSTEMS).
     IdleTimeout(u8),
+    InternetDown,
+    InternetUp,
+    Tailscale,
+    /// One WireGuard tunnel, by its index in the polled tunnel list.
+    Wireguard(u8),
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).

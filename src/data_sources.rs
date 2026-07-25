@@ -24,17 +24,22 @@ pub mod backlight;
 pub mod command;
 pub mod desktop_entries;
 pub mod disk;
-pub mod idle_timeout;
-pub mod net_interfaces;
 pub mod favicons;
 pub mod icon_trim;
+pub mod idle_timeout;
 pub mod launch_store;
 pub mod launch_tracker;
+pub mod net_interfaces;
 pub mod niri;
 pub mod sysfs_sensors;
 pub mod systemd_failed;
+pub mod tailscale;
+pub mod throughput;
+pub mod wireguard;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// Severity, ordered least-to-most severe so `Level::max` picks the worse of
+/// two (e.g. blending a connectivity level with a load level).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
     #[default]
     Ok,

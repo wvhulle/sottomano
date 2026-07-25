@@ -8,6 +8,7 @@ use iced::{
     widget::{Row, Space, row},
 };
 use idle_timeouts_group::IdleTimeoutsMessage;
+use internet_group::InternetMessage;
 use journal_group::JournalMessage;
 use net_interfaces_group::NetInterfacesMessage;
 use panel_settings_group::PanelSettingsMessage;
@@ -25,6 +26,7 @@ pub mod battery_group;
 pub mod brightness_group;
 pub mod clock_group;
 pub mod idle_timeouts_group;
+pub mod internet_group;
 pub mod journal_group;
 pub mod net_interfaces_group;
 pub mod panel_settings_group;
@@ -61,6 +63,12 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                 e.map(|m| match m {
                     JournalMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::Journal(m),
+                })
+            }),
+            bar.internet_group.view(config, position).map(|e| {
+                e.map(|m| match m {
+                    InternetMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Internet(m),
                 })
             }),
             bar.panel_settings_group.view(config, position).map(|e| {

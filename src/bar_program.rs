@@ -25,6 +25,7 @@ use crate::{
         brightness_group::{BrightnessGroup, BrightnessMessage},
         clock_group::{ClockGroup, ClockMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
+        internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
@@ -56,6 +57,7 @@ pub struct Bar {
     pub(crate) panel_settings_group: PanelSettingsGroup,
     pub(crate) clock_group: ClockGroup,
     pub(crate) journal_group: JournalGroup,
+    pub(crate) internet_group: InternetGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) brightness_group: BrightnessGroup,
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
@@ -92,6 +94,7 @@ pub enum Message {
     PanelSettings(PanelSettingsMessage),
     Clock(ClockMessage),
     Journal(JournalMessage),
+    Internet(InternetMessage),
     NetInterfaces(NetInterfacesMessage),
     Brightness(BrightnessMessage),
     IdleTimeouts(IdleTimeoutsMessage),
@@ -126,6 +129,7 @@ impl Bar {
             panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
             clock_group: ClockGroup::default(),
             journal_group: JournalGroup::default(),
+            internet_group: InternetGroup::new(config.layout.menu_expand_ms),
             net_interfaces_group: NetInterfacesGroup::default(),
             brightness_group: BrightnessGroup::default(),
             idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
@@ -163,6 +167,7 @@ impl Bar {
             || self.panel_settings_group.menu.is_animating()
             || self.quick_launch.menu.is_animating()
             || self.idle_timeouts_group.menu.is_animating()
+            || self.internet_group.menu.is_animating()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -173,6 +178,7 @@ impl Bar {
                 self.panel_settings_group.menu.tick(now);
                 self.quick_launch.menu.tick(now);
                 self.idle_timeouts_group.menu.tick(now);
+                self.internet_group.menu.tick(now);
                 Task::none()
             }
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
@@ -234,6 +240,7 @@ impl Bar {
                 self.net_interfaces_group.update(msg);
                 Task::none()
             }
+            Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Brightness(msg) => {
                 self.brightness_group.update(msg).map(Message::Brightness)
             }
@@ -247,6 +254,7 @@ impl Bar {
                 self.system_group.update(SystemMessage::Close);
                 let _ = self.quick_launch.update(QuickLaunchMessage::Close);
                 let _ = self.idle_timeouts_group.update(IdleTimeoutsMessage::Close);
+                let _ = self.internet_group.update(InternetMessage::Close);
                 Task::none()
             }
             Message::WorkspaceClicked(workspace) => {
@@ -332,6 +340,12 @@ impl Bar {
             TooltipSource::Brightness => self.brightness_group.cell().tooltip(),
             TooltipSource::IdleTimeout(index) => {
                 self.idle_timeouts_group.tooltip(index as usize)
+            }
+            TooltipSource::InternetDown => self.internet_group.down_cell().tooltip(),
+            TooltipSource::InternetUp => self.internet_group.up_cell().tooltip(),
+            TooltipSource::Tailscale => self.internet_group.tailscale_cell().tooltip(),
+            TooltipSource::Wireguard(index) => {
+                self.internet_group.wireguard_tooltip(index as usize)
             }
         }
         .unwrap_or_else(Tooltip::empty)
