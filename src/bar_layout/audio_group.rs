@@ -73,7 +73,16 @@ impl AudioGroup {
                     }
                     Action::Commit(value) => {
                         let target = as_percent(value);
-                        blocking("audio set sink", move || set_volume::<false>(target)).discard()
+                        blocking("audio set sink", move || {
+                            slow_write_delay();
+                            set_volume::<false>(target)
+                        })
+                        .map(move |ok| {
+                            AudioMessage::Control(
+                                ControlKind::Sink,
+                                ControlMessage::Confirmed { value, ok },
+                            )
+                        })
                     }
                     Action::None | Action::Right => Task::none(),
                 }
@@ -87,7 +96,16 @@ impl AudioGroup {
                     }
                     Action::Commit(value) => {
                         let target = as_percent(value);
-                        blocking("audio set source", move || set_volume::<true>(target)).discard()
+                        blocking("audio set source", move || {
+                            slow_write_delay();
+                            set_volume::<true>(target)
+                        })
+                        .map(move |ok| {
+                            AudioMessage::Control(
+                                ControlKind::Source,
+                                ControlMessage::Confirmed { value, ok },
+                            )
+                        })
                     }
                     Action::Right => blocking("audio mute source", toggle_mute::<true>).discard(),
                     Action::None => Task::none(),
@@ -174,5 +192,16 @@ fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
     move |msg| match msg {
         ControlMessage::Tooltip(t) => AudioMessage::Tooltip(t),
         m => AudioMessage::Control(kind, m),
+    }
+}
+
+/// Test hook: `VETRATA_SLOW_WRITE_MS` blocks the volume write for that many
+/// milliseconds, so the slider's confirmation-driven ghost can be exercised
+/// against a slow write. Runs on the blocking pool, so the UI stays responsive.
+fn slow_write_delay() {
+    if let Ok(raw) = std::env::var("VETRATA_SLOW_WRITE_MS")
+        && let Ok(ms) = raw.parse::<u64>()
+    {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
     }
 }

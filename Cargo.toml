@@ -16,7 +16,7 @@ color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
 humantime = "2.3"
-iced = { version = "0.14.0", features = ["tokio", "image", "svg"] }
+iced = { version = "0.14.0", features = ["tokio", "image", "svg", "canvas"] }
 iced_font_awesome = "0.4.2"
 # Local fork of wvhulle/exwlshelleventloop with the multi-surface present-error
 # fix (Outdated/Lost → reconfigure/recreate). Track master; force-push to update.

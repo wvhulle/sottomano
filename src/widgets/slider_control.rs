@@ -18,8 +18,8 @@ use crate::{
     data_sources::BarWidget,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
     widgets::{
-        icon_gauge::source_reading, inline_slider::inline_slider, optimistic::Optimistic,
-        text::bar_text,
+        icon_gauge::source_reading, inline_slider::inline_slider, text::bar_text,
+        tracked::{Tracked, Write},
     },
 };
 
@@ -27,7 +27,7 @@ use crate::{
 pub struct SliderControl {
     open: bool,
     accum: f32,
-    value: Optimistic,
+    value: Tracked,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -36,6 +36,9 @@ pub enum ControlMessage {
     Scroll(ScrollDelta),
     Set(f32),
     Release,
+    /// A committed write returned: `value` is what was written, `ok` whether it
+    /// succeeded. Drives the ghost forward and may release the next write.
+    Confirmed { value: f32, ok: bool },
     Right,
     Tooltip(TooltipMessage),
 }
@@ -93,15 +96,12 @@ impl SliderControl {
                 #[allow(clippy::cast_precision_loss)]
                 let target = (self.value.value(reading) + step as f32 * step_size)
                     .clamp(*range.start(), *range.end());
-                into_action(self.value.commit(target))
+                into_action(self.value.scroll(target))
             }
-            ControlMessage::Set(pos) => {
-                self.value.drag(pos);
-                Action::None
-            }
-            ControlMessage::Release => {
-                self.value.end_drag();
-                into_action(self.value.commit(self.value.value(reading)))
+            ControlMessage::Set(pos) => into_action(self.value.drag(pos)),
+            ControlMessage::Release => into_action(self.value.end_drag()),
+            ControlMessage::Confirmed { value, ok } => {
+                into_action(self.value.confirmed(value, ok))
             }
             ControlMessage::Right => Action::Right,
             ControlMessage::Tooltip(_) => Action::None,
@@ -126,6 +126,7 @@ impl SliderControl {
                 config,
                 view.range,
                 view.value,
+                self.value.ghost(),
                 view.step,
                 ControlMessage::Set,
                 ControlMessage::Release,
@@ -134,7 +135,7 @@ impl SliderControl {
                 .width(view.readout_width)
                 .align_x(Horizontal::Center)
                 .color(config.palette.bar_foreground);
-            return Row::with_children([glyph.into(), slider.into(), readout.into()])
+            return Row::with_children([glyph.into(), slider, readout.into()])
                 .spacing(config.layout.horizontal_widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into();
@@ -153,9 +154,12 @@ impl SliderControl {
     }
 }
 
-fn into_action(commit: Option<f32>) -> Action {
-    match commit {
-        Some(value) => Action::Commit(value),
+// Consumes the `Write` by value: taking ownership is what discharges its
+// `must_use` write obligation.
+#[allow(clippy::needless_pass_by_value)]
+fn into_action(write: Option<Write>) -> Action {
+    match write {
+        Some(Write(value)) => Action::Commit(value),
         None => Action::None,
     }
 }

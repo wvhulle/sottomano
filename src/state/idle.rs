@@ -34,9 +34,15 @@ pub async fn load() -> Timeouts {
 }
 
 /// Persist the whole set (one row).
-pub async fn save(timeouts: Timeouts) {
-    if let Err(e) = try_save(timeouts).await {
-        eprintln!("idle timeouts: save failed: {e}");
+/// Persist the timeouts, reporting whether the write succeeded so a caller can
+/// confirm the value actually landed.
+pub async fn save(timeouts: Timeouts) -> bool {
+    match try_save(timeouts).await {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("idle timeouts: save failed: {e}");
+            false
+        }
     }
 }
 

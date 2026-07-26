@@ -53,7 +53,7 @@ use crate::{
     widgets::{
         idle::{Arm, IdleEvent, IdleHandle},
         menu_group::{MenuGroup, MenuMessage},
-        slider_control::Action as SliderAction,
+        slider_control::{Action as SliderAction, ControlMessage},
     },
 };
 
@@ -260,10 +260,15 @@ impl Bar {
                         self.rearm_idle();
                         Task::none()
                     }
-                    IdleChange::Persist => {
+                    IdleChange::Persist { kind, value } => {
                         self.rearm_idle();
                         let timeouts = self.idle_timeouts_group.timeouts();
-                        Task::future(state::idle::save(timeouts)).discard()
+                        Task::future(state::idle::save(timeouts)).map(move |ok| {
+                            Message::IdleTimeouts(IdleTimeoutsMessage::Timer(
+                                kind,
+                                ControlMessage::Confirmed { value, ok },
+                            ))
+                        })
                     }
                     IdleChange::Act(kind) => self.trigger_idle_action(kind),
                     IdleChange::Arm(kind) => Task::perform(
@@ -577,7 +582,11 @@ impl Bar {
                         self.config.float_offset_px = offset;
                         Task::batch([
                             self.remargin_surfaces(),
-                            Task::future(state::panel::save_float_offset(offset)).discard(),
+                            Task::future(state::panel::save_float_offset(offset)).map(move |ok| {
+                                Message::PanelSettings(PanelSettingsMessage::Offset(
+                                    ControlMessage::Confirmed { value: offset, ok },
+                                ))
+                            }),
                         ])
                     }
                     _ => Task::none(),

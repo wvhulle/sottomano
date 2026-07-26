@@ -21,11 +21,12 @@ const SCROLL_STEP: f32 = 1.0;
 const READOUT_WIDTH: f32 = 30.0;
 
 /// What a timer's update asks the group to do: nothing, close the other pills
-/// (this one just opened), or persist the timeouts.
+/// (this one just opened), or persist the timeouts. `Persist` carries the
+/// committed slider position so the write's confirmation can be routed back.
 pub enum TimerChange {
     None,
     Opened,
-    Persist,
+    Persist(f32),
 }
 
 pub struct IdleTimer {
@@ -73,7 +74,7 @@ impl IdleTimer {
             Action::Opened => TimerChange::Opened,
             Action::Commit(value) => {
                 self.timeout = from_position(value);
-                TimerChange::Persist
+                TimerChange::Persist(value)
             }
             Action::None | Action::Right => TimerChange::None,
         }

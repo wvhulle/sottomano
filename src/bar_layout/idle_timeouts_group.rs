@@ -80,7 +80,7 @@ pub enum IdleTimeoutsMessage {
 pub enum IdleChange {
     None,
     Rearm,
-    Persist,
+    Persist { kind: TimerKind, value: f32 },
     Act(TimerKind),
     Arm(TimerKind),
 }
@@ -139,7 +139,7 @@ impl IdleTimeoutsGroup {
                     self.close_others(kind.index());
                     IdleChange::None
                 }
-                TimerChange::Persist => IdleChange::Persist,
+                TimerChange::Persist(value) => IdleChange::Persist { kind, value },
             },
             // Single click fires the harmless subsystems; the disruptive ones
             // arm on the first click and only fire on a second (confirm) click.

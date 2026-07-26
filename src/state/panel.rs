@@ -37,14 +37,19 @@ pub async fn save_floating(floating: bool) {
     put(FLOATING, if floating { "1" } else { "0" }).await;
 }
 
-/// Persist the float offset.
-pub async fn save_float_offset(offset: f32) {
-    put(FLOAT_OFFSET, &offset.to_string()).await;
+/// Persist the float offset, reporting whether the write succeeded so a caller
+/// can confirm the value actually landed.
+pub async fn save_float_offset(offset: f32) -> bool {
+    put(FLOAT_OFFSET, &offset.to_string()).await
 }
 
-async fn put(key: &str, value: &str) {
-    if let Err(e) = try_put(key, value).await {
-        eprintln!("panel settings: save {key} failed: {e}");
+async fn put(key: &str, value: &str) -> bool {
+    match try_put(key, value).await {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("panel settings: save {key} failed: {e}");
+            false
+        }
     }
 }
 
