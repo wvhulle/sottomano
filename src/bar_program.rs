@@ -611,8 +611,7 @@ impl Bar {
                 ])
             }
             PanelSettingsMessage::Offset(msg) => {
-                let reading = self.config.float_offset_px;
-                match self.panel_settings_group.update_offset(msg, reading) {
+                match self.panel_settings_group.update_offset(msg) {
                     SliderAction::Commit(offset) => {
                         self.config.float_offset_px = offset;
                         Task::batch([

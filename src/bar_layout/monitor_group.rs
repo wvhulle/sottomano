@@ -21,7 +21,7 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
-        BarWidget, Tooltip, TooltipBody, Unit, Value,
+        BarWidget, Tooltip, TooltipBody,
         backlight::{self, Backlight},
         clight::Clight,
         gamma::{self, Gamma},
@@ -78,14 +78,19 @@ impl MonitorGroup {
             backlights: Vec::new(),
             sliders: BTreeMap::new(),
             gamma: SourceCell::default(),
-            dim: SliderControl::new(PERCENT, HoverTarget::GammaDim)
+            dim: SliderControl::new(PERCENT, HoverTarget::GammaDim, Icon::CircleHalfStroke)
                 .scroll_step(STEP)
                 .readout(|value| format!("{}%", as_percent(value))),
-            warmth: SliderControl::new(WARMTH_RANGE, HoverTarget::ColorTemperature)
-                .scroll_step(WARMTH_STEP)
-                .slider_step(WARMTH_STEP)
-                .readout_width(52.0)
-                .readout(|value| format!("{}K", as_kelvin(value))),
+            warmth: SliderControl::new(
+                WARMTH_RANGE,
+                HoverTarget::ColorTemperature,
+                Icon::TemperatureHalf,
+            )
+            .scroll_step(WARMTH_STEP)
+            .slider_step(WARMTH_STEP)
+            .readout_width(52.0)
+            .readout(|value| format!("{}K", as_kelvin(value)))
+            .label(|value| format!("{}K", as_kelvin(value))),
             clight: ToggleControl::default(),
             umbra: ToggleControl::default(),
             menu: MenuGroup::new(menu_expand_ms),
@@ -122,11 +127,12 @@ impl MonitorGroup {
                             SliderControl::new(
                                 PERCENT,
                                 HoverTarget::Backlight(backlight.serial.clone()),
+                                backlight.icon(),
                             )
                             .scroll_step(STEP)
                             .readout(|value| format!("{}%", as_percent(value)))
                         })
-                        .sync(percent_f(backlight.percent));
+                        .update(ControlMessage::Reading(percent_f(backlight.percent)));
                 }
                 self.backlights = list;
                 Task::none()
@@ -135,14 +141,15 @@ impl MonitorGroup {
             MonitorMessage::Gamma(reading) => {
                 self.gamma.load(reading);
                 if let Some(gamma) = self.gamma.get() {
-                    self.dim.sync(percent_f(gamma.brightness));
-                    self.warmth.sync(f32::from(gamma.temperature));
+                    self.dim
+                        .update(ControlMessage::Reading(percent_f(gamma.brightness)));
+                    self.warmth
+                        .update(ControlMessage::Reading(f32::from(gamma.temperature)));
                 }
                 Task::none()
             }
             MonitorMessage::Dim(m) => {
-                let reading = self.gamma.get().map_or(0.0, |g| percent_f(g.brightness));
-                match self.dim.update(m, reading) {
+                match self.dim.update(m) {
                     Action::Opened => {
                         self.close_backlight_sliders(None);
                         self.warmth.close();
@@ -158,11 +165,7 @@ impl MonitorGroup {
                 }
             }
             MonitorMessage::Warmth(m) => {
-                let reading = self
-                    .gamma
-                    .get()
-                    .map_or(*WARMTH_RANGE.start(), |g| f32::from(g.temperature));
-                match self.warmth.update(m, reading) {
+                match self.warmth.update(m) {
                     Action::Opened => {
                         self.close_backlight_sliders(None);
                         self.dim.close();
@@ -186,13 +189,8 @@ impl MonitorGroup {
     }
 
     fn update_backlight(&mut self, serial: String, m: ControlMessage) -> Task<MonitorMessage> {
-        let reading = self
-            .backlights
-            .iter()
-            .find(|b| b.serial == serial)
-            .map_or(0.0, |b| percent_f(b.percent));
         let action = match self.sliders.get_mut(&serial) {
-            Some(control) => control.update(m, reading),
+            Some(control) => control.update(m),
             None => return Task::none(),
         };
         match action {
@@ -269,13 +267,13 @@ impl MonitorGroup {
 
         for backlight in &self.backlights {
             if let Some(control) = self.sliders.get(&backlight.serial) {
-                children.push(backlight_slider(config, control, backlight));
+                children.push(backlight_slider(config, control, &backlight.serial));
             }
         }
 
-        if let Some(gamma) = self.gamma.get() {
-            children.push(self.dim_slider(config, gamma));
-            children.push(self.warmth_slider(config, gamma));
+        if self.gamma.get().is_some() {
+            children.push(self.dim_slider(config));
+            children.push(self.warmth_slider(config));
         }
 
         if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
@@ -317,38 +315,18 @@ impl MonitorGroup {
         .into()
     }
 
-    fn dim_slider<'a>(
-        &self,
-        config: &ResolvedConfig,
-        gamma: &Gamma,
-    ) -> Element<'a, MonitorMessage> {
-        let value = self.dim.value(percent_f(gamma.brightness));
-        let display = DimDisplay {
-            percent: as_percent(value),
-        };
-        self.dim
-            .view(config, value, &display, 1.0)
-            .map(|m| match m {
-                ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-                m => MonitorMessage::Dim(m),
-            })
+    fn dim_slider<'a>(&self, config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
+        self.dim.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
+            m => MonitorMessage::Dim(m),
+        })
     }
 
-    fn warmth_slider<'a>(
-        &self,
-        config: &ResolvedConfig,
-        gamma: &Gamma,
-    ) -> Element<'a, MonitorMessage> {
-        let value = self.warmth.value(f32::from(gamma.temperature));
-        let display = WarmthDisplay {
-            kelvin: as_kelvin(value),
-        };
-        self.warmth
-            .view(config, value, &display, 1.0)
-            .map(|m| match m {
-                ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-                m => MonitorMessage::Warmth(m),
-            })
+    fn warmth_slider<'a>(&self, config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
+        self.warmth.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
+            m => MonitorMessage::Warmth(m),
+        })
     }
 }
 
@@ -357,62 +335,13 @@ impl MonitorGroup {
 fn backlight_slider<'a>(
     config: &ResolvedConfig,
     control: &SliderControl,
-    backlight: &Backlight,
+    serial: &str,
 ) -> Element<'a, MonitorMessage> {
-    let value = control.value(percent_f(backlight.percent));
-    let display = Backlight {
-        serial: backlight.serial.clone(),
-        kind: backlight.kind,
-        percent: as_percent(value),
-    };
-    let serial = backlight.serial.clone();
-    control
-        .view(config, value, &display, 1.0)
-        .map(move |m| match m {
-            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-            m => MonitorMessage::Backlight(serial.clone(), m),
-        })
-}
-
-/// The gamma software-dim slider's closed state (icon + percentage gauge).
-struct DimDisplay {
-    percent: i64,
-}
-
-impl BarWidget for DimDisplay {
-    fn icon(&self) -> Icon {
-        Icon::CircleHalfStroke
-    }
-
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.percent,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
-    }
-}
-
-/// The color-temperature slider's closed state (icon + Kelvin label).
-struct WarmthDisplay {
-    kelvin: u16,
-}
-
-impl BarWidget for WarmthDisplay {
-    fn icon(&self) -> Icon {
-        Icon::TemperatureHalf
-    }
-
-    fn label(&self) -> Option<String> {
-        Some(format!("{}K", self.kelvin))
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
-    }
+    let serial = serial.to_string();
+    control.view(config, 1.0).map(move |m| match m {
+        ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
+        m => MonitorMessage::Backlight(serial.clone(), m),
+    })
 }
 
 #[allow(clippy::cast_precision_loss)]

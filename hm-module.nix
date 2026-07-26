@@ -19,26 +19,35 @@ let
   themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
 
-  # base16 slot -> vetrata palette token (names describe the UI role, not
-  # syntax). bar_background is left unset so it stays transparent (the flush
-  # bar); base16 has no alpha slot for it.
-  vetrataPalette = p: {
-    bar_foreground = p.base05; # default foreground
-    inactive = p.base04; # muted
+  # The bar surface is transparent (bar_background left unset) over the wallpaper
+  # with a legibility shadow, so its text must stay light in EVERY mode. base16
+  # slots invert between light and dark schemes (base05 is light in a dark
+  # scheme, dark in a light one), so no single slot reads "light" in both modes.
+  # Hence the foreground family (text/inactive/dim) is pinned to the DARK
+  # scheme's light slots for both variants; only the semantic accents follow the
+  # active base16 mode. Names describe the UI role, not syntax.
+  foregroundPalette = p: {
+    bar_foreground = p.base05; # main text (light)
+    inactive = p.base04; # muted text (light)
+    dim = p.base03; # faint text
+  };
+  accentPalette = p: {
     urgent = p.base08; # red
     warning = p.base0A; # yellow
     focus = p.base0C; # aqua
-    dim = p.base03; # faint / comments
   };
 
   # One per-mode TOML file: the user's `settings` (layout/font/notifications) as
-  # the base, the theme-derived palette merged in. Any palette key the user set
-  # explicitly still wins over the derived one.
+  # the base, then the fixed light foreground + the mode's accents merged in.
+  # Any palette key the user set explicitly still wins.
   variantToml =
     modePalette:
     tomlFormat.generate "vetrata.toml" (
       lib.recursiveUpdate cfg.settings {
-        palette = vetrataPalette modePalette // (cfg.settings.palette or { });
+        palette =
+          foregroundPalette themeCfg.palettes.dark
+          // accentPalette modePalette
+          // (cfg.settings.palette or { });
       }
     );
 

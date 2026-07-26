@@ -9,7 +9,7 @@ use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, Tooltip, TooltipBody, row},
+    data_sources::{Tooltip, TooltipBody, row},
     tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},
@@ -41,7 +41,6 @@ pub enum TimerChange {
 }
 
 pub struct IdleTimer {
-    icon: Icon,
     /// The hover target this control emits, e.g. [`HoverTarget::IdleLockUser`].
     target: HoverTarget,
     timeout: Option<Duration>,
@@ -53,10 +52,11 @@ pub struct IdleTimer {
 impl IdleTimer {
     pub fn new(icon: Icon, target: HoverTarget, action: IdleAction, confirms: bool) -> Self {
         Self {
-            icon,
-            control: SliderControl::new(0.0..=MAX_POSITION, target.clone())
+            control: SliderControl::new(0.0..=MAX_POSITION, target.clone(), icon)
                 .readout_width(READOUT_WIDTH)
-                .readout(|value| label_at(value).to_string()),
+                .readout(|value| label_at(value).to_string())
+                .label(|value| from_position(value).map_or(String::new(), |d| label_for(d).to_string()))
+                .disabled_when(|value| from_position(value).is_none()),
             target,
             timeout: None,
             button: ConfirmButton::new(confirms),
@@ -80,7 +80,7 @@ impl IdleTimer {
     /// Adopt a persisted timeout (on load) and resync the control to it.
     pub fn set_timeout(&mut self, timeout: Option<Duration>) {
         self.timeout = timeout;
-        self.control.sync(position(timeout));
+        self.control.update(ControlMessage::Reading(position(timeout)));
     }
 
     pub fn target(&self) -> &HoverTarget {
@@ -98,8 +98,7 @@ impl IdleTimer {
     pub fn update(&mut self, msg: TimerMessage) -> TimerChange {
         match msg {
             TimerMessage::Slider(msg) => {
-                let reading = position(self.timeout);
-                match self.control.update(msg, reading) {
+                match self.control.update(msg) {
                     Action::Opened => TimerChange::Opened,
                     Action::Commit(value) => {
                         self.timeout = from_position(value);
@@ -129,46 +128,12 @@ impl IdleTimer {
     /// The timeout slider paired with its run-now button, hugging each other (a
     /// tight gap) so the button clearly binds to this subsystem's value.
     pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, TimerMessage> {
-        let value = self.control.value(position(self.timeout));
-        let widget = Reading {
-            icon: self.icon,
-            label: from_position(value).map(|d| label_for(d).to_string()),
-            enabled: from_position(value).is_some(),
-        };
-        let slider = self
-            .control
-            .view(config, value, &widget, reveal)
-            .map(TimerMessage::Slider);
+        let slider = self.control.view(config, reveal).map(TimerMessage::Slider);
         let trigger = self.button.view(config, reveal, TimerMessage::Trigger);
         let pair_gap = config.layout.horizontal_widget_spacing_px * 0.25;
         Row::with_children([slider, trigger])
             .spacing(pair_gap)
             .align_y(Alignment::Center)
             .into()
-    }
-}
-
-/// A closed control's icon + label, rendered through the shared reading path.
-struct Reading {
-    icon: Icon,
-    label: Option<String>,
-    enabled: bool,
-}
-
-impl BarWidget for Reading {
-    fn icon(&self) -> Icon {
-        self.icon
-    }
-
-    fn disabled(&self) -> bool {
-        !self.enabled
-    }
-
-    fn label(&self) -> Option<String> {
-        self.label.clone()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
     }
 }

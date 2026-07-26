@@ -12,7 +12,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, Tooltip, TooltipBody, row},
+    data_sources::{Tooltip, TooltipBody, row},
     layer_surface::Position,
     tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
@@ -77,9 +77,14 @@ impl PanelSettingsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
             menu: MenuGroup::new(menu_expand_ms),
-            offset: SliderControl::new(OFFSET_RANGE, HoverTarget::FloatOffset)
-                .readout_width(44.0)
-                .readout(|value| format!("{} px", value.round())),
+            offset: SliderControl::new(
+                OFFSET_RANGE,
+                HoverTarget::FloatOffset,
+                Icon::ArrowsToCircle,
+            )
+            .icon_only()
+            .readout_width(44.0)
+            .readout(|value| format!("{} px", value.round())),
         }
     }
 
@@ -97,14 +102,14 @@ impl PanelSettingsGroup {
         }
     }
 
-    /// Drive the offset control against the app-owned config value; the app
-    /// applies the returned [`Action`].
-    pub fn update_offset(&mut self, msg: ControlMessage, reading: f32) -> Action {
-        self.offset.update(msg, reading)
+    /// Drive the offset control; the app applies the returned [`Action`].
+    pub fn update_offset(&mut self, msg: ControlMessage) -> Action {
+        self.offset.update(msg)
     }
 
+    /// Reconcile the offset control with the app-owned config value.
     pub fn sync_offset(&mut self, value: f32) {
-        self.offset.sync(value);
+        self.offset.update(ControlMessage::Reading(value));
     }
 
     #[allow(clippy::unnecessary_wraps)]
@@ -157,31 +162,9 @@ impl PanelSettingsGroup {
     }
 
     fn offset_element<'a>(&self, config: &ResolvedConfig) -> Element<'a, PanelSettingsMessage> {
-        let value = self.offset.value(config.float_offset_px);
-        let widget = IconOnly {
-            icon: Icon::ArrowsToCircle,
-        };
-        self.offset
-            .view(config, value, &widget, 1.0)
-            .map(|m| match m {
-                ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
-                m => PanelSettingsMessage::Offset(m),
-            })
-    }
-}
-
-/// A bare icon as a `BarWidget` (no gauge or label) — the offset's closed
-/// state.
-struct IconOnly {
-    icon: Icon,
-}
-
-impl BarWidget for IconOnly {
-    fn icon(&self) -> Icon {
-        self.icon
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
+        self.offset.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
+            m => PanelSettingsMessage::Offset(m),
+        })
     }
 }

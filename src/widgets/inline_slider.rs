@@ -1,7 +1,8 @@
-//! odin's `InlineSlider`: a `focus`-accented horizontal slider, shared by the
+//! odin's `InlineSlider`: a horizontal slider accented by severity — `focus` at
+//! `Level::Ok`, the warning/urgent palette tints beyond — shared by the
 //! write-capable groups (audio, idle, panel) that unfold a slider on click. The
-//! caller supplies the range, value, and message mapping; committing the write
-//! is the caller's concern.
+//! caller supplies the range, value, severity, and message mapping; committing
+//! the write is the caller's concern.
 //!
 //! The whole face — rail, handle, and the hollow ghost — is drawn on a canvas;
 //! the built-in `slider` underneath is made fully transparent and kept only for
@@ -18,7 +19,10 @@ use iced::{
     widget::{Slider, canvas, slider, stack},
 };
 
-use crate::config::resolved::ResolvedConfig;
+use crate::{
+    config::resolved::ResolvedConfig,
+    data_sources::{Level, level_color},
+};
 
 /// Handle/ghost radius at rest, and the larger handle radius while dragging.
 const KNOB_RADIUS: f32 = 5.0;
@@ -30,24 +34,31 @@ const EDGE_INSET: f32 = KNOB_RADIUS_DRAG;
 /// Rail thickness.
 const RAIL_WIDTH: f32 = 4.0;
 
-/// A `focus`-accented slider over `range`, stepping by `step`, emitting
-/// `on_change` while dragging and `on_release` when let go. When `ghost` is
-/// `Some`, a hollow marker trails at the last-confirmed value and the handle
-/// grows to signal the active drag.
+/// A severity-accented slider over `range`, stepping by `step`, emitting
+/// `on_change` while dragging and `on_release` when let go. The accent is the
+/// palette's `focus` at [`Level::Ok`], else its warning/urgent tint. When
+/// `ghost` is `Some`, a hollow marker trails at the last-confirmed value and the
+/// handle grows to signal the active drag.
+#[allow(clippy::too_many_arguments)]
 pub fn inline_slider<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     range: RangeInclusive<f32>,
     value: f32,
     ghost: Option<f32>,
     step: f32,
+    level: Level,
     on_change: impl Fn(f32) -> Message + 'a,
     on_release: Message,
 ) -> Element<'a, Message> {
+    let accent = match level {
+        Level::Ok => config.palette.focus,
+        _ => level_color(config, level),
+    };
     let face = SliderFace {
         range: range.clone(),
         value,
         ghost,
-        accent: config.palette.focus,
+        accent,
         track: config.palette.bar_foreground.scale_alpha(0.25),
     };
     // The transparent slider is *always* stacked under the same face so the

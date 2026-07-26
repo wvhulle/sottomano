@@ -10,12 +10,15 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
-        Tooltip,
+        BarWidget, Tooltip,
         audio::{Audio, set_volume, toggle_mute},
     },
     message_subscriptions::blocking,
     tooltip::{HoverTarget, TooltipMessage},
-    widgets::slider_control::{Action, ControlMessage, SliderControl},
+    widgets::{
+        icon::Icon,
+        slider_control::{Action, ControlMessage, SliderControl},
+    },
 };
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
@@ -39,13 +42,34 @@ impl Default for AudioGroup {
         Self {
             sink: SourceCell::default(),
             source: SourceCell::default(),
-            sink_control: SliderControl::new(RANGE, HoverTarget::AudioSink)
+            sink_control: SliderControl::new(RANGE, HoverTarget::AudioSink, Icon::VolumeHigh)
                 .scroll_step(SCROLL_STEP)
-                .readout(|value| format!("{}%", as_percent(value))),
-            source_control: SliderControl::new(RANGE, HoverTarget::AudioSource)
+                .readout(|value| format!("{}%", as_percent(value)))
+                .glyph(|value, off| {
+                    if off {
+                        Icon::VolumeXmark
+                    } else if value > 50.0 {
+                        Icon::VolumeHigh
+                    } else {
+                        Icon::VolumeLow
+                    }
+                })
+                .warn_at(80.0)
+                .urgent_at(95.0),
+            source_control: SliderControl::new(RANGE, HoverTarget::AudioSource, Icon::Microphone)
                 .scroll_step(SCROLL_STEP)
                 .right_click(true)
-                .readout(|value| format!("{}%", as_percent(value))),
+                .readout(|value| format!("{}%", as_percent(value)))
+                .glyph(|_value, off| {
+                    if off {
+                        Icon::MicrophoneSlash
+                    } else {
+                        Icon::Microphone
+                    }
+                })
+                .higher_worse(false)
+                .warn_at(50.0)
+                .urgent_at(15.0),
         }
     }
 }
@@ -70,21 +94,26 @@ impl AudioGroup {
         match msg {
             AudioMessage::Sink(reading) => {
                 self.sink.load(reading);
-                if let Some(percent) = self.sink.get().map(percent_of) {
-                    self.sink_control.sync(percent);
+                if let Some(audio) = self.sink.get() {
+                    self.sink_control
+                        .update(ControlMessage::Reading(percent_of(audio)));
+                    self.sink_control
+                        .update(ControlMessage::Disabled(audio.disabled()));
                 }
                 Task::none()
             }
             AudioMessage::Source(reading) => {
                 self.source.load(reading);
-                if let Some(percent) = self.source.get().map(percent_of) {
-                    self.source_control.sync(percent);
+                if let Some(audio) = self.source.get() {
+                    self.source_control
+                        .update(ControlMessage::Reading(percent_of(audio)));
+                    self.source_control
+                        .update(ControlMessage::Disabled(audio.disabled()));
                 }
                 Task::none()
             }
             AudioMessage::Control(ControlKind::Sink, msg) => {
-                let reading = self.sink.get().map_or(0.0, percent_of);
-                match self.sink_control.update(msg, reading) {
+                match self.sink_control.update(msg) {
                     Action::Opened => {
                         self.source_control.close();
                         Task::none()
@@ -106,8 +135,7 @@ impl AudioGroup {
                 }
             }
             AudioMessage::Control(ControlKind::Source, msg) => {
-                let reading = self.source.get().map_or(0.0, percent_of);
-                match self.source_control.update(msg, reading) {
+                match self.source_control.update(msg) {
                     Action::Opened => {
                         self.sink_control.close();
                         Task::none()
@@ -142,20 +170,14 @@ impl AudioGroup {
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, AudioMessage>> {
-        let source = self.source.get().map(|audio| {
-            let value = self.source_control.value(percent_of(audio));
-            let display = with_percent(audio, value);
-            self.source_control
-                .view(config, value, &display, 1.0)
-                .map(tag(ControlKind::Source))
-        });
-        let sink = self.sink.get().map(|audio| {
-            let value = self.sink_control.value(percent_of(audio));
-            let display = with_percent(audio, value);
-            self.sink_control
-                .view(config, value, &display, 1.0)
-                .map(tag(ControlKind::Sink))
-        });
+        let source = self
+            .source
+            .get()
+            .map(|_| self.source_control.view(config, 1.0).map(tag(ControlKind::Source)));
+        let sink = self
+            .sink
+            .get()
+            .map(|_| self.sink_control.view(config, 1.0).map(tag(ControlKind::Sink)));
 
         let widgets: Vec<Element<'a, AudioMessage>> =
             [source, sink].into_iter().flatten().collect();
@@ -179,12 +201,6 @@ fn percent_of<const INPUT: bool>(audio: &Audio<INPUT>) -> f32 {
 #[allow(clippy::cast_possible_truncation)]
 fn as_percent(value: f32) -> i64 {
     value.round() as i64
-}
-
-fn with_percent<const INPUT: bool>(audio: &Audio<INPUT>, value: f32) -> Audio<INPUT> {
-    let mut audio = audio.clone();
-    audio.percent = as_percent(value);
-    audio
 }
 
 fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
