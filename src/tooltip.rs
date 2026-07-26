@@ -240,8 +240,8 @@ impl TooltipHost {
             .map(|shown| shown.tip.as_str())
     }
 
-    /// The id of the open tooltip, if any — for gating the relative-time tick on
-    /// whether a [`TooltipBody::Log`] is shown.
+    /// The id of the open tooltip, if any — for gating the relative-time tick
+    /// on whether a [`TooltipBody::Log`] is shown.
     pub fn tip(&self) -> Option<&str> {
         self.shown.as_ref().map(|shown| shown.tip.as_str())
     }
@@ -275,10 +275,10 @@ pub fn panel_surface<'a>(
 /// Wrap a widget so hovering it opens a tooltip identified by `id`, with the
 /// tooltip messages delivered as `wrap(..)` so callers with their own message
 /// enums can embed them. The widget reports only its `id` and anchor on hover —
-/// the panel content is derived from the live reading at render time (the owning
-/// group resolves `id` back to a reading, see [`Bar::tooltip_for`]) — and the
-/// surface it lives on is stamped later by [`on_surface`] at the bar root, so a
-/// hoverable widget need not know which surface it is drawn into.
+/// the panel content is derived from the live reading at render time (the
+/// owning group resolves `id` back to a reading, see [`Bar::tooltip_for`]) —
+/// and the surface it lives on is stamped later by [`on_surface`] at the bar
+/// root, so a hoverable widget need not know which surface it is drawn into.
 ///
 /// [`Bar::tooltip_for`]: crate::bar_program::Bar
 pub fn hoverable<'a, M: 'a>(

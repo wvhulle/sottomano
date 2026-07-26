@@ -94,7 +94,12 @@ impl InternetGroup {
         // Each tunnel is keyed by its (unique) interface name, built from the
         // tunnel's own body — the aggregate cell tooltip is inert.
         if let Some(name) = id.strip_prefix("wireguard-") {
-            let tunnel = self.wireguard.get()?.tunnels.iter().find(|t| t.name == name)?;
+            let tunnel = self
+                .wireguard
+                .get()?
+                .tunnels
+                .iter()
+                .find(|t| t.name == name)?;
             return Some(Tooltip {
                 body: tunnel.tooltip(),
                 footer: None,

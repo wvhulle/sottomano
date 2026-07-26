@@ -46,8 +46,8 @@ impl<S: Source + Send + 'static> SourceCell<S> {
 
     /// The stable tooltip id for this cell's source — its [`Source::NAME`]. The
     /// single source of truth shared by the hoverable ([`hoverable`]) and its
-    /// resolver ([`tooltip_for`](Self::tooltip_for)), so the two can never drift
-    /// out of sync (a hand-written string on each side could).
+    /// resolver ([`tooltip_for`](Self::tooltip_for)), so the two can never
+    /// drift out of sync (a hand-written string on each side could).
     ///
     /// [`hoverable`]: crate::tooltip::hoverable
     pub fn id(&self) -> &'static str {
@@ -55,8 +55,8 @@ impl<S: Source + Send + 'static> SourceCell<S> {
     }
 
     /// This cell's tooltip if `id` names its source, else `None` — the resolver
-    /// half of [`id`](Self::id), so a group folds its cells into one lookup with
-    /// `self.a.tooltip_for(id).or_else(|| self.b.tooltip_for(id))`.
+    /// half of [`id`](Self::id), so a group folds its cells into one lookup
+    /// with `self.a.tooltip_for(id).or_else(|| self.b.tooltip_for(id))`.
     pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
         (id == S::NAME).then(|| self.tooltip()).flatten()
     }

@@ -15,7 +15,7 @@ use crate::{
     },
     message_subscriptions::blocking,
     tooltip::TooltipMessage,
-    widgets::slider_control::{Action, ControlMessage, SliderControl, View},
+    widgets::slider_control::{Action, ControlMessage, SliderControl},
 };
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
@@ -27,12 +27,27 @@ pub enum ControlKind {
     Source,
 }
 
-#[derive(Default)]
 pub struct AudioGroup {
     sink: SourceCell<Audio<false>>,
     source: SourceCell<Audio<true>>,
     sink_control: SliderControl,
     source_control: SliderControl,
+}
+
+impl Default for AudioGroup {
+    fn default() -> Self {
+        Self {
+            sink: SourceCell::default(),
+            source: SourceCell::default(),
+            sink_control: SliderControl::new(RANGE, "audio-sink")
+                .scroll_step(SCROLL_STEP)
+                .readout(|value| format!("{}%", as_percent(value))),
+            source_control: SliderControl::new(RANGE, "audio-source")
+                .scroll_step(SCROLL_STEP)
+                .right_click(true)
+                .readout(|value| format!("{}%", as_percent(value))),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -69,7 +84,7 @@ impl AudioGroup {
             }
             AudioMessage::Control(ControlKind::Sink, msg) => {
                 let reading = self.sink.get().map_or(0.0, percent_of);
-                match self.sink_control.update(msg, reading, &RANGE, SCROLL_STEP) {
+                match self.sink_control.update(msg, reading) {
                     Action::Opened => {
                         self.source_control.close();
                         Task::none()
@@ -92,10 +107,7 @@ impl AudioGroup {
             }
             AudioMessage::Control(ControlKind::Source, msg) => {
                 let reading = self.source.get().map_or(0.0, percent_of);
-                match self
-                    .source_control
-                    .update(msg, reading, &RANGE, SCROLL_STEP)
-                {
+                match self.source_control.update(msg, reading) {
                     Action::Opened => {
                         self.sink_control.close();
                         Task::none()
@@ -134,20 +146,14 @@ impl AudioGroup {
             let value = self.source_control.value(percent_of(audio));
             let display = with_percent(audio, value);
             self.source_control
-                .view(
-                    config,
-                    view_for(&display, value, "audio-source", true),
-                )
+                .view(config, value, &display, 1.0)
                 .map(tag(ControlKind::Source))
         });
         let sink = self.sink.get().map(|audio| {
             let value = self.sink_control.value(percent_of(audio));
             let display = with_percent(audio, value);
             self.sink_control
-                .view(
-                    config,
-                    view_for(&display, value, "audio-sink", false),
-                )
+                .view(config, value, &display, 1.0)
                 .map(tag(ControlKind::Sink))
         });
 
@@ -179,25 +185,6 @@ fn with_percent<const INPUT: bool>(audio: &Audio<INPUT>, value: f32) -> Audio<IN
     let mut audio = audio.clone();
     audio.percent = as_percent(value);
     audio
-}
-
-fn view_for<'a, const INPUT: bool>(
-    display: &'a Audio<INPUT>,
-    value: f32,
-    id: &'static str,
-    right_click: bool,
-) -> View<'a> {
-    View {
-        widget: display,
-        value,
-        readout: format!("{}%", as_percent(value)),
-        readout_width: 40.0,
-        range: RANGE,
-        step: 1.0,
-        id: id.into(),
-        right_click,
-        alpha: 1.0,
-    }
 }
 
 fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {

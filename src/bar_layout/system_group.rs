@@ -121,9 +121,7 @@ impl SystemGroup {
                 self.temperature
                     .get()
                     .map(|w| (w as &dyn BarWidget, "temperature")),
-                self.memory
-                    .get()
-                    .map(|w| (w as &dyn BarWidget, "memory")),
+                self.memory.get().map(|w| (w as &dyn BarWidget, "memory")),
                 self.disk.get().map(|w| (w as &dyn BarWidget, "disk")),
             ]
             .into_iter()

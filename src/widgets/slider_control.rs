@@ -25,11 +25,23 @@ use crate::{
     },
 };
 
-#[derive(Default)]
 pub struct SliderControl {
     open: bool,
     accum: f32,
     value: Tracked,
+    /// Static config, set once at construction (iced-style builder). The live
+    /// value stays with the caller and is passed to `update`/`view` per frame.
+    range: RangeInclusive<f32>,
+    scroll_step: f32,
+    slider_step: f32,
+    readout_width: f32,
+    /// Formats the open-state readout from the live value (e.g. `"80%"`,
+    /// `"5m"`). A non-capturing `fn` (not a generic or boxed closure) so
+    /// `SliderControl` stays a concrete type its holders can name without
+    /// becoming generic.
+    readout: fn(f32) -> String,
+    id: String,
+    right_click: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -55,21 +67,62 @@ pub enum Action {
     Right,
 }
 
-/// Everything the view needs each frame. `widget` supplies the icon (both
-/// states) and the closed indicator (gauge or label via `source_reading`).
-pub struct View<'a> {
-    pub widget: &'a dyn BarWidget,
-    pub value: f32,
-    pub readout: String,
-    pub readout_width: f32,
-    pub range: RangeInclusive<f32>,
-    pub step: f32,
-    pub id: String,
-    pub right_click: bool,
-    pub alpha: f32,
-}
-
 impl SliderControl {
+    /// A slider over `range` emitting tooltips under `id`. Defaults: one-unit
+    /// scroll step, 40px readout, no right-click. Override via the builder
+    /// methods.
+    pub fn new(range: RangeInclusive<f32>, id: impl Into<String>) -> Self {
+        Self {
+            open: false,
+            accum: 0.0,
+            value: Tracked::default(),
+            range,
+            scroll_step: 1.0,
+            slider_step: 1.0,
+            readout_width: 40.0,
+            readout: |value| format!("{value:.0}"),
+            id: id.into(),
+            right_click: false,
+        }
+    }
+
+    /// How the open-state readout is formatted from the live value (default:
+    /// the rounded number). A non-capturing `fn`, so no per-frame string is
+    /// passed in.
+    #[must_use]
+    pub fn readout(mut self, format: fn(f32) -> String) -> Self {
+        self.readout = format;
+        self
+    }
+
+    /// Per-scroll-notch increment (default one unit).
+    #[must_use]
+    pub fn scroll_step(mut self, step: f32) -> Self {
+        self.scroll_step = step;
+        self
+    }
+
+    /// Drag granularity of the inline slider (default one unit).
+    #[must_use]
+    pub fn slider_step(mut self, step: f32) -> Self {
+        self.slider_step = step;
+        self
+    }
+
+    /// Width of the open-state readout label (default 40px).
+    #[must_use]
+    pub fn readout_width(mut self, width: f32) -> Self {
+        self.readout_width = width;
+        self
+    }
+
+    /// Emit [`Action::Right`] on right-press (default off).
+    #[must_use]
+    pub fn right_click(mut self, on: bool) -> Self {
+        self.right_click = on;
+        self
+    }
+
     pub fn close(&mut self) {
         self.open = false;
     }
@@ -82,13 +135,7 @@ impl SliderControl {
         self.value.sync(reading);
     }
 
-    pub fn update(
-        &mut self,
-        msg: ControlMessage,
-        reading: f32,
-        range: &RangeInclusive<f32>,
-        step_size: f32,
-    ) -> Action {
+    pub fn update(&mut self, msg: ControlMessage, reading: f32) -> Action {
         match msg {
             ControlMessage::Press => {
                 self.open = !self.open;
@@ -103,8 +150,8 @@ impl SliderControl {
                     return Action::None;
                 };
                 #[allow(clippy::cast_precision_loss)]
-                let target = (self.value.value(reading) + step as f32 * step_size)
-                    .clamp(*range.start(), *range.end());
+                let target = (self.value.value(reading) + step as f32 * self.scroll_step)
+                    .clamp(*self.range.start(), *self.range.end());
                 into_action(self.value.scroll(target))
             }
             ControlMessage::Set(pos) => into_action(self.value.drag(pos)),
@@ -115,10 +162,20 @@ impl SliderControl {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig, view: View<'_>) -> Element<'a, ControlMessage> {
+    /// `value` is the live slider value (`self.value(reading)`); `widget`
+    /// supplies the icon and the closed-state indicator; `alpha` fades the
+    /// closed reading. The open-state readout is formatted from `value` by
+    /// the stored formatter.
+    pub fn view<'a>(
+        &self,
+        config: &ResolvedConfig,
+        value: f32,
+        widget: &dyn BarWidget,
+        alpha: f32,
+    ) -> Element<'a, ControlMessage> {
         if self.open {
             let glyph = mouse_area(
-                view.widget
+                widget
                     .icon()
                     .solid()
                     .size(config.font.icon_size_px)
@@ -127,15 +184,15 @@ impl SliderControl {
             .on_press(ControlMessage::Press);
             let slider = inline_slider(
                 config,
-                view.range,
-                view.value,
+                self.range.clone(),
+                value,
                 self.value.ghost(),
-                view.step,
+                self.slider_step,
                 ControlMessage::Set,
                 ControlMessage::Release,
             );
-            let readout = bar_text(&config.font, view.readout)
-                .width(view.readout_width)
+            let readout = bar_text(&config.font, (self.readout)(value))
+                .width(self.readout_width)
                 .align_x(Horizontal::Center)
                 .color(config.palette.bar_foreground);
             return Row::with_children([glyph.into(), slider, readout.into()])
@@ -144,13 +201,13 @@ impl SliderControl {
                 .into();
         }
 
-        let reading = source_reading(config, Some(view.widget), view.alpha)
-            .unwrap_or_else(|| Row::new().into());
-        let hover = hoverable(reading, view.id, ControlMessage::Tooltip);
+        let reading =
+            source_reading(config, Some(widget), alpha).unwrap_or_else(|| Row::new().into());
+        let hover = hoverable(reading, self.id.clone(), ControlMessage::Tooltip);
         let mut area = mouse_area(hover)
             .on_press(ControlMessage::Press)
             .on_scroll(ControlMessage::Scroll);
-        if view.right_click {
+        if self.right_click {
             area = area.on_right_press(ControlMessage::Right);
         }
         area.into()

@@ -251,12 +251,14 @@ impl Bar {
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
             Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
-            Message::IdleTimeouts(msg) => {
-                self.idle_timeouts_group.update(msg).map(Message::IdleTimeouts)
-            }
-            Message::Idle(IdleEvent::Connected(handle)) => {
-                self.idle_timeouts_group.connected(handle).map(Message::IdleTimeouts)
-            }
+            Message::IdleTimeouts(msg) => self
+                .idle_timeouts_group
+                .update(msg)
+                .map(Message::IdleTimeouts),
+            Message::Idle(IdleEvent::Connected(handle)) => self
+                .idle_timeouts_group
+                .connected(handle)
+                .map(Message::IdleTimeouts),
             Message::PanelLoaded(settings) => {
                 if let Some(floating) = settings.floating {
                     self.config.layout.floating = floating;
@@ -345,7 +347,8 @@ impl Bar {
     /// Live content for a hovered widget, resolved by asking each group to
     /// interpret the tooltip `id` it emitted (foreign ids yield `None`). Called
     /// only while a tooltip surface is shown, so nothing is computed when no
-    /// tooltip is open. An unresolved or absent reading yields an empty tooltip.
+    /// tooltip is open. An unresolved or absent reading yields an empty
+    /// tooltip.
     pub(crate) fn tooltip_for(&self, id: &str) -> Tooltip {
         self.system_group
             .tooltip_for(id)

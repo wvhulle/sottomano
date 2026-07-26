@@ -1,9 +1,10 @@
 //! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-subsystem
 //! controls — lock, screen-off, standby, power-down. Each is an [`IdleTimer`]
 //! that owns its timeout slider, its run-now button, and its action; this group
-//! holds the four as named fields, routes messages to them by [`TimerKind`], and
-//! owns the menu, the sqlite persistence, and the in-process daemon handle. Its
-//! `update` returns a [`Task`], so the bar delegates to it like any other group.
+//! holds the four as named fields, routes messages to them by [`TimerKind`],
+//! and owns the menu, the sqlite persistence, and the in-process daemon handle.
+//! Its `update` returns a [`Task`], so the bar delegates to it like any other
+//! group.
 
 use iced::{
     Alignment, Element, Task,
@@ -29,7 +30,8 @@ use crate::{
 };
 
 /// Which subsystem an [`IdleTimeoutsMessage::Timer`] targets — the routing tag
-/// the group matches to the corresponding field. Declaration order == bar order.
+/// the group matches to the corresponding field. Declaration order == bar
+/// order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimerKind {
     LockUser,
@@ -105,8 +107,8 @@ impl IdleTimeoutsGroup {
         ]
     }
 
-    /// Adopt the daemon handle once the wayland subscription connects, and arm it
-    /// with the current timeouts.
+    /// Adopt the daemon handle once the wayland subscription connects, and arm
+    /// it with the current timeouts.
     pub fn connected(&mut self, handle: IdleHandle) -> Task<IdleTimeoutsMessage> {
         self.handle = Some(handle);
         self.rearm();

@@ -3,10 +3,10 @@
 //! shelling out.
 //!
 //! A background subscription holds the wayland connection ([`wayland`]); the
-//! bar pushes an [`Arm`] list (timeout + subsystem) whenever the persisted
+//! bar pushes an [`Arm`] list (timeout + [`IdleAction`]) whenever the persisted
 //! timeouts change. Each armed notification fires independently; on idle the
-//! daemon reports which subsystem fired ([`IdleEvent::Fired`]) and the bar runs
-//! that subsystem's native action — the same one its trigger button runs.
+//! daemon [`perform`]s that arm's action — the same native action (logind /
+//! niri IPC) the subsystem's trigger button runs.
 
 pub mod timer;
 pub mod wayland;
@@ -85,9 +85,10 @@ pub fn label_at(pos: f32) -> &'static str {
     from_position(pos).map_or("∞", label_for)
 }
 
-/// The native action a subsystem performs when its idle timeout is reached — the
-/// same action its trigger button runs. All standard session APIs (logind /
-/// niri IPC), so the daemon carries the effect itself rather than a shell command.
+/// The native action a subsystem performs when its idle timeout is reached —
+/// the same action its trigger button runs. All standard session APIs (logind /
+/// niri IPC), so the daemon carries the effect itself rather than a shell
+/// command.
 #[derive(Debug, Clone, Copy)]
 pub enum IdleAction {
     Lock,
@@ -97,7 +98,8 @@ pub enum IdleAction {
 }
 
 /// Perform an idle action now. Blocking (logind D-Bus / niri IPC); call off the
-/// render path — the daemon runs it on a blocking task, the trigger via `blocking`.
+/// render path — the daemon runs it on a blocking task, the trigger via
+/// `blocking`.
 pub fn perform(action: IdleAction) {
     match action {
         IdleAction::Lock => logind::lock(),
@@ -134,8 +136,8 @@ pub enum IdleEvent {
 }
 
 /// The daemon subscription: connect to wayland, hand the bar an [`IdleHandle`],
-/// then rearm on each pushed spec and perform an action on idle. Ends quietly if
-/// the compositor has no `ext-idle-notify-v1`.
+/// then rearm on each pushed spec and perform an action on idle. Ends quietly
+/// if the compositor has no `ext-idle-notify-v1`.
 pub fn subscription() -> Subscription<IdleEvent> {
     Subscription::run(|| {
         stream::channel(16, |mut output: Sender<IdleEvent>| async move {

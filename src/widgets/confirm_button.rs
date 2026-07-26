@@ -1,8 +1,9 @@
 //! A bar action button with an optional two-step confirm. A harmless action
 //! fires on a single click; a disruptive one arms on the first click — its play
-//! glyph turning to a warning in the urgent colour — and only fires on a second.
-//! The button owns just the armed flag and its rendering; the parent drives it
-//! by click and disarms it on any competing interaction (there is no timer).
+//! glyph turning to a warning in the urgent colour — and only fires on a
+//! second. The button owns just the armed flag and its rendering; the parent
+//! drives it by click and disarms it on any competing interaction (there is no
+//! timer).
 
 use iced::{Color, Element, widget::mouse_area};
 
@@ -45,8 +46,8 @@ impl ConfirmButton {
     }
 
     /// The button glyph. Armed → warning in `urgent`; else play in `focus`.
-    /// `alpha` fades the whole glyph (e.g. by a reveal factor); `on_press` is the
-    /// message emitted on click.
+    /// `alpha` fades the whole glyph (e.g. by a reveal factor); `on_press` is
+    /// the message emitted on click.
     pub fn view<'a, Message: 'a + Clone>(
         &self,
         config: &ResolvedConfig,

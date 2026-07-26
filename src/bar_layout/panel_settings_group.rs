@@ -18,7 +18,7 @@ use crate::{
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
-        slider_control::{Action, ControlMessage, SliderControl, View},
+        slider_control::{Action, ControlMessage, SliderControl},
     },
 };
 
@@ -77,7 +77,9 @@ impl PanelSettingsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
             menu: MenuGroup::new(menu_expand_ms),
-            offset: SliderControl::default(),
+            offset: SliderControl::new(OFFSET_RANGE, "float-offset")
+                .readout_width(44.0)
+                .readout(|value| format!("{} px", value.round())),
         }
     }
 
@@ -98,7 +100,7 @@ impl PanelSettingsGroup {
     /// Drive the offset control against the app-owned config value; the app
     /// applies the returned [`Action`].
     pub fn update_offset(&mut self, msg: ControlMessage, reading: f32) -> Action {
-        self.offset.update(msg, reading, &OFFSET_RANGE, 1.0)
+        self.offset.update(msg, reading)
     }
 
     pub fn sync_offset(&mut self, value: f32) {
@@ -154,27 +156,13 @@ impl PanelSettingsGroup {
         ))
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     fn offset_element<'a>(&self, config: &ResolvedConfig) -> Element<'a, PanelSettingsMessage> {
         let value = self.offset.value(config.float_offset_px);
         let widget = IconOnly {
             icon: Icon::ArrowsToCircle,
         };
         self.offset
-            .view(
-                config,
-                View {
-                    widget: &widget,
-                    value,
-                    readout: format!("{} px", value.round() as i64),
-                    readout_width: 44.0,
-                    range: OFFSET_RANGE,
-                    step: 1.0,
-                    id: "float-offset".into(),
-                    right_click: false,
-                    alpha: 1.0,
-                },
-            )
+            .view(config, value, &widget, 1.0)
             .map(|m| match m {
                 ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
                 m => PanelSettingsMessage::Offset(m),

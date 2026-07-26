@@ -1,14 +1,11 @@
 //! One idle subsystem's control: its icon, tooltip identity, current timeout
-//! (an embedded [`SliderControl`] for the expand/scroll/drag interaction), and a
-//! [`ConfirmButton`] that runs the subsystem's action now. Self-contained — the
-//! group holds one per subsystem and routes messages to it by kind.
+//! (an embedded [`SliderControl`] for the expand/scroll/drag interaction), and
+//! a [`ConfirmButton`] that runs the subsystem's action now. Self-contained —
+//! the group holds one per subsystem and routes messages to it by kind.
 
-use std::{ops::RangeInclusive, time::Duration};
+use std::time::Duration;
 
-use iced::{
-    Alignment, Element,
-    widget::Row,
-};
+use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
@@ -17,11 +14,10 @@ use crate::{
         confirm_button::{ConfirmButton, Press},
         icon::Icon,
         idle::{Arm, IdleAction, MAX_POSITION, from_position, label_at, label_for, position},
-        slider_control::{Action, ControlMessage, SliderControl, View},
+        slider_control::{Action, ControlMessage, SliderControl},
     },
 };
 
-const SCROLL_STEP: f32 = 1.0;
 const READOUT_WIDTH: f32 = 30.0;
 
 /// One control's messages: the timeout slider's interaction, or its run-now
@@ -59,7 +55,9 @@ impl IdleTimer {
             icon,
             id,
             timeout: None,
-            control: SliderControl::default(),
+            control: SliderControl::new(0.0..=MAX_POSITION, id)
+                .readout_width(READOUT_WIDTH)
+                .readout(|value| label_at(value).to_string()),
             button: ConfirmButton::new(confirms),
             action,
         }
@@ -69,7 +67,8 @@ impl IdleTimer {
         self.timeout
     }
 
-    /// This subsystem's daemon arm, if it has a timeout set (`None` = disabled).
+    /// This subsystem's daemon arm, if it has a timeout set (`None` =
+    /// disabled).
     pub fn arm(&self) -> Option<Arm> {
         self.timeout.map(|timeout| Arm {
             timeout,
@@ -95,18 +94,11 @@ impl IdleTimer {
         self.button.disarm();
     }
 
-    fn range() -> RangeInclusive<f32> {
-        0.0..=MAX_POSITION
-    }
-
     pub fn update(&mut self, msg: TimerMessage) -> TimerChange {
         match msg {
             TimerMessage::Slider(msg) => {
                 let reading = position(self.timeout);
-                match self
-                    .control
-                    .update(msg, reading, &Self::range(), SCROLL_STEP)
-                {
+                match self.control.update(msg, reading) {
                     Action::Opened => TimerChange::Opened,
                     Action::Commit(value) => {
                         self.timeout = from_position(value);
@@ -146,20 +138,7 @@ impl IdleTimer {
         };
         let slider = self
             .control
-            .view(
-                config,
-                View {
-                    widget: &widget,
-                    value,
-                    readout: label_at(value).to_string(),
-                    readout_width: READOUT_WIDTH,
-                    range: Self::range(),
-                    step: SCROLL_STEP,
-                    id: self.id.into(),
-                    right_click: false,
-                    alpha: reveal,
-                },
-            )
+            .view(config, value, &widget, reveal)
             .map(TimerMessage::Slider);
         let trigger = self.button.view(config, reveal, TimerMessage::Trigger);
         let pair_gap = config.layout.horizontal_widget_spacing_px * 0.25;

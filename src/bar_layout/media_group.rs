@@ -130,8 +130,8 @@ impl MediaGroup {
 
         let handle = handle(config, media, status, alpha);
         let handle = mouse_area(hoverable(handle, "media", MediaMessage::Tooltip))
-        .on_press(MediaMessage::Menu(MenuMessage::Toggle))
-        .into();
+            .on_press(MediaMessage::Menu(MenuMessage::Toggle))
+            .into();
 
         let reveal = self.menu.reveal();
         let title = bar_text(&config.font, truncate(&media.label()))
