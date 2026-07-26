@@ -12,7 +12,7 @@ use crate::{
         BarWidget, Tooltip,
         net_interfaces::{bluetooth::Bluetooth, ethernet::Ethernet, mobile::Mobile, wifi::Wifi},
     },
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -53,12 +53,12 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        match id {
-            "bluetooth" => self.bluetooth.tooltip(),
-            "ethernet" => self.ethernet.tooltip(),
-            "wifi" => self.wifi.tooltip(),
-            "mobile" => self.mobile.tooltip(),
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        match target {
+            HoverTarget::Bluetooth => self.bluetooth.tooltip(),
+            HoverTarget::Ethernet => self.ethernet.tooltip(),
+            HoverTarget::Wifi => self.wifi.tooltip(),
+            HoverTarget::Mobile => self.mobile.tooltip(),
             _ => None,
         }
     }
@@ -69,18 +69,22 @@ impl NetInterfacesGroup {
             indicator(
                 config,
                 self.bluetooth.get().map(|w| w as &dyn BarWidget),
-                "bluetooth",
+                HoverTarget::Bluetooth,
             ),
             indicator(
                 config,
                 self.ethernet.get().map(|w| w as &dyn BarWidget),
-                "ethernet",
+                HoverTarget::Ethernet,
             ),
-            indicator(config, self.wifi.get().map(|w| w as &dyn BarWidget), "wifi"),
+            indicator(
+                config,
+                self.wifi.get().map(|w| w as &dyn BarWidget),
+                HoverTarget::Wifi,
+            ),
             indicator(
                 config,
                 self.mobile.get().map(|w| w as &dyn BarWidget),
-                "mobile",
+                HoverTarget::Mobile,
             ),
         ]
         .into_iter()
@@ -103,8 +107,8 @@ impl NetInterfacesGroup {
 fn indicator<'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,
-    id: &'static str,
+    target: HoverTarget,
 ) -> Option<Element<'a, NetInterfacesMessage>> {
     let reading = source_reading(config, widget, 1.0)?;
-    Some(hoverable(reading, id, NetInterfacesMessage::Tooltip))
+    Some(hoverable(reading, target, NetInterfacesMessage::Tooltip))
 }

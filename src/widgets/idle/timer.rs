@@ -10,6 +10,7 @@ use iced::{Alignment, Element, widget::Row};
 use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Tooltip, TooltipBody, row},
+    tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},
         icon::Icon,
@@ -41,8 +42,8 @@ pub enum TimerChange {
 
 pub struct IdleTimer {
     icon: Icon,
-    /// The tooltip id this control emits, e.g. `"idle-lock-user"`.
-    id: &'static str,
+    /// The hover target this control emits, e.g. [`HoverTarget::IdleLockUser`].
+    target: HoverTarget,
     timeout: Option<Duration>,
     control: SliderControl,
     button: ConfirmButton,
@@ -50,14 +51,14 @@ pub struct IdleTimer {
 }
 
 impl IdleTimer {
-    pub fn new(icon: Icon, id: &'static str, action: IdleAction, confirms: bool) -> Self {
+    pub fn new(icon: Icon, target: HoverTarget, action: IdleAction, confirms: bool) -> Self {
         Self {
             icon,
-            id,
-            timeout: None,
-            control: SliderControl::new(0.0..=MAX_POSITION, id)
+            control: SliderControl::new(0.0..=MAX_POSITION, target.clone())
                 .readout_width(READOUT_WIDTH)
                 .readout(|value| label_at(value).to_string()),
+            target,
+            timeout: None,
             button: ConfirmButton::new(confirms),
             action,
         }
@@ -82,8 +83,8 @@ impl IdleTimer {
         self.control.sync(position(timeout));
     }
 
-    pub fn id(&self) -> &'static str {
-        self.id
+    pub fn target(&self) -> &HoverTarget {
+        &self.target
     }
 
     pub fn close(&mut self) {
@@ -117,12 +118,10 @@ impl IdleTimer {
     }
 
     pub fn tooltip(&self) -> Tooltip {
-        let name = self.id.strip_prefix("idle-").unwrap_or(self.id);
+        // The subsystem is already obvious from the pill's icon being hovered,
+        // so the tooltip carries only the current timeout state.
         Tooltip {
-            body: TooltipBody::Table(vec![
-                row("Subsystem", name),
-                row("State", self.timeout.map_or("∞", label_for)),
-            ]),
+            body: TooltipBody::Table(vec![row("State", self.timeout.map_or("∞", label_for))]),
             footer: None,
         }
     }

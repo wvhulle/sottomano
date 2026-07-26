@@ -17,24 +17,24 @@ use crate::{
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     layer_surface::Position,
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
 };
 
-/// A reading wrapped so hovering it opens its tooltip. Carries only the `id`
-/// identity — the panel content is derived from the live reading at render
-/// time, not snapshotted here.
+/// A reading wrapped so hovering it opens its tooltip. Carries only the
+/// `target` identity — the panel content is derived from the live reading at
+/// render time, not snapshotted here.
 fn hover_reading<'a>(
     config: &ResolvedConfig,
     widget: &dyn BarWidget,
     alpha: f32,
-    id: &'static str,
+    target: HoverTarget,
 ) -> Option<Element<'a, SystemMessage>> {
     let reading = source_reading(config, Some(widget), alpha)?;
-    Some(hoverable(reading, id, SystemMessage::Tooltip))
+    Some(hoverable(reading, target, SystemMessage::Tooltip))
 }
 
 pub struct SystemGroup {
@@ -88,12 +88,12 @@ impl SystemGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        match id {
-            "cpu" => self.cpu.tooltip(),
-            "memory" => self.memory.tooltip(),
-            "temperature" => self.temperature.tooltip(),
-            "disk" => self.disk.tooltip(),
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        match target {
+            HoverTarget::Cpu => self.cpu.tooltip(),
+            HoverTarget::Memory => self.memory.tooltip(),
+            HoverTarget::Temperature => self.temperature.tooltip(),
+            HoverTarget::Disk => self.disk.tooltip(),
             _ => None,
         }
     }
@@ -107,7 +107,7 @@ impl SystemGroup {
             config,
             self.cpu.get().map(|w| w as &dyn BarWidget)?,
             1.0,
-            "cpu",
+            HoverTarget::Cpu,
         )?;
         // The handle carries the toggle press (only the handle toggles, so
         // clicking the revealed readings never collapses the group).
@@ -120,13 +120,17 @@ impl SystemGroup {
             [
                 self.temperature
                     .get()
-                    .map(|w| (w as &dyn BarWidget, "temperature")),
-                self.memory.get().map(|w| (w as &dyn BarWidget, "memory")),
-                self.disk.get().map(|w| (w as &dyn BarWidget, "disk")),
+                    .map(|w| (w as &dyn BarWidget, HoverTarget::Temperature)),
+                self.memory
+                    .get()
+                    .map(|w| (w as &dyn BarWidget, HoverTarget::Memory)),
+                self.disk
+                    .get()
+                    .map(|w| (w as &dyn BarWidget, HoverTarget::Disk)),
             ]
             .into_iter()
             .flatten()
-            .filter_map(|(widget, id)| hover_reading(config, widget, reveal, id)),
+            .filter_map(|(widget, target)| hover_reading(config, widget, reveal, target)),
         )
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);

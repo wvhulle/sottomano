@@ -9,7 +9,7 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Tooltip, kernel_errors::KernelErrors, systemd_failed::Failed},
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -46,11 +46,11 @@ impl JournalGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        match id {
-            "journal-system" => self.system.tooltip(),
-            "journal-user" => self.user.tooltip(),
-            "journal-kernel" => self.kernel.tooltip(),
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        match target {
+            HoverTarget::JournalSystem => self.system.tooltip(),
+            HoverTarget::JournalUser => self.user.tooltip(),
+            HoverTarget::JournalKernel => self.kernel.tooltip(),
             _ => None,
         }
     }
@@ -60,17 +60,17 @@ impl JournalGroup {
             indicator(
                 config,
                 self.system.get().map(|w| w as &dyn BarWidget),
-                "journal-system",
+                HoverTarget::JournalSystem,
             ),
             indicator(
                 config,
                 self.user.get().map(|w| w as &dyn BarWidget),
-                "journal-user",
+                HoverTarget::JournalUser,
             ),
             indicator(
                 config,
                 self.kernel.get().map(|w| w as &dyn BarWidget),
-                "journal-kernel",
+                HoverTarget::JournalKernel,
             ),
         ]
         .into_iter()
@@ -93,8 +93,8 @@ impl JournalGroup {
 fn indicator<'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,
-    id: &'static str,
+    target: HoverTarget,
 ) -> Option<Element<'a, JournalMessage>> {
     let reading = source_reading(config, widget, 1.0)?;
-    Some(hoverable(reading, id, JournalMessage::Tooltip))
+    Some(hoverable(reading, target, JournalMessage::Tooltip))
 }

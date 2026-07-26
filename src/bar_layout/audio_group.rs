@@ -14,7 +14,7 @@ use crate::{
         audio::{Audio, set_volume, toggle_mute},
     },
     message_subscriptions::blocking,
-    tooltip::TooltipMessage,
+    tooltip::{HoverTarget, TooltipMessage},
     widgets::slider_control::{Action, ControlMessage, SliderControl},
 };
 
@@ -39,10 +39,10 @@ impl Default for AudioGroup {
         Self {
             sink: SourceCell::default(),
             source: SourceCell::default(),
-            sink_control: SliderControl::new(RANGE, "audio-sink")
+            sink_control: SliderControl::new(RANGE, HoverTarget::AudioSink)
                 .scroll_step(SCROLL_STEP)
                 .readout(|value| format!("{}%", as_percent(value))),
-            source_control: SliderControl::new(RANGE, "audio-source")
+            source_control: SliderControl::new(RANGE, HoverTarget::AudioSource)
                 .scroll_step(SCROLL_STEP)
                 .right_click(true)
                 .readout(|value| format!("{}%", as_percent(value))),
@@ -133,10 +133,10 @@ impl AudioGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        match id {
-            "audio-sink" => self.sink.tooltip(),
-            "audio-source" => self.source.tooltip(),
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        match target {
+            HoverTarget::AudioSink => self.sink.tooltip(),
+            HoverTarget::AudioSource => self.source.tooltip(),
             _ => None,
         }
     }

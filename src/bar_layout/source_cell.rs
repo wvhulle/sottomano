@@ -44,30 +44,20 @@ impl<S: Source + Send + 'static> SourceCell<S> {
         self.data.as_ref()
     }
 
-    /// The stable tooltip id for this cell's source — its [`Source::NAME`]. The
-    /// single source of truth shared by the hoverable ([`hoverable`]) and its
-    /// resolver ([`tooltip_for`](Self::tooltip_for)), so the two can never
-    /// drift out of sync (a hand-written string on each side could).
-    ///
-    /// [`hoverable`]: crate::tooltip::hoverable
-    pub fn id(&self) -> &'static str {
-        S::NAME
-    }
-
-    /// This cell's tooltip if `id` names its source, else `None` — the resolver
-    /// half of [`id`](Self::id), so a group folds its cells into one lookup
-    /// with `self.a.tooltip_for(id).or_else(|| self.b.tooltip_for(id))`.
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        (id == S::NAME).then(|| self.tooltip()).flatten()
-    }
-
     /// The tooltip for this cell's reading — its body plus a refresh footer
     /// carrying the cadence ([`Source::INTERVAL`]) and when it last polled.
     /// `None` until the first reading arrives.
     pub fn tooltip(&self) -> Option<Tooltip> {
-        let data = self.data.as_ref()?;
+        self.tooltip_with(self.data.as_ref()?.tooltip())
+    }
+
+    /// Wrap a caller-supplied `body` with this cell's live refresh footer — for
+    /// widgets that show a slice of the reading (e.g. one gamma slider showing
+    /// only brightness). `None` until the first reading arrives.
+    pub fn tooltip_with(&self, body: crate::data_sources::TooltipBody) -> Option<Tooltip> {
+        self.data.as_ref()?;
         Some(Tooltip {
-            body: data.tooltip(),
+            body,
             footer: self.last_refreshed.map(|last| RefreshInfo {
                 every: S::INTERVAL,
                 last,

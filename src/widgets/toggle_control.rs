@@ -12,7 +12,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Source},
     message_subscriptions::blocking,
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -82,12 +82,12 @@ impl<S: Toggle + Send + 'static> ToggleControl<S> {
     pub fn view<'a>(
         &self,
         config: &ResolvedConfig,
-        id: impl Into<String>,
+        target: HoverTarget,
         alpha: f32,
     ) -> Option<Element<'a, ToggleMessage<S>>> {
         let display = self.pending.as_ref().or_else(|| self.cell.get())?;
         let reading = source_reading(config, Some(display as &dyn BarWidget), alpha)?;
-        let hover = hoverable(reading, id, ToggleMessage::Tooltip);
+        let hover = hoverable(reading, target, ToggleMessage::Tooltip);
         Some(mouse_area(hover).on_press(ToggleMessage::Press).into())
     }
 }

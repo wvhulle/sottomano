@@ -48,7 +48,7 @@ use crate::{
     message_subscriptions::{blocking, niri_action},
     notifications::{NotificationGroup, NotificationMessage},
     state,
-    tooltip::{self, TooltipHost, TooltipMessage},
+    tooltip::{self, HoverTarget, TooltipHost, TooltipMessage},
     widgets::{
         idle::IdleEvent,
         menu_group::{MenuGroup, MenuMessage},
@@ -279,16 +279,16 @@ impl Bar {
                 niri_action(move || niri::focus_workspace(workspace))
             }
             Message::Niri(events) => self.apply_niri_events(events),
-            Message::WindowClosed(id) => {
-                self.surfaces.remove(&id);
-                self.tooltip.forget(id);
-                self.notifications.forget(id);
+            Message::WindowClosed(window) => {
+                self.surfaces.remove(&window);
+                self.tooltip.forget(window);
+                self.notifications.forget(window);
                 Task::none()
             }
             // A source with empty content suppresses its tooltip (odin drops
             // `{}`); the emptiness is decided here against the live reading.
-            Message::Tooltip(TooltipMessage::Enter { id, .. })
-                if self.tooltip_for(&id).is_empty() =>
+            Message::Tooltip(TooltipMessage::Enter { target, .. })
+                if self.tooltip_for(&target).is_empty() =>
             {
                 Task::none()
             }
@@ -345,23 +345,23 @@ impl Bar {
     }
 
     /// Live content for a hovered widget, resolved by asking each group to
-    /// interpret the tooltip `id` it emitted (foreign ids yield `None`). Called
+    /// interpret the `target` it emitted (foreign targets yield `None`). Called
     /// only while a tooltip surface is shown, so nothing is computed when no
     /// tooltip is open. An unresolved or absent reading yields an empty
     /// tooltip.
-    pub(crate) fn tooltip_for(&self, id: &str) -> Tooltip {
+    pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
         self.system_group
-            .tooltip_for(id)
-            .or_else(|| self.battery_group.tooltip_for(id))
-            .or_else(|| self.journal_group.tooltip_for(id))
-            .or_else(|| self.net_interfaces_group.tooltip_for(id))
-            .or_else(|| self.audio_group.tooltip_for(id))
-            .or_else(|| self.monitor_group.tooltip_for(id))
-            .or_else(|| self.idle_timeouts_group.tooltip_for(id))
-            .or_else(|| self.internet_group.tooltip_for(id))
-            .or_else(|| self.weather_group.tooltip_for(id))
-            .or_else(|| self.media_group.tooltip_for(id))
-            .or_else(|| panel_settings_group::tooltip_for(id, &self.config))
+            .tooltip_for(target)
+            .or_else(|| self.battery_group.tooltip_for(target))
+            .or_else(|| self.journal_group.tooltip_for(target))
+            .or_else(|| self.net_interfaces_group.tooltip_for(target))
+            .or_else(|| self.audio_group.tooltip_for(target))
+            .or_else(|| self.monitor_group.tooltip_for(target))
+            .or_else(|| self.idle_timeouts_group.tooltip_for(target))
+            .or_else(|| self.internet_group.tooltip_for(target))
+            .or_else(|| self.weather_group.tooltip_for(target))
+            .or_else(|| self.media_group.tooltip_for(target))
+            .or_else(|| panel_settings_group::tooltip_for(target, &self.config))
             .unwrap_or_else(Tooltip::empty)
     }
 
@@ -369,8 +369,8 @@ impl Bar {
     /// footer or a [`TooltipBody::Log`] — to gate the 1 Hz tick that advances
     /// it.
     pub fn tooltip_has_relative_time(&self) -> bool {
-        self.tooltip.tip().is_some_and(|id| {
-            let tooltip = self.tooltip_for(id);
+        self.tooltip.target().is_some_and(|target| {
+            let tooltip = self.tooltip_for(target);
             tooltip.footer.is_some() || matches!(tooltip.body, TooltipBody::Log(_))
         })
     }
@@ -636,21 +636,21 @@ impl Bar {
         Task::batch(opens)
     }
 
-    pub fn view(&self, id: Id) -> Element<'_, Message> {
-        // The tooltip surface derives its content live from the hovered id, so
-        // it always tracks the reading and costs nothing while unhovered.
-        if let Some(tip) = self.tooltip.tip_for(id) {
+    pub fn view(&self, window: Id) -> Element<'_, Message> {
+        // The tooltip surface derives its content live from the hovered target,
+        // so it always tracks the reading and costs nothing while unhovered.
+        if let Some(target) = self.tooltip.target_for(window) {
             return tooltip::panel_surface(
-                id,
-                &self.tooltip_for(tip),
-                self.tooltip.is_settled(id),
+                window,
+                &self.tooltip_for(target),
+                self.tooltip.is_settled(window),
                 &self.config,
             );
         }
-        if let Some(element) = self.notifications.view(id, &self.config) {
+        if let Some(element) = self.notifications.view(window, &self.config) {
             return element;
         }
-        let Some(surface) = self.surfaces.get(&id) else {
+        let Some(surface) = self.surfaces.get(&window) else {
             return container(text("")).into();
         };
         // The caster is off-screen; niri casts from its silhouette, so it only
@@ -670,10 +670,10 @@ impl Bar {
             Position::Top => bar_layout::top_row(self, surface.position),
             Position::Bottom => bar_layout::bottom_row(self, &surface.output, surface.position),
         };
-        // Stamp this surface's id onto tooltip hovers bubbling out of the bar,
-        // so leaf groups need not carry it. Only the bar subtree is wrapped —
-        // the tooltip panel returns early above.
-        let content = tooltip::on_surface(id, content);
+        // Stamp this surface onto tooltip hovers bubbling out of the bar, so
+        // leaf groups need not carry it. Only the bar subtree is wrapped — the
+        // tooltip panel returns early above.
+        let content = tooltip::on_surface(window, content);
 
         let dismiss = mouse_area(
             container(Space::new())

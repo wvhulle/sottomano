@@ -4,7 +4,7 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Tooltip, sysfs_sensors::battery::Battery},
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -31,13 +31,19 @@ impl BatteryGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        (id == "battery").then(|| self.cell.tooltip()).flatten()
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        matches!(target, HoverTarget::Battery)
+            .then(|| self.cell.tooltip())
+            .flatten()
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, BatteryMessage>> {
         let battery = self.cell.get()?;
         let reading = source_reading(config, Some(battery as &dyn BarWidget), 1.0)?;
-        Some(hoverable(reading, "battery", BatteryMessage::Tooltip))
+        Some(hoverable(
+            reading,
+            HoverTarget::Battery,
+            BatteryMessage::Tooltip,
+        ))
     }
 }

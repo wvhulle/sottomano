@@ -14,7 +14,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Tooltip, TooltipBody, row},
     layer_surface::Position,
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -27,10 +27,10 @@ const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 /// Resolve the two config-derived tooltips this group emits. Free-standing (not
 /// a method) since the tooltips are pure functions of the config, which the
 /// application owns.
-pub fn tooltip_for(id: &str, config: &ResolvedConfig) -> Option<Tooltip> {
-    match id {
-        "floating" => Some(floating_tooltip(config)),
-        "float-offset" => Some(offset_tooltip(config)),
+pub fn tooltip_for(target: &HoverTarget, config: &ResolvedConfig) -> Option<Tooltip> {
+    match target {
+        HoverTarget::Floating => Some(floating_tooltip(config)),
+        HoverTarget::FloatOffset => Some(offset_tooltip(config)),
         _ => None,
     }
 }
@@ -77,7 +77,7 @@ impl PanelSettingsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
             menu: MenuGroup::new(menu_expand_ms),
-            offset: SliderControl::new(OFFSET_RANGE, "float-offset")
+            offset: SliderControl::new(OFFSET_RANGE, HoverTarget::FloatOffset)
                 .readout_width(44.0)
                 .readout(|value| format!("{} px", value.round())),
         }
@@ -135,7 +135,7 @@ impl PanelSettingsGroup {
                 mouse_area(icon)
                     .on_press(PanelSettingsMessage::ToggleFloating)
                     .into(),
-                "floating",
+                HoverTarget::Floating,
                 PanelSettingsMessage::Tooltip,
             )
         };

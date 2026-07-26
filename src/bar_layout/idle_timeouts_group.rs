@@ -17,7 +17,7 @@ use crate::{
     layer_surface::Position,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
-    tooltip::TooltipMessage,
+    tooltip::{HoverTarget, TooltipMessage},
     widgets::{
         icon::Icon,
         idle::{
@@ -70,17 +70,27 @@ pub enum IdleTimeoutsMessage {
 impl IdleTimeoutsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
-            lock: IdleTimer::new(Icon::Lock, "idle-lock-user", IdleAction::Lock, false),
+            lock: IdleTimer::new(
+                Icon::Lock,
+                HoverTarget::IdleLockUser,
+                IdleAction::Lock,
+                false,
+            ),
             screen_off: IdleTimer::new(
                 Icon::Display,
-                "idle-screen-off",
+                HoverTarget::IdleScreenOff,
                 IdleAction::ScreenOff,
                 false,
             ),
-            standby: IdleTimer::new(Icon::Bed, "idle-standby", IdleAction::Suspend, true),
+            standby: IdleTimer::new(
+                Icon::Bed,
+                HoverTarget::IdleStandby,
+                IdleAction::Suspend,
+                true,
+            ),
             power_down: IdleTimer::new(
                 Icon::PowerOff,
-                "idle-power-down",
+                HoverTarget::IdlePowerDown,
                 IdleAction::PowerOff,
                 true,
             ),
@@ -191,10 +201,10 @@ impl IdleTimeoutsGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         self.entries()
             .into_iter()
-            .find(|(_, timer)| timer.id() == id)
+            .find(|(_, timer)| timer.target() == target)
             .map(|(_, timer)| timer.tooltip())
     }
 

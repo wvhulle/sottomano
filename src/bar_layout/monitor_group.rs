@@ -25,11 +25,12 @@ use crate::{
         backlight::{self, Backlight},
         clight::Clight,
         gamma::{self, Gamma},
+        row,
         umbra::Umbra,
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    tooltip::TooltipMessage,
+    tooltip::{HoverTarget, TooltipMessage},
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -77,10 +78,10 @@ impl MonitorGroup {
             backlights: Vec::new(),
             sliders: BTreeMap::new(),
             gamma: SourceCell::default(),
-            dim: SliderControl::new(PERCENT, "gamma-dim")
+            dim: SliderControl::new(PERCENT, HoverTarget::GammaDim)
                 .scroll_step(STEP)
                 .readout(|value| format!("{}%", as_percent(value))),
-            warmth: SliderControl::new(WARMTH_RANGE, "color-temperature")
+            warmth: SliderControl::new(WARMTH_RANGE, HoverTarget::ColorTemperature)
                 .scroll_step(WARMTH_STEP)
                 .slider_step(WARMTH_STEP)
                 .readout_width(52.0)
@@ -118,9 +119,12 @@ impl MonitorGroup {
                     self.sliders
                         .entry(backlight.serial.clone())
                         .or_insert_with(|| {
-                            SliderControl::new(PERCENT, format!("backlight-{}", backlight.serial))
-                                .scroll_step(STEP)
-                                .readout(|value| format!("{}%", as_percent(value)))
+                            SliderControl::new(
+                                PERCENT,
+                                HoverTarget::Backlight(backlight.serial.clone()),
+                            )
+                            .scroll_step(STEP)
+                            .readout(|value| format!("{}%", as_percent(value)))
                         })
                         .sync(percent_f(backlight.percent));
                 }
@@ -225,20 +229,33 @@ impl MonitorGroup {
         }
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        // Each display's backlight is keyed by its stable serial (which survives
-        // monitors coming and going, unlike a positional index).
-        if let Some(serial) = id.strip_prefix("backlight-") {
-            let backlight = self.backlights.iter().find(|b| b.serial == serial)?;
-            return Some(Tooltip {
-                body: backlight.tooltip(),
-                footer: None,
-            });
-        }
-        match id {
-            "gamma-dim" | "color-temperature" => self.gamma.tooltip(),
-            "clight-auto" => self.clight.cell().tooltip(),
-            "dark-mode" => self.umbra.cell().tooltip(),
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        match target {
+            // Each display's backlight is keyed by its stable serial (which
+            // survives monitors coming and going, unlike a positional index).
+            HoverTarget::Backlight(serial) => {
+                let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
+                Some(Tooltip {
+                    body: backlight.tooltip(),
+                    footer: None,
+                })
+            }
+            // The dim and warmth sliders drive the one gamma reading but show
+            // different slices of it, so their tooltips must not be identical.
+            HoverTarget::GammaDim => self.gamma.get().and_then(|gamma| {
+                self.gamma.tooltip_with(TooltipBody::Table(vec![row(
+                    "Dim",
+                    format!("{}%", gamma.brightness),
+                )]))
+            }),
+            HoverTarget::ColorTemperature => self.gamma.get().and_then(|gamma| {
+                self.gamma.tooltip_with(TooltipBody::Table(vec![row(
+                    "Temperature",
+                    format!("{} K", gamma.temperature),
+                )]))
+            }),
+            HoverTarget::ClightAuto => self.clight.cell().tooltip(),
+            HoverTarget::DarkMode => self.umbra.cell().tooltip(),
             _ => None,
         }
     }
@@ -261,10 +278,10 @@ impl MonitorGroup {
             children.push(self.warmth_slider(config, gamma));
         }
 
-        if let Some(clight) = self.clight.view(config, "clight-auto", 1.0) {
+        if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
             children.push(clight.map(lift(MonitorMessage::Clight)));
         }
-        if let Some(umbra) = self.umbra.view(config, "dark-mode", 1.0) {
+        if let Some(umbra) = self.umbra.view(config, HoverTarget::DarkMode, 1.0) {
             children.push(umbra.map(lift(MonitorMessage::Umbra)));
         }
 

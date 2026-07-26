@@ -17,7 +17,7 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -95,8 +95,10 @@ impl MediaGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
-        (id == "media").then(|| self.tooltip()).flatten()
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        matches!(target, HoverTarget::Media)
+            .then(|| self.tooltip())
+            .flatten()
     }
 
     fn tooltip(&self) -> Option<Tooltip> {
@@ -129,7 +131,7 @@ impl MediaGroup {
         let alpha = if status == Status::Playing { 1.0 } else { 0.4 };
 
         let handle = handle(config, media, status, alpha);
-        let handle = mouse_area(hoverable(handle, "media", MediaMessage::Tooltip))
+        let handle = mouse_area(hoverable(handle, HoverTarget::Media, MediaMessage::Tooltip))
             .on_press(MediaMessage::Menu(MenuMessage::Toggle))
             .into();
 

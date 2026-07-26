@@ -41,6 +41,56 @@ use crate::{
     widgets::text::bar_text,
 };
 
+/// Which hoverable region a tooltip belongs to — the one identity that rides
+/// the hover message. The hovered widget publishes only this; the panel content
+/// is re-derived live from it each frame by the owning group (see
+/// [`Bar::tooltip_for`]), so an open tooltip always tracks its reading and
+/// nothing is computed while nothing is hovered. The two multi-instance
+/// families carry their instance's real identifier as data (a display serial, a
+/// tunnel interface name), stable across list reordering.
+///
+/// [`Bar::tooltip_for`]: crate::bar_program::Bar
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HoverTarget {
+    Cpu,
+    Memory,
+    Temperature,
+    Disk,
+    Battery,
+    Floating,
+    FloatOffset,
+    JournalSystem,
+    JournalUser,
+    JournalKernel,
+    Bluetooth,
+    Ethernet,
+    Wifi,
+    Mobile,
+    AudioSink,
+    AudioSource,
+    /// One display's hardware backlight, by its serial.
+    Backlight(String),
+    GammaDim,
+    ColorTemperature,
+    ClightAuto,
+    DarkMode,
+    IdleLockUser,
+    IdleScreenOff,
+    IdleStandby,
+    IdlePowerDown,
+    InternetDown,
+    InternetUp,
+    Tailscale,
+    /// One WireGuard tunnel, by its interface name.
+    Wireguard(String),
+    WeatherTemp,
+    WeatherRain,
+    PollenBirch,
+    PollenGrass,
+    Location,
+    Media,
+}
+
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
 const GAP_PX: i32 = 6;
 const PANEL_PADDING_PX: f32 = 10.0;
@@ -62,28 +112,28 @@ pub enum TooltipMessage {
     ///
     /// [`Enter`]: TooltipMessage::Enter
     EnterAnchor {
-        id: String,
+        target: HoverTarget,
         anchor: Rectangle,
     },
     Enter {
         surface: Id,
-        id: String,
+        target: HoverTarget,
         anchor: Rectangle,
     },
     Exit {
-        id: String,
+        target: HoverTarget,
     },
     Resized {
-        id: Id,
+        surface: Id,
         size: Size,
     },
 }
 
 struct Shown {
-    id: Id,
+    surface: Id,
     /// The widget this tooltip belongs to: drives content derivation and guards
     /// against a stray exit from a sibling closing it.
-    tip: String,
+    target: HoverTarget,
     /// Last surface size we requested, to ignore no-op resize reports.
     size: Option<(u32, u32)>,
     /// The hovered widget's bounds; `anchor.x` positions the panel
@@ -122,61 +172,71 @@ impl TooltipHost {
         match message {
             TooltipMessage::Enter {
                 surface,
-                id,
+                target,
                 anchor,
-            } => self.open(surface, id, anchor, surfaces, outputs, config),
+            } => self.open(surface, target, anchor, surfaces, outputs, config),
             // Completed into `Enter` by `on_surface` at the bar root before it
             // reaches here; a bare anchor means a hoverable escaped that wrapper.
             TooltipMessage::EnterAnchor { .. } => Task::none(),
-            TooltipMessage::Exit { id } => self.exit(&id),
-            TooltipMessage::Resized { id, size } => self.resize(id, size, config),
+            TooltipMessage::Exit { target } => self.exit(&target),
+            TooltipMessage::Resized { surface, size } => self.resize(surface, size, config),
         }
     }
 
     fn open(
         &mut self,
-        surface: Id,
-        tip: String,
+        parent: Id,
+        target: HoverTarget,
         anchor: Rectangle,
         surfaces: &BTreeMap<Id, Surface>,
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        // Already showing this id (a stray re-enter): keep the open surface
+        // Already showing this target (a stray re-enter): keep the open surface
         // rather than tearing it down — content refreshes at view time.
-        if self.shown.as_ref().is_some_and(|s| s.tip == tip) {
+        if self.shown.as_ref().is_some_and(|s| s.target == target) {
             return Task::none();
         }
-        let Some(surface) = surfaces.get(&surface) else {
+        let Some(parent) = surfaces.get(&parent) else {
             return Task::none();
         };
-        let output_width = outputs.get(&surface.output).map(|geometry| geometry.width);
+        let output_width = outputs.get(&parent.output).map(|geometry| geometry.width);
         let settings = tooltip_settings(
-            &surface.output,
-            surface.position,
+            &parent.output,
+            parent.position,
             anchor,
             output_width,
             config,
         );
-        let id = Id::unique();
+        let surface = Id::unique();
         let close = self.close();
         self.shown = Some(Shown {
-            id,
-            tip,
+            surface,
+            target,
             size: None,
             anchor,
             output_width,
-            position: surface.position,
+            position: parent.position,
             settled: false,
         });
-        Task::batch([close, Task::done(Message::NewLayerShell { settings, id })])
+        Task::batch([
+            close,
+            Task::done(Message::NewLayerShell {
+                settings,
+                id: surface,
+            }),
+        ])
     }
 
     /// Close only when the widget being left is the one the tooltip belongs to:
     /// moving between adjacent readings can deliver the new enter before the
     /// old exit, and this keeps the newer hover.
-    fn exit(&mut self, tip: &str) -> Task<Message> {
-        if self.shown.as_ref().is_some_and(|shown| shown.tip == tip) {
+    fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
+        if self
+            .shown
+            .as_ref()
+            .is_some_and(|shown| &shown.target == target)
+        {
             self.close()
         } else {
             Task::none()
@@ -188,12 +248,12 @@ impl TooltipHost {
     /// true content width is known — so a near-right-edge panel sits flush to
     /// the screen edge (drawn to the left of the cursor) at full width instead
     /// of being clamped narrow. Deduplicated so the settle doesn't loop.
-    fn resize(&mut self, id: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
+    fn resize(&mut self, surface: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
         let Some(shown) = &mut self.shown else {
             return Task::none();
         };
         let requested = (size.width.ceil() as u32, size.height.ceil() as u32);
-        if shown.id != id || shown.size == Some(requested) {
+        if shown.surface != surface || shown.size == Some(requested) {
             return Task::none();
         }
         shown.size = Some(requested);
@@ -202,9 +262,12 @@ impl TooltipHost {
         let left = panel_left(shown.anchor.x, shown.output_width, requested.0);
         let margin = tooltip_margin(shown.position, left, bar);
         Task::batch([
-            Task::done(Message::MarginChange { id, margin }),
+            Task::done(Message::MarginChange {
+                id: surface,
+                margin,
+            }),
             Task::done(Message::SizeChange {
-                id,
+                id: surface,
                 size: requested,
             }),
         ])
@@ -213,47 +276,46 @@ impl TooltipHost {
     /// Close the open tooltip surface, if any.
     pub fn close(&mut self) -> Task<Message> {
         match self.shown.take() {
-            Some(shown) => Task::done(Message::RemoveWindow(shown.id)),
+            Some(shown) => Task::done(Message::RemoveWindow(shown.surface)),
             None => Task::none(),
         }
     }
 
-    pub fn shown_id(&self) -> Option<Id> {
-        self.shown.as_ref().map(|shown| shown.id)
+    pub fn shown_surface(&self) -> Option<Id> {
+        self.shown.as_ref().map(|shown| shown.surface)
     }
 
     /// Drop the record of the open surface without asking to close it — for
     /// when the compositor has already closed it.
-    pub fn forget(&mut self, id: Id) {
-        if self.shown_id() == Some(id) {
+    pub fn forget(&mut self, surface: Id) {
+        if self.shown_surface() == Some(surface) {
             self.shown = None;
         }
     }
 
-    /// The id of the tooltip drawn on surface `id`, if that is the open
-    /// tooltip. The caller derives live content from it and passes it to
-    /// [`panel_surface`].
-    pub fn tip_for(&self, id: Id) -> Option<&str> {
+    /// The hover target drawn on `surface`, if that is the open tooltip. The
+    /// caller derives live content from it and passes it to [`panel_surface`].
+    pub fn target_for(&self, surface: Id) -> Option<&HoverTarget> {
         self.shown
             .as_ref()
-            .filter(|shown| shown.id == id)
-            .map(|shown| shown.tip.as_str())
+            .filter(|shown| shown.surface == surface)
+            .map(|shown| &shown.target)
     }
 
-    /// The id of the open tooltip, if any — for gating the relative-time tick
-    /// on whether a [`TooltipBody::Log`] is shown.
-    pub fn tip(&self) -> Option<&str> {
-        self.shown.as_ref().map(|shown| shown.tip.as_str())
+    /// The open tooltip's hover target, if any — for gating the relative-time
+    /// tick on whether a [`TooltipBody::Log`] is shown.
+    pub fn target(&self) -> Option<&HoverTarget> {
+        self.shown.as_ref().map(|shown| &shown.target)
     }
 
-    /// Whether the tooltip on surface `id` has been placed at its true width.
+    /// Whether the tooltip on `surface` has been placed at its true width.
     /// Drives the panel's transparent-until-settled paint (see
     /// [`Shown::settled`]). A surface that isn't the open tooltip reads as
     /// settled so it never paints blank.
-    pub fn is_settled(&self, id: Id) -> bool {
+    pub fn is_settled(&self, surface: Id) -> bool {
         self.shown
             .as_ref()
-            .filter(|shown| shown.id == id)
+            .filter(|shown| shown.surface == surface)
             .is_none_or(|shown| shown.settled)
     }
 }
@@ -262,33 +324,33 @@ impl TooltipHost {
 /// iced's layout pass reports its true size back, which drives the surface
 /// resize. Content is derived by the caller from the live reading each render.
 pub fn panel_surface<'a>(
-    id: Id,
+    surface: Id,
     tooltip: &Tooltip,
     settled: bool,
     config: &ResolvedConfig,
 ) -> Element<'a, Message> {
     Sensor::new(panel(tooltip, settled, config))
-        .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { id, size }))
+        .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { surface, size }))
         .into()
 }
 
-/// Wrap a widget so hovering it opens a tooltip identified by `id`, with the
-/// tooltip messages delivered as `wrap(..)` so callers with their own message
-/// enums can embed them. The widget reports only its `id` and anchor on hover —
-/// the panel content is derived from the live reading at render time (the
-/// owning group resolves `id` back to a reading, see [`Bar::tooltip_for`]) —
-/// and the surface it lives on is stamped later by [`on_surface`] at the bar
-/// root, so a hoverable widget need not know which surface it is drawn into.
+/// Wrap a widget so hovering it opens a tooltip for `target`, with the tooltip
+/// messages delivered as `wrap(..)` so callers with their own message enums can
+/// embed them. The widget reports only its `target` and anchor on hover — the
+/// panel content is derived from the live reading at render time (the owning
+/// group resolves `target` back to a reading, see [`Bar::tooltip_for`]) — and
+/// the surface it lives on is stamped later by [`on_surface`] at the bar root,
+/// so a hoverable widget need not know which surface it is drawn into.
 ///
 /// [`Bar::tooltip_for`]: crate::bar_program::Bar
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
-    id: impl Into<String>,
+    target: HoverTarget,
     wrap: impl Fn(TooltipMessage) -> M + 'a,
 ) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
-        id: id.into(),
+        target,
         wrap: Box::new(wrap),
     })
 }
@@ -301,12 +363,12 @@ pub fn hoverable<'a, M: 'a>(
 ///
 /// [`EnterAnchor`]: TooltipMessage::EnterAnchor
 /// [`Enter`]: TooltipMessage::Enter
-pub fn on_surface(id: Id, content: Element<'_, Message>) -> Element<'_, Message> {
+pub fn on_surface(surface: Id, content: Element<'_, Message>) -> Element<'_, Message> {
     content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor { id: tip, anchor }) => {
+        Message::Tooltip(TooltipMessage::EnterAnchor { target, anchor }) => {
             Message::Tooltip(TooltipMessage::Enter {
-                surface: id,
-                id: tip,
+                surface,
+                target,
                 anchor,
             })
         }
@@ -319,7 +381,7 @@ pub fn on_surface(id: Id, content: Element<'_, Message>) -> Element<'_, Message>
 /// layout and drawing.
 struct HoverArea<'a, M> {
     content: Element<'a, M>,
-    id: String,
+    target: HoverTarget,
     wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
 }
 
@@ -405,12 +467,12 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
             state.hovered = hovered;
             shell.publish((self.wrap)(if hovered {
                 TooltipMessage::EnterAnchor {
-                    id: self.id.clone(),
+                    target: self.target.clone(),
                     anchor,
                 }
             } else {
                 TooltipMessage::Exit {
-                    id: self.id.clone(),
+                    target: self.target.clone(),
                 }
             }));
         }

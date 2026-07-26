@@ -16,7 +16,7 @@ use crate::{
     bar_layout::scroll::scroll_step,
     config::resolved::ResolvedConfig,
     data_sources::BarWidget,
-    tooltip::{TooltipMessage, hoverable},
+    tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
         icon_gauge::source_reading,
         inline_slider::inline_slider,
@@ -40,7 +40,7 @@ pub struct SliderControl {
     /// `SliderControl` stays a concrete type its holders can name without
     /// becoming generic.
     readout: fn(f32) -> String,
-    id: String,
+    target: HoverTarget,
     right_click: bool,
 }
 
@@ -68,10 +68,10 @@ pub enum Action {
 }
 
 impl SliderControl {
-    /// A slider over `range` emitting tooltips under `id`. Defaults: one-unit
+    /// A slider over `range` emitting tooltips for `target`. Defaults: one-unit
     /// scroll step, 40px readout, no right-click. Override via the builder
     /// methods.
-    pub fn new(range: RangeInclusive<f32>, id: impl Into<String>) -> Self {
+    pub fn new(range: RangeInclusive<f32>, target: HoverTarget) -> Self {
         Self {
             open: false,
             accum: 0.0,
@@ -81,7 +81,7 @@ impl SliderControl {
             slider_step: 1.0,
             readout_width: 40.0,
             readout: |value| format!("{value:.0}"),
-            id: id.into(),
+            target,
             right_click: false,
         }
     }
@@ -203,7 +203,7 @@ impl SliderControl {
 
         let reading =
             source_reading(config, Some(widget), alpha).unwrap_or_else(|| Row::new().into());
-        let hover = hoverable(reading, self.id.clone(), ControlMessage::Tooltip);
+        let hover = hoverable(reading, self.target.clone(), ControlMessage::Tooltip);
         let mut area = mouse_area(hover)
             .on_press(ControlMessage::Press)
             .on_scroll(ControlMessage::Scroll);
