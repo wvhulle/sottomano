@@ -8,8 +8,8 @@ use iced::{Alignment, Element, Subscription, widget::Row};
 use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, kernel_errors::KernelErrors, systemd_failed::Failed},
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    data_sources::{BarWidget, Tooltip, kernel_errors::KernelErrors, systemd_failed::Failed},
+    tooltip::{TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -46,16 +46,13 @@ impl JournalGroup {
         }
     }
 
-    pub fn system_cell(&self) -> &SourceCell<Failed<false>> {
-        &self.system
-    }
-
-    pub fn user_cell(&self) -> &SourceCell<Failed<true>> {
-        &self.user
-    }
-
-    pub fn kernel_cell(&self) -> &SourceCell<KernelErrors> {
-        &self.kernel
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        match id {
+            "journal-system" => self.system.tooltip(),
+            "journal-user" => self.user.tooltip(),
+            "journal-kernel" => self.kernel.tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, JournalMessage>> {
@@ -63,17 +60,17 @@ impl JournalGroup {
             indicator(
                 config,
                 self.system.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::JournalSystem,
+                "journal-system",
             ),
             indicator(
                 config,
                 self.user.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::JournalUser,
+                "journal-user",
             ),
             indicator(
                 config,
                 self.kernel.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::JournalKernel,
+                "journal-kernel",
             ),
         ]
         .into_iter()
@@ -96,8 +93,8 @@ impl JournalGroup {
 fn indicator<'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,
-    source: TooltipSource,
+    id: &'static str,
 ) -> Option<Element<'a, JournalMessage>> {
     let reading = source_reading(config, widget, 1.0)?;
-    Some(hoverable(reading, source, JournalMessage::Tooltip))
+    Some(hoverable(reading, id, JournalMessage::Tooltip))
 }

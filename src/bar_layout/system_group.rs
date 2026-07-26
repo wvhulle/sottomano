@@ -12,29 +12,29 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
-        BarWidget,
+        BarWidget, Tooltip,
         disk::Disk,
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     layer_surface::Position,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::{
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
 };
 
-/// A reading wrapped so hovering it opens its tooltip. Carries only the
-/// `source` identity — the panel content is derived from the live reading at
-/// render time, not snapshotted here.
+/// A reading wrapped so hovering it opens its tooltip. Carries only the `id`
+/// identity — the panel content is derived from the live reading at render
+/// time, not snapshotted here.
 fn hover_reading<'a>(
     config: &ResolvedConfig,
     widget: &dyn BarWidget,
     alpha: f32,
-    source: TooltipSource,
+    id: &'static str,
 ) -> Option<Element<'a, SystemMessage>> {
     let reading = source_reading(config, Some(widget), alpha)?;
-    Some(hoverable(reading, source, SystemMessage::Tooltip))
+    Some(hoverable(reading, id, SystemMessage::Tooltip))
 }
 
 pub struct SystemGroup {
@@ -88,20 +88,14 @@ impl SystemGroup {
         }
     }
 
-    pub fn cpu_cell(&self) -> &SourceCell<CpuUsage> {
-        &self.cpu
-    }
-
-    pub fn memory_cell(&self) -> &SourceCell<Memory> {
-        &self.memory
-    }
-
-    pub fn temperature_cell(&self) -> &SourceCell<Temperature> {
-        &self.temperature
-    }
-
-    pub fn disk_cell(&self) -> &SourceCell<Disk> {
-        &self.disk
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        match id {
+            "cpu" => self.cpu.tooltip(),
+            "memory" => self.memory.tooltip(),
+            "temperature" => self.temperature.tooltip(),
+            "disk" => self.disk.tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(
@@ -113,7 +107,7 @@ impl SystemGroup {
             config,
             self.cpu.get().map(|w| w as &dyn BarWidget)?,
             1.0,
-            TooltipSource::Cpu,
+            "cpu",
         )?;
         // The handle carries the toggle press (only the handle toggles, so
         // clicking the revealed readings never collapses the group).
@@ -126,17 +120,15 @@ impl SystemGroup {
             [
                 self.temperature
                     .get()
-                    .map(|w| (w as &dyn BarWidget, TooltipSource::Temperature)),
+                    .map(|w| (w as &dyn BarWidget, "temperature")),
                 self.memory
                     .get()
-                    .map(|w| (w as &dyn BarWidget, TooltipSource::Memory)),
-                self.disk
-                    .get()
-                    .map(|w| (w as &dyn BarWidget, TooltipSource::Disk)),
+                    .map(|w| (w as &dyn BarWidget, "memory")),
+                self.disk.get().map(|w| (w as &dyn BarWidget, "disk")),
             ]
             .into_iter()
             .flatten()
-            .filter_map(|(widget, source)| hover_reading(config, widget, reveal, source)),
+            .filter_map(|(widget, id)| hover_reading(config, widget, reveal, id)),
         )
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);

@@ -1,7 +1,7 @@
 //! Config as read from the TOML file on disk, before the font is loaded and
 //! colours are converted.
 
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use color::DynamicColor;
 use serde::Deserialize;
@@ -43,16 +43,6 @@ pub struct DiskConfig {
     pub layout: Layout,
     pub font: DiskFontConfig,
     pub notifications: NotificationConfig,
-    pub idle: IdleConfig,
-}
-
-/// Per-subsystem command run when an idle timeout fires, keyed by subsystem
-/// name (`lock-user`, `screen-off`, `standby`, `power-down`). Split on
-/// whitespace.
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default)]
-pub struct IdleConfig {
-    pub bindings: HashMap<String, String>,
 }
 
 /// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is

@@ -29,7 +29,7 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    tooltip::{TooltipMessage, TooltipSource},
+    tooltip::TooltipMessage,
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -215,24 +215,22 @@ impl MonitorGroup {
         }
     }
 
-    pub fn backlight_tooltip(&self, index: usize) -> Option<Tooltip> {
-        let backlight = self.backlights.get(index)?;
-        Some(Tooltip {
-            body: backlight.tooltip(),
-            footer: None,
-        })
-    }
-
-    pub fn gamma_cell(&self) -> &SourceCell<Gamma> {
-        &self.gamma
-    }
-
-    pub fn clight_cell(&self) -> &SourceCell<Clight> {
-        self.clight.cell()
-    }
-
-    pub fn umbra_cell(&self) -> &SourceCell<Umbra> {
-        self.umbra.cell()
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        // Each display's backlight is keyed by its stable serial (which survives
+        // monitors coming and going, unlike a positional index).
+        if let Some(serial) = id.strip_prefix("backlight-") {
+            let backlight = self.backlights.iter().find(|b| b.serial == serial)?;
+            return Some(Tooltip {
+                body: backlight.tooltip(),
+                footer: None,
+            });
+        }
+        match id {
+            "gamma-dim" | "color-temperature" => self.gamma.tooltip(),
+            "clight-auto" => self.clight.cell().tooltip(),
+            "dark-mode" => self.umbra.cell().tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(
@@ -242,9 +240,9 @@ impl MonitorGroup {
     ) -> Option<Element<'a, MonitorMessage>> {
         let mut children: Vec<Element<'a, MonitorMessage>> = Vec::new();
 
-        for (index, backlight) in self.backlights.iter().enumerate() {
+        for backlight in &self.backlights {
             if let Some(control) = self.sliders.get(&backlight.serial) {
-                children.push(backlight_slider(config, control, backlight, index));
+                children.push(backlight_slider(config, control, backlight));
             }
         }
 
@@ -253,10 +251,10 @@ impl MonitorGroup {
             children.push(self.warmth_slider(config, gamma));
         }
 
-        if let Some(clight) = self.clight.view(config, TooltipSource::ClightAuto, 1.0) {
+        if let Some(clight) = self.clight.view(config, "clight-auto", 1.0) {
             children.push(clight.map(lift(MonitorMessage::Clight)));
         }
-        if let Some(umbra) = self.umbra.view(config, TooltipSource::DarkMode, 1.0) {
+        if let Some(umbra) = self.umbra.view(config, "dark-mode", 1.0) {
             children.push(umbra.map(lift(MonitorMessage::Umbra)));
         }
 
@@ -278,11 +276,12 @@ impl MonitorGroup {
         ))
     }
 
-    /// The bar handle: a static monitor glyph (odin's `display`) that unfolds
-    /// the group.
+    /// The bar handle: a brightness glyph that unfolds the group. Deliberately
+    /// *not* a monitor icon — the per-display sliders use the monitor glyphs
+    /// (laptop / desktop), so the handle must read differently from them.
     fn handle<'a>(config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
         mouse_area(
-            Icon::Display
+            Icon::Lightbulb
                 .solid()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
@@ -310,7 +309,7 @@ impl MonitorGroup {
                     readout_width: 40.0,
                     range: PERCENT,
                     step: 1.0,
-                    source: TooltipSource::GammaDim,
+                    id: "gamma-dim".into(),
                     right_click: false,
                     alpha: 1.0,
                 },
@@ -340,7 +339,7 @@ impl MonitorGroup {
                     readout_width: 52.0,
                     range: WARMTH_RANGE,
                     step: WARMTH_STEP,
-                    source: TooltipSource::ColorTemperature,
+                    id: "color-temperature".into(),
                     right_click: false,
                     alpha: 1.0,
                 },
@@ -358,7 +357,6 @@ fn backlight_slider<'a>(
     config: &ResolvedConfig,
     control: &SliderControl,
     backlight: &Backlight,
-    index: usize,
 ) -> Element<'a, MonitorMessage> {
     let value = control.value(percent_f(backlight.percent));
     let display = Backlight {
@@ -377,7 +375,7 @@ fn backlight_slider<'a>(
                 readout_width: 40.0,
                 range: PERCENT,
                 step: 1.0,
-                source: TooltipSource::Backlight(u8::try_from(index).unwrap_or(u8::MAX)),
+                id: format!("backlight-{}", backlight.serial),
                 right_click: false,
                 alpha: 1.0,
             },

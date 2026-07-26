@@ -3,14 +3,15 @@
 //! shelling out.
 //!
 //! A background subscription holds the wayland connection ([`wayland`]); the
-//! bar pushes an [`Arm`] list (timeout + command) whenever the persisted
-//! timeouts change. Each armed notification fires independently; on idle its
-//! command is spawned.
+//! bar pushes an [`Arm`] list (timeout + subsystem) whenever the persisted
+//! timeouts change. Each armed notification fires independently; on idle the
+//! daemon reports which subsystem fired ([`IdleEvent::Fired`]) and the bar runs
+//! that subsystem's native action — the same one its trigger button runs.
 
 pub mod timer;
 pub mod wayland;
 
-use std::{process::Command, time::Duration};
+use std::time::Duration;
 
 use iced::{
     Subscription,
@@ -19,7 +20,10 @@ use iced::{
 };
 use tokio::sync::mpsc;
 
-use crate::widgets::idle::wayland::SideEffect;
+use crate::{
+    data_sources::{logind, niri},
+    widgets::idle::wayland::SideEffect,
+};
 
 const LADDER: [(u64, &str); 11] = [
     (10, "10s"),
@@ -81,12 +85,34 @@ pub fn label_at(pos: f32) -> &'static str {
     from_position(pos).map_or("∞", label_for)
 }
 
-/// One notification to arm: an idle timeout and the command to spawn when it
-/// fires (empty = arm but do nothing).
-#[derive(Debug, Clone)]
+/// The native action a subsystem performs when its idle timeout is reached — the
+/// same action its trigger button runs. All standard session APIs (logind /
+/// niri IPC), so the daemon carries the effect itself rather than a shell command.
+#[derive(Debug, Clone, Copy)]
+pub enum IdleAction {
+    Lock,
+    ScreenOff,
+    Suspend,
+    PowerOff,
+}
+
+/// Perform an idle action now. Blocking (logind D-Bus / niri IPC); call off the
+/// render path — the daemon runs it on a blocking task, the trigger via `blocking`.
+pub fn perform(action: IdleAction) {
+    match action {
+        IdleAction::Lock => logind::lock(),
+        IdleAction::ScreenOff => niri::power_off_monitors(),
+        IdleAction::Suspend => logind::suspend(),
+        IdleAction::PowerOff => logind::power_off(),
+    }
+}
+
+/// One notification to arm: an idle timeout and the action to perform when it
+/// fires.
+#[derive(Debug, Clone, Copy)]
 pub struct Arm {
     pub timeout: Duration,
-    pub command: Vec<String>,
+    pub action: IdleAction,
 }
 
 /// The bar's handle to the running daemon: replaces the armed set whenever the
@@ -108,7 +134,7 @@ pub enum IdleEvent {
 }
 
 /// The daemon subscription: connect to wayland, hand the bar an [`IdleHandle`],
-/// then rearm on each pushed spec and spawn a command on idle. Ends quietly if
+/// then rearm on each pushed spec and perform an action on idle. Ends quietly if
 /// the compositor has no `ext-idle-notify-v1`.
 pub fn subscription() -> Subscription<IdleEvent> {
     Subscription::run(|| {
@@ -137,8 +163,10 @@ pub fn subscription() -> Subscription<IdleEvent> {
                     pumped = wayland::pump(&mut wl) => {
                         match pumped {
                             Ok(effects) => {
-                                for SideEffect::Idled(command) in effects {
-                                    spawn(&command);
+                                for SideEffect::Idled(action) in effects {
+                                    // Off the wayland loop: logind Suspend/PowerOff block
+                                    // until the system acts.
+                                    tokio::task::spawn_blocking(move || perform(action));
                                 }
                             }
                             Err(e) => {
@@ -151,12 +179,4 @@ pub fn subscription() -> Subscription<IdleEvent> {
             }
         })
     })
-}
-
-fn spawn(command: &[String]) {
-    if let Some((program, args)) = command.split_first()
-        && let Err(e) = Command::new(program).args(args).spawn()
-    {
-        eprintln!("idle daemon: failed to spawn {program}: {e}");
-    }
 }

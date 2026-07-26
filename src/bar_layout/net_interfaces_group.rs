@@ -9,10 +9,10 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
-        BarWidget,
+        BarWidget, Tooltip,
         net_interfaces::{bluetooth::Bluetooth, ethernet::Ethernet, mobile::Mobile, wifi::Wifi},
     },
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -53,20 +53,14 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn bluetooth_cell(&self) -> &SourceCell<Bluetooth> {
-        &self.bluetooth
-    }
-
-    pub fn ethernet_cell(&self) -> &SourceCell<Ethernet> {
-        &self.ethernet
-    }
-
-    pub fn wifi_cell(&self) -> &SourceCell<Wifi> {
-        &self.wifi
-    }
-
-    pub fn mobile_cell(&self) -> &SourceCell<Mobile> {
-        &self.mobile
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        match id {
+            "bluetooth" => self.bluetooth.tooltip(),
+            "ethernet" => self.ethernet.tooltip(),
+            "wifi" => self.wifi.tooltip(),
+            "mobile" => self.mobile.tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, NetInterfacesMessage>> {
@@ -75,22 +69,18 @@ impl NetInterfacesGroup {
             indicator(
                 config,
                 self.bluetooth.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::Bluetooth,
+                "bluetooth",
             ),
             indicator(
                 config,
                 self.ethernet.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::Ethernet,
+                "ethernet",
             ),
-            indicator(
-                config,
-                self.wifi.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::Wifi,
-            ),
+            indicator(config, self.wifi.get().map(|w| w as &dyn BarWidget), "wifi"),
             indicator(
                 config,
                 self.mobile.get().map(|w| w as &dyn BarWidget),
-                TooltipSource::Mobile,
+                "mobile",
             ),
         ]
         .into_iter()
@@ -113,8 +103,8 @@ impl NetInterfacesGroup {
 fn indicator<'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,
-    source: TooltipSource,
+    id: &'static str,
 ) -> Option<Element<'a, NetInterfacesMessage>> {
     let reading = source_reading(config, widget, 1.0)?;
-    Some(hoverable(reading, source, NetInterfacesMessage::Tooltip))
+    Some(hoverable(reading, id, NetInterfacesMessage::Tooltip))
 }

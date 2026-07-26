@@ -17,7 +17,7 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -95,7 +95,11 @@ impl MediaGroup {
         Task::none()
     }
 
-    pub fn tooltip(&self) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        (id == "media").then(|| self.tooltip()).flatten()
+    }
+
+    fn tooltip(&self) -> Option<Tooltip> {
         let media = self.media.as_ref()?;
         let mut rows = Vec::new();
         if !media.title.is_empty() {
@@ -125,11 +129,7 @@ impl MediaGroup {
         let alpha = if status == Status::Playing { 1.0 } else { 0.4 };
 
         let handle = handle(config, media, status, alpha);
-        let handle = mouse_area(hoverable(
-            handle,
-            TooltipSource::Media,
-            MediaMessage::Tooltip,
-        ))
+        let handle = mouse_area(hoverable(handle, "media", MediaMessage::Tooltip))
         .on_press(MediaMessage::Menu(MenuMessage::Toggle))
         .into();
 

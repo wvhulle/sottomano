@@ -1,18 +1,22 @@
-//! One idle-timeout pill: a subsystem's icon, tooltip identity, current
-//! timeout, and an embedded [`SliderControl`] for the expand/scroll/drag
-//! interaction. The group holds four and addresses them by kind.
+//! One idle subsystem's control: its icon, tooltip identity, current timeout
+//! (an embedded [`SliderControl`] for the expand/scroll/drag interaction), and a
+//! [`ConfirmButton`] that runs the subsystem's action now. Self-contained — the
+//! group holds one per subsystem and routes messages to it by kind.
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use iced::Element;
+use iced::{
+    Alignment, Element,
+    widget::Row,
+};
 
 use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Tooltip, TooltipBody, row},
-    tooltip::TooltipSource,
     widgets::{
+        confirm_button::{ConfirmButton, Press},
         icon::Icon,
-        idle::{MAX_POSITION, from_position, label_at, label_for, position},
+        idle::{Arm, IdleAction, MAX_POSITION, from_position, label_at, label_for, position},
         slider_control::{Action, ControlMessage, SliderControl, View},
     },
 };
@@ -20,34 +24,57 @@ use crate::{
 const SCROLL_STEP: f32 = 1.0;
 const READOUT_WIDTH: f32 = 30.0;
 
-/// What a timer's update asks the group to do: nothing, close the other pills
-/// (this one just opened), or persist the timeouts. `Persist` carries the
-/// committed slider position so the write's confirmation can be routed back.
+/// One control's messages: the timeout slider's interaction, or its run-now
+/// button.
+#[derive(Debug, Clone)]
+pub enum TimerMessage {
+    Slider(ControlMessage),
+    Trigger,
+}
+
+/// What a control's update asks the group to do: nothing; close the other
+/// controls (this one just opened); persist the committed timeout (the `f32` is
+/// the slider position, so the write's confirmation can be routed back); or run
+/// this subsystem's action now.
 pub enum TimerChange {
     None,
     Opened,
     Persist(f32),
+    Fire(IdleAction),
 }
 
 pub struct IdleTimer {
     icon: Icon,
-    source: TooltipSource,
+    /// The tooltip id this control emits, e.g. `"idle-lock-user"`.
+    id: &'static str,
     timeout: Option<Duration>,
     control: SliderControl,
+    button: ConfirmButton,
+    action: IdleAction,
 }
 
 impl IdleTimer {
-    pub fn new(icon: Icon, source: TooltipSource) -> Self {
+    pub fn new(icon: Icon, id: &'static str, action: IdleAction, confirms: bool) -> Self {
         Self {
             icon,
-            source,
+            id,
             timeout: None,
             control: SliderControl::default(),
+            button: ConfirmButton::new(confirms),
+            action,
         }
     }
 
     pub fn timeout(&self) -> Option<Duration> {
         self.timeout
+    }
+
+    /// This subsystem's daemon arm, if it has a timeout set (`None` = disabled).
+    pub fn arm(&self) -> Option<Arm> {
+        self.timeout.map(|timeout| Arm {
+            timeout,
+            action: self.action,
+        })
     }
 
     /// Adopt a persisted timeout (on load) and resync the control to it.
@@ -56,41 +83,49 @@ impl IdleTimer {
         self.control.sync(position(timeout));
     }
 
-    pub fn source(&self) -> TooltipSource {
-        self.source
+    pub fn id(&self) -> &'static str {
+        self.id
     }
 
     pub fn close(&mut self) {
         self.control.close();
     }
 
+    pub fn disarm(&mut self) {
+        self.button.disarm();
+    }
+
     fn range() -> RangeInclusive<f32> {
         0.0..=MAX_POSITION
     }
 
-    pub fn update(&mut self, msg: ControlMessage) -> TimerChange {
-        let reading = position(self.timeout);
-        match self
-            .control
-            .update(msg, reading, &Self::range(), SCROLL_STEP)
-        {
-            Action::Opened => TimerChange::Opened,
-            Action::Commit(value) => {
-                self.timeout = from_position(value);
-                TimerChange::Persist(value)
+    pub fn update(&mut self, msg: TimerMessage) -> TimerChange {
+        match msg {
+            TimerMessage::Slider(msg) => {
+                let reading = position(self.timeout);
+                match self
+                    .control
+                    .update(msg, reading, &Self::range(), SCROLL_STEP)
+                {
+                    Action::Opened => TimerChange::Opened,
+                    Action::Commit(value) => {
+                        self.timeout = from_position(value);
+                        TimerChange::Persist(value)
+                    }
+                    Action::None | Action::Right => TimerChange::None,
+                }
             }
-            Action::None | Action::Right => TimerChange::None,
+            // Harmless subsystems fire on the first click; disruptive ones arm,
+            // then fire on the confirming second click.
+            TimerMessage::Trigger => match self.button.press() {
+                Press::Armed => TimerChange::None,
+                Press::Fire => TimerChange::Fire(self.action),
+            },
         }
     }
 
     pub fn tooltip(&self) -> Tooltip {
-        let name = match self.source {
-            TooltipSource::IdleLockUser => "lock-user",
-            TooltipSource::IdleScreenOff => "screen-off",
-            TooltipSource::IdleStandby => "standby",
-            TooltipSource::IdlePowerDown => "power-down",
-            _ => "idle",
-        };
+        let name = self.id.strip_prefix("idle-").unwrap_or(self.id);
         Tooltip {
             body: TooltipBody::Table(vec![
                 row("Subsystem", name),
@@ -100,31 +135,42 @@ impl IdleTimer {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, ControlMessage> {
+    /// The timeout slider paired with its run-now button, hugging each other (a
+    /// tight gap) so the button clearly binds to this subsystem's value.
+    pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, TimerMessage> {
         let value = self.control.value(position(self.timeout));
         let widget = Reading {
             icon: self.icon,
             label: from_position(value).map(|d| label_for(d).to_string()),
             enabled: from_position(value).is_some(),
         };
-        self.control.view(
-            config,
-            View {
-                widget: &widget,
-                value,
-                readout: label_at(value).to_string(),
-                readout_width: READOUT_WIDTH,
-                range: Self::range(),
-                step: SCROLL_STEP,
-                source: self.source,
-                right_click: false,
-                alpha: reveal,
-            },
-        )
+        let slider = self
+            .control
+            .view(
+                config,
+                View {
+                    widget: &widget,
+                    value,
+                    readout: label_at(value).to_string(),
+                    readout_width: READOUT_WIDTH,
+                    range: Self::range(),
+                    step: SCROLL_STEP,
+                    id: self.id.into(),
+                    right_click: false,
+                    alpha: reveal,
+                },
+            )
+            .map(TimerMessage::Slider);
+        let trigger = self.button.view(config, reveal, TimerMessage::Trigger);
+        let pair_gap = config.layout.horizontal_widget_spacing_px * 0.25;
+        Row::with_children([slider, trigger])
+            .spacing(pair_gap)
+            .align_y(Alignment::Center)
+            .into()
     }
 }
 
-/// A closed pill's icon + label, rendered through the shared reading path.
+/// A closed control's icon + label, rendered through the shared reading path.
 struct Reading {
     icon: Icon,
     label: Option<String>,

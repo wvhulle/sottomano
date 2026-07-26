@@ -22,7 +22,7 @@ use crate::{
         wireguard::{Wireguard, disconnect},
     },
     layer_surface::Position,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::{
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
@@ -90,26 +90,22 @@ impl InternetGroup {
         Task::none()
     }
 
-    pub fn down_cell(&self) -> &SourceCell<Throughput<false>> {
-        &self.down
-    }
-
-    pub fn up_cell(&self) -> &SourceCell<Throughput<true>> {
-        &self.up
-    }
-
-    pub fn tailscale_cell(&self) -> &SourceCell<Tailscale> {
-        &self.tailscale
-    }
-
-    /// The tooltip for `WireGuard` tunnel `index`, built from the tunnel's own
-    /// body (the aggregate cell tooltip is inert).
-    pub fn wireguard_tooltip(&self, index: usize) -> Option<Tooltip> {
-        let tunnel = self.wireguard.get()?.tunnels.get(index)?;
-        Some(Tooltip {
-            body: tunnel.tooltip(),
-            footer: None,
-        })
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        // Each tunnel is keyed by its (unique) interface name, built from the
+        // tunnel's own body — the aggregate cell tooltip is inert.
+        if let Some(name) = id.strip_prefix("wireguard-") {
+            let tunnel = self.wireguard.get()?.tunnels.iter().find(|t| t.name == name)?;
+            return Some(Tooltip {
+                body: tunnel.tooltip(),
+                footer: None,
+            });
+        }
+        match id {
+            "internet-down" => self.down.tooltip(),
+            "internet-up" => self.up.tooltip(),
+            "tailscale" => self.tailscale.tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(
@@ -122,7 +118,7 @@ impl InternetGroup {
         let handle_reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)?;
         let handle = mouse_area(hoverable(
             handle_reading,
-            TooltipSource::InternetDown,
+            "internet-down",
             InternetMessage::Tooltip,
         ))
         .on_press(InternetMessage::Menu(MenuMessage::Toggle))
@@ -133,21 +129,17 @@ impl InternetGroup {
         if let Some(up) = self.up.get()
             && let Some(reading) = source_reading(config, Some(up as &dyn BarWidget), reveal)
         {
-            pills.push(hoverable(
-                reading,
-                TooltipSource::InternetUp,
-                InternetMessage::Tooltip,
-            ));
+            pills.push(hoverable(reading, "internet-up", InternetMessage::Tooltip));
         }
         if let Some(wireguard) = self.wireguard.get() {
-            for (index, tunnel) in wireguard.tunnels.iter().enumerate() {
+            for tunnel in &wireguard.tunnels {
                 if let Some(reading) =
                     source_reading(config, Some(tunnel as &dyn BarWidget), reveal)
                 {
                     let name = tunnel.name.clone();
                     let hover = hoverable(
                         reading,
-                        TooltipSource::Wireguard(u8::try_from(index).unwrap_or(0)),
+                        format!("wireguard-{name}"),
                         InternetMessage::Tooltip,
                     );
                     pills.push(
@@ -161,7 +153,7 @@ impl InternetGroup {
         if let Some(tailscale) = self.tailscale.get()
             && let Some(reading) = source_reading(config, Some(tailscale as &dyn BarWidget), reveal)
         {
-            let hover = hoverable(reading, TooltipSource::Tailscale, InternetMessage::Tooltip);
+            let hover = hoverable(reading, "tailscale", InternetMessage::Tooltip);
             pills.push(
                 mouse_area(hover)
                     .on_press(InternetMessage::OpenTailscale)

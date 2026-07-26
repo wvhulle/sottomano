@@ -16,7 +16,7 @@ use crate::{
     bar_layout::scroll::scroll_step,
     config::resolved::ResolvedConfig,
     data_sources::BarWidget,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::{
         icon_gauge::source_reading,
         inline_slider::inline_slider,
@@ -32,7 +32,7 @@ pub struct SliderControl {
     value: Tracked,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum ControlMessage {
     Press,
     Scroll(ScrollDelta),
@@ -64,7 +64,7 @@ pub struct View<'a> {
     pub readout_width: f32,
     pub range: RangeInclusive<f32>,
     pub step: f32,
-    pub source: TooltipSource,
+    pub id: String,
     pub right_click: bool,
     pub alpha: f32,
 }
@@ -146,7 +146,7 @@ impl SliderControl {
 
         let reading = source_reading(config, Some(view.widget), view.alpha)
             .unwrap_or_else(|| Row::new().into());
-        let hover = hoverable(reading, view.source, ControlMessage::Tooltip);
+        let hover = hoverable(reading, view.id, ControlMessage::Tooltip);
         let mut area = mouse_area(hover)
             .on_press(ControlMessage::Press)
             .on_scroll(ControlMessage::Scroll);

@@ -4,7 +4,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
-    time::Duration,
 };
 
 use chrono::Utc;
@@ -23,7 +22,7 @@ use crate::{
         audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
-        idle_timeouts_group::{IdleChange, IdleTimeoutsGroup, IdleTimeoutsMessage, TimerKind},
+        idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
         media_group::{MediaGroup, MediaMessage},
@@ -41,7 +40,7 @@ use crate::{
         app_icon::DesktopEntries,
         desktop_entries::{self, DesktopIndex},
         launch_tracker::{Buckets, LaunchTracker},
-        logind, niri,
+        niri,
     },
     layer_surface::{
         Position, Surface, SurfaceKind, backdrop_settings, float_margin, layer_settings,
@@ -49,9 +48,9 @@ use crate::{
     message_subscriptions::{blocking, niri_action},
     notifications::{NotificationGroup, NotificationMessage},
     state,
-    tooltip::{self, TooltipHost, TooltipMessage, TooltipSource},
+    tooltip::{self, TooltipHost, TooltipMessage},
     widgets::{
-        idle::{Arm, IdleEvent, IdleHandle},
+        idle::IdleEvent,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action as SliderAction, ControlMessage},
     },
@@ -90,8 +89,6 @@ pub struct Bar {
     /// The shared `.desktop` index (app metadata + icon resolution), consumed
     /// by both the window list and the notification cards.
     pub(crate) desktop_entries: DesktopIndex,
-    /// Handle to the in-process idle daemon, once it has connected to wayland.
-    pub(crate) idle_handle: Option<IdleHandle>,
 }
 
 #[to_layer_message(multi)]
@@ -168,7 +165,6 @@ impl Bar {
             tooltip: TooltipHost::default(),
             notifications: NotificationGroup::default(),
             desktop_entries: DesktopIndex::default(),
-            idle_handle: None,
             config,
         };
         let init = Task::batch([
@@ -255,32 +251,11 @@ impl Bar {
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
             Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
-            Message::IdleTimeouts(msg) => match self.idle_timeouts_group.update(msg) {
-                IdleChange::None => Task::none(),
-                IdleChange::Rearm => {
-                    self.rearm_idle();
-                    Task::none()
-                }
-                IdleChange::Persist { kind, value } => {
-                    self.rearm_idle();
-                    let timeouts = self.idle_timeouts_group.timeouts();
-                    Task::future(state::idle::save(timeouts)).map(move |ok| {
-                        Message::IdleTimeouts(IdleTimeoutsMessage::Timer(
-                            kind,
-                            ControlMessage::Confirmed { value, ok },
-                        ))
-                    })
-                }
-                IdleChange::Act(kind) => self.trigger_idle_action(kind),
-                IdleChange::Arm(kind) => Task::perform(
-                    async { tokio::time::sleep(Duration::from_secs(3)).await },
-                    move |()| Message::IdleTimeouts(IdleTimeoutsMessage::DisarmTrigger(kind)),
-                ),
-            },
+            Message::IdleTimeouts(msg) => {
+                self.idle_timeouts_group.update(msg).map(Message::IdleTimeouts)
+            }
             Message::Idle(IdleEvent::Connected(handle)) => {
-                self.idle_handle = Some(handle);
-                self.rearm_idle();
-                Task::none()
+                self.idle_timeouts_group.connected(handle).map(Message::IdleTimeouts)
             }
             Message::PanelLoaded(settings) => {
                 if let Some(floating) = settings.floating {
@@ -310,8 +285,8 @@ impl Bar {
             }
             // A source with empty content suppresses its tooltip (odin drops
             // `{}`); the emptiness is decided here against the live reading.
-            Message::Tooltip(TooltipMessage::Enter { source, .. })
-                if self.tooltip_of(source).is_empty() =>
+            Message::Tooltip(TooltipMessage::Enter { id, .. })
+                if self.tooltip_for(&id).is_empty() =>
             {
                 Task::none()
             }
@@ -367,60 +342,32 @@ impl Bar {
         }
     }
 
-    /// Live content for a hovered widget, derived from its current reading (and
-    /// the owning cell's refresh footer). Called only while its tooltip surface
-    /// is shown, so nothing is computed when no tooltip is open. An absent
-    /// reading yields an empty tooltip.
-    pub(crate) fn tooltip_of(&self, source: TooltipSource) -> Tooltip {
-        match source {
-            TooltipSource::Cpu => self.system_group.cpu_cell().tooltip(),
-            TooltipSource::Memory => self.system_group.memory_cell().tooltip(),
-            TooltipSource::Temperature => self.system_group.temperature_cell().tooltip(),
-            TooltipSource::Disk => self.system_group.disk_cell().tooltip(),
-            TooltipSource::Battery => self.battery_group.cell().tooltip(),
-            TooltipSource::Floating => Some(panel_settings_group::floating_tooltip(&self.config)),
-            TooltipSource::FloatOffset => Some(panel_settings_group::offset_tooltip(&self.config)),
-            TooltipSource::JournalSystem => self.journal_group.system_cell().tooltip(),
-            TooltipSource::JournalUser => self.journal_group.user_cell().tooltip(),
-            TooltipSource::JournalKernel => self.journal_group.kernel_cell().tooltip(),
-            TooltipSource::Bluetooth => self.net_interfaces_group.bluetooth_cell().tooltip(),
-            TooltipSource::Ethernet => self.net_interfaces_group.ethernet_cell().tooltip(),
-            TooltipSource::Wifi => self.net_interfaces_group.wifi_cell().tooltip(),
-            TooltipSource::Mobile => self.net_interfaces_group.mobile_cell().tooltip(),
-            TooltipSource::AudioSink => self.audio_group.sink_cell().tooltip(),
-            TooltipSource::AudioSource => self.audio_group.source_cell().tooltip(),
-            TooltipSource::Backlight(index) => self.monitor_group.backlight_tooltip(index as usize),
-            TooltipSource::GammaDim | TooltipSource::ColorTemperature => {
-                self.monitor_group.gamma_cell().tooltip()
-            }
-            TooltipSource::ClightAuto => self.monitor_group.clight_cell().tooltip(),
-            TooltipSource::DarkMode => self.monitor_group.umbra_cell().tooltip(),
-            TooltipSource::IdleLockUser
-            | TooltipSource::IdleScreenOff
-            | TooltipSource::IdleStandby
-            | TooltipSource::IdlePowerDown => self.idle_timeouts_group.tooltip_for(source),
-            TooltipSource::InternetDown => self.internet_group.down_cell().tooltip(),
-            TooltipSource::InternetUp => self.internet_group.up_cell().tooltip(),
-            TooltipSource::Tailscale => self.internet_group.tailscale_cell().tooltip(),
-            TooltipSource::Wireguard(index) => {
-                self.internet_group.wireguard_tooltip(index as usize)
-            }
-            TooltipSource::WeatherTemp => self.weather_group.temp_cell().tooltip(),
-            TooltipSource::WeatherRain => self.weather_group.rain_cell().tooltip(),
-            TooltipSource::PollenBirch => self.weather_group.birch_cell().tooltip(),
-            TooltipSource::PollenGrass => self.weather_group.grass_cell().tooltip(),
-            TooltipSource::Location => self.weather_group.location_cell().tooltip(),
-            TooltipSource::Media => self.media_group.tooltip(),
-        }
-        .unwrap_or_else(Tooltip::empty)
+    /// Live content for a hovered widget, resolved by asking each group to
+    /// interpret the tooltip `id` it emitted (foreign ids yield `None`). Called
+    /// only while a tooltip surface is shown, so nothing is computed when no
+    /// tooltip is open. An unresolved or absent reading yields an empty tooltip.
+    pub(crate) fn tooltip_for(&self, id: &str) -> Tooltip {
+        self.system_group
+            .tooltip_for(id)
+            .or_else(|| self.battery_group.tooltip_for(id))
+            .or_else(|| self.journal_group.tooltip_for(id))
+            .or_else(|| self.net_interfaces_group.tooltip_for(id))
+            .or_else(|| self.audio_group.tooltip_for(id))
+            .or_else(|| self.monitor_group.tooltip_for(id))
+            .or_else(|| self.idle_timeouts_group.tooltip_for(id))
+            .or_else(|| self.internet_group.tooltip_for(id))
+            .or_else(|| self.weather_group.tooltip_for(id))
+            .or_else(|| self.media_group.tooltip_for(id))
+            .or_else(|| panel_settings_group::tooltip_for(id, &self.config))
+            .unwrap_or_else(Tooltip::empty)
     }
 
     /// Whether the open tooltip (if any) has live relative time — a refresh
     /// footer or a [`TooltipBody::Log`] — to gate the 1 Hz tick that advances
     /// it.
     pub fn tooltip_has_relative_time(&self) -> bool {
-        self.tooltip.source().is_some_and(|source| {
-            let tooltip = self.tooltip_of(source);
+        self.tooltip.tip().is_some_and(|id| {
+            let tooltip = self.tooltip_for(id);
             tooltip.footer.is_some() || matches!(tooltip.body, TooltipBody::Log(_))
         })
     }
@@ -616,49 +563,6 @@ impl Bar {
         }
     }
 
-    /// Push the current per-subsystem timeouts (with their configured commands)
-    /// to the idle daemon, if it has connected.
-    fn rearm_idle(&self) {
-        let Some(handle) = &self.idle_handle else {
-            return;
-        };
-        let timeouts = self.idle_timeouts_group.timeouts();
-        let bindings = &self.config.idle_bindings;
-        let arms = [
-            (timeouts.lock_user, &bindings.lock_user),
-            (timeouts.screen_off, &bindings.screen_off),
-            (timeouts.standby, &bindings.standby),
-            (timeouts.power_down, &bindings.power_down),
-        ]
-        .into_iter()
-        .filter_map(|(timeout, command)| {
-            Some(Arm {
-                timeout: timeout?,
-                command: command.clone(),
-            })
-        })
-        .collect();
-        handle.arm(arms);
-    }
-
-    /// Run a subsystem's action immediately, on click of its trigger button:
-    /// logind (system bus) for lock/suspend/power-off, the configured command
-    /// for screen-off (logind has no screen-off method).
-    fn trigger_idle_action(&self, kind: TimerKind) -> Task<Message> {
-        match kind {
-            TimerKind::LockUser => blocking("logind lock", logind::lock).discard(),
-            TimerKind::Standby => blocking("logind suspend", logind::suspend).discard(),
-            TimerKind::PowerDown => blocking("logind poweroff", logind::power_off).discard(),
-            TimerKind::ScreenOff => {
-                let command = self.config.idle_bindings.screen_off.clone();
-                if command.is_empty() {
-                    return Task::none();
-                }
-                blocking("idle screen-off", move || niri::spawn(command)).discard()
-            }
-        }
-    }
-
     /// Re-issue each open surface's margin from the current floating/offset
     /// config — the live counterpart of the margin applied when a surface is
     /// first opened.
@@ -730,12 +634,12 @@ impl Bar {
     }
 
     pub fn view(&self, id: Id) -> Element<'_, Message> {
-        // The tooltip surface derives its content live from the hovered source,
-        // so it always tracks the reading and costs nothing while unhovered.
-        if let Some(source) = self.tooltip.source_for(id) {
+        // The tooltip surface derives its content live from the hovered id, so
+        // it always tracks the reading and costs nothing while unhovered.
+        if let Some(tip) = self.tooltip.tip_for(id) {
             return tooltip::panel_surface(
                 id,
-                &self.tooltip_of(source),
+                &self.tooltip_for(tip),
                 self.tooltip.is_settled(id),
                 &self.config,
             );

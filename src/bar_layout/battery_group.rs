@@ -3,8 +3,8 @@ use iced::{Element, Subscription};
 use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, sysfs_sensors::battery::Battery},
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    data_sources::{BarWidget, Tooltip, sysfs_sensors::battery::Battery},
+    tooltip::{TooltipMessage, hoverable},
     widgets::icon_gauge::source_reading,
 };
 
@@ -31,17 +31,13 @@ impl BatteryGroup {
         }
     }
 
-    pub fn cell(&self) -> &SourceCell<Battery> {
-        &self.cell
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        (id == "battery").then(|| self.cell.tooltip()).flatten()
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, BatteryMessage>> {
         let battery = self.cell.get()?;
         let reading = source_reading(config, Some(battery as &dyn BarWidget), 1.0)?;
-        Some(hoverable(
-            reading,
-            TooltipSource::Battery,
-            BatteryMessage::Tooltip,
-        ))
+        Some(hoverable(reading, "battery", BatteryMessage::Tooltip))
     }
 }

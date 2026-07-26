@@ -7,7 +7,7 @@ use color::{ColorSpaceTag, DynamicColor, Srgb};
 use iced::{Color, Font};
 
 use super::disk::{
-    self, DiskConfig, DiskFontConfig, DiskPaletteConfig, IdleConfig, Layout, NotificationConfig,
+    self, DiskConfig, DiskFontConfig, DiskPaletteConfig, Layout, NotificationConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -22,18 +22,6 @@ pub struct ResolvedConfig {
     /// Starts at 0 and is loaded from the sqlite state DB (`state::panel`) at
     /// startup, then mutated live by the panel-settings slider.
     pub float_offset_px: f32,
-    /// Command per idle subsystem, for the in-process idle daemon.
-    pub idle_bindings: IdleBindings,
-}
-
-/// The command (argv) to spawn when each idle subsystem fires. Empty = arm but
-/// do nothing.
-#[derive(Debug, Clone, Default)]
-pub struct IdleBindings {
-    pub lock_user: Vec<String>,
-    pub screen_off: Vec<String>,
-    pub standby: Vec<String>,
-    pub power_down: Vec<String>,
 }
 
 impl ResolvedConfig {
@@ -92,23 +80,6 @@ pub fn load() -> ResolvedConfig {
         notifications: user.notifications,
         // Overwritten by the persisted value once `state::panel` loads.
         float_offset_px: 0.0,
-        idle_bindings: resolve_idle_bindings(&user.idle),
-    }
-}
-
-fn resolve_idle_bindings(config: &IdleConfig) -> IdleBindings {
-    let binding = |name: &str| {
-        config
-            .bindings
-            .get(name)
-            .map(|cmd| cmd.split_whitespace().map(str::to_string).collect())
-            .unwrap_or_default()
-    };
-    IdleBindings {
-        lock_user: binding("lock-user"),
-        screen_off: binding("screen-off"),
-        standby: binding("standby"),
-        power_down: binding("power-down"),
     }
 }
 

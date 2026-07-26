@@ -459,6 +459,15 @@ pub fn move_window_here(id: u64, target_ws: u64) {
     }
 }
 
+/// Power off all monitors (DPMS off), niri's own `power-off-monitors` action —
+/// the idle `screen-off` subsystem. niri powers them back on at the next input,
+/// so there is no matching power-on call here.
+pub fn power_off_monitors() {
+    if let Err(e) = send_action(niri_ipc::Action::PowerOffMonitors {}) {
+        eprintln!("niri: power off monitors: {e}");
+    }
+}
+
 /// Spawn a command through niri, so the resulting window lands in niri's scope
 /// (odin's `niri msg action spawn`). The last-resort quick-launch path when an
 /// app has neither a cwd-aware launch command nor a resolvable desktop entry.

@@ -11,11 +11,11 @@ use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
-        BarWidget,
+        BarWidget, Tooltip,
         weather::{Location, Pollen, Rain, Temperature},
     },
     layer_surface::Position,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::{
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
@@ -78,24 +78,15 @@ impl WeatherGroup {
         }
     }
 
-    pub fn temp_cell(&self) -> &SourceCell<Temperature> {
-        &self.temp
-    }
-
-    pub fn rain_cell(&self) -> &SourceCell<Rain> {
-        &self.rain
-    }
-
-    pub fn birch_cell(&self) -> &SourceCell<Pollen<false>> {
-        &self.birch
-    }
-
-    pub fn grass_cell(&self) -> &SourceCell<Pollen<true>> {
-        &self.grass
-    }
-
-    pub fn location_cell(&self) -> &SourceCell<Location> {
-        &self.location
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        match id {
+            "weather-temp" => self.temp.tooltip(),
+            "weather-rain" => self.rain.tooltip(),
+            "pollen-birch" => self.birch.tooltip(),
+            "pollen-grass" => self.grass.tooltip(),
+            "location" => self.location.tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(
@@ -108,7 +99,7 @@ impl WeatherGroup {
         let handle_reading = source_reading(config, Some(temp as &dyn BarWidget), 1.0)?;
         let handle = mouse_area(hoverable(
             handle_reading,
-            TooltipSource::WeatherTemp,
+            "weather-temp",
             WeatherMessage::Tooltip,
         ))
         .on_press(WeatherMessage::Menu(MenuMessage::Toggle))
@@ -118,22 +109,22 @@ impl WeatherGroup {
         let pills = [
             self.location
                 .get()
-                .map(|w| (w as &dyn BarWidget, TooltipSource::Location)),
+                .map(|w| (w as &dyn BarWidget, "location")),
             self.rain
                 .get()
-                .map(|w| (w as &dyn BarWidget, TooltipSource::WeatherRain)),
+                .map(|w| (w as &dyn BarWidget, "weather-rain")),
             self.birch
                 .get()
-                .map(|w| (w as &dyn BarWidget, TooltipSource::PollenBirch)),
+                .map(|w| (w as &dyn BarWidget, "pollen-birch")),
             self.grass
                 .get()
-                .map(|w| (w as &dyn BarWidget, TooltipSource::PollenGrass)),
+                .map(|w| (w as &dyn BarWidget, "pollen-grass")),
         ]
         .into_iter()
         .flatten()
-        .filter_map(|(widget, source)| {
+        .filter_map(|(widget, id)| {
             let reading = source_reading(config, Some(widget), reveal)?;
-            Some(hoverable(reading, source, WeatherMessage::Tooltip))
+            Some(hoverable(reading, id, WeatherMessage::Tooltip))
         });
 
         let content = Row::with_children(pills)

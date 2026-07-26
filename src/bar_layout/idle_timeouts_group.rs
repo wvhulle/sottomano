@@ -1,32 +1,35 @@
-//! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-timeout pills
-//! — lock, screen-off, standby, power-down. Each pill is an [`IdleTimer`] that
-//! owns its own state, update, and view; this group holds the four, addresses
-//! them by [`TimerKind`], and mediates the menu, persistence, and daemon
-//! rearming. State is loaded from and persisted to the sqlite store. Beside
-//! each pill sits a trigger button that runs that subsystem's action now
-//! instead of waiting for its timeout.
+//! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-subsystem
+//! controls — lock, screen-off, standby, power-down. Each is an [`IdleTimer`]
+//! that owns its timeout slider, its run-now button, and its action; this group
+//! holds the four as named fields, routes messages to them by [`TimerKind`], and
+//! owns the menu, the sqlite persistence, and the in-process daemon handle. Its
+//! `update` returns a [`Task`], so the bar delegates to it like any other group.
 
 use iced::{
-    Alignment, Color, Element,
-    widget::{Row, mouse_area, row},
+    Alignment, Element, Task,
+    widget::{Row, mouse_area},
 };
 
 use crate::{
     config::resolved::ResolvedConfig,
     data_sources::Tooltip,
     layer_surface::Position,
-    state::idle::Timeouts,
-    tooltip::{TooltipMessage, TooltipSource},
+    message_subscriptions::blocking,
+    state::{self, idle::Timeouts},
+    tooltip::TooltipMessage,
     widgets::{
         icon::Icon,
-        idle::timer::{IdleTimer, TimerChange},
+        idle::{
+            IdleAction, IdleHandle, perform,
+            timer::{IdleTimer, TimerChange, TimerMessage},
+        },
         menu_group::{MenuGroup, MenuMessage},
         slider_control::ControlMessage,
     },
 };
 
-/// Which subsystem a [`TimerMessage`] targets; also the index into the group's
-/// timer array (declaration order == pill order).
+/// Which subsystem an [`IdleTimeoutsMessage::Timer`] targets — the routing tag
+/// the group matches to the corresponding field. Declaration order == bar order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimerKind {
     LockUser,
@@ -42,143 +45,168 @@ impl TimerKind {
         Self::Standby,
         Self::PowerDown,
     ];
-
-    fn index(self) -> usize {
-        self as usize
-    }
-
-    /// Whether triggering this subsystem's action needs a two-step confirm: the
-    /// disruptive ones (suspend, power-off) do, so a single stray click can't
-    /// fire them. Lock and screen-off are harmless and stay single-click.
-    fn confirms(self) -> bool {
-        matches!(self, Self::Standby | Self::PowerDown)
-    }
 }
 
 pub struct IdleTimeoutsGroup {
-    timers: [IdleTimer; 4],
-    /// The confirm-gated subsystem whose trigger button is currently armed (one
-    /// at a time), waiting for the second click. Cleared on fire, timeout, menu
-    /// collapse, or any slider interaction.
-    armed: Option<TimerKind>,
+    lock: IdleTimer,
+    screen_off: IdleTimer,
+    standby: IdleTimer,
+    power_down: IdleTimer,
+    /// Handle to the in-process idle daemon, once it has connected to wayland.
+    handle: Option<IdleHandle>,
     pub(crate) menu: MenuGroup,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
     Menu(MenuMessage),
-    Timer(TimerKind, ControlMessage),
-    Trigger(TimerKind),
-    DisarmTrigger(TimerKind),
+    Timer(TimerKind, TimerMessage),
     Tooltip(TooltipMessage),
-}
-
-/// What the bar does after a message: nothing, rearm the daemon, persist the
-/// changed state and rearm, run a subsystem's action now, or arm a
-/// confirm-gated button (schedule its auto-disarm timeout).
-pub enum IdleChange {
-    None,
-    Rearm,
-    Persist { kind: TimerKind, value: f32 },
-    Act(TimerKind),
-    Arm(TimerKind),
 }
 
 impl IdleTimeoutsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
-            timers: [
-                IdleTimer::new(Icon::Lock, TooltipSource::IdleLockUser),
-                IdleTimer::new(Icon::Display, TooltipSource::IdleScreenOff),
-                IdleTimer::new(Icon::Bed, TooltipSource::IdleStandby),
-                IdleTimer::new(Icon::PowerOff, TooltipSource::IdlePowerDown),
-            ],
-            armed: None,
+            lock: IdleTimer::new(Icon::Lock, "idle-lock-user", IdleAction::Lock, false),
+            screen_off: IdleTimer::new(
+                Icon::Display,
+                "idle-screen-off",
+                IdleAction::ScreenOff,
+                false,
+            ),
+            standby: IdleTimer::new(Icon::Bed, "idle-standby", IdleAction::Suspend, true),
+            power_down: IdleTimer::new(
+                Icon::PowerOff,
+                "idle-power-down",
+                IdleAction::PowerOff,
+                true,
+            ),
+            handle: None,
             menu: MenuGroup::new(menu_expand_ms),
         }
     }
 
+    fn timer_mut(&mut self, kind: TimerKind) -> &mut IdleTimer {
+        match kind {
+            TimerKind::LockUser => &mut self.lock,
+            TimerKind::ScreenOff => &mut self.screen_off,
+            TimerKind::Standby => &mut self.standby,
+            TimerKind::PowerDown => &mut self.power_down,
+        }
+    }
+
+    fn entries(&self) -> [(TimerKind, &IdleTimer); 4] {
+        [
+            (TimerKind::LockUser, &self.lock),
+            (TimerKind::ScreenOff, &self.screen_off),
+            (TimerKind::Standby, &self.standby),
+            (TimerKind::PowerDown, &self.power_down),
+        ]
+    }
+
+    /// Adopt the daemon handle once the wayland subscription connects, and arm it
+    /// with the current timeouts.
+    pub fn connected(&mut self, handle: IdleHandle) -> Task<IdleTimeoutsMessage> {
+        self.handle = Some(handle);
+        self.rearm();
+        Task::none()
+    }
+
+    /// Close every control's slider and cancel any pending confirm.
     fn close_all(&mut self) {
-        self.armed = None;
-        for timer in &mut self.timers {
+        for kind in TimerKind::ALL {
+            let timer = self.timer_mut(kind);
+            timer.disarm();
             timer.close();
         }
     }
 
-    fn close_others(&mut self, kept: usize) {
-        for (index, timer) in self.timers.iter_mut().enumerate() {
-            if index != kept {
+    /// Close every *other* control (one slider open at a time) and cancel their
+    /// pending confirms.
+    fn close_others(&mut self, kept: TimerKind) {
+        for kind in TimerKind::ALL {
+            if kind != kept {
+                let timer = self.timer_mut(kind);
+                timer.disarm();
                 timer.close();
             }
         }
     }
 
-    pub fn update(&mut self, msg: IdleTimeoutsMessage) -> IdleChange {
+    pub fn update(&mut self, msg: IdleTimeoutsMessage) -> Task<IdleTimeoutsMessage> {
         match msg {
             IdleTimeoutsMessage::Loaded(timeouts) => {
-                self.timers[TimerKind::LockUser.index()].set_timeout(timeouts.lock_user);
-                self.timers[TimerKind::ScreenOff.index()].set_timeout(timeouts.screen_off);
-                self.timers[TimerKind::Standby.index()].set_timeout(timeouts.standby);
-                self.timers[TimerKind::PowerDown.index()].set_timeout(timeouts.power_down);
-                IdleChange::Rearm
+                self.lock.set_timeout(timeouts.lock_user);
+                self.screen_off.set_timeout(timeouts.screen_off);
+                self.standby.set_timeout(timeouts.standby);
+                self.power_down.set_timeout(timeouts.power_down);
+                self.rearm();
+                Task::none()
             }
-            // Collapsing the menu closes every pill's slider.
+            // Collapsing the menu closes every control's slider.
             IdleTimeoutsMessage::Menu(m) => {
                 if self.menu.update(m) {
                     self.close_all();
                 }
-                IdleChange::None
+                Task::none()
             }
-            IdleTimeoutsMessage::Timer(kind, msg) => match self.timers[kind.index()].update(msg) {
-                TimerChange::None => IdleChange::None,
-                // This pill just opened — close the others (one slider at a time)
-                // and cancel any pending confirm.
+            IdleTimeoutsMessage::Timer(kind, msg) => match self.timer_mut(kind).update(msg) {
+                TimerChange::None => Task::none(),
+                // This control just opened — close the others.
                 TimerChange::Opened => {
-                    self.armed = None;
-                    self.close_others(kind.index());
-                    IdleChange::None
+                    self.close_others(kind);
+                    Task::none()
                 }
-                TimerChange::Persist(value) => IdleChange::Persist { kind, value },
+                // A committed timeout rearms the daemon and persists; the save's
+                // result confirms the optimistic slider value (or rolls it back).
+                TimerChange::Persist(value) => {
+                    self.rearm();
+                    Task::future(state::idle::save(self.timeouts())).map(move |ok| {
+                        IdleTimeoutsMessage::Timer(
+                            kind,
+                            TimerMessage::Slider(ControlMessage::Confirmed { value, ok }),
+                        )
+                    })
+                }
+                // The run-now button confirmed — perform the action, the same one
+                // the daemon performs when this subsystem's timeout is reached.
+                TimerChange::Fire(action) => {
+                    self.close_others(kind);
+                    blocking("idle action", move || perform(action)).discard()
+                }
             },
-            // Single click fires the harmless subsystems; the disruptive ones
-            // arm on the first click and only fire on a second (confirm) click.
-            IdleTimeoutsMessage::Trigger(kind) => {
-                if !kind.confirms() {
-                    return IdleChange::Act(kind);
-                }
-                if self.armed == Some(kind) {
-                    self.armed = None;
-                    IdleChange::Act(kind)
-                } else {
-                    self.armed = Some(kind);
-                    IdleChange::Arm(kind)
-                }
-            }
-            IdleTimeoutsMessage::DisarmTrigger(kind) => {
-                if self.armed == Some(kind) {
-                    self.armed = None;
-                }
-                IdleChange::None
-            }
-            IdleTimeoutsMessage::Tooltip(_) => IdleChange::None,
+            IdleTimeoutsMessage::Tooltip(_) => Task::none(),
         }
     }
 
     pub fn timeouts(&self) -> Timeouts {
         Timeouts {
-            lock_user: self.timers[TimerKind::LockUser.index()].timeout(),
-            screen_off: self.timers[TimerKind::ScreenOff.index()].timeout(),
-            standby: self.timers[TimerKind::Standby.index()].timeout(),
-            power_down: self.timers[TimerKind::PowerDown.index()].timeout(),
+            lock_user: self.lock.timeout(),
+            screen_off: self.screen_off.timeout(),
+            standby: self.standby.timeout(),
+            power_down: self.power_down.timeout(),
         }
     }
 
-    pub fn tooltip_for(&self, source: TooltipSource) -> Option<Tooltip> {
-        self.timers
-            .iter()
-            .find(|timer| timer.source() == source)
-            .map(IdleTimer::tooltip)
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        self.entries()
+            .into_iter()
+            .find(|(_, timer)| timer.id() == id)
+            .map(|(_, timer)| timer.tooltip())
+    }
+
+    /// Push each control's arm (timeout + action) to the daemon, if connected.
+    fn rearm(&self) {
+        let Some(handle) = &self.handle else {
+            return;
+        };
+        let arms = self
+            .entries()
+            .into_iter()
+            .filter_map(|(_, timer)| timer.arm())
+            .collect();
+        handle.arm(arms);
     }
 
     pub fn view<'a>(
@@ -187,36 +215,14 @@ impl IdleTimeoutsGroup {
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
         let reveal = self.menu.reveal();
-        let faded = |color: Color| Color {
-            a: color.a * reveal,
-            ..color
-        };
-        let pills = TimerKind::ALL.map(|kind| {
-            let pill = self.timers[kind.index()]
-                .view(config, reveal)
-                .map(move |m| match m {
-                    ControlMessage::Tooltip(t) => IdleTimeoutsMessage::Tooltip(t),
-                    m => IdleTimeoutsMessage::Timer(kind, m),
-                });
-            // An armed confirm-gated button shows a warning glyph in the urgent
-            // colour; otherwise the plain play glyph in the focus colour.
-            let armed = self.armed == Some(kind);
-            let (glyph, color) = if armed {
-                (Icon::TriangleExclamation, config.palette.urgent)
-            } else {
-                (Icon::Play, config.palette.focus)
-            };
-            let trigger = mouse_area(
-                glyph
-                    .solid()
-                    .size(config.font.icon_size_px)
-                    .color(faded(color)),
-            )
-            .on_press(IdleTimeoutsMessage::Trigger(kind));
-            row![pill, trigger]
-                .spacing(config.layout.horizontal_widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
+        // A wide gap separates subsystems; each control hugs its own run-now
+        // button internally (see `IdleTimer::view`).
+        let group_gap = config.layout.horizontal_widget_spacing_px * 1.5;
+        let controls = self.entries().map(|(kind, timer)| {
+            timer.view(config, reveal).map(move |m| match m {
+                TimerMessage::Slider(ControlMessage::Tooltip(t)) => IdleTimeoutsMessage::Tooltip(t),
+                other => IdleTimeoutsMessage::Timer(kind, other),
+            })
         });
 
         let handle = mouse_area(
@@ -228,8 +234,8 @@ impl IdleTimeoutsGroup {
         .on_press(IdleTimeoutsMessage::Menu(MenuMessage::Toggle))
         .into();
 
-        let content = Row::with_children(pills)
-            .spacing(config.layout.horizontal_widget_spacing_px)
+        let content = Row::with_children(controls)
+            .spacing(group_gap)
             .align_y(Alignment::Center);
 
         self.menu.view(

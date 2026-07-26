@@ -1,7 +1,6 @@
 //! The `ext-idle-notify-v1` client, lifted from wvhulle/idle-manager. Arms one
-//! idle notification per [`Arm`] carrying its command; the compositor reports
-//! `Idled` per notification, which the daemon loop turns into a spawned
-//! command.
+//! idle notification per [`Arm`] carrying its action; the compositor reports
+//! `Idled` per notification, which the daemon loop performs.
 
 use std::{error::Error as StdError, fmt, io, mem::take};
 
@@ -14,7 +13,7 @@ use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
 };
 
-use crate::widgets::idle::Arm;
+use crate::widgets::idle::{Arm, IdleAction};
 
 #[derive(Debug)]
 pub enum WaylandError {
@@ -39,16 +38,16 @@ impl fmt::Display for WaylandError {
 
 impl StdError for WaylandError {}
 
-/// An armed notification reached its idle threshold: its command to spawn.
-#[derive(Debug, Clone)]
+/// An armed notification reached its idle threshold: the action to perform.
+#[derive(Debug, Clone, Copy)]
 pub enum SideEffect {
-    Idled(Vec<String>),
+    Idled(IdleAction),
 }
 
 pub struct DispatchState {
     notifier: ExtIdleNotifierV1,
     seats: Vec<WlSeat>,
-    notifications: Vec<(ExtIdleNotificationV1, Vec<String>)>,
+    notifications: Vec<(ExtIdleNotificationV1, IdleAction)>,
     effects: Vec<SideEffect>,
 }
 
@@ -91,7 +90,7 @@ pub async fn connect() -> Result<Wayland, WaylandError> {
 }
 
 /// Tear down all armed notifications and arm one per [`Arm`] on every seat,
-/// each carrying the command to spawn when it fires.
+/// each carrying the action to perform when it fires.
 pub fn rearm(w: &mut Wayland, arms: &[Arm]) {
     for (notif, _) in w.state.notifications.drain(..) {
         notif.destroy(&mut w.conn);
@@ -105,7 +104,7 @@ pub fn rearm(w: &mut Wayland, arms: &[Arm]) {
                 seat,
                 notification_cb,
             );
-            w.state.notifications.push((notif, arm.command.clone()));
+            w.state.notifications.push((notif, arm.action));
         }
     }
 }
@@ -126,11 +125,11 @@ fn notification_cb(
         ..
     }: EventCtx<DispatchState, ExtIdleNotificationV1>,
 ) {
-    let Some((_, command)) = state.notifications.iter().find(|(n, _)| *n == proxy) else {
+    let Some((_, action)) = state.notifications.iter().find(|(n, _)| *n == proxy) else {
         return;
     };
     if let ext_idle_notification_v1::Event::Idled = event {
-        state.effects.push(SideEffect::Idled(command.clone()));
+        state.effects.push(SideEffect::Idled(*action));
     }
 }
 

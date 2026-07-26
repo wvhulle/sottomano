@@ -9,9 +9,12 @@ use iced::{Alignment, Element, Subscription, Task, widget::Row};
 use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
-    data_sources::audio::{Audio, set_volume, toggle_mute},
+    data_sources::{
+        Tooltip,
+        audio::{Audio, set_volume, toggle_mute},
+    },
     message_subscriptions::blocking,
-    tooltip::{TooltipMessage, TooltipSource},
+    tooltip::TooltipMessage,
     widgets::slider_control::{Action, ControlMessage, SliderControl, View},
 };
 
@@ -118,12 +121,12 @@ impl AudioGroup {
         }
     }
 
-    pub fn sink_cell(&self) -> &SourceCell<Audio<false>> {
-        &self.sink
-    }
-
-    pub fn source_cell(&self) -> &SourceCell<Audio<true>> {
-        &self.source
+    pub fn tooltip_for(&self, id: &str) -> Option<Tooltip> {
+        match id {
+            "audio-sink" => self.sink.tooltip(),
+            "audio-source" => self.source.tooltip(),
+            _ => None,
+        }
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, AudioMessage>> {
@@ -133,7 +136,7 @@ impl AudioGroup {
             self.source_control
                 .view(
                     config,
-                    view_for(&display, value, TooltipSource::AudioSource, true),
+                    view_for(&display, value, "audio-source", true),
                 )
                 .map(tag(ControlKind::Source))
         });
@@ -143,7 +146,7 @@ impl AudioGroup {
             self.sink_control
                 .view(
                     config,
-                    view_for(&display, value, TooltipSource::AudioSink, false),
+                    view_for(&display, value, "audio-sink", false),
                 )
                 .map(tag(ControlKind::Sink))
         });
@@ -178,12 +181,12 @@ fn with_percent<const INPUT: bool>(audio: &Audio<INPUT>, value: f32) -> Audio<IN
     audio
 }
 
-fn view_for<const INPUT: bool>(
-    display: &Audio<INPUT>,
+fn view_for<'a, const INPUT: bool>(
+    display: &'a Audio<INPUT>,
     value: f32,
-    source: TooltipSource,
+    id: &'static str,
     right_click: bool,
-) -> View<'_> {
+) -> View<'a> {
     View {
         widget: display,
         value,
@@ -191,7 +194,7 @@ fn view_for<const INPUT: bool>(
         readout_width: 40.0,
         range: RANGE,
         step: 1.0,
-        source,
+        id: id.into(),
         right_click,
         alpha: 1.0,
     }

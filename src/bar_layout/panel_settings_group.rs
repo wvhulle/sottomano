@@ -14,7 +14,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Tooltip, TooltipBody, row},
     layer_surface::Position,
-    tooltip::{TooltipMessage, TooltipSource, hoverable},
+    tooltip::{TooltipMessage, hoverable},
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -24,7 +24,18 @@ use crate::{
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 
-pub fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
+/// Resolve the two config-derived tooltips this group emits. Free-standing (not
+/// a method) since the tooltips are pure functions of the config, which the
+/// application owns.
+pub fn tooltip_for(id: &str, config: &ResolvedConfig) -> Option<Tooltip> {
+    match id {
+        "floating" => Some(floating_tooltip(config)),
+        "float-offset" => Some(offset_tooltip(config)),
+        _ => None,
+    }
+}
+
+fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Floating",
@@ -39,7 +50,7 @@ pub fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
 }
 
 #[allow(clippy::cast_possible_truncation)]
-pub fn offset_tooltip(config: &ResolvedConfig) -> Tooltip {
+fn offset_tooltip(config: &ResolvedConfig) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Offset",
@@ -54,7 +65,7 @@ pub struct PanelSettingsGroup {
     offset: SliderControl,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
     Menu(MenuMessage),
     ToggleFloating,
@@ -122,7 +133,7 @@ impl PanelSettingsGroup {
                 mouse_area(icon)
                     .on_press(PanelSettingsMessage::ToggleFloating)
                     .into(),
-                TooltipSource::Floating,
+                "floating",
                 PanelSettingsMessage::Tooltip,
             )
         };
@@ -159,7 +170,7 @@ impl PanelSettingsGroup {
                     readout_width: 44.0,
                     range: OFFSET_RANGE,
                     step: 1.0,
-                    source: TooltipSource::FloatOffset,
+                    id: "float-offset".into(),
                     right_click: false,
                     alpha: 1.0,
                 },

@@ -7,6 +7,7 @@
 //! `Position`) rather than a shared render context.
 
 pub mod activity_line;
+pub mod confirm_button;
 pub mod icon;
 pub mod icon_gauge;
 pub mod idle;
