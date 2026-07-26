@@ -1,10 +1,12 @@
 # Home-manager module for vetrata, factored out of flake.nix to keep it
 # readable. The caller passes the flake-level `self` (for the default package).
 #
-# Unlike the Quickshell Odin, vetrata has no umbra theme registry and no
-# Quickshell wrapper: its config is a single static TOML file at
-# ~/.config/vetrata.toml, and it runs its own niri window tracker (Turso), so this
-# module neither imports umbra nor enables services.niri.windowTracker.
+# Unlike the Quickshell Odin, vetrata has no Quickshell wrapper and runs its own
+# niri window tracker (Turso), so it never enables services.niri.windowTracker.
+# It reads a single static TOML at ~/.config/vetrata.toml, resolved once at
+# startup (no hot reload). When `umbra.enable` is on (the default) it registers
+# with the umbra app registry for runtime dark/light palette switching — it does
+# NOT import the umbra module itself; the desktop layer supplies services.umbra.
 { self }:
 {
   config,
@@ -14,7 +16,31 @@
 }:
 let
   cfg = config.services.vetrata;
+  themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
+
+  # base16 slot -> vetrata palette token (names describe the UI role, not
+  # syntax). bar_background is left unset so it stays transparent (the flush
+  # bar); base16 has no alpha slot for it.
+  vetrataPalette = p: {
+    bar_foreground = p.base05; # default foreground
+    inactive = p.base04; # muted
+    urgent = p.base08; # red
+    warning = p.base0A; # yellow
+    focus = p.base0C; # aqua
+    dim = p.base03; # faint / comments
+  };
+
+  # One per-mode TOML file: the user's `settings` (layout/font/notifications) as
+  # the base, the theme-derived palette merged in. Any palette key the user set
+  # explicitly still wins over the derived one.
+  variantToml =
+    modePalette:
+    tomlFormat.generate "vetrata.toml" (
+      lib.recursiveUpdate cfg.settings {
+        palette = vetrataPalette modePalette // (cfg.settings.palette or { });
+      }
+    );
 
   # vetrata's niri layer-rules. The bar surface ("vetrata") wants square corners
   # and no drop shadow of its own; the two off-screen background-layer casters
@@ -100,6 +126,20 @@ in
       '';
     };
 
+    umbra.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Runtime dark/light palette switching via the umbra app registry.
+        Requires services.umbra (from umbra.homeModules) in the same
+        home-manager config: registers services.umbra.apps.vetrata with
+        dark/light palette variants derived from services.umbra.palettes.* and
+        restarts vetrata.service on mode switch. Set false for a standalone
+        install with no umbra — vetrata then falls back to the static
+        settings.palette written to ~/.config/vetrata.toml.
+      '';
+    };
+
     niri.gradientShadow = {
       softness = lib.mkOption {
         type = lib.types.ints.unsigned;
@@ -129,14 +169,39 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = lib.optionals cfg.umbra.enable [
+      {
+        assertion = themeCfg != null && themeCfg ? palettes;
+        message = ''
+          services.vetrata.umbra.enable requires services.umbra (provided by
+          umbra.homeModules.default/schema). Import it in the same home-manager
+          config, or set services.vetrata.umbra.enable = false.
+        '';
+      }
+    ];
+
     home.packages = [ cfg.package ];
 
     # vetrata reads ~/.config/vetrata.toml directly (HOME/.config, not
     # XDG_CONFIG_HOME); xdg.configFile lands there. Only write it when the user
     # set something, so an empty config keeps vetrata's built-in defaults rather
-    # than pinning an empty file.
-    xdg.configFile."vetrata.toml" = lib.mkIf (cfg.settings != { }) {
+    # than pinning an empty file. When umbra is on it owns this path at runtime
+    # (ln -sf between the dark-/light- variants it declares), so we must NOT
+    # also declare it here — the two would collide.
+    xdg.configFile."vetrata.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
       source = tomlFormat.generate "vetrata.toml" cfg.settings;
+    };
+
+    # Register with the umbra app registry: umbra writes the dark-/light-vetrata
+    # variant files and swaps ~/.config/vetrata.toml between them on mode switch.
+    # vetrata reads its config only at startup and has no IPC, so the swap must
+    # restart it — reload.restartUnits makes umbra do exactly that (a systemd
+    # path unit can't see the `ln -sf`, hence this rather than a path watch).
+    services.umbra.apps.vetrata = lib.mkIf cfg.umbra.enable {
+      target = "vetrata.toml";
+      dark.source = variantToml themeCfg.palettes.dark;
+      light.source = variantToml themeCfg.palettes.light;
+      reload.restartUnits = [ "vetrata.service" ];
     };
 
     # Contribute vetrata's niri layer-rules. niri merges multi-matching rules in
@@ -157,6 +222,35 @@ in
         RestartSec = 2;
       };
       Install.WantedBy = [ "graphical-session.target" ];
+    };
+
+    # Restart vetrata when its config file is edited in place. This complements
+    # umbra's reload.restartUnits (which handles the dark/light symlink swap):
+    # a path unit fires on writes to the file, not on `ln -sf`, so it covers
+    # direct edits of a real ~/.config/vetrata.toml. A path unit only *starts*
+    # its unit, and starting an already-running service is a no-op, so it
+    # triggers a oneshot that restarts instead.
+    systemd.user.paths.vetrata = lib.mkIf cfg.systemdUnit {
+      Unit = {
+        Description = "Watch vetrata config and restart the bar on change";
+        PartOf = [ "graphical-session.target" ];
+      };
+      Path = {
+        PathModified = "%h/.config/vetrata.toml";
+        Unit = "vetrata-reload.service";
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
+    };
+
+    systemd.user.services.vetrata-reload = lib.mkIf cfg.systemdUnit {
+      Unit = {
+        Description = "Restart vetrata after a config change";
+        PartOf = [ "graphical-session.target" ];
+      };
+      Service = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.systemd}/bin/systemctl --user restart vetrata.service";
+      };
     };
   };
 }

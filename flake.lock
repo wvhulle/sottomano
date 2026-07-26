@@ -477,11 +477,11 @@
         "stylix": "stylix"
       },
       "locked": {
-        "lastModified": 1783860051,
-        "narHash": "sha256-yraGMbrj2kHJJel/69YD2BwtpcZrp+wwLx1UiDp6iI4=",
+        "lastModified": 1785089622,
+        "narHash": "sha256-/BYrx8zQp+wzkRLTOLqd5WXwxY8O+tiIyhv7CQBuMu4=",
         "ref": "refs/heads/main",
-        "rev": "ab4e20746d219f917390af22185ee8a6382565d3",
-        "revCount": 4,
+        "rev": "be1786771d8e58913d4dd3f13c7d156fd4ff1a83",
+        "revCount": 5,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/umbra"
       },

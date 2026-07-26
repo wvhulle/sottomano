@@ -59,10 +59,13 @@
       src = craneLib.cleanCargoSource ./.;
 
       # System libs iced_layershell + wgpu / winit dlopen at run time.
-      # `autoAddDriverRunpath` is a setup hook: it patches the built binary's
-      # RUNPATH to include every library in `buildInputs`, so dlopen'd libs
-      # (vulkan-loader, libGL) resolve at run time without any LD_LIBRARY_PATH
-      # on the *installed* binary (`nix build .#vetrata` / `nix run`).
+      # `autoAddDriverRunpath` only adds the GPU *driver* runpath
+      # (/run/opengl-driver/lib) for the vulkan ICD — it does NOT patch the
+      # `buildInputs` store paths into RUNPATH. The dlopen'd client libs
+      # themselves (libwayland-client, libGL, libvulkan, libxkbcommon) are not
+      # DT_NEEDED, so they resolve only if on the loader path. The devShell sets
+      # LD_LIBRARY_PATH for that; the wrapped binary gets the same via
+      # wrapProgram below (otherwise `ConnectError(NoWaylandLib)` at startup).
       commonArgs = {
         inherit src;
         strictDeps = true;
@@ -105,17 +108,21 @@
       # clightd and wl-gammarelay are read over their D-Bus interfaces and the
       # idle daemon runs in-process, so their binaries aren't needed (their
       # daemons are the user's own config). umbra is the exception: the dark-mode
-      # widget shells out to its CLI, so its binary is bundled (below).
-      runtimeDeps = with pkgs; [
-        iproute2 # ip route/addr — throughput, wireguard
-        networkmanager # nmcli — ethernet, wifi, connectivity, vpn
-        modemmanager # mmcli — mobile broadband
-        bluez # bluetoothctl — bluetooth
-        wireplumber # wpctl — audio volume
-        wireguard-tools # wg — wireguard peer state
-        tailscale # tailscale status
-        xdg-utils # xdg-open — tailscale admin console
-      ];
+      # widget shells out to its CLI, so its binary is on PATH (appended below).
+      runtimeDeps =
+        (with pkgs; [
+          iproute2 # ip route/addr — throughput, wireguard
+          networkmanager # nmcli — ethernet, wifi, connectivity, vpn
+          modemmanager # mmcli — mobile broadband
+          bluez # bluetoothctl — bluetooth
+          wireplumber # wpctl — audio volume
+          wireguard-tools # wg — wireguard peer state
+          tailscale # tailscale status
+          xdg-utils # xdg-open — tailscale admin console
+        ])
+        ++ [
+          umbra.packages.${system}.default # umbra get/toggle — dark-mode widget
+        ];
 
       vetrata = craneLib.buildPackage (
         commonArgs
@@ -128,6 +135,7 @@
             wrapProgram $out/bin/vetrata \
               --prefix PATH : ${gsettingsRuntime.binPath} \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath commonArgs.buildInputs} \
               --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
               --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
           '';
@@ -143,6 +151,7 @@
     {
       packages.${system} = {
         default = vetrata;
+        vetrata = vetrata;
       };
 
       # niri-hm provides the services.niri option surface the module's
