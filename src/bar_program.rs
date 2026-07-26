@@ -31,6 +31,8 @@ use crate::{
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
         system_group::{SystemGroup, SystemMessage},
+        tray_group::{TrayGroup, TrayMessage},
+        tray_menu::TrayMenuHost,
         weather_group::{WeatherGroup, WeatherMessage},
         window_list_group::{WindowListGroup, WindowListMessage},
     },
@@ -70,6 +72,8 @@ pub struct Bar {
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
+    pub(crate) tray_group: TrayGroup,
+    pub(crate) tray_menu: TrayMenuHost,
     pub(crate) window_list: WindowListGroup,
     pub(crate) quick_launch: QuickLaunchGroup,
     /// In-memory launch-frequency model feeding quick-launch, persisted to disk
@@ -105,6 +109,7 @@ pub enum Message {
     Monitor(MonitorMessage),
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
+    Tray(TrayMessage),
     /// The in-process idle daemon connected to wayland.
     Idle(IdleEvent),
     /// Persisted panel settings finished loading from the sqlite store.
@@ -155,6 +160,8 @@ impl Bar {
             idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
             media_group: MediaGroup::new(config.layout.menu_expand_ms),
             audio_group: AudioGroup::default(),
+            tray_group: TrayGroup::new(config.layout.menu_expand_ms),
+            tray_menu: TrayMenuHost::default(),
             window_list: WindowListGroup::default(),
             quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
             launch_tracker: LaunchTracker::default(),
@@ -251,6 +258,30 @@ impl Bar {
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
             Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
+            Message::Tray(TrayMessage::OpenMenu(index)) => self.open_tray_menu(index),
+            Message::Tray(TrayMessage::MenuItemClicked(id)) => {
+                if let Some((address, menu_path)) = self.tray_menu.target() {
+                    self.tray_group.command(
+                        crate::data_sources::tray::TrayCommand::MenuClick {
+                            address,
+                            menu_path,
+                            id,
+                        },
+                    );
+                }
+                self.tray_menu.close()
+            }
+            Message::Tray(TrayMessage::ToggleSubmenu(id)) => {
+                self.tray_menu.toggle_submenu(id);
+                Task::none()
+            }
+            Message::Tray(TrayMessage::MenuResized { surface, size }) => {
+                self.tray_menu.resize(surface, size, &self.config)
+            }
+            Message::Tray(msg) => {
+                self.tray_group.update(msg);
+                Task::none()
+            }
             Message::IdleTimeouts(msg) => self
                 .idle_timeouts_group
                 .update(msg)
@@ -273,7 +304,7 @@ impl Bar {
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::DismissPressed => {
                 self.dismiss_menus();
-                Task::none()
+                self.tray_menu.close()
             }
             Message::WorkspaceClicked(workspace) => {
                 niri_action(move || niri::focus_workspace(workspace))
@@ -282,6 +313,7 @@ impl Bar {
             Message::WindowClosed(window) => {
                 self.surfaces.remove(&window);
                 self.tooltip.forget(window);
+                self.tray_menu.forget(window);
                 self.notifications.forget(window);
                 Task::none()
             }
@@ -350,6 +382,11 @@ impl Bar {
     /// tooltip is open. An unresolved or absent reading yields an empty
     /// tooltip.
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
+        // The tray carries its own content in the target (it is static, not a
+        // live reading), so it resolves here without a group lookup.
+        if let HoverTarget::Tray(tooltip) = target {
+            return (**tooltip).clone();
+        }
         self.system_group
             .tooltip_for(target)
             .or_else(|| self.battery_group.tooltip_for(target))
@@ -375,9 +412,37 @@ impl Bar {
         })
     }
 
-    /// The seven expandable groups' menus, in one place, for the cross-group
-    /// reads below.
-    fn menus(&self) -> [&MenuGroup; 8] {
+    /// Open the context menu for the tray item at visible-row `index`, anchored
+    /// under its icon. Re-clicking the same item closes it. The icon is hovered
+    /// when right-clicked, so its tooltip anchor gives the placement (no separate
+    /// bounds-tracking widget needed). A no-op for an item with no menu.
+    fn open_tray_menu(&mut self, index: usize) -> Task<Message> {
+        let (address, menu_path, nodes) = {
+            let visible = self.tray_group.visible(&self.config);
+            let Some(item) = visible.get(index) else {
+                return Task::none();
+            };
+            match (&item.menu_path, item.menu.is_empty()) {
+                (Some(path), false) => (item.address.clone(), path.clone(), item.menu.clone()),
+                _ => return Task::none(),
+            }
+        };
+        if self.tray_menu.is_open_for(&address) {
+            return self.tray_menu.close();
+        }
+        let Some(place) = self.tooltip.menu_anchor() else {
+            return Task::none();
+        };
+        Task::batch([
+            self.tooltip.close(),
+            self.tray_menu
+                .open(address, menu_path, nodes, &place, &self.config),
+        ])
+    }
+
+    /// The expandable groups' menus, in one place, for the cross-group reads
+    /// below.
+    fn menus(&self) -> [&MenuGroup; 9] {
         [
             &self.monitor_group.menu,
             &self.weather_group.menu,
@@ -387,6 +452,7 @@ impl Bar {
             &self.panel_settings_group.menu,
             &self.internet_group.menu,
             &self.quick_launch.menu,
+            &self.tray_group.menu,
         ]
     }
 
@@ -423,6 +489,7 @@ impl Bar {
         let _ = self
             .monitor_group
             .update(MonitorMessage::Menu(MenuMessage::Close));
+        self.tray_group.update(TrayMessage::Menu(MenuMessage::Close));
     }
 
     /// Apply a coalesced burst of niri events as one update: fold every event
@@ -464,6 +531,7 @@ impl Bar {
         // never takes keyboard focus, so opening a menu cannot self-trigger this.
         if focus_change {
             self.dismiss_menus();
+            tasks.push(self.tray_menu.close());
         }
         if window_change {
             let entries = self.desktop_entries.arc();
@@ -646,6 +714,9 @@ impl Bar {
                 self.tooltip.is_settled(window),
                 &self.config,
             );
+        }
+        if let Some(element) = self.tray_menu.view(window, &self.config) {
+            return element;
         }
         if let Some(element) = self.notifications.view(window, &self.config) {
             return element;

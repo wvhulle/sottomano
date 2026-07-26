@@ -25,7 +25,7 @@ use iced::{
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
-    font::Style as FontStyle,
+    font::{Style as FontStyle, Weight},
     widget::{Column, Sensor, container, row},
     window::Id,
 };
@@ -89,6 +89,11 @@ pub enum HoverTarget {
     PollenGrass,
     Location,
     Media,
+    /// A tray item, carrying its own static tooltip content (title +
+    /// description). Unlike the gauges, a tray tooltip does not change per frame,
+    /// so it rides in the target itself rather than being re-derived from a
+    /// reading.
+    Tray(Box<Tooltip>),
 }
 
 /// Gap between the bar edge and the tooltip (odin's `gap: 6`).
@@ -143,6 +148,9 @@ struct Shown {
     /// the output geometry is unknown — placement then falls back to
     /// `anchor.x`.
     output_width: Option<i32>,
+    /// The output the parent bar lives on, so a popup anchored to the same
+    /// hovered widget (the tray context menu) can bind to the same output.
+    output: String,
     /// Which screen edge the parent bar hugs, to rebuild the vertical margin
     /// when the surface settles.
     position: Position,
@@ -153,6 +161,16 @@ struct Shown {
     ///
     /// [`resize`]: TooltipHost::resize
     settled: bool,
+}
+
+/// Placement of a popup anchored to a hovered widget, reused by the tray context
+/// menu so it lands under the same icon the tooltip would.
+#[derive(Debug, Clone)]
+pub struct MenuAnchor {
+    pub anchor: Rectangle,
+    pub output: String,
+    pub output_width: Option<i32>,
+    pub position: Position,
 }
 
 /// The single active tooltip surface, if any. One at a time.
@@ -216,6 +234,7 @@ impl TooltipHost {
             size: None,
             anchor,
             output_width,
+            output: parent.output.clone(),
             position: parent.position,
             settled: false,
         });
@@ -306,6 +325,20 @@ impl TooltipHost {
     /// tick on whether a [`TooltipBody::Log`] is shown.
     pub fn target(&self) -> Option<&HoverTarget> {
         self.shown.as_ref().map(|shown| &shown.target)
+    }
+
+    /// Placement for a popup anchored to the currently-hovered tray item — its
+    /// icon bounds, output, and edge — reused by the tray context menu. `None`
+    /// unless a tray tooltip is open (right-clicking an icon means it is hovered,
+    /// so its tooltip is showing and carries the anchor).
+    pub fn menu_anchor(&self) -> Option<MenuAnchor> {
+        let shown = self.shown.as_ref()?;
+        matches!(shown.target, HoverTarget::Tray(_)).then(|| MenuAnchor {
+            anchor: shown.anchor,
+            output: shown.output.clone(),
+            output_width: shown.output_width,
+            position: shown.position,
+        })
     }
 
     /// Whether the tooltip on `surface` has been placed at its true width.
@@ -525,6 +558,76 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 }
 
+/// The tooltip body as a laid-out element. Table/Log render as two
+/// shrink-to-content columns side by side — odin's `TooltipRows` grid; both size
+/// to their widest cell, so the panel is exactly as wide as its content (no
+/// `Fill`, which would make it greedy and defeat the `Sensor` measurement). A
+/// Table shows dimmed key | value; a Log shows dimmed relative time |
+/// level-tinted message; Text renders as a bold title stacked over a dimmed body
+/// (a tray item's own tooltip). `paint` fades a Log's per-level colour with the
+/// rest before the surface settles.
+fn tooltip_grid<'a>(
+    body: &TooltipBody,
+    config: &ResolvedConfig,
+    foreground: Color,
+    dim: Color,
+    paint: f32,
+    now: SystemTime,
+) -> Element<'a, Message> {
+    let fade = |color: Color| Color {
+        a: color.a * paint,
+        ..color
+    };
+    match body {
+        TooltipBody::Table(rows) => row![
+            Column::with_children(
+                rows.iter()
+                    .map(|entry| bar_text(&config.font, entry.key.clone()).color(dim).into()),
+            )
+            .spacing(ROW_SPACING_PX),
+            Column::with_children(rows.iter().map(|entry| {
+                bar_text(&config.font, entry.value.clone())
+                    .color(foreground)
+                    .into()
+            }))
+            .spacing(ROW_SPACING_PX),
+        ]
+        .spacing(COLUMN_GAP_PX)
+        .into(),
+        TooltipBody::Log(entries) => row![
+            Column::with_children(entries.iter().map(|entry| {
+                bar_text(&config.font, relative(entry.at, now))
+                    .color(dim)
+                    .into()
+            }))
+            .spacing(ROW_SPACING_PX),
+            Column::with_children(entries.iter().map(|entry| {
+                bar_text(&config.font, entry.message.clone())
+                    .color(fade(level_color(config, entry.level)))
+                    .into()
+            }))
+            .spacing(ROW_SPACING_PX),
+        ]
+        .spacing(COLUMN_GAP_PX)
+        .into(),
+        TooltipBody::Text { title, body } => {
+            let bold = Font {
+                weight: Weight::Bold,
+                ..config.font.iced_font
+            };
+            let mut column = Column::new().spacing(ROW_SPACING_PX);
+            if !title.is_empty() {
+                column =
+                    column.push(bar_text(&config.font, title.clone()).font(bold).color(foreground));
+            }
+            if !body.is_empty() {
+                column = column.push(bar_text(&config.font, body.clone()).color(dim));
+            }
+            column.into()
+        }
+    }
+}
+
 fn panel<'a>(tooltip: &Tooltip, settled: bool, config: &ResolvedConfig) -> Element<'a, Message> {
     // Paint transparent on the one provisional frame before the surface has
     // settled at its true width: layout (and thus the `Sensor` measurement) is
@@ -542,39 +645,8 @@ fn panel<'a>(tooltip: &Tooltip, settled: bool, config: &ResolvedConfig) -> Eleme
         a: 0.7,
         ..config.palette.bar_foreground
     });
-    // Two shrink-to-content columns side by side — odin's `TooltipRows` grid.
-    // Both size to their widest cell, so the panel is exactly as wide as its
-    // content (no `Fill`, which would make it greedy and defeat the `Sensor`
-    // measurement). A Table shows dimmed key | value; a Log shows dimmed
-    // relative time | level-tinted message.
     let now = SystemTime::now();
-    let (left, right) = match &tooltip.body {
-        TooltipBody::Table(rows) => (
-            Column::with_children(
-                rows.iter()
-                    .map(|entry| bar_text(&config.font, entry.key.clone()).color(dim).into()),
-            ),
-            Column::with_children(rows.iter().map(|entry| {
-                bar_text(&config.font, entry.value.clone())
-                    .color(foreground)
-                    .into()
-            })),
-        ),
-        TooltipBody::Log(entries) => (
-            Column::with_children(entries.iter().map(|entry| {
-                bar_text(&config.font, relative(entry.at, now))
-                    .color(dim)
-                    .into()
-            })),
-            Column::with_children(entries.iter().map(|entry| {
-                bar_text(&config.font, entry.message.clone())
-                    .color(fade(level_color(config, entry.level)))
-                    .into()
-            })),
-        ),
-    };
-    let grid =
-        row![left.spacing(ROW_SPACING_PX), right.spacing(ROW_SPACING_PX)].spacing(COLUMN_GAP_PX);
+    let grid = tooltip_grid(&tooltip.body, config, foreground, dim, paint, now);
 
     // A dim footer below the grid, for polled sources: how stale the shown value
     // is and how often it refreshes, so a throttled source reads as intentional.
@@ -602,11 +674,11 @@ fn panel<'a>(tooltip: &Tooltip, settled: bool, config: &ResolvedConfig) -> Eleme
                 .color(dim),
             )
             .padding([2.0, 6.0]);
-            Column::with_children([grid.into(), footer.into()])
+            Column::with_children([grid, footer.into()])
                 .spacing(FOOTER_GAP_PX)
                 .into()
         }
-        None => Element::from(grid),
+        None => grid,
     };
 
     let background = Color {
@@ -654,7 +726,7 @@ pub(crate) fn relative(at: SystemTime, now: SystemTime) -> String {
 /// of being clamped narrow. `output_width` is `None` when the geometry is
 /// unknown, in which case the widget's `anchor_x` is used unchanged (today's
 /// behaviour, no regression). Never negative.
-fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32 {
+pub(crate) fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32 {
     let left = anchor_x as i32;
     let left = match output_width {
         Some(width) => left.min(width - panel_width as i32),
@@ -665,7 +737,7 @@ fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32
 
 /// The four-sided surface margin `(top, right, bottom, left)` placing the panel
 /// `left` px from the output's left edge and `bar + GAP_PX` off the bar edge.
-fn tooltip_margin(position: Position, left: i32, bar: i32) -> (i32, i32, i32, i32) {
+pub(crate) fn tooltip_margin(position: Position, left: i32, bar: i32) -> (i32, i32, i32, i32) {
     match position {
         Position::Top => (bar + GAP_PX, 0, 0, left),
         Position::Bottom => (0, 0, bar + GAP_PX, left),

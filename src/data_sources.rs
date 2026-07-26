@@ -39,6 +39,7 @@ pub mod sysfs_sensors;
 pub mod systemd_failed;
 pub mod tailscale;
 pub mod throughput;
+pub mod tray;
 pub mod umbra;
 pub mod weather;
 pub mod wireguard;
@@ -122,6 +123,10 @@ pub enum TooltipBody {
     /// A timestamped event list — odin's journal-widget tooltips (failed units,
     /// kernel errors).
     Log(Vec<LogEntry>),
+    /// Freeform prose: a title over a body paragraph, for widgets whose tooltip
+    /// is descriptive text rather than key/value rows (a tray item's own
+    /// `ToolTip`).
+    Text { title: String, body: String },
 }
 
 impl TooltipBody {
@@ -129,6 +134,7 @@ impl TooltipBody {
         match self {
             TooltipBody::Table(rows) => rows.is_empty(),
             TooltipBody::Log(entries) => entries.is_empty(),
+            TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),
         }
     }
 }

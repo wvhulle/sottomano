@@ -22,6 +22,9 @@ pub struct ResolvedConfig {
     /// Starts at 0 and is loaded from the sqlite state DB (`state::panel`) at
     /// startup, then mutated live by the panel-settings slider.
     pub float_offset_px: f32,
+    /// Lowercased SNI id substrings whose tray items are hidden (already
+    /// surfaced natively by the shell). See `disk::TrayConfig::deny_ids`.
+    pub tray_deny_ids: Vec<String>,
 }
 
 impl ResolvedConfig {
@@ -80,6 +83,12 @@ pub fn load() -> ResolvedConfig {
         notifications: user.notifications,
         // Overwritten by the persisted value once `state::panel` loads.
         float_offset_px: 0.0,
+        tray_deny_ids: user
+            .tray
+            .deny_ids
+            .iter()
+            .map(|id| id.to_lowercase())
+            .collect(),
     }
 }
 

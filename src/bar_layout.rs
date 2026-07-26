@@ -37,6 +37,8 @@ pub mod quick_launch_group;
 pub mod scroll;
 pub mod source_cell;
 pub mod system_group;
+pub mod tray_group;
+pub mod tray_menu;
 pub mod weather_group;
 pub mod window_list_group;
 pub mod workspaces_group;
@@ -163,8 +165,17 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
         .extend(window_list)
         .spacing(config.layout.horizontal_group_spacing_px)
         .align_y(Alignment::Center);
-    // No bottom-right groups ported yet (odin's tray / ai-usage / notifications).
-    let end = Element::from(Space::new());
+    // Bottom-right zone (odin: tray / ai-usage / notifications). Tray ported.
+    let end = bar
+        .tray_group
+        .view(config, position)
+        .map(|e| {
+            e.map(|m| match m {
+                tray_group::TrayMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Tray(m),
+            })
+        })
+        .unwrap_or_else(|| Space::new().into());
     bar_row(start, center.into(), end, config)
 }
 

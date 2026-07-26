@@ -33,6 +33,10 @@ sha2 = "0.10"
 # blocking reader runs off the executor from the sync source poll, like zbus's
 # blocking API below. Links libsystemd via pkg-config (wired in flake.nix).
 systemd = "0.10"
+# StatusNotifierItem tray host (the SNI host ironbar uses): registers the
+# watcher/host, decodes items + icons, and parses each item's dbusmenu into a
+# tree delivered through its event stream. Pure-Rust on the zbus already present.
+system-tray = "0.8"
 ttf-parser = "0.25"
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",

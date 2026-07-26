@@ -43,6 +43,27 @@ pub struct DiskConfig {
     pub layout: Layout,
     pub font: DiskFontConfig,
     pub notifications: NotificationConfig,
+    pub tray: TrayConfig,
+}
+
+/// System-tray settings. `deny_ids` hides tray items the shell already surfaces
+/// natively (network, bluetooth, media), so they aren't shown twice; each entry
+/// is a case-insensitive substring matched against the item's SNI id. Set it to
+/// an empty list to show every item.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct TrayConfig {
+    pub deny_ids: Vec<String>,
+}
+
+impl Default for TrayConfig {
+    fn default() -> Self {
+        Self {
+            deny_ids: ["nm-applet", "blueman", "spotify"]
+                .map(String::from)
+                .to_vec(),
+        }
+    }
 }
 
 /// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is

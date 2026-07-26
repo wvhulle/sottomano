@@ -5465,6 +5465,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "system-tray"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "138dae477eb80d0ca1b5c64cf942685ea1a7faa84fe7cec7b06aa1a3cc9026d9"
+dependencies = [
+ "cfg-if",
+ "futures-lite",
+ "serde",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+ "zbus",
+]
+
+[[package]]
 name = "systemd"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6478,6 +6493,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "system-tray",
  "systemd",
  "tokio",
  "tokio-stream",
