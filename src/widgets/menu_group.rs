@@ -23,10 +23,7 @@ use iced::{
 use crate::{
     config::resolved::ResolvedConfig,
     layer_surface::Position,
-    widgets::{
-        activity_line::activity_line, pager_slot::PagerSlot,
-        reveal::reveal_x,
-    },
+    widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 
 /// The interactions every expandable group shares. One variant per concrete
@@ -75,10 +72,11 @@ impl MenuGroup {
         self.expand.value()
     }
 
-    /// Whether the expand curve is still in flight — gates the app's frame-timer
-    /// subscription (see `Bar::any_menu_animating`). Under layer-shell a widget
-    /// cannot self-drive its redraws from a subscription-triggered state change,
-    /// so an app-level timer paints the frames while this is true.
+    /// Whether the expand curve is still in flight — gates the app's
+    /// frame-timer subscription (see `Bar::any_menu_animating`). Under
+    /// layer-shell a widget cannot self-drive its redraws from a
+    /// subscription-triggered state change, so an app-level timer paints
+    /// the frames while this is true.
     pub fn is_animating(&self) -> bool {
         self.expand.is_animating(Instant::now())
     }
@@ -91,14 +89,14 @@ impl MenuGroup {
         self.expand.interpolate(0.0, 1.0, Instant::now())
     }
 
-    /// Compose the group: `handle` (always shown) beside the revealed `content`,
-    /// in the shared pager slot with an edge hairline, wrapped in the hover
-    /// mouse-area (its enter/exit mapped through `to_message`). The handle owns
-    /// the toggle press, so the caller wires
+    /// Compose the group: `handle` (always shown) beside the revealed
+    /// `content`, in the shared pager slot with an edge hairline, wrapped
+    /// in the hover mouse-area (its enter/exit mapped through
+    /// `to_message`). The handle owns the toggle press, so the caller wires
     /// `.on_press(to_message(MenuMessage::Toggle))` onto it.
     ///
-    /// `reveal` is passed in so the caller can fade its own `content` colours by
-    /// the same factor it computed once via [`reveal`](Self::reveal).
+    /// `reveal` is passed in so the caller can fade its own `content` colours
+    /// by the same factor it computed once via [`reveal`](Self::reveal).
     pub fn view<'a, Message: 'a + Clone, F>(
         &self,
         config: &ResolvedConfig,
@@ -113,8 +111,8 @@ impl MenuGroup {
     {
         let inner = Row::with_children([handle, revealed_content(config, reveal, content)])
             .align_y(Alignment::Center);
-        let slot =
-            PagerSlot::new(inner.into(), edge_indicator(config, self.hovered, reveal)).view(position);
+        let slot = PagerSlot::new(inner.into(), edge_indicator(config, self.hovered, reveal))
+            .view(position);
         mouse_area(slot)
             .on_enter(to_message(MenuMessage::CursorEntered))
             .on_exit(to_message(MenuMessage::CursorExited))
@@ -123,7 +121,8 @@ impl MenuGroup {
 }
 
 /// The content row, gap-padded and horizontally scaled by `reveal` so the
-/// handle→content gap grows as the group unfolds (odin's `anim * (gap + content)`).
+/// handle→content gap grows as the group unfolds (odin's `anim * (gap +
+/// content)`).
 fn revealed_content<'a, Message: 'a>(
     config: &ResolvedConfig,
     reveal: f32,

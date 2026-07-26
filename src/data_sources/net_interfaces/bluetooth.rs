@@ -6,10 +6,8 @@ use std::time::Duration;
 
 use crate::{
     data_sources::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value,
-        command::output,
-        net_interfaces::signal_level,
-        row,
+        BarWidget, Level, Source, TooltipBody, Unit, Value, command::output,
+        net_interfaces::signal_level, row,
     },
     widgets::icon::Icon,
 };

@@ -93,7 +93,10 @@ impl DesktopEntries {
     /// directly (odin's `DesktopEntries.byId(id).execute()`). `None` when there
     /// is no entry or its `Exec` is missing/empty/malformed.
     pub fn exec_command(&self, app_id: &str) -> Option<Vec<String>> {
-        self.find(app_id)?.parse_exec().ok().filter(|c| !c.is_empty())
+        self.find(app_id)?
+            .parse_exec()
+            .ok()
+            .filter(|c| !c.is_empty())
     }
 
     /// Resolve an icon-theme name directly, bypassing the `.desktop`/app-id

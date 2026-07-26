@@ -1,7 +1,7 @@
-//! Active `WireGuard` tunnels via `wg show`. Each tunnel becomes a pill: a server
-//! (has a listen port) shows a connected-client badge; a client shows its
-//! handshake and transfer. odin adds a generic `NetworkManager` VPN shield for
-//! non-`WireGuard` VPNs — not ported here (`WireGuard` is the wired case).
+//! Active `WireGuard` tunnels via `wg show`. Each tunnel becomes a pill: a
+//! server (has a listen port) shows a connected-client badge; a client shows
+//! its handshake and transfer. odin adds a generic `NetworkManager` VPN shield
+//! for non-`WireGuard` VPNs — not ported here (`WireGuard` is the wired case).
 //!
 //! [`Wireguard`] is a list source (all tunnels in one poll); it renders through
 //! its [`tunnels`](Wireguard::tunnels), so its own [`BarWidget`] impl is inert.
@@ -34,7 +34,8 @@ struct Peer {
 
 impl Peer {
     fn connected(&self) -> bool {
-        self.handshake_ago.is_some_and(|ago| ago <= CONNECTED_WINDOW)
+        self.handshake_ago
+            .is_some_and(|ago| ago <= CONNECTED_WINDOW)
     }
 }
 
@@ -190,7 +191,11 @@ fn read_tunnel(iface: &str) -> Option<Tunnel> {
             let f: Vec<&str> = line.split('\t').collect();
             let handshake: u64 = f.get(4).and_then(|h| h.parse().ok()).unwrap_or(0);
             Peer {
-                endpoint: f.get(2).filter(|e| **e != "(none)").unwrap_or(&"").to_string(),
+                endpoint: f
+                    .get(2)
+                    .filter(|e| **e != "(none)")
+                    .unwrap_or(&"")
+                    .to_string(),
                 allowed_ips: f.get(3).unwrap_or(&"—").to_string(),
                 handshake_ago: (handshake > 0).then(|| now.saturating_sub(handshake)),
                 rx: f.get(5).and_then(|v| v.parse().ok()).unwrap_or(0),

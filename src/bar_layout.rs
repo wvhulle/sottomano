@@ -2,7 +2,6 @@
 
 use audio_group::AudioMessage;
 use battery_group::BatteryMessage;
-use brightness_group::BrightnessMessage;
 use iced::{
     Alignment, Element, Length,
     widget::{Row, Space, row},
@@ -11,6 +10,7 @@ use idle_timeouts_group::IdleTimeoutsMessage;
 use internet_group::InternetMessage;
 use journal_group::JournalMessage;
 use media_group::MediaMessage;
+use monitor_group::MonitorMessage;
 use net_interfaces_group::NetInterfacesMessage;
 use panel_settings_group::PanelSettingsMessage;
 use system_group::SystemMessage;
@@ -25,12 +25,12 @@ use crate::{
 
 pub mod audio_group;
 pub mod battery_group;
-pub mod brightness_group;
 pub mod clock_group;
 pub mod idle_timeouts_group;
 pub mod internet_group;
 pub mod journal_group;
 pub mod media_group;
+pub mod monitor_group;
 pub mod net_interfaces_group;
 pub mod panel_settings_group;
 pub mod quick_launch_group;
@@ -96,16 +96,20 @@ pub fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     );
     let end = zone(
         [
-            bar.brightness_group.view(config).map(|e| {
+            bar.monitor_group.view(config, position).map(|e| {
                 e.map(|m| match m {
-                    BrightnessMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Brightness(m),
+                    MonitorMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Monitor(m),
                 })
             }),
-            Some(bar.idle_timeouts_group.view(config, position).map(|m| match m {
-                IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::IdleTimeouts(m),
-            })),
+            Some(
+                bar.idle_timeouts_group
+                    .view(config, position)
+                    .map(|m| match m {
+                        IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
+                        m => Message::IdleTimeouts(m),
+                    }),
+            ),
             bar.media_group.view(config, position).map(|e| {
                 e.map(|m| match m {
                     MediaMessage::Tooltip(t) => Message::Tooltip(t),

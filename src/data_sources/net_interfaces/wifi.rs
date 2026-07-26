@@ -75,7 +75,13 @@ impl Source for Wifi {
     fn poll() -> Option<Self> {
         let status = output(
             "nmcli",
-            &["-t", "-f", "TYPE,DEVICE,STATE,CONNECTION", "device", "status"],
+            &[
+                "-t",
+                "-f",
+                "TYPE,DEVICE,STATE,CONNECTION",
+                "device",
+                "status",
+            ],
         )?;
         let device_line = status
             .lines()
@@ -96,8 +102,8 @@ impl Source for Wifi {
     }
 }
 
-/// The associated network's details on `device`, from `nmcli dev wifi list` (the
-/// active row) plus the device's IP config.
+/// The associated network's details on `device`, from `nmcli dev wifi list`
+/// (the active row) plus the device's IP config.
 fn active_connection(device: &str) -> Option<Connection> {
     let list = output(
         "nmcli",

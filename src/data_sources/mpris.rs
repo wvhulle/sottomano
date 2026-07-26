@@ -1,7 +1,7 @@
 //! Media playback via MPRIS2 over the session bus (odin's `MediaService`),
-//! signal-driven: a subscription watches `PropertiesChanged` on the mpris object
-//! path plus `NameOwnerChanged`, and re-reads the active player on each — so
-//! track/status/art updates land instantly instead of on a poll tick.
+//! signal-driven: a subscription watches `PropertiesChanged` on the mpris
+//! object path plus `NameOwnerChanged`, and re-reads the active player on each
+//! — so track/status/art updates land instantly instead of on a poll tick.
 
 use std::collections::HashMap;
 
@@ -16,9 +16,7 @@ use iced::{
 };
 use tokio::time::{Duration, sleep};
 use zbus::{
-    Connection, MatchRule, MessageStream, Proxy,
-    fdo::DBusProxy,
-    message::Type,
+    Connection, MatchRule, MessageStream, Proxy, fdo::DBusProxy, message::Type,
     zvariant::OwnedValue,
 };
 
@@ -68,7 +66,8 @@ pub struct Media {
 }
 
 impl Media {
-    /// `"Artist — Title"`, or whichever half is present, or the player identity.
+    /// `"Artist — Title"`, or whichever half is present, or the player
+    /// identity.
     pub fn label(&self) -> String {
         match (self.artist.is_empty(), self.title.is_empty()) {
             (false, false) => format!("{} — {}", self.artist, self.title),
@@ -165,9 +164,15 @@ async fn read_active(connection: &Connection, dbus: &DBusProxy<'_>) -> Option<Me
         artist: artist(&metadata),
         album: string(&metadata, "xesam:album").unwrap_or_default(),
         art_url: string(&metadata, "mpris:artUrl"),
-        can_next: property(connection, &bus, PLAYER, "CanGoNext").await.unwrap_or(false),
-        can_prev: property(connection, &bus, PLAYER, "CanGoPrevious").await.unwrap_or(false),
-        can_toggle: property(connection, &bus, PLAYER, "CanPause").await.unwrap_or(true),
+        can_next: property(connection, &bus, PLAYER, "CanGoNext")
+            .await
+            .unwrap_or(false),
+        can_prev: property(connection, &bus, PLAYER, "CanGoPrevious")
+            .await
+            .unwrap_or(false),
+        can_toggle: property(connection, &bus, PLAYER, "CanPause")
+            .await
+            .unwrap_or(true),
         status,
         identity,
         bus,
@@ -192,7 +197,11 @@ pub fn subscription() -> Subscription<Option<Media>> {
 async fn watch(output: &mut Sender<Option<Media>>) -> zbus::Result<()> {
     let connection = Connection::session().await?;
     let dbus = DBusProxy::new(&connection).await?;
-    if output.send(read_active(&connection, &dbus).await).await.is_err() {
+    if output
+        .send(read_active(&connection, &dbus).await)
+        .await
+        .is_err()
+    {
         return Ok(());
     }
 
@@ -220,7 +229,12 @@ async fn watch(output: &mut Sender<Option<Media>>) -> zbus::Result<()> {
     let mut events = select(properties, owners);
 
     while let Some(relevant) = events.next().await {
-        if relevant && output.send(read_active(&connection, &dbus).await).await.is_err() {
+        if relevant
+            && output
+                .send(read_active(&connection, &dbus).await)
+                .await
+                .is_err()
+        {
             break;
         }
     }
@@ -234,8 +248,8 @@ fn is_mpris_owner_change(message: Option<&zbus::Message>) -> bool {
         .is_some_and(|(name, _, _)| name.starts_with(PREFIX))
 }
 
-/// Run a no-argument control method (`Next`, `Previous`, `PlayPause`, `Stop`) on
-/// a player. Blocking one-shot, called off-thread.
+/// Run a no-argument control method (`Next`, `Previous`, `PlayPause`, `Stop`)
+/// on a player. Blocking one-shot, called off-thread.
 pub fn control(bus: &str, method: &str) {
     use zbus::blocking::{Connection, Proxy};
     let Ok(connection) = Connection::session() else {

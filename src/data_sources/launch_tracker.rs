@@ -1,8 +1,8 @@
 //! Native per-workspace launch-frequency tracking for quick-launch, replacing
 //! the external `niri-window-tracker` daemon.
 //!
-//! Driven by the niri event stream vetrata already owns: the first sighting of a
-//! new window counts as a launch of its `app_id` on the window's *named*
+//! Driven by the niri event stream vetrata already owns: the first sighting of
+//! a new window counts as a launch of its `app_id` on the window's *named*
 //! workspace, stamped with the time. The snapshot seeded at connect (windows
 //! already open) is never counted. Ranking is a recency-weighted frequency
 //! ("frecency") so recent use outranks long-ago-heavy use.
@@ -29,12 +29,13 @@ pub struct Record {
     pub last_used: DateTime<Utc>,
 }
 
-/// The model: `{ workspace_name: { app_id: record } }`. Also the shape the store
-/// loads into and reads from.
+/// The model: `{ workspace_name: { app_id: record } }`. Also the shape the
+/// store loads into and reads from.
 pub type Buckets = HashMap<String, HashMap<String, Record>>;
 
 /// A counted launch to persist: the new absolute count and time for one
-/// (workspace, app-id), so the store mirrors memory rather than re-incrementing.
+/// (workspace, app-id), so the store mirrors memory rather than
+/// re-incrementing.
 #[derive(Debug, Clone)]
 pub struct LaunchDelta {
     pub workspace: String,

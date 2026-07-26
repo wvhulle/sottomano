@@ -10,9 +10,7 @@ use serde_json::Value as Json;
 
 use crate::{
     data_sources::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value,
-        command::http_get,
-        geolocation::Geo,
+        BarWidget, Level, Source, TooltipBody, Unit, Value, command::http_get, geolocation::Geo,
         row,
     },
     widgets::icon::Icon,
@@ -63,7 +61,10 @@ impl BarWidget for Temperature {
     }
 
     fn label(&self) -> Option<String> {
-        Some(self.temp.map_or_else(|| "--°".to_string(), |t| format!("{t}°")))
+        Some(
+            self.temp
+                .map_or_else(|| "--°".to_string(), |t| format!("{t}°")),
+        )
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -115,7 +116,10 @@ impl Source for Temperature {
         else {
             return Some(unavailable);
         };
-        let (icon, conditions) = wmo(current.get("weather_code").and_then(Json::as_i64).unwrap_or(-1));
+        let (icon, conditions) = wmo(current
+            .get("weather_code")
+            .and_then(Json::as_i64)
+            .unwrap_or(-1));
         Some(Temperature {
             icon,
             conditions,
@@ -205,7 +209,8 @@ const SPECIES: [(&str, &str); 6] = [
     ("ragweed_pollen", "Ragweed"),
 ];
 
-/// Grass vs the other tree species (birch): different icon, thresholds, and cap.
+/// Grass vs the other tree species (birch): different icon, thresholds, and
+/// cap.
 #[derive(Debug, Clone)]
 pub struct Pollen<const GRASS: bool> {
     value: f64,
@@ -216,11 +221,19 @@ pub struct Pollen<const GRASS: bool> {
 impl<const GRASS: bool> Pollen<GRASS> {
     /// `[moderate, high, very-high]` grains/m³ thresholds.
     const fn thresholds() -> [f64; 3] {
-        if GRASS { [20.0, 50.0, 80.0] } else { [10.0, 45.0, 100.0] }
+        if GRASS {
+            [20.0, 50.0, 80.0]
+        } else {
+            [10.0, 45.0, 100.0]
+        }
     }
 
     fn key() -> &'static str {
-        if GRASS { "grass_pollen" } else { "birch_pollen" }
+        if GRASS {
+            "grass_pollen"
+        } else {
+            "birch_pollen"
+        }
     }
 }
 
@@ -268,7 +281,11 @@ impl<const GRASS: bool> BarWidget for Pollen<GRASS> {
 }
 
 impl<const GRASS: bool> Source for Pollen<GRASS> {
-    const NAME: &'static str = if GRASS { "pollen-grass" } else { "pollen-birch" };
+    const NAME: &'static str = if GRASS {
+        "pollen-grass"
+    } else {
+        "pollen-birch"
+    };
     const INTERVAL: Duration = Duration::from_secs(1800);
 
     fn poll() -> Option<Self> {
@@ -284,9 +301,17 @@ impl<const GRASS: bool> Source for Pollen<GRASS> {
             .cloned()?;
         let all: Vec<(&'static str, f64)> = SPECIES
             .iter()
-            .map(|(key, label)| (*label, current.get(*key).and_then(Json::as_f64).unwrap_or(0.0)))
+            .map(|(key, label)| {
+                (
+                    *label,
+                    current.get(*key).and_then(Json::as_f64).unwrap_or(0.0),
+                )
+            })
             .collect();
-        let value = current.get(Self::key()).and_then(Json::as_f64).unwrap_or(0.0);
+        let value = current
+            .get(Self::key())
+            .and_then(Json::as_f64)
+            .unwrap_or(0.0);
         // Hidden when this species is absent (odin drops it).
         if value <= 0.0 {
             return None;

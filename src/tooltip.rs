@@ -19,13 +19,13 @@ use std::{
 
 use iced::{
     Border, Color, Element, Event, Font, Length, Rectangle, Size, Task, Vector,
-    font::Style as FontStyle,
     advanced::{
         Clipboard, Layout, Shell, Widget,
         layout::{Limits, Node},
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
+    font::Style as FontStyle,
     widget::{Column, Sensor, container, row},
     window::Id,
 };
@@ -58,13 +58,20 @@ pub enum TooltipSource {
     FloatOffset,
     JournalSystem,
     JournalUser,
+    JournalKernel,
     Bluetooth,
     Ethernet,
     Wifi,
     Mobile,
     AudioSink,
     AudioSource,
-    Brightness,
+    /// One display's hardware backlight, by its index in the sorted display
+    /// list.
+    Backlight(u8),
+    GammaDim,
+    ColorTemperature,
+    ClightAuto,
+    DarkMode,
     IdleLockUser,
     IdleScreenOff,
     IdleStandby,
@@ -127,10 +134,12 @@ struct Shown {
     source: TooltipSource,
     /// Last surface size we requested, to ignore no-op resize reports.
     size: Option<(u32, u32)>,
-    /// The hovered widget's bounds; `anchor.x` positions the panel horizontally.
+    /// The hovered widget's bounds; `anchor.x` positions the panel
+    /// horizontally.
     anchor: Rectangle,
     /// The output's logical width, for right-edge placement math. `None` when
-    /// the output geometry is unknown — placement then falls back to `anchor.x`.
+    /// the output geometry is unknown — placement then falls back to
+    /// `anchor.x`.
     output_width: Option<i32>,
     /// Which screen edge the parent bar hugs, to rebuild the vertical margin
     /// when the surface settles.
@@ -290,9 +299,9 @@ impl TooltipHost {
     }
 
     /// Whether the tooltip on surface `id` has been placed at its true width.
-    /// Drives the panel's transparent-until-settled paint (see [`Shown::settled`]).
-    /// A surface that isn't the open tooltip reads as settled so it never paints
-    /// blank.
+    /// Drives the panel's transparent-until-settled paint (see
+    /// [`Shown::settled`]). A surface that isn't the open tooltip reads as
+    /// settled so it never paints blank.
     pub fn is_settled(&self, id: Id) -> bool {
         self.shown
             .as_ref()

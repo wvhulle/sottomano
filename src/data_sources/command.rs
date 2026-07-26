@@ -36,6 +36,9 @@ pub fn exists(program: &str) -> bool {
 /// the same way; there is no in-process HTTP client). `None` on failure or an
 /// empty body.
 pub fn http_get(url: &str, timeout_secs: u32) -> Option<String> {
-    output("curl", &["-s", "--max-time", &timeout_secs.to_string(), url])
-        .filter(|body| !body.trim().is_empty())
+    output(
+        "curl",
+        &["-s", "--max-time", &timeout_secs.to_string(), url],
+    )
+    .filter(|body| !body.trim().is_empty())
 }

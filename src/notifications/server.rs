@@ -100,15 +100,24 @@ impl NotificationServer {
     }
 
     #[zbus(signal)]
-    async fn notification_closed(emitter: &SignalEmitter<'_>, id: u32, reason: u32) -> zbus::Result<()>;
+    async fn notification_closed(
+        emitter: &SignalEmitter<'_>,
+        id: u32,
+        reason: u32,
+    ) -> zbus::Result<()>;
 
     #[zbus(signal)]
-    async fn action_invoked(emitter: &SignalEmitter<'_>, id: u32, action_key: &str) -> zbus::Result<()>;
+    async fn action_invoked(
+        emitter: &SignalEmitter<'_>,
+        id: u32,
+        action_key: &str,
+    ) -> zbus::Result<()>;
 }
 
-/// Claim the bus name (stealing it from a running Quickshell odin), register the
-/// object server, and spawn the outbound signal drainer. Returns once the name
-/// is claimed; the spawned task owns the connection for the app's lifetime.
+/// Claim the bus name (stealing it from a running Quickshell odin), register
+/// the object server, and spawn the outbound signal drainer. Returns once the
+/// name is claimed; the spawned task owns the connection for the app's
+/// lifetime.
 pub async fn serve(
     events: mpsc::Sender<ServerEvent>,
     mut outbound: mpsc::Receiver<Outbound>,
@@ -135,8 +144,8 @@ pub async fn serve(
         RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {}
         RequestNameReply::InQueue | RequestNameReply::Exists => {
             eprintln!(
-                "notifications: another daemon owns {NAME} and disallowed replacement; \
-                 toasts stay dormant until it exits"
+                "notifications: another daemon owns {NAME} and disallowed replacement; toasts \
+                 stay dormant until it exits"
             );
         }
     }
@@ -180,7 +189,10 @@ fn parse_actions(actions: &[String]) -> Vec<NotifAction> {
 }
 
 fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Urgency {
-    match hints.get("urgency").and_then(|v| v.downcast_ref::<u8>().ok()) {
+    match hints
+        .get("urgency")
+        .and_then(|v| v.downcast_ref::<u8>().ok())
+    {
         Some(0) => Urgency::Low,
         Some(2) => Urgency::Critical,
         _ => Urgency::Normal,
@@ -269,9 +281,5 @@ fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
             });
         }
     }
-    Some(image::Handle::from_rgba(
-        width as u32,
-        height as u32,
-        rgba,
-    ))
+    Some(image::Handle::from_rgba(width as u32, height as u32, rgba))
 }

@@ -12,11 +12,7 @@ use std::{fs, thread::sleep, time::Duration};
 use serde_json::Value as Json;
 
 use crate::{
-    data_sources::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value,
-        command::output,
-        row,
-    },
+    data_sources::{BarWidget, Level, Source, TooltipBody, Unit, Value, command::output, row},
     widgets::icon::Icon,
 };
 
@@ -154,7 +150,11 @@ impl<const UP: bool> BarWidget for Throughput<UP> {
 }
 
 impl<const UP: bool> Source for Throughput<UP> {
-    const NAME: &'static str = if UP { "throughput-up" } else { "throughput-down" };
+    const NAME: &'static str = if UP {
+        "throughput-up"
+    } else {
+        "throughput-down"
+    };
     const INTERVAL: Duration = Duration::from_secs(1);
 
     fn poll() -> Option<Self> {
@@ -191,7 +191,8 @@ impl<const UP: bool> Source for Throughput<UP> {
 /// The default-route egress interface via `ip route get` (a routing lookup, no
 /// packets). `None` when offline.
 fn egress_interface() -> Option<String> {
-    let json: Json = serde_json::from_str(&output("ip", &["-j", "route", "get", "1.1.1.1"])?).ok()?;
+    let json: Json =
+        serde_json::from_str(&output("ip", &["-j", "route", "get", "1.1.1.1"])?).ok()?;
     json.as_array()?
         .first()?
         .get("dev")?

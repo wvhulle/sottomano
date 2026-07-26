@@ -1,6 +1,6 @@
-//! One idle-timeout pill: a subsystem's icon, tooltip identity, current timeout,
-//! and an embedded [`SliderControl`] for the expand/scroll/drag interaction. The
-//! group holds four and addresses them by kind.
+//! One idle-timeout pill: a subsystem's icon, tooltip identity, current
+//! timeout, and an embedded [`SliderControl`] for the expand/scroll/drag
+//! interaction. The group holds four and addresses them by kind.
 
 use std::{ops::RangeInclusive, time::Duration};
 
@@ -70,7 +70,10 @@ impl IdleTimer {
 
     pub fn update(&mut self, msg: ControlMessage) -> TimerChange {
         let reading = position(self.timeout);
-        match self.control.update(msg, reading, &Self::range(), SCROLL_STEP) {
+        match self
+            .control
+            .update(msg, reading, &Self::range(), SCROLL_STEP)
+        {
             Action::Opened => TimerChange::Opened,
             Action::Commit(value) => {
                 self.timeout = from_position(value);

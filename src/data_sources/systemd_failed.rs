@@ -1,8 +1,8 @@
 //! Failed systemd units (system + user scope) as a bar indicator, ported from
 //! odin's `systemd-failed.nu`.
 //!
-//! Polled over D-Bus (`org.freedesktop.systemd1`) with `zbus`'s blocking API, so
-//! it fits the sync [`Source`] poll. The count is a badge; the tooltip is a
+//! Polled over D-Bus (`org.freedesktop.systemd1`) with `zbus`'s blocking API,
+//! so it fits the sync [`Source`] poll. The count is a badge; the tooltip is a
 //! timestamped [`Log`](crate::data_sources::TooltipBody::Log) of the failed
 //! units, newest first. Severity is horizon-gated: a unit only lights the bar
 //! (warning/critical) if it entered its failed state within [`HORIZON`], so
@@ -75,7 +75,9 @@ impl<const USER: bool> BarWidget for Failed<USER> {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.units.len()).ok().filter(|count| *count > 0)
+        u32::try_from(self.units.len())
+            .ok()
+            .filter(|count| *count > 0)
     }
 
     fn level(&self) -> Level {
@@ -136,9 +138,7 @@ fn poll_failed(user: bool) -> Option<Vec<FailedUnit>> {
         "org.freedesktop.systemd1.Manager",
     )
     .ok()?;
-    let rows: Vec<UnitRow> = manager
-        .call("ListUnitsFiltered", &(vec!["failed"],))
-        .ok()?;
+    let rows: Vec<UnitRow> = manager.call("ListUnitsFiltered", &(vec!["failed"],)).ok()?;
     if rows.is_empty() {
         return None;
     }
@@ -151,7 +151,12 @@ fn poll_failed(user: bool) -> Option<Vec<FailedUnit>> {
     )
 }
 
-fn failed_unit(connection: &Connection, row: UnitRow, uptime: Duration, now: SystemTime) -> FailedUnit {
+fn failed_unit(
+    connection: &Connection,
+    row: UnitRow,
+    uptime: Duration,
+    now: SystemTime,
+) -> FailedUnit {
     let name = row.0;
     let (result, status, changed_us) = details(connection, &row.6);
     // systemd's monotonic timestamp is µs since boot; age it against the current
@@ -171,30 +176,54 @@ fn failed_unit(connection: &Connection, row: UnitRow, uptime: Duration, now: Sys
 /// monotonic timestamp. Non-service units (mounts, timers) have no `Service`
 /// interface, so those default gracefully.
 fn details(connection: &Connection, path: &OwnedObjectPath) -> (String, i32, u64) {
-    let changed_us =
-        property(connection, path, "org.freedesktop.systemd1.Unit", "StateChangeTimestampMonotonic")
-            .unwrap_or(0);
-    let result = property(connection, path, "org.freedesktop.systemd1.Service", "Result")
-        .unwrap_or_else(|| "failed".to_string());
-    let status =
-        property(connection, path, "org.freedesktop.systemd1.Service", "ExecMainStatus").unwrap_or(0);
+    let changed_us = property(
+        connection,
+        path,
+        "org.freedesktop.systemd1.Unit",
+        "StateChangeTimestampMonotonic",
+    )
+    .unwrap_or(0);
+    let result = property(
+        connection,
+        path,
+        "org.freedesktop.systemd1.Service",
+        "Result",
+    )
+    .unwrap_or_else(|| "failed".to_string());
+    let status = property(
+        connection,
+        path,
+        "org.freedesktop.systemd1.Service",
+        "ExecMainStatus",
+    )
+    .unwrap_or(0);
     (result, status, changed_us)
 }
 
 /// One D-Bus property off an interface of a unit's object, or `None` if absent
 /// (the interface may not exist on this unit type, or the read may fail).
-fn property<T>(connection: &Connection, path: &OwnedObjectPath, interface: &str, name: &str) -> Option<T>
+fn property<T>(
+    connection: &Connection,
+    path: &OwnedObjectPath,
+    interface: &str,
+    name: &str,
+) -> Option<T>
 where
     T: TryFrom<zbus::zvariant::OwnedValue>,
     <T as TryFrom<zbus::zvariant::OwnedValue>>::Error: Into<zbus::Error>,
 {
-    Proxy::new(connection, "org.freedesktop.systemd1", path.as_ref(), interface)
-        .ok()
-        .and_then(|proxy| proxy.get_property(name).ok())
+    Proxy::new(
+        connection,
+        "org.freedesktop.systemd1",
+        path.as_ref(),
+        interface,
+    )
+    .ok()
+    .and_then(|proxy| proxy.get_property(name).ok())
 }
 
-/// systemd's terse `Result` enum (+ main exit status) as a plain-language phrase
-/// (odin's `describe-failure`).
+/// systemd's terse `Result` enum (+ main exit status) as a plain-language
+/// phrase (odin's `describe-failure`).
 fn describe_failure(result: &str, status: i32) -> String {
     match result {
         "exit-code" => format!("exited with code {status}"),
@@ -209,7 +238,8 @@ fn describe_failure(result: &str, status: i32) -> String {
     }
 }
 
-/// Seconds since boot from `/proc/uptime` — systemd's monotonic clock reference.
+/// Seconds since boot from `/proc/uptime` — systemd's monotonic clock
+/// reference.
 fn uptime() -> Option<Duration> {
     let content = std::fs::read_to_string("/proc/uptime").ok()?;
     let secs: f64 = content.split_whitespace().next()?.parse().ok()?;

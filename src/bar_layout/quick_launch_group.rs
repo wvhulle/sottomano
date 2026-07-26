@@ -72,17 +72,17 @@ impl QuickLaunchGroup {
 
     /// Adopt the shared `.desktop` index and re-resolve icons for the current
     /// ranked set against it.
-    pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<QuickLaunchMessage> {
+    pub fn set_desktop_entries(
+        &mut self,
+        entries: Arc<DesktopEntries>,
+    ) -> Task<QuickLaunchMessage> {
         self.desktop_entries = Some(entries);
         self.resolve_icons()
     }
 
     /// Adopt freshly ranked candidates (per output) and resolve any icons they
     /// need that are not yet cached.
-    pub fn set_ranked(
-        &mut self,
-        ranked: HashMap<String, Vec<String>>,
-    ) -> Task<QuickLaunchMessage> {
+    pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) -> Task<QuickLaunchMessage> {
         self.ranked = ranked;
         self.resolve_icons()
     }
@@ -104,7 +104,8 @@ impl QuickLaunchGroup {
     /// `niri msg action spawn`. Spawning via the compositor lands the window in
     /// niri's scope and avoids forking a new process from vetrata's own
     /// GPU-heavy address space (slow, and it would make the app a child of the
-    /// bar). Fire-and-forget — the launched window arrives back as a niri event.
+    /// bar). Fire-and-forget — the launched window arrives back as a niri
+    /// event.
     fn launch(&self, app_id: String) -> Task<QuickLaunchMessage> {
         let command = self
             .desktop_entries
@@ -197,8 +198,8 @@ impl QuickLaunchGroup {
 }
 
 /// An icon file as a sized, faded widget. Themed icons ship scalable SVGs while
-/// hicolor app icons are raster; iced decodes them through different widgets, so
-/// the extension picks the path (as in the window list).
+/// hicolor app icons are raster; iced decodes them through different widgets,
+/// so the extension picks the path (as in the window list).
 fn icon_image<'a>(path: &PathBuf, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {
     let is_svg = path
         .extension()

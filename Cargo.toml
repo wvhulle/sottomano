@@ -29,6 +29,10 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+# libsystemd binding for reading the journal (kernel-errors indicator). Its
+# blocking reader runs off the executor from the sync source poll, like zbus's
+# blocking API below. Links libsystemd via pkg-config (wired in flake.nix).
+systemd = "0.10"
 ttf-parser = "0.25"
 tokio = { version = "1.53.0", features = [
   "rt-multi-thread",

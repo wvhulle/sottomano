@@ -6,6 +6,36 @@ use std::{collections::HashMap, path::PathBuf};
 use color::DynamicColor;
 use serde::Deserialize;
 
+use crate::data_sources::niri::{HEdge, VEdge};
+
+/// A screen corner, for the notification fallback position. Deserialized
+/// directly from the TOML string (`bottom-right`, `top-left`, …); an
+/// unrecognized value fails the whole parse, so the config falls back to
+/// defaults rather than silently placing toasts in the wrong corner.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Corner {
+    TopLeft,
+    TopCenter,
+    TopRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+}
+
+impl Corner {
+    pub fn edges(self) -> (VEdge, HEdge) {
+        match self {
+            Self::TopLeft => (VEdge::Top, HEdge::Left),
+            Self::TopCenter => (VEdge::Top, HEdge::Center),
+            Self::TopRight => (VEdge::Top, HEdge::Right),
+            Self::BottomLeft => (VEdge::Bottom, HEdge::Left),
+            Self::BottomCenter => (VEdge::Bottom, HEdge::Center),
+            Self::BottomRight => (VEdge::Bottom, HEdge::Right),
+        }
+    }
+}
+
 #[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct DiskConfig {
@@ -16,23 +46,28 @@ pub struct DiskConfig {
     pub idle: IdleConfig,
 }
 
-/// Per-subsystem command run when an idle timeout fires, keyed by subsystem name
-/// (`lock-user`, `screen-off`, `standby`, `power-down`). Split on whitespace.
+/// Per-subsystem command run when an idle timeout fires, keyed by subsystem
+/// name (`lock-user`, `screen-off`, `standby`, `power-down`). Split on
+/// whitespace.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct IdleConfig {
     pub bindings: HashMap<String, String>,
 }
 
-/// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is no
-/// timeout: a toast is dismissed by an event (user action or its target window
-/// closing), never by a clock.
+/// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is
+/// no timeout: a toast is dismissed by an event (user action or its target
+/// window closing), never by a clock.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct NotificationConfig {
-    /// Fallback corner `<top|bottom>-<left|center|right>`, used only when a
-    /// notification has no producer window to point at.
-    pub fallback_position: String,
+    /// When true (default), a toast is drawn near the screen edge of the window
+    /// that produced it. When false, every toast is drawn in
+    /// `fallback_position` regardless of its producer window.
+    pub point_at_source: bool,
+    /// Fallback corner, used when a notification has no producer window to
+    /// point at, or when `point_at_source` is false.
+    pub fallback_position: Corner,
     /// Extra gap from the panel edge, on top of the bar-height inset.
     pub edge_gap: f32,
     pub card_width: f32,
@@ -48,7 +83,8 @@ pub struct NotificationConfig {
 impl Default for NotificationConfig {
     fn default() -> Self {
         Self {
-            fallback_position: "bottom-right".to_owned(),
+            point_at_source: true,
+            fallback_position: Corner::BottomRight,
             edge_gap: 8.0,
             card_width: 380.0,
             app_icon_size: 40.0,
@@ -156,7 +192,7 @@ impl Default for Layout {
             corner_radius_px: 8,
             vertical_padding_px: 3.0,
             horizontal_group_padding_px: 5.0,
-            horizontal_widget_spacing_px: 3.0,
+            horizontal_widget_spacing_px: 5.0,
             horizontal_group_spacing_px: 16.0,
             floating: true,
             blur: true,

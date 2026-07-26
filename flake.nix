@@ -17,6 +17,16 @@
       url = "git+https://codeberg.org/wvhulle/niri-hm";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # umbra: the dark/light-mode CLI the brightness group shells out to
+    # (`umbra get` / `umbra toggle`). Only the binary is needed — vetrata does
+    # not register with the services.umbra theme registry — so it goes on PATH
+    # via runtimeDeps, like situo's CLI in odin. clight / clightd / wl-gammarelay
+    # are D-Bus daemons read over their session/system interfaces (the user's own
+    # config), so they are not bundled here.
+    umbra = {
+      url = "git+https://codeberg.org/wvhulle/umbra";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -26,6 +36,7 @@
       crane,
       rust-overlay,
       niri-hm,
+      umbra,
     }:
     let
       system = "x86_64-linux";
@@ -64,6 +75,9 @@
           libxkbcommon
           libGL
           vulkan-loader
+          # libsystemd, for the `systemd` crate's journal reader (kernel-errors
+          # widget). Linked, not dlopen'd, so no RUNPATH/runtimeDeps entry.
+          systemd
         ];
       };
 
@@ -87,9 +101,11 @@
       # Standard system CLIs the bar's data sources shell out to at run time.
       # Put on the wrapped binary's PATH and into the dev shell, so both
       # `nix run` and `nix develop -c cargo run` resolve them regardless of the
-      # ambient session. (The wvhulle daemons are not here: situo is read over
-      # its session D-Bus interface and the idle daemon is run in-process, so
-      # neither binary is needed — their daemons are the user's own config.)
+      # ambient session. The wvhulle *daemons* are not here — situo, clight,
+      # clightd and wl-gammarelay are read over their D-Bus interfaces and the
+      # idle daemon runs in-process, so their binaries aren't needed (their
+      # daemons are the user's own config). umbra is the exception: the dark-mode
+      # widget shells out to its CLI, so its binary is bundled (below).
       runtimeDeps = with pkgs; [
         iproute2 # ip route/addr — throughput, wireguard
         networkmanager # nmcli — ethernet, wifi, connectivity, vpn
@@ -97,7 +113,6 @@
         bluez # bluetoothctl — bluetooth
         wireplumber # wpctl — audio volume
         wireguard-tools # wg — wireguard peer state
-        brightnessctl # backlight write-back
         tailscale # tailscale status
         xdg-utils # xdg-open — tailscale admin console
       ];

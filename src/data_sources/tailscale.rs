@@ -85,7 +85,8 @@ impl Source for Tailscale {
     const INTERVAL: Duration = Duration::from_secs(10);
 
     fn poll() -> Option<Self> {
-        let status: Json = serde_json::from_str(&output("tailscale", &["status", "--json"])?).ok()?;
+        let status: Json =
+            serde_json::from_str(&output("tailscale", &["status", "--json"])?).ok()?;
         let running = status.get("BackendState").and_then(Json::as_str) == Some("Running");
         if !running {
             return Some(Tailscale {

@@ -1,10 +1,10 @@
-//! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-timeout pills —
-//! lock, screen-off, standby, power-down. Each pill is an [`IdleTimer`] that
+//! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-timeout pills
+//! — lock, screen-off, standby, power-down. Each pill is an [`IdleTimer`] that
 //! owns its own state, update, and view; this group holds the four, addresses
 //! them by [`TimerKind`], and mediates the menu, persistence, and daemon
-//! rearming. State is loaded from and persisted to the sqlite store. Beside each
-//! pill sits a trigger button that runs that subsystem's action now instead of
-//! waiting for its timeout.
+//! rearming. State is loaded from and persisted to the sqlite store. Beside
+//! each pill sits a trigger button that runs that subsystem's action now
+//! instead of waiting for its timeout.
 
 use iced::{
     Alignment, Color, Element,

@@ -39,11 +39,15 @@ pub fn placement_for(
     placement: &Placement,
     config: &ResolvedConfig,
 ) -> ToastPlacement {
-    let id = resolve_window_id(data, placement)
+    let id = config
+        .notifications
+        .point_at_source
+        .then(|| resolve_window_id(data, placement))
+        .flatten()
         .filter(|&id| placement.workspace_of_window(id).is_some());
 
     let Some(id) = id else {
-        let (vertical, horizontal) = config.notifications.position;
+        let (vertical, horizontal) = config.notifications.fallback_position.edges();
         return ToastPlacement {
             output: fallback_output(placement),
             vertical,

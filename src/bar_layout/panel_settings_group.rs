@@ -1,7 +1,7 @@
-//! odin's `PanelSettings`: session-only layout knobs. The sliders handle unfolds
-//! a floating toggle plus (when floating) an expandable float-offset slider — a
-//! [`SliderControl`] like the idle/audio pills. The config-mutating side lives
-//! in the application, which owns the config and the open surfaces.
+//! odin's `PanelSettings`: session-only layout knobs. The sliders handle
+//! unfolds a floating toggle plus (when floating) an expandable float-offset
+//! slider — a [`SliderControl`] like the idle/audio pills. The config-mutating
+//! side lives in the application, which owns the config and the open surfaces.
 
 use std::ops::RangeInclusive;
 
@@ -114,9 +114,14 @@ impl PanelSettingsGroup {
         let floating = config.layout.floating;
         let floating_toggle = {
             let color = foreground.scale_alpha(if floating { 1.0 } else { 0.4 });
-            let icon = Icon::Compress.solid().size(config.font.icon_size_px).color(color);
+            let icon = Icon::Compress
+                .solid()
+                .size(config.font.icon_size_px)
+                .color(color);
             hoverable(
-                mouse_area(icon).on_press(PanelSettingsMessage::ToggleFloating).into(),
+                mouse_area(icon)
+                    .on_press(PanelSettingsMessage::ToggleFloating)
+                    .into(),
                 TooltipSource::Floating,
                 PanelSettingsMessage::Tooltip,
             )
@@ -166,7 +171,8 @@ impl PanelSettingsGroup {
     }
 }
 
-/// A bare icon as a `BarWidget` (no gauge or label) — the offset's closed state.
+/// A bare icon as a `BarWidget` (no gauge or label) — the offset's closed
+/// state.
 struct IconOnly {
     icon: Icon,
 }

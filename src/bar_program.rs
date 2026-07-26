@@ -22,12 +22,12 @@ use crate::{
         self,
         audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
-        brightness_group::{BrightnessGroup, BrightnessMessage},
         clock_group::{ClockGroup, ClockMessage},
         idle_timeouts_group::{IdleChange, IdleTimeoutsGroup, IdleTimeoutsMessage, TimerKind},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
         media_group::{MediaGroup, MediaMessage},
+        monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
@@ -67,7 +67,7 @@ pub struct Bar {
     pub(crate) journal_group: JournalGroup,
     pub(crate) internet_group: InternetGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
-    pub(crate) brightness_group: BrightnessGroup,
+    pub(crate) monitor_group: MonitorGroup,
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
@@ -87,8 +87,8 @@ pub struct Bar {
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationGroup,
-    /// The shared `.desktop` index (app metadata + icon resolution), consumed by
-    /// both the window list and the notification cards.
+    /// The shared `.desktop` index (app metadata + icon resolution), consumed
+    /// by both the window list and the notification cards.
     pub(crate) desktop_entries: DesktopIndex,
     /// Handle to the in-process idle daemon, once it has connected to wayland.
     pub(crate) idle_handle: Option<IdleHandle>,
@@ -105,7 +105,7 @@ pub enum Message {
     Journal(JournalMessage),
     Internet(InternetMessage),
     NetInterfaces(NetInterfacesMessage),
-    Brightness(BrightnessMessage),
+    Monitor(MonitorMessage),
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     /// The in-process idle daemon connected to wayland.
@@ -124,10 +124,14 @@ pub enum Message {
     Niri(Vec<niri_ipc::Event>),
     /// A periodic repaint while a menu animates (from the frame-timer
     /// subscription gated on [`Bar::any_menu_animating`]); its handler does
-    /// nothing but trigger a redraw, and `MenuGroup::reveal` re-samples the eased
-    /// curve at the current instant.
+    /// nothing but trigger a redraw, and `MenuGroup::reveal` re-samples the
+    /// eased curve at the current instant.
     Redraw,
     WindowClosed(Id),
+    /// The pointer left a surface — closes any open tooltip that no `HoverArea`
+    /// exit reached (the cursor left the bar without entering another
+    /// hoverable).
+    PointerLeft,
     /// 1 Hz tick, live only while a Log tooltip is shown, to advance its
     /// relative timestamps.
     TooltipTick,
@@ -150,7 +154,7 @@ impl Bar {
             journal_group: JournalGroup::default(),
             internet_group: InternetGroup::new(config.layout.menu_expand_ms),
             net_interfaces_group: NetInterfacesGroup::default(),
-            brightness_group: BrightnessGroup::default(),
+            monitor_group: MonitorGroup::new(config.layout.menu_expand_ms),
             idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
             media_group: MediaGroup::new(config.layout.menu_expand_ms),
             audio_group: AudioGroup::default(),
@@ -249,36 +253,30 @@ impl Bar {
                 Task::none()
             }
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
-            Message::Brightness(msg) => {
-                self.brightness_group.update(msg).map(Message::Brightness)
-            }
+            Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
             Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
-            Message::IdleTimeouts(msg) => {
-                match self.idle_timeouts_group.update(msg) {
-                    IdleChange::None => Task::none(),
-                    IdleChange::Rearm => {
-                        self.rearm_idle();
-                        Task::none()
-                    }
-                    IdleChange::Persist { kind, value } => {
-                        self.rearm_idle();
-                        let timeouts = self.idle_timeouts_group.timeouts();
-                        Task::future(state::idle::save(timeouts)).map(move |ok| {
-                            Message::IdleTimeouts(IdleTimeoutsMessage::Timer(
-                                kind,
-                                ControlMessage::Confirmed { value, ok },
-                            ))
-                        })
-                    }
-                    IdleChange::Act(kind) => self.trigger_idle_action(kind),
-                    IdleChange::Arm(kind) => Task::perform(
-                        async { tokio::time::sleep(Duration::from_secs(3)).await },
-                        move |()| {
-                            Message::IdleTimeouts(IdleTimeoutsMessage::DisarmTrigger(kind))
-                        },
-                    ),
+            Message::IdleTimeouts(msg) => match self.idle_timeouts_group.update(msg) {
+                IdleChange::None => Task::none(),
+                IdleChange::Rearm => {
+                    self.rearm_idle();
+                    Task::none()
                 }
-            }
+                IdleChange::Persist { kind, value } => {
+                    self.rearm_idle();
+                    let timeouts = self.idle_timeouts_group.timeouts();
+                    Task::future(state::idle::save(timeouts)).map(move |ok| {
+                        Message::IdleTimeouts(IdleTimeoutsMessage::Timer(
+                            kind,
+                            ControlMessage::Confirmed { value, ok },
+                        ))
+                    })
+                }
+                IdleChange::Act(kind) => self.trigger_idle_action(kind),
+                IdleChange::Arm(kind) => Task::perform(
+                    async { tokio::time::sleep(Duration::from_secs(3)).await },
+                    move |()| Message::IdleTimeouts(IdleTimeoutsMessage::DisarmTrigger(kind)),
+                ),
+            },
             Message::Idle(IdleEvent::Connected(handle)) => {
                 self.idle_handle = Some(handle);
                 self.rearm_idle();
@@ -321,6 +319,10 @@ impl Bar {
                 self.tooltip
                     .update(msg, &self.surfaces, &self.outputs, &self.config)
             }
+            // The pointer left a surface without crossing another hoverable (e.g.
+            // straight off the bar edge), so no `HoverArea` fired its exit; close
+            // any open tooltip so it can't strand.
+            Message::PointerLeft => self.tooltip.close(),
             Message::Notification(msg) => {
                 let placement = niri::Placement::derive(&self.niri);
                 self.notifications.update(
@@ -380,13 +382,19 @@ impl Bar {
             TooltipSource::FloatOffset => Some(panel_settings_group::offset_tooltip(&self.config)),
             TooltipSource::JournalSystem => self.journal_group.system_cell().tooltip(),
             TooltipSource::JournalUser => self.journal_group.user_cell().tooltip(),
+            TooltipSource::JournalKernel => self.journal_group.kernel_cell().tooltip(),
             TooltipSource::Bluetooth => self.net_interfaces_group.bluetooth_cell().tooltip(),
             TooltipSource::Ethernet => self.net_interfaces_group.ethernet_cell().tooltip(),
             TooltipSource::Wifi => self.net_interfaces_group.wifi_cell().tooltip(),
             TooltipSource::Mobile => self.net_interfaces_group.mobile_cell().tooltip(),
             TooltipSource::AudioSink => self.audio_group.sink_cell().tooltip(),
             TooltipSource::AudioSource => self.audio_group.source_cell().tooltip(),
-            TooltipSource::Brightness => self.brightness_group.cell().tooltip(),
+            TooltipSource::Backlight(index) => self.monitor_group.backlight_tooltip(index as usize),
+            TooltipSource::GammaDim | TooltipSource::ColorTemperature => {
+                self.monitor_group.gamma_cell().tooltip()
+            }
+            TooltipSource::ClightAuto => self.monitor_group.clight_cell().tooltip(),
+            TooltipSource::DarkMode => self.monitor_group.umbra_cell().tooltip(),
             TooltipSource::IdleLockUser
             | TooltipSource::IdleScreenOff
             | TooltipSource::IdleStandby
@@ -419,8 +427,9 @@ impl Bar {
 
     /// The seven expandable groups' menus, in one place, for the cross-group
     /// reads below.
-    fn menus(&self) -> [&MenuGroup; 7] {
+    fn menus(&self) -> [&MenuGroup; 8] {
         [
+            &self.monitor_group.menu,
             &self.weather_group.menu,
             &self.system_group.menu,
             &self.media_group.menu,
@@ -432,16 +441,16 @@ impl Bar {
     }
 
     /// Whether any group's expand curve is in flight — gates the frame-timer
-    /// subscription that paints menu animations. Under layer-shell a widget can't
-    /// self-drive redraws from a subscription-triggered state change, so this
-    /// app-level signal drives the frames instead.
+    /// subscription that paints menu animations. Under layer-shell a widget
+    /// can't self-drive redraws from a subscription-triggered state change,
+    /// so this app-level signal drives the frames instead.
     pub fn any_menu_animating(&self) -> bool {
         self.menus().iter().any(|menu| menu.is_animating())
     }
 
     /// Collapse every open expandable group. Close-tasks are discarded —
-    /// closing only mutates menu state (and, for idle/panel-settings, tears down
-    /// a child slider); none needs a follow-up Task.
+    /// closing only mutates menu state (and, for idle/panel-settings, tears
+    /// down a child slider); none needs a follow-up Task.
     fn dismiss_menus(&mut self) {
         self.panel_settings_group
             .update(PanelSettingsMessage::Menu(MenuMessage::Close));
@@ -458,7 +467,12 @@ impl Bar {
             .update(InternetMessage::Menu(MenuMessage::Close));
         self.weather_group
             .update(WeatherMessage::Menu(MenuMessage::Close));
-        let _ = self.media_group.update(MediaMessage::Menu(MenuMessage::Close));
+        let _ = self
+            .media_group
+            .update(MediaMessage::Menu(MenuMessage::Close));
+        let _ = self
+            .monitor_group
+            .update(MonitorMessage::Menu(MenuMessage::Close));
     }
 
     /// Apply a coalesced burst of niri events as one update: fold every event
@@ -529,8 +543,9 @@ impl Bar {
     /// Re-rank quick-launch for every open output from the in-memory tracker:
     /// for each distinct output (a top and bottom surface share one), rank its
     /// active workspace's candidates against the currently-open set, gated to
-    /// launchable apps. Cheap and synchronous; only the icon resolve it triggers
-    /// runs off-thread. A no-op until the `.desktop` index has loaded.
+    /// launchable apps. Cheap and synchronous; only the icon resolve it
+    /// triggers runs off-thread. A no-op until the `.desktop` index has
+    /// loaded.
     fn refresh_quick_launch(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
@@ -558,7 +573,9 @@ impl Bar {
                 (!apps.is_empty()).then_some((output, apps))
             })
             .collect();
-        self.quick_launch.set_ranked(ranked).map(Message::QuickLaunch)
+        self.quick_launch
+            .set_ranked(ranked)
+            .map(Message::QuickLaunch)
     }
 
     /// The config-mutating knobs are intercepted here rather than handled in
@@ -664,7 +681,12 @@ impl Bar {
         )
     }
 
-    fn open_surface(&mut self, output: &str, position: Position, kind: SurfaceKind) -> Task<Message> {
+    fn open_surface(
+        &mut self,
+        output: &str,
+        position: Position,
+        kind: SurfaceKind,
+    ) -> Task<Message> {
         let height = self.config.layout.outer_height_px as u32;
         let settings = match kind {
             SurfaceKind::Bar => {
@@ -782,4 +804,3 @@ impl Bar {
 fn query_outputs() -> Task<Message> {
     blocking("niri outputs", niri::output_geometry).map(Message::OutputsResolved)
 }
-

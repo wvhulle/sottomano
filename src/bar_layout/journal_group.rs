@@ -1,20 +1,14 @@
-//! odin's `Journal`: failed systemd units (system + user scope) as a flat row of
-//! count-badge indicators, each hidden while its count is zero — a healthy
-//! system shows nothing. Hovering an indicator opens its timestamped
-//! [`Log`](crate::data_sources::TooltipBody::Log) tooltip.
-//!
-//! Kernel errors (odin's third indicator) are not ported yet — they need a
-//! journal reader (`/dev/kmsg` is root-only here).
+//! odin's `Journal`: failed systemd units (system + user scope) and recent
+//! kernel errors as a flat row of count-badge indicators, each hidden while its
+//! count is zero — a healthy system shows nothing. Hovering an indicator opens
+//! its timestamped [`Log`](crate::data_sources::TooltipBody::Log) tooltip.
 
-use iced::{
-    Alignment, Element, Subscription,
-    widget::Row,
-};
+use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
     bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, systemd_failed::Failed},
+    data_sources::{BarWidget, kernel_errors::KernelErrors, systemd_failed::Failed},
     tooltip::{TooltipMessage, TooltipSource, hoverable},
     widgets::icon_gauge::source_reading,
 };
@@ -23,12 +17,14 @@ use crate::{
 pub struct JournalGroup {
     system: SourceCell<Failed<false>>,
     user: SourceCell<Failed<true>>,
+    kernel: SourceCell<KernelErrors>,
 }
 
 #[derive(Debug, Clone)]
 pub enum JournalMessage {
     System(Option<Failed<false>>),
     User(Option<Failed<true>>),
+    Kernel(Option<KernelErrors>),
     Tooltip(TooltipMessage),
 }
 
@@ -37,6 +33,7 @@ impl JournalGroup {
         Subscription::batch([
             SourceCell::subscription().map(JournalMessage::System),
             SourceCell::subscription().map(JournalMessage::User),
+            SourceCell::subscription().map(JournalMessage::Kernel),
         ])
     }
 
@@ -44,6 +41,7 @@ impl JournalGroup {
         match msg {
             JournalMessage::System(reading) => self.system.load(reading),
             JournalMessage::User(reading) => self.user.load(reading),
+            JournalMessage::Kernel(reading) => self.kernel.load(reading),
             JournalMessage::Tooltip(_) => {}
         }
     }
@@ -54,6 +52,10 @@ impl JournalGroup {
 
     pub fn user_cell(&self) -> &SourceCell<Failed<true>> {
         &self.user
+    }
+
+    pub fn kernel_cell(&self) -> &SourceCell<KernelErrors> {
+        &self.kernel
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, JournalMessage>> {
@@ -67,6 +69,11 @@ impl JournalGroup {
                 config,
                 self.user.get().map(|w| w as &dyn BarWidget),
                 TooltipSource::JournalUser,
+            ),
+            indicator(
+                config,
+                self.kernel.get().map(|w| w as &dyn BarWidget),
+                TooltipSource::JournalKernel,
             ),
         ]
         .into_iter()

@@ -80,7 +80,8 @@ async fn try_save(timeouts: Timeouts) -> Result<(), BoxError> {
     conn.execute(
         "INSERT INTO idle_timeouts (id, lock_user, screen_off, standby, power_down)
          VALUES (0, ?1, ?2, ?3, ?4)
-         ON CONFLICT(id) DO UPDATE SET lock_user = ?1, screen_off = ?2, standby = ?3, power_down = ?4",
+         ON CONFLICT(id) DO UPDATE SET lock_user = ?1, screen_off = ?2, standby = ?3, power_down = \
+         ?4",
         (
             secs(timeouts.lock_user),
             secs(timeouts.screen_off),

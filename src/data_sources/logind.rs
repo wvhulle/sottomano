@@ -6,8 +6,10 @@
 //!
 //! [`mpris::control`]: crate::data_sources::mpris::control
 
-use zbus::blocking::{Connection, Proxy};
-use zbus::zvariant::DynamicType;
+use zbus::{
+    blocking::{Connection, Proxy},
+    zvariant::DynamicType,
+};
 
 const DEST: &str = "org.freedesktop.login1";
 const PATH: &str = "/org/freedesktop/login1";
@@ -30,8 +32,9 @@ pub fn power_off() {
     call("PowerOff", &(true,));
 }
 
-/// Lock the caller's session (equivalent to `loginctl lock-session`). Only takes
-/// visible effect if a lock handler is listening for logind's `Lock` signal.
+/// Lock the caller's session (equivalent to `loginctl lock-session`). Only
+/// takes visible effect if a lock handler is listening for logind's `Lock`
+/// signal.
 pub fn lock() {
     let Ok(session) = std::env::var("XDG_SESSION_ID") else {
         return;

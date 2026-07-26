@@ -16,32 +16,34 @@ pub struct Tracked {
     /// Optimistic display value (the handle), overriding the reading until
     /// reconciled.
     pending: Option<f32>,
-    /// Between drag start and release: freezes incoming readings so a stray poll
-    /// can't yank the thumb.
+    /// Between drag start and release: freezes incoming readings so a stray
+    /// poll can't yank the thumb.
     dragging: bool,
-    /// The value last confirmed written — drawn as the ghost, and the baseline a
-    /// redundant write is dropped against.
+    /// The value last confirmed written — drawn as the ghost, and the baseline
+    /// a redundant write is dropped against.
     acked: f32,
-    /// A write is in flight; the next target waits for its confirmation. This is
-    /// the whole coalescing gate — there is no time throttle.
+    /// A write is in flight; the next target waits for its confirmation. This
+    /// is the whole coalescing gate — there is no time throttle.
     in_flight: bool,
 }
 
 impl Tracked {
-    /// What to display: the optimistic handle while interacting, else `reading`.
+    /// What to display: the optimistic handle while interacting, else
+    /// `reading`.
     pub fn value(&self, reading: f32) -> f32 {
         self.pending.unwrap_or(reading)
     }
 
-    /// The ghost marker — the last confirmed value — shown only while the user is
-    /// interacting (there is nothing to trail when the handle sits on the reading).
+    /// The ghost marker — the last confirmed value — shown only while the user
+    /// is interacting (there is nothing to trail when the handle sits on
+    /// the reading).
     pub fn ghost(&self) -> Option<f32> {
         self.pending.map(|_| self.acked)
     }
 
-    /// Reconcile with an authoritative reading (poll / load). Ignored mid-drag so
-    /// a stray poll can't yank the thumb; otherwise trust the reading and adopt it
-    /// as both the display and the confirmed baseline.
+    /// Reconcile with an authoritative reading (poll / load). Ignored mid-drag
+    /// so a stray poll can't yank the thumb; otherwise trust the reading
+    /// and adopt it as both the display and the confirmed baseline.
     pub fn sync(&mut self, reading: f32) {
         if self.dragging {
             return;
@@ -64,15 +66,16 @@ impl Tracked {
         self.issue(target)
     }
 
-    /// End the drag; re-issue the resting value so the final position still lands
-    /// if the gate was closed when the last delta arrived.
+    /// End the drag; re-issue the resting value so the final position still
+    /// lands if the gate was closed when the last delta arrived.
     pub fn end_drag(&mut self) -> Option<Write> {
         self.dragging = false;
         self.pending.and_then(|pos| self.issue(pos))
     }
 
-    /// Record a write's outcome. On success advance the ghost; then, if the finger
-    /// has moved on, issue the next (coalesced to the latest position) write.
+    /// Record a write's outcome. On success advance the ghost; then, if the
+    /// finger has moved on, issue the next (coalesced to the latest
+    /// position) write.
     // Exact `f32` comparison is intentional: `pending` and `acked` are quantized
     // slider positions, bit-identical when they name the same target.
     #[allow(clippy::float_cmp)]
@@ -87,8 +90,8 @@ impl Tracked {
         }
     }
 
-    /// The gate: emit a write for `pos` unless one is already in flight or `pos`
-    /// is already the confirmed value.
+    /// The gate: emit a write for `pos` unless one is already in flight or
+    /// `pos` is already the confirmed value.
     // Exact `f32` comparison is intentional (see `confirmed`).
     #[allow(clippy::float_cmp)]
     fn issue(&mut self, pos: f32) -> Option<Write> {

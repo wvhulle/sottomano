@@ -44,8 +44,9 @@ pub struct WsPill {
 
 /// The bar-facing derivation of [`EventStreamState`]: workspaces grouped and
 /// sorted per output, windows grouped and sorted per workspace. Recomputed once
-/// per coalesced niri-event burst (see `Bar::apply_niri_events`), so `view` reads
-/// borrowed slices instead of re-collecting and re-cloning on every redraw.
+/// per coalesced niri-event burst (see `Bar::apply_niri_events`), so `view`
+/// reads borrowed slices instead of re-collecting and re-cloning on every
+/// redraw.
 #[derive(Default)]
 pub struct Snapshot {
     workspaces: HashMap<String, Vec<WsPill>>,
@@ -276,7 +277,10 @@ impl Placement {
                 let active_ws = output
                     .as_ref()
                     .and_then(|o| active_ws_by_output.get(o).copied());
-                let vertical = vertical_edge(ws_idx.get(&ws).copied(), active_ws.and_then(|a| ws_idx.get(&a).copied()));
+                let vertical = vertical_edge(
+                    ws_idx.get(&ws).copied(),
+                    active_ws.and_then(|a| ws_idx.get(&a).copied()),
+                );
                 // Left/right only for a window on its output's visible (active)
                 // workspace; a background workspace points via the vertical axis
                 // alone.
@@ -288,7 +292,14 @@ impl Placement {
                 } else {
                     HEdge::Center
                 };
-                (id, WindowEdge { vertical, horizontal, output })
+                (
+                    id,
+                    WindowEdge {
+                        vertical,
+                        horizontal,
+                        output,
+                    },
+                )
             })
             .collect();
 
@@ -326,9 +337,7 @@ impl Placement {
     /// The workspace to move a window "here" to: the one the focused window is
     /// on (odin's `workspaceByWindowId[focusedWindowId]`).
     pub fn active_workspace_for_move(&self) -> Option<u64> {
-        self.workspace_by_window
-            .get(&self.focused_window?)
-            .copied()
+        self.workspace_by_window.get(&self.focused_window?).copied()
     }
 }
 
@@ -356,8 +365,8 @@ fn horizontal_edge(window_col: Option<usize>, ws_focused_col: Option<usize>) -> 
 /// treated the same as absence. Ports odin's `NiriService.windowIdBySource`.
 impl Placement {
     /// The window a source matches: a unique live window whose app-id is one of
-    /// `app_ids`, else a unique one whose title contains `title`. `None` on zero
-    /// or ambiguous matches. Used to resolve a notification with no
+    /// `app_ids`, else a unique one whose title contains `title`. `None` on
+    /// zero or ambiguous matches. Used to resolve a notification with no
     /// `x-niri-window-id` hint back to its producer window.
     pub fn window_by_source(&self, app_ids: &[String], title: Option<&str>) -> Option<u64> {
         let app_id_needles: Vec<String> = app_ids
@@ -385,7 +394,8 @@ impl Placement {
     }
 }
 
-/// The single element of an iterator, or `None` if it has zero or more than one.
+/// The single element of an iterator, or `None` if it has zero or more than
+/// one.
 fn unique<T>(iter: &mut impl Iterator<Item = T>) -> Option<T> {
     let first = iter.next()?;
     match iter.next() {
@@ -463,16 +473,17 @@ pub fn spawn(command: Vec<String>) {
 /// The logical pixel size of one output.
 #[derive(Debug, Clone, Copy)]
 pub struct OutputGeometry {
-    /// Logical width, used to place hover tooltips against the right screen edge
-    /// (see `tooltip::panel_left`).
+    /// Logical width, used to place hover tooltips against the right screen
+    /// edge (see `tooltip::panel_left`).
     pub width: i32,
     pub height: i32,
 }
 
-/// The logical size of each connected output, by name, from a one-shot `Outputs`
-/// query. The niri event stream carries no output sizes, but placing a surface
-/// against the screen (e.g. centring a notification stack) needs them. Empty on
-/// any failure (the caller then falls back to edge-anchored placement).
+/// The logical size of each connected output, by name, from a one-shot
+/// `Outputs` query. The niri event stream carries no output sizes, but placing
+/// a surface against the screen (e.g. centring a notification stack) needs
+/// them. Empty on any failure (the caller then falls back to edge-anchored
+/// placement).
 pub fn output_geometry() -> HashMap<String, OutputGeometry> {
     let Ok(reply) = Socket::connect().and_then(|mut socket| socket.send(Request::Outputs)) else {
         return HashMap::new();

@@ -80,7 +80,13 @@ impl Source for Ethernet {
     fn poll() -> Option<Self> {
         let status = output(
             "nmcli",
-            &["-t", "-f", "TYPE,DEVICE,STATE,CONNECTION", "device", "status"],
+            &[
+                "-t",
+                "-f",
+                "TYPE,DEVICE,STATE,CONNECTION",
+                "device",
+                "status",
+            ],
         )?;
         let mut devices = Vec::new();
         for line in status.lines() {

@@ -1,10 +1,11 @@
-//! In-process idle-timeout daemon, absorbed from wvhulle/idle-manager so vetrata
-//! owns idle management (state in sqlite, arming here) rather than shelling out.
+//! In-process idle-timeout daemon, absorbed from wvhulle/idle-manager so
+//! vetrata owns idle management (state in sqlite, arming here) rather than
+//! shelling out.
 //!
-//! A background subscription holds the wayland connection ([`wayland`]); the bar
-//! pushes an [`Arm`] list (timeout + command) whenever the persisted timeouts
-//! change. Each armed notification fires independently; on idle its command is
-//! spawned.
+//! A background subscription holds the wayland connection ([`wayland`]); the
+//! bar pushes an [`Arm`] list (timeout + command) whenever the persisted
+//! timeouts change. Each armed notification fires independently; on idle its
+//! command is spawned.
 
 pub mod timer;
 pub mod wayland;

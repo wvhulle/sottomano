@@ -18,7 +18,9 @@ use crate::{
     data_sources::BarWidget,
     tooltip::{TooltipMessage, TooltipSource, hoverable},
     widgets::{
-        icon_gauge::source_reading, inline_slider::inline_slider, text::bar_text,
+        icon_gauge::source_reading,
+        inline_slider::inline_slider,
+        text::bar_text,
         tracked::{Tracked, Write},
     },
 };
@@ -38,7 +40,10 @@ pub enum ControlMessage {
     Release,
     /// A committed write returned: `value` is what was written, `ok` whether it
     /// succeeded. Drives the ghost forward and may release the next write.
-    Confirmed { value: f32, ok: bool },
+    Confirmed {
+        value: f32,
+        ok: bool,
+    },
     Right,
     Tooltip(TooltipMessage),
 }
@@ -87,7 +92,11 @@ impl SliderControl {
         match msg {
             ControlMessage::Press => {
                 self.open = !self.open;
-                if self.open { Action::Opened } else { Action::None }
+                if self.open {
+                    Action::Opened
+                } else {
+                    Action::None
+                }
             }
             ControlMessage::Scroll(delta) => {
                 let Some(step) = scroll_step(&mut self.accum, delta) else {
@@ -100,19 +109,13 @@ impl SliderControl {
             }
             ControlMessage::Set(pos) => into_action(self.value.drag(pos)),
             ControlMessage::Release => into_action(self.value.end_drag()),
-            ControlMessage::Confirmed { value, ok } => {
-                into_action(self.value.confirmed(value, ok))
-            }
+            ControlMessage::Confirmed { value, ok } => into_action(self.value.confirmed(value, ok)),
             ControlMessage::Right => Action::Right,
             ControlMessage::Tooltip(_) => Action::None,
         }
     }
 
-    pub fn view<'a>(
-        &self,
-        config: &ResolvedConfig,
-        view: View<'_>,
-    ) -> Element<'a, ControlMessage> {
+    pub fn view<'a>(&self, config: &ResolvedConfig, view: View<'_>) -> Element<'a, ControlMessage> {
         if self.open {
             let glyph = mouse_area(
                 view.widget

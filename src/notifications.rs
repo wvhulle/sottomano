@@ -17,6 +17,8 @@ use std::{
 
 use iced::{Element, Task, widget::Sensor, window::Id};
 use iced_layershell::reexport::Anchor;
+use model::{NotifHandle, NotificationData, Outbound, close_reason};
+use placement::{ToastPlacement, placement_for, resolve_window_id};
 
 use crate::{
     bar_program::Message,
@@ -27,8 +29,6 @@ use crate::{
     },
     message_subscriptions::niri_action,
 };
-use model::{NotifHandle, NotificationData, Outbound, close_reason};
-use placement::{ToastPlacement, placement_for, resolve_window_id};
 
 /// Action keys odin runs itself against the hinted window instead of handing
 /// back to the client: `default` (the freedesktop primary action) and the
@@ -46,8 +46,8 @@ pub enum NotificationMessage {
     Served(NotificationData),
     /// A client called `CloseNotification`.
     CloseRequested(u32),
-    /// A toast surface measured its card, so its surface can be sized to fit and
-    /// its siblings re-stacked.
+    /// A toast surface measured its card, so its surface can be sized to fit
+    /// and its siblings re-stacked.
     CardMeasured { id: u32, height: f32 },
     /// The card body was left-clicked.
     BodyClicked(u32),
@@ -145,17 +145,13 @@ impl NotificationGroup {
             }
             // Left-clicking the body invokes the primary action: jump to the
             // source window and dismiss when there is one, else just dismiss.
-            NotificationMessage::BodyClicked(id) => {
-                match self.window_of(id, placement) {
-                    Some(window) => Task::batch([
-                        niri_action(move || niri::focus_window(window)),
-                        self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
-                    ]),
-                    None => {
-                        self.dismiss(id, close_reason::DISMISSED, placement, outputs, config)
-                    }
-                }
-            }
+            NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
+                Some(window) => Task::batch([
+                    niri_action(move || niri::focus_window(window)),
+                    self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
+                ]),
+                None => self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
+            },
             // Hover changes only the border tint/width — a pure repaint, no
             // geometry change, so no reconcile. Guard the exit so a stray leave
             // from a card the pointer already left doesn't clear a newer hover.
@@ -179,9 +175,9 @@ impl NotificationGroup {
         }
     }
 
-    /// After a niri change: dismiss notifications whose target window has closed
-    /// (they can never serve their purpose), then recompute the surviving
-    /// toasts' corners. Driven from `Bar::apply_niri_events`.
+    /// After a niri change: dismiss notifications whose target window has
+    /// closed (they can never serve their purpose), then recompute the
+    /// surviving toasts' corners. Driven from `Bar::apply_niri_events`.
     pub fn on_niri_changed(
         &mut self,
         placement: &Placement,
@@ -208,21 +204,17 @@ impl NotificationGroup {
     }
 
     /// A notification's resolvable, still-live target window, if any.
-    fn window_of(
-        &self,
-        id: u32,
-        placement: &Placement,
-    ) -> Option<u64> {
+    fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
         let notif = self.live.iter().find(|n| n.data.id == id)?;
         resolve_window_id(&notif.data, placement)
             .filter(|&w| placement.workspace_of_window(w).is_some())
     }
 
-    /// Run a clicked action. A recognised window action on a resolvable window is
-    /// driven in niri in-process (works after the posting client has died);
-    /// everything else round-trips over D-Bus as `ActionInvoked`, and — like a
-    /// permission prompt's allow/deny — leaves the toast up for the client to
-    /// close.
+    /// Run a clicked action. A recognised window action on a resolvable window
+    /// is driven in niri in-process (works after the posting client has
+    /// died); everything else round-trips over D-Bus as `ActionInvoked`,
+    /// and — like a permission prompt's allow/deny — leaves the toast up
+    /// for the client to close.
     fn activate_action(
         &mut self,
         id: u32,
@@ -231,7 +223,9 @@ impl NotificationGroup {
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        if let Some(window) = self.window_of(id, placement).filter(|_| is_window_action(key))
+        if let Some(window) = self
+            .window_of(id, placement)
+            .filter(|_| is_window_action(key))
         {
             let action = match key {
                 "default" => niri_action(move || niri::focus_window(window)),
@@ -274,7 +268,8 @@ impl NotificationGroup {
         self.surfaces.retain(|_, s| s.id != id);
     }
 
-    /// Whether any toast is live — gates the per-niri-event placement recompute.
+    /// Whether any toast is live — gates the per-niri-event placement
+    /// recompute.
     pub fn is_active(&self) -> bool {
         !self.live.is_empty()
     }
@@ -326,39 +321,40 @@ impl NotificationGroup {
         self.apply_changes(changes)
     }
 
-    /// The surface changes that would bring the open set in line with `desired`.
-    /// Pure — reads the current surfaces but mutates nothing and emits nothing,
-    /// so it reads as a diff of two sets: open the new, adjust the moved, close
-    /// the gone (or DND-suppressed).
+    /// The surface changes that would bring the open set in line with
+    /// `desired`. Pure — reads the current surfaces but mutates nothing and
+    /// emits nothing, so it reads as a diff of two sets: open the new,
+    /// adjust the moved, close the gone (or DND-suppressed).
     fn plan_changes(&self, desired: &[DesiredSurface]) -> Vec<SurfaceChange> {
         let desired_ids: HashSet<u32> = desired.iter().map(|wanted| wanted.id).collect();
-        let opens_and_adjusts = desired
-            .iter()
-            .flat_map(|wanted| match self.surfaces.get(&wanted.id) {
-                None => vec![SurfaceChange::Open(wanted.clone())],
-                // A surface cannot move between outputs; close and reopen.
-                Some(existing) if existing.output != wanted.output => {
-                    vec![
-                        SurfaceChange::Close(wanted.id),
-                        SurfaceChange::Open(wanted.clone()),
-                    ]
-                }
-                Some(existing) => {
-                    let anchor = (existing.anchor != wanted.anchor).then_some(wanted.anchor);
-                    let margin = (existing.margin != wanted.margin).then_some(wanted.margin);
-                    let size = (existing.size != wanted.size).then_some(wanted.size);
-                    if anchor.is_none() && margin.is_none() && size.is_none() {
-                        vec![]
-                    } else {
-                        vec![SurfaceChange::Adjust {
-                            id: wanted.id,
-                            anchor,
-                            margin,
-                            size,
-                        }]
+        let opens_and_adjusts =
+            desired
+                .iter()
+                .flat_map(|wanted| match self.surfaces.get(&wanted.id) {
+                    None => vec![SurfaceChange::Open(wanted.clone())],
+                    // A surface cannot move between outputs; close and reopen.
+                    Some(existing) if existing.output != wanted.output => {
+                        vec![
+                            SurfaceChange::Close(wanted.id),
+                            SurfaceChange::Open(wanted.clone()),
+                        ]
                     }
-                }
-            });
+                    Some(existing) => {
+                        let anchor = (existing.anchor != wanted.anchor).then_some(wanted.anchor);
+                        let margin = (existing.margin != wanted.margin).then_some(wanted.margin);
+                        let size = (existing.size != wanted.size).then_some(wanted.size);
+                        if anchor.is_none() && margin.is_none() && size.is_none() {
+                            vec![]
+                        } else {
+                            vec![SurfaceChange::Adjust {
+                                id: wanted.id,
+                                anchor,
+                                margin,
+                                size,
+                            }]
+                        }
+                    }
+                });
         let closes = self
             .surfaces
             .keys()
@@ -368,10 +364,14 @@ impl NotificationGroup {
         opens_and_adjusts.chain(closes).collect()
     }
 
-    /// Perform the planned changes: the sole place surfaces are opened, moved, or
-    /// closed, and the sole place layer-shell commands are emitted.
+    /// Perform the planned changes: the sole place surfaces are opened, moved,
+    /// or closed, and the sole place layer-shell commands are emitted.
     fn apply_changes(&mut self, changes: Vec<SurfaceChange>) -> Task<Message> {
-        Task::batch(changes.into_iter().map(|change| self.perform_change(change)))
+        Task::batch(
+            changes
+                .into_iter()
+                .map(|change| self.perform_change(change)),
+        )
     }
 
     fn perform_change(&mut self, change: SurfaceChange) -> Task<Message> {
@@ -431,10 +431,10 @@ impl NotificationGroup {
         }
     }
 
-    /// Each visible toast's placement: its output plus the anchor and margin its
-    /// surface should take. Freshest hugs the edge, older siblings step inward;
-    /// a centred vertical group is centred as a whole against the output height.
-    /// Empty while DND is on.
+    /// Each visible toast's placement: its output plus the anchor and margin
+    /// its surface should take. Freshest hugs the edge, older siblings step
+    /// inward; a centred vertical group is centred as a whole against the
+    /// output height. Empty while DND is on.
     fn desired_surfaces(
         &self,
         placement: &Placement,
@@ -444,7 +444,7 @@ impl NotificationGroup {
         if self.dnd {
             return Vec::new();
         }
-        let width = config.notifications.width_px.round() as u32;
+        let width = config.notifications.card_width.round() as u32;
         // Newest first, so walking a corner group meets the freshest toast first.
         let mut order: Vec<&Notification> = self.live.iter().collect();
         order.sort_by_key(|n| std::cmp::Reverse(n.created_at));
@@ -538,8 +538,8 @@ struct DesiredSurface {
 
 /// Whether a notification's window has closed. Only "window-owned" toasts — one
 /// with a resolvable window and no foreign action — go stale; a notification
-/// carrying an allow/deny action is a question the client is blocked on and must
-/// never be auto-dismissed.
+/// carrying an allow/deny action is a question the client is blocked on and
+/// must never be auto-dismissed.
 fn is_stale(data: &NotificationData, placement: &Placement) -> bool {
     let Some(window) = resolve_window_id(data, placement) else {
         return false;

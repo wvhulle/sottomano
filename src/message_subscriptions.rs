@@ -11,9 +11,9 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
     bar_layout::{
-        audio_group::AudioGroup, battery_group::BatteryGroup, brightness_group::BrightnessGroup,
-        clock_group::ClockGroup, internet_group::InternetGroup, journal_group::JournalGroup,
-        media_group::MediaGroup, net_interfaces_group::NetInterfacesGroup,
+        audio_group::AudioGroup, battery_group::BatteryGroup, clock_group::ClockGroup,
+        internet_group::InternetGroup, journal_group::JournalGroup, media_group::MediaGroup,
+        monitor_group::MonitorGroup, net_interfaces_group::NetInterfacesGroup,
         system_group::SystemGroup, weather_group::WeatherGroup, window_list_group::WindowListGroup,
     },
     bar_program::{Bar, Message},
@@ -51,12 +51,18 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         JournalGroup::subscription().map(Message::Journal),
         InternetGroup::subscription().map(Message::Internet),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
-        BrightnessGroup::subscription().map(Message::Brightness),
+        MonitorGroup::subscription().map(Message::Monitor),
         MediaGroup::subscription().map(Message::Media),
         idle::subscription().map(Message::Idle),
         AudioGroup::subscription().map(Message::Audio),
         WindowListGroup::subscription().map(Message::WindowList),
         iced::window::close_events().map(Message::WindowClosed),
+        // Closes a stranded tooltip when the pointer leaves a surface without
+        // crossing another hoverable (its `HoverArea` never fires an exit).
+        iced::event::listen_with(|event, _status, _window| match event {
+            iced::Event::Mouse(iced::mouse::Event::CursorLeft) => Some(Message::PointerLeft),
+            _ => None,
+        }),
         // The shared `.desktop` index reload (new app installed, theme switch)
         // lives here, at the app that owns it. Quick-launch re-ranks off niri
         // events (from its own in-memory tracker), so it needs no timer.
@@ -98,6 +104,24 @@ pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
         // After a suspend/resume, take one catch-up poll, not a burst.
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
         IntervalStream::new(timer).then(|_| off_thread(S::NAME, S::poll))
+    })
+}
+
+/// Like [`polling`] but for a source that yields a whole list each tick (e.g. a
+/// varying set of displays): an immediate first poll, then one per `every`, run
+/// off-thread and keyed by `key` so it survives the subscription rebuild.
+pub(crate) fn poll_every<T: Default + Send + 'static>(
+    key: &'static str,
+    every: Duration,
+    poll: fn() -> T,
+) -> Subscription<T> {
+    // `run_with` takes a plain `fn` builder (no captures), so the parameters ride
+    // in as the keyed `data` tuple and are destructured back out inside it.
+    Subscription::run_with((key, every, poll), |&(key, every, poll)| {
+        use iced::futures::StreamExt;
+        let mut timer = interval(every);
+        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        IntervalStream::new(timer).then(move |_| off_thread(key, poll))
     })
 }
 
@@ -146,7 +170,9 @@ fn notifications_subscription() -> Subscription<Message> {
                 }
                 let handle = NotifHandle::new(outbound_tx);
                 if output
-                    .send(Message::Notification(NotificationMessage::Connected(handle)))
+                    .send(Message::Notification(NotificationMessage::Connected(
+                        handle,
+                    )))
                     .await
                     .is_err()
                 {

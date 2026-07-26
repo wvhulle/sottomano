@@ -21,12 +21,15 @@ pub mod app_icon;
 pub mod app_rules;
 pub mod audio;
 pub mod backlight;
+pub mod clight;
 pub mod command;
 pub mod desktop_entries;
 pub mod disk;
 pub mod favicons;
+pub mod gamma;
 pub mod geolocation;
 pub mod icon_trim;
+pub mod kernel_errors;
 pub mod launch_tracker;
 pub mod logind;
 pub mod mpris;
@@ -36,6 +39,7 @@ pub mod sysfs_sensors;
 pub mod systemd_failed;
 pub mod tailscale;
 pub mod throughput;
+pub mod umbra;
 pub mod weather;
 pub mod wireguard;
 
@@ -115,9 +119,8 @@ pub struct LogEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TooltipBody {
     Table(Vec<Row>),
-    /// Rendered and gated on, but not emitted by any wired source yet (odin's
-    /// journal widgets — kernel errors, failed units — are not ported).
-    #[allow(dead_code)]
+    /// A timestamped event list — odin's journal-widget tooltips (failed units,
+    /// kernel errors).
     Log(Vec<LogEntry>),
 }
 

@@ -1,8 +1,8 @@
-//! Per-toast layer-shell surface: one Wayland surface per notification, anchored
-//! to its corner and sized to the card, so niri can target each toast by its
-//! namespace (blur/shadow layer rules). Same anchored+`Sensor`-resized shape as
-//! the tooltip surface. Cards sharing a corner stack via a per-toast margin
-//! offset; a corner change re-anchors (a jump, not a slide).
+//! Per-toast layer-shell surface: one Wayland surface per notification,
+//! anchored to its corner and sized to the card, so niri can target each toast
+//! by its namespace (blur/shadow layer rules). Same anchored+`Sensor`-resized
+//! shape as the tooltip surface. Cards sharing a corner stack via a per-toast
+//! margin offset; a corner change re-anchors (a jump, not a slide).
 
 use iced_layershell::reexport::{
     Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
@@ -30,10 +30,10 @@ const PROVISIONAL_HEIGHT: u32 = 900;
 /// would centre each surface's own midpoint, so cards of different heights
 /// overlap. It is instead anchored to the top and given an absolute margin that
 /// centres the whole `group_height` on the output (odin's
-/// `(win.height - groupHeight) / 2 + offset`), with `offset` stepping within it.
-/// When the output height is unknown it falls back to top-anchoring, so cards
-/// still stack rather than pile up. A centred *horizontal* axis stays unanchored
-/// (the compositor centres it, which is what we want).
+/// `(win.height - groupHeight) / 2 + offset`), with `offset` stepping within
+/// it. When the output height is unknown it falls back to top-anchoring, so
+/// cards still stack rather than pile up. A centred *horizontal* axis stays
+/// unanchored (the compositor centres it, which is what we want).
 pub fn slot_placement(
     vertical: VEdge,
     horizontal: HEdge,
@@ -42,7 +42,7 @@ pub fn slot_placement(
     output_height: Option<i32>,
     config: &ResolvedConfig,
 ) -> (Anchor, (i32, i32, i32, i32)) {
-    let side = config.notifications.gap_px.round() as i32;
+    let side = config.notifications.edge_gap.round() as i32;
     let mut anchor = Anchor::empty();
     let (mut left, mut right) = (0, 0);
     match horizontal {
@@ -84,7 +84,7 @@ pub fn slot_placement(
 /// How far a card's edge sits from the panel edge on an anchored axis: the bar
 /// height, the configured gap, and the stacking `offset` for older siblings.
 fn edge_inset(offset: f32, config: &ResolvedConfig) -> i32 {
-    (config.layout.outer_height_px + config.notifications.gap_px + offset).round() as i32
+    (config.layout.outer_height_px + config.notifications.edge_gap + offset).round() as i32
 }
 
 /// Layer-shell settings for one toast surface, bound to `output` (or the active

@@ -1,6 +1,6 @@
-//! odin's `Audio`: default sink and source volume, each a [`SliderControl`] that
-//! owns its expansion + poll/write reconciliation. The group holds the two,
-//! addresses them by [`ControlKind`], and runs the wpctl writes.
+//! odin's `Audio`: default sink and source volume, each a [`SliderControl`]
+//! that owns its expansion + poll/write reconciliation. The group holds the
+//! two, addresses them by [`ControlKind`], and runs the wpctl writes.
 
 use std::ops::RangeInclusive;
 
@@ -89,7 +89,10 @@ impl AudioGroup {
             }
             AudioMessage::Control(ControlKind::Source, msg) => {
                 let reading = self.source.get().map_or(0.0, percent_of);
-                match self.source_control.update(msg, reading, &RANGE, SCROLL_STEP) {
+                match self
+                    .source_control
+                    .update(msg, reading, &RANGE, SCROLL_STEP)
+                {
                     Action::Opened => {
                         self.sink_control.close();
                         Task::none()
@@ -128,14 +131,20 @@ impl AudioGroup {
             let value = self.source_control.value(percent_of(audio));
             let display = with_percent(audio, value);
             self.source_control
-                .view(config, view_for(&display, value, TooltipSource::AudioSource, true))
+                .view(
+                    config,
+                    view_for(&display, value, TooltipSource::AudioSource, true),
+                )
                 .map(tag(ControlKind::Source))
         });
         let sink = self.sink.get().map(|audio| {
             let value = self.sink_control.value(percent_of(audio));
             let display = with_percent(audio, value);
             self.sink_control
-                .view(config, view_for(&display, value, TooltipSource::AudioSink, false))
+                .view(
+                    config,
+                    view_for(&display, value, TooltipSource::AudioSink, false),
+                )
                 .map(tag(ControlKind::Sink))
         });
 

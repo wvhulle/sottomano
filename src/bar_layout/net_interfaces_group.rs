@@ -3,10 +3,7 @@
 //! a machine with only wifi shows one pill. Read-only, like the journal group:
 //! each indicator is hoverable for its own tooltip; odin wires no click here.
 
-use iced::{
-    Alignment, Element, Subscription,
-    widget::Row,
-};
+use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
     bar_layout::source_cell::SourceCell,

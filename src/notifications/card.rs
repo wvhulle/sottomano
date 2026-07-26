@@ -1,7 +1,7 @@
 //! One notification drawn as a card. Chrome follows the tooltip/bar conventions
 //! (opaque tinted fill, hairline border, config corner radius). Ports odin's
-//! `NotificationCard`: app icon, summary, app name, markup body, action buttons,
-//! and a relative arrival time riding the last content line.
+//! `NotificationCard`: app icon, summary, app name, markup body, action
+//! buttons, and a relative arrival time riding the last content line.
 
 use std::{path::PathBuf, time::SystemTime};
 
@@ -40,11 +40,12 @@ pub struct CardIcons {
     pub badge: Option<CardIcon>,
 }
 
-/// Resolve a notification's image and badge icons, reusing the shared `.desktop`
-/// index. The `image` is the notification's own picture (the `image-data` raster
-/// or `image-path` name/path — where `notify-send -i` puts its icon); the
-/// `badge` is the application icon (the `app_icon` argument, else the desktop
-/// entry). Does filesystem lookup — call once at arrival, not per redraw.
+/// Resolve a notification's image and badge icons, reusing the shared
+/// `.desktop` index. The `image` is the notification's own picture (the
+/// `image-data` raster or `image-path` name/path — where `notify-send -i` puts
+/// its icon); the `badge` is the application icon (the `app_icon` argument,
+/// else the desktop entry). Does filesystem lookup — call once at arrival, not
+/// per redraw.
 pub fn resolve_icons(
     data: &super::model::NotificationData,
     entries: Option<&DesktopEntries>,
@@ -71,7 +72,9 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
         PathBuf::from(rest)
     } else {
         let entries = entries?;
-        entries.theme_icon(name).or_else(|| entries.icon_for(name))?
+        entries
+            .theme_icon(name)
+            .or_else(|| entries.icon_for(name))?
     };
     let is_svg = path
         .extension()
@@ -92,10 +95,11 @@ fn fade(color: Color, opacity: f32) -> Color {
     }
 }
 
-/// Alpha-composite `fg` over an opaque `bg`, returning an opaque colour. Used for
-/// the faint resting border: a translucent border would let the desktop bleed
-/// through the 2px border ring on the otherwise-transparent toast surface, so
-/// the faint look is baked into an opaque colour over the card fill instead.
+/// Alpha-composite `fg` over an opaque `bg`, returning an opaque colour. Used
+/// for the faint resting border: a translucent border would let the desktop
+/// bleed through the 2px border ring on the otherwise-transparent toast
+/// surface, so the faint look is baked into an opaque colour over the card fill
+/// instead.
 fn over(fg: Color, bg: Color) -> Color {
     Color {
         r: bg.r * (1.0 - fg.a) + fg.r * fg.a,
@@ -225,12 +229,16 @@ pub fn card<'a>(
             fill,
         )
     };
-    let accent = if critical { palette.urgent } else { palette.focus };
+    let accent = if critical {
+        palette.urgent
+    } else {
+        palette.focus
+    };
     let border_color = fade(if hovered { accent } else { rest }, opacity);
     let border_width = if hovered { 3.0 } else { 2.0 };
 
     let panel = container(body_row)
-        .width(Length::Fixed(config.notifications.width_px))
+        .width(Length::Fixed(config.notifications.card_width))
         .padding(PADDING_PX)
         .style(move |_| container::Style {
             background: Some(background.into()),
@@ -251,22 +259,23 @@ pub fn card<'a>(
         .into()
 }
 
-/// The card's icon slot: the notification image drawn large with the app icon as
-/// a small badge over its top-left corner, or — when there is no image — just
-/// the app icon at normal size. `None` when the notification carries neither.
-/// Sizes come from the notification config so they can be tuned per setup.
+/// The card's icon slot: the notification image drawn large with the app icon
+/// as a small badge over its top-left corner, or — when there is no image —
+/// just the app icon at normal size. `None` when the notification carries
+/// neither. Sizes come from the notification config so they can be tuned per
+/// setup.
 fn icon_slot<'a>(
     icons: &CardIcons,
-    config: &crate::config::resolved::ResolvedNotificationConfig,
+    config: &crate::config::disk::NotificationConfig,
     opacity: f32,
 ) -> Option<Element<'a, NotificationMessage>> {
     match (&icons.image, &icons.badge) {
         (Some(image), badge) => {
-            let main_size = config.image_size_px;
+            let main_size = config.image_size;
             let main = icon_widget(image, main_size, opacity);
             Some(match badge {
                 Some(badge) => {
-                    let overlay = container(icon_widget(badge, config.badge_size_px, opacity))
+                    let overlay = container(icon_widget(badge, config.badge_size, opacity))
                         .width(main_size)
                         .height(main_size)
                         .align_x(Alignment::Start)
@@ -276,7 +285,7 @@ fn icon_slot<'a>(
                 None => main,
             })
         }
-        (None, Some(badge)) => Some(icon_widget(badge, config.icon_size_px, opacity)),
+        (None, Some(badge)) => Some(icon_widget(badge, config.app_icon_size, opacity)),
         (None, None) => None,
     }
 }
@@ -302,26 +311,30 @@ fn action_button<'a>(
     tint: Color,
     font: &ResolvedFontConfig,
 ) -> Element<'a, NotificationMessage> {
-    button(bar_text(font, label).size(font.text_size_px * 0.9).color(tint))
-        .padding([2.0, 8.0])
-        .style(move |_, status| {
-            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            button::Style {
-                background: Some(
-                    Color {
-                        a: if hovered { 0.22 } else { 0.12 },
-                        ..tint
-                    }
-                    .into(),
-                ),
-                text_color: tint,
-                border: Border {
-                    radius: 4.0.into(),
-                    ..Default::default()
-                },
+    button(
+        bar_text(font, label)
+            .size(font.text_size_px * 0.9)
+            .color(tint),
+    )
+    .padding([2.0, 8.0])
+    .style(move |_, status| {
+        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: Some(
+                Color {
+                    a: if hovered { 0.22 } else { 0.12 },
+                    ..tint
+                }
+                .into(),
+            ),
+            text_color: tint,
+            border: Border {
+                radius: 4.0.into(),
                 ..Default::default()
-            }
-        })
-        .on_press(message)
-        .into()
+            },
+            ..Default::default()
+        }
+    })
+    .on_press(message)
+    .into()
 }

@@ -1,6 +1,6 @@
 //! vetrata's single on-disk state database — all persisted vetrata-owned state
-//! lives here, at `$XDG_STATE_HOME/vetrata/state.db`, backed by Turso (pure-Rust
-//! SQLite) via its local-file API.
+//! lives here, at `$XDG_STATE_HOME/vetrata/state.db`, backed by Turso
+//! (pure-Rust SQLite) via its local-file API.
 //!
 //! Everything vetrata itself remembers across runs goes through this one DB:
 //! quick-launch frequencies ([`launches`]), panel settings ([`panel`]), and
@@ -82,7 +82,9 @@ async fn build() -> Result<Store, BoxError> {
 fn db_path() -> Option<PathBuf> {
     let state = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state"))
+        })?;
     Some(state.join("vetrata/state.db"))
 }
 

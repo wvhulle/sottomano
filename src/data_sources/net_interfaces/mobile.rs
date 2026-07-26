@@ -8,10 +8,8 @@ use serde_json::Value as Json;
 
 use crate::{
     data_sources::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value,
-        command::output,
-        net_interfaces::signal_level,
-        row,
+        BarWidget, Level, Source, TooltipBody, Unit, Value, command::output,
+        net_interfaces::signal_level, row,
     },
     widgets::icon::Icon,
 };
@@ -104,10 +102,15 @@ impl Source for Mobile {
         let modem: Json = serde_json::from_str(&output("mmcli", &["-m", id, "-J"])?).ok()?;
 
         let generic = modem.pointer("/modem/generic");
-        let state = string_field(&modem, "/modem/generic/state").unwrap_or_else(|| "unknown".into());
+        let state =
+            string_field(&modem, "/modem/generic/state").unwrap_or_else(|| "unknown".into());
         let signal = generic
             .and_then(|g| g.pointer("/signal-quality/value"))
-            .and_then(|v| v.as_str().and_then(|s| s.parse().ok()).or_else(|| v.as_i64()));
+            .and_then(|v| {
+                v.as_str()
+                    .and_then(|s| s.parse().ok())
+                    .or_else(|| v.as_i64())
+            });
         let technology = generic
             .and_then(|g| g.pointer("/access-technologies"))
             .and_then(Json::as_array)

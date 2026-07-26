@@ -175,8 +175,8 @@ impl WindowListGroup {
         }
     }
 
-    /// Re-run every pipeline against the current window set. Icon polls need the
-    /// shared `.desktop` index; favicons and fallback fonts do not.
+    /// Re-run every pipeline against the current window set. Icon polls need
+    /// the shared `.desktop` index; favicons and fallback fonts do not.
     pub fn refresh(
         &mut self,
         niri: &EventStreamState,

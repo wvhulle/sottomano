@@ -1,6 +1,7 @@
 //! The `ext-idle-notify-v1` client, lifted from wvhulle/idle-manager. Arms one
 //! idle notification per [`Arm`] carrying its command; the compositor reports
-//! `Idled` per notification, which the daemon loop turns into a spawned command.
+//! `Idled` per notification, which the daemon loop turns into a spawned
+//! command.
 
 use std::{error::Error as StdError, fmt, io, mem::take};
 
@@ -89,8 +90,8 @@ pub async fn connect() -> Result<Wayland, WaylandError> {
     })
 }
 
-/// Tear down all armed notifications and arm one per [`Arm`] on every seat, each
-/// carrying the command to spawn when it fires.
+/// Tear down all armed notifications and arm one per [`Arm`] on every seat,
+/// each carrying the command to spawn when it fires.
 pub fn rearm(w: &mut Wayland, arms: &[Arm]) {
     for (notif, _) in w.state.notifications.drain(..) {
         notif.destroy(&mut w.conn);

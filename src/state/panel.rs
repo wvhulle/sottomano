@@ -1,7 +1,7 @@
-//! Panel-settings persistence: the session-tunable layout knobs (floating on/off
-//! and the float offset) the panel-settings group exposes. Stored as a tiny
-//! key/value table so new knobs can be added without a migration. Loaded once at
-//! startup and written back on each change.
+//! Panel-settings persistence: the session-tunable layout knobs (floating
+//! on/off and the float offset) the panel-settings group exposes. Stored as a
+//! tiny key/value table so new knobs can be added without a migration. Loaded
+//! once at startup and written back on each change.
 
 use crate::state::{BoxError, open, text};
 

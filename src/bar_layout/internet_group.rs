@@ -133,11 +133,16 @@ impl InternetGroup {
         if let Some(up) = self.up.get()
             && let Some(reading) = source_reading(config, Some(up as &dyn BarWidget), reveal)
         {
-            pills.push(hoverable(reading, TooltipSource::InternetUp, InternetMessage::Tooltip));
+            pills.push(hoverable(
+                reading,
+                TooltipSource::InternetUp,
+                InternetMessage::Tooltip,
+            ));
         }
         if let Some(wireguard) = self.wireguard.get() {
             for (index, tunnel) in wireguard.tunnels.iter().enumerate() {
-                if let Some(reading) = source_reading(config, Some(tunnel as &dyn BarWidget), reveal)
+                if let Some(reading) =
+                    source_reading(config, Some(tunnel as &dyn BarWidget), reveal)
                 {
                     let name = tunnel.name.clone();
                     let hover = hoverable(

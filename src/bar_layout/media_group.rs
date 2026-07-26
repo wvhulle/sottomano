@@ -1,7 +1,7 @@
 //! odin's `Media`: album-art handle that unfolds the track title and transport
 //! controls for the current MPRIS player, updated signal-driven from
-//! [`mpris::subscription`]. Hidden when no player is present. Deviations: odin's
-//! source-switch row and circular art clipping are not ported.
+//! [`mpris::subscription`]. Hidden when no player is present. Deviations:
+//! odin's source-switch row and circular art clipping are not ported.
 
 use iced::{
     Alignment, Element, Subscription, Task,
@@ -125,17 +125,24 @@ impl MediaGroup {
         let alpha = if status == Status::Playing { 1.0 } else { 0.4 };
 
         let handle = handle(config, media, status, alpha);
-        let handle = mouse_area(hoverable(handle, TooltipSource::Media, MediaMessage::Tooltip))
-            .on_press(MediaMessage::Menu(MenuMessage::Toggle))
-            .into();
+        let handle = mouse_area(hoverable(
+            handle,
+            TooltipSource::Media,
+            MediaMessage::Tooltip,
+        ))
+        .on_press(MediaMessage::Menu(MenuMessage::Toggle))
+        .into();
 
         let reveal = self.menu.reveal();
         let title = bar_text(&config.font, truncate(&media.label()))
             .color(config.palette.bar_foreground.scale_alpha(reveal));
         let content = Row::with_children(
-            [Some(title.into()), Some(transport(config, media, status, reveal))]
-                .into_iter()
-                .flatten(),
+            [
+                Some(title.into()),
+                Some(transport(config, media, status, reveal)),
+            ]
+            .into_iter()
+            .flatten(),
         )
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);
@@ -159,7 +166,11 @@ fn handle<'a>(
     alpha: f32,
 ) -> Element<'a, MediaMessage> {
     let side = config.font.icon_size_px;
-    if let Some(path) = media.art_url.as_deref().and_then(|u| u.strip_prefix("file://")) {
+    if let Some(path) = media
+        .art_url
+        .as_deref()
+        .and_then(|u| u.strip_prefix("file://"))
+    {
         return image(image::Handle::from_path(path))
             .width(side)
             .height(side)
@@ -197,7 +208,9 @@ fn transport<'a>(
         Icon::Play
     };
     let buttons: Vec<Element<'a, MediaMessage>> = [
-        media.can_prev.then(|| button(Icon::BackwardStep, "Previous")),
+        media
+            .can_prev
+            .then(|| button(Icon::BackwardStep, "Previous")),
         media.can_toggle.then(|| button(toggle_icon, "PlayPause")),
         (status != Status::Stopped).then(|| button(Icon::Stop, "Stop")),
         media.can_next.then(|| button(Icon::ForwardStep, "Next")),

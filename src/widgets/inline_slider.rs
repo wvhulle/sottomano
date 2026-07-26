@@ -23,9 +23,9 @@ use crate::config::resolved::ResolvedConfig;
 /// Handle/ghost radius at rest, and the larger handle radius while dragging.
 const KNOB_RADIUS: f32 = 5.0;
 const KNOB_RADIUS_DRAG: f32 = 7.0;
-/// Horizontal inset of a knob centre from each end, sized to the largest knob so
-/// nothing is clipped at the extremes. Shared by handle and ghost so they track
-/// the same geometry.
+/// Horizontal inset of a knob centre from each end, sized to the largest knob
+/// so nothing is clipped at the extremes. Shared by handle and ghost so they
+/// track the same geometry.
 const EDGE_INSET: f32 = KNOB_RADIUS_DRAG;
 /// Rail thickness.
 const RAIL_WIDTH: f32 = 4.0;
@@ -82,7 +82,9 @@ fn interaction_slider<'a, Message: Clone + 'a>(
                 border: iced::Border::default(),
             },
             handle: slider::Handle {
-                shape: slider::HandleShape::Circle { radius: KNOB_RADIUS },
+                shape: slider::HandleShape::Circle {
+                    radius: KNOB_RADIUS,
+                },
                 background: Color::TRANSPARENT.into(),
                 border_color: Color::TRANSPARENT,
                 border_width: 0.0,
@@ -137,24 +139,27 @@ impl<Message> canvas::Program<Message> for SliderFace {
 
         // Rail: accent up to the confirmed value, dim track beyond — each span cut
         // where the hollow ghost sits.
-        [(0.0, fill_x, self.accent), (fill_x, bounds.width, self.track)]
-            .into_iter()
-            .flat_map(|(from, to, color)| {
-                without_gap(from, to, gap).map(move |(a, b)| (a, b, color))
-            })
-            .for_each(|(a, b, color)| {
-                frame.fill_rectangle(
-                    Point::new(a, rail_y - RAIL_WIDTH / 2.0),
-                    Size::new(b - a, RAIL_WIDTH),
-                    color,
-                );
-            });
+        [
+            (0.0, fill_x, self.accent),
+            (fill_x, bounds.width, self.track),
+        ]
+        .into_iter()
+        .flat_map(|(from, to, color)| without_gap(from, to, gap).map(move |(a, b)| (a, b, color)))
+        .for_each(|(a, b, color)| {
+            frame.fill_rectangle(
+                Point::new(a, rail_y - RAIL_WIDTH / 2.0),
+                Size::new(b - a, RAIL_WIDTH),
+                color,
+            );
+        });
 
         // Hollow ghost ring at the confirmed value, shown only while interacting.
         if let Some(ghost) = self.ghost {
             frame.stroke(
                 &canvas::Path::circle(Point::new(centre(ghost), rail_y), KNOB_RADIUS),
-                canvas::Stroke::default().with_width(1.5).with_color(self.accent),
+                canvas::Stroke::default()
+                    .with_width(1.5)
+                    .with_color(self.accent),
             );
         }
 
@@ -173,8 +178,9 @@ impl<Message> canvas::Program<Message> for SliderFace {
     }
 }
 
-/// The non-empty sub-intervals of `[from, to]` with `gap` removed — used to omit
-/// the rail across the ghost knob. With no gap the interval passes through whole.
+/// The non-empty sub-intervals of `[from, to]` with `gap` removed — used to
+/// omit the rail across the ghost knob. With no gap the interval passes through
+/// whole.
 fn without_gap(from: f32, to: f32, gap: Option<(f32, f32)>) -> impl Iterator<Item = (f32, f32)> {
     let (g0, g1) = gap.unwrap_or((f32::INFINITY, f32::INFINITY));
     [(from, to.min(g0)), (from.max(g1), to)]
