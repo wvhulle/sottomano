@@ -55,8 +55,9 @@ impl IdleTimer {
             control: SliderControl::new(0.0..=MAX_POSITION, target.clone(), icon)
                 .readout_width(READOUT_WIDTH)
                 .readout(|value| label_at(value).to_string())
-                .label(|value| from_position(value).map_or(String::new(), |d| label_for(d).to_string()))
-                .disabled_when(|value| from_position(value).is_none()),
+                .label(|value| {
+                    from_position(value).map_or(String::new(), |d| label_for(d).to_string())
+                }),
             target,
             timeout: None,
             button: ConfirmButton::new(confirms),

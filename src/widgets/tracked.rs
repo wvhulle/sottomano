@@ -22,16 +22,19 @@ pub struct Tracked {
     /// The value last confirmed written — drawn as the ghost, and the baseline
     /// a redundant write is dropped against.
     acked: f32,
+    /// The last authoritative device reading — what to display once the
+    /// optimistic handle is reconciled.
+    reading: f32,
     /// A write is in flight; the next target waits for its confirmation. This
     /// is the whole coalescing gate — there is no time throttle.
     in_flight: bool,
 }
 
 impl Tracked {
-    /// What to display: the optimistic handle while interacting, else
-    /// `reading`.
-    pub fn value(&self, reading: f32) -> f32 {
-        self.pending.unwrap_or(reading)
+    /// What to display: the optimistic handle while interacting, else the last
+    /// reading.
+    pub fn value(&self) -> f32 {
+        self.pending.unwrap_or(self.reading)
     }
 
     /// The ghost marker — the last confirmed value — shown only while the user
@@ -45,6 +48,7 @@ impl Tracked {
     /// so a stray poll can't yank the thumb; otherwise trust the reading
     /// and adopt it as both the display and the confirmed baseline.
     pub fn sync(&mut self, reading: f32) {
+        self.reading = reading;
         if self.dragging {
             return;
         }

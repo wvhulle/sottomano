@@ -37,11 +37,8 @@ pub struct SliderControl {
     open: bool,
     accum: f32,
     value: Tracked,
-    /// Last authoritative device reading, fed via [`ControlMessage::Reading`].
-    /// The merged display value is [`current`](Self::current).
-    reading: f32,
-    /// Muted / inactive (fed via [`ControlMessage::Disabled`]); overridden by
-    /// [`disabled_when`](Self::disabled_when) when that is set.
+    /// Muted / inactive (fed via [`ControlMessage::Disabled`]) — dims the
+    /// collapsed reading.
     disabled: bool,
     /// Static config, set once at construction (iced-style builder).
     range: RangeInclusive<f32>,
@@ -62,16 +59,36 @@ pub struct SliderControl {
     /// override for the audio glyph (volume level, mute).
     icon: Icon,
     glyph: Option<fn(f32, bool) -> Icon>,
-    /// Derives `disabled` from the live value where it is a function of it (e.g.
-    /// idle's "off" position), so it stays correct mid-drag; takes precedence
-    /// over the pushed `disabled` flag.
-    disabled_when: Option<fn(f32) -> bool>,
-    /// Severity trip points, and the direction that counts as worse.
-    warn_at: Option<f32>,
-    urgent_at: Option<f32>,
-    higher_worse: bool,
+    /// Trip points tinting the rail and gauge (none = always [`Level::Ok`]).
+    thresholds: SeverityThresholds,
     target: HoverTarget,
     right_click: bool,
+}
+
+/// Warning/urgent trip points and the direction that counts as worse. With no
+/// trip point set (the default), [`level`](Self::level) is always [`Level::Ok`].
+#[derive(Default)]
+struct SeverityThresholds {
+    warn: Option<f32>,
+    urgent: Option<f32>,
+    /// `true` = high values are the severe end (loud sink); `false` = low
+    /// values are (quiet mic, low battery).
+    higher_worse: bool,
+}
+
+impl SeverityThresholds {
+    fn level(&self, value: f32) -> Level {
+        let hit = |t: Option<f32>| {
+            t.is_some_and(|t| if self.higher_worse { value >= t } else { value <= t })
+        };
+        if hit(self.urgent) {
+            Level::Critical
+        } else if hit(self.warn) {
+            Level::Warning
+        } else {
+            Level::Ok
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -111,7 +128,6 @@ impl SliderControl {
             open: false,
             accum: 0.0,
             value: Tracked::default(),
-            reading: 0.0,
             disabled: false,
             range,
             scroll_step: 1.0,
@@ -122,10 +138,7 @@ impl SliderControl {
             label: None,
             icon,
             glyph: None,
-            disabled_when: None,
-            warn_at: None,
-            urgent_at: None,
-            higher_worse: true,
+            thresholds: SeverityThresholds::default(),
             target,
             right_click: false,
         }
@@ -183,33 +196,16 @@ impl SliderControl {
         self
     }
 
-    /// Derive the muted/inactive dim from the live value (takes precedence over
-    /// [`ControlMessage::Disabled`]).
+    /// Tint the rail and gauge by severity: `warning` past `warn`, `urgent` past
+    /// `urgent`. `higher_worse` states the direction — `true` when high values
+    /// are the severe end (loud sink), `false` when low ones are (quiet mic).
     #[must_use]
-    pub fn disabled_when(mut self, when: fn(f32) -> bool) -> Self {
-        self.disabled_when = Some(when);
-        self
-    }
-
-    /// Warning trip point — the value tints `warning` past it.
-    #[must_use]
-    pub fn warn_at(mut self, value: f32) -> Self {
-        self.warn_at = Some(value);
-        self
-    }
-
-    /// Urgent trip point — the value tints `urgent` past it.
-    #[must_use]
-    pub fn urgent_at(mut self, value: f32) -> Self {
-        self.urgent_at = Some(value);
-        self
-    }
-
-    /// Whether higher values are the severe end (default `true`; set `false` for
-    /// low-is-bad sliders like a mic level).
-    #[must_use]
-    pub fn higher_worse(mut self, higher_worse: bool) -> Self {
-        self.higher_worse = higher_worse;
+    pub fn thresholds(mut self, warn: f32, urgent: f32, higher_worse: bool) -> Self {
+        self.thresholds = SeverityThresholds {
+            warn: Some(warn),
+            urgent: Some(urgent),
+            higher_worse,
+        };
         self
     }
 
@@ -226,33 +222,18 @@ impl SliderControl {
 
     /// The merged display value: the optimistic drag over the last reading.
     pub fn current(&self) -> f32 {
-        self.value.value(self.reading)
-    }
-
-    fn is_disabled(&self) -> bool {
-        self.disabled_when
-            .map_or(self.disabled, |when| when(self.current()))
+        self.value.value()
     }
 
     /// Severity of the current value against the trip points; `Ok` when none
-    /// are set. Reuses the app-wide [`Level`]; `higher_worse` states direction.
+    /// are set.
     fn severity(&self) -> Level {
-        let value = self.current();
-        let hit = |t: Option<f32>| {
-            t.is_some_and(|t| if self.higher_worse { value >= t } else { value <= t })
-        };
-        if hit(self.urgent_at) {
-            Level::Critical
-        } else if hit(self.warn_at) {
-            Level::Warning
-        } else {
-            Level::Ok
-        }
+        self.thresholds.level(self.current())
     }
 
     fn effective_icon(&self) -> Icon {
         self.glyph
-            .map_or(self.icon, |glyph| glyph(self.current(), self.is_disabled()))
+            .map_or(self.icon, |glyph| glyph(self.current(), self.disabled))
     }
 
     pub fn update(&mut self, msg: ControlMessage) -> Action {
@@ -278,7 +259,6 @@ impl SliderControl {
             ControlMessage::Release => into_action(self.value.end_drag()),
             ControlMessage::Confirmed { value, ok } => into_action(self.value.confirmed(value, ok)),
             ControlMessage::Reading(reading) => {
-                self.reading = reading;
                 self.value.sync(reading);
                 Action::None
             }
@@ -358,7 +338,7 @@ impl BarWidget for SliderControl {
     }
 
     fn disabled(&self) -> bool {
-        self.is_disabled()
+        self.disabled
     }
 
     fn tooltip(&self) -> TooltipBody {

@@ -54,8 +54,7 @@ impl Default for AudioGroup {
                         Icon::VolumeLow
                     }
                 })
-                .warn_at(80.0)
-                .urgent_at(95.0),
+                .thresholds(80.0, 95.0, true),
             source_control: SliderControl::new(RANGE, HoverTarget::AudioSource, Icon::Microphone)
                 .scroll_step(SCROLL_STEP)
                 .right_click(true)
@@ -67,9 +66,7 @@ impl Default for AudioGroup {
                         Icon::Microphone
                     }
                 })
-                .higher_worse(false)
-                .warn_at(50.0)
-                .urgent_at(15.0),
+                .thresholds(50.0, 15.0, false),
         }
     }
 }

@@ -103,7 +103,11 @@ pub fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLa
     };
     NewLayerShellSettings {
         size: Some((0, height)),
-        exclusive_zone: Some(0),
+        // -1 = "ignore exclusive zones" (like odin's ExclusionMode.Ignore).
+        // With 0, niri positions the caster inside the usable area and clamps it
+        // on-screen, defeating the negative margin that should push it fully off
+        // the edge — leaving an opaque black strip behind the transparent bar.
+        exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Background,
         keyboard_interactivity: KeyboardInteractivity::None,
