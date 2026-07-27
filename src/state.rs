@@ -65,7 +65,12 @@ async fn build() -> Result<Store, BoxError> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
+    // vetrata runs one process per output, so several processes share this file.
+    // Turso only coordinates WAL access across processes with this flag on;
+    // without it their writes stomp each other and never fold into the main db
+    // (the WAL grows unbounded and the state is lost on restart).
     let database = turso::Builder::new_local(&path.to_string_lossy())
+        .experimental_multiprocess_wal(true)
         .build()
         .await?;
     let connection = database.connect()?;
