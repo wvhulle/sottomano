@@ -46,11 +46,12 @@ impl Emphasis {
     }
 }
 
-/// Render `body` into styled spans coloured `color`, using `font.iced_font` for
-/// prose and `mono` for `<pre>`/`<tt>` runs.
+/// Render `body` into styled spans coloured `color` at `size`, using
+/// `font.iced_font` for prose and `mono` for `<pre>`/`<tt>` runs.
 pub fn body_spans<'a>(
     body: &str,
     color: Color,
+    size: f32,
     font: &ResolvedFontConfig,
     mono: Font,
 ) -> Vec<Span<'a>> {
@@ -64,7 +65,7 @@ pub fn body_spans<'a>(
         match chars[i] {
             '<' => {
                 if let Some(close) = chars[i + 1..].iter().position(|&c| c == '>') {
-                    flush(&mut text, &stack, color, font, mono, &mut spans);
+                    flush(&mut text, &stack, color, size, font, mono, &mut spans);
                     let tag: String = chars[i + 1..i + 1 + close].iter().collect();
                     apply_tag(tag.trim(), &mut stack);
                     i += close + 2;
@@ -91,7 +92,7 @@ pub fn body_spans<'a>(
             }
         }
     }
-    flush(&mut text, &stack, color, font, mono, &mut spans);
+    flush(&mut text, &stack, color, size, font, mono, &mut spans);
     spans
 }
 
@@ -99,6 +100,7 @@ fn flush<'a>(
     text: &mut String,
     stack: &[String],
     color: Color,
+    size: f32,
     font: &ResolvedFontConfig,
     mono: Font,
     spans: &mut Vec<Span<'a>>,
@@ -109,7 +111,7 @@ fn flush<'a>(
     let emphasis = Emphasis::from_stack(stack);
     let styled = span(std::mem::take(text))
         .font(emphasis.font(font.iced_font, mono))
-        .size(font.text_size_px)
+        .size(size)
         .color(color)
         .underline(emphasis.underline);
     spans.push(styled);
@@ -165,10 +167,16 @@ mod tests {
             descent_px: 0.0,
             covered: std::sync::Arc::new(std::collections::HashSet::new()),
         };
-        body_spans(body, Color::BLACK, &font, Font::MONOSPACE)
-            .iter()
-            .map(|s| s.text.to_string())
-            .collect()
+        body_spans(
+            body,
+            Color::BLACK,
+            font.text_size_px,
+            &font,
+            Font::MONOSPACE,
+        )
+        .iter()
+        .map(|s| s.text.to_string())
+        .collect()
     }
 
     #[test]

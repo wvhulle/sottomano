@@ -90,9 +90,9 @@ pub enum HoverTarget {
     Location,
     Media,
     /// A tray item, carrying its own static tooltip content (title +
-    /// description). Unlike the gauges, a tray tooltip does not change per frame,
-    /// so it rides in the target itself rather than being re-derived from a
-    /// reading.
+    /// description). Unlike the gauges, a tray tooltip does not change per
+    /// frame, so it rides in the target itself rather than being re-derived
+    /// from a reading.
     Tray(Box<Tooltip>),
 }
 
@@ -163,8 +163,8 @@ struct Shown {
     settled: bool,
 }
 
-/// Placement of a popup anchored to a hovered widget, reused by the tray context
-/// menu so it lands under the same icon the tooltip would.
+/// Placement of a popup anchored to a hovered widget, reused by the tray
+/// context menu so it lands under the same icon the tooltip would.
 #[derive(Debug, Clone)]
 pub struct MenuAnchor {
     pub anchor: Rectangle,
@@ -329,8 +329,8 @@ impl TooltipHost {
 
     /// Placement for a popup anchored to the currently-hovered tray item — its
     /// icon bounds, output, and edge — reused by the tray context menu. `None`
-    /// unless a tray tooltip is open (right-clicking an icon means it is hovered,
-    /// so its tooltip is showing and carries the anchor).
+    /// unless a tray tooltip is open (right-clicking an icon means it is
+    /// hovered, so its tooltip is showing and carries the anchor).
     pub fn menu_anchor(&self) -> Option<MenuAnchor> {
         let shown = self.shown.as_ref()?;
         matches!(shown.target, HoverTarget::Tray(_)).then(|| MenuAnchor {
@@ -559,13 +559,13 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
 }
 
 /// The tooltip body as a laid-out element. Table/Log render as two
-/// shrink-to-content columns side by side — odin's `TooltipRows` grid; both size
-/// to their widest cell, so the panel is exactly as wide as its content (no
-/// `Fill`, which would make it greedy and defeat the `Sensor` measurement). A
-/// Table shows dimmed key | value; a Log shows dimmed relative time |
-/// level-tinted message; Text renders as a bold title stacked over a dimmed body
-/// (a tray item's own tooltip). `paint` fades a Log's per-level colour with the
-/// rest before the surface settles.
+/// shrink-to-content columns side by side — odin's `TooltipRows` grid; both
+/// size to their widest cell, so the panel is exactly as wide as its content
+/// (no `Fill`, which would make it greedy and defeat the `Sensor` measurement).
+/// A Table shows dimmed key | value; a Log shows dimmed relative time |
+/// level-tinted message; Text renders as a bold title stacked over a dimmed
+/// body (a tray item's own tooltip). `paint` fades a Log's per-level colour
+/// with the rest before the surface settles.
 fn tooltip_grid<'a>(
     body: &TooltipBody,
     config: &ResolvedConfig,
@@ -617,8 +617,11 @@ fn tooltip_grid<'a>(
             };
             let mut column = Column::new().spacing(ROW_SPACING_PX);
             if !title.is_empty() {
-                column =
-                    column.push(bar_text(&config.font, title.clone()).font(bold).color(foreground));
+                column = column.push(
+                    bar_text(&config.font, title.clone())
+                        .font(bold)
+                        .color(foreground),
+                );
             }
             if !body.is_empty() {
                 column = column.push(bar_text(&config.font, body.clone()).color(dim));

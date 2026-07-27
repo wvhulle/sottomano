@@ -81,7 +81,8 @@ impl IdleTimer {
     /// Adopt a persisted timeout (on load) and resync the control to it.
     pub fn set_timeout(&mut self, timeout: Option<Duration>) {
         self.timeout = timeout;
-        self.control.update(ControlMessage::Reading(position(timeout)));
+        self.control
+            .update(ControlMessage::Reading(position(timeout)));
     }
 
     pub fn target(&self) -> &HoverTarget {
@@ -98,16 +99,14 @@ impl IdleTimer {
 
     pub fn update(&mut self, msg: TimerMessage) -> TimerChange {
         match msg {
-            TimerMessage::Slider(msg) => {
-                match self.control.update(msg) {
-                    Action::Opened => TimerChange::Opened,
-                    Action::Commit(value) => {
-                        self.timeout = from_position(value);
-                        TimerChange::Persist(value)
-                    }
-                    Action::None | Action::Right => TimerChange::None,
+            TimerMessage::Slider(msg) => match self.control.update(msg) {
+                Action::Opened => TimerChange::Opened,
+                Action::Commit(value) => {
+                    self.timeout = from_position(value);
+                    TimerChange::Persist(value)
                 }
-            }
+                Action::None | Action::Right => TimerChange::None,
+            },
             // Harmless subsystems fire on the first click; disruptive ones arm,
             // then fire on the confirming second click.
             TimerMessage::Trigger => match self.button.press() {

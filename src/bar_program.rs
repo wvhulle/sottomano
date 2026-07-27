@@ -261,13 +261,12 @@ impl Bar {
             Message::Tray(TrayMessage::OpenMenu(index)) => self.open_tray_menu(index),
             Message::Tray(TrayMessage::MenuItemClicked(id)) => {
                 if let Some((address, menu_path)) = self.tray_menu.target() {
-                    self.tray_group.command(
-                        crate::data_sources::tray::TrayCommand::MenuClick {
+                    self.tray_group
+                        .command(crate::data_sources::tray::TrayCommand::MenuClick {
                             address,
                             menu_path,
                             id,
-                        },
-                    );
+                        });
                 }
                 self.tray_menu.close()
             }
@@ -414,8 +413,9 @@ impl Bar {
 
     /// Open the context menu for the tray item at visible-row `index`, anchored
     /// under its icon. Re-clicking the same item closes it. The icon is hovered
-    /// when right-clicked, so its tooltip anchor gives the placement (no separate
-    /// bounds-tracking widget needed). A no-op for an item with no menu.
+    /// when right-clicked, so its tooltip anchor gives the placement (no
+    /// separate bounds-tracking widget needed). A no-op for an item with no
+    /// menu.
     fn open_tray_menu(&mut self, index: usize) -> Task<Message> {
         let (address, menu_path, nodes) = {
             let visible = self.tray_group.visible(&self.config);
@@ -489,7 +489,8 @@ impl Bar {
         let _ = self
             .monitor_group
             .update(MonitorMessage::Menu(MenuMessage::Close));
-        self.tray_group.update(TrayMessage::Menu(MenuMessage::Close));
+        self.tray_group
+            .update(TrayMessage::Menu(MenuMessage::Close));
     }
 
     /// Apply a coalesced burst of niri events as one update: fold every event

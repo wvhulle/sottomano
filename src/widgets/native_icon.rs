@@ -1,8 +1,9 @@
-//! A native application icon, sized and faded: a decoded pixmap or a themed icon
-//! file. Themed icons ship scalable SVGs while hicolor app icons are raster, and
-//! iced decodes them through different widgets, so the extension picks the path —
-//! done here once so every consumer (tray bar icons, tray menu entries, and in
-//! time the window list / quick-launch) renders both the same way.
+//! A native application icon, sized and faded: a decoded pixmap or a themed
+//! icon file. Themed icons ship scalable SVGs while hicolor app icons are
+//! raster, and iced decodes them through different widgets, so the extension
+//! picks the path — done here once so every consumer (tray bar icons, tray menu
+//! entries, and in time the window list / quick-launch) renders both the same
+//! way.
 
 use std::path::PathBuf;
 

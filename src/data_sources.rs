@@ -126,7 +126,10 @@ pub enum TooltipBody {
     /// Freeform prose: a title over a body paragraph, for widgets whose tooltip
     /// is descriptive text rather than key/value rows (a tray item's own
     /// `ToolTip`).
-    Text { title: String, body: String },
+    Text {
+        title: String,
+        body: String,
+    },
 }
 
 impl TooltipBody {

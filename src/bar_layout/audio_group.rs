@@ -109,28 +109,26 @@ impl AudioGroup {
                 }
                 Task::none()
             }
-            AudioMessage::Control(ControlKind::Sink, msg) => {
-                match self.sink_control.update(msg) {
-                    Action::Opened => {
-                        self.source_control.close();
-                        Task::none()
-                    }
-                    Action::Commit(value) => {
-                        let target = as_percent(value);
-                        blocking("audio set sink", move || {
-                            slow_write_delay();
-                            set_volume::<false>(target)
-                        })
-                        .map(move |ok| {
-                            AudioMessage::Control(
-                                ControlKind::Sink,
-                                ControlMessage::Confirmed { value, ok },
-                            )
-                        })
-                    }
-                    Action::None | Action::Right => Task::none(),
+            AudioMessage::Control(ControlKind::Sink, msg) => match self.sink_control.update(msg) {
+                Action::Opened => {
+                    self.source_control.close();
+                    Task::none()
                 }
-            }
+                Action::Commit(value) => {
+                    let target = as_percent(value);
+                    blocking("audio set sink", move || {
+                        slow_write_delay();
+                        set_volume::<false>(target)
+                    })
+                    .map(move |ok| {
+                        AudioMessage::Control(
+                            ControlKind::Sink,
+                            ControlMessage::Confirmed { value, ok },
+                        )
+                    })
+                }
+                Action::None | Action::Right => Task::none(),
+            },
             AudioMessage::Control(ControlKind::Source, msg) => {
                 match self.source_control.update(msg) {
                     Action::Opened => {
@@ -167,14 +165,16 @@ impl AudioGroup {
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, AudioMessage>> {
-        let source = self
-            .source
-            .get()
-            .map(|_| self.source_control.view(config, 1.0).map(tag(ControlKind::Source)));
-        let sink = self
-            .sink
-            .get()
-            .map(|_| self.sink_control.view(config, 1.0).map(tag(ControlKind::Sink)));
+        let source = self.source.get().map(|_| {
+            self.source_control
+                .view(config, 1.0)
+                .map(tag(ControlKind::Source))
+        });
+        let sink = self.sink.get().map(|_| {
+            self.sink_control
+                .view(config, 1.0)
+                .map(tag(ControlKind::Sink))
+        });
 
         let widgets: Vec<Element<'a, AudioMessage>> =
             [source, sink].into_iter().flatten().collect();

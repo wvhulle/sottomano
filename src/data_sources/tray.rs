@@ -1,9 +1,9 @@
-//! System tray via the freedesktop `StatusNotifierItem` protocol (odin's `Tray`),
-//! backed by the `system-tray` crate — the SNI host ironbar uses. The crate
-//! registers the watcher/host, discovers items, and parses each item's dbusmenu
-//! into a tree delivered through its event stream, so this module is only a thin
-//! adapter: fold the crate's events into our render model, decode icons, and
-//! route click/menu actions back to the crate's `Client`.
+//! System tray via the freedesktop `StatusNotifierItem` protocol (odin's
+//! `Tray`), backed by the `system-tray` crate — the SNI host ironbar uses. The
+//! crate registers the watcher/host, discovers items, and parses each item's
+//! dbusmenu into a tree delivered through its event stream, so this module is
+//! only a thin adapter: fold the crate's events into our render model, decode
+//! icons, and route click/menu actions back to the crate's `Client`.
 //!
 //! Icons are rendered as-is (odin's glyph map is intentionally not ported):
 //! prefer the item's pixmap, else its themed icon name.
@@ -16,6 +16,7 @@ use iced::{
     stream,
     widget::image,
 };
+pub use system_tray::item::Status;
 use system_tray::{
     client::{ActivateRequest, Client, Event, UpdateEvent},
     item::{IconPixmap, StatusNotifierItem},
@@ -35,8 +36,6 @@ use crate::{
     },
 };
 
-pub use system_tray::item::Status;
-
 /// The tooltip content an item advertises, when any.
 #[derive(Debug, Clone)]
 pub struct Tip {
@@ -44,7 +43,8 @@ pub struct Tip {
     pub body: String,
 }
 
-/// One live tray item, adapted from the crate's `StatusNotifierItem` + `TrayMenu`.
+/// One live tray item, adapted from the crate's `StatusNotifierItem` +
+/// `TrayMenu`.
 #[derive(Debug, Clone)]
 pub struct TrayItem {
     pub address: String,
@@ -60,7 +60,11 @@ pub struct TrayItem {
 impl TrayItem {
     /// The label a tooltip/menu shows: the item's title, else its id.
     pub fn name(&self) -> &str {
-        if self.title.is_empty() { &self.id } else { &self.title }
+        if self.title.is_empty() {
+            &self.id
+        } else {
+            &self.title
+        }
     }
 }
 
@@ -78,7 +82,11 @@ pub enum TrayUpdate {
 pub enum TrayCommand {
     Activate(String),
     Secondary(String),
-    MenuClick { address: String, menu_path: String, id: i32 },
+    MenuClick {
+        address: String,
+        menu_path: String,
+        id: i32,
+    },
 }
 
 /// A cheap, cloneable handle the bar keeps to issue [`TrayCommand`]s.
@@ -102,7 +110,10 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
                     == i64::from(p.width) * i64::from(p.height) * 4
         })
         .max_by_key(|p| i64::from(p.width) * i64::from(p.height))?;
-    let (width, height) = (u32::try_from(best.width).ok()?, u32::try_from(best.height).ok()?);
+    let (width, height) = (
+        u32::try_from(best.width).ok()?,
+        u32::try_from(best.height).ok()?,
+    );
     let mut bytes = best.pixels.clone();
     for pixel in bytes.chunks_exact_mut(4) {
         pixel.rotate_left(1);
@@ -135,8 +146,8 @@ fn resolve_visual(
         .map(IconSource::Themed)
 }
 
-/// The entry's own icon: prefer inline `icon-data` (encoded image bytes), else a
-/// themed `icon-name`.
+/// The entry's own icon: prefer inline `icon-data` (encoded image bytes), else
+/// a themed `icon-name`.
 fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
     if let Some(data) = &item.icon_data
         && !data.is_empty()
@@ -256,7 +267,11 @@ async fn run(output: &mut Sender<TrayUpdate>) {
     };
     let mut events = client.subscribe();
     let (command_tx, mut command_rx) = mpsc::channel::<TrayCommand>(64);
-    if output.send(TrayUpdate::Connected(TrayHandle(command_tx))).await.is_err() {
+    if output
+        .send(TrayUpdate::Connected(TrayHandle(command_tx)))
+        .await
+        .is_err()
+    {
         return;
     }
 
@@ -332,13 +347,12 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &Des
                 return;
             };
             match update {
-                UpdateEvent::Icon { icon_name, icon_pixmap } => {
-                    item.icon = resolve_visual(
-                        icon_name.as_deref(),
-                        icon_pixmap.as_deref(),
-                        None,
-                        entries,
-                    );
+                UpdateEvent::Icon {
+                    icon_name,
+                    icon_pixmap,
+                } => {
+                    item.icon =
+                        resolve_visual(icon_name.as_deref(), icon_pixmap.as_deref(), None, entries);
                 }
                 UpdateEvent::Status(status) => item.status = status,
                 UpdateEvent::Title(title) => item.title = title.unwrap_or_default(),
@@ -362,9 +376,21 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &Des
 
 async fn run_command(client: &Client, command: TrayCommand) {
     let request = match command {
-        TrayCommand::Activate(address) => ActivateRequest::Default { address, x: 0, y: 0 },
-        TrayCommand::Secondary(address) => ActivateRequest::Secondary { address, x: 0, y: 0 },
-        TrayCommand::MenuClick { address, menu_path, id } => ActivateRequest::MenuItem {
+        TrayCommand::Activate(address) => ActivateRequest::Default {
+            address,
+            x: 0,
+            y: 0,
+        },
+        TrayCommand::Secondary(address) => ActivateRequest::Secondary {
+            address,
+            x: 0,
+            y: 0,
+        },
+        TrayCommand::MenuClick {
+            address,
+            menu_path,
+            id,
+        } => ActivateRequest::MenuItem {
             address,
             menu_path,
             submenu_id: id,

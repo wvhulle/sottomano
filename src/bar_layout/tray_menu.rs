@@ -1,10 +1,11 @@
 //! The tray context-menu popup: an interactive layer surface the bar owns
 //! (mirroring [`TooltipHost`](crate::tooltip::TooltipHost) but taking input),
-//! whose body is rendered by [`widgets::context_menu`](crate::widgets::context_menu).
-//! It lives here rather than in `widgets/` because it emits
-//! [`Message`](crate::bar_program::Message) and creates/destroys surfaces, which
-//! the message-generic widgets never do. Unlike the tooltip, it carries its
-//! content — a snapshot of the item's menu taken when it opens.
+//! whose body is rendered by
+//! [`widgets::context_menu`](crate::widgets::context_menu). It lives here
+//! rather than in `widgets/` because it emits
+//! [`Message`](crate::bar_program::Message) and creates/destroys surfaces,
+//! which the message-generic widgets never do. Unlike the tooltip, it carries
+//! its content — a snapshot of the item's menu taken when it opens.
 
 use std::collections::HashSet;
 
@@ -27,11 +28,11 @@ use crate::{
 };
 
 /// A generous initial size for the menu surface; the panel lays itself out
-/// (shrink-to-fit) and a [`Sensor`] reports the true size, which then shrinks the
-/// surface — the same settle dance as the tooltip.
+/// (shrink-to-fit) and a [`Sensor`] reports the true size, which then shrinks
+/// the surface — the same settle dance as the tooltip.
 const MENU_PROVISIONAL: (u32, u32) = (420, 800);
-/// Fixed content width, so row highlights span the full menu and submenu chevrons
-/// right-align. Long labels wrap.
+/// Fixed content width, so row highlights span the full menu and submenu
+/// chevrons right-align. Long labels wrap.
 const MENU_WIDTH: f32 = 250.0;
 const MENU_PADDING: f32 = 6.0;
 /// Border alpha, scaled by the settle paint.
@@ -94,7 +95,13 @@ impl TrayMenuHost {
             size: None,
             settled: false,
         });
-        Task::batch([close, Task::done(Message::NewLayerShell { settings, id: surface })])
+        Task::batch([
+            close,
+            Task::done(Message::NewLayerShell {
+                settings,
+                id: surface,
+            }),
+        ])
     }
 
     pub fn close(&mut self) -> Task<Message> {
@@ -105,7 +112,11 @@ impl TrayMenuHost {
     }
 
     pub fn forget(&mut self, surface: Id) {
-        if self.shown.as_ref().is_some_and(|menu| menu.surface == surface) {
+        if self
+            .shown
+            .as_ref()
+            .is_some_and(|menu| menu.surface == surface)
+        {
             self.shown = None;
         }
     }
@@ -118,9 +129,9 @@ impl TrayMenuHost {
         }
     }
 
-    /// Shrink the surface to the measured panel size and re-place its left margin
-    /// against the true width (dedup so the settle doesn't loop) — the menu
-    /// counterpart of the tooltip's resize.
+    /// Shrink the surface to the measured panel size and re-place its left
+    /// margin against the true width (dedup so the settle doesn't loop) —
+    /// the menu counterpart of the tooltip's resize.
     pub fn resize(&mut self, surface: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
         let Some(menu) = &mut self.shown else {
             return Task::none();
@@ -135,8 +146,14 @@ impl TrayMenuHost {
         let left = panel_left(menu.anchor.x, menu.output_width, requested.0);
         let margin = tooltip_margin(menu.position, left, bar);
         Task::batch([
-            Task::done(Message::MarginChange { id: surface, margin }),
-            Task::done(Message::SizeChange { id: surface, size: requested }),
+            Task::done(Message::MarginChange {
+                id: surface,
+                margin,
+            }),
+            Task::done(Message::SizeChange {
+                id: surface,
+                size: requested,
+            }),
         ])
     }
 
@@ -205,7 +222,10 @@ fn menu_surface<'a>(
         .style(move |_| container::Style {
             background: Some(Background::Color(background)),
             border: Border {
-                color: config.palette.bar_foreground.scale_alpha(BORDER_ALPHA * paint),
+                color: config
+                    .palette
+                    .bar_foreground
+                    .scale_alpha(BORDER_ALPHA * paint),
                 width: 1.0,
                 // Always rounded — a popup, not the flush bar (chrome_radius is 0
                 // when the bar is docked).

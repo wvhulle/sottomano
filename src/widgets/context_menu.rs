@@ -1,8 +1,9 @@
 //! A reusable context-menu popup body (odin's dbusmenu popup, but domain-
-//! agnostic): a vertical list of entries — rows that highlight on hover, section
-//! dividers, in-place submenus, and check toggles. The caller supplies the tree
-//! and maps a node id to its own message; the set of expanded submenus lives with
-//! the caller. Knows nothing about D-Bus, so any future menu can reuse it.
+//! agnostic): a vertical list of entries — rows that highlight on hover,
+//! section dividers, in-place submenus, and check toggles. The caller supplies
+//! the tree and maps a node id to its own message; the set of expanded submenus
+//! lives with the caller. Knows nothing about D-Bus, so any future menu can
+//! reuse it.
 
 use std::collections::HashSet;
 
@@ -53,9 +54,9 @@ pub enum MenuKind {
 }
 
 /// Render the menu as a `Column`. `open` holds the ids of expanded submenus;
-/// `paint` fades the whole body (0 while a popup surface settles). `on_activate`
-/// maps a clicked standard/toggle entry's id to a message; `on_toggle` maps a
-/// submenu header's id.
+/// `paint` fades the whole body (0 while a popup surface settles).
+/// `on_activate` maps a clicked standard/toggle entry's id to a message;
+/// `on_toggle` maps a submenu header's id.
 pub fn context_menu<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     nodes: &[MenuNode],
@@ -73,8 +74,8 @@ pub fn context_menu<'a, Message: Clone + 'a>(
         .into()
 }
 
-/// The element(s) a node contributes: a divider, a plain entry, or — for an open
-/// submenu — the header followed by its indented children.
+/// The element(s) a node contributes: a divider, a plain entry, or — for an
+/// open submenu — the header followed by its indented children.
 fn entry_rows<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     node: &MenuNode,
@@ -105,9 +106,10 @@ fn entry_rows<'a, Message: Clone + 'a>(
     }
 }
 
-/// One clickable row: a leading icon (the entry's own, else a check for a toggled
-/// item), the label, and — for a submenu — a right-aligned chevron. Rendered as a
-/// `button` so it highlights on hover; a disabled entry is dimmed and inert.
+/// One clickable row: a leading icon (the entry's own, else a check for a
+/// toggled item), the label, and — for a submenu — a right-aligned chevron.
+/// Rendered as a `button` so it highlights on hover; a disabled entry is dimmed
+/// and inert.
 fn entry<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     node: &MenuNode,
@@ -189,7 +191,10 @@ fn divider<'a, Message: 'a>(config: &ResolvedConfig, paint: f32) -> Element<'a, 
             background: Some(Background::Color(color)),
             ..Default::default()
         });
-    container(rule).width(Length::Fill).padding([4.0, 0.0]).into()
+    container(rule)
+        .width(Length::Fill)
+        .padding([4.0, 0.0])
+        .into()
 }
 
 /// Drop redundant separators — leading, trailing, and runs of consecutive ones

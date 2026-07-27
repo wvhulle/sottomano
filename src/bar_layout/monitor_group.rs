@@ -148,40 +148,33 @@ impl MonitorGroup {
                 }
                 Task::none()
             }
-            MonitorMessage::Dim(m) => {
-                match self.dim.update(m) {
-                    Action::Opened => {
-                        self.close_backlight_sliders(None);
-                        self.warmth.close();
-                        Task::none()
-                    }
-                    Action::Commit(value) => {
-                        let target = as_percent(value);
-                        blocking("gamma dim", move || gamma::set_brightness(target)).map(
-                            move |ok| MonitorMessage::Dim(ControlMessage::Confirmed { value, ok }),
-                        )
-                    }
-                    Action::None | Action::Right => Task::none(),
+            MonitorMessage::Dim(m) => match self.dim.update(m) {
+                Action::Opened => {
+                    self.close_backlight_sliders(None);
+                    self.warmth.close();
+                    Task::none()
                 }
-            }
-            MonitorMessage::Warmth(m) => {
-                match self.warmth.update(m) {
-                    Action::Opened => {
-                        self.close_backlight_sliders(None);
-                        self.dim.close();
-                        Task::none()
-                    }
-                    Action::Commit(value) => {
-                        let kelvin = as_kelvin(value);
-                        blocking("gamma temperature", move || gamma::set_temperature(kelvin)).map(
-                            move |ok| {
-                                MonitorMessage::Warmth(ControlMessage::Confirmed { value, ok })
-                            },
-                        )
-                    }
-                    Action::None | Action::Right => Task::none(),
+                Action::Commit(value) => {
+                    let target = as_percent(value);
+                    blocking("gamma dim", move || gamma::set_brightness(target))
+                        .map(move |ok| MonitorMessage::Dim(ControlMessage::Confirmed { value, ok }))
                 }
-            }
+                Action::None | Action::Right => Task::none(),
+            },
+            MonitorMessage::Warmth(m) => match self.warmth.update(m) {
+                Action::Opened => {
+                    self.close_backlight_sliders(None);
+                    self.dim.close();
+                    Task::none()
+                }
+                Action::Commit(value) => {
+                    let kelvin = as_kelvin(value);
+                    blocking("gamma temperature", move || gamma::set_temperature(kelvin)).map(
+                        move |ok| MonitorMessage::Warmth(ControlMessage::Confirmed { value, ok }),
+                    )
+                }
+                Action::None | Action::Right => Task::none(),
+            },
             MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
             MonitorMessage::Umbra(m) => self.umbra.update(m).map(MonitorMessage::Umbra),
             MonitorMessage::Tooltip(_) => Task::none(),

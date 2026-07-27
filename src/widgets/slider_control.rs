@@ -2,12 +2,12 @@
 //! write-back control (audio, idle, panel). It owns the expansion, the scroll
 //! input, and — as a self-contained component — all of its own runtime state:
 //! the device reading, the muted flag, and the value model ([`Tracked`], which
-//! keeps the optimistic ghost). Callers feed those in through [`ControlMessage`]
-//! (never as `view` arguments), so [`view`](SliderControl::view) needs only the
-//! config and the parent reveal.
+//! keeps the optimistic ghost). Callers feed those in through
+//! [`ControlMessage`] (never as `view` arguments), so
+//! [`view`](SliderControl::view) needs only the config and the parent reveal.
 //!
-//! The control is itself a [`BarWidget`], so its collapsed state renders through
-//! the shared [`source_reading`] without a throwaway widget.
+//! The control is itself a [`BarWidget`], so its collapsed state renders
+//! through the shared [`source_reading`] without a throwaway widget.
 
 use std::ops::RangeInclusive;
 
@@ -55,8 +55,9 @@ pub struct SliderControl {
     /// gauge; [`icon_only`](Self::icon_only) leaves neither.
     gauge: bool,
     label: Option<fn(f32) -> String>,
-    /// The bar/menu icon. A static default plus an optional value/disabled-driven
-    /// override for the audio glyph (volume level, mute).
+    /// The bar/menu icon. A static default plus an optional
+    /// value/disabled-driven override for the audio glyph (volume level,
+    /// mute).
     icon: Icon,
     glyph: Option<fn(f32, bool) -> Icon>,
     /// Trip points tinting the rail and gauge (none = always [`Level::Ok`]).
@@ -66,7 +67,8 @@ pub struct SliderControl {
 }
 
 /// Warning/urgent trip points and the direction that counts as worse. With no
-/// trip point set (the default), [`level`](Self::level) is always [`Level::Ok`].
+/// trip point set (the default), [`level`](Self::level) is always
+/// [`Level::Ok`].
 #[derive(Default)]
 struct SeverityThresholds {
     warn: Option<f32>,
@@ -79,7 +81,13 @@ struct SeverityThresholds {
 impl SeverityThresholds {
     fn level(&self, value: f32) -> Level {
         let hit = |t: Option<f32>| {
-            t.is_some_and(|t| if self.higher_worse { value >= t } else { value <= t })
+            t.is_some_and(|t| {
+                if self.higher_worse {
+                    value >= t
+                } else {
+                    value <= t
+                }
+            })
         };
         if hit(self.urgent) {
             Level::Critical
@@ -196,9 +204,10 @@ impl SliderControl {
         self
     }
 
-    /// Tint the rail and gauge by severity: `warning` past `warn`, `urgent` past
-    /// `urgent`. `higher_worse` states the direction — `true` when high values
-    /// are the severe end (loud sink), `false` when low ones are (quiet mic).
+    /// Tint the rail and gauge by severity: `warning` past `warn`, `urgent`
+    /// past `urgent`. `higher_worse` states the direction — `true` when
+    /// high values are the severe end (loud sink), `false` when low ones
+    /// are (quiet mic).
     #[must_use]
     pub fn thresholds(mut self, warn: f32, urgent: f32, higher_worse: bool) -> Self {
         self.thresholds = SeverityThresholds {
@@ -271,9 +280,9 @@ impl SliderControl {
         }
     }
 
-    /// The pill: the inline slider when open, else the collapsed reading (icon +
-    /// gauge/label) faded by `reveal` — the parent menu's render-time expand
-    /// sample, the one value not owned as state.
+    /// The pill: the inline slider when open, else the collapsed reading (icon
+    /// + gauge/label) faded by `reveal` — the parent menu's render-time
+    /// expand sample, the one value not owned as state.
     pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, ControlMessage> {
         if self.open {
             let glyph = mouse_area(

@@ -166,10 +166,16 @@ pub fn card<'a>(
     let mut column = Column::new().spacing(4.0).push(title);
     if has_body {
         let mono = Font::MONOSPACE;
-        let body = Row::new()
-            .spacing(8.0)
-            .align_y(Alignment::End)
-            .push(rich_text(markup::body_spans(&data.body, dim, font, mono)).width(Length::Fill));
+        let body = Row::new().spacing(8.0).align_y(Alignment::End).push(
+            rich_text(markup::body_spans(
+                &data.body,
+                dim,
+                font.text_size_px * 0.85,
+                font,
+                mono,
+            ))
+            .width(Length::Fill),
+        );
         column = column.push(match reltime_span(!has_actions) {
             Some(time) => body.push(time),
             None => body,
@@ -311,30 +317,26 @@ fn action_button<'a>(
     tint: Color,
     font: &ResolvedFontConfig,
 ) -> Element<'a, NotificationMessage> {
-    button(
-        bar_text(font, label)
-            .size(font.text_size_px * 0.9)
-            .color(tint),
-    )
-    .padding([2.0, 8.0])
-    .style(move |_, status| {
-        let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: Some(
-                Color {
-                    a: if hovered { 0.22 } else { 0.12 },
-                    ..tint
-                }
-                .into(),
-            ),
-            text_color: tint,
-            border: Border {
-                radius: 4.0.into(),
+    button(bar_text(font, label).size(font.text_size_px).color(tint))
+        .padding([6.0, 14.0])
+        .style(move |_, status| {
+            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            button::Style {
+                background: Some(
+                    Color {
+                        a: if hovered { 0.22 } else { 0.12 },
+                        ..tint
+                    }
+                    .into(),
+                ),
+                text_color: tint,
+                border: Border {
+                    radius: 4.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
-            },
-            ..Default::default()
-        }
-    })
-    .on_press(message)
-    .into()
+            }
+        })
+        .on_press(message)
+        .into()
 }

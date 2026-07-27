@@ -88,6 +88,25 @@ let
       geometry-corner-radius = radius0;
       shadow = gradientShadow 1;
     }
+    # Each toast has its own tightly-sized overlay surface
+    # (namespace "vetrata-notifications", src/notifications/stack.rs), so niri can
+    # hug a drop shadow straight to the card — no off-screen caster like the bar.
+    # Corners match the card's default `layout.corner_radius_px` (src/config/disk.rs).
+    {
+      matches = [ { namespace = "^vetrata-notifications$"; } ];
+      geometry-corner-radius = {
+        top-left = 8.0;
+        top-right = 8.0;
+        bottom-left = 8.0;
+        bottom-right = 8.0;
+      };
+      shadow = {
+        enable = true;
+        softness = 30;
+        spread = 10;
+        color = "#00000070";
+      };
+    }
   ];
 in
 {

@@ -37,8 +37,8 @@ const RAIL_WIDTH: f32 = 4.0;
 /// A severity-accented slider over `range`, stepping by `step`, emitting
 /// `on_change` while dragging and `on_release` when let go. The accent is the
 /// palette's `focus` at [`Level::Ok`], else its warning/urgent tint. When
-/// `ghost` is `Some`, a hollow marker trails at the last-confirmed value and the
-/// handle grows to signal the active drag.
+/// `ghost` is `Some`, a hollow marker trails at the last-confirmed value and
+/// the handle grows to signal the active drag.
 #[allow(clippy::too_many_arguments)]
 pub fn inline_slider<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
