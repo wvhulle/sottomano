@@ -160,6 +160,16 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
         .window_list
         .view(&bar.niri_snapshot, output, config, position)
         .map(|e| e.map(Message::WindowList));
+    // Launcher + window list, centred as a pair in the Fill middle. Shrink
+    // flanks (workspaces, tray) lay out first, so the middle reserves exactly the
+    // space between them; the window list caps its width to that budget and
+    // scrolls when it overflows, keeping the tray from being overrun.
+    let group = Row::new()
+        .extend(quick_launch)
+        .extend(window_list)
+        .spacing(config.layout.horizontal_group_spacing_px)
+        .align_y(Alignment::Center);
+    let middle = container(group).center_x(Length::Fill);
     // Bottom-right zone (odin: tray / ai-usage / notifications). Tray ported.
     let end = bar
         .tray_group
@@ -171,29 +181,8 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
             })
         })
         .unwrap_or_else(|| Space::new().into());
-
-    // Left-anchored flow: workspaces —group gap— launcher —widget gap— window
-    // list … tray. The window list fills the space up to the tray so it reserves
-    // the tray's room and clips/scrolls on overflow, sitting left-aligned right
-    // after the launcher.
-    let group_gap = Length::Fixed(config.layout.horizontal_group_spacing_px);
-    let widget_gap = Length::Fixed(config.layout.horizontal_widget_spacing_px);
-    let list_region: Element<'_, Message> = match window_list {
-        Some(list) => container(list).width(Length::Fill).into(),
-        None => Space::new().width(Length::Fill).into(),
-    };
-    let mut row = Row::new().align_y(Alignment::Center).push(start);
-    if let Some(launcher) = quick_launch {
-        row = row
-            .push(Space::new().width(group_gap))
-            .push(launcher)
-            .push(Space::new().width(widget_gap));
-    } else {
-        row = row.push(Space::new().width(group_gap));
-    }
-    row.push(list_region)
-        .push(Space::new().width(group_gap))
-        .push(end)
+    row![start, middle, end]
+        .align_y(Alignment::Center)
         .padding([
             config.layout.vertical_padding_px,
             config.layout.horizontal_group_padding_px,

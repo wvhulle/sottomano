@@ -33,6 +33,11 @@ use super::reveal::clip_cursor;
 /// step; pixel (touchpad) events already are pixels.
 const LINE_STEP_PX: f32 = 60.0;
 
+/// Opacity of a window the overflow partially hides. Any clipped item drops to
+/// this fixed dim regardless of how much is hidden; fully-visible items stay
+/// `1.0`.
+const CLIPPED_ALPHA: f32 = 0.4;
+
 /// The viewport geometry the caller needs to fade the items straddling the clip
 /// edges: the visible width, the full content width, and each item's
 /// `[left, right]` span in content-space (same order as the buttons). Reported
@@ -50,11 +55,10 @@ impl Metrics {
         (self.content_width - self.viewport_width).max(0.0)
     }
 
-    /// Opacity for item `index` at scroll `offset`. Fully-visible items stay
-    /// `1.0`; only an item straddling a clip edge dims — by its visible fraction
-    /// cubed, so a slightly-clipped item is already visibly faded and a mostly
-    /// hidden one is nearly gone, where a linear ramp would be imperceptible at
-    /// rest.
+    /// Opacity for item `index` at scroll `offset`: `1.0` when the item is fully
+    /// in view, a fixed [`CLIPPED_ALPHA`] the moment either edge clips it.
+    /// Symmetric — it tests both edges, so a window clipped on the left dims like
+    /// one clipped on the right.
     pub fn item_alpha(&self, offset: f32, index: usize) -> f32 {
         let Some(&(left, right)) = self.item_bounds.get(index) else {
             return 1.0;
@@ -64,9 +68,8 @@ impl Metrics {
             return 1.0;
         }
         let offset = offset.clamp(0.0, max);
-        let width = (right - left).max(1.0);
-        let visible = right.min(offset + self.viewport_width) - left.max(offset);
-        (visible / width).clamp(0.0, 1.0).powi(3)
+        let clipped = left < offset - 0.5 || right > offset + self.viewport_width + 0.5;
+        if clipped { CLIPPED_ALPHA } else { 1.0 }
     }
 }
 

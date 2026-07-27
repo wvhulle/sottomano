@@ -65,6 +65,10 @@ pub enum NotificationMessage {
 pub struct Notification {
     pub data: NotificationData,
     pub created_at: SystemTime,
+    /// Monotonic arrival order, used to sort the stack. Unlike `created_at`
+    /// (wall-clock, so two toasts in one tick can tie or invert), this strictly
+    /// increases, so newest-first stacking order is deterministic.
+    seq: u64,
     pub icons: card::CardIcons,
 }
 
@@ -84,6 +88,9 @@ pub struct NotificationGroup {
     live: Vec<Notification>,
     surfaces: HashMap<u32, ToastSurface>,
     heights: HashMap<u32, f32>,
+    /// Next monotonic arrival number, stamped onto each served notification's
+    /// [`Notification::seq`] to give the stack a deterministic order.
+    next_seq: u64,
     /// The card the pointer is currently over, for its hover-border highlight.
     hovered: Option<u32>,
     dnd: bool,
@@ -128,9 +135,12 @@ impl NotificationGroup {
                     }
                 }
                 let icons = card::resolve_icons(&data, entries);
+                let seq = self.next_seq;
+                self.next_seq += 1;
                 self.live.push(Notification {
                     data,
                     created_at: SystemTime::now(),
+                    seq,
                     icons,
                 });
                 tasks.push(self.reconcile(placement, outputs, config));
@@ -447,14 +457,17 @@ impl NotificationGroup {
         let width = config.notifications.card_width.round() as u32;
         // Newest first, so walking a corner group meets the freshest toast first.
         let mut order: Vec<&Notification> = self.live.iter().collect();
-        order.sort_by_key(|n| std::cmp::Reverse(n.created_at));
+        order.sort_by_key(|n| std::cmp::Reverse(n.seq));
 
-        // Resolve each toast's placement and measured height once.
+        // Resolve each toast's placement and the height to reserve for it. An
+        // unmeasured card reserves the provisional height (not zero), so the slot
+        // is never smaller than the surface and a fresh toast can't be stacked
+        // under its neighbour before it measures.
         let placed: Vec<(&Notification, ToastPlacement, f32)> = order
             .iter()
             .map(|notif| {
                 let place = placement_for(&notif.data, placement, config);
-                let height = self.heights.get(&notif.data.id).copied().unwrap_or(0.0);
+                let height = stack::assumed_height(self.heights.get(&notif.data.id).copied());
                 (*notif, place, height)
             })
             .collect();

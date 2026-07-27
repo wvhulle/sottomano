@@ -16,11 +16,14 @@ use crate::{
 pub const NAMESPACE: &str = "vetrata-notifications";
 /// Vertical gap between two cards sharing a corner.
 pub const STACK_SPACING: f32 = 8.0;
-/// Height a toast surface opens at before its card is measured. Generous on
-/// purpose (like the tooltip surface): the card lays out shrink-to-fit inside
-/// it, so a tall card reports its true height via the `Sensor` instead of being
-/// clamped to the surface — then `SizeChange` shrinks the surface to match.
-const PROVISIONAL_HEIGHT: u32 = 900;
+/// Height assumed for a card that has not been measured yet — it bounds both the
+/// surface it opens at and the vertical slot the stack reserves for it (see
+/// [`assumed_height`]). Reserving this rather than zero is what keeps a
+/// still-unmeasured card from being stacked under its neighbour. Chosen to cover
+/// a typical card (icon, title, a couple of body lines, actions): large enough
+/// that a card is rarely clipped for the one frame before it measures, small
+/// enough that the reserved slot barely overshoots the real height.
+const PROVISIONAL_HEIGHT: u32 = 256;
 
 /// The anchor and margin (top, right, bottom, left) for one card in its corner
 /// group. Anchored axes (top / bottom) inset the freshest card from the panel
@@ -110,8 +113,16 @@ pub fn toast_settings(
     }
 }
 
+/// The height to assume for a card: its measured height, or the provisional
+/// height before its first measurement. The single source of truth used for both
+/// the surface size ([`surface_height`]) and the stacking-offset reservation, so
+/// the space reserved for a card is never less than the surface it occupies.
+pub fn assumed_height(measured: Option<f32>) -> f32 {
+    measured.unwrap_or(PROVISIONAL_HEIGHT as f32)
+}
+
 /// The surface height to open/resize a toast to, given its measured card height
 /// (or the provisional height before the first measurement).
 pub fn surface_height(measured: Option<f32>) -> u32 {
-    measured.map_or(PROVISIONAL_HEIGHT, |h| h.ceil() as u32)
+    assumed_height(measured).ceil() as u32
 }
