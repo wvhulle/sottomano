@@ -46,8 +46,18 @@ impl Emphasis {
     }
 }
 
+/// One lexed piece of a body: a run of decoded text, or an opening/closing tag
+/// (lower-cased element name, attributes dropped).
+enum Token {
+    Text(String),
+    Open(String),
+    Close(String),
+}
+
 /// Render `body` into styled spans coloured `color` at `size`, using
-/// `font.iced_font` for prose and `mono` for `<pre>`/`<tt>` runs.
+/// `font.iced_font` for prose and `mono` for `<pre>`/`<tt>` runs. Lexes into
+/// [`Token`]s, then folds over them tracking the active-tag stack so each text
+/// run is styled by the emphasis in force at its position.
 pub fn body_spans<'a>(
     body: &str,
     color: Color,
@@ -55,85 +65,93 @@ pub fn body_spans<'a>(
     font: &ResolvedFontConfig,
     mono: Font,
 ) -> Vec<Span<'a>> {
-    let chars: Vec<char> = body.chars().collect();
-    let mut spans = Vec::new();
     let mut stack: Vec<String> = Vec::new();
-    let mut text = String::new();
-    let mut i = 0;
-
-    while i < chars.len() {
-        match chars[i] {
-            '<' => {
-                if let Some(close) = chars[i + 1..].iter().position(|&c| c == '>') {
-                    flush(&mut text, &stack, color, size, font, mono, &mut spans);
-                    let tag: String = chars[i + 1..i + 1 + close].iter().collect();
-                    apply_tag(tag.trim(), &mut stack);
-                    i += close + 2;
-                } else {
-                    text.push('<');
-                    i += 1;
-                }
+    let mut spans = Vec::new();
+    for token in tokenize(body) {
+        match token {
+            Token::Text(text) => {
+                let emphasis = Emphasis::from_stack(&stack);
+                spans.push(
+                    span(text)
+                        .font(emphasis.font(font.iced_font, mono))
+                        .size(size)
+                        .color(color)
+                        .underline(emphasis.underline),
+                );
             }
-            '&' => {
-                if let Some(semi) = chars[i + 1..].iter().position(|&c| c == ';') {
-                    let entity: String = chars[i + 1..i + 1 + semi].iter().collect();
-                    if let Some(decoded) = decode_entity(&entity) {
-                        text.push(decoded);
-                        i += semi + 2;
-                        continue;
-                    }
+            Token::Open(name) => stack.push(name),
+            Token::Close(name) => {
+                if let Some(pos) = stack.iter().rposition(|t| *t == name) {
+                    stack.remove(pos);
                 }
-                text.push('&');
-                i += 1;
-            }
-            c => {
-                text.push(c);
-                i += 1;
             }
         }
     }
-    flush(&mut text, &stack, color, size, font, mono, &mut spans);
     spans
 }
 
-fn flush<'a>(
-    text: &mut String,
-    stack: &[String],
-    color: Color,
-    size: f32,
-    font: &ResolvedFontConfig,
-    mono: Font,
-    spans: &mut Vec<Span<'a>>,
-) {
-    if text.is_empty() {
-        return;
+/// Split a body into text runs and tags. Deliberately lenient with the
+/// arbitrary markup clients send: a `<` with no closing `>`, or a `&` that
+/// starts no known entity, is kept as a literal character; unknown and
+/// self-closing tags emit no token (their inner text survives as `Text`).
+fn tokenize(body: &str) -> Vec<Token> {
+    let mut tokens = Vec::new();
+    let mut text = String::new();
+    let flush = |text: &mut String, tokens: &mut Vec<Token>| {
+        if !text.is_empty() {
+            tokens.push(Token::Text(std::mem::take(text)));
+        }
+    };
+
+    let mut rest = body;
+    while let Some(at) = rest.find(['<', '&']) {
+        let (before, marker) = rest.split_at(at);
+        text.push_str(before);
+        match marker.as_bytes()[0] {
+            b'<' => match marker.find('>') {
+                Some(end) => {
+                    flush(&mut text, &mut tokens);
+                    if let Some(token) = tag_token(marker[1..end].trim()) {
+                        tokens.push(token);
+                    }
+                    rest = &marker[end + 1..];
+                }
+                None => {
+                    text.push('<');
+                    rest = &marker[1..];
+                }
+            },
+            _ => match marker.find(';').and_then(|semi| {
+                decode_entity(&marker[1..semi]).map(|decoded| (semi, decoded))
+            }) {
+                Some((semi, decoded)) => {
+                    text.push(decoded);
+                    rest = &marker[semi + 1..];
+                }
+                None => {
+                    text.push('&');
+                    rest = &marker[1..];
+                }
+            },
+        }
     }
-    let emphasis = Emphasis::from_stack(stack);
-    let styled = span(std::mem::take(text))
-        .font(emphasis.font(font.iced_font, mono))
-        .size(size)
-        .color(color)
-        .underline(emphasis.underline);
-    spans.push(styled);
+    text.push_str(rest);
+    flush(&mut text, &mut tokens);
+    tokens
 }
 
-fn apply_tag(tag: &str, stack: &mut Vec<String>) {
+/// Turn the inside of a `<...>` into an [`Open`](Token::Open) or
+/// [`Close`](Token::Close) token, or `None` for a self-closing or empty tag.
+fn tag_token(tag: &str) -> Option<Token> {
     if let Some(name) = tag.strip_prefix('/') {
-        let name = name.trim().to_ascii_lowercase();
-        if let Some(pos) = stack.iter().rposition(|t| *t == name) {
-            stack.remove(pos);
-        }
-    } else {
-        // Keep only the element name, dropping any attributes.
-        let name = tag
-            .split_whitespace()
-            .next()
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        if !name.is_empty() && !tag.ends_with('/') {
-            stack.push(name);
-        }
+        return Some(Token::Close(name.trim().to_ascii_lowercase()));
     }
+    if tag.ends_with('/') {
+        return None;
+    }
+    // Keep only the element name, dropping any attributes.
+    let name = tag.split_whitespace().next()?.to_ascii_lowercase();
+    (!name.is_empty()).then_some(Token::Open(name))
 }
 
 fn decode_entity(entity: &str) -> Option<char> {

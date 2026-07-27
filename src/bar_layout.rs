@@ -4,7 +4,7 @@ use audio_group::AudioMessage;
 use battery_group::BatteryMessage;
 use iced::{
     Alignment, Element, Length,
-    widget::{Row, Space, row},
+    widget::{Row, Space, container, row},
 };
 use idle_timeouts_group::IdleTimeoutsMessage;
 use internet_group::InternetMessage;
@@ -160,11 +160,16 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
         .window_list
         .view(&bar.niri_snapshot, output, config, position)
         .map(|e| e.map(Message::WindowList));
-    let center = Row::new()
+    // Launcher + window list, centred as a pair in the Fill middle. Shrink
+    // flanks (workspaces, tray) lay out first, so the middle reserves exactly the
+    // space between them; the window list caps its width to that budget and
+    // scrolls when it overflows, keeping the tray from being overrun.
+    let group = Row::new()
         .extend(quick_launch)
         .extend(window_list)
         .spacing(config.layout.horizontal_group_spacing_px)
         .align_y(Alignment::Center);
+    let middle = container(group).center_x(Length::Fill);
     // Bottom-right zone (odin: tray / ai-usage / notifications). Tray ported.
     let end = bar
         .tray_group
@@ -176,7 +181,13 @@ pub fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Elem
             })
         })
         .unwrap_or_else(|| Space::new().into());
-    bar_row(start, center.into(), end, config)
+    row![start, middle, end]
+        .align_y(Alignment::Center)
+        .padding([
+            config.layout.vertical_padding_px,
+            config.layout.horizontal_group_padding_px,
+        ])
+        .into()
 }
 
 fn bar_row<'a>(

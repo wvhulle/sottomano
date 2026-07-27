@@ -27,7 +27,10 @@ use crate::{
     },
     layer_surface::Position,
     message_subscriptions::blocking,
-    widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans},
+    widgets::{
+        activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans,
+        window_list_viewport::{Metrics, window_list_viewport},
+    },
 };
 
 const ICONS_BACKSTOP: Duration = Duration::from_secs(20);
@@ -72,10 +75,14 @@ impl Favicon {
         *self.bytes == *raw.bytes
     }
 
-    fn view<'a>(&self, side: f32) -> Element<'a, WindowListMessage> {
+    fn view<'a>(&self, side: f32, alpha: f32) -> Element<'a, WindowListMessage> {
         match &self.handle {
-            FaviconHandle::Raster(h) => image(h.clone()).width(side).height(side).into(),
-            FaviconHandle::Svg(h) => svg(h.clone()).width(side).height(side).into(),
+            FaviconHandle::Raster(h) => image(h.clone())
+                .width(side)
+                .height(side)
+                .opacity(alpha)
+                .into(),
+            FaviconHandle::Svg(h) => svg(h.clone()).width(side).height(side).opacity(alpha).into(),
         }
     }
 }
@@ -98,6 +105,12 @@ pub struct WindowListGroup {
     /// off-thread; chars fontconfig has no answer for map to the bar font so
     /// they are not re-queried.
     fallback_fonts: HashMap<char, Font>,
+    /// Caller-owned horizontal scroll offset for the overflowing window list.
+    scroll: f32,
+    /// Item geometry the viewport last measured, used to fade items at the
+    /// overflowing edges (iced has no per-pixel alpha mask, so the fade is baked
+    /// per-item in `view`). See [`Metrics`].
+    metrics: Metrics,
     resolves: Resolves,
 }
 
@@ -109,6 +122,8 @@ pub enum WindowListMessage {
     ThemeIconsResolved(HashMap<String, PathBuf>),
     FallbackFontsResolved(HashMap<char, Font>),
     IconsBackstopElapsed,
+    Scrolled(f32),
+    MetricsChanged(Metrics),
 }
 
 impl WindowListGroup {
@@ -172,6 +187,15 @@ impl WindowListGroup {
                 Task::none()
             }
             WindowListMessage::IconsBackstopElapsed => self.refresh(niri, font, entries),
+            WindowListMessage::Scrolled(offset) => {
+                self.scroll = offset.clamp(0.0, self.metrics.max_scroll());
+                Task::none()
+            }
+            WindowListMessage::MetricsChanged(metrics) => {
+                self.metrics = metrics;
+                self.scroll = self.scroll.clamp(0.0, self.metrics.max_scroll());
+                Task::none()
+            }
         }
     }
 
@@ -286,15 +310,24 @@ impl WindowListGroup {
             favicons: &self.favicons,
             fallbacks: &self.fallback_fonts,
         };
-        let buttons = windows
-            .iter()
-            .map(|win| window_button(config, icons, win, position));
-        Some(
-            Row::with_children(buttons)
-                .spacing(config.layout.horizontal_widget_spacing_px * 2.0)
-                .align_y(Alignment::Center)
-                .into(),
-        )
+        let focused_index = windows.iter().position(|win| win.is_focused);
+        // Fade each item by how close it sits to an overflowing edge (the
+        // viewport reports the geometry this reads from). Items in the visible
+        // core render fully opaque.
+        let buttons = windows.iter().enumerate().map(|(i, win)| {
+            let alpha = self.metrics.item_alpha(self.scroll, i);
+            window_button(config, icons, win, position, alpha)
+        });
+        let row = Row::with_children(buttons)
+            .spacing(config.layout.horizontal_widget_spacing_px * 2.0)
+            .align_y(Alignment::Center);
+        Some(window_list_viewport(
+            row,
+            self.scroll,
+            focused_index,
+            WindowListMessage::Scrolled,
+            WindowListMessage::MetricsChanged,
+        ))
     }
 }
 
@@ -315,10 +348,11 @@ fn window_button<'a>(
     icons: Icons<'a>,
     win: &niri::WinEntry,
     position: Position,
+    alpha: f32,
 ) -> Element<'a, WindowListMessage> {
     let rule = app_rules::rule_for(&win.app_id);
-    let content = button_content(config, icons, rule, win);
-    let focus = focus_line(config, win);
+    let content = button_content(config, icons, rule, win, alpha);
+    let focus = focus_line(config, win, alpha);
     mouse_area(PagerSlot::new(content, focus).view(position))
         .on_press(WindowListMessage::Clicked(win.id))
         .into()
@@ -333,15 +367,16 @@ fn button_content<'a>(
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
+    alpha: f32,
 ) -> Element<'a, WindowListMessage> {
-    let icon = window_icon(config, icons, rule, win);
+    let icon = window_icon(config, icons, rule, win, alpha);
     let parts = rule.rewrite(label_for(win));
     // Per-app seam: terminals lead with the binary and trail the cwd; every
     // other app leads with its dim context and trails the prominent title.
     let title = match rule {
-        AppRule::Terminal => title_element(config, &parts, icons.fallbacks, false),
+        AppRule::Terminal => title_element(config, &parts, icons.fallbacks, false, alpha),
         AppRule::Firefox | AppRule::Browser { .. } | AppRule::Fallback => {
-            title_element(config, &parts, icons.fallbacks, true)
+            title_element(config, &parts, icons.fallbacks, true, alpha)
         }
     };
     icon_beside_title(config, icon, title)
@@ -364,7 +399,11 @@ fn icon_beside_title<'a>(
 
 /// The focus/urgency underline for a window: fully shown when urgent or
 /// focused, invisible otherwise.
-fn focus_line<'a>(config: &ResolvedConfig, win: &niri::WinEntry) -> Element<'a, WindowListMessage> {
+fn focus_line<'a>(
+    config: &ResolvedConfig,
+    win: &niri::WinEntry,
+    alpha: f32,
+) -> Element<'a, WindowListMessage> {
     let (color, opacity) = if win.is_urgent {
         (config.palette.urgent, 1.0)
     } else if win.is_focused {
@@ -372,7 +411,7 @@ fn focus_line<'a>(config: &ResolvedConfig, win: &niri::WinEntry) -> Element<'a, 
     } else {
         (config.palette.focus, 0.0)
     };
-    activity_line(color, opacity, config.layout.focus_underline_thickness_px)
+    activity_line(color, opacity * alpha, config.layout.focus_underline_thickness_px)
 }
 
 /// The window's own title, or its app-id when the title is empty — the string
@@ -395,10 +434,15 @@ fn title_element<'a>(
     parts: &TitleParts,
     fallbacks: &HashMap<char, Font>,
     lead_first: bool,
+    alpha: f32,
 ) -> Element<'a, WindowListMessage> {
-    let dim = config.palette.dim;
+    // Bake the edge-fade opacity into the glyph colours: iced can't alpha-mask a
+    // `rich_text`, and `main` must carry an explicit colour (not the inherited
+    // container text colour) for the fade to reach it.
+    let dim = config.palette.dim.scale_alpha(alpha);
+    let main_color = config.palette.bar_foreground.scale_alpha(alpha);
     let font = &config.font;
-    let main = fallback_spans(font, &parts.main, font.iced_font, None, fallbacks);
+    let main = fallback_spans(font, &parts.main, font.iced_font, Some(main_color), fallbacks);
     let spans: Vec<_> = if parts.lead.is_empty() {
         main.into_iter().collect()
     } else {
@@ -422,6 +466,7 @@ fn window_icon<'a>(
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
+    alpha: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
     let side = config.font.icon_size_px;
     // A tab's favicon (Firefox) always wins over the app-id icon; it is rendered
@@ -430,7 +475,7 @@ fn window_icon<'a>(
         .favicon_key(&win.title)
         .and_then(|key| icons.favicons.get(&key))
     {
-        return Some(favicon.view(side));
+        return Some(favicon.view(side, alpha));
     }
     let path = rule
         .icon_candidates(win)
@@ -446,11 +491,13 @@ fn window_icon<'a>(
         svg(svg::Handle::from_path(path))
             .width(side)
             .height(side)
+            .opacity(alpha)
             .into()
     } else {
         image(image::Handle::from_path(path))
             .width(side)
             .height(side)
+            .opacity(alpha)
             .into()
     })
 }

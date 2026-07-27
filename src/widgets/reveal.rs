@@ -35,7 +35,7 @@ struct RevealX<'a, Message> {
 /// would otherwise still see the cursor as `is_over` and react (e.g. open a
 /// tooltip). Reporting `Unavailable` past the visible edge keeps interaction in
 /// step with what `draw` actually shows.
-fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
+pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
     match cursor.position() {
         Some(position) if visible.contains(position) => cursor,
         _ => Cursor::Unavailable,
