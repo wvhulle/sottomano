@@ -25,6 +25,13 @@ iced_font_awesome = "0.4.2"
 iced_layershell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 libc = "0.2.176"
 niri-ipc = "26.4.0"
+# Album art for the media widget is often a remote https url (Spotify, browser
+# players); this fetches it into the on-disk cache. rustls (not native-tls) so
+# there's no OpenSSL/pkg-config link — keeps the crane build free of a system
+# dependency. On tokio, which is already the runtime.
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1"

@@ -13,6 +13,7 @@ use iced::{
         stream::{iter, select},
     },
     stream,
+    widget::image,
 };
 use tokio::time::{Duration, sleep};
 use zbus::{
@@ -59,7 +60,9 @@ pub struct Media {
     pub artist: String,
     pub album: String,
     pub status: Status,
-    pub art_url: Option<String>,
+    /// The current track's album art, decoded in memory. `None` when the player
+    /// exposes no art (or it couldn't be fetched); the widget shows a glyph then.
+    pub art: Option<image::Handle>,
     pub can_next: bool,
     pub can_prev: bool,
     pub can_toggle: bool,
@@ -138,8 +141,13 @@ async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
 }
 
 /// The picked player's full track + transport state, or `None` when no usable
-/// player is present.
-async fn read_active(connection: &Connection, dbus: &DBusProxy<'_>) -> Option<Media> {
+/// player is present. `art` memoises the last fetched `(url, handle)` so the art
+/// is downloaded once per track, not on every play/pause or status signal.
+async fn read_active(
+    connection: &Connection,
+    dbus: &DBusProxy<'_>,
+    art: &mut Option<(String, image::Handle)>,
+) -> Option<Media> {
     let players: Vec<(String, Status, String)> = iter(mpris_names(dbus).await)
         .filter_map(|bus| async move {
             let (status, identity, desktop) = read_player(connection, &bus).await?;
@@ -159,11 +167,17 @@ async fn read_active(connection: &Connection, dbus: &DBusProxy<'_>) -> Option<Me
     let metadata = property::<HashMap<String, OwnedValue>>(connection, &bus, PLAYER, "Metadata")
         .await
         .unwrap_or_default();
+    let handle = if let Some(url) = string(&metadata, "mpris:artUrl") {
+        art_handle(&url, art).await
+    } else {
+        *art = None;
+        None
+    };
     Some(Media {
         title: string(&metadata, "xesam:title").unwrap_or_default(),
         artist: artist(&metadata),
         album: string(&metadata, "xesam:album").unwrap_or_default(),
-        art_url: string(&metadata, "mpris:artUrl"),
+        art: handle,
         can_next: property(connection, &bus, PLAYER, "CanGoNext")
             .await
             .unwrap_or(false),
@@ -177,6 +191,44 @@ async fn read_active(connection: &Connection, dbus: &DBusProxy<'_>) -> Option<Me
         identity,
         bus,
     })
+}
+
+/// The decoded album-art handle for `url`, reusing `cache` when the url is
+/// unchanged so a fetch happens only when the track (and its art) changes. On
+/// any fetch failure the cache is cleared and `None` returned.
+async fn art_handle(
+    url: &str,
+    cache: &mut Option<(String, image::Handle)>,
+) -> Option<image::Handle> {
+    if let Some((cached, handle)) = cache
+        && cached == url
+    {
+        return Some(handle.clone());
+    }
+    let handle = load_art(url).await;
+    *cache = handle.clone().map(|h| (url.to_string(), h));
+    handle
+}
+
+/// Decode album art from an mpris `mpris:artUrl`: a local `file://` path, or a
+/// remote `http(s)://` image fetched into memory. Any other scheme yields
+/// `None`.
+async fn load_art(url: &str) -> Option<image::Handle> {
+    if let Some(path) = url.strip_prefix("file://") {
+        return Some(image::Handle::from_path(path));
+    }
+    if url.starts_with("http://") || url.starts_with("https://") {
+        let bytes = reqwest::get(url)
+            .await
+            .ok()?
+            .error_for_status()
+            .ok()?
+            .bytes()
+            .await
+            .ok()?;
+        return Some(image::Handle::from_bytes(bytes.to_vec()));
+    }
+    None
 }
 
 /// The signal-driven media stream: `None` while no player is present, a fresh
@@ -197,8 +249,9 @@ pub fn subscription() -> Subscription<Option<Media>> {
 async fn watch(output: &mut Sender<Option<Media>>) -> zbus::Result<()> {
     let connection = Connection::session().await?;
     let dbus = DBusProxy::new(&connection).await?;
+    let mut art = None;
     if output
-        .send(read_active(&connection, &dbus).await)
+        .send(read_active(&connection, &dbus, &mut art).await)
         .await
         .is_err()
     {
@@ -231,7 +284,7 @@ async fn watch(output: &mut Sender<Option<Media>>) -> zbus::Result<()> {
     while let Some(relevant) = events.next().await {
         if relevant
             && output
-                .send(read_active(&connection, &dbus).await)
+                .send(read_active(&connection, &dbus, &mut art).await)
                 .await
                 .is_err()
         {

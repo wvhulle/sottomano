@@ -160,7 +160,7 @@ impl MediaGroup {
     }
 }
 
-/// The persistent handle: album art (a `file://` art url) or a fallback glyph.
+/// The persistent handle: the track's album art, or a fallback glyph.
 fn handle<'a>(
     config: &ResolvedConfig,
     media: &Media,
@@ -168,12 +168,8 @@ fn handle<'a>(
     alpha: f32,
 ) -> Element<'a, MediaMessage> {
     let side = config.font.icon_size_px;
-    if let Some(path) = media
-        .art_url
-        .as_deref()
-        .and_then(|u| u.strip_prefix("file://"))
-    {
-        return image(image::Handle::from_path(path))
+    if let Some(art) = &media.art {
+        return image(art.clone())
             .width(side)
             .height(side)
             .opacity(alpha)
