@@ -27,6 +27,7 @@ use crate::{
         media_group::MediaMessage,
         monitor_group::MonitorMessage,
         net_interfaces_group::NetInterfacesMessage,
+        notification_group,
         panel_settings_group::PanelSettingsMessage,
         system_group::SystemMessage,
         tray_group::TrayMessage,
@@ -153,7 +154,13 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
         ],
         config,
     );
-    let center = zone([slot(bar.clock_group.view(config), Message::Clock)], config);
+    let center = zone(
+        [
+            slot(bar.clock_group.view(config, position), Message::Clock),
+            slot(notification_group::view(config), Message::NotificationGroup),
+        ],
+        config,
+    );
     let end = zone(
         [
             slot(bar.monitor_group.view(config, position), |m| match m {

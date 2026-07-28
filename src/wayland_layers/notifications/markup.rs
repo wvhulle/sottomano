@@ -108,32 +108,30 @@ fn tokenize(body: &str) -> Vec<Token> {
         let (before, marker) = rest.split_at(at);
         text.push_str(before);
         match marker.as_bytes()[0] {
-            b'<' => match marker.find('>') {
-                Some(end) => {
+            b'<' => {
+                if let Some(end) = marker.find('>') {
                     flush(&mut text, &mut tokens);
                     if let Some(token) = tag_token(marker[1..end].trim()) {
                         tokens.push(token);
                     }
                     rest = &marker[end + 1..];
-                }
-                None => {
+                } else {
                     text.push('<');
                     rest = &marker[1..];
                 }
-            },
-            _ => match marker
-                .find(';')
-                .and_then(|semi| decode_entity(&marker[1..semi]).map(|decoded| (semi, decoded)))
-            {
-                Some((semi, decoded)) => {
+            }
+            _ => {
+                if let Some((semi, decoded)) = marker
+                    .find(';')
+                    .and_then(|semi| decode_entity(&marker[1..semi]).map(|decoded| (semi, decoded)))
+                {
                     text.push(decoded);
                     rest = &marker[semi + 1..];
-                }
-                None => {
+                } else {
                     text.push('&');
                     rest = &marker[1..];
                 }
-            },
+            }
         }
     }
     text.push_str(rest);

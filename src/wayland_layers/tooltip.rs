@@ -81,7 +81,7 @@ pub enum HoverTarget {
     InternetDown,
     InternetUp,
     Tailscale,
-    /// One WireGuard tunnel, by its interface name.
+    /// One `WireGuard` tunnel, by its interface name.
     Wireguard(String),
     WeatherTemp,
     WeatherRain,

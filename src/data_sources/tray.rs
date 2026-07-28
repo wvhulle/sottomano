@@ -115,7 +115,7 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
         u32::try_from(best.height).ok()?,
     );
     let mut bytes = best.pixels.clone();
-    for pixel in bytes.chunks_exact_mut(4) {
+    for pixel in bytes.as_chunks_mut::<4>().0 {
         pixel.rotate_left(1);
     }
     Some(image::Handle::from_rgba(width, height, bytes))

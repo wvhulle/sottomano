@@ -15,6 +15,10 @@ chrono = { version = "0.4", default-features = false, features = [
 color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
+# XDG Sound Theme lookup (notification alert sounds) — the pure-Rust sibling of
+# freedesktop-icons above, same author. Resolves a themed sound name to a file;
+# playback itself stays a `pw-play` shell-out.
+freedesktop-sound = "0.1"
 humantime = "2.3"
 iced = { version = "0.14.0", features = ["tokio", "image", "svg", "canvas"] }
 iced_font_awesome = "0.4.2"

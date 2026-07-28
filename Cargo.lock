@@ -1737,6 +1737,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "freedesktop-sound"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c0042ff7d036cc631aec8a30c938a66bef47077f3ea0a93d388b5943d591516"
+dependencies = [
+ "ini_core",
+ "thiserror 2.0.19",
+ "tracing",
+ "xdg 2.5.2",
+]
+
+[[package]]
 name = "fs4"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6869,6 +6881,7 @@ dependencies = [
  "color",
  "freedesktop-desktop-entry",
  "freedesktop-icons",
+ "freedesktop-sound",
  "humantime",
  "iced",
  "iced_font_awesome",

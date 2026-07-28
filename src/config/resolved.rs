@@ -22,6 +22,16 @@ pub struct ResolvedConfig {
     /// Starts at 0 and is loaded from the sqlite state DB (`state::panel`) at
     /// startup, then mutated live by the panel-settings slider.
     pub float_offset_px: f32,
+    /// Do-not-disturb: suppress and discard all notification toasts. The single
+    /// home for this state — the notification layer and the bell widget both
+    /// read it here. Persisted UI state, not a `vetrata.toml` knob: starts
+    /// `false`, loaded from the state DB at startup, toggled live from the
+    /// notification group.
+    pub dnd: bool,
+    /// Whether an alert sound plays on each incoming notification. Persisted UI
+    /// state; starts `true` (sounds on), loaded from the state DB at startup,
+    /// toggled live from the notification group.
+    pub sound: bool,
     /// Lowercased SNI id substrings whose tray items are hidden (already
     /// surfaced natively by the shell). See `disk::TrayConfig::deny_ids`.
     pub tray_deny_ids: Vec<String>,
@@ -81,8 +91,10 @@ pub fn load() -> ResolvedConfig {
         layout: user.layout,
         font: resolve_font(&user.font),
         notifications: user.notifications,
-        // Overwritten by the persisted value once `state::panel` loads.
+        // Overwritten by the persisted values once `state::panel` loads.
         float_offset_px: 0.0,
+        dnd: false,
+        sound: true,
         tray_deny_ids: user
             .tray
             .deny_ids

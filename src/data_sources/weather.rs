@@ -30,7 +30,7 @@ fn wmo(code: i64) -> (Icon, &'static str) {
         66 | 67 => (Icon::CloudShowersHeavy, "Freezing rain"),
         71 | 73 | 75 => (Icon::Snowflake, "Snow"),
         77 => (Icon::Snowflake, "Snow grains"),
-        80 | 81 | 82 => (Icon::CloudShowersHeavy, "Rain showers"),
+        80..=82 => (Icon::CloudShowersHeavy, "Rain showers"),
         85 | 86 => (Icon::Snowflake, "Snow showers"),
         95 => (Icon::CloudBolt, "Thunderstorm"),
         96 | 99 => (Icon::CloudBolt, "Thunderstorm with hail"),
@@ -286,7 +286,7 @@ impl<const GRASS: bool> Source for Pollen<GRASS> {
     } else {
         "pollen-birch"
     };
-    const INTERVAL: Duration = Duration::from_secs(1800);
+    const INTERVAL: Duration = Duration::from_mins(30);
 
     fn poll() -> Option<Self> {
         let geo = Geo::resolve()?;
@@ -371,7 +371,7 @@ impl BarWidget for Location {
 
 impl Source for Location {
     const NAME: &'static str = "geolocation";
-    const INTERVAL: Duration = Duration::from_secs(1800);
+    const INTERVAL: Duration = Duration::from_mins(30);
 
     fn poll() -> Option<Self> {
         Some(Location {

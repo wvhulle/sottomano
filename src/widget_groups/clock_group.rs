@@ -1,36 +1,61 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
-use iced::{Element, Subscription, futures::channel::mpsc::Sender, stream};
+use iced::{
+    Alignment, Element, Subscription,
+    futures::channel::mpsc::Sender,
+    stream,
+    widget::{Row, mouse_area},
+};
 use tokio::time::sleep;
 
-use crate::{config::resolved::ResolvedConfig, widgets::text::bar_text};
+use crate::{
+    config::resolved::ResolvedConfig,
+    wayland_layers::surface::Position,
+    widgets::{
+        menu_group::{MenuGroup, MenuMessage},
+        text::bar_text,
+    },
+};
 
-/// The strftime format the clock renders. The tick period is derived from it
-/// ([`period`]), so changing the precision here adjusts the redraw rate too.
-const FORMAT: &str = "%H:%M:%S";
+/// The strftime format the time handle renders. The tick period is derived from
+/// it ([`period`]), so changing the precision here adjusts the redraw rate too.
+const TIME_FORMAT: &str = "%H:%M:%S";
+/// The strftime format the revealed date renders.
+const DATE_FORMAT: &str = "%a %d %b";
 
 pub struct ClockGroup {
-    text: String,
-}
-
-impl Default for ClockGroup {
-    fn default() -> Self {
-        Self {
-            text: format_now(Local::now()),
-        }
-    }
+    time_text: String,
+    date_text: String,
+    pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum ClockMessage {
     Tick(DateTime<Local>),
+    Menu(MenuMessage),
 }
 
 impl ClockGroup {
+    pub fn new(menu_expand_ms: u64) -> Self {
+        let now = Local::now();
+        Self {
+            time_text: now.format(TIME_FORMAT).to_string(),
+            date_text: now.format(DATE_FORMAT).to_string(),
+            menu: MenuGroup::new(menu_expand_ms),
+        }
+    }
+
     pub fn update(&mut self, msg: ClockMessage) {
-        let ClockMessage::Tick(now) = msg;
-        self.text = format_now(now);
+        match msg {
+            ClockMessage::Tick(now) => {
+                self.time_text = now.format(TIME_FORMAT).to_string();
+                self.date_text = now.format(DATE_FORMAT).to_string();
+            }
+            ClockMessage::Menu(m) => {
+                self.menu.update(m);
+            }
+        }
     }
 
     /// Ticks just after each wall-clock boundary of [`period`] — a fixed
@@ -41,7 +66,7 @@ impl ClockGroup {
         Subscription::run(|| {
             stream::channel(1, |mut output: Sender<ClockMessage>| async move {
                 loop {
-                    sleep(until_next_boundary(Local::now(), period(FORMAT))).await;
+                    sleep(until_next_boundary(Local::now(), period(TIME_FORMAT))).await;
                     if output.send(ClockMessage::Tick(Local::now())).await.is_err() {
                         return;
                     }
@@ -50,13 +75,32 @@ impl ClockGroup {
         })
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig) -> Element<'a, ClockMessage> {
-        bar_text(&config.font, self.text.clone()).into()
-    }
-}
+    /// The time as the always-visible handle; expanding reveals the date.
+    pub fn view<'a>(
+        &self,
+        config: &ResolvedConfig,
+        position: Position,
+    ) -> Element<'a, ClockMessage> {
+        let handle: Element<'a, ClockMessage> =
+            mouse_area(bar_text(&config.font, self.time_text.clone()))
+                .on_press(ClockMessage::Menu(MenuMessage::Toggle))
+                .into();
 
-fn format_now(now: DateTime<Local>) -> String {
-    now.format(FORMAT).to_string()
+        let content = Row::new()
+            .push(bar_text(&config.font, self.date_text.clone()))
+            .spacing(config.layout.horizontal_widget_spacing_px)
+            .align_y(Alignment::Center);
+
+        let reveal = self.menu.reveal();
+        self.menu.view(
+            config,
+            position,
+            reveal,
+            handle,
+            content.into(),
+            ClockMessage::Menu,
+        )
+    }
 }
 
 /// The coarsest tick period that keeps `format` current: every second only
@@ -108,11 +152,11 @@ mod tests {
         let now = Local.timestamp_opt(1_000, 250_000_000).unwrap();
         assert_eq!(
             until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_nanos(750_000_000)
+            Duration::from_millis(750)
         );
         assert_eq!(
             until_next_boundary(now, Duration::from_secs(60)),
-            Duration::from_nanos(19_750_000_000)
+            Duration::from_millis(19750)
         );
     }
 

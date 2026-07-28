@@ -40,6 +40,7 @@ use crate::{
         media_group::{MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
+        notification_group::NotificationGroupMessage,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{TrayGroup, TrayMessage},
@@ -105,6 +106,7 @@ pub enum Message {
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
     Clock(ClockMessage),
+    NotificationGroup(NotificationGroupMessage),
     Journal(JournalMessage),
     Internet(InternetMessage),
     NetInterfaces(NetInterfacesMessage),
@@ -153,7 +155,7 @@ impl Bar {
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::new(config.layout.menu_expand_ms),
             panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
-            clock_group: ClockGroup::default(),
+            clock_group: ClockGroup::new(config.layout.menu_expand_ms),
             journal_group: JournalGroup::default(),
             internet_group: InternetGroup::new(config.layout.menu_expand_ms),
             net_interfaces_group: NetInterfacesGroup::default(),
@@ -247,6 +249,19 @@ impl Bar {
                 self.clock_group.update(msg);
                 Task::none()
             }
+            Message::NotificationGroup(NotificationGroupMessage::ToggleDoNotDisturb) => {
+                self.config.dnd = !self.config.dnd;
+                let placement = niri::Placement::derive(&self.niri);
+                let applied = self
+                    .notifications
+                    .sync_dnd(&placement, &self.outputs, &self.config);
+                let save = Task::future(state::panel::save_dnd(self.config.dnd)).discard();
+                Task::batch([applied, save])
+            }
+            Message::NotificationGroup(NotificationGroupMessage::ToggleSound) => {
+                self.config.sound = !self.config.sound;
+                Task::future(state::panel::save_sound(self.config.sound)).discard()
+            }
             Message::Journal(msg) => {
                 self.journal_group.update(msg);
                 Task::none()
@@ -295,6 +310,10 @@ impl Bar {
                 }
                 if let Some(offset) = settings.float_offset_px {
                     self.config.float_offset_px = offset;
+                }
+                self.config.dnd = settings.dnd;
+                if let Some(sound) = settings.sound {
+                    self.config.sound = sound;
                 }
                 self.panel_settings_group
                     .sync_offset(self.config.float_offset_px);
@@ -443,8 +462,9 @@ impl Bar {
 
     /// The expandable groups' menus, in one place, for the cross-group reads
     /// below.
-    fn menus(&self) -> [&MenuGroup; 9] {
+    fn menus(&self) -> [&MenuGroup; 10] {
         [
+            &self.clock_group.menu,
             &self.monitor_group.menu,
             &self.weather_group.menu,
             &self.system_group.menu,
@@ -493,6 +513,8 @@ impl Bar {
             .update(MonitorMessage::Menu(MenuMessage::Close));
         self.tray_group
             .update(TrayMessage::Menu(MenuMessage::Close));
+        self.clock_group
+            .update(ClockMessage::Menu(MenuMessage::Close));
     }
 
     /// Apply a coalesced burst of niri events as one update: fold every event

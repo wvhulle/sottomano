@@ -62,6 +62,9 @@ impl NotificationServer {
             window_id_hint: hint_u64(&hints, "x-niri-window-id"),
             desktop_entry: hint_str(&hints, "desktop-entry"),
             image: hint_image(&hints),
+            suppress_sound: hint_bool(&hints, "suppress-sound"),
+            sound_file: hint_str(&hints, "sound-file"),
+            category: hint_str(&hints, "category"),
         };
         if let Err(e) = self.events.try_send(ServerEvent::Notify(data)) {
             eprintln!("notifications: dropping Notify: {e}");
@@ -180,7 +183,9 @@ pub async fn serve(
 /// The `--action` list is `[key, label, key, label, ...]`.
 fn parse_actions(actions: &[String]) -> Vec<NotifAction> {
     actions
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| NotifAction {
             key: pair[0].clone(),
             label: pair[1].clone(),
@@ -224,6 +229,13 @@ fn hint_u64(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
 fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
     let s = hints.get(key)?.downcast_ref::<&str>().ok()?;
     (!s.is_empty()).then(|| s.to_owned())
+}
+
+fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
+    hints
+        .get(key)
+        .and_then(|v| v.downcast_ref::<bool>().ok())
+        .unwrap_or(false)
 }
 
 /// The notification's own image, in freedesktop priority: the raw-pixel

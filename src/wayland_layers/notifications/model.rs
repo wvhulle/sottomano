@@ -42,6 +42,15 @@ pub struct NotificationData {
     pub window_id_hint: Option<u64>,
     pub desktop_entry: Option<String>,
     pub image: Option<NotifImage>,
+    /// The `suppress-sound` hint: the client asks that no alert sound play for
+    /// this notification even when sounds are on.
+    pub suppress_sound: bool,
+    /// The `sound-file` hint: an explicit sound file to play instead of the
+    /// theme default.
+    pub sound_file: Option<String>,
+    /// The freedesktop `category` hint (e.g. `email.arrived`, `im.received`),
+    /// used to pick a more fitting alert sound.
+    pub category: Option<String>,
 }
 
 /// D-Bus → app: what the notification server received from a client.

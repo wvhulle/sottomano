@@ -11,6 +11,7 @@ pub mod journal_group;
 pub mod media_group;
 pub mod monitor_group;
 pub mod net_interfaces_group;
+pub mod notification_group;
 pub mod panel_settings_group;
 pub mod scroll;
 pub mod source_cell;

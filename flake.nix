@@ -101,6 +101,13 @@
         gioModules = "${pkgs.dconf.lib}/lib/gio/modules";
       };
 
+      # The freedesktop default sound theme (`sounds/freedesktop/stereo/*.oga`)
+      # the notification-sound module looks up via `freedesktop-sound`. Added to
+      # XDG_DATA_DIRS on both the wrapper and the devShell so the `.oga` files
+      # resolve regardless of the ambient session (don't rely on a system theme
+      # being installed). Shared so the two can't drift.
+      soundThemeShare = "${pkgs.sound-theme-freedesktop}/share";
+
       # Standard system CLIs the bar's data sources shell out to at run time.
       # Put on the wrapped binary's PATH and into the dev shell, so both
       # `nix run` and `nix develop -c cargo run` resolve them regardless of the
@@ -116,6 +123,7 @@
           modemmanager # mmcli — mobile broadband
           bluez # bluetoothctl — bluetooth
           wireplumber # wpctl — audio volume
+          pipewire # pw-play — notification alert sounds (daemon is the user's session, like wpctl's)
           wireguard-tools # wg — wireguard peer state
           tailscale # tailscale status
           xdg-utils # xdg-open — tailscale admin console
@@ -137,6 +145,7 @@
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
               --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath commonArgs.buildInputs} \
               --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
+              --prefix XDG_DATA_DIRS : ${soundThemeShare} \
               --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
           '';
           meta.mainProgram = "vetrata";
@@ -182,7 +191,7 @@
           commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
         shellHook = ''
-          export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+          export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
           export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"
         '';
       };

@@ -25,7 +25,7 @@ use rusqlite::Connection;
 use super::app_rules::{self, AppRule};
 
 /// A favicon blob plus which iced widget family decodes it. `Svg` covers both
-/// plain SVG text and gzip-compressed SVGz; `Raster` covers PNG/ICO/etc.
+/// plain SVG text and gzip-compressed `SVGz`; `Raster` covers PNG/ICO/etc.
 #[derive(Debug, Clone)]
 pub struct RawFavicon {
     pub bytes: Vec<u8>,
@@ -181,9 +181,9 @@ fn fresh_copy(src: &Path, cache_dir: &Path, name: &str) -> Option<PathBuf> {
 /// comment before the first `<` — so skip those before sniffing rather than
 /// testing only byte 0 (which mislabels BOM/newline-led SVGs as raster, making
 /// iced's `image` widget render them blank). A gzip header (`1F 8B`) is treated
-/// as SVGz: iced's `svg` widget ungzips it, whereas `image` cannot. Everything
-/// else — PNG (`89 50 4E 47`, never whitespace or `<`), ICO, etc. — is raster,
-/// which iced's `image` widget auto-detects from the bytes.
+/// as `SVGz`: iced's `svg` widget ungzips it, whereas `image` cannot.
+/// Everything else — PNG (`89 50 4E 47`, never whitespace or `<`), ICO, etc. —
+/// is raster, which iced's `image` widget auto-detects from the bytes.
 fn classify(blob: &[u8]) -> FaviconKind {
     let body = blob.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(blob);
     match body.trim_ascii_start() {

@@ -8,6 +8,7 @@ pub mod markup;
 pub mod model;
 pub mod placement;
 pub mod server;
+pub mod sound;
 pub mod stack;
 
 use std::{
@@ -93,7 +94,6 @@ pub struct NotificationLayer {
     next_seq: u64,
     /// The card the pointer is currently over, for its hover-border highlight.
     hovered: Option<u32>,
-    dnd: bool,
 }
 
 impl NotificationLayer {
@@ -111,6 +111,12 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Served(data) => {
+                // While muted, drop the toast on arrival. The server already
+                // answered the client with a valid id, so the sender still sees
+                // success — nothing errors or blocks.
+                if config.dnd {
+                    return Task::none();
+                }
                 let id = data.id;
                 // A replacing notification (same id) supersedes the old one.
                 self.live.retain(|n| n.data.id != id);
@@ -133,6 +139,11 @@ impl NotificationLayer {
                             reason: close_reason::DISMISSED,
                         }));
                     }
+                }
+                // Alert sound: gated on the sound toggle and the client's
+                // suppress-sound hint. Read `data` before it moves into `live`.
+                if config.sound && !data.suppress_sound {
+                    tasks.push(sound::play(&data));
                 }
                 let icons = card::resolve_icons(&data, entries);
                 let seq = self.next_seq;
@@ -284,6 +295,24 @@ impl NotificationLayer {
         !self.live.is_empty()
     }
 
+    /// React to a do-not-disturb change (the app already flipped `config.dnd`):
+    /// muting discards the backlog outright — the D-Bus clients already got
+    /// their id, so this is a silent drop, not a Closed signal — then reconcile
+    /// so the surfaces follow.
+    pub fn sync_dnd(
+        &mut self,
+        placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
+        config: &ResolvedConfig,
+    ) -> Task<Message> {
+        if config.dnd {
+            self.live.clear();
+            self.heights.clear();
+            self.hovered = None;
+        }
+        self.reconcile(placement, outputs, config)
+    }
+
     fn dismiss(
         &mut self,
         id: u32,
@@ -295,9 +324,11 @@ impl NotificationLayer {
         let existed = self.live.iter().any(|n| n.data.id == id);
         self.live.retain(|n| n.data.id != id);
         self.heights.remove(&id);
-        let closed = existed
-            .then(|| self.emit(Outbound::Closed { id, reason }))
-            .unwrap_or_else(Task::none);
+        let closed = if existed {
+            self.emit(Outbound::Closed { id, reason })
+        } else {
+            Task::none()
+        };
         Task::batch([closed, self.reconcile(placement, outputs, config)])
     }
 
@@ -451,7 +482,7 @@ impl NotificationLayer {
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Vec<DesiredSurface> {
-        if self.dnd {
+        if config.dnd {
             return Vec::new();
         }
         let width = config.notifications.card_width.round() as u32;

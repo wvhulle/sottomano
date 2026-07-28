@@ -1,5 +1,5 @@
 //! Location from the situo daemon's session-bus interface `dev.situo.Location1`
-//! (its own reverse-geocoder: Wi-Fi → BeaconDB → place). Read over D-Bus with
+//! (its own reverse-geocoder: Wi-Fi → `BeaconDB` → place). Read over D-Bus with
 //! zbus's blocking API, so it fits a sync poll. `None` when the daemon is
 //! absent or has no valid fix — which takes the whole weather group off the
 //! bar.
