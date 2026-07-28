@@ -9,15 +9,17 @@ use iced::{
 };
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
         BarWidget, Tooltip,
         disk::Disk,
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
-    layer_surface::Position,
-    tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
+    widget_groups::source_cell::SourceCell,
     widgets::{
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},

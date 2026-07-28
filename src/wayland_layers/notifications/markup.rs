@@ -121,9 +121,10 @@ fn tokenize(body: &str) -> Vec<Token> {
                     rest = &marker[1..];
                 }
             },
-            _ => match marker.find(';').and_then(|semi| {
-                decode_entity(&marker[1..semi]).map(|decoded| (semi, decoded))
-            }) {
+            _ => match marker
+                .find(';')
+                .and_then(|semi| decode_entity(&marker[1..semi]).map(|decoded| (semi, decoded)))
+            {
                 Some((semi, decoded)) => {
                     text.push(decoded);
                     rest = &marker[semi + 1..];

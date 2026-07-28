@@ -13,8 +13,10 @@ use iced::{
 use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{Tooltip, TooltipBody, row},
-    layer_surface::Position,
-    tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},

@@ -2,23 +2,35 @@
 //! output/edge.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
 use chrono::Utc;
-use iced::{
-    Alignment, Color, Element, Length, Task,
-    theme::Style,
-    widget::{Space, container, mouse_area, stack, text},
-    window::Id,
-};
+use iced::{Color, Element, Task, theme::Style, window::Id};
 use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
-    bar_layout::{
-        self,
+    config::resolved::ResolvedConfig,
+    data_sources::{
+        Tooltip, TooltipBody,
+        app_icon::DesktopEntries,
+        desktop_entries::{self, DesktopIndex},
+        launch_tracker::{Buckets, LaunchTracker},
+        niri,
+    },
+    message_subscriptions::{blocking, niri_action},
+    state,
+    wayland_layers::{
+        backdrop_shadow,
+        bar::{float_margin, layer_settings},
+        notifications::{NotificationLayer, NotificationMessage},
+        surface::{Position, Surface},
+        tooltip::{HoverTarget, TooltipHost, TooltipMessage},
+        tray_menu::TrayMenuHost,
+    },
+    widget_groups::{
         audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
@@ -29,28 +41,15 @@ use crate::{
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
-        quick_launch_group::{self, QuickLaunchGroup, QuickLaunchMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{TrayGroup, TrayMessage},
-        tray_menu::TrayMenuHost,
         weather_group::{WeatherGroup, WeatherMessage},
-        window_list_group::{WindowListGroup, WindowListMessage},
+        window_group::{
+            WindowGroup, WindowGroupMessage,
+            quick_launch::{MAX_ITEMS, QuickLaunchMessage},
+            window_list::WindowListMessage,
+        },
     },
-    config::resolved::ResolvedConfig,
-    data_sources::{
-        Tooltip, TooltipBody,
-        app_icon::DesktopEntries,
-        desktop_entries::{self, DesktopIndex},
-        launch_tracker::{Buckets, LaunchTracker},
-        niri,
-    },
-    layer_surface::{
-        Position, Surface, SurfaceKind, backdrop_settings, float_margin, layer_settings,
-    },
-    message_subscriptions::{blocking, niri_action},
-    notifications::{NotificationGroup, NotificationMessage},
-    state,
-    tooltip::{self, HoverTarget, TooltipHost, TooltipMessage},
     widgets::{
         idle::IdleEvent,
         menu_group::{MenuGroup, MenuMessage},
@@ -74,8 +73,7 @@ pub struct Bar {
     pub(crate) audio_group: AudioGroup,
     pub(crate) tray_group: TrayGroup,
     pub(crate) tray_menu: TrayMenuHost,
-    pub(crate) window_list: WindowListGroup,
-    pub(crate) quick_launch: QuickLaunchGroup,
+    pub(crate) window_group: WindowGroup,
     /// In-memory launch-frequency model feeding quick-launch, persisted to disk
     /// by [`state::launches`].
     pub(crate) launch_tracker: LaunchTracker,
@@ -88,8 +86,12 @@ pub struct Bar {
     /// stack against the screen, available to any future consumer).
     pub(crate) outputs: HashMap<String, niri::OutputGeometry>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
+    /// The off-screen shadow-caster window ids (one per bar edge when
+    /// `layout.shadow` is on). They carry no state — the view just renders each
+    /// as an opaque fill so niri casts its edge shadow.
+    pub(crate) backdrops: HashSet<Id>,
     pub(crate) tooltip: TooltipHost,
-    pub(crate) notifications: NotificationGroup,
+    pub(crate) notifications: NotificationLayer,
     /// The shared `.desktop` index (app metadata + icon resolution), consumed
     /// by both the window list and the notification cards.
     pub(crate) desktop_entries: DesktopIndex,
@@ -115,8 +117,7 @@ pub enum Message {
     /// Persisted panel settings finished loading from the sqlite store.
     PanelLoaded(state::panel::PanelSettings),
     Audio(AudioMessage),
-    WindowList(WindowListMessage),
-    QuickLaunch(QuickLaunchMessage),
+    WindowGroup(WindowGroupMessage),
     /// The persisted launch-frequency model finished loading from disk.
     TrackerLoaded(Buckets),
     /// The shared `.desktop` index finished (re)loading.
@@ -162,15 +163,15 @@ impl Bar {
             audio_group: AudioGroup::default(),
             tray_group: TrayGroup::new(config.layout.menu_expand_ms),
             tray_menu: TrayMenuHost::default(),
-            window_list: WindowListGroup::default(),
-            quick_launch: QuickLaunchGroup::new(config.layout.menu_expand_ms),
+            window_group: WindowGroup::new(config.layout.menu_expand_ms),
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
+            backdrops: HashSet::new(),
             tooltip: TooltipHost::default(),
-            notifications: NotificationGroup::default(),
+            notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             config,
         };
@@ -197,16 +198,15 @@ impl Bar {
                 // notification stack lands.
                 Task::batch([self.open_bars(&name), query_outputs()])
             }
-            Message::WindowList(WindowListMessage::Clicked(window)) => {
-                niri_action(move || niri::focus_window(window))
-            }
-            Message::WindowList(msg) => {
+            Message::WindowGroup(WindowGroupMessage::WindowList(WindowListMessage::Clicked(
+                window,
+            ))) => niri_action(move || niri::focus_window(window)),
+            Message::WindowGroup(msg) => {
                 let entries = self.desktop_entries.arc();
-                self.window_list
+                self.window_group
                     .update(msg, &self.niri, &self.config.font, entries.as_ref())
-                    .map(Message::WindowList)
+                    .map(Message::WindowGroup)
             }
-            Message::QuickLaunch(msg) => self.quick_launch.update(msg).map(Message::QuickLaunch),
             Message::TrackerLoaded(buckets) => {
                 self.launch_tracker.load_from(buckets);
                 self.refresh_quick_launch()
@@ -214,16 +214,16 @@ impl Bar {
             Message::DesktopEntriesLoaded(entries) => {
                 // The app owns the reload cadence, keeps the index for the
                 // launchability check, and fans it out to the icon-resolving
-                // groups (window list, quick-launch). Re-rank once it lands so
-                // the launchable gate applies.
+                // widgets of the window group (window list, quick-launch). Re-rank
+                // once it lands so the launchable gate applies.
                 self.desktop_entries.set(entries.clone());
                 Task::batch([
-                    self.window_list
+                    self.window_group
                         .on_entries_loaded(&self.niri, &entries)
-                        .map(Message::WindowList),
-                    self.quick_launch
+                        .map(Message::WindowGroup),
+                    self.window_group
                         .set_desktop_entries(entries)
-                        .map(Message::QuickLaunch),
+                        .map(Message::WindowGroup),
                     self.refresh_quick_launch(),
                 ])
             }
@@ -311,6 +311,7 @@ impl Bar {
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => {
                 self.surfaces.remove(&window);
+                self.backdrops.remove(&window);
                 self.tooltip.forget(window);
                 self.tray_menu.forget(window);
                 self.notifications.forget(window);
@@ -451,7 +452,7 @@ impl Bar {
             &self.idle_timeouts_group.menu,
             &self.panel_settings_group.menu,
             &self.internet_group.menu,
-            &self.quick_launch.menu,
+            &self.window_group.quick_launch.menu,
             &self.tray_group.menu,
         ]
     }
@@ -473,6 +474,7 @@ impl Bar {
         self.system_group
             .update(SystemMessage::Menu(MenuMessage::Close));
         let _ = self
+            .window_group
             .quick_launch
             .update(QuickLaunchMessage::Menu(MenuMessage::Close));
         let _ = self
@@ -537,9 +539,9 @@ impl Bar {
         if window_change {
             let entries = self.desktop_entries.arc();
             tasks.push(
-                self.window_list
-                    .refresh(&self.niri, &self.config.font, entries.as_ref())
-                    .map(Message::WindowList),
+                self.window_group
+                    .refresh_window_list(&self.niri, &self.config.font, entries.as_ref())
+                    .map(Message::WindowGroup),
             );
         }
         if window_change || workspace_change {
@@ -582,19 +584,17 @@ impl Bar {
             .filter_map(|output| {
                 let workspace = self.niri_snapshot.active_workspace_name(&output)?;
                 let open = self.niri_snapshot.open_app_ids(&output);
-                let apps = self.launch_tracker.rank(
-                    workspace,
-                    &open,
-                    quick_launch_group::MAX_ITEMS,
-                    now,
-                    |app_id| entries.is_launchable(app_id),
-                );
+                let apps = self
+                    .launch_tracker
+                    .rank(workspace, &open, MAX_ITEMS, now, |app_id| {
+                        entries.is_launchable(app_id)
+                    });
                 (!apps.is_empty()).then_some((output, apps))
             })
             .collect();
-        self.quick_launch
+        self.window_group
             .set_ranked(ranked)
-            .map(Message::QuickLaunch)
+            .map(Message::WindowGroup)
     }
 
     /// The config-mutating knobs are intercepted here rather than handled in
@@ -643,46 +643,38 @@ impl Bar {
         } else {
             0
         };
-        Task::batch(
-            self.surfaces
-                .iter()
-                .filter(|(_, surface)| surface.kind == SurfaceKind::Bar)
-                .map(|(&id, surface)| {
-                    Task::done(Message::MarginChange {
-                        id,
-                        margin: float_margin(surface.position, offset),
-                    })
-                }),
-        )
+        Task::batch(self.surfaces.iter().map(|(&id, surface)| {
+            Task::done(Message::MarginChange {
+                id,
+                margin: float_margin(surface.position, offset),
+            })
+        }))
     }
 
-    fn open_surface(
-        &mut self,
-        output: &str,
-        position: Position,
-        kind: SurfaceKind,
-    ) -> Task<Message> {
+    fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
         let height = self.config.layout.outer_height_px as u32;
-        let settings = match kind {
-            SurfaceKind::Bar => {
-                let offset = if self.config.layout.floating {
-                    self.config.float_offset_px as i32
-                } else {
-                    0
-                };
-                layer_settings(output, position, height, float_margin(position, offset))
-            }
-            SurfaceKind::Backdrop => backdrop_settings(output, position, height),
+        let offset = if self.config.layout.floating {
+            self.config.float_offset_px as i32
+        } else {
+            0
         };
+        let settings = layer_settings(output, position, height, float_margin(position, offset));
         let id = Id::unique();
         self.surfaces.insert(
             id,
             Surface {
                 output: output.to_string(),
                 position,
-                kind,
             },
         );
+        Task::done(Message::NewLayerShell { settings, id })
+    }
+
+    fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
+        let height = self.config.layout.outer_height_px as u32;
+        let settings = backdrop_shadow::settings(output, position, height);
+        let id = Id::unique();
+        self.backdrops.insert(id);
         Task::done(Message::NewLayerShell { settings, id })
     }
 
@@ -692,23 +684,26 @@ impl Bar {
     fn open_bars(&mut self, output: &str) -> Task<Message> {
         let mut opens: Vec<Task<Message>> = Position::ALL
             .into_iter()
-            .map(|position| self.open_surface(output, position, SurfaceKind::Bar))
+            .map(|position| self.open_bar(output, position))
             .collect();
         if self.config.layout.shadow {
             opens.extend(
                 Position::ALL
                     .into_iter()
-                    .map(|position| self.open_surface(output, position, SurfaceKind::Backdrop)),
+                    .map(|position| self.open_backdrop(output, position)),
             );
         }
         Task::batch(opens)
     }
 
+    /// Route a window to the layer it draws: a hover tooltip, the tray context
+    /// menu, a notification toast, or — falling through — the bar strip (or its
+    /// off-screen shadow backdrop).
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         // The tooltip surface derives its content live from the hovered target,
         // so it always tracks the reading and costs nothing while unhovered.
         if let Some(target) = self.tooltip.target_for(window) {
-            return tooltip::panel_surface(
+            return crate::wayland_layers::tooltip::panel_surface(
                 window,
                 &self.tooltip_for(target),
                 self.tooltip.is_settled(window),
@@ -721,52 +716,7 @@ impl Bar {
         if let Some(element) = self.notifications.view(window, &self.config) {
             return element;
         }
-        let Some(surface) = self.surfaces.get(&window) else {
-            return container(text("")).into();
-        };
-        // The caster is off-screen; niri casts from its silhouette, so it only
-        // needs to be fully opaque. The shadow's colour/alpha comes from the
-        // layer-rule, not from this fill.
-        if surface.kind == SurfaceKind::Backdrop {
-            return container(Space::new())
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .style(|_| container::Style {
-                    background: Some(Color::BLACK.into()),
-                    ..Default::default()
-                })
-                .into();
-        }
-        let content = match surface.position {
-            Position::Top => bar_layout::top_row(self, surface.position),
-            Position::Bottom => bar_layout::bottom_row(self, &surface.output, surface.position),
-        };
-        // Stamp this surface onto tooltip hovers bubbling out of the bar, so
-        // leaf groups need not carry it. Only the bar subtree is wrapped — the
-        // tooltip panel returns early above.
-        let content = tooltip::on_surface(window, content);
-
-        let dismiss = mouse_area(
-            container(Space::new())
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
-        .on_press(Message::DismissPressed);
-
-        container(stack![dismiss, content])
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_y(Alignment::Center)
-            .style(|_| container::Style {
-                background: Some(self.config.palette.bar_background.into()),
-                border: iced::Border {
-                    radius: self.config.chrome_radius().into(),
-                    ..Default::default()
-                },
-                text_color: Some(self.config.palette.bar_foreground),
-                ..Default::default()
-            })
-            .into()
+        crate::wayland_layers::bar::view(self, window)
     }
 
     pub fn style(&self, _theme: &iced::Theme) -> Style {

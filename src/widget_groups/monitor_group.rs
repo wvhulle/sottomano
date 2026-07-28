@@ -18,7 +18,6 @@ use iced::{
 };
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
         BarWidget, Tooltip, TooltipBody,
@@ -28,9 +27,12 @@ use crate::{
         row,
         umbra::Umbra,
     },
-    layer_surface::Position,
     message_subscriptions::blocking,
-    tooltip::{HoverTarget, TooltipMessage},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage},
+    },
+    widget_groups::source_cell::SourceCell,
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},

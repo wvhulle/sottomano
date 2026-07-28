@@ -25,10 +25,12 @@ use crate::{
         favicons::{self, FaviconKind, RawFavicon},
         niri,
     },
-    layer_surface::Position,
     message_subscriptions::blocking,
+    wayland_layers::surface::Position,
     widgets::{
-        activity_line::activity_line, pager_slot::PagerSlot, text::fallback_spans,
+        activity_line::activity_line,
+        pager_slot::PagerSlot,
+        text::fallback_spans,
         window_list_viewport::{Metrics, window_list_viewport},
     },
 };
@@ -82,7 +84,11 @@ impl Favicon {
                 .height(side)
                 .opacity(alpha)
                 .into(),
-            FaviconHandle::Svg(h) => svg(h.clone()).width(side).height(side).opacity(alpha).into(),
+            FaviconHandle::Svg(h) => svg(h.clone())
+                .width(side)
+                .height(side)
+                .opacity(alpha)
+                .into(),
         }
     }
 }
@@ -97,7 +103,7 @@ struct Resolves {
 }
 
 #[derive(Default)]
-pub struct WindowListGroup {
+pub struct WindowList {
     favicons: HashMap<String, Favicon>,
     app_icons: HashMap<String, PathBuf>,
     theme_icons: HashMap<String, PathBuf>,
@@ -108,8 +114,8 @@ pub struct WindowListGroup {
     /// Caller-owned horizontal scroll offset for the overflowing window list.
     scroll: f32,
     /// Item geometry the viewport last measured, used to fade items at the
-    /// overflowing edges (iced has no per-pixel alpha mask, so the fade is baked
-    /// per-item in `view`). See [`Metrics`].
+    /// overflowing edges (iced has no per-pixel alpha mask, so the fade is
+    /// baked per-item in `view`). See [`Metrics`].
     metrics: Metrics,
     resolves: Resolves,
 }
@@ -126,7 +132,7 @@ pub enum WindowListMessage {
     MetricsChanged(Metrics),
 }
 
-impl WindowListGroup {
+impl WindowList {
     /// Re-resolve icons against a freshly (re)loaded `.desktop` index — the app
     /// hands this in when the shared index changes.
     pub fn on_entries_loaded(
@@ -411,7 +417,11 @@ fn focus_line<'a>(
     } else {
         (config.palette.focus, 0.0)
     };
-    activity_line(color, opacity * alpha, config.layout.focus_underline_thickness_px)
+    activity_line(
+        color,
+        opacity * alpha,
+        config.layout.focus_underline_thickness_px,
+    )
 }
 
 /// The window's own title, or its app-id when the title is empty — the string
@@ -442,7 +452,13 @@ fn title_element<'a>(
     let dim = config.palette.dim.scale_alpha(alpha);
     let main_color = config.palette.bar_foreground.scale_alpha(alpha);
     let font = &config.font;
-    let main = fallback_spans(font, &parts.main, font.iced_font, Some(main_color), fallbacks);
+    let main = fallback_spans(
+        font,
+        &parts.main,
+        font.iced_font,
+        Some(main_color),
+        fallbacks,
+    );
     let spans: Vec<_> = if parts.lead.is_empty() {
         main.into_iter().collect()
     } else {

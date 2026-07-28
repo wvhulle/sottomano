@@ -22,8 +22,10 @@ use crate::{
         Tooltip, TooltipBody,
         tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
     },
-    layer_surface::Position,
-    tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widgets::{
         activity_line::activity_line,
         icon::Icon,

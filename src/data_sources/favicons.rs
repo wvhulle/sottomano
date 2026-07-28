@@ -9,9 +9,9 @@
 //! same page => same favicon, so duplicate window titles are not a problem.
 //!
 //! The blob is returned in memory rather than written to disk: iced renders it
-//! directly (see `bar_layout::window_list_group::Favicon`), so there is no
-//! favicon cache file to manage. Only the WAL-locked profile DBs are copied to
-//! disk, since they cannot be queried in place.
+//! directly (see `widget_groups::window_group::window_list::Favicon`), so there
+//! is no favicon cache file to manage. Only the WAL-locked profile DBs are
+//! copied to disk, since they cannot be queried in place.
 
 use std::{
     collections::HashMap,

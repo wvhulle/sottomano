@@ -17,7 +17,7 @@ use super::{
 use crate::{
     config::resolved::{ResolvedConfig, ResolvedFontConfig},
     data_sources::app_icon::DesktopEntries,
-    tooltip::relative,
+    wayland_layers::tooltip::relative,
     widgets::text::bar_text,
 };
 
@@ -86,15 +86,6 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
     })
 }
 
-/// Fold a card-wide opacity into a colour's alpha, so an aged card fades whole
-/// (fill, border, and text together) without a renderer alpha layer.
-fn fade(color: Color, opacity: f32) -> Color {
-    Color {
-        a: color.a * opacity,
-        ..color
-    }
-}
-
 /// Alpha-composite `fg` over an opaque `bg`, returning an opaque colour. Used
 /// for the faint resting border: a translucent border would let the desktop
 /// bleed through the 2px border ring on the otherwise-transparent toast
@@ -112,7 +103,6 @@ fn over(fg: Color, bg: Color) -> Color {
 pub fn card<'a>(
     notif: &Notification,
     hovered: bool,
-    opacity: f32,
     config: &ResolvedConfig,
 ) -> Element<'a, NotificationMessage> {
     let data = &notif.data;
@@ -121,8 +111,9 @@ pub fn card<'a>(
     let font = &config.font;
     let palette = &config.palette;
 
-    let foreground = fade(palette.bar_foreground, opacity);
-    let dim = fade(palette.dim, opacity);
+    let foreground = palette.bar_foreground;
+    let dim = palette.dim;
+    let body_color = palette.inactive;
 
     // The buttons worth drawing: the client's actions minus the `default` action
     // (invoked by clicking the body) and any label-less blank.
@@ -169,7 +160,7 @@ pub fn card<'a>(
         let body = Row::new().spacing(8.0).align_y(Alignment::End).push(
             rich_text(markup::body_spans(
                 &data.body,
-                dim,
+                body_color,
                 font.text_size_px * 0.85,
                 font,
                 mono,
@@ -196,7 +187,7 @@ pub fn card<'a>(
                     id,
                     key: action.key.clone(),
                 },
-                fade(tint, opacity),
+                tint,
                 font,
             ));
         }
@@ -208,7 +199,7 @@ pub fn card<'a>(
     }
 
     let mut body_row = Row::new().spacing(10.0).align_y(Alignment::Center);
-    if let Some(icon) = icon_slot(&notif.icons, &config.notifications, opacity) {
+    if let Some(icon) = icon_slot(&notif.icons, &config.notifications) {
         body_row = body_row.push(icon);
     }
     body_row = body_row.push(column);
@@ -218,7 +209,7 @@ pub fn card<'a>(
         a: 1.0,
         ..palette.bar_background
     };
-    let background = fade(fill, opacity);
+    let background = fill;
     // Border: a faint hairline at rest, thicker in the accent tint on hover
     // (odin's `NotificationCard`). Critical keeps its urgent tint throughout;
     // others rest as a faint foreground hairline and reach for the focus accent
@@ -240,7 +231,7 @@ pub fn card<'a>(
     } else {
         palette.focus
     };
-    let border_color = fade(if hovered { accent } else { rest }, opacity);
+    let border_color = if hovered { accent } else { rest };
     let border_width = if hovered { 3.0 } else { 2.0 };
 
     let panel = container(body_row)
@@ -273,15 +264,14 @@ pub fn card<'a>(
 fn icon_slot<'a>(
     icons: &CardIcons,
     config: &crate::config::disk::NotificationConfig,
-    opacity: f32,
 ) -> Option<Element<'a, NotificationMessage>> {
     match (&icons.image, &icons.badge) {
         (Some(image), badge) => {
             let main_size = config.image_size;
-            let main = icon_widget(image, main_size, opacity);
+            let main = icon_widget(image, main_size);
             Some(match badge {
                 Some(badge) => {
-                    let overlay = container(icon_widget(badge, config.badge_size, opacity))
+                    let overlay = container(icon_widget(badge, config.badge_size))
                         .width(main_size)
                         .height(main_size)
                         .align_x(Alignment::Start)
@@ -291,23 +281,15 @@ fn icon_slot<'a>(
                 None => main,
             })
         }
-        (None, Some(badge)) => Some(icon_widget(badge, config.app_icon_size, opacity)),
+        (None, Some(badge)) => Some(icon_widget(badge, config.app_icon_size)),
         (None, None) => None,
     }
 }
 
-fn icon_widget<'a>(icon: &CardIcon, size: f32, opacity: f32) -> Element<'a, NotificationMessage> {
+fn icon_widget<'a>(icon: &CardIcon, size: f32) -> Element<'a, NotificationMessage> {
     match icon {
-        CardIcon::Raster(handle) => image(handle.clone())
-            .width(size)
-            .height(size)
-            .opacity(opacity)
-            .into(),
-        CardIcon::Svg(handle) => svg(handle.clone())
-            .width(size)
-            .height(size)
-            .opacity(opacity)
-            .into(),
+        CardIcon::Raster(handle) => image(handle.clone()).width(size).height(size).into(),
+        CardIcon::Svg(handle) => svg(handle.clone()).width(size).height(size).into(),
     }
 }
 

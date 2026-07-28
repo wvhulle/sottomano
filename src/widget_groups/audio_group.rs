@@ -7,14 +7,14 @@ use std::ops::RangeInclusive;
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
         BarWidget, Tooltip,
         audio::{Audio, set_volume, toggle_mute},
     },
     message_subscriptions::blocking,
-    tooltip::{HoverTarget, TooltipMessage},
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage},
+    widget_groups::source_cell::SourceCell,
     widgets::{
         icon::Icon,
         slider_control::{Action, ControlMessage, SliderControl},

@@ -5,7 +5,7 @@
 //!
 //! Ranking lives in [`LaunchTracker`](crate::data_sources::launch_tracker): the
 //! app ranks each output's candidates in memory and pushes the results here via
-//! [`set_ranked`](QuickLaunchGroup::set_ranked); this group only resolves their
+//! [`set_ranked`](QuickLaunch::set_ranked); this group only resolves their
 //! icons (off-thread) and renders them. Ranked lists are keyed by output name
 //! (each output's active workspace differs); icon resolution is global.
 
@@ -23,8 +23,8 @@ use crate::{
         app_icon::{self, DesktopEntries},
         niri,
     },
-    layer_surface::Position,
     message_subscriptions::blocking,
+    wayland_layers::surface::Position,
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
@@ -37,7 +37,7 @@ pub const MAX_ITEMS: usize = 4;
 /// apps read as secondary to the live window list beside them (odin's `0.65`).
 const RESTING_OPACITY: f32 = 0.65;
 
-pub struct QuickLaunchGroup {
+pub struct QuickLaunch {
     /// Ranked app-ids per output, pushed in by the app.
     ranked: HashMap<String, Vec<String>>,
     icons: HashMap<String, PathBuf>,
@@ -58,7 +58,7 @@ pub enum QuickLaunchMessage {
     IconsResolved(HashMap<String, PathBuf>),
 }
 
-impl QuickLaunchGroup {
+impl QuickLaunch {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
             ranked: HashMap::new(),

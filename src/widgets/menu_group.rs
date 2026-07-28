@@ -22,7 +22,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    layer_surface::Position,
+    wayland_layers::surface::Position,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 

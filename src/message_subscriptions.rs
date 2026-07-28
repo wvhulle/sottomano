@@ -10,19 +10,19 @@ use tokio::{
 use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
-    bar_layout::{
+    app::{Bar, Message},
+    data_sources::{Source, desktop_entries, niri},
+    wayland_layers::notifications::{
+        NotificationMessage,
+        model::{NotifHandle, Outbound, ServerEvent},
+        server,
+    },
+    widget_groups::{
         audio_group::AudioGroup, battery_group::BatteryGroup, clock_group::ClockGroup,
         internet_group::InternetGroup, journal_group::JournalGroup, media_group::MediaGroup,
         monitor_group::MonitorGroup, net_interfaces_group::NetInterfacesGroup,
         system_group::SystemGroup, tray_group::TrayGroup, weather_group::WeatherGroup,
-        window_list_group::WindowListGroup,
-    },
-    bar_program::{Bar, Message},
-    data_sources::{Source, desktop_entries, niri},
-    notifications::{
-        NotificationMessage,
-        model::{NotifHandle, Outbound, ServerEvent},
-        server,
+        window_group::WindowGroup,
     },
     widgets::idle,
 };
@@ -57,7 +57,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         TrayGroup::subscription().map(Message::Tray),
         idle::subscription().map(Message::Idle),
         AudioGroup::subscription().map(Message::Audio),
-        WindowListGroup::subscription().map(Message::WindowList),
+        WindowGroup::subscription().map(Message::WindowGroup),
         iced::window::close_events().map(Message::WindowClosed),
         // Closes a stranded tooltip when the pointer leaves a surface without
         // crossing another hoverable (its `HoverArea` never fires an exit).

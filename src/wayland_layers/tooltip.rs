@@ -34,10 +34,10 @@ use iced_layershell::reexport::{
 };
 
 use crate::{
-    bar_program::Message,
+    app::Message,
     config::resolved::ResolvedConfig,
     data_sources::{Tooltip, TooltipBody, level_color, niri::OutputGeometry},
-    layer_surface::{Position, Surface},
+    wayland_layers::surface::{Position, Surface},
     widgets::text::bar_text,
 };
 
@@ -49,7 +49,7 @@ use crate::{
 /// families carry their instance's real identifier as data (a display serial, a
 /// tunnel interface name), stable across list reordering.
 ///
-/// [`Bar::tooltip_for`]: crate::bar_program::Bar
+/// [`Bar::tooltip_for`]: crate::app::Bar
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HoverTarget {
     Cpu,
@@ -375,7 +375,7 @@ pub fn panel_surface<'a>(
 /// the surface it lives on is stamped later by [`on_surface`] at the bar root,
 /// so a hoverable widget need not know which surface it is drawn into.
 ///
-/// [`Bar::tooltip_for`]: crate::bar_program::Bar
+/// [`Bar::tooltip_for`]: crate::app::Bar
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,

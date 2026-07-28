@@ -1,9 +1,9 @@
 //! The tray context-menu popup: an interactive layer surface the bar owns
-//! (mirroring [`TooltipHost`](crate::tooltip::TooltipHost) but taking input),
-//! whose body is rendered by
+//! (mirroring [`TooltipHost`](crate::wayland_layers::tooltip::TooltipHost) but
+//! taking input), whose body is rendered by
 //! [`widgets::context_menu`](crate::widgets::context_menu). It lives here
 //! rather than in `widgets/` because it emits
-//! [`Message`](crate::bar_program::Message) and creates/destroys surfaces,
+//! [`Message`](crate::app::Message) and creates/destroys surfaces,
 //! which the message-generic widgets never do. Unlike the tooltip, it carries
 //! its content — a snapshot of the item's menu taken when it opens.
 
@@ -19,11 +19,13 @@ use iced_layershell::reexport::{
 };
 
 use crate::{
-    bar_layout::tray_group::TrayMessage,
-    bar_program::Message,
+    app::Message,
     config::resolved::ResolvedConfig,
-    layer_surface::Position,
-    tooltip::{MenuAnchor, panel_left, tooltip_margin},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{MenuAnchor, panel_left, tooltip_margin},
+    },
+    widget_groups::tray_group::TrayMessage,
     widgets::context_menu::{MenuNode, context_menu},
 };
 

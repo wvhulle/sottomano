@@ -483,7 +483,7 @@ pub fn spawn(command: Vec<String>) {
 #[derive(Debug, Clone, Copy)]
 pub struct OutputGeometry {
     /// Logical width, used to place hover tooltips against the right screen
-    /// edge (see `tooltip::panel_left`).
+    /// edge (see `wayland_layers::tooltip::panel_left`).
     pub width: i32,
     pub height: i32,
 }

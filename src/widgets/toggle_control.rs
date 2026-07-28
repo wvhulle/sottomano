@@ -8,11 +8,11 @@
 use iced::{Element, Subscription, Task, widget::mouse_area};
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{BarWidget, Source},
     message_subscriptions::blocking,
-    tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    widget_groups::source_cell::SourceCell,
     widgets::icon_gauge::source_reading,
 };
 

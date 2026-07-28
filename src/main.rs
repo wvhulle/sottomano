@@ -2,18 +2,16 @@
 //! multi-output layer-shell daemon (one bar per output/edge); must run inside a
 //! niri session.
 
-mod bar_layout;
-mod bar_program;
+mod app;
 mod config;
 mod data_sources;
-mod layer_surface;
 mod message_subscriptions;
-mod notifications;
 mod state;
-mod tooltip;
+mod wayland_layers;
+mod widget_groups;
 mod widgets;
 
-use bar_program::Bar;
+use app::Bar;
 use iced_layershell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},

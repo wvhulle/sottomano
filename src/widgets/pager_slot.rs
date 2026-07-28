@@ -1,6 +1,6 @@
 use iced::{Element, Length, alignment::Vertical, widget::container};
 
-use crate::layer_surface::Position;
+use crate::wayland_layers::surface::Position;
 
 /// A pager/menu slot: `content` centred over the bar height, with an
 /// `indicator` hairline pinned to the inner screen edge and optional `ticks`

@@ -15,9 +15,11 @@ use crate::{
         mpris::{Media, Status},
         row,
     },
-    layer_surface::Position,
     message_subscriptions::blocking,
-    tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widgets::{
         icon::Icon,
         menu_group::{MenuGroup, MenuMessage},

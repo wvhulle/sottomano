@@ -6,13 +6,13 @@
 use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
-    bar_layout::source_cell::SourceCell,
     config::resolved::ResolvedConfig,
     data_sources::{
         BarWidget, Tooltip,
         net_interfaces::{bluetooth::Bluetooth, ethernet::Ethernet, mobile::Mobile, wifi::Wifi},
     },
-    tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    widget_groups::source_cell::SourceCell,
     widgets::icon_gauge::source_reading,
 };
 

@@ -21,7 +21,7 @@ use model::{NotifHandle, NotificationData, Outbound, close_reason};
 use placement::{ToastPlacement, placement_for, resolve_window_id};
 
 use crate::{
-    bar_program::Message,
+    app::Message,
     config::resolved::ResolvedConfig,
     data_sources::{
         app_icon::DesktopEntries,
@@ -83,7 +83,7 @@ struct ToastSurface {
 }
 
 #[derive(Default)]
-pub struct NotificationGroup {
+pub struct NotificationLayer {
     handle: Option<NotifHandle>,
     live: Vec<Notification>,
     surfaces: HashMap<u32, ToastSurface>,
@@ -96,7 +96,7 @@ pub struct NotificationGroup {
     dnd: bool,
 }
 
-impl NotificationGroup {
+impl NotificationLayer {
     pub fn update(
         &mut self,
         message: NotificationMessage,
@@ -264,7 +264,7 @@ impl NotificationGroup {
         let (&notif_id, _) = self.surfaces.iter().find(|(_, s)| s.id == id)?;
         let notif = self.live.iter().find(|n| n.data.id == notif_id)?;
         let hovered = self.hovered == Some(notif_id);
-        let sensor = Sensor::new(card::card(notif, hovered, 1.0, config)).on_resize(move |size| {
+        let sensor = Sensor::new(card::card(notif, hovered, config)).on_resize(move |size| {
             NotificationMessage::CardMeasured {
                 id: notif_id,
                 height: size.height,
@@ -526,8 +526,8 @@ fn group_key(place: &ToastPlacement) -> GroupKey {
 }
 
 /// One change to reconcile a toast's surface with the desired set. Produced by
-/// [`NotificationGroup::plan_changes`], performed by
-/// [`NotificationGroup::perform_change`].
+/// [`NotificationLayer::plan_changes`], performed by
+/// [`NotificationLayer::perform_change`].
 enum SurfaceChange {
     Open(DesiredSurface),
     Adjust {

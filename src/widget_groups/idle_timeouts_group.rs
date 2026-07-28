@@ -14,10 +14,12 @@ use iced::{
 use crate::{
     config::resolved::ResolvedConfig,
     data_sources::Tooltip,
-    layer_surface::Position,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
-    tooltip::{HoverTarget, TooltipMessage},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage},
+    },
     widgets::{
         icon::Icon,
         idle::{

@@ -61,7 +61,8 @@ pub struct Media {
     pub album: String,
     pub status: Status,
     /// The current track's album art, decoded in memory. `None` when the player
-    /// exposes no art (or it couldn't be fetched); the widget shows a glyph then.
+    /// exposes no art (or it couldn't be fetched); the widget shows a glyph
+    /// then.
     pub art: Option<image::Handle>,
     pub can_next: bool,
     pub can_prev: bool,
@@ -141,8 +142,8 @@ async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
 }
 
 /// The picked player's full track + transport state, or `None` when no usable
-/// player is present. `art` memoises the last fetched `(url, handle)` so the art
-/// is downloaded once per track, not on every play/pause or status signal.
+/// player is present. `art` memoises the last fetched `(url, handle)` so the
+/// art is downloaded once per track, not on every play/pause or status signal.
 async fn read_active(
     connection: &Connection,
     dbus: &DBusProxy<'_>,

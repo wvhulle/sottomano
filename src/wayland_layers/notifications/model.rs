@@ -70,7 +70,7 @@ pub enum Outbound {
 /// [`NotificationMessage::Connected`]. Opaque and cheap to clone; the app sends
 /// [`Outbound`] through it to emit signals.
 ///
-/// [`NotificationMessage::Connected`]: crate::notifications::NotificationMessage::Connected
+/// [`NotificationMessage::Connected`]: crate::wayland_layers::notifications::NotificationMessage::Connected
 #[derive(Clone)]
 pub struct NotifHandle(mpsc::Sender<Outbound>);
 

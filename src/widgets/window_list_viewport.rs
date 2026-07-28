@@ -1,17 +1,17 @@
-//! Horizontal scroll viewport for the window list — odin's `HorizontalListPager`
-//! ported to iced. Given a definite width from its parent, it shows the content
-//! centred (when it fits) or clips and horizontally scrolls it (when it
-//! overflows): mouse-wheel driven, stop-at-bounds, auto-scrolling to keep the
-//! focused window visible.
+//! Horizontal scroll viewport for the window list — odin's
+//! `HorizontalListPager` ported to iced. Given a definite width from its
+//! parent, it shows the content centred (when it fits) or clips and
+//! horizontally scrolls it (when it overflows): mouse-wheel driven,
+//! stop-at-bounds, auto-scrolling to keep the focused window visible.
 //!
 //! The scroll offset is owned by the caller, not the widget: the widget renders
-//! at the offset it is handed and publishes a new one (via `on_scroll`) on wheel
-//! and on focus change. iced has no per-pixel alpha mask, so the odin-style
-//! edge-fade is instead baked per-item into the buttons the caller builds — for
-//! which the caller needs each item's on-screen position. The widget measures
-//! that and reports it back through `on_metrics` (deduped, on redraw frames, as
-//! [`iced::widget::Sensor`] reports its size), and [`Metrics::item_alpha`] turns
-//! it into the per-item opacity.
+//! at the offset it is handed and publishes a new one (via `on_scroll`) on
+//! wheel and on focus change. iced has no per-pixel alpha mask, so the
+//! odin-style edge-fade is instead baked per-item into the buttons the caller
+//! builds — for which the caller needs each item's on-screen position. The
+//! widget measures that and reports it back through `on_metrics` (deduped, on
+//! redraw frames, as [`iced::widget::Sensor`] reports its size), and
+//! [`Metrics::item_alpha`] turns it into the per-item opacity.
 //!
 //! Modelled on [`super::reveal`] for the clip mechanics, but stateful.
 
@@ -55,10 +55,10 @@ impl Metrics {
         (self.content_width - self.viewport_width).max(0.0)
     }
 
-    /// Opacity for item `index` at scroll `offset`: `1.0` when the item is fully
-    /// in view, a fixed [`CLIPPED_ALPHA`] the moment either edge clips it.
-    /// Symmetric — it tests both edges, so a window clipped on the left dims like
-    /// one clipped on the right.
+    /// Opacity for item `index` at scroll `offset`: `1.0` when the item is
+    /// fully in view, a fixed [`CLIPPED_ALPHA`] the moment either edge
+    /// clips it. Symmetric — it tests both edges, so a window clipped on
+    /// the left dims like one clipped on the right.
     pub fn item_alpha(&self, offset: f32, index: usize) -> f32 {
         let Some(&(left, right)) = self.item_bounds.get(index) else {
             return 1.0;
@@ -76,8 +76,8 @@ impl Metrics {
 /// Horizontally scrollable viewport around the window list. `offset` is the
 /// caller-owned scroll position to render at; `focused_index` is the button of
 /// the focused window (auto-scrolled into view on change); `on_scroll` requests
-/// a new offset (wheel / auto-scroll) and `on_metrics` reports measured geometry
-/// for the caller's per-item fade.
+/// a new offset (wheel / auto-scroll) and `on_metrics` reports measured
+/// geometry for the caller's per-item fade.
 pub fn window_list_viewport<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     offset: f32,
@@ -112,9 +112,9 @@ struct State {
 
 impl<Message> WindowListViewport<'_, Message> {
     /// The on-screen translation applied to the content this frame, and whether
-    /// it fits without scrolling. When it fits the child node equals its natural
-    /// width, so this is a no-op shift; when it overflows the content is shifted
-    /// left by the (clamped) scroll offset.
+    /// it fits without scrolling. When it fits the child node equals its
+    /// natural width, so this is a no-op shift; when it overflows the
+    /// content is shifted left by the (clamped) scroll offset.
     fn shift(&self, bounds: Rectangle, natural: f32) -> (Vector, bool) {
         if natural <= bounds.width {
             (Vector::new((bounds.width - natural) / 2.0, 0.0), true)
@@ -161,10 +161,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         // and overflows to the right, where `draw` clips and translates it.
         let budget = limits.max().width;
         let natural_limits = Limits::new(Size::ZERO, Size::new(f32::INFINITY, limits.max().height));
-        let child = self
-            .content
-            .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, &natural_limits);
+        let child =
+            self.content
+                .as_widget_mut()
+                .layout(&mut tree.children[0], renderer, &natural_limits);
         let natural = child.size();
         let width = natural.width.min(budget);
         Node::with_children(Size::new(width, natural.height), vec![child])
@@ -338,8 +338,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
 }
 
 impl<Message> WindowListViewport<'_, Message> {
-    /// On a redraw frame: publish measured geometry when it changes, and request
-    /// a new scroll offset when focus has moved to an item that is off-view.
+    /// On a redraw frame: publish measured geometry when it changes, and
+    /// request a new scroll offset when focus has moved to an item that is
+    /// off-view.
     fn report(
         &self,
         tree: &mut Tree,
