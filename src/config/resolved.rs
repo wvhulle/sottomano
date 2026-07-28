@@ -1,7 +1,7 @@
 //! Config resolved once at startup: the font is loaded and parsed, colours are
 //! converted. Fields are plain data — read them directly.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, process::Command, sync::Arc};
 
 use color::{ColorSpaceTag, DynamicColor, Srgb};
 use iced::{Color, Font};
@@ -32,6 +32,11 @@ pub struct ResolvedConfig {
     /// state; starts `true` (sounds on), loaded from the state DB at startup,
     /// toggled live from the notification group.
     pub sound: bool,
+    /// The session's configured XDG sound theme (`org.gnome.desktop.sound
+    /// theme-name`), resolved once at startup — the sound analogue of the
+    /// gsettings icon-theme pick. `None` (no gsettings / unset) leaves the sound
+    /// lookup on its "freedesktop" default.
+    pub sound_theme: Option<String>,
     /// Lowercased SNI id substrings whose tray items are hidden (already
     /// surfaced natively by the shell). See `disk::TrayConfig::deny_ids`.
     pub tray_deny_ids: Vec<String>,
@@ -95,6 +100,7 @@ pub fn load() -> ResolvedConfig {
         float_offset_px: 0.0,
         dnd: false,
         sound: true,
+        sound_theme: session_sound_theme(),
         tray_deny_ids: user
             .tray
             .deny_ids
@@ -102,6 +108,24 @@ pub fn load() -> ResolvedConfig {
             .map(|id| id.to_lowercase())
             .collect(),
     }
+}
+
+/// The session's configured sound theme from gsettings (`org.gnome.desktop.sound
+/// theme-name`), so notification alert sounds follow the desktop's choice — the
+/// audio analogue of the icon-theme pick. gsettings quotes the value (`'ocean'`),
+/// so the surrounding quotes are trimmed. `None` when gsettings is absent or the
+/// key is unset, leaving the sound lookup on its "freedesktop" default.
+fn session_sound_theme() -> Option<String> {
+    let output = Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.sound", "theme-name"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?;
+    let theme = value.trim().trim_matches('\'');
+    (!theme.is_empty()).then(|| theme.to_owned())
 }
 
 fn resolve_palette(palette: &DiskPaletteConfig) -> ResolvedPaletteConfig {
@@ -174,7 +198,7 @@ pub fn fallback_font(ch: char) -> Option<Font> {
 /// One field of fontconfig's best match for `pattern`, via the `fc-match`
 /// subprocess.
 fn fc_match(pattern: &str, format: &str) -> Option<String> {
-    let output = std::process::Command::new("fc-match")
+    let output = Command::new("fc-match")
         .args(["-f", format, pattern])
         .output()
         .ok()?;

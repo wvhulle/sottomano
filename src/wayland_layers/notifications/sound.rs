@@ -62,30 +62,37 @@ impl Alert {
 }
 
 /// Play `data`'s alert sound off-thread: its explicit `sound-file` hint when it
-/// names a real file, else the freedesktop theme sound for its kind. A missing
-/// file or player just yields silence.
-pub fn play(data: &NotificationData) -> Task<Message> {
+/// names a real file, else the `theme`d sound for its kind. `theme` is the
+/// session's configured sound theme ([`ResolvedConfig::sound_theme`]); `None`
+/// uses the "freedesktop" default. A missing file or player just yields silence.
+pub fn play(data: &NotificationData, theme: Option<&str>) -> Task<Message> {
     let explicit = data.sound_file.clone();
     let alert = Alert::of(data);
+    let theme = theme.map(ToOwned::to_owned);
     blocking("notification sound", move || {
-        if let Some(file) = resolve(explicit, alert) {
+        if let Some(file) = resolve(explicit, alert, theme.as_deref()) {
             let _ = Command::new(PLAYER).arg(file).status();
         }
     })
     .discard()
 }
 
-fn resolve(explicit: Option<String>, alert: Alert) -> Option<PathBuf> {
+fn resolve(explicit: Option<String>, alert: Alert, theme: Option<&str>) -> Option<PathBuf> {
     explicit
         .map(PathBuf::from)
         .filter(|path| path.exists())
-        .or_else(|| themed(alert.theme_name()))
+        .or_else(|| themed(alert.theme_name(), theme))
         // A theme missing the specific name still gets the generic message tone.
-        .or_else(|| themed("message"))
+        .or_else(|| themed("message", theme))
 }
 
-/// The themed sound file for `name`, via the XDG Sound Theme spec (default
-/// "freedesktop" theme, with the spec's parent-theme fallback).
-fn themed(name: &str) -> Option<PathBuf> {
-    freedesktop_sound::lookup(name).with_cache().find()
+/// The themed sound file for `name`, via the XDG Sound Theme spec. `theme` (the
+/// session's choice) is resolved against its parents and ultimately the built-in
+/// "freedesktop" default.
+fn themed(name: &str, theme: Option<&str>) -> Option<PathBuf> {
+    let lookup = freedesktop_sound::lookup(name).with_cache();
+    match theme {
+        Some(theme) => lookup.with_theme(theme).find(),
+        None => lookup.find(),
+    }
 }

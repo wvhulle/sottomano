@@ -143,7 +143,7 @@ impl NotificationLayer {
                 // Alert sound: gated on the sound toggle and the client's
                 // suppress-sound hint. Read `data` before it moves into `live`.
                 if config.sound && !data.suppress_sound {
-                    tasks.push(sound::play(&data));
+                    tasks.push(sound::play(&data, config.sound_theme.as_deref()));
                 }
                 let icons = card::resolve_icons(&data, entries);
                 let seq = self.next_seq;
