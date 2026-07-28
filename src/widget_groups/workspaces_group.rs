@@ -22,8 +22,12 @@ pub fn view<'a>(
     output: &str,
     config: &ResolvedConfig,
     position: Position,
-) -> Element<'a, WorkspacesMessage> {
-    let slots = niri.workspaces_for_output(output).iter().map(|p| {
+) -> Option<Element<'a, WorkspacesMessage>> {
+    let workspaces = niri.workspaces_for_output(output);
+    if workspaces.is_empty() {
+        return None;
+    }
+    let slots = workspaces.iter().map(|p| {
         let label = workspace_label(config, p);
         let (focus_color, focus_opacity) = if p.is_urgent {
             (config.palette.urgent, 1.0)
@@ -43,10 +47,12 @@ pub fn view<'a>(
             .on_press(WorkspacesMessage::Clicked(p.id))
             .into()
     });
-    Row::with_children(slots)
-        .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
-        .align_y(Alignment::Center)
-        .into()
+    Some(
+        Row::with_children(slots)
+            .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
+            .align_y(Alignment::Center)
+            .into(),
+    )
 }
 
 fn window_ticks<'a>(

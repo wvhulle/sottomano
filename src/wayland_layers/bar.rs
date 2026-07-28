@@ -119,82 +119,61 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let start = zone(
         [
-            bar.weather_group.view(config, position).map(|e| {
-                e.map(|m| match m {
-                    WeatherMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Weather(m),
-                })
+            slot(bar.weather_group.view(config, position), |m| match m {
+                WeatherMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Weather(m),
             }),
-            bar.battery_group.view(config).map(|e| {
-                e.map(|m| match m {
-                    BatteryMessage::Tooltip(t) => Message::Tooltip(t),
-                    m @ BatteryMessage::Reading(_) => Message::Battery(m),
-                })
+            slot(bar.battery_group.view(config), |m| match m {
+                BatteryMessage::Tooltip(t) => Message::Tooltip(t),
+                m @ BatteryMessage::Reading(_) => Message::Battery(m),
             }),
-            bar.system_group.view(config, position).map(|e| {
-                e.map(|m| match m {
-                    SystemMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::System(m),
-                })
+            slot(bar.system_group.view(config, position), |m| match m {
+                SystemMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::System(m),
             }),
-            bar.net_interfaces_group.view(config).map(|e| {
-                e.map(|m| match m {
-                    NetInterfacesMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::NetInterfaces(m),
-                })
+            slot(bar.net_interfaces_group.view(config), |m| match m {
+                NetInterfacesMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::NetInterfaces(m),
             }),
-            bar.journal_group.view(config).map(|e| {
-                e.map(|m| match m {
-                    JournalMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Journal(m),
-                })
+            slot(bar.journal_group.view(config), |m| match m {
+                JournalMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Journal(m),
             }),
-            bar.internet_group.view(config, position).map(|e| {
-                e.map(|m| match m {
-                    InternetMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Internet(m),
-                })
+            slot(bar.internet_group.view(config, position), |m| match m {
+                InternetMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Internet(m),
             }),
-            bar.panel_settings_group.view(config, position).map(|e| {
-                e.map(|m| match m {
+            slot(
+                bar.panel_settings_group.view(config, position),
+                |m| match m {
                     PanelSettingsMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::PanelSettings(m),
-                })
-            }),
+                },
+            ),
         ],
         config,
     );
-    let center = zone(
-        [Some(bar.clock_group.view(config).map(Message::Clock))],
-        config,
-    );
+    let center = zone([slot(bar.clock_group.view(config), Message::Clock)], config);
     let end = zone(
         [
-            bar.monitor_group.view(config, position).map(|e| {
-                e.map(|m| match m {
-                    MonitorMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Monitor(m),
-                })
+            slot(bar.monitor_group.view(config, position), |m| match m {
+                MonitorMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Monitor(m),
             }),
-            Some(
-                bar.idle_timeouts_group
-                    .view(config, position)
-                    .map(|m| match m {
-                        IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
-                        m => Message::IdleTimeouts(m),
-                    }),
+            slot(
+                bar.idle_timeouts_group.view(config, position),
+                |m| match m {
+                    IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::IdleTimeouts(m),
+                },
             ),
-            bar.media_group.view(config, position).map(|e| {
-                e.map(|m| match m {
-                    MediaMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Media(m),
-                })
+            slot(bar.media_group.view(config, position), |m| match m {
+                MediaMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Media(m),
             }),
-            bar.audio_group.view(config).map(|e| {
-                e.map(|m| match m {
-                    AudioMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Audio(m),
-                })
+            slot(bar.audio_group.view(config), |m| match m {
+                AudioMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Audio(m),
             }),
         ],
         config,
@@ -215,12 +194,25 @@ fn zone<'a>(
         .into()
 }
 
+/// Lift a group element into the bar's `Message`: a hidden group stays `None`,
+/// otherwise the widget's own message is remapped by `wrap` (which peels off
+/// the shared `Tooltip` variant). Accepts either a plain `Element`
+/// (always-shown groups, coerced via `Some`) or an `Option<Element>` (groups
+/// that can hide), so every call site reads the same. Collapses the
+/// `Option`-over-`Element` map each slot would otherwise nest.
+fn slot<'a, M: 'a>(
+    element: impl Into<Option<Element<'a, M>>>,
+    wrap: impl Fn(M) -> Message + 'a,
+) -> Option<Element<'a, Message>> {
+    element.into().map(|e| e.map(wrap))
+}
+
 fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<'a, Message> {
     let config = &bar.config;
     let start = zone(
-        [Some(
-            workspaces_group::view(&bar.niri_snapshot, output, config, position)
-                .map(|WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id)),
+        [slot(
+            workspaces_group::view(&bar.niri_snapshot, output, config, position),
+            |WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id),
         )],
         config,
     );
@@ -229,23 +221,18 @@ fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<
     // reserves exactly the space between them; the window list caps its width to
     // that budget and scrolls when it overflows, keeping the tray from being
     // overrun.
-    let middle = container(
+    let middle = container(slot(
         bar.window_group
-            .view(&bar.niri_snapshot, output, config, position)
-            .map(Message::WindowGroup),
-    )
+            .view(&bar.niri_snapshot, output, config, position),
+        Message::WindowGroup,
+    ))
     .center_x(Length::Fill);
     // Bottom-right zone (odin: tray / ai-usage / notifications). Tray ported.
-    let end = bar
-        .tray_group
-        .view(config, position)
-        .map(|e| {
-            e.map(|m| match m {
-                TrayMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Tray(m),
-            })
-        })
-        .unwrap_or_else(|| Space::new().into());
+    let end = slot(bar.tray_group.view(config, position), |m| match m {
+        TrayMessage::Tooltip(t) => Message::Tooltip(t),
+        m => Message::Tray(m),
+    })
+    .unwrap_or_else(|| Space::new().into());
     row![start, middle, end]
         .align_y(Alignment::Center)
         .padding([

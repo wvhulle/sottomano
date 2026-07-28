@@ -116,7 +116,7 @@ impl WindowGroup {
         output: &str,
         config: &ResolvedConfig,
         position: Position,
-    ) -> Element<'a, WindowGroupMessage> {
+    ) -> Option<Element<'a, WindowGroupMessage>> {
         let quick_launch = self
             .quick_launch
             .view(output, config, position)
@@ -125,11 +125,16 @@ impl WindowGroup {
             .window_list
             .view(niri, output, config, position)
             .map(|e| e.map(WindowGroupMessage::WindowList));
-        Row::new()
-            .extend(quick_launch)
-            .extend(window_list)
-            .spacing(config.layout.horizontal_group_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
+        if quick_launch.is_none() && window_list.is_none() {
+            return None;
+        }
+        Some(
+            Row::new()
+                .extend(quick_launch)
+                .extend(window_list)
+                .spacing(config.layout.horizontal_group_spacing_px)
+                .align_y(Alignment::Center)
+                .into(),
+        )
     }
 }
