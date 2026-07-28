@@ -46,9 +46,8 @@ use crate::{
         tray_group::{TrayGroup, TrayMessage},
         weather_group::{WeatherGroup, WeatherMessage},
         window_group::{
-            WindowGroup, WindowGroupMessage,
+            self, WindowGroup, WindowGroupMessage,
             quick_launch::{MAX_ITEMS, QuickLaunchMessage},
-            window_list::WindowListMessage,
         },
     },
     widgets::{
@@ -200,15 +199,19 @@ impl Bar {
                 // notification stack lands.
                 Task::batch([self.open_bars(&name), query_outputs()])
             }
-            Message::WindowGroup(WindowGroupMessage::WindowList(WindowListMessage::Clicked(
-                window,
-            ))) => niri_action(move || niri::focus_window(window)),
-            Message::WindowGroup(msg) => {
-                let entries = self.desktop_entries.arc();
-                self.window_group
-                    .update(msg, &self.niri, &self.config.font, entries.as_ref())
-                    .map(Message::WindowGroup)
-            }
+            Message::WindowGroup(msg) => match self.window_group.update(msg) {
+                window_group::Action::Run(task) => task.map(Message::WindowGroup),
+                window_group::Action::FocusWindow(window) => {
+                    niri_action(move || niri::focus_window(window))
+                }
+                window_group::Action::RefreshWindowList => {
+                    let entries = self.desktop_entries.arc();
+                    self.window_group
+                        .refresh_window_list(&self.niri, &self.config.font, entries.as_ref())
+                        .map(Message::WindowGroup)
+                }
+                window_group::Action::None => Task::none(),
+            },
             Message::TrackerLoaded(buckets) => {
                 self.launch_tracker.load_from(buckets);
                 self.refresh_quick_launch()

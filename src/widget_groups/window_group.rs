@@ -31,6 +31,18 @@ pub enum WindowGroupMessage {
     WindowList(WindowListMessage),
 }
 
+/// What the app must do in response to an update; effects that need app-owned
+/// state (niri, the `.desktop` index) are described, not performed.
+pub enum Action {
+    None,
+    Run(Task<WindowGroupMessage>),
+    /// Focus this niri window — the app owns the niri connection.
+    FocusWindow(u64),
+    /// Re-run the window list's resolves — the app owns the inputs and
+    /// responds by calling [`WindowGroup::refresh_window_list`].
+    RefreshWindowList,
+}
+
 impl WindowGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
@@ -45,22 +57,18 @@ impl WindowGroup {
         WindowList::subscription().map(WindowGroupMessage::WindowList)
     }
 
-    pub fn update(
-        &mut self,
-        msg: WindowGroupMessage,
-        niri: &EventStreamState,
-        font: &ResolvedFontConfig,
-        entries: Option<&Arc<DesktopEntries>>,
-    ) -> Task<WindowGroupMessage> {
+    pub fn update(&mut self, msg: WindowGroupMessage) -> Action {
         match msg {
-            WindowGroupMessage::QuickLaunch(m) => self
-                .quick_launch
-                .update(m)
-                .map(WindowGroupMessage::QuickLaunch),
-            WindowGroupMessage::WindowList(m) => self
-                .window_list
-                .update(m, niri, font, entries)
-                .map(WindowGroupMessage::WindowList),
+            WindowGroupMessage::QuickLaunch(m) => Action::Run(
+                self.quick_launch
+                    .update(m)
+                    .map(WindowGroupMessage::QuickLaunch),
+            ),
+            WindowGroupMessage::WindowList(m) => match self.window_list.update(m) {
+                window_list::Action::None => Action::None,
+                window_list::Action::FocusWindow(window) => Action::FocusWindow(window),
+                window_list::Action::RefreshIcons => Action::RefreshWindowList,
+            },
         }
     }
 

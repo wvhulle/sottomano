@@ -89,7 +89,7 @@ fn workspace_label<'a>(
         Some(name) if named && p.idx <= 10 => row![
             bar_text(&config.font, key)
                 .size(config.font.text_size_px * 0.7)
-                .color(config.palette.dim),
+                .color(config.palette.inactive),
             bar_text(&config.font, name.clone()),
         ]
         .align_y(Alignment::Start)

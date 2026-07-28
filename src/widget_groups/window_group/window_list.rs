@@ -132,6 +132,17 @@ pub enum WindowListMessage {
     MetricsChanged(Metrics),
 }
 
+/// What the parent must do in response to an update; effects that need
+/// app-owned state (niri, the `.desktop` index) are described, not performed.
+pub enum Action {
+    None,
+    /// Focus this niri window — the app owns the niri connection.
+    FocusWindow(u64),
+    /// Re-run the icon/font resolves — the app owns the inputs and responds
+    /// by calling [`WindowList::refresh`].
+    RefreshIcons,
+}
+
 impl WindowList {
     /// Re-resolve icons against a freshly (re)loaded `.desktop` index — the app
     /// hands this in when the shared index changes.
@@ -154,15 +165,9 @@ impl WindowList {
         iced::time::every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed)
     }
 
-    pub fn update(
-        &mut self,
-        msg: WindowListMessage,
-        niri: &EventStreamState,
-        font: &ResolvedFontConfig,
-        entries: Option<&Arc<DesktopEntries>>,
-    ) -> Task<WindowListMessage> {
+    pub fn update(&mut self, msg: WindowListMessage) -> Action {
         match msg {
-            WindowListMessage::Clicked(_) => Task::none(),
+            WindowListMessage::Clicked(window) => Action::FocusWindow(window),
             WindowListMessage::FaviconsLoaded(raw) => {
                 // Reuse the existing handle when a re-poll returns the same
                 // blob, so its GPU texture stays cached (raster handles get a
@@ -178,29 +183,29 @@ impl WindowList {
                         (title, favicon)
                     })
                     .collect();
-                Task::none()
+                Action::None
             }
             WindowListMessage::AppIconsResolved(map) => {
                 self.app_icons = map;
-                Task::none()
+                Action::None
             }
             WindowListMessage::ThemeIconsResolved(map) => {
                 self.theme_icons = map;
-                Task::none()
+                Action::None
             }
             WindowListMessage::FallbackFontsResolved(map) => {
                 self.fallback_fonts.extend(map);
-                Task::none()
+                Action::None
             }
-            WindowListMessage::IconsBackstopElapsed => self.refresh(niri, font, entries),
+            WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,
             WindowListMessage::Scrolled(offset) => {
                 self.scroll = offset.clamp(0.0, self.metrics.max_scroll());
-                Task::none()
+                Action::None
             }
             WindowListMessage::MetricsChanged(metrics) => {
                 self.metrics = metrics;
                 self.scroll = self.scroll.clamp(0.0, self.metrics.max_scroll());
-                Task::none()
+                Action::None
             }
         }
     }
@@ -449,7 +454,7 @@ fn title_element<'a>(
     // Bake the edge-fade opacity into the glyph colours: iced can't alpha-mask a
     // `rich_text`, and `main` must carry an explicit colour (not the inherited
     // container text colour) for the fade to reach it.
-    let dim = config.palette.dim.scale_alpha(alpha);
+    let context_color = config.palette.inactive.scale_alpha(alpha);
     let main_color = config.palette.bar_foreground.scale_alpha(alpha);
     let font = &config.font;
     let main = fallback_spans(
@@ -466,8 +471,8 @@ fn title_element<'a>(
             style: FontStyle::Italic,
             ..font.iced_font
         };
-        let context = fallback_spans(font, &parts.lead, italic, Some(dim), fallbacks);
-        let separator = fallback_spans(font, " · ", font.iced_font, Some(dim), fallbacks);
+        let context = fallback_spans(font, &parts.lead, italic, Some(context_color), fallbacks);
+        let separator = fallback_spans(font, " · ", font.iced_font, Some(context_color), fallbacks);
         if lead_first {
             context.into_iter().chain(separator).chain(main).collect()
         } else {
