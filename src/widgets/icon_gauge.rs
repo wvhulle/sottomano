@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Border, Color, Element,
-    widget::{Column, Row, Space, container, row, text},
+    widget::{Column, Row, Space, container, row, svg, text},
 };
 
 use crate::{
@@ -22,11 +22,19 @@ pub fn source_reading<'a, Message: 'a>(
     let widget = widget?;
     let dim = if widget.disabled() { 0.4 } else { 1.0 };
     let color = level_color(config, widget.level()).scale_alpha(alpha * dim);
-    let icon = widget
-        .icon()
-        .solid()
-        .size(config.font.icon_size_px)
-        .color(color);
+    let icon: Element<Message> = match widget.brand() {
+        Some(mark) => svg(mark.handle())
+            .width(config.font.icon_size_px)
+            .height(config.font.icon_size_px)
+            .style(move |_, _| svg::Style { color: Some(color) })
+            .into(),
+        None => widget
+            .icon()
+            .solid()
+            .size(config.font.icon_size_px)
+            .color(color)
+            .into(),
+    };
 
     let reading = match widget.value() {
         Some(value) => row![
@@ -43,7 +51,7 @@ pub fn source_reading<'a, Message: 'a>(
                     .align_y(Alignment::Center)
                     .into()
             }
-            _ => Element::from(icon),
+            _ => icon,
         },
     };
 

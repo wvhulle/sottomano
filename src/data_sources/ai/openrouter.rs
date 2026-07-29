@@ -17,7 +17,7 @@ use crate::{
         ai::{ApiSource, http, level_from_cost, read_secret},
         row,
     },
-    widgets::icon::Icon,
+    widgets::{brand::BrandMark, icon::Icon},
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -42,6 +42,10 @@ struct Credits {
 impl BarWidget for OpenRouter {
     fn icon(&self) -> Icon {
         Icon::Route
+    }
+
+    fn brand(&self) -> Option<BrandMark> {
+        Some(BrandMark::OpenRouter)
     }
 
     fn label(&self) -> Option<String> {

@@ -15,7 +15,10 @@ use std::{
 
 use iced::Color;
 
-use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
+use crate::{
+    config::resolved::ResolvedConfig,
+    widgets::{brand::BrandMark, icon::Icon},
+};
 
 pub mod ai;
 pub mod app_icon;
@@ -190,6 +193,10 @@ pub fn level_color(config: &ResolvedConfig, level: Level) -> Color {
 
 pub trait BarWidget {
     fn icon(&self) -> Icon;
+
+    fn brand(&self) -> Option<BrandMark> {
+        None
+    }
 
     fn label(&self) -> Option<String> {
         None

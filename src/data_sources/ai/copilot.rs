@@ -19,7 +19,7 @@ use crate::{
         command::{exists, output},
         row,
     },
-    widgets::icon::Icon,
+    widgets::{brand::BrandMark, icon::Icon},
 };
 
 const USER_URL: &str = "https://api.github.com/copilot_internal/user";
@@ -40,6 +40,10 @@ pub struct CopilotMetered {
 impl BarWidget for CopilotMetered {
     fn icon(&self) -> Icon {
         Icon::Robot
+    }
+
+    fn brand(&self) -> Option<BrandMark> {
+        Some(BrandMark::GithubCopilot)
     }
 
     fn level(&self) -> Level {
@@ -133,6 +137,10 @@ impl BarWidget for CopilotFree {
         Icon::Robot
     }
 
+    fn brand(&self) -> Option<BrandMark> {
+        Some(BrandMark::GithubCopilot)
+    }
+
     fn label(&self) -> Option<String> {
         Some(self.chat.to_string())
     }
@@ -197,6 +205,10 @@ pub struct CopilotCcusage {
 impl BarWidget for CopilotCcusage {
     fn icon(&self) -> Icon {
         Icon::Robot
+    }
+
+    fn brand(&self) -> Option<BrandMark> {
+        Some(BrandMark::GithubCopilot)
     }
 
     fn label(&self) -> Option<String> {

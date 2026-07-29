@@ -97,7 +97,7 @@ pub fn set(profile: Profile) -> bool {
 #[derive(Debug, Clone)]
 pub struct PowerProfile {
     pub active: Profile,
-    pub energy_wh: Option<f64>,
+    pub energy_j: Option<f64>,
     pub draw_w: Option<f64>,
     pub discharging: bool,
     pub battery_id: String,
@@ -122,7 +122,7 @@ impl Source for PowerProfile {
         let energy = sysfs_sensors::battery_energy();
         Some(PowerProfile {
             active,
-            energy_wh: energy.as_ref().and_then(|e| e.energy_wh),
+            energy_j: energy.as_ref().and_then(|e| e.energy_j),
             draw_w: energy.as_ref().and_then(|e| e.draw_w),
             discharging: energy.as_ref().is_some_and(|e| e.discharging),
             battery_id: energy.map(|e| e.serial).unwrap_or_default(),
@@ -199,7 +199,7 @@ pub struct Estimate {
 }
 
 pub fn estimate(
-    energy_wh: Option<f64>,
+    energy_j: Option<f64>,
     active: Profile,
     states: &HashMap<Profile, RateState>,
     live_w: Option<f64>,
@@ -214,20 +214,20 @@ pub fn estimate(
         .map(|profile| {
             (
                 profile,
-                estimate_one(energy_wh, active, active_rate, states, profile),
+                estimate_one(energy_j, active, active_rate, states, profile),
             )
         })
         .collect()
 }
 
 fn estimate_one(
-    energy_wh: Option<f64>,
+    energy_j: Option<f64>,
     active: Profile,
     active_rate: Option<f64>,
     states: &HashMap<Profile, RateState>,
     profile: Profile,
 ) -> Option<Estimate> {
-    let energy = energy_wh.filter(|e| *e > 0.0)?;
+    let energy = energy_j.filter(|e| *e > 0.0)?;
     let (rate, variance) = match states.get(&profile) {
         Some(state) if state.rate_w > 0.0 => (state.rate_w, state.variance),
         _ => {
@@ -236,8 +236,8 @@ fn estimate_one(
         }
     };
     (rate > 0.0).then(|| Estimate {
-        time: Duration::from_secs_f64(energy / rate * 3600.0),
-        band: Duration::from_secs_f64(energy / (rate * rate) * variance.sqrt() * 3600.0),
+        time: Duration::from_secs_f64(energy / rate),
+        band: Duration::from_secs_f64(energy / (rate * rate) * variance.sqrt()),
     })
 }
 
@@ -254,6 +254,10 @@ mod tests {
 
     fn hrs(duration: Duration) -> f64 {
         duration.as_secs_f64() / 3600.0
+    }
+
+    fn joules(watt_hours: f64) -> f64 {
+        watt_hours * 3600.0
     }
 
     fn get(estimates: &HashMap<Profile, Option<Estimate>>, profile: Profile) -> Estimate {
@@ -305,7 +309,7 @@ mod tests {
                 variance: 0.25,
             },
         )]);
-        let estimates = estimate(Some(50.0), Profile::Balanced, &states, Some(10.0));
+        let estimates = estimate(Some(joules(50.0)), Profile::Balanced, &states, Some(10.0));
         let balanced = get(&estimates, Profile::Balanced);
         assert!((hrs(balanced.time) - 5.0).abs() < 0.01);
         assert!((hrs(balanced.band) - 0.25).abs() < 0.01);
@@ -320,7 +324,7 @@ mod tests {
                 variance: 1.0,
             },
         )]);
-        let estimates = estimate(Some(50.0), Profile::Balanced, &states, Some(10.0));
+        let estimates = estimate(Some(joules(50.0)), Profile::Balanced, &states, Some(10.0));
         let saver = hrs(get(&estimates, Profile::PowerSaver).time);
         let balanced = hrs(get(&estimates, Profile::Balanced).time);
         let performance = hrs(get(&estimates, Profile::Performance).time);
@@ -337,7 +341,7 @@ mod tests {
 
     #[test]
     fn estimate_on_ac_without_history_is_unknown() {
-        let estimates = estimate(Some(50.0), Profile::Balanced, &HashMap::new(), None);
+        let estimates = estimate(Some(joules(50.0)), Profile::Balanced, &HashMap::new(), None);
         assert!(estimates[&Profile::Balanced].is_none());
     }
 
@@ -351,7 +355,7 @@ mod tests {
         let band = |state| {
             let states = HashMap::from([(Profile::Balanced, state)]);
             hrs(get(
-                &estimate(Some(50.0), Profile::Balanced, &states, Some(10.0)),
+                &estimate(Some(joules(50.0)), Profile::Balanced, &states, Some(10.0)),
                 Profile::Balanced,
             )
             .band)

@@ -169,6 +169,10 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
     );
     let end = zone(
         [
+            slot(bar.ai_group.view(config, position), |m| match m {
+                AiMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Ai(m),
+            }),
             slot(bar.monitor_group.view(config, position), |m| match m {
                 MonitorMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Monitor(m),
@@ -190,10 +194,6 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
             slot(bar.audio_group.view(config), |m| match m {
                 AudioMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Audio(m),
-            }),
-            slot(bar.ai_group.view(config, position), |m| match m {
-                AiMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Ai(m),
             }),
         ],
         config,

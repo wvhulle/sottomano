@@ -21,7 +21,7 @@ use crate::{
         command::{exists, output},
         row,
     },
-    widgets::icon::Icon,
+    widgets::{brand::BrandMark, icon::Icon},
 };
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
@@ -43,6 +43,10 @@ pub enum ClaudeOauth {
 impl BarWidget for ClaudeOauth {
     fn icon(&self) -> Icon {
         Icon::Robot
+    }
+
+    fn brand(&self) -> Option<BrandMark> {
+        Some(BrandMark::Claude)
     }
 
     fn label(&self) -> Option<String> {
@@ -167,6 +171,10 @@ pub struct ClaudeCcusage {
 impl BarWidget for ClaudeCcusage {
     fn icon(&self) -> Icon {
         Icon::Robot
+    }
+
+    fn brand(&self) -> Option<BrandMark> {
+        Some(BrandMark::Claude)
     }
 
     fn level(&self) -> Level {

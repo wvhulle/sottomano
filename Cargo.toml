@@ -40,6 +40,11 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+# Brand logos (Anthropic/Claude, GitHub Copilot, OpenRouter) for the AI-usage
+# pills — Font Awesome has no marks for these. Ships the Simple Icons set as
+# `&'static str` SVGs; we render them through iced's svg widget, tinted to the
+# bar palette. Tracks the upstream Simple Icons release version.
+simpleicons-rs = "16.27"
 # libsystemd binding for reading the journal (kernel-errors indicator). Its
 # blocking reader runs off the executor from the sync source poll, like zbus's
 # blocking API below. Links libsystemd via pkg-config (wired in flake.nix).

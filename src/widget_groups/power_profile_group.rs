@@ -134,14 +134,14 @@ impl PowerProfileGroup {
     }
 
     fn recompute(&mut self) {
-        let Some((active, energy_wh, live_w)) = self
+        let Some((active, energy_j, live_w)) = self
             .cell
             .get()
-            .map(|p| (p.active, p.energy_wh, p.draw_w.filter(|_| p.discharging)))
+            .map(|p| (p.active, p.energy_j, p.draw_w.filter(|_| p.discharging)))
         else {
             return;
         };
-        self.estimates = estimate(energy_wh, active, &self.states, live_w);
+        self.estimates = estimate(energy_j, active, &self.states, live_w);
         let caption = self
             .estimates
             .get(&active)
