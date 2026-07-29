@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use super::{first_power_supply, read_trimmed};
+use super::{energy_wh, first_power_supply, read_trimmed};
 use crate::data_sources::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
 
 /// Power-source charge state, from `/sys/class/power_supply/*/status`.
@@ -35,25 +35,18 @@ impl ChargeStatus {
             Self::Unknown => "Unknown",
         }
     }
-
-    fn charging(self) -> bool {
-        matches!(self, Self::Charging | Self::Full)
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Battery {
     pub capacity: u8,
     pub status: ChargeStatus,
+    pub energy_wh: Option<f64>,
 }
 
 impl BarWidget for Battery {
     fn icon(&self) -> Icon {
-        if self.status.charging() {
-            Icon::PlugCircleBolt
-        } else {
-            Icon::CarBattery
-        }
+        Icon::CarBattery
     }
 
     fn level(&self) -> Level {
@@ -72,10 +65,14 @@ impl BarWidget for Battery {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![
+        let mut rows = vec![
             row("Battery", format!("{}%", self.capacity)),
             row("Status", self.status.as_str()),
-        ])
+        ];
+        if let Some(wh) = self.energy_wh {
+            rows.push(row("Remaining", format!("{wh:.1} Wh")));
+        }
+        TooltipBody::Table(rows)
     }
 }
 
@@ -87,6 +84,10 @@ impl Source for Battery {
         let dir = first_power_supply("BAT")?;
         let capacity = read_trimmed(dir.join("capacity"))?.parse().ok()?;
         let status = ChargeStatus::parse(&read_trimmed(dir.join("status"))?);
-        Some(Battery { capacity, status })
+        Some(Battery {
+            capacity,
+            status,
+            energy_wh: energy_wh(&dir),
+        })
     }
 }

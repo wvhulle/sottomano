@@ -72,6 +72,13 @@ pub struct BatteryEnergy {
     pub serial: String,
 }
 
+pub(super) fn energy_wh(dir: &Path) -> Option<f64> {
+    let volts_uv = || read_i64(dir.join("voltage_now")).map(|v| v as f64);
+    read_i64(dir.join("energy_now"))
+        .map(|uwh| uwh as f64 / 1_000_000.0)
+        .or_else(|| Some(read_i64(dir.join("charge_now"))? as f64 * volts_uv()? / 1e12))
+}
+
 pub fn battery_energy() -> Option<BatteryEnergy> {
     let dir = first_power_supply("BAT")?;
     let volts_uv = || read_i64(dir.join("voltage_now")).map(|v| v as f64);
