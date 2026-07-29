@@ -21,7 +21,8 @@ use crate::{
         audio_group::AudioGroup, battery_group::BatteryGroup, clock_group::ClockGroup,
         internet_group::InternetGroup, journal_group::JournalGroup, media_group::MediaGroup,
         monitor_group::MonitorGroup, net_interfaces_group::NetInterfacesGroup,
-        system_group::SystemGroup, tray_group::TrayGroup, weather_group::WeatherGroup,
+        power_profile_group::PowerProfileGroup, system_group::SystemGroup, tray_group::TrayGroup,
+        weather_group::WeatherGroup,
         window_group::WindowGroup,
     },
     widgets::idle,
@@ -57,6 +58,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         TrayGroup::subscription().map(Message::Tray),
         idle::subscription().map(Message::Idle),
         AudioGroup::subscription().map(Message::Audio),
+        PowerProfileGroup::subscription().map(Message::PowerProfile),
         WindowGroup::subscription().map(Message::WindowGroup),
         iced::window::close_events().map(Message::WindowClosed),
         // Closes a stranded tooltip when the pointer leaves a surface without

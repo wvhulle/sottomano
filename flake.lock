@@ -210,11 +210,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785259419,
-        "narHash": "sha256-cIRor0NKMcqExl0b8SxjwAiweH12knFg5nLImOTvTqo=",
+        "lastModified": 1785315694,
+        "narHash": "sha256-o+o+0TbkWh6XUoOH7Poh1W8CK36iVPizC3+lGYHoEmU=",
         "ref": "refs/heads/main",
-        "rev": "8d407297100c6dfa024fcc2c04860c94d7eff3be",
-        "revCount": 16,
+        "rev": "21ed2767caa421976e6a8515c333c5ef1ca51fd5",
+        "revCount": 17,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/niri-hm"
       },

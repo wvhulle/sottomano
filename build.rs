@@ -104,6 +104,7 @@ fn main() {
     let mut variants = String::new();
     let mut name_arms = String::new();
     let mut brand_arms = String::new();
+    let mut slug_arms = String::new();
     let mut seen = HashSet::new();
 
     // Solid first, then the brand-only icons (skipping any whose identifier
@@ -128,6 +129,7 @@ fn main() {
         );
         writeln!(variants, "    {ident},").unwrap();
         writeln!(name_arms, "            Icon::{ident} => {slug:?},").unwrap();
+        writeln!(slug_arms, "            {slug:?} => Some(Icon::{ident}),").unwrap();
         if brand {
             writeln!(brand_arms, "            Icon::{ident} => true,").unwrap();
         }
@@ -156,6 +158,15 @@ impl Icon {{
     pub const fn is_brand(self) -> bool {{
         match self {{
 {brand_arms}            _ => false,
+        }}
+    }}
+
+    /// The icon whose Font Awesome slug is `slug`, or `None` when no icon
+    /// carries that slug. The reverse of [`name`](Self::name).
+    #[allow(clippy::too_many_lines)]
+    pub fn from_slug(slug: &str) -> Option<Icon> {{
+        match slug {{
+{slug_arms}            _ => None,
         }}
     }}
 }}

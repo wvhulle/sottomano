@@ -126,7 +126,11 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
             }),
             slot(bar.battery_group.view(config), |m| match m {
                 BatteryMessage::Tooltip(t) => Message::Tooltip(t),
-                m @ BatteryMessage::Reading(_) => Message::Battery(m),
+                m => Message::Battery(m),
+            }),
+            slot(bar.power_profile_group.view(config), |m| match m {
+                PowerProfileMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::PowerProfile(m),
             }),
             slot(bar.system_group.view(config, position), |m| match m {
                 SystemMessage::Tooltip(t) => Message::Tooltip(t),
@@ -174,10 +178,13 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
                     m => Message::IdleTimeouts(m),
                 },
             ),
-            slot(bar.media_group.view(config, position), |m| match m {
-                MediaMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Media(m),
-            }),
+            slot(
+                bar.media_group.view(config, &bar.desktop_entries, position),
+                |m| match m {
+                    MediaMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::Media(m),
+                },
+            ),
             slot(bar.audio_group.view(config), |m| match m {
                 AudioMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Audio(m),
@@ -230,7 +237,7 @@ fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<
     // overrun.
     let middle = container(slot(
         bar.window_group
-            .view(&bar.niri_snapshot, output, config, position),
+            .view(&bar.niri_snapshot, &bar.desktop_entries, output, config, position),
         Message::WindowGroup,
     ))
     .center_x(Length::Fill);

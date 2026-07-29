@@ -79,6 +79,8 @@ zbus = { version = "5.18", default-features = false, features = [
   "tokio",
   "blocking-api",
 ] }
+adskalman = "0.17.0"
+nalgebra = "0.34"
 
 [build-dependencies]
 serde_json = "1"

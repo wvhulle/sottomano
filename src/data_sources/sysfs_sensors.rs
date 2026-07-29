@@ -11,8 +11,6 @@ pub mod battery;
 pub mod cpu_clock;
 pub mod cpu_usage;
 pub mod memory;
-/// Ported but not yet wired into a bar group.
-#[allow(dead_code)]
 pub mod power;
 pub mod temperature;
 

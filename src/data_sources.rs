@@ -35,6 +35,7 @@ pub mod logind;
 pub mod mpris;
 pub mod net_interfaces;
 pub mod niri;
+pub mod power_profile;
 pub mod sysfs_sensors;
 pub mod systemd_failed;
 pub mod tailscale;

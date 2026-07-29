@@ -40,6 +40,11 @@ pub struct SliderControl {
     /// Muted / inactive (fed via [`ControlMessage::Disabled`]) — dims the
     /// collapsed reading.
     disabled: bool,
+    /// An externally-supplied collapsed-state label (fed via
+    /// [`ControlMessage::Caption`]) — for text that isn't a function of the
+    /// slider value, e.g. a power profile's estimated time remaining. Takes
+    /// precedence over the [`label`](Self::label) formatter.
+    caption: Option<String>,
     /// Static config, set once at construction (iced-style builder).
     range: RangeInclusive<f32>,
     scroll_step: f32,
@@ -116,6 +121,9 @@ pub enum ControlMessage {
     Reading(f32),
     /// Muted / inactive state (e.g. an audio sink muted).
     Disabled(bool),
+    /// An external collapsed-state label (e.g. a power profile's time
+    /// estimate); `None` clears it.
+    Caption(Option<String>),
     Right,
     Tooltip(TooltipMessage),
 }
@@ -137,6 +145,7 @@ impl SliderControl {
             accum: 0.0,
             value: Tracked::default(),
             disabled: false,
+            caption: None,
             range,
             scroll_step: 1.0,
             slider_step: 1.0,
@@ -275,6 +284,10 @@ impl SliderControl {
                 self.disabled = disabled;
                 Action::None
             }
+            ControlMessage::Caption(caption) => {
+                self.caption = caption;
+                Action::None
+            }
             ControlMessage::Right => Action::Right,
             ControlMessage::Tooltip(_) => Action::None,
         }
@@ -331,7 +344,9 @@ impl BarWidget for SliderControl {
     }
 
     fn label(&self) -> Option<String> {
-        self.label.map(|format| format(self.current()))
+        self.caption
+            .clone()
+            .or_else(|| self.label.map(|format| format(self.current())))
     }
 
     fn level(&self) -> Level {

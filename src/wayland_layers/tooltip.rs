@@ -57,6 +57,7 @@ pub enum HoverTarget {
     Temperature,
     Disk,
     Battery,
+    PowerDraw,
     Floating,
     FloatOffset,
     JournalSystem,
@@ -68,6 +69,7 @@ pub enum HoverTarget {
     Mobile,
     AudioSink,
     AudioSource,
+    PowerProfile,
     /// One display's hardware backlight, by its serial.
     Backlight(String),
     GammaDim,

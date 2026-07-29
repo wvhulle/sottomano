@@ -16,7 +16,7 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::resolved::{ResolvedConfig, ResolvedFontConfig},
-    data_sources::{app_icon::DesktopEntries, niri},
+    data_sources::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     wayland_layers::surface::Position,
 };
 
@@ -74,32 +74,18 @@ impl WindowGroup {
 
     /// Push freshly ranked quick-launch candidates (computed by the app from
     /// its launch tracker) into the quick-launch widget.
-    pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) -> Task<WindowGroupMessage> {
-        self.quick_launch
-            .set_ranked(ranked)
-            .map(WindowGroupMessage::QuickLaunch)
+    pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) {
+        self.quick_launch.set_ranked(ranked);
     }
 
-    /// Hand the shared `.desktop` index to the quick-launch widget for its icon
-    /// resolution.
-    pub fn set_desktop_entries(
-        &mut self,
-        entries: Arc<DesktopEntries>,
-    ) -> Task<WindowGroupMessage> {
-        self.quick_launch
-            .set_desktop_entries(entries)
-            .map(WindowGroupMessage::QuickLaunch)
+    /// Hand the shared `.desktop` index to the quick-launch widget for
+    /// launching (`Exec` lookup).
+    pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
+        self.quick_launch.set_desktop_entries(entries);
     }
 
-    /// Re-resolve the window list's icons against a freshly (re)loaded index.
-    pub fn on_entries_loaded(
-        &mut self,
-        niri: &EventStreamState,
-        entries: &Arc<DesktopEntries>,
-    ) -> Task<WindowGroupMessage> {
-        self.window_list
-            .on_entries_loaded(niri, entries)
-            .map(WindowGroupMessage::WindowList)
+    pub fn icon_keys(&self) -> Vec<String> {
+        self.quick_launch.icon_keys()
     }
 
     /// Re-run the window list's resolve pipelines against the current window
@@ -108,10 +94,9 @@ impl WindowGroup {
         &mut self,
         niri: &EventStreamState,
         font: &ResolvedFontConfig,
-        entries: Option<&Arc<DesktopEntries>>,
     ) -> Task<WindowGroupMessage> {
         self.window_list
-            .refresh(niri, font, entries)
+            .refresh(niri, font)
             .map(WindowGroupMessage::WindowList)
     }
 
@@ -121,17 +106,18 @@ impl WindowGroup {
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
+        index: &'a DesktopIndex,
         output: &str,
         config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, WindowGroupMessage>> {
         let quick_launch = self
             .quick_launch
-            .view(output, config, position)
+            .view(index, output, config, position)
             .map(|e| e.map(WindowGroupMessage::QuickLaunch));
         let window_list = self
             .window_list
-            .view(niri, output, config, position)
+            .view(niri, index, output, config, position)
             .map(|e| e.map(WindowGroupMessage::WindowList));
         if quick_launch.is_none() && window_list.is_none() {
             return None;

@@ -56,6 +56,9 @@ impl Status {
 pub struct Media {
     pub bus: String,
     pub identity: String,
+    /// The player's freedesktop desktop-entry name, when it advertises one —
+    /// the most authoritative handle for resolving its app glyph and window.
+    pub desktop_entry: Option<String>,
     pub title: String,
     pub artist: String,
     pub album: String,
@@ -70,6 +73,13 @@ pub struct Media {
 }
 
 impl Media {
+    pub fn app_id(&self) -> String {
+        self.desktop_entry
+            .clone()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| app_handle(&self.bus))
+    }
+
     /// `"Artist — Title"`, or whichever half is present, or the player
     /// identity.
     pub fn label(&self) -> String {
@@ -95,6 +105,28 @@ fn artist(metadata: &HashMap<String, OwnedValue>) -> String {
         .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
         .map(|artists| artists.join(", "))
         .unwrap_or_default()
+}
+
+/// The canonical app handle from an mpris bus name: strip the
+/// `org.mpris.MediaPlayer2.` prefix and any chromium/Electron `.instanceNNNN`
+/// suffix, then take the last dotted segment. E.g.
+/// `…MediaPlayer2.chromium.instance2144933` → `chromium`,
+/// `…MediaPlayer2.io.github.htkhiem.Euphonica` → `Euphonica`. Ports odin's
+/// `MediaService.busHandle`.
+pub fn app_handle(bus: &str) -> String {
+    let stripped = bus.strip_prefix(PREFIX).unwrap_or(bus);
+    let stripped = stripped
+        .rsplit_once('.')
+        .filter(|(_, seg)| {
+            seg.starts_with("instance")
+                && seg.len() > "instance".len()
+                && seg["instance".len()..].chars().all(|c| c.is_ascii_digit())
+        })
+        .map_or(stripped, |(head, _)| head);
+    stripped
+        .rsplit_once('.')
+        .map_or(stripped, |(_, seg)| seg)
+        .to_string()
 }
 
 /// A bus like `…MediaPlayer2.chromium.instance2144933` is a CEF duplicate when
@@ -141,73 +173,82 @@ async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
         .collect()
 }
 
-/// The picked player's full track + transport state, or `None` when no usable
-/// player is present. `art` memoises the last fetched `(url, handle)` so the
-/// art is downloaded once per track, not on every play/pause or status signal.
-async fn read_active(
+/// Every non-phantom player's full track + transport state — the bar picks
+/// which one to surface and lets the user switch between them. `art` memoises
+/// each bus's last fetched `(url, handle)` so art is downloaded once per track,
+/// not on every play/pause or status signal; buses that vanish are pruned.
+async fn read_all(
     connection: &Connection,
     dbus: &DBusProxy<'_>,
-    art: &mut Option<(String, image::Handle)>,
-) -> Option<Media> {
-    let players: Vec<(String, Status, String)> = iter(mpris_names(dbus).await)
+    art: &mut HashMap<String, (String, image::Handle)>,
+) -> Vec<Media> {
+    let players: Vec<(String, Status, String, Option<String>)> = iter(mpris_names(dbus).await)
         .filter_map(|bus| async move {
             let (status, identity, desktop) = read_player(connection, &bus).await?;
-            (!is_phantom(&bus, desktop.as_deref())).then_some((bus, status, identity))
+            (!is_phantom(&bus, desktop.as_deref())).then_some((bus, status, identity, desktop))
         })
         .collect()
         .await;
-    if players.is_empty() {
-        return None;
-    }
-    let pick = |want: Status| players.iter().position(|(_, s, _)| *s == want);
-    let index = pick(Status::Playing)
-        .or_else(|| pick(Status::Paused))
-        .unwrap_or(0);
-    let (bus, status, identity) = players[index].clone();
+    art.retain(|bus, _| players.iter().any(|(b, ..)| b == bus));
 
-    let metadata = property::<HashMap<String, OwnedValue>>(connection, &bus, PLAYER, "Metadata")
-        .await
-        .unwrap_or_default();
-    let handle = if let Some(url) = string(&metadata, "mpris:artUrl") {
-        art_handle(&url, art).await
-    } else {
-        *art = None;
-        None
-    };
-    Some(Media {
-        title: string(&metadata, "xesam:title").unwrap_or_default(),
-        artist: artist(&metadata),
-        album: string(&metadata, "xesam:album").unwrap_or_default(),
-        art: handle,
-        can_next: property(connection, &bus, PLAYER, "CanGoNext")
-            .await
-            .unwrap_or(false),
-        can_prev: property(connection, &bus, PLAYER, "CanGoPrevious")
-            .await
-            .unwrap_or(false),
-        can_toggle: property(connection, &bus, PLAYER, "CanPause")
-            .await
-            .unwrap_or(true),
-        status,
-        identity,
-        bus,
-    })
+    let mut media = Vec::with_capacity(players.len());
+    for (bus, status, identity, desktop_entry) in players {
+        let metadata =
+            property::<HashMap<String, OwnedValue>>(connection, &bus, PLAYER, "Metadata")
+                .await
+                .unwrap_or_default();
+        let handle = if let Some(url) = string(&metadata, "mpris:artUrl") {
+            art_handle(&url, &bus, art).await
+        } else {
+            art.remove(&bus);
+            None
+        };
+        media.push(Media {
+            title: string(&metadata, "xesam:title").unwrap_or_default(),
+            artist: artist(&metadata),
+            album: string(&metadata, "xesam:album").unwrap_or_default(),
+            art: handle,
+            can_next: property(connection, &bus, PLAYER, "CanGoNext")
+                .await
+                .unwrap_or(false),
+            can_prev: property(connection, &bus, PLAYER, "CanGoPrevious")
+                .await
+                .unwrap_or(false),
+            can_toggle: property(connection, &bus, PLAYER, "CanPause")
+                .await
+                .unwrap_or(true),
+            status,
+            identity,
+            desktop_entry,
+            bus,
+        });
+    }
+    media
 }
 
-/// The decoded album-art handle for `url`, reusing `cache` when the url is
-/// unchanged so a fetch happens only when the track (and its art) changes. On
-/// any fetch failure the cache is cleared and `None` returned.
+/// The decoded album-art handle for `bus`'s `url`, reusing `cache[bus]` when
+/// the url is unchanged so a fetch happens only when that player's track (and
+/// its art) changes. On any fetch failure the bus's cache entry is cleared and
+/// `None` returned.
 async fn art_handle(
     url: &str,
-    cache: &mut Option<(String, image::Handle)>,
+    bus: &str,
+    cache: &mut HashMap<String, (String, image::Handle)>,
 ) -> Option<image::Handle> {
-    if let Some((cached, handle)) = cache
+    if let Some((cached, handle)) = cache.get(bus)
         && cached == url
     {
         return Some(handle.clone());
     }
     let handle = load_art(url).await;
-    *cache = handle.clone().map(|h| (url.to_string(), h));
+    match handle.clone() {
+        Some(h) => {
+            cache.insert(bus.to_string(), (url.to_string(), h));
+        }
+        None => {
+            cache.remove(bus);
+        }
+    }
     handle
 }
 
@@ -232,11 +273,12 @@ async fn load_art(url: &str) -> Option<image::Handle> {
     None
 }
 
-/// The signal-driven media stream: `None` while no player is present, a fresh
-/// [`Media`] on every relevant change. Reconnects if the bus drops.
-pub fn subscription() -> Subscription<Option<Media>> {
+/// The signal-driven media stream: an empty list while no player is present, a
+/// fresh [`Media`] per player on every relevant change. Reconnects if the bus
+/// drops.
+pub fn subscription() -> Subscription<Vec<Media>> {
     Subscription::run(|| {
-        stream::channel(16, |mut output: Sender<Option<Media>>| async move {
+        stream::channel(16, |mut output: Sender<Vec<Media>>| async move {
             loop {
                 if let Err(e) = watch(&mut output).await {
                     eprintln!("mpris: {e}");
@@ -247,12 +289,12 @@ pub fn subscription() -> Subscription<Option<Media>> {
     })
 }
 
-async fn watch(output: &mut Sender<Option<Media>>) -> zbus::Result<()> {
+async fn watch(output: &mut Sender<Vec<Media>>) -> zbus::Result<()> {
     let connection = Connection::session().await?;
     let dbus = DBusProxy::new(&connection).await?;
-    let mut art = None;
+    let mut art = HashMap::new();
     if output
-        .send(read_active(&connection, &dbus, &mut art).await)
+        .send(read_all(&connection, &dbus, &mut art).await)
         .await
         .is_err()
     {
@@ -285,7 +327,7 @@ async fn watch(output: &mut Sender<Option<Media>>) -> zbus::Result<()> {
     while let Some(relevant) = events.next().await {
         if relevant
             && output
-                .send(read_active(&connection, &dbus, &mut art).await)
+                .send(read_all(&connection, &dbus, &mut art).await)
                 .await
                 .is_err()
         {

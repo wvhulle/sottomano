@@ -7,7 +7,12 @@
 //! abort-on-drop handle; replacing it cancels the superseded task, so a stale
 //! result can never overwrite a newer map.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use iced::{
     Alignment, Element, Font, Subscription, Task,
@@ -20,8 +25,8 @@ use niri_ipc::state::EventStreamState;
 use crate::{
     config::resolved::{ResolvedConfig, ResolvedFontConfig, fallback_font},
     data_sources::{
-        app_icon::{self, DesktopEntries},
         app_rules::{self, AppRule, IconCandidate, TitleParts},
+        desktop_entries::DesktopIndex,
         favicons::{self, FaviconKind, RawFavicon},
         niri,
     },
@@ -97,16 +102,12 @@ impl Favicon {
 #[derive(Default)]
 struct Resolves {
     favicons: Option<Handle>,
-    app_icons: Option<Handle>,
-    theme_icons: Option<Handle>,
     fallback_fonts: Option<Handle>,
 }
 
 #[derive(Default)]
 pub struct WindowList {
     favicons: HashMap<String, Favicon>,
-    app_icons: HashMap<String, PathBuf>,
-    theme_icons: HashMap<String, PathBuf>,
     /// Per-char fonts for glyphs the bar font lacks, resolved via fontconfig
     /// off-thread; chars fontconfig has no answer for map to the bar font so
     /// they are not re-queried.
@@ -124,8 +125,6 @@ pub struct WindowList {
 pub enum WindowListMessage {
     Clicked(u64),
     FaviconsLoaded(HashMap<String, RawFavicon>),
-    AppIconsResolved(HashMap<String, PathBuf>),
-    ThemeIconsResolved(HashMap<String, PathBuf>),
     FallbackFontsResolved(HashMap<char, Font>),
     IconsBackstopElapsed,
     Scrolled(f32),
@@ -144,21 +143,6 @@ pub enum Action {
 }
 
 impl WindowList {
-    /// Re-resolve icons against a freshly (re)loaded `.desktop` index — the app
-    /// hands this in when the shared index changes.
-    pub fn on_entries_loaded(
-        &mut self,
-        niri: &EventStreamState,
-        entries: &Arc<DesktopEntries>,
-    ) -> Task<WindowListMessage> {
-        self.app_icons.clear();
-        self.theme_icons.clear();
-        Task::batch([
-            self.poll_app_icons(niri, entries),
-            self.poll_theme_icons(niri, entries),
-        ])
-    }
-
     /// Periodic backstop for the icon polls, in case a niri window-change event
     /// was missed. The `.desktop`-index reload is driven by the app, not here.
     pub fn subscription() -> Subscription<WindowListMessage> {
@@ -185,14 +169,6 @@ impl WindowList {
                     .collect();
                 Action::None
             }
-            WindowListMessage::AppIconsResolved(map) => {
-                self.app_icons = map;
-                Action::None
-            }
-            WindowListMessage::ThemeIconsResolved(map) => {
-                self.theme_icons = map;
-                Action::None
-            }
             WindowListMessage::FallbackFontsResolved(map) => {
                 self.fallback_fonts.extend(map);
                 Action::None
@@ -210,23 +186,15 @@ impl WindowList {
         }
     }
 
-    /// Re-run every pipeline against the current window set. Icon polls need
-    /// the shared `.desktop` index; favicons and fallback fonts do not.
     pub fn refresh(
         &mut self,
         niri: &EventStreamState,
         font: &ResolvedFontConfig,
-        entries: Option<&Arc<DesktopEntries>>,
     ) -> Task<WindowListMessage> {
-        let mut tasks = vec![
+        Task::batch([
             self.poll_favicons(niri),
             self.resolve_fallback_fonts(niri, font),
-        ];
-        if let Some(entries) = entries {
-            tasks.push(self.poll_app_icons(niri, entries));
-            tasks.push(self.poll_theme_icons(niri, entries));
-        }
-        Task::batch(tasks)
+        ])
     }
 
     /// Firefox favicons, read synchronously off-thread from Firefox's
@@ -237,41 +205,6 @@ impl WindowList {
             .map(WindowListMessage::FaviconsLoaded)
             .abortable();
         self.resolves.favicons = Some(handle.abort_on_drop());
-        task
-    }
-
-    /// `.desktop`-entry app-id icons, against the shared desktop-entry index.
-    fn poll_app_icons(
-        &mut self,
-        niri: &EventStreamState,
-        entries: &Arc<DesktopEntries>,
-    ) -> Task<WindowListMessage> {
-        let entries = entries.clone();
-        let ids = app_icon::app_icon_keys(niri);
-        let (task, handle) = blocking("app icons", move || {
-            app_icon::resolve_app_icons(&entries, ids)
-        })
-        .map(WindowListMessage::AppIconsResolved)
-        .abortable();
-        self.resolves.app_icons = Some(handle.abort_on_drop());
-        task
-    }
-
-    /// Icon-theme-name icons (e.g. a terminal's command-word icon), against the
-    /// shared desktop-entry index.
-    fn poll_theme_icons(
-        &mut self,
-        niri: &EventStreamState,
-        entries: &Arc<DesktopEntries>,
-    ) -> Task<WindowListMessage> {
-        let entries = entries.clone();
-        let names = app_icon::theme_icon_keys(niri);
-        let (task, handle) = blocking("theme icons", move || {
-            app_icon::resolve_theme_icons(&entries, names)
-        })
-        .map(WindowListMessage::ThemeIconsResolved)
-        .abortable();
-        self.resolves.theme_icons = Some(handle.abort_on_drop());
         task
     }
 
@@ -306,6 +239,7 @@ impl WindowList {
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
+        index: &'a DesktopIndex,
         output: &str,
         config: &ResolvedConfig,
         position: Position,
@@ -316,8 +250,7 @@ impl WindowList {
             return None;
         }
         let icons = Icons {
-            app: &self.app_icons,
-            theme: &self.theme_icons,
+            index,
             favicons: &self.favicons,
             fallbacks: &self.fallback_fonts,
         };
@@ -346,8 +279,7 @@ impl WindowList {
 /// the per-button helpers as one cheap `Copy` handle.
 #[derive(Clone, Copy)]
 struct Icons<'a> {
-    app: &'a HashMap<String, PathBuf>,
-    theme: &'a HashMap<String, PathBuf>,
+    index: &'a DesktopIndex,
     favicons: &'a HashMap<String, Favicon>,
     fallbacks: &'a HashMap<char, Font>,
 }
@@ -525,7 +457,7 @@ fn window_icon<'a>(
 
 fn resolve_candidate(icons: Icons, candidate: IconCandidate) -> Option<PathBuf> {
     match candidate {
-        IconCandidate::Theme(name) => icons.theme.get(&name).cloned(),
-        IconCandidate::AppId(app_id) => icons.app.get(&app_id).cloned(),
+        IconCandidate::Theme(name) => icons.index.theme_icon_path(&name).map(Path::to_path_buf),
+        IconCandidate::AppId(app_id) => icons.index.app_icon(&app_id).map(Path::to_path_buf),
     }
 }

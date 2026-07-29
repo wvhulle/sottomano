@@ -5,24 +5,20 @@
 //!
 //! Ranking lives in [`LaunchTracker`](crate::data_sources::launch_tracker): the
 //! app ranks each output's candidates in memory and pushes the results here via
-//! [`set_ranked`](QuickLaunch::set_ranked); this group only resolves their
-//! icons (off-thread) and renders them. Ranked lists are keyed by output name
-//! (each output's active workspace differs); icon resolution is global.
+//! [`set_ranked`](QuickLaunch::set_ranked); icon paths come from the app-wide
+//! `DesktopIndex` cache at view time. Ranked lists are keyed by output name
+//! (each output's active workspace differs).
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use iced::{
     Alignment, Element, Task,
-    task::Handle,
     widget::{Row, image, mouse_area, svg},
 };
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
-        app_icon::{self, DesktopEntries},
-        niri,
-    },
+    data_sources::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     message_subscriptions::blocking,
     wayland_layers::surface::Position,
     widgets::{
@@ -40,12 +36,11 @@ const RESTING_OPACITY: f32 = 0.65;
 pub struct QuickLaunch {
     /// Ranked app-ids per output, pushed in by the app.
     ranked: HashMap<String, Vec<String>>,
-    icons: HashMap<String, PathBuf>,
+    /// The shared `.desktop` index, kept for launching (`Exec` lookup) — icon
+    /// paths come from the app-wide cache instead.
     desktop_entries: Option<Arc<DesktopEntries>>,
     hovered: Option<String>,
     pub(crate) menu: MenuGroup,
-    /// Abort-on-drop handle for the in-flight icon resolve.
-    resolve: Option<Handle>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,36 +50,28 @@ pub enum QuickLaunchMessage {
     /// A ranked icon was clicked; the group resolves it to a launch itself (it
     /// owns the desktop index and the niri-spawn fallback).
     Launch(String),
-    IconsResolved(HashMap<String, PathBuf>),
 }
 
 impl QuickLaunch {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
             ranked: HashMap::new(),
-            icons: HashMap::new(),
             desktop_entries: None,
             hovered: None,
             menu: MenuGroup::new(menu_expand_ms),
-            resolve: None,
         }
     }
 
-    /// Adopt the shared `.desktop` index and re-resolve icons for the current
-    /// ranked set against it.
-    pub fn set_desktop_entries(
-        &mut self,
-        entries: Arc<DesktopEntries>,
-    ) -> Task<QuickLaunchMessage> {
+    pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
         self.desktop_entries = Some(entries);
-        self.resolve_icons()
     }
 
-    /// Adopt freshly ranked candidates (per output) and resolve any icons they
-    /// need that are not yet cached.
-    pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) -> Task<QuickLaunchMessage> {
+    pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) {
         self.ranked = ranked;
-        self.resolve_icons()
+    }
+
+    pub fn icon_keys(&self) -> Vec<String> {
+        self.ranked.values().flatten().cloned().collect()
     }
 
     pub fn update(&mut self, msg: QuickLaunchMessage) -> Task<QuickLaunchMessage> {
@@ -93,7 +80,6 @@ impl QuickLaunch {
                 self.menu.update(m);
             }
             QuickLaunchMessage::IconHover(app_id) => self.hovered = app_id,
-            QuickLaunchMessage::IconsResolved(icons) => self.icons = icons,
             QuickLaunchMessage::Launch(app_id) => return self.launch(app_id),
         }
         Task::none()
@@ -115,27 +101,9 @@ impl QuickLaunch {
         blocking("quicklaunch launch", move || niri::spawn(command)).discard()
     }
 
-    fn resolve_icons(&mut self) -> Task<QuickLaunchMessage> {
-        let Some(entries) = self.desktop_entries.clone() else {
-            return Task::none();
-        };
-        let mut ids: Vec<String> = self.ranked.values().flatten().cloned().collect();
-        ids.sort_unstable();
-        ids.dedup();
-        if ids.is_empty() {
-            return Task::none();
-        }
-        let (task, handle) = blocking("quicklaunch icons", move || {
-            app_icon::resolve_app_icons(&entries, ids)
-        })
-        .map(QuickLaunchMessage::IconsResolved)
-        .abortable();
-        self.resolve = Some(handle.abort_on_drop());
-        task
-    }
-
     pub fn view<'a>(
         &'a self,
+        index: &'a DesktopIndex,
         output: &str,
         config: &ResolvedConfig,
         position: Position,
@@ -155,7 +123,7 @@ impl QuickLaunch {
         let content = Row::with_children(
             app_ids
                 .iter()
-                .filter_map(|app_id| self.icon_slot(config, app_id, reveal)),
+                .filter_map(|app_id| self.icon_slot(config, index, app_id, reveal)),
         )
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);
@@ -178,10 +146,11 @@ impl QuickLaunch {
     fn icon_slot<'a>(
         &self,
         config: &ResolvedConfig,
+        index: &DesktopIndex,
         app_id: &str,
         reveal: f32,
     ) -> Option<Element<'a, QuickLaunchMessage>> {
-        let path = self.icons.get(app_id)?;
+        let path = index.app_icon(app_id)?;
         let side = config.font.icon_size_px;
         let hovered = self.hovered.as_deref() == Some(app_id);
         let opacity = reveal * if hovered { 1.0 } else { RESTING_OPACITY };
@@ -200,7 +169,7 @@ impl QuickLaunch {
 /// An icon file as a sized, faded widget. Themed icons ship scalable SVGs while
 /// hicolor app icons are raster; iced decodes them through different widgets,
 /// so the extension picks the path (as in the window list).
-fn icon_image<'a>(path: &PathBuf, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {
+fn icon_image<'a>(path: &Path, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {
     let is_svg = path
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));

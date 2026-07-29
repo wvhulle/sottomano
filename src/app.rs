@@ -15,8 +15,8 @@ use crate::{
     config::resolved::ResolvedConfig,
     data_sources::{
         Tooltip, TooltipBody,
-        app_icon::DesktopEntries,
-        desktop_entries::{self, DesktopIndex},
+        app_icon::{self, DesktopEntries},
+        desktop_entries::{self, DesktopIndex, ResolvedIcons},
         launch_tracker::{Buckets, LaunchTracker},
         niri,
     },
@@ -71,6 +71,7 @@ pub struct Bar {
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
+    pub(crate) power_profile_group: PowerProfileGroup,
     pub(crate) tray_group: TrayGroup,
     pub(crate) tray_menu: TrayMenuHost,
     pub(crate) window_group: WindowGroup,
@@ -118,11 +119,15 @@ pub enum Message {
     /// Persisted panel settings finished loading from the sqlite store.
     PanelLoaded(state::panel::PanelSettings),
     Audio(AudioMessage),
+    PowerProfile(PowerProfileMessage),
     WindowGroup(WindowGroupMessage),
     /// The persisted launch-frequency model finished loading from disk.
     TrackerLoaded(Buckets),
     /// The shared `.desktop` index finished (re)loading.
     DesktopEntriesLoaded(Arc<DesktopEntries>),
+    /// An off-thread icon-resolve pass finished; merged into the app-wide
+    /// cache on [`Bar::desktop_entries`].
+    IconsResolved(ResolvedIcons),
     DismissPressed,
     WorkspaceClicked(u64),
     Niri(Vec<niri_ipc::Event>),
@@ -162,6 +167,7 @@ impl Bar {
             idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
             media_group: MediaGroup::new(config.layout.menu_expand_ms),
             audio_group: AudioGroup::default(),
+            power_profile_group: PowerProfileGroup::default(),
             tray_group: TrayGroup::new(config.layout.menu_expand_ms),
             tray_menu: TrayMenuHost::default(),
             window_group: WindowGroup::new(config.layout.menu_expand_ms),
@@ -204,12 +210,12 @@ impl Bar {
                 window_group::Action::FocusWindow(window) => {
                     niri_action(move || niri::focus_window(window))
                 }
-                window_group::Action::RefreshWindowList => {
-                    let entries = self.desktop_entries.arc();
+                window_group::Action::RefreshWindowList => Task::batch([
                     self.window_group
-                        .refresh_window_list(&self.niri, &self.config.font, entries.as_ref())
-                        .map(Message::WindowGroup)
-                }
+                        .refresh_window_list(&self.niri, &self.config.font)
+                        .map(Message::WindowGroup),
+                    self.resolve_icons(),
+                ]),
                 window_group::Action::None => Task::none(),
             },
             Message::TrackerLoaded(buckets) => {
@@ -217,23 +223,16 @@ impl Bar {
                 self.refresh_quick_launch()
             }
             Message::DesktopEntriesLoaded(entries) => {
-                // The app owns the reload cadence, keeps the index for the
-                // launchability check, and fans it out to the icon-resolving
-                // widgets of the window group (window list, quick-launch). Re-rank
-                // once it lands so the launchable gate applies.
                 self.desktop_entries.set(entries.clone());
-                Task::batch([
-                    self.window_group
-                        .on_entries_loaded(&self.niri, &entries)
-                        .map(Message::WindowGroup),
-                    self.window_group
-                        .set_desktop_entries(entries)
-                        .map(Message::WindowGroup),
-                    self.refresh_quick_launch(),
-                ])
+                self.window_group.set_desktop_entries(entries);
+                self.refresh_quick_launch()
             }
             Message::ReloadDesktopEntries => {
                 desktop_entries::load().map(Message::DesktopEntriesLoaded)
+            }
+            Message::IconsResolved(resolved) => {
+                self.desktop_entries.merge(resolved);
+                Task::none()
             }
             Message::Weather(msg) => {
                 self.weather_group.update(msg);
@@ -275,7 +274,15 @@ impl Bar {
             }
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
-            Message::Media(msg) => self.media_group.update(msg).map(Message::Media),
+            Message::Media(msg) => {
+                let players_changed = matches!(msg, MediaMessage::Reading(_));
+                let task = self.media_group.update(msg, &self.niri).map(Message::Media);
+                if players_changed {
+                    Task::batch([task, self.resolve_icons()])
+                } else {
+                    task
+                }
+            }
             Message::Tray(TrayMessage::OpenMenu(index)) => self.open_tray_menu(index),
             Message::Tray(TrayMessage::MenuItemClicked(id)) => {
                 if let Some((address, menu_path)) = self.tray_menu.target() {
@@ -323,6 +330,10 @@ impl Bar {
                 self.remargin_surfaces()
             }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
+            Message::PowerProfile(msg) => self
+                .power_profile_group
+                .update(msg)
+                .map(Message::PowerProfile),
             Message::DismissPressed => {
                 self.dismiss_menus();
                 self.tray_menu.close()
@@ -415,6 +426,7 @@ impl Bar {
             .or_else(|| self.journal_group.tooltip_for(target))
             .or_else(|| self.net_interfaces_group.tooltip_for(target))
             .or_else(|| self.audio_group.tooltip_for(target))
+            .or_else(|| self.power_profile_group.tooltip_for(target))
             .or_else(|| self.monitor_group.tooltip_for(target))
             .or_else(|| self.idle_timeouts_group.tooltip_for(target))
             .or_else(|| self.internet_group.tooltip_for(target))
@@ -510,7 +522,7 @@ impl Bar {
             .update(WeatherMessage::Menu(MenuMessage::Close));
         let _ = self
             .media_group
-            .update(MediaMessage::Menu(MenuMessage::Close));
+            .update(MediaMessage::Menu(MenuMessage::Close), &self.niri);
         let _ = self
             .monitor_group
             .update(MonitorMessage::Menu(MenuMessage::Close));
@@ -562,10 +574,9 @@ impl Bar {
             tasks.push(self.tray_menu.close());
         }
         if window_change {
-            let entries = self.desktop_entries.arc();
             tasks.push(
                 self.window_group
-                    .refresh_window_list(&self.niri, &self.config.font, entries.as_ref())
+                    .refresh_window_list(&self.niri, &self.config.font)
                     .map(Message::WindowGroup),
             );
         }
@@ -589,9 +600,8 @@ impl Bar {
     /// Re-rank quick-launch for every open output from the in-memory tracker:
     /// for each distinct output (a top and bottom surface share one), rank its
     /// active workspace's candidates against the currently-open set, gated to
-    /// launchable apps. Cheap and synchronous; only the icon resolve it
-    /// triggers runs off-thread. A no-op until the `.desktop` index has
-    /// loaded.
+    /// launchable apps. Cheap and synchronous; the ranked icons resolve through
+    /// the shared cache. A no-op until the `.desktop` index has loaded.
     fn refresh_quick_launch(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
@@ -617,9 +627,18 @@ impl Bar {
                 (!apps.is_empty()).then_some((output, apps))
             })
             .collect();
-        self.window_group
-            .set_ranked(ranked)
-            .map(Message::WindowGroup)
+        self.window_group.set_ranked(ranked);
+        self.resolve_icons()
+    }
+
+    fn resolve_icons(&mut self) -> Task<Message> {
+        let mut app_keys = app_icon::app_icon_keys(&self.niri);
+        app_keys.extend(self.window_group.icon_keys());
+        app_keys.extend(self.media_group.icon_keys());
+        let theme_keys = app_icon::theme_icon_keys(&self.niri);
+        self.desktop_entries
+            .resolve_missing(app_keys, theme_keys)
+            .map(Message::IconsResolved)
     }
 
     /// The config-mutating knobs are intercepted here rather than handled in

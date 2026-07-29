@@ -1,8 +1,8 @@
 //! Live system power draw in watts.
 
-use std::{path::Path, time::Duration};
+use std::time::Duration;
 
-use super::{battery::ChargeStatus, read_trimmed};
+use super::{battery::ChargeStatus, first_power_supply, read_trimmed};
 use crate::data_sources::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
 
 const POWER_WARN_W: f64 = 10.0;
@@ -58,7 +58,7 @@ impl Source for PowerDraw {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll() -> Option<Self> {
-        let dir = Path::new("/sys/class/power_supply/BAT0");
+        let dir = first_power_supply("BAT")?;
         let uw: f64 = read_trimmed(dir.join("power_now"))?.parse().ok()?;
         let status = read_trimmed(dir.join("status"))
             .map_or(ChargeStatus::Unknown, |s| ChargeStatus::parse(&s));
