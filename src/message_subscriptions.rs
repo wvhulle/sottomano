@@ -1,6 +1,6 @@
 //! Subscriptions and tasks for polling sources, niri events, and timers.
 
-use std::{convert::identity, time::Duration};
+use std::{convert::identity, path::PathBuf, time::Duration};
 
 use iced::{Subscription, Task};
 use tokio::{
@@ -11,7 +11,7 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
     app::{Bar, Message},
-    data_sources::{Source, desktop_entries, niri},
+    data_sources::{Source, ai::ApiSource, desktop_entries, niri},
     wayland_layers::notifications::{
         NotificationMessage,
         model::{NotifHandle, Outbound, ServerEvent},
@@ -58,6 +58,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         idle::subscription().map(Message::Idle),
         AudioGroup::subscription().map(Message::Audio),
         PowerProfileGroup::subscription().map(Message::PowerProfile),
+        state.ai_group.subscription().map(Message::Ai),
         WindowGroup::subscription().map(Message::WindowGroup),
         iced::window::close_events().map(Message::WindowClosed),
         // Closes a stranded tooltip when the pointer leaves a surface without
@@ -107,6 +108,24 @@ pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
         // After a suspend/resume, take one catch-up poll, not a burst.
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
         IntervalStream::new(timer).then(|_| off_thread(S::NAME, S::poll))
+    })
+}
+
+/// Like [`polling`] but for an [`ApiSource`], whose `poll` takes the resolved
+/// secret-file path. The path rides in the keyed `run_with` data (alongside the
+/// source name) so the stream survives the per-update subscription rebuild and
+/// re-keys if the path ever changes.
+pub(crate) fn poll_arg<S: ApiSource>(key: Option<PathBuf>) -> Subscription<Option<S>> {
+    use iced::futures::StreamExt;
+    Subscription::run_with((S::NAME, key), |(name, key)| {
+        let name = *name;
+        let key = key.clone();
+        let mut timer = interval(S::INTERVAL);
+        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        IntervalStream::new(timer).then(move |_| {
+            let key = key.clone();
+            off_thread(name, move || S::poll(key))
+        })
     })
 }
 

@@ -3,7 +3,7 @@
 //! itself via [`Source::INTERVAL`]). Groups compose cells and keep only their
 //! visuals.
 
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use iced::Subscription;
 
@@ -27,14 +27,7 @@ impl<S> Default for SourceCell<S> {
     }
 }
 
-impl<S: Source + Send + 'static> SourceCell<S> {
-    /// The cell's readings: an immediate first poll (the initial load), then
-    /// one per [`Source::INTERVAL`]. `None` clears the reading — a poll that
-    /// finds no sensor takes the cell off the bar rather than freezing it.
-    pub fn subscription() -> Subscription<Option<S>> {
-        polling::<S>()
-    }
-
+impl<S> SourceCell<S> {
     pub fn load(&mut self, data: Option<S>) {
         self.data = data;
         self.last_refreshed = Some(SystemTime::now());
@@ -42,6 +35,20 @@ impl<S: Source + Send + 'static> SourceCell<S> {
 
     pub fn get(&self) -> Option<&S> {
         self.data.as_ref()
+    }
+
+    pub fn footer(&self, every: Duration) -> Option<RefreshInfo> {
+        self.data.as_ref()?;
+        self.last_refreshed.map(|last| RefreshInfo { every, last })
+    }
+}
+
+impl<S: Source + Send + 'static> SourceCell<S> {
+    /// The cell's readings: an immediate first poll (the initial load), then
+    /// one per [`Source::INTERVAL`]. `None` clears the reading — a poll that
+    /// finds no sensor takes the cell off the bar rather than freezing it.
+    pub fn subscription() -> Subscription<Option<S>> {
+        polling::<S>()
     }
 
     /// The tooltip for this cell's reading — its body plus a refresh footer

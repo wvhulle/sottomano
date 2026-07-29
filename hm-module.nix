@@ -194,6 +194,50 @@ in
         '';
       };
     };
+
+    # Secret-file paths for the AI-usage widget group (ported from Quickshell
+    # odin's AiUsage). Each option takes the *path* of a plaintext/decrypted
+    # credential file (e.g. an agenix/sops secret); the path is handed to
+    # vetrata through the systemd service environment (see config below) and the
+    # file is read at poll time. The secret itself never enters the Nix store,
+    # ~/.config/vetrata.toml, or the process environment — so this is
+    # independent of the umbra config swap and needs no TOML changes. Any
+    # provider whose file is unset simply shows no pill.
+    secretFiles = {
+      openRouterManagement = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file containing an OpenRouter **management** key as plain
+          text. A regular API key is not enough: the usage widget calls
+          `/analytics/query`, which only management keys may access. When unset,
+          the OpenRouter pill is hidden.
+        '';
+      };
+
+      "claude-code-oauth" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to the Claude Code OAuth credentials JSON (the
+          `~/.claude/.credentials.json` blob with `claudeAiOauth.accessToken`).
+          Drives the Claude subscription gauge; on API-key machines (no OAuth
+          token) it instead surfaces `ccusage` daily spend. When unset, the
+          Claude pills are hidden.
+        '';
+      };
+
+      "gh-auth-token" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file holding a bare `gho_` GitHub OAuth token. The Copilot
+          usage pills read it and call `/copilot_internal/user` directly. When
+          unset, the Copilot quota pills are hidden (the local-`ccusage` Copilot
+          pill needs no token and still shows if `ccusage` is installed).
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -248,6 +292,17 @@ in
         ExecStart = lib.getExe cfg.package;
         Restart = "on-failure";
         RestartSec = 2;
+        # AI-usage secret-file *paths* (not the secrets). vetrata reads each file
+        # at poll time; only the path rides in the environment, so the key never
+        # enters the store or a `systemctl show`-visible variable. Providers with
+        # an unset file contribute no variable and no pill.
+        Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") (
+          lib.filterAttrs (_: value: value != null) {
+            VETRATA_OPENROUTER_KEY_FILE = cfg.secretFiles.openRouterManagement;
+            VETRATA_CLAUDE_CODE_OAUTH_FILE = cfg.secretFiles."claude-code-oauth";
+            VETRATA_GH_AUTH_TOKEN_FILE = cfg.secretFiles."gh-auth-token";
+          }
+        );
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };

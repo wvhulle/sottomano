@@ -19,6 +19,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     wayland_layers::{backdrop_shadow, surface::Position, tooltip},
     widget_groups::{
+        ai_group::AiMessage,
         audio_group::AudioMessage,
         battery_group::BatteryMessage,
         idle_timeouts_group::IdleTimeoutsMessage,
@@ -189,6 +190,10 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
             slot(bar.audio_group.view(config), |m| match m {
                 AudioMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Audio(m),
+            }),
+            slot(bar.ai_group.view(config, position), |m| match m {
+                AiMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Ai(m),
             }),
         ],
         config,

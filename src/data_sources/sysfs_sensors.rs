@@ -66,7 +66,7 @@ pub(super) fn first_power_supply(prefix: &str) -> Option<PathBuf> {
 /// Remaining energy (Wh), live discharge (W), charge state, and serial of the
 /// first battery — the inputs to the power-profile time estimate.
 pub struct BatteryEnergy {
-    pub energy_wh: Option<f64>,
+    pub energy_j: Option<f64>,
     pub draw_w: Option<f64>,
     pub discharging: bool,
     pub serial: String,
@@ -75,9 +75,9 @@ pub struct BatteryEnergy {
 pub fn battery_energy() -> Option<BatteryEnergy> {
     let dir = first_power_supply("BAT")?;
     let volts_uv = || read_i64(dir.join("voltage_now")).map(|v| v as f64);
-    let energy_wh = read_i64(dir.join("energy_now"))
-        .map(|uwh| uwh as f64 / 1_000_000.0)
-        .or_else(|| Some(read_i64(dir.join("charge_now"))? as f64 * volts_uv()? / 1e12));
+    let energy_j = read_i64(dir.join("energy_now"))
+        .map(|uwh| uwh as f64 * 3600.0 / 1_000_000.0)
+        .or_else(|| Some(read_i64(dir.join("charge_now"))? as f64 * volts_uv()? * 3600.0 / 1e12));
     let draw_w = read_i64(dir.join("power_now"))
         .map(|uw| uw as f64 / 1_000_000.0)
         .or_else(|| Some(read_i64(dir.join("current_now"))? as f64 * volts_uv()? / 1e12));
@@ -85,7 +85,7 @@ pub fn battery_energy() -> Option<BatteryEnergy> {
         .is_some_and(|s| battery::ChargeStatus::parse(&s) == battery::ChargeStatus::Discharging);
     let serial = read_trimmed(dir.join("serial_number")).unwrap_or_default();
     Some(BatteryEnergy {
-        energy_wh,
+        energy_j,
         draw_w,
         discharging,
         serial,

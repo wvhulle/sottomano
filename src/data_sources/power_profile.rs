@@ -236,16 +236,9 @@ fn estimate_one(
         }
     };
     (rate > 0.0).then(|| Estimate {
-        time: hours(energy / rate),
-        band: hours(energy / (rate * rate) * variance.sqrt()),
+        time: Duration::from_secs_f64(energy / rate * 3600.0),
+        band: Duration::from_secs_f64(energy / (rate * rate) * variance.sqrt() * 3600.0),
     })
-}
-
-fn hours(value: f64) -> Duration {
-    let seconds = (value * 3600.0).clamp(0.0, 99.0 * 3600.0);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let minutes = (seconds / 60.0).round() as u64;
-    Duration::from_secs(minutes * 60)
 }
 
 #[cfg(test)]

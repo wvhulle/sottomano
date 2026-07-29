@@ -17,6 +17,7 @@ use iced::Color;
 
 use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
 
+pub mod ai;
 pub mod app_icon;
 pub mod app_rules;
 pub mod audio;

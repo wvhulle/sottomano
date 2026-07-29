@@ -31,6 +31,7 @@ use crate::{
         tray_menu::TrayMenuHost,
     },
     widget_groups::{
+        ai_group::{AiGroup, AiMessage},
         audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
@@ -73,6 +74,7 @@ pub struct Bar {
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
     pub(crate) power_profile_group: PowerProfileGroup,
+    pub(crate) ai_group: AiGroup,
     pub(crate) tray_group: TrayGroup,
     pub(crate) tray_menu: TrayMenuHost,
     pub(crate) window_group: WindowGroup,
@@ -121,6 +123,7 @@ pub enum Message {
     PanelLoaded(state::panel::PanelSettings),
     Audio(AudioMessage),
     PowerProfile(PowerProfileMessage),
+    Ai(AiMessage),
     WindowGroup(WindowGroupMessage),
     /// The persisted launch-frequency model finished loading from disk.
     TrackerLoaded(Buckets),
@@ -169,6 +172,7 @@ impl Bar {
             media_group: MediaGroup::new(config.layout.menu_expand_ms),
             audio_group: AudioGroup::default(),
             power_profile_group: PowerProfileGroup::default(),
+            ai_group: AiGroup::new(config.layout.menu_expand_ms, config.secrets.clone()),
             tray_group: TrayGroup::new(config.layout.menu_expand_ms),
             tray_menu: TrayMenuHost::default(),
             window_group: WindowGroup::new(config.layout.menu_expand_ms),
@@ -335,6 +339,10 @@ impl Bar {
                 .power_profile_group
                 .update(msg)
                 .map(Message::PowerProfile),
+            Message::Ai(msg) => {
+                self.ai_group.update(msg);
+                Task::none()
+            }
             Message::DismissPressed => {
                 self.dismiss_menus();
                 self.tray_menu.close()
@@ -433,6 +441,7 @@ impl Bar {
             .or_else(|| self.internet_group.tooltip_for(target))
             .or_else(|| self.weather_group.tooltip_for(target))
             .or_else(|| self.media_group.tooltip_for(target))
+            .or_else(|| self.ai_group.tooltip_for(target))
             .or_else(|| panel_settings_group::tooltip_for(target, &self.config))
             .unwrap_or_else(Tooltip::empty)
     }
@@ -478,7 +487,7 @@ impl Bar {
 
     /// The expandable groups' menus, in one place, for the cross-group reads
     /// below.
-    fn menus(&self) -> [&MenuGroup; 10] {
+    fn menus(&self) -> [&MenuGroup; 11] {
         [
             &self.clock_group.menu,
             &self.monitor_group.menu,
@@ -490,6 +499,7 @@ impl Bar {
             &self.internet_group.menu,
             &self.window_group.quick_launch.menu,
             &self.tray_group.menu,
+            &self.ai_group.menu,
         ]
     }
 
@@ -531,6 +541,7 @@ impl Bar {
             .update(TrayMessage::Menu(MenuMessage::Close));
         self.clock_group
             .update(ClockMessage::Menu(MenuMessage::Close));
+        self.ai_group.update(AiMessage::Menu(MenuMessage::Close));
     }
 
     /// Apply a coalesced burst of niri events as one update: fold every event

@@ -91,6 +91,12 @@ pub enum HoverTarget {
     PollenGrass,
     Location,
     Media,
+    AiOpenRouter,
+    AiClaudeOauth,
+    AiClaudeCcusage,
+    AiCopilotMetered,
+    AiCopilotFree,
+    AiCopilotCli,
     /// A tray item, carrying its own static tooltip content (title +
     /// description). Unlike the gauges, a tray tooltip does not change per
     /// frame, so it rides in the target itself rather than being re-derived

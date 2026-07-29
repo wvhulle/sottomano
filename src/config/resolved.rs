@@ -1,7 +1,7 @@
 //! Config resolved once at startup: the font is loaded and parsed, colours are
 //! converted. Fields are plain data — read them directly.
 
-use std::{collections::HashSet, process::Command, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, process::Command, sync::Arc};
 
 use color::{ColorSpaceTag, DynamicColor, Srgb};
 use iced::{Color, Font};
@@ -40,6 +40,29 @@ pub struct ResolvedConfig {
     /// Lowercased SNI id substrings whose tray items are hidden (already
     /// surfaced natively by the shell). See `disk::TrayConfig::deny_ids`.
     pub tray_deny_ids: Vec<String>,
+    /// Paths to the AI-provider secret files, resolved once from the
+    /// environment at startup. The files themselves are read at poll time
+    /// by the AI group's sources, so the secrets never sit in this
+    /// process's memory between polls.
+    pub secrets: SecretPaths,
+}
+
+/// Filesystem paths to the AI-provider credential files, each `None` when its
+/// environment variable is unset or empty. Only the *path* is held here (and
+/// passed through `hm-module.nix`'s systemd `Environment`); the secret contents
+/// are read fresh on each poll, so a rotated token is picked up automatically
+/// and no secret ever enters the config or lingers in memory.
+#[derive(Debug, Clone, Default)]
+pub struct SecretPaths {
+    /// OpenRouter **management** key (a plain API key can't call
+    /// `/analytics/query`). From `VETRATA_OPENROUTER_KEY_FILE`.
+    pub openrouter_management: Option<PathBuf>,
+    /// Claude Code OAuth credentials JSON (`claudeAiOauth.accessToken`). From
+    /// `VETRATA_CLAUDE_CODE_OAUTH_FILE`.
+    pub claude_code_oauth: Option<PathBuf>,
+    /// A bare `gho_` GitHub OAuth token, for the Copilot usage endpoints. From
+    /// `VETRATA_GH_AUTH_TOKEN_FILE`.
+    pub gh_auth_token: Option<PathBuf>,
 }
 
 impl ResolvedConfig {
@@ -107,7 +130,18 @@ pub fn load() -> ResolvedConfig {
             .iter()
             .map(|id| id.to_lowercase())
             .collect(),
+        secrets: SecretPaths {
+            openrouter_management: secret_path("VETRATA_OPENROUTER_KEY_FILE"),
+            claude_code_oauth: secret_path("VETRATA_CLAUDE_CODE_OAUTH_FILE"),
+            gh_auth_token: secret_path("VETRATA_GH_AUTH_TOKEN_FILE"),
+        },
     }
+}
+
+fn secret_path(var: &str) -> Option<PathBuf> {
+    std::env::var_os(var)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 /// The session's configured sound theme from gsettings
