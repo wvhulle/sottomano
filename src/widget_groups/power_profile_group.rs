@@ -13,8 +13,7 @@ use crate::{
     data_sources::{
         Tooltip, TooltipBody,
         power_profile::{
-            self, Estimate, PowerProfile, Profile, SEED_VARIANCE, estimate, hours_to_text,
-            kalman_step,
+            self, Estimate, PowerProfile, Profile, SEED_VARIANCE, estimate, kalman_step,
         },
         row,
     },
@@ -148,7 +147,7 @@ impl PowerProfileGroup {
             .get(&active)
             .copied()
             .flatten()
-            .map(|e| hours_to_text(e.time));
+            .map(|e| humantime::format_duration(e.time).to_string());
         self.control.update(ControlMessage::Caption(caption));
     }
 
@@ -187,11 +186,10 @@ fn estimate_text(estimate: Option<Estimate>) -> String {
     let Some(estimate) = estimate else {
         return "—".to_string();
     };
-    let time = hours_to_text(estimate.time);
-    let band = hours_to_text(estimate.band);
-    if band == "0m" {
-        time
+    let time = humantime::format_duration(estimate.time);
+    if estimate.band.as_secs() < 30 {
+        time.to_string()
     } else {
-        format!("{time} ±{band}")
+        format!("{time} ±{}", humantime::format_duration(estimate.band))
     }
 }

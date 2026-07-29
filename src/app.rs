@@ -42,6 +42,7 @@ use crate::{
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         notification_group::NotificationGroupMessage,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
+        power_profile_group::{PowerProfileGroup, PowerProfileMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{TrayGroup, TrayMessage},
         weather_group::{WeatherGroup, WeatherMessage},

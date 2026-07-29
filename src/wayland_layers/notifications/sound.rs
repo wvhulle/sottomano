@@ -64,7 +64,8 @@ impl Alert {
 /// Play `data`'s alert sound off-thread: its explicit `sound-file` hint when it
 /// names a real file, else the `theme`d sound for its kind. `theme` is the
 /// session's configured sound theme ([`ResolvedConfig::sound_theme`]); `None`
-/// uses the "freedesktop" default. A missing file or player just yields silence.
+/// uses the "freedesktop" default. A missing file or player just yields
+/// silence.
 pub fn play(data: &NotificationData, theme: Option<&str>) -> Task<Message> {
     let explicit = data.sound_file.clone();
     let alert = Alert::of(data);
@@ -87,8 +88,8 @@ fn resolve(explicit: Option<String>, alert: Alert, theme: Option<&str>) -> Optio
 }
 
 /// The themed sound file for `name`, via the XDG Sound Theme spec. `theme` (the
-/// session's choice) is resolved against its parents and ultimately the built-in
-/// "freedesktop" default.
+/// session's choice) is resolved against its parents and ultimately the
+/// built-in "freedesktop" default.
 fn themed(name: &str, theme: Option<&str>) -> Option<PathBuf> {
     let lookup = freedesktop_sound::lookup(name).with_cache();
     match theme {

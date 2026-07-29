@@ -34,8 +34,8 @@ pub struct ResolvedConfig {
     pub sound: bool,
     /// The session's configured XDG sound theme (`org.gnome.desktop.sound
     /// theme-name`), resolved once at startup — the sound analogue of the
-    /// gsettings icon-theme pick. `None` (no gsettings / unset) leaves the sound
-    /// lookup on its "freedesktop" default.
+    /// gsettings icon-theme pick. `None` (no gsettings / unset) leaves the
+    /// sound lookup on its "freedesktop" default.
     pub sound_theme: Option<String>,
     /// Lowercased SNI id substrings whose tray items are hidden (already
     /// surfaced natively by the shell). See `disk::TrayConfig::deny_ids`.
@@ -110,11 +110,12 @@ pub fn load() -> ResolvedConfig {
     }
 }
 
-/// The session's configured sound theme from gsettings (`org.gnome.desktop.sound
-/// theme-name`), so notification alert sounds follow the desktop's choice — the
-/// audio analogue of the icon-theme pick. gsettings quotes the value (`'ocean'`),
-/// so the surrounding quotes are trimmed. `None` when gsettings is absent or the
-/// key is unset, leaving the sound lookup on its "freedesktop" default.
+/// The session's configured sound theme from gsettings
+/// (`org.gnome.desktop.sound theme-name`), so notification alert sounds follow
+/// the desktop's choice — the audio analogue of the icon-theme pick. gsettings
+/// quotes the value (`'ocean'`), so the surrounding quotes are trimmed. `None`
+/// when gsettings is absent or the key is unset, leaving the sound lookup on
+/// its "freedesktop" default.
 fn session_sound_theme() -> Option<String> {
     let output = Command::new("gsettings")
         .args(["get", "org.gnome.desktop.sound", "theme-name"])

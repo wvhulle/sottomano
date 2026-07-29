@@ -29,6 +29,7 @@ use crate::{
         net_interfaces_group::NetInterfacesMessage,
         notification_group,
         panel_settings_group::PanelSettingsMessage,
+        power_profile_group::PowerProfileMessage,
         system_group::SystemMessage,
         tray_group::TrayMessage,
         weather_group::WeatherMessage,
@@ -236,8 +237,13 @@ fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<
     // that budget and scrolls when it overflows, keeping the tray from being
     // overrun.
     let middle = container(slot(
-        bar.window_group
-            .view(&bar.niri_snapshot, &bar.desktop_entries, output, config, position),
+        bar.window_group.view(
+            &bar.niri_snapshot,
+            &bar.desktop_entries,
+            output,
+            config,
+            position,
+        ),
         Message::WindowGroup,
     ))
     .center_x(Length::Fill);

@@ -22,8 +22,7 @@ use crate::{
         internet_group::InternetGroup, journal_group::JournalGroup, media_group::MediaGroup,
         monitor_group::MonitorGroup, net_interfaces_group::NetInterfacesGroup,
         power_profile_group::PowerProfileGroup, system_group::SystemGroup, tray_group::TrayGroup,
-        weather_group::WeatherGroup,
-        window_group::WindowGroup,
+        weather_group::WeatherGroup, window_group::WindowGroup,
     },
     widgets::idle,
 };

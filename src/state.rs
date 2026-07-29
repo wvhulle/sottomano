@@ -13,6 +13,7 @@
 pub mod idle;
 pub mod launches;
 pub mod panel;
+pub mod power;
 
 use std::{ops::Deref, path::PathBuf};
 
@@ -72,6 +73,7 @@ async fn build() -> Result<Store, BoxError> {
     connection.execute(launches::CREATE_TABLE, ()).await?;
     connection.execute(panel::CREATE_TABLE, ()).await?;
     connection.execute(idle::CREATE_TABLE, ()).await?;
+    connection.execute(power::CREATE_TABLE, ()).await?;
     Ok(Store {
         connection,
         _database: database,

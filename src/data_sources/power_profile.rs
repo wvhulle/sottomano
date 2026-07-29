@@ -242,24 +242,132 @@ fn estimate_one(
 }
 
 fn hours(value: f64) -> Duration {
-    Duration::from_secs_f64((value * 3600.0).clamp(0.0, 99.0 * 3600.0))
+    let seconds = (value * 3600.0).clamp(0.0, 99.0 * 3600.0);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let minutes = (seconds / 60.0).round() as u64;
+    Duration::from_secs(minutes * 60)
 }
 
-pub fn hours_to_text(duration: Duration) -> String {
-    let hours = duration.as_secs_f64() / 3600.0;
-    #[allow(clippy::cast_possible_truncation)]
-    if hours <= 0.0 {
-        "0m".to_string()
-    } else if hours >= 99.0 {
-        "99h".to_string()
-    } else if hours >= 1.0 {
-        let tenths = (hours * 10.0).round() / 10.0;
-        if tenths.fract().abs() < f64::EPSILON {
-            format!("{}h", tenths as i64)
-        } else {
-            format!("{tenths:.1}h")
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn seed(rate_w: f64) -> RateState {
+        RateState {
+            rate_w,
+            variance: SEED_VARIANCE,
         }
-    } else {
-        format!("{}m", (hours * 60.0).round() as i64)
+    }
+
+    fn hrs(duration: Duration) -> f64 {
+        duration.as_secs_f64() / 3600.0
+    }
+
+    fn get(estimates: &HashMap<Profile, Option<Estimate>>, profile: Profile) -> Estimate {
+        estimates
+            .get(&profile)
+            .copied()
+            .flatten()
+            .expect("estimate present")
+    }
+
+    #[test]
+    fn kalman_converges_to_steady_draw() {
+        let mut state = seed(10.0);
+        for _ in 0..50 {
+            state = kalman_step(state, 12.0);
+        }
+        assert!(
+            (state.rate_w - 12.0).abs() < 0.5,
+            "rate {} should approach the observed 12 W",
+            state.rate_w
+        );
+        assert!(
+            state.variance < SEED_VARIANCE,
+            "variance {} should shrink below the seed",
+            state.variance
+        );
+    }
+
+    #[test]
+    fn kalman_smooths_alternating_noise() {
+        let mut state = seed(10.0);
+        for i in 0..40 {
+            let watts = if i % 2 == 0 { 6.0 } else { 14.0 };
+            state = kalman_step(state, watts);
+        }
+        assert!(
+            (state.rate_w - 10.0).abs() < 1.5,
+            "smoothed rate {} should stay near 10 W",
+            state.rate_w
+        );
+    }
+
+    #[test]
+    fn estimate_active_profile_time_and_band() {
+        let states = HashMap::from([(
+            Profile::Balanced,
+            RateState {
+                rate_w: 10.0,
+                variance: 0.25,
+            },
+        )]);
+        let estimates = estimate(Some(50.0), Profile::Balanced, &states, Some(10.0));
+        let balanced = get(&estimates, Profile::Balanced);
+        assert!((hrs(balanced.time) - 5.0).abs() < 0.01);
+        assert!((hrs(balanced.band) - 0.25).abs() < 0.01);
+    }
+
+    #[test]
+    fn estimate_scales_unobserved_profiles() {
+        let states = HashMap::from([(
+            Profile::Balanced,
+            RateState {
+                rate_w: 10.0,
+                variance: 1.0,
+            },
+        )]);
+        let estimates = estimate(Some(50.0), Profile::Balanced, &states, Some(10.0));
+        let saver = hrs(get(&estimates, Profile::PowerSaver).time);
+        let balanced = hrs(get(&estimates, Profile::Balanced).time);
+        let performance = hrs(get(&estimates, Profile::Performance).time);
+        assert!(
+            (performance - 50.0 / 15.0).abs() < 0.05,
+            "performance {performance}"
+        );
+        assert!((saver - 50.0 / 6.0).abs() < 0.05, "saver {saver}");
+        assert!(
+            performance < balanced && balanced < saver,
+            "life should order performance < balanced < power-saver"
+        );
+    }
+
+    #[test]
+    fn estimate_on_ac_without_history_is_unknown() {
+        let estimates = estimate(Some(50.0), Profile::Balanced, &HashMap::new(), None);
+        assert!(estimates[&Profile::Balanced].is_none());
+    }
+
+    #[test]
+    fn uncertainty_band_shrinks_as_filter_learns() {
+        let after_one = kalman_step(seed(10.0), 10.0);
+        let mut after_many = seed(10.0);
+        for _ in 0..50 {
+            after_many = kalman_step(after_many, 10.0);
+        }
+        let band = |state| {
+            let states = HashMap::from([(Profile::Balanced, state)]);
+            hrs(get(
+                &estimate(Some(50.0), Profile::Balanced, &states, Some(10.0)),
+                Profile::Balanced,
+            )
+            .band)
+        };
+        assert!(
+            band(after_many) < band(after_one),
+            "band should tighten with more samples: {} vs {}",
+            band(after_many),
+            band(after_one)
+        );
     }
 }
