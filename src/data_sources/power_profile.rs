@@ -236,9 +236,13 @@ fn estimate_one(
         }
     };
     (rate > 0.0).then(|| Estimate {
-        time: Duration::from_secs_f64(energy / rate),
-        band: Duration::from_secs_f64(energy / (rate * rate) * variance.sqrt()),
+        time: whole_minutes(energy / rate),
+        band: whole_minutes(energy / (rate * rate) * variance.sqrt()),
     })
+}
+
+fn whole_minutes(seconds: f64) -> Duration {
+    Duration::from_secs_f64((seconds / 60.0).round() * 60.0)
 }
 
 #[cfg(test)]
