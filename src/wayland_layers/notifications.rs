@@ -16,7 +16,7 @@ use std::{
     time::SystemTime,
 };
 
-use iced::{Element, Task, widget::Sensor, window::Id};
+use iced::{Element, Task, window::Id};
 use iced_layershell::reexport::Anchor;
 use model::{NotifHandle, NotificationData, Outbound, close_reason};
 use placement::{ToastPlacement, placement_for, resolve_window_id};
@@ -47,9 +47,6 @@ pub enum NotificationMessage {
     Served(NotificationData),
     /// A client called `CloseNotification`.
     CloseRequested(u32),
-    /// A toast surface measured its card, so its surface can be sized to fit
-    /// and its siblings re-stacked.
-    CardMeasured { id: u32, height: f32 },
     /// The card body was left-clicked.
     BodyClicked(u32),
     /// The pointer entered or left a card, for its hover-border highlight.
@@ -71,6 +68,7 @@ pub struct Notification {
     /// increases, so newest-first stacking order is deterministic.
     seq: u64,
     pub icons: card::CardIcons,
+    estimated_height: f32,
 }
 
 /// The live layer-shell surface for one toast, and the geometry last applied to
@@ -88,7 +86,6 @@ pub struct NotificationLayer {
     handle: Option<NotifHandle>,
     live: Vec<Notification>,
     surfaces: HashMap<u32, ToastSurface>,
-    heights: HashMap<u32, f32>,
     /// Next monotonic arrival number, stamped onto each served notification's
     /// [`Notification::seq`] to give the stack a deterministic order.
     next_seq: u64,
@@ -133,7 +130,6 @@ impl NotificationLayer {
                         .collect();
                     for dup in dupes {
                         self.live.retain(|n| n.data.id != dup);
-                        self.heights.remove(&dup);
                         tasks.push(self.emit(Outbound::Closed {
                             id: dup,
                             reason: close_reason::DISMISSED,
@@ -146,6 +142,7 @@ impl NotificationLayer {
                     tasks.push(sound::play(&data, config.sound_theme.as_deref()));
                 }
                 let icons = card::resolve_icons(&data, entries);
+                let estimated_height = card::measure_height(&data, &icons, config);
                 let seq = self.next_seq;
                 self.next_seq += 1;
                 self.live.push(Notification {
@@ -153,16 +150,10 @@ impl NotificationLayer {
                     created_at: SystemTime::now(),
                     seq,
                     icons,
+                    estimated_height,
                 });
                 tasks.push(self.reconcile(placement, outputs, config));
                 Task::batch(tasks)
-            }
-            NotificationMessage::CardMeasured { id, height } => {
-                if self.heights.get(&id) == Some(&height) {
-                    return Task::none();
-                }
-                self.heights.insert(id, height);
-                self.reconcile(placement, outputs, config)
             }
             // Left-clicking the body invokes the primary action: jump to the
             // source window and dismiss when there is one, else just dismiss.
@@ -214,7 +205,6 @@ impl NotificationLayer {
         let mut tasks = Vec::new();
         for id in stale {
             self.live.retain(|n| n.data.id != id);
-            self.heights.remove(&id);
             tasks.push(self.emit(Outbound::Closed {
                 id,
                 reason: close_reason::UNDEFINED,
@@ -231,11 +221,6 @@ impl NotificationLayer {
             .filter(|&w| placement.workspace_of_window(w).is_some())
     }
 
-    /// Run a clicked action. A recognised window action on a resolvable window
-    /// is driven in niri in-process (works after the posting client has
-    /// died); everything else round-trips over D-Bus as `ActionInvoked`,
-    /// and — like a permission prompt's allow/deny — leaves the toast up
-    /// for the client to close.
     fn activate_action(
         &mut self,
         id: u32,
@@ -244,44 +229,50 @@ impl NotificationLayer {
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        if let Some(window) = self
+        let (activation, keep_up) = match self
             .window_of(id, placement)
             .filter(|_| is_window_action(key))
         {
-            let action = match key {
-                "default" => niri_action(move || niri::focus_window(window)),
-                "quit" => niri_action(move || niri::close_window(window)),
-                "move" => match placement.active_workspace_for_move() {
-                    Some(target) => niri_action(move || niri::move_window_here(window, target)),
-                    None => Task::none(),
+            Some(window) => (
+                match key {
+                    "default" => niri_action(move || niri::focus_window(window)),
+                    "quit" => niri_action(move || niri::close_window(window)),
+                    "move" => placement
+                        .active_workspace_for_move()
+                        .map_or_else(Task::none, |target| {
+                            niri_action(move || niri::move_window_here(window, target))
+                        }),
+                    _ => Task::none(),
                 },
-                _ => Task::none(),
-            };
-            return Task::batch([
-                action,
+                false,
+            ),
+            None => {
+                let resident = self.live.iter().any(|n| n.data.id == id && n.data.resident);
+                (
+                    self.emit(Outbound::ActionInvoked {
+                        id,
+                        key: key.to_owned(),
+                    }),
+                    resident,
+                )
+            }
+        };
+
+        if keep_up {
+            activation
+        } else {
+            Task::batch([
+                activation,
                 self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
-            ]);
+            ])
         }
-        self.emit(Outbound::ActionInvoked {
-            id,
-            key: key.to_owned(),
-        })
     }
 
-    /// The card view for toast surface `id`, wrapped in a size sensor that
-    /// reports the card height back so the surface can shrink to fit and the
-    /// stack can re-offset.
     pub fn view(&self, id: Id, config: &ResolvedConfig) -> Option<Element<'_, Message>> {
         let (&notif_id, _) = self.surfaces.iter().find(|(_, s)| s.id == id)?;
         let notif = self.live.iter().find(|n| n.data.id == notif_id)?;
         let hovered = self.hovered == Some(notif_id);
-        let sensor = Sensor::new(card::card(notif, hovered, config)).on_resize(move |size| {
-            NotificationMessage::CardMeasured {
-                id: notif_id,
-                height: size.height,
-            }
-        });
-        Some(Element::from(sensor).map(Message::Notification))
+        Some(Element::from(card::card(notif, hovered, config)).map(Message::Notification))
     }
 
     /// Drop the record of a toast surface the compositor already closed.
@@ -307,7 +298,6 @@ impl NotificationLayer {
     ) -> Task<Message> {
         if config.dnd {
             self.live.clear();
-            self.heights.clear();
             self.hovered = None;
         }
         self.reconcile(placement, outputs, config)
@@ -323,7 +313,6 @@ impl NotificationLayer {
     ) -> Task<Message> {
         let existed = self.live.iter().any(|n| n.data.id == id);
         self.live.retain(|n| n.data.id != id);
-        self.heights.remove(&id);
         let closed = if existed {
             self.emit(Outbound::Closed { id, reason })
         } else {
@@ -490,16 +479,11 @@ impl NotificationLayer {
         let mut order: Vec<&Notification> = self.live.iter().collect();
         order.sort_by_key(|n| std::cmp::Reverse(n.seq));
 
-        // Resolve each toast's placement and the height to reserve for it. An
-        // unmeasured card reserves the provisional height (not zero), so the slot
-        // is never smaller than the surface and a fresh toast can't be stacked
-        // under its neighbour before it measures.
         let placed: Vec<(&Notification, ToastPlacement, f32)> = order
             .iter()
             .map(|notif| {
                 let place = placement_for(&notif.data, placement, config);
-                let height = stack::assumed_height(self.heights.get(&notif.data.id).copied());
-                (*notif, place, height)
+                (*notif, place, notif.estimated_height)
             })
             .collect();
 
@@ -539,10 +523,7 @@ impl NotificationLayer {
                     output: place.output.clone(),
                     anchor,
                     margin,
-                    size: (
-                        width,
-                        stack::surface_height(self.heights.get(&notif.data.id).copied()),
-                    ),
+                    size: (width, stack::surface_height(notif.estimated_height)),
                 }
             })
             .collect()

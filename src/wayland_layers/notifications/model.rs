@@ -51,6 +51,7 @@ pub struct NotificationData {
     /// The freedesktop `category` hint (e.g. `email.arrived`, `im.received`),
     /// used to pick a more fitting alert sound.
     pub category: Option<String>,
+    pub resident: bool,
 }
 
 /// D-Bus → app: what the notification server received from a client.

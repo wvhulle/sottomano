@@ -97,6 +97,26 @@ pub enum IdleAction {
     PowerOff,
 }
 
+impl IdleAction {
+    pub fn verb(self) -> &'static str {
+        match self {
+            IdleAction::Lock => "Lock",
+            IdleAction::ScreenOff => "Screen off",
+            IdleAction::Suspend => "Suspend",
+            IdleAction::PowerOff => "Power off",
+        }
+    }
+
+    pub fn mechanism(self) -> &'static str {
+        match self {
+            IdleAction::Lock => "logind LockSession",
+            IdleAction::ScreenOff => "niri PowerOffMonitors",
+            IdleAction::Suspend => "logind Suspend",
+            IdleAction::PowerOff => "logind PowerOff",
+        }
+    }
+}
+
 /// Perform an idle action now. Blocking (logind D-Bus / niri IPC); call off the
 /// render path — the daemon runs it on a blocking task, the trigger via
 /// `blocking`.

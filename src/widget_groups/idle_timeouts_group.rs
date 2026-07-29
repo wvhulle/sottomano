@@ -6,6 +6,8 @@
 //! Its `update` returns a [`Task`], so the bar delegates to it like any other
 //! group.
 
+use std::{thread, time::Duration};
+
 use iced::{
     Alignment, Element, Task,
     widget::{Row, mouse_area},
@@ -41,6 +43,8 @@ pub enum TimerKind {
     Standby,
     PowerDown,
 }
+
+const TRIGGER_SETTLE_DELAY: Duration = Duration::from_millis(600);
 
 impl TimerKind {
     const ALL: [TimerKind; 4] = [
@@ -187,7 +191,11 @@ impl IdleTimeoutsGroup {
                 // the daemon performs when this subsystem's timeout is reached.
                 TimerChange::Fire(action) => {
                     self.close_others(kind);
-                    blocking("idle action", move || perform(action)).discard()
+                    blocking("idle action", move || {
+                        thread::sleep(TRIGGER_SETTLE_DELAY);
+                        perform(action);
+                    })
+                    .discard()
                 }
             },
             IdleTimeoutsMessage::Tooltip(_) => Task::none(),

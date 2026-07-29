@@ -57,7 +57,7 @@ impl ConfirmButton {
         let (glyph, color) = if self.armed {
             (Icon::TriangleExclamation, config.palette.urgent)
         } else {
-            (Icon::Play, config.palette.bar_foreground)
+            (Icon::Bolt, config.palette.bar_foreground)
         };
         let color = Color {
             a: color.a * alpha,

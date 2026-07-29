@@ -6,8 +6,13 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
-    Alignment, Border, Color, Element, Font, Length,
-    widget::{Column, Row, button, container, image, mouse_area, rich_text, svg},
+    Alignment, Border, Color, Element, Font, Length, Pixels, Size,
+    advanced::{
+        graphics::text::Paragraph,
+        text::{Alignment as TextAlignment, LineHeight, Paragraph as _, Shaping, Text, Wrapping},
+    },
+    alignment::Vertical,
+    widget::{Column, Row, button, container, image, mouse_area, rich_text, svg, text::Span},
 };
 
 use super::{
@@ -22,6 +27,12 @@ use crate::{
 };
 
 const PADDING_PX: f32 = 10.0;
+const SUBTEXT_SCALE: f32 = 0.85;
+const COLUMN_SPACING: f32 = 4.0;
+const BODY_ROW_SPACING: f32 = 10.0;
+const ROW_SPACING: f32 = 8.0;
+const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
+const WIDEST_RELTIME: &str = "59 min ago";
 
 /// A resolved icon, ready to render without touching the filesystem in `view`.
 #[derive(Debug, Clone)]
@@ -100,6 +111,139 @@ fn over(fg: Color, bg: Color) -> Color {
     }
 }
 
+fn layout_text(content: &str, size: f32, font: Font, width: f32) -> Text<&str> {
+    Text {
+        content,
+        bounds: Size::new(width, f32::INFINITY),
+        size: Pixels(size),
+        line_height: LineHeight::default(),
+        font,
+        align_x: TextAlignment::Left,
+        align_y: Vertical::Top,
+        shaping: Shaping::Advanced,
+        wrapping: Wrapping::Word,
+    }
+}
+
+fn text_block_height(content: &str, size: f32, font: Font, width: f32) -> f32 {
+    if content.is_empty() {
+        return 0.0;
+    }
+    Paragraph::with_text(layout_text(content, size, font, width))
+        .min_bounds()
+        .height
+}
+
+fn text_line_width(content: &str, size: f32, font: Font) -> f32 {
+    if content.is_empty() {
+        return 0.0;
+    }
+    Paragraph::with_text(layout_text(content, size, font, f32::INFINITY))
+        .min_bounds()
+        .width
+}
+
+fn spans_block_height(spans: &[Span<'_>], size: f32, font: Font, width: f32) -> f32 {
+    if spans.is_empty() {
+        return 0.0;
+    }
+    let base = layout_text("", size, font, width);
+    Paragraph::with_spans(Text {
+        content: spans,
+        bounds: base.bounds,
+        size: base.size,
+        line_height: base.line_height,
+        font: base.font,
+        align_x: base.align_x,
+        align_y: base.align_y,
+        shaping: base.shaping,
+        wrapping: base.wrapping,
+    })
+    .min_bounds()
+    .height
+}
+
+pub fn measure_height(
+    data: &super::model::NotificationData,
+    icons: &CardIcons,
+    config: &ResolvedConfig,
+) -> f32 {
+    let font = &config.font;
+    let notifications = &config.notifications;
+    let bold = Font {
+        weight: iced::font::Weight::Bold,
+        ..font.iced_font
+    };
+    let subtext = font.text_size_px * SUBTEXT_SCALE;
+
+    let icon_extent = match (&icons.image, &icons.badge) {
+        (Some(_), _) => Some(notifications.image_size),
+        (None, Some(_)) => Some(notifications.app_icon_size),
+        (None, None) => None,
+    };
+    let icon_column = icon_extent.map_or(0.0, |size| size + BODY_ROW_SPACING);
+    let column_width = notifications.card_width - 2.0 * PADDING_PX - icon_column;
+
+    let has_actions = data
+        .actions
+        .iter()
+        .any(|a| a.key != "default" && !a.label.trim().is_empty());
+    let has_body = !data.body.is_empty();
+    let reltime_width = text_line_width(WIDEST_RELTIME, subtext, font.iced_font) + ROW_SPACING;
+
+    let app_name_beside_title = if data.app_name.is_empty() {
+        0.0
+    } else {
+        text_line_width(&data.app_name, subtext, font.iced_font) + ROW_SPACING
+    };
+    let time_beside_title = if !has_actions && !has_body {
+        reltime_width
+    } else {
+        0.0
+    };
+    let title = text_block_height(
+        &data.summary,
+        font.text_size_px,
+        bold,
+        column_width - app_name_beside_title - time_beside_title,
+    );
+
+    let body = if has_body {
+        let time_beside_body = if has_actions { 0.0 } else { reltime_width };
+        let spans = markup::body_spans(
+            &data.body,
+            config.palette.inactive,
+            subtext,
+            font,
+            Font::MONOSPACE,
+        );
+        spans_block_height(
+            &spans,
+            subtext,
+            font.iced_font,
+            column_width - time_beside_body,
+        )
+    } else {
+        0.0
+    };
+
+    let actions = if has_actions {
+        LineHeight::default()
+            .to_absolute(Pixels(font.text_size_px))
+            .0
+            + 2.0 * BUTTON_PADDING[0]
+    } else {
+        0.0
+    };
+
+    let rows = [title, body, actions];
+    let present = rows.iter().filter(|height| **height > 0.0).count();
+    let gaps = COLUMN_SPACING * present.saturating_sub(1) as f32;
+    let column = title + body + actions + gaps;
+
+    column.max(icon_extent.unwrap_or(0.0)) + 2.0 * PADDING_PX
+}
+
 pub fn card<'a>(
     notif: &Notification,
     hovered: bool,
@@ -128,24 +272,27 @@ pub fn card<'a>(
     let reltime_span = |visible: bool| {
         visible.then(|| {
             bar_text(font, reltime.clone())
-                .size(font.text_size_px * 0.85)
+                .size(font.text_size_px * SUBTEXT_SCALE)
                 .color(dim)
         })
     };
 
-    let mut title = Row::new().spacing(8.0).align_y(Alignment::Center).push(
-        bar_text(font, data.summary.clone())
-            .color(foreground)
-            .font(Font {
-                weight: iced::font::Weight::Bold,
-                ..font.iced_font
-            })
-            .width(Length::Fill),
-    );
+    let mut title = Row::new()
+        .spacing(ROW_SPACING)
+        .align_y(Alignment::Center)
+        .push(
+            bar_text(font, data.summary.clone())
+                .color(foreground)
+                .font(Font {
+                    weight: iced::font::Weight::Bold,
+                    ..font.iced_font
+                })
+                .width(Length::Fill),
+        );
     if !data.app_name.is_empty() {
         title = title.push(
             bar_text(font, data.app_name.clone())
-                .size(font.text_size_px * 0.85)
+                .size(font.text_size_px * SUBTEXT_SCALE)
                 .color(dim),
         );
     }
@@ -154,19 +301,22 @@ pub fn card<'a>(
         title = title.push(time);
     }
 
-    let mut column = Column::new().spacing(4.0).push(title);
+    let mut column = Column::new().spacing(COLUMN_SPACING).push(title);
     if has_body {
         let mono = Font::MONOSPACE;
-        let body = Row::new().spacing(8.0).align_y(Alignment::End).push(
-            rich_text(markup::body_spans(
-                &data.body,
-                body_color,
-                font.text_size_px * 0.85,
-                font,
-                mono,
-            ))
-            .width(Length::Fill),
-        );
+        let body = Row::new()
+            .spacing(ROW_SPACING)
+            .align_y(Alignment::End)
+            .push(
+                rich_text(markup::body_spans(
+                    &data.body,
+                    body_color,
+                    font.text_size_px * SUBTEXT_SCALE,
+                    font,
+                    mono,
+                ))
+                .width(Length::Fill),
+            );
         column = column.push(match reltime_span(!has_actions) {
             Some(time) => body.push(time),
             None => body,
@@ -198,7 +348,9 @@ pub fn card<'a>(
         column = column.push(actions);
     }
 
-    let mut body_row = Row::new().spacing(10.0).align_y(Alignment::Center);
+    let mut body_row = Row::new()
+        .spacing(BODY_ROW_SPACING)
+        .align_y(Alignment::Center);
     if let Some(icon) = icon_slot(&notif.icons, &config.notifications) {
         body_row = body_row.push(icon);
     }
@@ -300,7 +452,7 @@ fn action_button<'a>(
     font: &ResolvedFontConfig,
 ) -> Element<'a, NotificationMessage> {
     button(bar_text(font, label).size(font.text_size_px).color(tint))
-        .padding([6.0, 14.0])
+        .padding(BUTTON_PADDING)
         .style(move |_, status| {
             let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
             button::Style {

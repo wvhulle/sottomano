@@ -65,6 +65,7 @@ impl NotificationServer {
             suppress_sound: hint_bool(&hints, "suppress-sound"),
             sound_file: hint_str(&hints, "sound-file"),
             category: hint_str(&hints, "category"),
+            resident: hint_bool(&hints, "resident"),
         };
         if let Err(e) = self.events.try_send(ServerEvent::Notify(data)) {
             eprintln!("notifications: dropping Notify: {e}");

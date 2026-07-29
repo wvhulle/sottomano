@@ -64,12 +64,31 @@ let
     bottom-left = 0.0;
     bottom-right = 0.0;
   };
+  uniformRadius = r: {
+    top-left = r;
+    top-right = r;
+    bottom-left = r;
+    bottom-right = r;
+  };
+  # Card corner radius follows the user's layout.corner_radius_px (src/config/disk.rs,
+  # default 8) so niri's clip matches what the notification card / tooltip actually
+  # draws. Coerced to a float because niri wants 8.0, not 8.
+  cornerRadius = 1.0 * (cfg.settings.layout.corner_radius_px or 8);
+  # Drop shadow hugged straight to a card surface (notification toasts and tooltips).
+  cardShadow = {
+    enable = true;
+    softness = 30;
+    spread = 10;
+    color = "#00000070";
+  };
   gradientShadow = sign: {
     enable = true;
-    inherit (cfg.niri.gradientShadow) softness spread color;
+    softness = 27;
+    spread = 24;
+    color = "#00000060";
     offset = {
       x = 0;
-      y = sign * cfg.niri.gradientShadow.offset;
+      y = sign * 3;
     };
   };
   vetrataLayerRules = [
@@ -91,21 +110,18 @@ let
     # Each toast has its own tightly-sized overlay surface
     # (namespace "vetrata-notifications", src/notifications/stack.rs), so niri can
     # hug a drop shadow straight to the card — no off-screen caster like the bar.
-    # Corners match the card's default `layout.corner_radius_px` (src/config/disk.rs).
+    # Corners match the card's `layout.corner_radius_px` (src/config/disk.rs).
     {
       matches = [ { namespace = "^vetrata-notifications$"; } ];
-      geometry-corner-radius = {
-        top-left = 8.0;
-        top-right = 8.0;
-        bottom-left = 8.0;
-        bottom-right = 8.0;
-      };
-      shadow = {
-        enable = true;
-        softness = 30;
-        spread = 10;
-        color = "#00000070";
-      };
+      geometry-corner-radius = uniformRadius cornerRadius;
+      shadow = cardShadow;
+    }
+    # Tooltips (namespace "vetrata-tooltip", src/wayland_layers/tooltip.rs) are cards
+    # like toasts: same hugged drop shadow and corner rounding.
+    {
+      matches = [ { namespace = "^vetrata-tooltip$"; } ];
+      geometry-corner-radius = uniformRadius cornerRadius;
+      shadow = cardShadow;
     }
   ];
 in
@@ -166,33 +182,6 @@ in
         install with no umbra — vetrata then falls back to the static
         settings.palette written to ~/.config/vetrata.toml.
       '';
-    };
-
-    niri.gradientShadow = {
-      softness = lib.mkOption {
-        type = lib.types.ints.unsigned;
-        default = 27;
-        description = "Blur radius of the backdrop caster's drop shadow.";
-      };
-      spread = lib.mkOption {
-        type = lib.types.ints.unsigned;
-        default = 20;
-        description = "How far the backdrop caster's drop shadow expands before blurring.";
-      };
-      color = lib.mkOption {
-        type = lib.types.str;
-        default = "#00000060";
-        description = "Color of the backdrop caster's drop shadow (niri color string).";
-      };
-      offset = lib.mkOption {
-        type = lib.types.ints.unsigned;
-        default = 3;
-        description = ''
-          Vertical offset magnitude (px) of the backdrop caster's drop shadow,
-          pushing the fade onto the screen. Applied toward the inner edge: the
-          top caster uses -offset, the bottom caster +offset.
-        '';
-      };
     };
 
     # Secret-file paths for the AI-usage widget group (ported from Quickshell

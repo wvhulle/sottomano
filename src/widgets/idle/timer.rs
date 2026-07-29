@@ -5,6 +5,7 @@
 
 use std::time::Duration;
 
+use chrono::{DateTime, Local};
 use iced::{Alignment, Element, widget::Row};
 
 use crate::{
@@ -20,6 +21,10 @@ use crate::{
 };
 
 const READOUT_WIDTH: f32 = 30.0;
+
+fn fire_time(timeout: Duration) -> DateTime<Local> {
+    Local::now() + chrono::Duration::from_std(timeout).unwrap_or_default()
+}
 
 /// One control's messages: the timeout slider's interaction, or its run-now
 /// button.
@@ -117,10 +122,15 @@ impl IdleTimer {
     }
 
     pub fn tooltip(&self) -> Tooltip {
-        // The subsystem is already obvious from the pill's icon being hovered,
-        // so the tooltip carries only the current timeout state.
+        let when = match self.timeout {
+            None => row("State", "disabled"),
+            Some(timeout) => row(
+                &format!("{} at", self.action.verb()),
+                fire_time(timeout).format("%H:%M").to_string(),
+            ),
+        };
         Tooltip {
-            body: TooltipBody::Table(vec![row("State", self.timeout.map_or("∞", label_for))]),
+            body: TooltipBody::Table(vec![when, row("Via", self.action.mechanism())]),
             footer: None,
         }
     }

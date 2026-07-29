@@ -700,7 +700,7 @@ fn panel<'a>(tooltip: &Tooltip, settled: bool, config: &ResolvedConfig) -> Eleme
         a: 0.25,
         ..config.palette.bar_foreground
     });
-    let radius = config.chrome_radius();
+    let radius = f32::from(config.layout.corner_radius_px);
     container(body)
         .padding(PANEL_PADDING_PX)
         .style(move |_| container::Style {
