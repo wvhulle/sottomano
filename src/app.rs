@@ -361,15 +361,25 @@ impl Bar {
             }
             // A source with empty content suppresses its tooltip (odin drops
             // `{}`); the emptiness is decided here against the live reading.
-            Message::Tooltip(TooltipMessage::Enter { target, .. })
-                if self.tooltip_for(&target).is_empty() =>
-            {
-                Task::none()
+            Message::Tooltip(TooltipMessage::Enter {
+                surface,
+                target,
+                anchor,
+            }) => {
+                let content = self.tooltip_for(&target);
+                match self.surfaces.get(&surface) {
+                    Some(parent) if !content.is_empty() => self.tooltip.open(
+                        parent,
+                        target,
+                        anchor,
+                        &self.outputs,
+                        &self.config,
+                        &content,
+                    ),
+                    _ => Task::none(),
+                }
             }
-            Message::Tooltip(msg) => {
-                self.tooltip
-                    .update(msg, &self.surfaces, &self.outputs, &self.config)
-            }
+            Message::Tooltip(msg) => self.tooltip.update(msg, &self.config),
             // The pointer left a surface without crossing another hoverable (e.g.
             // straight off the bar edge), so no `HoverArea` fired its exit; close
             // any open tooltip so it can't strand.
@@ -762,7 +772,6 @@ impl Bar {
             return crate::wayland_layers::tooltip::panel_surface(
                 window,
                 &self.tooltip_for(target),
-                self.tooltip.is_settled(window),
                 &self.config,
             );
         }

@@ -6,13 +6,8 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
-    Alignment, Border, Color, Element, Font, Length, Pixels, Size,
-    advanced::{
-        graphics::text::Paragraph,
-        text::{Alignment as TextAlignment, LineHeight, Paragraph as _, Shaping, Text, Wrapping},
-    },
-    alignment::Vertical,
-    widget::{Column, Row, button, container, image, mouse_area, rich_text, svg, text::Span},
+    Alignment, Border, Color, Element, Font, Length,
+    widget::{Column, Row, button, container, image, mouse_area, rich_text, svg},
 };
 
 use super::{Notification, NotificationMessage, markup};
@@ -23,7 +18,7 @@ use crate::{
         source::app_icon::DesktopEntries,
     },
     wayland_layers::tooltip::relative,
-    widgets::text::bar_text,
+    widgets::text::{TextStyle, bar_text},
 };
 
 const PADDING_PX: f32 = 10.0;
@@ -111,58 +106,6 @@ fn over(fg: Color, bg: Color) -> Color {
     }
 }
 
-fn layout_text(content: &str, size: f32, font: Font, width: f32) -> Text<&str> {
-    Text {
-        content,
-        bounds: Size::new(width, f32::INFINITY),
-        size: Pixels(size),
-        line_height: LineHeight::default(),
-        font,
-        align_x: TextAlignment::Left,
-        align_y: Vertical::Top,
-        shaping: Shaping::Advanced,
-        wrapping: Wrapping::Word,
-    }
-}
-
-fn text_block_height(content: &str, size: f32, font: Font, width: f32) -> f32 {
-    if content.is_empty() {
-        return 0.0;
-    }
-    Paragraph::with_text(layout_text(content, size, font, width))
-        .min_bounds()
-        .height
-}
-
-fn text_line_width(content: &str, size: f32, font: Font) -> f32 {
-    if content.is_empty() {
-        return 0.0;
-    }
-    Paragraph::with_text(layout_text(content, size, font, f32::INFINITY))
-        .min_bounds()
-        .width
-}
-
-fn spans_block_height(spans: &[Span<'_>], size: f32, font: Font, width: f32) -> f32 {
-    if spans.is_empty() {
-        return 0.0;
-    }
-    let base = layout_text("", size, font, width);
-    Paragraph::with_spans(Text {
-        content: spans,
-        bounds: base.bounds,
-        size: base.size,
-        line_height: base.line_height,
-        font: base.font,
-        align_x: base.align_x,
-        align_y: base.align_y,
-        shaping: base.shaping,
-        wrapping: base.wrapping,
-    })
-    .min_bounds()
-    .height
-}
-
 pub fn measure_height(
     data: &crate::data::notifications::model::NotificationData,
     icons: &CardIcons,
@@ -170,11 +113,8 @@ pub fn measure_height(
 ) -> f32 {
     let font = &config.font;
     let notifications = &config.notifications;
-    let bold = Font {
-        weight: iced::font::Weight::Bold,
-        ..font.iced_font
-    };
-    let subtext = font.text_size_px * SUBTEXT_SCALE;
+    let base = TextStyle::of(font);
+    let subtext = base.scaled(SUBTEXT_SCALE);
 
     let icon_extent = match (&icons.image, &icons.badge) {
         (Some(_), _) => Some(notifications.image_size),
@@ -189,49 +129,44 @@ pub fn measure_height(
         .iter()
         .any(|a| a.key != "default" && !a.label.trim().is_empty());
     let has_body = !data.body.is_empty();
-    let reltime_width = text_line_width(WIDEST_RELTIME, subtext, font.iced_font) + ROW_SPACING;
+    let reltime_width = subtext.measure(WIDEST_RELTIME).width + ROW_SPACING;
 
     let app_name_beside_title = if data.app_name.is_empty() {
         0.0
     } else {
-        text_line_width(&data.app_name, subtext, font.iced_font) + ROW_SPACING
+        subtext.measure(&data.app_name).width + ROW_SPACING
     };
     let time_beside_title = if !has_actions && !has_body {
         reltime_width
     } else {
         0.0
     };
-    let title = text_block_height(
-        &data.summary,
-        font.text_size_px,
-        bold,
-        column_width - app_name_beside_title - time_beside_title,
-    );
+    let title = base
+        .bold()
+        .measure_wrapped(
+            &data.summary,
+            column_width - app_name_beside_title - time_beside_title,
+        )
+        .height;
 
     let body = if has_body {
         let time_beside_body = if has_actions { 0.0 } else { reltime_width };
         let spans = markup::body_spans(
             &data.body,
             config.palette.inactive,
-            subtext,
+            subtext.size(),
             font,
             Font::MONOSPACE,
         );
-        spans_block_height(
-            &spans,
-            subtext,
-            font.iced_font,
-            column_width - time_beside_body,
-        )
+        subtext
+            .measure_spans(&spans, column_width - time_beside_body)
+            .height
     } else {
         0.0
     };
 
     let actions = if has_actions {
-        LineHeight::default()
-            .to_absolute(Pixels(font.text_size_px))
-            .0
-            + 2.0 * BUTTON_PADDING[0]
+        base.line_height() + 2.0 * BUTTON_PADDING[0]
     } else {
         0.0
     };

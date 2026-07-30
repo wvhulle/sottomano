@@ -1,7 +1,13 @@
 use std::collections::HashMap;
 
 use iced::{
-    Color, Font,
+    Color, Font, Pixels, Size,
+    advanced::{
+        graphics::text::Paragraph,
+        text::{self as advanced_text, Paragraph as _},
+    },
+    alignment::Vertical,
+    font::{Style, Weight},
     widget::{
         Text, span, text,
         text::{IntoFragment, Shaping, Span},
@@ -20,6 +26,102 @@ pub fn bar_text<'a>(
         .size(font.text_size_px)
         .font(font.iced_font)
         .shaping(Shaping::Advanced)
+}
+
+#[derive(Clone, Copy)]
+pub struct TextStyle {
+    font: Font,
+    size: f32,
+}
+
+impl TextStyle {
+    pub fn of(font: &ResolvedFontConfig) -> Self {
+        Self {
+            font: font.iced_font,
+            size: font.text_size_px,
+        }
+    }
+
+    pub fn bold(self) -> Self {
+        Self {
+            font: Font {
+                weight: Weight::Bold,
+                ..self.font
+            },
+            ..self
+        }
+    }
+
+    pub fn italic(self) -> Self {
+        Self {
+            font: Font {
+                style: Style::Italic,
+                ..self.font
+            },
+            ..self
+        }
+    }
+
+    pub fn scaled(self, factor: f32) -> Self {
+        Self {
+            size: self.size * factor,
+            ..self
+        }
+    }
+
+    pub fn size(self) -> f32 {
+        self.size
+    }
+
+    pub fn line_height(self) -> f32 {
+        advanced_text::LineHeight::default()
+            .to_absolute(Pixels(self.size))
+            .0
+    }
+
+    pub fn measure(self, content: &str) -> Size {
+        self.measure_wrapped(content, f32::INFINITY)
+    }
+
+    pub fn measure_wrapped(self, content: &str, width: f32) -> Size {
+        if content.is_empty() {
+            return Size::ZERO;
+        }
+        Paragraph::with_text(self.layout(content, width)).min_bounds()
+    }
+
+    pub fn measure_spans(self, spans: &[Span<'_>], width: f32) -> Size {
+        if spans.is_empty() {
+            return Size::ZERO;
+        }
+        let base = self.layout("", width);
+        Paragraph::with_spans(advanced_text::Text {
+            content: spans,
+            bounds: base.bounds,
+            size: base.size,
+            line_height: base.line_height,
+            font: base.font,
+            align_x: base.align_x,
+            align_y: base.align_y,
+            shaping: base.shaping,
+            wrapping: base.wrapping,
+        })
+        .min_bounds()
+    }
+
+    fn layout(self, content: &str, width: f32) -> advanced_text::Text<&str> {
+        advanced_text::Text {
+            content,
+            bounds: Size::new(width, f32::INFINITY),
+            size: Pixels(self.size),
+            line_height: advanced_text::LineHeight::default(),
+            font: self.font,
+            align_x: advanced_text::Alignment::Left,
+            align_y: Vertical::Top,
+            shaping: advanced_text::Shaping::Advanced,
+            wrapping: advanced_text::Wrapping::Word,
+        }
+    }
 }
 
 /// Split `content` into rich-text spans: the bar font for glyphs it has, the
