@@ -73,7 +73,9 @@ fn scan_kernel_errors(journal: &mut Journal) -> Vec<KernelEntry> {
     let mut entries = Vec::new();
     while let Ok(Some(record)) = journal.next_entry() {
         let (Some(priority), Some(message)) = (
-            record.get("PRIORITY").and_then(|priority| priority.parse().ok()),
+            record
+                .get("PRIORITY")
+                .and_then(|priority| priority.parse().ok()),
             record.get("MESSAGE"),
         ) else {
             continue;

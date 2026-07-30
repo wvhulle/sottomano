@@ -142,9 +142,12 @@ impl IdleTimer {
     /// tight gap) so the button clearly binds to this subsystem's value.
     pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, TimerMessage> {
         let slider = self.control.view(config, reveal).map(TimerMessage::Slider);
-        let trigger = self
-            .button
-            .view(config, reveal, self.timeout.is_some(), TimerMessage::Trigger);
+        let trigger = self.button.view(
+            config,
+            reveal,
+            self.timeout.is_some(),
+            TimerMessage::Trigger,
+        );
         let pair_gap = config.layout.horizontal_widget_spacing_px * 0.25;
         Row::with_children([slider, trigger])
             .spacing(pair_gap)

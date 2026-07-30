@@ -190,7 +190,6 @@ mod css_color {
 #[serde(default)]
 pub struct Layout {
     pub corner_radius_px: u16,
-    pub vertical_padding_px: f32,
     pub horizontal_group_padding_px: f32,
     pub horizontal_widget_spacing_px: f32,
     pub horizontal_group_spacing_px: f32,
@@ -210,7 +209,6 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             corner_radius_px: 8,
-            vertical_padding_px: 3.0,
             horizontal_group_padding_px: 5.0,
             horizontal_widget_spacing_px: 5.0,
             horizontal_group_spacing_px: 16.0,
@@ -218,7 +216,7 @@ impl Default for Layout {
             blur: false,
             shadow: true,
             slider_width_px: 60.0,
-            outer_height_px: 28.0,
+            outer_height_px: 24.0,
             focus_underline_thickness_px: 3.4,
             window_segment_thickness_px: 2.0,
             menu_expand_ms: 90,

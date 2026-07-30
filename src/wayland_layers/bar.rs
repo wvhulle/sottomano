@@ -274,10 +274,7 @@ fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<
     .unwrap_or_else(|| Space::new().into());
     row![start, middle, end]
         .align_y(Alignment::Center)
-        .padding([
-            config.layout.vertical_padding_px,
-            config.layout.horizontal_group_padding_px,
-        ])
+        .padding([0.0, config.layout.horizontal_group_padding_px])
         .into()
 }
 
@@ -295,9 +292,6 @@ fn bar_row<'a>(
         end,
     ]
     .align_y(Alignment::Center)
-    .padding([
-        config.layout.vertical_padding_px,
-        config.layout.horizontal_group_padding_px,
-    ])
+    .padding([0.0, config.layout.horizontal_group_padding_px])
     .into()
 }

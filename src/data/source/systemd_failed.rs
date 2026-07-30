@@ -61,7 +61,11 @@ impl<const USER: bool> BarWidget for Failed<USER> {
                 .into_iter()
                 .map(|unit| LogEntry {
                     at: unit.at.unwrap_or_else(SystemTime::now),
-                    message: format!("{} ({})", unit.name, describe_failure(&unit.result, unit.status)),
+                    message: format!(
+                        "{} ({})",
+                        unit.name,
+                        describe_failure(&unit.result, unit.status)
+                    ),
                     level: Self::severity(Self::recent(unit)),
                 })
                 .collect(),

@@ -719,18 +719,16 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
         a: 1.0,
         ..config.palette.bar_background
     };
-    let border_color = Color {
-        a: 0.25,
-        ..config.palette.bar_foreground
-    };
     let radius = f32::from(config.layout.corner_radius_px);
     container(body)
+        .width(Length::Fill)
+        .height(Length::Fill)
         .padding(PANEL_PADDING)
         .style(move |_| container::Style {
             background: Some(background.into()),
             border: Border {
-                color: border_color,
-                width: 1.0,
+                color: Color::TRANSPARENT,
+                width: 0.0,
                 radius: radius.into(),
             },
             text_color: Some(foreground),

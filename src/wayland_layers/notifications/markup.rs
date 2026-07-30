@@ -181,7 +181,6 @@ mod tests {
             text_size_px: 14.0,
             icon_size_px: 14.0,
             data: std::sync::Arc::from([].as_slice()),
-            descent_px: 0.0,
             covered: std::sync::Arc::new(std::collections::HashSet::new()),
         };
         body_spans(

@@ -97,9 +97,6 @@ pub struct ResolvedFontConfig {
     pub text_size_px: f32,
     pub icon_size_px: f32,
     pub data: Arc<[u8]>,
-    /// Font descent in px at the bar text size.
-    pub descent_px: f32,
-    /// The codepoints the font has glyphs for.
     pub covered: Arc<HashSet<char>>,
 }
 
@@ -193,8 +190,6 @@ fn resolve_font(config: &DiskFontConfig) -> ResolvedFontConfig {
         .and_then(|path| std::fs::read(path).ok())
         .expect("no readable sans-serif font found");
     let face = ttf_parser::Face::parse(&bytes, 0).expect("sans-serif font failed to parse");
-    let descent_px = f32::from(face.descender().unsigned_abs()) / f32::from(face.units_per_em())
-        * config.text_size_px;
     let covered = covered_chars(&face);
     let iced_font = Font::with_name(String::leak(name));
     ResolvedFontConfig {
@@ -202,7 +197,6 @@ fn resolve_font(config: &DiskFontConfig) -> ResolvedFontConfig {
         text_size_px: config.text_size_px,
         icon_size_px: config.icon_size_px,
         data: Arc::from(bytes),
-        descent_px,
         covered: Arc::new(covered),
     }
 }

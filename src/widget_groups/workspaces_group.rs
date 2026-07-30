@@ -1,8 +1,8 @@
 //! Niri workspace pager.
 
 use iced::{
-    Alignment, Element, Padding,
-    widget::{Row, container, mouse_area, row},
+    Alignment, Element,
+    widget::{Row, mouse_area, row},
 };
 
 use crate::{
@@ -85,7 +85,7 @@ fn workspace_label<'a>(
     };
     let named = p.name.as_deref().is_some_and(|n| !n.is_empty());
 
-    let label: Element<'a, WorkspacesMessage> = match &p.name {
+    match &p.name {
         Some(name) if named && p.idx <= 10 => row![
             bar_text(&config.font, key)
                 .size(config.font.text_size_px * 0.7)
@@ -96,16 +96,5 @@ fn workspace_label<'a>(
         .into(),
         Some(name) if named => bar_text(&config.font, name.clone()).into(),
         _ => bar_text(&config.font, key).into(),
-    };
-
-    // Drop the label by the font's descent so its glyphs sit centred between the
-    // inner hairline and the outer window ticks. iced centres the full line box
-    // (ascent + descent + leading), so a label with no descenders sits high by
-    // exactly the reserved descent; padding the top by that cancels it.
-    container(label)
-        .padding(Padding {
-            top: config.font.descent_px,
-            ..Padding::ZERO
-        })
-        .into()
+    }
 }
