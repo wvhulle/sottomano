@@ -18,13 +18,12 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
+    data::source::{
+        app_icon::DesktopEntries, desktop_entries::DesktopIndex, font_awesome::Solid, niri,
+    },
     message_subscriptions::blocking,
     wayland_layers::surface::Position,
-    widgets::{
-        icon::Icon,
-        menu_group::{MenuGroup, MenuMessage},
-    },
+    widgets::menu_group::{MenuGroup, MenuMessage},
 };
 
 /// How many ranked icons to show at most (odin's `maxItems`).
@@ -111,8 +110,8 @@ impl QuickLaunch {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
         let handle = mouse_area(
-            Icon::Rocket
-                .solid()
+            Solid::Rocket
+                .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )

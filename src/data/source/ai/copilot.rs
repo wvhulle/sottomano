@@ -12,14 +12,12 @@ use std::{
 use chrono::DateTime;
 use serde_json::Value;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, TooltipBody, Unit, Value as GaugeValue,
-        ai::{ApiSource, level_from_cost, read_secret},
-        command::{exists, output},
-        row,
-    },
-    widgets::{brand::BrandMark, icon::Icon},
+use crate::data::source::{
+    BarWidget, Glyph, Level, TooltipBody, Unit, Value as GaugeValue,
+    ai::{ApiSource, level_from_cost, read_secret},
+    command::{exists, output},
+    row,
+    simple_icons::SimpleIcon,
 };
 
 const USER_URL: &str = "https://api.github.com/copilot_internal/user";
@@ -38,12 +36,8 @@ pub struct CopilotMetered {
 }
 
 impl BarWidget for CopilotMetered {
-    fn icon(&self) -> Icon {
-        Icon::Robot
-    }
-
-    fn brand(&self) -> Option<BrandMark> {
-        Some(BrandMark::GithubCopilot)
+    fn icon(&self) -> Glyph {
+        SimpleIcon::GithubCopilot.into()
     }
 
     fn level(&self) -> Level {
@@ -133,12 +127,8 @@ pub struct CopilotFree {
 }
 
 impl BarWidget for CopilotFree {
-    fn icon(&self) -> Icon {
-        Icon::Robot
-    }
-
-    fn brand(&self) -> Option<BrandMark> {
-        Some(BrandMark::GithubCopilot)
+    fn icon(&self) -> Glyph {
+        SimpleIcon::GithubCopilot.into()
     }
 
     fn label(&self) -> Option<String> {
@@ -203,12 +193,8 @@ pub struct CopilotCcusage {
 }
 
 impl BarWidget for CopilotCcusage {
-    fn icon(&self) -> Icon {
-        Icon::Robot
-    }
-
-    fn brand(&self) -> Option<BrandMark> {
-        Some(BrandMark::GithubCopilot)
+    fn icon(&self) -> Glyph {
+        SimpleIcon::GithubCopilot.into()
     }
 
     fn label(&self) -> Option<String> {

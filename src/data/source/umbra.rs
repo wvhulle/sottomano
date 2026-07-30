@@ -8,8 +8,8 @@
 use std::time::Duration;
 
 use crate::{
-    data::source::{BarWidget, Source, TooltipBody, command, row},
-    widgets::{icon::Icon, toggle_control::Toggle},
+    data::source::{BarWidget, Glyph, Source, TooltipBody, command, font_awesome::Solid, row},
+    widgets::toggle_control::Toggle,
 };
 
 #[derive(Debug, Clone)]
@@ -18,8 +18,12 @@ pub struct Umbra {
 }
 
 impl BarWidget for Umbra {
-    fn icon(&self) -> Icon {
-        if self.dark { Icon::Moon } else { Icon::Sun }
+    fn icon(&self) -> Glyph {
+        if self.dark {
+            Solid::Moon.into()
+        } else {
+            Solid::Sun.into()
+        }
     }
 
     fn tooltip(&self) -> TooltipBody {

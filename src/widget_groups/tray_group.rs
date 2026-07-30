@@ -20,6 +20,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     data::source::{
         Tooltip, TooltipBody,
+        font_awesome::Solid,
         tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
     },
     wayland_layers::{
@@ -28,7 +29,6 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
-        icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
     },
@@ -124,8 +124,8 @@ impl TrayGroup {
         let reveal = self.menu.reveal();
 
         let handle = mouse_area(
-            Icon::LayerGroup
-                .solid()
+            Solid::LayerGroup
+                .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
@@ -184,8 +184,8 @@ fn item_view<'a>(
     let side = config.font.icon_size_px;
     let glyph: Element<'a, TrayMessage> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
-        None => Icon::Question
-            .solid()
+        None => Solid::Question
+            .widget()
             .size(side)
             .color(config.palette.bar_foreground.scale_alpha(reveal))
             .into(),

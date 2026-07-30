@@ -6,13 +6,11 @@ use std::time::Duration;
 
 use serde_json::Value as Json;
 
-use crate::{
-    data::source::{
-        BarWidget, Source, TooltipBody,
-        command::{output, run},
-        row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Source, TooltipBody,
+    command::{output, run},
+    font_awesome::Solid,
+    row,
 };
 
 #[derive(Debug, Clone)]
@@ -45,8 +43,8 @@ fn first_ip(node: &Json) -> String {
 }
 
 impl BarWidget for Tailscale {
-    fn icon(&self) -> Icon {
-        Icon::CircleNodes
+    fn icon(&self) -> Glyph {
+        Solid::CircleNodes.into()
     }
 
     fn disabled(&self) -> bool {

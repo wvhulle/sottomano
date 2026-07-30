@@ -15,8 +15,8 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
+    data::source::font_awesome::Solid,
     widgets::{
-        icon::Icon,
         native_icon::{IconSource, native_icon},
         text::bar_text,
     },
@@ -129,7 +129,7 @@ fn entry<'a, Message: Clone + 'a>(
         .map(|source| native_icon(source, icon_size, 1.0))
         .or_else(|| {
             matches!(node.kind, MenuKind::Toggle(true))
-                .then(|| Icon::Check.solid().size(icon_size).color(color).into())
+                .then(|| Solid::Check.widget().size(icon_size).color(color).into())
         });
 
     let mut row = Row::new()
@@ -142,13 +142,16 @@ fn entry<'a, Message: Clone + 'a>(
     row = row.push(bar_text(&config.font, node.label.clone()).color(color));
     if matches!(node.kind, MenuKind::Submenu) {
         let chevron = if submenu_open {
-            Icon::ChevronDown
+            Solid::ChevronDown
         } else {
-            Icon::ChevronRight
+            Solid::ChevronRight
         };
-        row = row
-            .push(Space::new().width(Length::Fill))
-            .push(chevron.solid().size(icon_size * CHEVRON_SCALE).color(color));
+        row = row.push(Space::new().width(Length::Fill)).push(
+            chevron
+                .widget()
+                .size(icon_size * CHEVRON_SCALE)
+                .color(color),
+        );
     }
 
     let accent = config.palette.focus;

@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::{BarWidget, level_color},
+    data::source::{BarWidget, Glyph, level_color},
     widgets::text::bar_text,
 };
 
@@ -22,15 +22,14 @@ pub fn source_reading<'a, Message: 'a>(
     let widget = widget?;
     let dim = if widget.disabled() { 0.4 } else { 1.0 };
     let color = level_color(config, widget.level()).scale_alpha(alpha * dim);
-    let icon: Element<Message> = match widget.brand() {
-        Some(mark) => svg(mark.handle())
+    let icon: Element<Message> = match widget.icon() {
+        Glyph::SimpleIcon(mark) => svg(mark.handle())
             .width(config.font.icon_size_px)
             .height(config.font.icon_size_px)
             .style(move |_, _| svg::Style { color: Some(color) })
             .into(),
-        None => widget
-            .icon()
-            .solid()
+        Glyph::FontAwesome(icon) => icon
+            .widget()
             .size(config.font.icon_size_px)
             .color(color)
             .into(),

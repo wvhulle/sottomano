@@ -3,7 +3,9 @@
 use std::time::Duration;
 
 use super::{battery::ChargeStatus, first_power_supply, read_trimmed};
-use crate::data::source::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
+};
 
 const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
@@ -16,10 +18,10 @@ pub struct PowerDraw {
 }
 
 impl BarWidget for PowerDraw {
-    fn icon(&self) -> Icon {
+    fn icon(&self) -> Glyph {
         match self.status {
-            ChargeStatus::Discharging | ChargeStatus::Unknown => Icon::PlugCircleMinus,
-            _ => Icon::PlugCirclePlus,
+            ChargeStatus::Discharging | ChargeStatus::Unknown => Solid::PlugCircleMinus.into(),
+            _ => Solid::PlugCirclePlus.into(),
         }
     }
 

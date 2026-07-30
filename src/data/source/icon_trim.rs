@@ -1,8 +1,8 @@
 //! Trim the transparent margin that desktop-theme app icons ship with.
 //!
-//! Icon themes (Colloid, Papirus, …) draw each glyph inside a padded canvas —
-//! e.g. artwork occupying the central ~80% of a 24×24 box. Rendered at the
-//! same nominal side as a Font Awesome glyph (which fills its em-box), the
+//! FontAwesome themes (Colloid, Papirus, …) draw each glyph inside a padded
+//! canvas — e.g. artwork occupying the central ~80% of a 24×24 box. Rendered at
+//! the same nominal side as a Font Awesome glyph (which fills its em-box), the
 //! themed icon then looks noticeably smaller and lighter than its neighbours.
 //!
 //! The QML original couldn't fix this: Quickshell served themed icons as opaque

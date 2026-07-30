@@ -4,14 +4,12 @@
 
 use std::time::Duration;
 
-use crate::{
-    data::source::{
-        BarWidget, Source, TooltipBody,
-        command::output,
-        net_interfaces::{dash, terse_split},
-        row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Source, TooltipBody,
+    command::output,
+    font_awesome::Solid,
+    net_interfaces::{dash, terse_split},
+    row,
 };
 
 #[derive(Debug, Clone)]
@@ -35,8 +33,8 @@ impl Ethernet {
 }
 
 impl BarWidget for Ethernet {
-    fn icon(&self) -> Icon {
-        Icon::Ethernet
+    fn icon(&self) -> Glyph {
+        Solid::Ethernet.into()
     }
 
     fn disabled(&self) -> bool {

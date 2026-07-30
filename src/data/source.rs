@@ -13,12 +13,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use font_awesome::{Brands, FontAwesome, Solid};
 use iced::Color;
+use simple_icons::SimpleIcon;
 
-use crate::{
-    config::resolved::ResolvedConfig,
-    widgets::{brand::BrandMark, icon::Icon},
-};
+use crate::config::resolved::ResolvedConfig;
 
 pub mod ai;
 pub mod app_icon;
@@ -30,6 +29,7 @@ pub mod command;
 pub mod desktop_entries;
 pub mod disk;
 pub mod favicons;
+pub mod font_awesome;
 pub mod gamma;
 pub mod geolocation;
 pub mod icon_trim;
@@ -40,6 +40,7 @@ pub mod mpris;
 pub mod net_interfaces;
 pub mod niri;
 pub mod power_profile;
+pub mod simple_icons;
 pub mod sysfs_sensors;
 pub mod systemd_failed;
 pub mod tailscale;
@@ -191,12 +192,38 @@ pub fn level_color(config: &ResolvedConfig, level: Level) -> Color {
     }
 }
 
-pub trait BarWidget {
-    fn icon(&self) -> Icon;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Glyph {
+    FontAwesome(FontAwesome),
+    SimpleIcon(SimpleIcon),
+}
 
-    fn brand(&self) -> Option<BrandMark> {
-        None
+impl From<FontAwesome> for Glyph {
+    fn from(icon: FontAwesome) -> Self {
+        Glyph::FontAwesome(icon)
     }
+}
+
+impl From<Solid> for Glyph {
+    fn from(icon: Solid) -> Self {
+        Glyph::FontAwesome(FontAwesome::Solid(icon))
+    }
+}
+
+impl From<Brands> for Glyph {
+    fn from(icon: Brands) -> Self {
+        Glyph::FontAwesome(FontAwesome::Brands(icon))
+    }
+}
+
+impl From<SimpleIcon> for Glyph {
+    fn from(icon: SimpleIcon) -> Self {
+        Glyph::SimpleIcon(icon)
+    }
+}
+
+pub trait BarWidget {
+    fn icon(&self) -> Glyph;
 
     fn label(&self) -> Option<String> {
         None

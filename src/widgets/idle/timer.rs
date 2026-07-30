@@ -10,11 +10,10 @@ use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::{Tooltip, TooltipBody, row},
+    data::source::{Tooltip, TooltipBody, font_awesome::FontAwesome, row},
     wayland_layers::tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},
-        icon::Icon,
         idle::{Arm, IdleAction, MAX_POSITION, from_position, label_at, label_for, position},
         slider_control::{Action, ControlMessage, SliderControl},
     },
@@ -55,7 +54,7 @@ pub struct IdleTimer {
 }
 
 impl IdleTimer {
-    pub fn new(icon: Icon, target: HoverTarget, action: IdleAction, confirms: bool) -> Self {
+    pub fn new(icon: FontAwesome, target: HoverTarget, action: IdleAction, confirms: bool) -> Self {
         Self {
             control: SliderControl::new(0.0..=MAX_POSITION, target.clone(), icon)
                 .readout_width(READOUT_WIDTH)

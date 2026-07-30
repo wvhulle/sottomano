@@ -16,9 +16,8 @@ use std::{
 
 use systemd::journal::{JournalRecord, OpenOptions};
 
-use crate::{
-    data::source::{BarWidget, Level, LogEntry, Source, TooltipBody},
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, LogEntry, Source, TooltipBody, font_awesome::Brands,
 };
 
 /// Only errors within this window are counted (odin's `horizon`); older ones
@@ -49,9 +48,9 @@ pub struct KernelErrors {
 }
 
 impl BarWidget for KernelErrors {
-    fn icon(&self) -> Icon {
+    fn icon(&self) -> Glyph {
         // odin's `icon: "linux"` — the Tux brand glyph.
-        Icon::Linux
+        Brands::Linux.into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -61,7 +60,7 @@ impl BarWidget for KernelErrors {
     }
 
     fn level(&self) -> Level {
-        // Icon severity is the most severe row, so a crit/emerg line turns the
+        // FontAwesome severity is the most severe row, so a crit/emerg line turns the
         // bar red (odin's rule).
         self.errors
             .iter()

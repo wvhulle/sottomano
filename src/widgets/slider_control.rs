@@ -20,11 +20,10 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::{BarWidget, Level, TooltipBody, Unit, Value},
+    data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
     widgets::{
-        icon::Icon,
         icon_gauge::source_reading,
         inline_slider::inline_slider,
         text::bar_text,
@@ -63,8 +62,8 @@ pub struct SliderControl {
     /// The bar/menu icon. A static default plus an optional
     /// value/disabled-driven override for the audio glyph (volume level,
     /// mute).
-    icon: Icon,
-    glyph: Option<fn(f32, bool) -> Icon>,
+    icon: FontAwesome,
+    glyph: Option<fn(f32, bool) -> FontAwesome>,
     /// Trip points tinting the rail and gauge (none = always [`Level::Ok`]).
     thresholds: SeverityThresholds,
     target: HoverTarget,
@@ -139,7 +138,7 @@ impl SliderControl {
     /// A slider over `range` with the collapsed `icon`, emitting tooltips for
     /// `target`. Defaults: one-unit scroll step, 40px readout, gauge indicator,
     /// no thresholds, no right-click. Override via the builder methods.
-    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: Icon) -> Self {
+    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: FontAwesome) -> Self {
         Self {
             open: false,
             accum: 0.0,
@@ -208,7 +207,7 @@ impl SliderControl {
 
     /// A value/disabled-driven glyph override (default: the static icon).
     #[must_use]
-    pub fn glyph(mut self, glyph: fn(f32, bool) -> Icon) -> Self {
+    pub fn glyph(mut self, glyph: fn(f32, bool) -> FontAwesome) -> Self {
         self.glyph = Some(glyph);
         self
     }
@@ -249,7 +248,7 @@ impl SliderControl {
         self.thresholds.level(self.current())
     }
 
-    fn effective_icon(&self) -> Icon {
+    fn effective_icon(&self) -> FontAwesome {
         self.glyph
             .map_or(self.icon, |glyph| glyph(self.current(), self.disabled))
     }
@@ -300,7 +299,7 @@ impl SliderControl {
         if self.open {
             let glyph = mouse_area(
                 self.effective_icon()
-                    .solid()
+                    .widget()
                     .size(config.font.icon_size_px)
                     .color(config.palette.bar_foreground),
             )
@@ -339,8 +338,8 @@ impl SliderControl {
 }
 
 impl BarWidget for SliderControl {
-    fn icon(&self) -> Icon {
-        self.effective_icon()
+    fn icon(&self) -> Glyph {
+        self.effective_icon().into()
     }
 
     fn label(&self) -> Option<String> {

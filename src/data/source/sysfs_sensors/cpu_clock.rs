@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::{core_freqs, favg, fmax, fmin, ghz};
-use crate::data::source::{BarWidget, Icon, Source, TooltipBody, row};
+use crate::data::source::{BarWidget, Glyph, Source, TooltipBody, font_awesome::Solid, row};
 
 /// One core's current frequency.
 #[derive(Debug, Clone, Copy)]
@@ -25,8 +25,8 @@ impl CpuClock {
 }
 
 impl BarWidget for CpuClock {
-    fn icon(&self) -> Icon {
-        Icon::GaugeHigh
+    fn icon(&self) -> Glyph {
+        Solid::GaugeHigh.into()
     }
 
     fn label(&self) -> Option<String> {

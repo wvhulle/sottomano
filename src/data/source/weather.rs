@@ -8,33 +8,33 @@ use std::time::Duration;
 
 use serde_json::Value as Json;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value, command::http_get, geolocation::Geo,
-        row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value,
+    command::http_get,
+    font_awesome::{FontAwesome, Solid},
+    geolocation::Geo,
+    row,
 };
 
 /// A WMO weather code to an icon and description (odin's `wmo-decode`).
-fn wmo(code: i64) -> (Icon, &'static str) {
+fn wmo(code: i64) -> (FontAwesome, &'static str) {
     match code {
-        0 => (Icon::Sun, "Clear sky"),
-        1 => (Icon::Sun, "Mainly clear"),
-        2 => (Icon::CloudSun, "Partly cloudy"),
-        3 => (Icon::Cloud, "Overcast"),
-        45 | 48 => (Icon::Smog, "Fog"),
-        51 | 53 | 55 => (Icon::CloudRain, "Drizzle"),
-        56 | 57 => (Icon::CloudRain, "Freezing drizzle"),
-        61 | 63 | 65 => (Icon::CloudShowersHeavy, "Rain"),
-        66 | 67 => (Icon::CloudShowersHeavy, "Freezing rain"),
-        71 | 73 | 75 => (Icon::Snowflake, "Snow"),
-        77 => (Icon::Snowflake, "Snow grains"),
-        80..=82 => (Icon::CloudShowersHeavy, "Rain showers"),
-        85 | 86 => (Icon::Snowflake, "Snow showers"),
-        95 => (Icon::CloudBolt, "Thunderstorm"),
-        96 | 99 => (Icon::CloudBolt, "Thunderstorm with hail"),
-        _ => (Icon::CloudSun, "Unknown"),
+        0 => (Solid::Sun.into(), "Clear sky"),
+        1 => (Solid::Sun.into(), "Mainly clear"),
+        2 => (Solid::CloudSun.into(), "Partly cloudy"),
+        3 => (Solid::Cloud.into(), "Overcast"),
+        45 | 48 => (Solid::Smog.into(), "Fog"),
+        51 | 53 | 55 => (Solid::CloudRain.into(), "Drizzle"),
+        56 | 57 => (Solid::CloudRain.into(), "Freezing drizzle"),
+        61 | 63 | 65 => (Solid::CloudShowersHeavy.into(), "Rain"),
+        66 | 67 => (Solid::CloudShowersHeavy.into(), "Freezing rain"),
+        71 | 73 | 75 => (Solid::Snowflake.into(), "Snow"),
+        77 => (Solid::Snowflake.into(), "Snow grains"),
+        80..=82 => (Solid::CloudShowersHeavy.into(), "Rain showers"),
+        85 | 86 => (Solid::Snowflake.into(), "Snow showers"),
+        95 => (Solid::CloudBolt.into(), "Thunderstorm"),
+        96 | 99 => (Solid::CloudBolt.into(), "Thunderstorm with hail"),
+        _ => (Solid::CloudSun.into(), "Unknown"),
     }
 }
 
@@ -47,7 +47,7 @@ fn round_i(json: Option<&Json>) -> Option<i64> {
 
 #[derive(Debug, Clone)]
 pub struct Temperature {
-    icon: Icon,
+    icon: FontAwesome,
     conditions: &'static str,
     temp: Option<i64>,
     feels: Option<i64>,
@@ -56,8 +56,8 @@ pub struct Temperature {
 }
 
 impl BarWidget for Temperature {
-    fn icon(&self) -> Icon {
-        self.icon
+    fn icon(&self) -> Glyph {
+        self.icon.into()
     }
 
     fn label(&self) -> Option<String> {
@@ -100,7 +100,7 @@ impl Source for Temperature {
         );
         // Keep the handle present (so the group shows) even when the fetch fails.
         let unavailable = Temperature {
-            icon: Icon::CloudSun,
+            icon: Solid::CloudSun.into(),
             conditions: "Unknown",
             temp: None,
             feels: None,
@@ -135,7 +135,7 @@ impl Source for Temperature {
 
 #[derive(Debug, Clone)]
 pub struct Rain {
-    icon: Icon,
+    icon: FontAwesome,
     mm_per_h: f64,
 }
 
@@ -149,8 +149,8 @@ fn buienradar_mm(value: f64) -> f64 {
 }
 
 impl BarWidget for Rain {
-    fn icon(&self) -> Icon {
-        self.icon
+    fn icon(&self) -> Glyph {
+        self.icon.into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -186,13 +186,13 @@ impl Source for Rain {
         }
         let mm = buienradar_mm(intensities[0]);
         let icon = if mm < 0.5 {
-            Icon::Droplet
+            Solid::Droplet.into()
         } else if mm < 2.5 {
-            Icon::CloudRain
+            Solid::CloudRain.into()
         } else if mm < 7.5 {
-            Icon::CloudShowersHeavy
+            Solid::CloudShowersHeavy.into()
         } else {
-            Icon::CloudBolt
+            Solid::CloudBolt.into()
         };
         Some(Rain { icon, mm_per_h: mm })
     }
@@ -238,8 +238,12 @@ impl<const GRASS: bool> Pollen<GRASS> {
 }
 
 impl<const GRASS: bool> BarWidget for Pollen<GRASS> {
-    fn icon(&self) -> Icon {
-        if GRASS { Icon::Seedling } else { Icon::Tree }
+    fn icon(&self) -> Glyph {
+        if GRASS {
+            Solid::Seedling.into()
+        } else {
+            Solid::Tree.into()
+        }
     }
 
     fn level(&self) -> Level {
@@ -328,11 +332,11 @@ pub struct Location {
 }
 
 impl BarWidget for Location {
-    fn icon(&self) -> Icon {
+    fn icon(&self) -> Glyph {
         if self.geo.source == "manual" {
-            Icon::LocationPinLock
+            Solid::LocationPinLock.into()
         } else {
-            Icon::LocationDot
+            Solid::LocationDot.into()
         }
     }
 

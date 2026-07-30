@@ -3,7 +3,9 @@
 use std::time::Duration;
 
 use super::{energy_wh, first_power_supply, read_trimmed};
-use crate::data::source::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
+};
 
 /// Power-source charge state, from `/sys/class/power_supply/*/status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,8 +47,8 @@ pub struct Battery {
 }
 
 impl BarWidget for Battery {
-    fn icon(&self) -> Icon {
-        Icon::CarBattery
+    fn icon(&self) -> Glyph {
+        Solid::CarBattery.into()
     }
 
     fn level(&self) -> Level {

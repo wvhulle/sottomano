@@ -4,14 +4,12 @@
 
 use std::time::Duration;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value,
-        command::output,
-        net_interfaces::{dash, signal_level, terse_split},
-        row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value,
+    command::output,
+    font_awesome::Solid,
+    net_interfaces::{dash, signal_level, terse_split},
+    row,
 };
 
 #[derive(Debug, Clone)]
@@ -31,8 +29,8 @@ pub struct Wifi {
 }
 
 impl BarWidget for Wifi {
-    fn icon(&self) -> Icon {
-        Icon::Wifi
+    fn icon(&self) -> Glyph {
+        Solid::Wifi.into()
     }
 
     fn disabled(&self) -> bool {

@@ -19,6 +19,7 @@ use crate::{
             copilot::{CopilotCcusage, CopilotFree, CopilotMetered},
             openrouter::OpenRouter,
         },
+        font_awesome::Solid,
     },
     message_subscriptions::poll_arg,
     wayland_layers::{
@@ -27,7 +28,6 @@ use crate::{
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
-        icon::Icon,
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
@@ -201,8 +201,8 @@ fn tooltip_of<S: ApiSource>(cell: &SourceCell<S>) -> Option<Tooltip> {
 }
 
 fn robot_handle<'a, Message: 'a>(config: &ResolvedConfig) -> Element<'a, Message> {
-    Icon::Robot
-        .solid()
+    Solid::Robot
+        .widget()
         .size(config.font.icon_size_px)
         .color(config.palette.bar_foreground)
         .into()

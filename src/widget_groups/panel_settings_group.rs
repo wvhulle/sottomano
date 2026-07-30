@@ -12,13 +12,12 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::{Tooltip, TooltipBody, row},
+    data::source::{Tooltip, TooltipBody, font_awesome::Solid, row},
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl},
     },
@@ -82,7 +81,7 @@ impl PanelSettingsGroup {
             offset: SliderControl::new(
                 OFFSET_RANGE,
                 HoverTarget::FloatOffset,
-                Icon::ArrowsToCircle,
+                Solid::ArrowsToCircle.into(),
             )
             .icon_only()
             .readout_width(44.0)
@@ -123,8 +122,8 @@ impl PanelSettingsGroup {
         let foreground = config.palette.bar_foreground;
         // The handle carries the toggle press (only the handle toggles).
         let handle: Element<'a, PanelSettingsMessage> = mouse_area(
-            Icon::Sliders
-                .solid()
+            Solid::Sliders
+                .widget()
                 .size(config.font.icon_size_px)
                 .color(foreground),
         )
@@ -134,8 +133,8 @@ impl PanelSettingsGroup {
         let floating = config.layout.floating;
         let floating_toggle = {
             let color = foreground.scale_alpha(if floating { 1.0 } else { 0.4 });
-            let icon = Icon::Compress
-                .solid()
+            let icon = Solid::Compress
+                .widget()
                 .size(config.font.icon_size_px)
                 .color(color);
             hoverable(

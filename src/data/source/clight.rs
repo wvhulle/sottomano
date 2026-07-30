@@ -16,8 +16,8 @@ use std::{env, fs, time::Duration};
 use zbus::blocking::{Connection, Proxy};
 
 use crate::{
-    data::source::{BarWidget, Source, TooltipBody, backlight, row},
-    widgets::{icon::Icon, toggle_control::Toggle},
+    data::source::{BarWidget, Glyph, Source, TooltipBody, backlight, font_awesome::Solid, row},
+    widgets::toggle_control::Toggle,
 };
 
 const DEST: &str = "org.clight.clight";
@@ -33,8 +33,12 @@ pub struct Clight {
 }
 
 impl BarWidget for Clight {
-    fn icon(&self) -> Icon {
-        if self.auto { Icon::Eye } else { Icon::EyeSlash }
+    fn icon(&self) -> Glyph {
+        if self.auto {
+            Solid::Eye.into()
+        } else {
+            Solid::EyeSlash.into()
+        }
     }
 
     /// Dim when under manual control — the auto pipeline is idle.

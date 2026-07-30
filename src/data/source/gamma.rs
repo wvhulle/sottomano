@@ -13,9 +13,8 @@ use zbus::{
     zvariant::Value as DbusValue,
 };
 
-use crate::{
-    data::source::{BarWidget, Source, TooltipBody, Unit, Value, row},
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
 const DEST: &str = "rs.wl-gammarelay";
@@ -34,8 +33,8 @@ pub struct Gamma {
 }
 
 impl BarWidget for Gamma {
-    fn icon(&self) -> Icon {
-        Icon::CircleHalfStroke
+    fn icon(&self) -> Glyph {
+        Solid::CircleHalfStroke.into()
     }
 
     fn value(&self) -> Option<Value> {

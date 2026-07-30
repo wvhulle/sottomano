@@ -20,6 +20,7 @@ use crate::{
     data::source::{
         Tooltip, TooltipBody,
         desktop_entries::DesktopIndex,
+        font_awesome::{FontAwesome, Solid},
         mpris,
         mpris::{Media, Status},
         niri, row,
@@ -30,7 +31,6 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
         text::bar_text,
     },
@@ -290,11 +290,11 @@ fn handle<'a>(
             .into();
     }
     let icon = if status == Status::Playing {
-        Icon::Music
+        Solid::Music
     } else {
-        Icon::Play
+        Solid::Play
     };
-    icon.solid()
+    icon.widget()
         .size(side)
         .color(config.palette.bar_foreground.scale_alpha(alpha))
         .into()
@@ -326,7 +326,7 @@ fn source_icon<'a>(
         };
     }
     player_icon(media)
-        .solid()
+        .widget()
         .size(side)
         .color(config.palette.bar_foreground.scale_alpha(alpha))
         .into()
@@ -337,7 +337,7 @@ fn source_icon<'a>(
 /// resolution) — mpd's "Music Player Daemon" yields the solid `music` glyph.
 /// Falls back to a generic music note when nothing matches. Used only when no
 /// themed app icon resolved.
-fn player_icon(media: &Media) -> Icon {
+fn player_icon(media: &Media) -> FontAwesome {
     let mut handles = Vec::new();
     if let Some(desktop) = &media.desktop_entry
         && !desktop.is_empty()
@@ -354,8 +354,8 @@ fn player_icon(media: &Media) -> Icon {
     );
     handles
         .iter()
-        .find_map(|handle| Icon::from_slug(handle))
-        .unwrap_or(Icon::Music)
+        .find_map(|handle| FontAwesome::from_slug(handle))
+        .unwrap_or(Solid::Music.into())
 }
 
 /// The transport row: previous / play-pause / stop / next, each shown only when
@@ -367,23 +367,25 @@ fn transport<'a>(
     reveal: f32,
 ) -> Element<'a, MediaMessage> {
     let color = config.palette.bar_foreground.scale_alpha(reveal * 0.9);
-    let button = |icon: Icon, method: &'static str| {
-        mouse_area(icon.solid().size(config.font.icon_size_px).color(color))
+    let button = |icon: FontAwesome, method: &'static str| {
+        mouse_area(icon.widget().size(config.font.icon_size_px).color(color))
             .on_press(MediaMessage::Transport(method))
             .into()
     };
     let toggle_icon = if status == Status::Playing {
-        Icon::Pause
+        Solid::Pause.into()
     } else {
-        Icon::Play
+        Solid::Play.into()
     };
     let buttons: Vec<Element<'a, MediaMessage>> = [
         media
             .can_prev
-            .then(|| button(Icon::BackwardStep, "Previous")),
+            .then(|| button(Solid::BackwardStep.into(), "Previous")),
         media.can_toggle.then(|| button(toggle_icon, "PlayPause")),
-        (status != Status::Stopped).then(|| button(Icon::Stop, "Stop")),
-        media.can_next.then(|| button(Icon::ForwardStep, "Next")),
+        (status != Status::Stopped).then(|| button(Solid::Stop.into(), "Stop")),
+        media
+            .can_next
+            .then(|| button(Solid::ForwardStep.into(), "Next")),
     ]
     .into_iter()
     .flatten()

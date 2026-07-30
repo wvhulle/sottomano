@@ -11,13 +11,11 @@ use std::{path::PathBuf, time::Duration};
 use chrono::{Local, SecondsFormat, TimeZone, Utc};
 use serde_json::{Value, json};
 
-use crate::{
-    data::source::{
-        BarWidget, Level, TooltipBody,
-        ai::{ApiSource, http, level_from_cost, read_secret},
-        row,
-    },
-    widgets::{brand::BrandMark, icon::Icon},
+use crate::data::source::{
+    BarWidget, Glyph, Level, TooltipBody,
+    ai::{ApiSource, http, level_from_cost, read_secret},
+    row,
+    simple_icons::SimpleIcon,
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -40,12 +38,8 @@ struct Credits {
 }
 
 impl BarWidget for OpenRouter {
-    fn icon(&self) -> Icon {
-        Icon::Route
-    }
-
-    fn brand(&self) -> Option<BrandMark> {
-        Some(BrandMark::OpenRouter)
+    fn icon(&self) -> Glyph {
+        SimpleIcon::OpenRouter.into()
     }
 
     fn label(&self) -> Option<String> {

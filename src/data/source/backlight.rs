@@ -20,9 +20,12 @@ use iced::Subscription;
 use zbus::blocking::{Connection, Proxy};
 
 use crate::{
-    data::source::{BarWidget, TooltipBody, Unit, Value, clight, row},
+    data::source::{
+        BarWidget, Glyph, TooltipBody, Unit, Value, clight,
+        font_awesome::{FontAwesome, Solid},
+        row,
+    },
     message_subscriptions::poll_every,
-    widgets::icon::Icon,
 };
 
 const DEST: &str = "org.clightd.clightd";
@@ -46,12 +49,18 @@ pub struct Backlight {
     pub percent: i64,
 }
 
-impl BarWidget for Backlight {
-    fn icon(&self) -> Icon {
+impl Backlight {
+    pub fn face(&self) -> FontAwesome {
         match self.kind {
-            Kind::Internal => Icon::Laptop,
-            Kind::External => Icon::Desktop,
+            Kind::Internal => Solid::Laptop.into(),
+            Kind::External => Solid::Desktop.into(),
         }
+    }
+}
+
+impl BarWidget for Backlight {
+    fn icon(&self) -> Glyph {
+        self.face().into()
     }
 
     fn value(&self) -> Option<Value> {

@@ -16,9 +16,8 @@ use zbus::{
     zvariant::OwnedObjectPath,
 };
 
-use crate::{
-    data::source::{BarWidget, Level, LogEntry, Source, TooltipBody},
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, LogEntry, Source, TooltipBody, font_awesome::Solid,
 };
 
 /// Only failures within this window colour the bar (odin's `horizon`).
@@ -70,8 +69,12 @@ impl<const USER: bool> Failed<USER> {
 }
 
 impl<const USER: bool> BarWidget for Failed<USER> {
-    fn icon(&self) -> Icon {
-        if USER { Icon::User } else { Icon::Server }
+    fn icon(&self) -> Glyph {
+        if USER {
+            Solid::User.into()
+        } else {
+            Solid::Server.into()
+        }
     }
 
     fn badge(&self) -> Option<u32> {

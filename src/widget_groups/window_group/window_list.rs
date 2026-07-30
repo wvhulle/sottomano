@@ -325,8 +325,8 @@ fn button_content<'a>(
     icon_beside_title(config, icon, title)
 }
 
-/// Icon (when resolved) and title in a horizontal row — the shared arrangement
-/// every current app-rule uses.
+/// FontAwesome (when resolved) and title in a horizontal row — the shared
+/// arrangement every current app-rule uses.
 fn icon_beside_title<'a>(
     config: &ResolvedConfig,
     icon: Option<Element<'a, WindowListMessage>>,
@@ -434,7 +434,7 @@ fn window_icon<'a>(
         .icon_candidates(win)
         .into_iter()
         .find_map(|c| resolve_candidate(icons, c))?;
-    // Icon themes (e.g. Colloid) ship scalable SVGs; hicolor app icons are
+    // FontAwesome themes (e.g. Colloid) ship scalable SVGs; hicolor app icons are
     // raster. iced's `image` widget only decodes raster formats, so SVGs must
     // go through the `svg` widget or they render blank.
     let is_svg = path

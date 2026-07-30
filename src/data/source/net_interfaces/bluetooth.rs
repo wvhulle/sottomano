@@ -4,12 +4,9 @@
 
 use std::time::Duration;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value, command::output,
-        net_interfaces::signal_level, row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, command::output,
+    font_awesome::Brands, net_interfaces::signal_level, row,
 };
 
 #[derive(Debug, Clone)]
@@ -42,8 +39,8 @@ fn parse_rssi(info: &str) -> Option<i64> {
 }
 
 impl BarWidget for Bluetooth {
-    fn icon(&self) -> Icon {
-        Icon::BluetoothB
+    fn icon(&self) -> Glyph {
+        Brands::BluetoothB.into()
     }
 
     fn disabled(&self) -> bool {

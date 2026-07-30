@@ -6,12 +6,9 @@ use std::time::Duration;
 
 use serde_json::Value as Json;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value, command::output,
-        net_interfaces::signal_level, row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, command::output,
+    font_awesome::Solid, net_interfaces::signal_level, row,
 };
 
 #[derive(Debug, Clone)]
@@ -28,8 +25,8 @@ pub struct Mobile {
 }
 
 impl BarWidget for Mobile {
-    fn icon(&self) -> Icon {
-        Icon::TowerCell
+    fn icon(&self) -> Glyph {
+        Solid::TowerCell.into()
     }
 
     fn disabled(&self) -> bool {

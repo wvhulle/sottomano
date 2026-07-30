@@ -2,7 +2,8 @@
 
 use std::{ffi::CStr, mem::zeroed, time::Duration};
 
-use super::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
+use super::{BarWidget, Level, Source, TooltipBody, Unit, Value, row};
+use crate::data::source::{Glyph, font_awesome::Solid};
 
 const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 const FREE_WARN_BYTES: u64 = 100_000_000_000; // 100 GB
@@ -25,8 +26,8 @@ impl Disk {
 }
 
 impl BarWidget for Disk {
-    fn icon(&self) -> Icon {
-        Icon::HardDrive
+    fn icon(&self) -> Glyph {
+        Solid::HardDrive.into()
     }
 
     fn level(&self) -> Level {

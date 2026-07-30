@@ -10,13 +10,11 @@
 
 use std::time::Duration;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, Source, TooltipBody, Unit, Value,
-        command::{exists, output, run},
-        row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value,
+    command::{exists, output, run},
+    font_awesome::Solid,
+    row,
 };
 
 /// The `wpctl` special-id for this direction's default node.
@@ -68,19 +66,19 @@ impl<const INPUT: bool> Audio<INPUT> {
 }
 
 impl<const INPUT: bool> BarWidget for Audio<INPUT> {
-    fn icon(&self) -> Icon {
+    fn icon(&self) -> Glyph {
         if INPUT {
             if self.muted || self.errored {
-                Icon::MicrophoneSlash
+                Solid::MicrophoneSlash.into()
             } else {
-                Icon::Microphone
+                Solid::Microphone.into()
             }
         } else if self.muted || self.errored {
-            Icon::VolumeXmark
+            Solid::VolumeXmark.into()
         } else if self.percent > 50 {
-            Icon::VolumeHigh
+            Solid::VolumeHigh.into()
         } else {
-            Icon::VolumeLow
+            Solid::VolumeLow.into()
         }
     }
 

@@ -14,14 +14,12 @@ use std::{
 use chrono::{DateTime, Local, Utc};
 use serde_json::Value;
 
-use crate::{
-    data::source::{
-        BarWidget, Level, Row, TooltipBody, Unit, Value as GaugeValue,
-        ai::{ApiSource, level_from_cost},
-        command::{exists, output},
-        row,
-    },
-    widgets::{brand::BrandMark, icon::Icon},
+use crate::data::source::{
+    BarWidget, Glyph, Level, Row, TooltipBody, Unit, Value as GaugeValue,
+    ai::{ApiSource, level_from_cost},
+    command::{exists, output},
+    row,
+    simple_icons::SimpleIcon,
 };
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
@@ -41,12 +39,8 @@ pub enum ClaudeOauth {
 }
 
 impl BarWidget for ClaudeOauth {
-    fn icon(&self) -> Icon {
-        Icon::Robot
-    }
-
-    fn brand(&self) -> Option<BrandMark> {
-        Some(BrandMark::Claude)
+    fn icon(&self) -> Glyph {
+        SimpleIcon::Claude.into()
     }
 
     fn label(&self) -> Option<String> {
@@ -169,12 +163,8 @@ pub struct ClaudeCcusage {
 }
 
 impl BarWidget for ClaudeCcusage {
-    fn icon(&self) -> Icon {
-        Icon::Robot
-    }
-
-    fn brand(&self) -> Option<BrandMark> {
-        Some(BrandMark::Claude)
+    fn icon(&self) -> Glyph {
+        SimpleIcon::Claude.into()
     }
 
     fn level(&self) -> Level {

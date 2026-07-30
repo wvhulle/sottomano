@@ -7,7 +7,7 @@
 
 use iced::{Color, Element, widget::mouse_area};
 
-use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
+use crate::{config::resolved::ResolvedConfig, data::source::font_awesome::Solid};
 
 /// The outcome of a click: fire the action now, or (first click on a
 /// confirm-gated button) arm and wait for the confirming second click.
@@ -55,15 +55,15 @@ impl ConfirmButton {
         on_press: Message,
     ) -> Element<'a, Message> {
         let (glyph, color) = if self.armed {
-            (Icon::TriangleExclamation, config.palette.urgent)
+            (Solid::TriangleExclamation, config.palette.urgent)
         } else {
-            (Icon::Bolt, config.palette.bar_foreground)
+            (Solid::Bolt, config.palette.bar_foreground)
         };
         let color = Color {
             a: color.a * alpha,
             ..color
         };
-        mouse_area(glyph.solid().size(config.font.icon_size_px).color(color))
+        mouse_area(glyph.widget().size(config.font.icon_size_px).color(color))
             .on_press(on_press)
             .into()
     }

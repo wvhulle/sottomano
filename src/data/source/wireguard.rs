@@ -10,13 +10,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value as Json;
 
-use crate::{
-    data::source::{
-        BarWidget, Source, TooltipBody,
-        command::{output, run},
-        row,
-    },
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Source, TooltipBody,
+    command::{output, run},
+    font_awesome::Solid,
+    row,
 };
 
 /// A peer whose last handshake is within this window counts as connected
@@ -55,11 +53,11 @@ impl Tunnel {
 }
 
 impl BarWidget for Tunnel {
-    fn icon(&self) -> Icon {
+    fn icon(&self) -> Glyph {
         if self.server {
-            Icon::Minimize
+            Solid::Minimize.into()
         } else {
-            Icon::LocationPinLock
+            Solid::LocationPinLock.into()
         }
     }
 
@@ -146,8 +144,8 @@ pub struct Wireguard {
 
 // Inert: the group renders each tunnel, never the aggregate.
 impl BarWidget for Wireguard {
-    fn icon(&self) -> Icon {
-        Icon::ShieldHalved
+    fn icon(&self) -> Glyph {
+        Solid::ShieldHalved.into()
     }
 
     fn tooltip(&self) -> TooltipBody {

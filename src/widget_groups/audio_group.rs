@@ -11,14 +11,12 @@ use crate::{
     data::source::{
         BarWidget, Tooltip,
         audio::{Audio, set_volume, toggle_mute},
+        font_awesome::Solid,
     },
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage},
     widget_groups::source_cell::SourceCell,
-    widgets::{
-        icon::Icon,
-        slider_control::{Action, ControlMessage, SliderControl},
-    },
+    widgets::slider_control::{Action, ControlMessage, SliderControl},
 };
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
@@ -42,31 +40,39 @@ impl Default for AudioGroup {
         Self {
             sink: SourceCell::default(),
             source: SourceCell::default(),
-            sink_control: SliderControl::new(RANGE, HoverTarget::AudioSink, Icon::VolumeHigh)
-                .scroll_step(SCROLL_STEP)
-                .readout(|value| format!("{}%", as_percent(value)))
-                .glyph(|value, off| {
-                    if off {
-                        Icon::VolumeXmark
-                    } else if value > 50.0 {
-                        Icon::VolumeHigh
-                    } else {
-                        Icon::VolumeLow
-                    }
-                })
-                .thresholds(80.0, 95.0, true),
-            source_control: SliderControl::new(RANGE, HoverTarget::AudioSource, Icon::Microphone)
-                .scroll_step(SCROLL_STEP)
-                .right_click(true)
-                .readout(|value| format!("{}%", as_percent(value)))
-                .glyph(|_value, off| {
-                    if off {
-                        Icon::MicrophoneSlash
-                    } else {
-                        Icon::Microphone
-                    }
-                })
-                .thresholds(50.0, 15.0, false),
+            sink_control: SliderControl::new(
+                RANGE,
+                HoverTarget::AudioSink,
+                Solid::VolumeHigh.into(),
+            )
+            .scroll_step(SCROLL_STEP)
+            .readout(|value| format!("{}%", as_percent(value)))
+            .glyph(|value, off| {
+                if off {
+                    Solid::VolumeXmark.into()
+                } else if value > 50.0 {
+                    Solid::VolumeHigh.into()
+                } else {
+                    Solid::VolumeLow.into()
+                }
+            })
+            .thresholds(80.0, 95.0, true),
+            source_control: SliderControl::new(
+                RANGE,
+                HoverTarget::AudioSource,
+                Solid::Microphone.into(),
+            )
+            .scroll_step(SCROLL_STEP)
+            .right_click(true)
+            .readout(|value| format!("{}%", as_percent(value)))
+            .glyph(|_value, off| {
+                if off {
+                    Solid::MicrophoneSlash.into()
+                } else {
+                    Solid::Microphone.into()
+                }
+            })
+            .thresholds(50.0, 15.0, false),
         }
     }
 }

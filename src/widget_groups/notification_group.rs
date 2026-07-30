@@ -9,7 +9,10 @@ use iced::{
     widget::{Row, mouse_area},
 };
 
-use crate::{config::resolved::ResolvedConfig, widgets::icon::Icon};
+use crate::{
+    config::resolved::ResolvedConfig,
+    data::source::font_awesome::{FontAwesome, Solid},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum NotificationGroupMessage {
@@ -21,9 +24,9 @@ pub fn view<'a>(config: &ResolvedConfig) -> Element<'a, NotificationGroupMessage
     let do_not_disturb = toggle(
         config,
         if config.dnd {
-            Icon::BellSlash
+            Solid::BellSlash.into()
         } else {
-            Icon::Bell
+            Solid::Bell.into()
         },
         // Muted reads as inactive, so dim it.
         !config.dnd,
@@ -32,9 +35,9 @@ pub fn view<'a>(config: &ResolvedConfig) -> Element<'a, NotificationGroupMessage
     let sound = toggle(
         config,
         if config.sound {
-            Icon::VolumeHigh
+            Solid::VolumeHigh.into()
         } else {
-            Icon::VolumeXmark
+            Solid::VolumeXmark.into()
         },
         config.sound,
         NotificationGroupMessage::ToggleSound,
@@ -51,7 +54,7 @@ pub fn view<'a>(config: &ResolvedConfig) -> Element<'a, NotificationGroupMessage
 /// One toggle icon, full-strength when `active` and dimmed when not.
 fn toggle<'a>(
     config: &ResolvedConfig,
-    icon: Icon,
+    icon: FontAwesome,
     active: bool,
     message: NotificationGroupMessage,
 ) -> Element<'a, NotificationGroupMessage> {
@@ -59,7 +62,7 @@ fn toggle<'a>(
         .palette
         .bar_foreground
         .scale_alpha(if active { 1.0 } else { 0.4 });
-    mouse_area(icon.solid().size(config.font.icon_size_px).color(color))
+    mouse_area(icon.widget().size(config.font.icon_size_px).color(color))
         .on_press(message)
         .into()
 }

@@ -7,10 +7,8 @@
 //! (`&ResolvedConfig`, `Position`) rather than a shared render context.
 
 pub mod activity_line;
-pub mod brand;
 pub mod confirm_button;
 pub mod context_menu;
-pub mod icon;
 pub mod icon_gauge;
 pub mod idle;
 pub mod inline_slider;

@@ -12,7 +12,11 @@ use adskalman::{
 use nalgebra::{Matrix1, U1, Vector1};
 
 use crate::{
-    data::source::{BarWidget, Icon, Source, TooltipBody, command, sysfs_sensors},
+    data::source::{
+        BarWidget, Glyph, Source, TooltipBody, command,
+        font_awesome::{FontAwesome, Solid},
+        sysfs_sensors,
+    },
     state::power::RateState,
 };
 
@@ -52,11 +56,11 @@ impl Profile {
         }
     }
 
-    pub fn icon(self) -> Icon {
+    pub fn icon(self) -> FontAwesome {
         match self {
-            Profile::PowerSaver => Icon::Leaf,
-            Profile::Balanced => Icon::ScaleBalanced,
-            Profile::Performance => Icon::Rocket,
+            Profile::PowerSaver => Solid::Leaf.into(),
+            Profile::Balanced => Solid::ScaleBalanced.into(),
+            Profile::Performance => Solid::Rocket.into(),
         }
     }
 
@@ -104,8 +108,8 @@ pub struct PowerProfile {
 }
 
 impl BarWidget for PowerProfile {
-    fn icon(&self) -> Icon {
-        self.active.icon()
+    fn icon(&self) -> Glyph {
+        self.active.icon().into()
     }
 
     fn tooltip(&self) -> TooltipBody {

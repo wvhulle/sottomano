@@ -2,7 +2,9 @@
 
 use std::time::Duration;
 
-use crate::data::source::{BarWidget, Icon, Level, Source, TooltipBody, Unit, Value, row};
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
+};
 
 const KIB_PER_GIB: f64 = 1_048_576.0;
 
@@ -20,8 +22,8 @@ impl Memory {
 }
 
 impl BarWidget for Memory {
-    fn icon(&self) -> Icon {
-        Icon::Memory
+    fn icon(&self) -> Glyph {
+        Solid::Memory.into()
     }
 
     fn level(&self) -> Level {

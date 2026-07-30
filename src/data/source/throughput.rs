@@ -11,9 +11,9 @@ use std::{fs, thread::sleep, time::Duration};
 
 use serde_json::Value as Json;
 
-use crate::{
-    data::source::{BarWidget, Level, Source, TooltipBody, Unit, Value, command::output, row},
-    widgets::icon::Icon,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, command::output,
+    font_awesome::Solid, row,
 };
 
 /// Below this rate the gauge reads empty (odin's 50 kB/s floor).
@@ -112,8 +112,12 @@ impl<const UP: bool> Throughput<UP> {
 }
 
 impl<const UP: bool> BarWidget for Throughput<UP> {
-    fn icon(&self) -> Icon {
-        if UP { Icon::Upload } else { Icon::Download }
+    fn icon(&self) -> Glyph {
+        if UP {
+            Solid::Upload.into()
+        } else {
+            Solid::Download.into()
+        }
     }
 
     fn disabled(&self) -> bool {

@@ -15,7 +15,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::Tooltip,
+    data::source::{Tooltip, font_awesome::Solid},
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
     wayland_layers::{
@@ -23,7 +23,6 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        icon::Icon,
         idle::{
             IdleAction, IdleHandle, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
@@ -77,25 +76,25 @@ impl IdleTimeoutsGroup {
     pub fn new(menu_expand_ms: u64) -> Self {
         Self {
             lock: IdleTimer::new(
-                Icon::Lock,
+                Solid::Lock.into(),
                 HoverTarget::IdleLockUser,
                 IdleAction::Lock,
                 false,
             ),
             screen_off: IdleTimer::new(
-                Icon::Display,
+                Solid::Display.into(),
                 HoverTarget::IdleScreenOff,
                 IdleAction::ScreenOff,
                 false,
             ),
             standby: IdleTimer::new(
-                Icon::Bed,
+                Solid::Bed.into(),
                 HoverTarget::IdleStandby,
                 IdleAction::Suspend,
                 true,
             ),
             power_down: IdleTimer::new(
-                Icon::PowerOff,
+                Solid::PowerOff.into(),
                 HoverTarget::IdlePowerDown,
                 IdleAction::PowerOff,
                 true,
@@ -248,8 +247,8 @@ impl IdleTimeoutsGroup {
         });
 
         let handle = mouse_area(
-            Icon::Stopwatch
-                .solid()
+            Solid::Stopwatch
+                .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )

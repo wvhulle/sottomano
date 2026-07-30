@@ -23,6 +23,7 @@ use crate::{
         BarWidget, Tooltip, TooltipBody,
         backlight::{self, Backlight},
         clight::Clight,
+        font_awesome::Solid,
         gamma::{self, Gamma},
         row,
         umbra::Umbra,
@@ -34,7 +35,6 @@ use crate::{
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
-        icon::Icon,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
@@ -80,13 +80,17 @@ impl MonitorGroup {
             backlights: Vec::new(),
             sliders: BTreeMap::new(),
             gamma: SourceCell::default(),
-            dim: SliderControl::new(PERCENT, HoverTarget::GammaDim, Icon::CircleHalfStroke)
-                .scroll_step(STEP)
-                .readout(|value| format!("{}%", as_percent(value))),
+            dim: SliderControl::new(
+                PERCENT,
+                HoverTarget::GammaDim,
+                Solid::CircleHalfStroke.into(),
+            )
+            .scroll_step(STEP)
+            .readout(|value| format!("{}%", as_percent(value))),
             warmth: SliderControl::new(
                 WARMTH_RANGE,
                 HoverTarget::ColorTemperature,
-                Icon::TemperatureHalf,
+                Solid::TemperatureHalf.into(),
             )
             .scroll_step(WARMTH_STEP)
             .slider_step(WARMTH_STEP)
@@ -129,7 +133,7 @@ impl MonitorGroup {
                             SliderControl::new(
                                 PERCENT,
                                 HoverTarget::Backlight(backlight.serial.clone()),
-                                backlight.icon(),
+                                backlight.face(),
                             )
                             .scroll_step(STEP)
                             .readout(|value| format!("{}%", as_percent(value)))
@@ -301,8 +305,8 @@ impl MonitorGroup {
     /// (laptop / desktop), so the handle must read differently from them.
     fn handle<'a>(config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
         mouse_area(
-            Icon::Lightbulb
-                .solid()
+            Solid::Lightbulb
+                .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
