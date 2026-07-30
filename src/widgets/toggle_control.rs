@@ -9,7 +9,7 @@ use iced::{Element, Subscription, Task, widget::mouse_area};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, Source},
+    data::source::{BarWidget, Source},
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,

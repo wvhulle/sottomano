@@ -1,13 +1,13 @@
 //! odin's `Journal`: failed systemd units (system + user scope) and recent
 //! kernel errors as a flat row of count-badge indicators, each hidden while its
 //! count is zero — a healthy system shows nothing. Hovering an indicator opens
-//! its timestamped [`Log`](crate::data_sources::TooltipBody::Log) tooltip.
+//! its timestamped [`Log`](crate::data::source::TooltipBody::Log) tooltip.
 
 use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, Tooltip, kernel_errors::KernelErrors, systemd_failed::Failed},
+    data::source::{BarWidget, Tooltip, kernel_errors::KernelErrors, systemd_failed::Failed},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
     widgets::icon_gauge::source_reading,

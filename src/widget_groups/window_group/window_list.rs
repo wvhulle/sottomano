@@ -24,7 +24,7 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     config::resolved::{ResolvedConfig, ResolvedFontConfig, fallback_font},
-    data_sources::{
+    data::source::{
         app_rules::{self, AppRule, IconCandidate, TitleParts},
         desktop_entries::DesktopIndex,
         favicons::{self, FaviconKind, RawFavicon},

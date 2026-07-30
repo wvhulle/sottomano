@@ -21,7 +21,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{Level, level_color},
+    data::source::{Level, level_color},
 };
 
 /// Handle/ghost radius at rest, and the larger handle radius while dragging.

@@ -2,7 +2,7 @@ use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip,
         sysfs_sensors::{battery::Battery, power::PowerDraw},
     },

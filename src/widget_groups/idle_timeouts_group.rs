@@ -15,7 +15,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::Tooltip,
+    data::source::Tooltip,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
     wayland_layers::{

@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::niri,
+    data::source::niri,
     wayland_layers::surface::Position,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
 };

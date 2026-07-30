@@ -1,5 +1,5 @@
 //! Quick-launch frequency persistence — the on-disk half of the
-//! [`LaunchTracker`](crate::data_sources::launch_tracker). The model is loaded
+//! [`LaunchTracker`](crate::data::source::launch_tracker). The model is loaded
 //! once at startup and each counted launch is written back as an upsert of the
 //! absolute count, so the table mirrors the in-memory model rather than
 //! re-incrementing.
@@ -7,7 +7,7 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::{
-    data_sources::launch_tracker::{Buckets, LaunchDelta, Record},
+    data::source::launch_tracker::{Buckets, LaunchDelta, Record},
     state::{BoxError, integer, open, text},
 };
 

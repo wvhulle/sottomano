@@ -18,7 +18,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         Tooltip, TooltipBody,
         tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
     },

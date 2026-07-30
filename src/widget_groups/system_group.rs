@@ -10,7 +10,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip,
         disk::Disk,
         sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},

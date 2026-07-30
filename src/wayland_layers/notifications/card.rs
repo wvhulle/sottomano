@@ -15,13 +15,13 @@ use iced::{
     widget::{Column, Row, button, container, image, mouse_area, rich_text, svg, text::Span},
 };
 
-use super::{
-    Notification, NotificationMessage, markup,
-    model::{NotifImage, Urgency},
-};
+use super::{Notification, NotificationMessage, markup};
 use crate::{
     config::resolved::{ResolvedConfig, ResolvedFontConfig},
-    data_sources::app_icon::DesktopEntries,
+    data::{
+        notifications::model::{NotifImage, Urgency},
+        source::app_icon::DesktopEntries,
+    },
     wayland_layers::tooltip::relative,
     widgets::text::bar_text,
 };
@@ -58,7 +58,7 @@ pub struct CardIcons {
 /// else the desktop entry). Does filesystem lookup — call once at arrival, not
 /// per redraw.
 pub fn resolve_icons(
-    data: &super::model::NotificationData,
+    data: &crate::data::notifications::model::NotificationData,
     entries: Option<&DesktopEntries>,
 ) -> CardIcons {
     let image = match &data.image {
@@ -164,7 +164,7 @@ fn spans_block_height(spans: &[Span<'_>], size: f32, font: Font, width: f32) -> 
 }
 
 pub fn measure_height(
-    data: &super::model::NotificationData,
+    data: &crate::data::notifications::model::NotificationData,
     icons: &CardIcons,
     config: &ResolvedConfig,
 ) -> f32 {
@@ -261,7 +261,7 @@ pub fn card<'a>(
 
     // The buttons worth drawing: the client's actions minus the `default` action
     // (invoked by clicking the body) and any label-less blank.
-    let button_actions: Vec<&super::model::NotifAction> = data
+    let button_actions: Vec<&crate::data::notifications::model::NotifAction> = data
         .actions
         .iter()
         .filter(|a| a.key != "default" && !a.label.trim().is_empty())

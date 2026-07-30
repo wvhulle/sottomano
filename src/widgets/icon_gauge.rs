@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, level_color},
+    data::source::{BarWidget, level_color},
     widgets::text::bar_text,
 };
 

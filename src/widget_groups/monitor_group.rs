@@ -8,7 +8,7 @@
 //! owns one value model (with its optimistic ghost), and the [`ToggleControl`]s
 //! own their toggle state. Per-display sliders are keyed by serial and
 //! reconciled as monitors come and go. Every backend call lives in
-//! `data_sources`.
+//! `data::source`.
 
 use std::{collections::BTreeMap, ops::RangeInclusive};
 
@@ -19,7 +19,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip, TooltipBody,
         backlight::{self, Backlight},
         clight::Clight,

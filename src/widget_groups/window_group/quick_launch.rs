@@ -3,7 +3,7 @@
 //! ranked app icons to its right, each dimmed until hovered and launched on
 //! click.
 //!
-//! Ranking lives in [`LaunchTracker`](crate::data_sources::launch_tracker): the
+//! Ranking lives in [`LaunchTracker`](crate::data::source::launch_tracker): the
 //! app ranks each output's candidates in memory and pushes the results here via
 //! [`set_ranked`](QuickLaunch::set_ranked); icon paths come from the app-wide
 //! `DesktopIndex` cache at view time. Ranked lists are keyed by output name
@@ -18,7 +18,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
+    data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     message_subscriptions::blocking,
     wayland_layers::surface::Position,
     widgets::{

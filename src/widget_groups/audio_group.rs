@@ -8,7 +8,7 @@ use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip,
         audio::{Audio, set_volume, toggle_mute},
     },

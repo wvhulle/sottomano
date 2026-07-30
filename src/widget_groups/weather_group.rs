@@ -9,7 +9,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip,
         weather::{Location, Pollen, Rain, Temperature},
     },

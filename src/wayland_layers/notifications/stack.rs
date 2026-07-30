@@ -10,7 +10,7 @@ use iced_layershell::reexport::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::niri::{HEdge, VEdge},
+    data::source::niri::{HEdge, VEdge},
 };
 
 pub const NAMESPACE: &str = "vetrata-notifications";

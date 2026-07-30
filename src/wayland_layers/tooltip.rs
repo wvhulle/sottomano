@@ -36,7 +36,7 @@ use iced_layershell::reexport::{
 use crate::{
     app::Message,
     config::resolved::ResolvedConfig,
-    data_sources::{Tooltip, TooltipBody, level_color, niri::OutputGeometry},
+    data::source::{Tooltip, TooltipBody, level_color, niri::OutputGeometry},
     wayland_layers::surface::{Position, Surface},
     widgets::text::bar_text,
 };

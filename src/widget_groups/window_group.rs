@@ -16,7 +16,7 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::resolved::{ResolvedConfig, ResolvedFontConfig},
-    data_sources::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
+    data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     wayland_layers::surface::Position,
 };
 

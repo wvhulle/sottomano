@@ -11,12 +11,14 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
     app::{Bar, Message},
-    data_sources::{Source, ai::ApiSource, desktop_entries, niri},
-    wayland_layers::notifications::{
-        NotificationMessage,
-        model::{NotifHandle, Outbound, ServerEvent},
-        server,
+    data::{
+        notifications::{
+            model::{NotifHandle, Outbound, ServerEvent},
+            server,
+        },
+        source::{Source, ai::ApiSource, desktop_entries, niri},
     },
+    wayland_layers::notifications::NotificationMessage,
     widget_groups::{
         audio_group::AudioGroup, battery_group::BatteryGroup, clock_group::ClockGroup,
         internet_group::InternetGroup, journal_group::JournalGroup, media_group::MediaGroup,

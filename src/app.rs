@@ -13,7 +13,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         Tooltip, TooltipBody,
         app_icon::{self, DesktopEntries},
         desktop_entries::{self, DesktopIndex, ResolvedIcons},
@@ -292,7 +292,7 @@ impl Bar {
             Message::Tray(TrayMessage::MenuItemClicked(id)) => {
                 if let Some((address, menu_path)) = self.tray_menu.target() {
                     self.tray_group
-                        .command(crate::data_sources::tray::TrayCommand::MenuClick {
+                        .command(crate::data::source::tray::TrayCommand::MenuClick {
                             address,
                             menu_path,
                             id,

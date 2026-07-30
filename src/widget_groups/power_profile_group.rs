@@ -10,7 +10,7 @@ use iced::{Element, Subscription, Task};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         Tooltip, TooltipBody,
         power_profile::{
             self, Estimate, PowerProfile, Profile, SEED_VARIANCE, estimate, kalman_step,

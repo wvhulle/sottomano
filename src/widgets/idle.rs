@@ -21,7 +21,7 @@ use iced::{
 use tokio::sync::mpsc;
 
 use crate::{
-    data_sources::{logind, niri},
+    data::source::{logind, niri},
     widgets::idle::wayland::SideEffect,
 };
 

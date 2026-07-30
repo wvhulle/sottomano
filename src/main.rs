@@ -4,7 +4,7 @@
 
 mod app;
 mod config;
-mod data_sources;
+mod data;
 mod message_subscriptions;
 mod state;
 mod wayland_layers;

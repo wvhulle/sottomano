@@ -7,7 +7,7 @@ use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip,
         net_interfaces::{bluetooth::Bluetooth, ethernet::Ethernet, mobile::Mobile, wifi::Wifi},
     },

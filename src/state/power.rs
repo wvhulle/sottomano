@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    data_sources::power_profile::Profile,
+    data::source::power_profile::Profile,
     state::{BoxError, open, text},
 };
 

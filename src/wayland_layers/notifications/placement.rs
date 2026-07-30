@@ -2,10 +2,12 @@
 //! `NotificationPlacement` — the toast points back toward its producer window,
 //! falling back to the configured corner only when no window resolves.
 
-use super::model::NotificationData;
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::niri::{HEdge, Placement, VEdge},
+    data::{
+        notifications::model::NotificationData,
+        source::niri::{HEdge, Placement, VEdge},
+    },
 };
 
 pub struct ToastPlacement {

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use color::DynamicColor;
 use serde::Deserialize;
 
-use crate::data_sources::niri::{HEdge, VEdge};
+use crate::data::source::niri::{HEdge, VEdge};
 
 /// A screen corner, for the notification fallback position. Deserialized
 /// directly from the TOML string (`bottom-right`, `top-left`, …); an

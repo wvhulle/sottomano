@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 use iced::Subscription;
 
 use crate::{
-    data_sources::{RefreshInfo, Source, Tooltip},
+    data::source::{RefreshInfo, Source, Tooltip},
     message_subscriptions::polling,
 };
 
@@ -61,7 +61,7 @@ impl<S: Source + Send + 'static> SourceCell<S> {
     /// Wrap a caller-supplied `body` with this cell's live refresh footer — for
     /// widgets that show a slice of the reading (e.g. one gamma slider showing
     /// only brightness). `None` until the first reading arrives.
-    pub fn tooltip_with(&self, body: crate::data_sources::TooltipBody) -> Option<Tooltip> {
+    pub fn tooltip_with(&self, body: crate::data::source::TooltipBody) -> Option<Tooltip> {
         self.data.as_ref()?;
         Some(Tooltip {
             body,

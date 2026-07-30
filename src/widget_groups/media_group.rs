@@ -17,7 +17,7 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         Tooltip, TooltipBody,
         desktop_entries::DesktopIndex,
         mpris,

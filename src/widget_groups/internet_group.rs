@@ -14,7 +14,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{
+    data::source::{
         BarWidget, Tooltip,
         tailscale::{Tailscale, open_admin},
         throughput::Throughput,

@@ -20,7 +20,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{BarWidget, Level, TooltipBody, Unit, Value},
+    data::source::{BarWidget, Level, TooltipBody, Unit, Value},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
     widgets::{

@@ -10,7 +10,7 @@ use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{Tooltip, TooltipBody, row},
+    data::source::{Tooltip, TooltipBody, row},
     wayland_layers::tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},

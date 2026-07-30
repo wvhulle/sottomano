@@ -12,7 +12,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data_sources::{Tooltip, TooltipBody, row},
+    data::source::{Tooltip, TooltipBody, row},
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},

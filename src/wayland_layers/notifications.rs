@@ -5,10 +5,7 @@
 
 pub mod card;
 pub mod markup;
-pub mod model;
 pub mod placement;
-pub mod server;
-pub mod sound;
 pub mod stack;
 
 use std::{
@@ -18,15 +15,18 @@ use std::{
 
 use iced::{Element, Task, window::Id};
 use iced_layershell::reexport::Anchor;
-use model::{NotifHandle, NotificationData, Outbound, close_reason};
 use placement::{ToastPlacement, placement_for, resolve_window_id};
 
 use crate::{
     app::Message,
     config::resolved::ResolvedConfig,
-    data_sources::{
-        app_icon::DesktopEntries,
-        niri::{self, HEdge, OutputGeometry, Placement, VEdge},
+    data::{
+        notifications::model::{NotifHandle, NotificationData, Outbound, close_reason},
+        sink::sound,
+        source::{
+            app_icon::DesktopEntries,
+            niri::{self, HEdge, OutputGeometry, Placement, VEdge},
+        },
     },
     message_subscriptions::niri_action,
 };
