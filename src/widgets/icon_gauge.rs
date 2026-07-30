@@ -9,19 +9,18 @@ use crate::{
     widgets::text::bar_text,
 };
 
-/// A source-backed leaf: Font Awesome icon + thin vertical gauge (or a text
-/// label for a label-only source), tinted by severity, with an optional
-/// superscript badge. `None` when the source is unavailable. `alpha` scales
-/// every colour's opacity so a reading can fade in/out (1.0 = fully opaque); a
-/// `disabled` reading is dimmed further.
 pub fn source_reading<'a, Message: 'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,
     alpha: f32,
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
-    let dim = if widget.disabled() { 0.4 } else { 1.0 };
-    let color = level_color(config, widget.level()).scale_alpha(alpha * dim);
+    let color = if widget.disabled() {
+        config.palette.inactive
+    } else {
+        level_color(config, widget.level())
+    }
+    .scale_alpha(alpha);
     let icon: Element<Message> = match widget.icon() {
         Glyph::SimpleIcon(mark) => svg(mark.handle())
             .width(config.font.icon_size_px)

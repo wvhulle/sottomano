@@ -1,13 +1,11 @@
-//! odin's `Journal`: failed systemd units (system + user scope) and recent
-//! kernel errors as a flat row of count-badge indicators, each hidden while its
-//! count is zero — a healthy system shows nothing. Hovering an indicator opens
-//! its timestamped [`Log`](crate::data::source::TooltipBody::Log) tooltip.
-
-use iced::{Alignment, Element, Subscription, widget::Row};
+use iced::{Alignment, Element, Subscription, futures::StreamExt, widget::Row};
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::{BarWidget, Tooltip, kernel_errors::KernelErrors, systemd_failed::Failed},
+    data::source::{
+        BarWidget, Tooltip, journal, kernel_errors::KernelErrors, systemd_failed::Failed,
+    },
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
     widgets::icon_gauge::source_reading,
@@ -31,9 +29,9 @@ pub enum JournalMessage {
 impl JournalGroup {
     pub fn subscription() -> Subscription<JournalMessage> {
         Subscription::batch([
-            SourceCell::subscription().map(JournalMessage::System),
-            SourceCell::subscription().map(JournalMessage::User),
-            SourceCell::subscription().map(JournalMessage::Kernel),
+            kernel_subscription(),
+            failed_subscription::<false>("systemd-failed-system", JournalMessage::System),
+            failed_subscription::<true>("systemd-failed-user", JournalMessage::User),
         ])
     }
 
@@ -47,12 +45,13 @@ impl JournalGroup {
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        match target {
-            HoverTarget::JournalSystem => self.system.tooltip(),
-            HoverTarget::JournalUser => self.user.tooltip(),
-            HoverTarget::JournalKernel => self.kernel.tooltip(),
-            _ => None,
-        }
+        let body = match target {
+            HoverTarget::JournalSystem => self.system.get()?.tooltip(),
+            HoverTarget::JournalUser => self.user.get()?.tooltip(),
+            HoverTarget::JournalKernel => self.kernel.get()?.tooltip(),
+            _ => return None,
+        };
+        Some(Tooltip { body, footer: None })
     }
 
     pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, JournalMessage>> {
@@ -86,6 +85,22 @@ impl JournalGroup {
                 .into(),
         )
     }
+}
+
+fn kernel_subscription() -> Subscription<JournalMessage> {
+    Subscription::run(|| {
+        ReceiverStream::new(journal::kernel_errors())
+            .map(|entries| JournalMessage::Kernel(KernelErrors::from_entries(entries)))
+    })
+}
+
+fn failed_subscription<const USER: bool>(
+    key: &'static str,
+    map: fn(Option<Failed<USER>>) -> JournalMessage,
+) -> Subscription<JournalMessage> {
+    Subscription::run_with((key, map), |&(_, map)| {
+        journal::failed_stream::<USER>().map(move |units| map(Failed::from_units(units)))
+    })
 }
 
 /// One scope's indicator (icon + count badge), hoverable for its log tooltip;

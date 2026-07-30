@@ -45,19 +45,19 @@ impl ConfirmButton {
         self.armed = false;
     }
 
-    /// The button glyph. Armed → warning in `urgent`; else play in `focus`.
-    /// `alpha` fades the whole glyph (e.g. by a reveal factor); `on_press` is
-    /// the message emitted on click.
     pub fn view<'a, Message: 'a + Clone>(
         &self,
         config: &ResolvedConfig,
         alpha: f32,
+        active: bool,
         on_press: Message,
     ) -> Element<'a, Message> {
         let (glyph, color) = if self.armed {
             (Solid::TriangleExclamation, config.palette.urgent)
-        } else {
+        } else if active {
             (Solid::Bolt, config.palette.bar_foreground)
+        } else {
+            (Solid::Bolt, config.palette.inactive)
         };
         let color = Color {
             a: color.a * alpha,

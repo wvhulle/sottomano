@@ -59,7 +59,7 @@ impl NotificationServer {
             body,
             actions: parse_actions(&actions),
             urgency: parse_urgency(&hints),
-            window_id_hint: hint_u64(&hints, "x-niri-window-id"),
+            window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
             desktop_entry: hint_str(&hints, "desktop-entry"),
             image: hint_image(&hints),
             suppress_sound: hint_bool(&hints, "suppress-sound"),
@@ -205,26 +205,9 @@ fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Urgency {
     }
 }
 
-/// A window-id hint, tolerant of the type a client actually sent it as (spec
-/// says nothing; producers vary between u32/i64/string).
-fn hint_u64(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
+fn hint_window_id(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
     let value = hints.get(key)?;
-    if let Ok(x) = value.downcast_ref::<u64>() {
-        return Some(x);
-    }
-    if let Ok(x) = value.downcast_ref::<u32>() {
-        return Some(u64::from(x));
-    }
-    if let Ok(x) = value.downcast_ref::<i64>() {
-        return u64::try_from(x).ok();
-    }
-    if let Ok(x) = value.downcast_ref::<i32>() {
-        return u64::try_from(x).ok();
-    }
-    if let Ok(s) = value.downcast_ref::<&str>() {
-        return s.trim().parse().ok();
-    }
-    None
+    u64::try_from(value.downcast_ref::<i32>().ok()?).ok()
 }
 
 fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {

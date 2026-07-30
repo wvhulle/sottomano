@@ -33,6 +33,7 @@ pub mod font_awesome;
 pub mod gamma;
 pub mod geolocation;
 pub mod icon_trim;
+pub mod journal;
 pub mod kernel_errors;
 pub mod launch_tracker;
 pub mod logind;
