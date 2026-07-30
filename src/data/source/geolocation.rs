@@ -4,7 +4,33 @@
 //! absent or has no valid fix — which takes the whole weather group off the
 //! bar.
 
-use zbus::blocking::{Connection, Proxy};
+use zbus::{blocking::Connection, proxy};
+
+#[proxy(
+    interface = "dev.situo.Location1",
+    default_service = "dev.situo",
+    default_path = "/dev/situo/Location1"
+)]
+trait Location1 {
+    #[zbus(property)]
+    fn valid(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn latitude(&self) -> zbus::Result<f64>;
+    #[zbus(property)]
+    fn longitude(&self) -> zbus::Result<f64>;
+    #[zbus(property)]
+    fn place_name(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn place_country(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn place_distance_km(&self) -> zbus::Result<f64>;
+    #[zbus(property)]
+    fn accuracy(&self) -> zbus::Result<f64>;
+    #[zbus(property)]
+    fn source(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn description(&self) -> zbus::Result<String>;
+}
 
 #[derive(Debug, Clone)]
 pub struct Geo {
@@ -23,26 +49,19 @@ impl Geo {
     /// invalid.
     pub fn resolve() -> Option<Self> {
         let connection = Connection::session().ok()?;
-        let proxy = Proxy::new(
-            &connection,
-            "dev.situo",
-            "/dev/situo/Location1",
-            "dev.situo.Location1",
-        )
-        .ok()?;
-        let valid: bool = proxy.get_property("Valid").ok()?;
-        if !valid {
+        let proxy = Location1ProxyBlocking::new(&connection).ok()?;
+        if !proxy.valid().ok()? {
             return None;
         }
         Some(Geo {
-            latitude: proxy.get_property("Latitude").ok()?,
-            longitude: proxy.get_property("Longitude").ok()?,
-            place_name: proxy.get_property("PlaceName").unwrap_or_default(),
-            place_country: proxy.get_property("PlaceCountry").unwrap_or_default(),
-            place_distance_km: proxy.get_property("PlaceDistanceKm").unwrap_or(f64::NAN),
-            accuracy_m: proxy.get_property("Accuracy").unwrap_or(f64::NAN),
-            source: proxy.get_property("Source").unwrap_or_default(),
-            description: proxy.get_property("Description").unwrap_or_default(),
+            latitude: proxy.latitude().ok()?,
+            longitude: proxy.longitude().ok()?,
+            place_name: proxy.place_name().unwrap_or_default(),
+            place_country: proxy.place_country().unwrap_or_default(),
+            place_distance_km: proxy.place_distance_km().unwrap_or(f64::NAN),
+            accuracy_m: proxy.accuracy().unwrap_or(f64::NAN),
+            source: proxy.source().unwrap_or_default(),
+            description: proxy.description().unwrap_or_default(),
         })
     }
 

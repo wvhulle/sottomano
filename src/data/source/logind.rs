@@ -6,30 +6,33 @@
 //!
 //! [`mpris::control`]: crate::data::source::mpris::control
 
-use zbus::{
-    blocking::{Connection, Proxy},
-    zvariant::DynamicType,
-};
+use zbus::{blocking::Connection, proxy};
 
-const DEST: &str = "org.freedesktop.login1";
-const PATH: &str = "/org/freedesktop/login1";
-const MANAGER: &str = "org.freedesktop.login1.Manager";
+#[proxy(
+    interface = "org.freedesktop.login1.Manager",
+    default_service = "org.freedesktop.login1",
+    default_path = "/org/freedesktop/login1"
+)]
+trait Manager {
+    fn suspend(&self, interactive: bool) -> zbus::Result<()>;
+    fn power_off(&self, interactive: bool) -> zbus::Result<()>;
+    fn lock_session(&self, session_id: &str) -> zbus::Result<()>;
+}
 
-fn call<A: serde::Serialize + DynamicType>(method: &str, args: &A) {
-    let Ok(connection) = Connection::system() else {
-        return;
-    };
-    if let Ok(proxy) = Proxy::new(&connection, DEST, PATH, MANAGER) {
-        let _: zbus::Result<()> = proxy.call(method, args);
-    }
+fn manager() -> Option<ManagerProxyBlocking<'static>> {
+    ManagerProxyBlocking::new(&Connection::system().ok()?).ok()
 }
 
 pub fn suspend() {
-    call("Suspend", &(true,));
+    if let Some(proxy) = manager() {
+        let _ = proxy.suspend(true);
+    }
 }
 
 pub fn power_off() {
-    call("PowerOff", &(true,));
+    if let Some(proxy) = manager() {
+        let _ = proxy.power_off(true);
+    }
 }
 
 /// Lock the caller's session (equivalent to `loginctl lock-session`). Only
@@ -39,5 +42,7 @@ pub fn lock() {
     let Ok(session) = std::env::var("XDG_SESSION_ID") else {
         return;
     };
-    call("LockSession", &(session,));
+    if let Some(proxy) = manager() {
+        let _ = proxy.lock_session(&session);
+    }
 }

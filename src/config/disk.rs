@@ -23,15 +23,24 @@ pub enum Corner {
     BottomRight,
 }
 
+pub struct Edges {
+    pub vertical: VEdge,
+    pub horizontal: HEdge,
+}
+
 impl Corner {
-    pub fn edges(self) -> (VEdge, HEdge) {
-        match self {
+    pub fn edges(self) -> Edges {
+        let (vertical, horizontal) = match self {
             Self::TopLeft => (VEdge::Top, HEdge::Left),
             Self::TopCenter => (VEdge::Top, HEdge::Center),
             Self::TopRight => (VEdge::Top, HEdge::Right),
             Self::BottomLeft => (VEdge::Bottom, HEdge::Left),
             Self::BottomCenter => (VEdge::Bottom, HEdge::Center),
             Self::BottomRight => (VEdge::Bottom, HEdge::Right),
+        };
+        Edges {
+            vertical,
+            horizontal,
         }
     }
 }

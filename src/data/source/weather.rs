@@ -16,9 +16,14 @@ use crate::data::source::{
     row,
 };
 
+struct Wmo {
+    icon: FontAwesome,
+    description: &'static str,
+}
+
 /// A WMO weather code to an icon and description (odin's `wmo-decode`).
-fn wmo(code: i64) -> (FontAwesome, &'static str) {
-    match code {
+fn wmo(code: i64) -> Wmo {
+    let (icon, description) = match code {
         0 => (Solid::Sun.into(), "Clear sky"),
         1 => (Solid::Sun.into(), "Mainly clear"),
         2 => (Solid::CloudSun.into(), "Partly cloudy"),
@@ -35,7 +40,8 @@ fn wmo(code: i64) -> (FontAwesome, &'static str) {
         95 => (Solid::CloudBolt.into(), "Thunderstorm"),
         96 | 99 => (Solid::CloudBolt.into(), "Thunderstorm with hail"),
         _ => (Solid::CloudSun.into(), "Unknown"),
-    }
+    };
+    Wmo { icon, description }
 }
 
 fn round_i(json: Option<&Json>) -> Option<i64> {
@@ -51,6 +57,8 @@ pub struct Temperature {
     conditions: &'static str,
     temp: Option<i64>,
     feels: Option<i64>,
+    temp_min: Option<i64>,
+    temp_max: Option<i64>,
     humidity: Option<i64>,
     wind: Option<i64>,
 }
@@ -78,6 +86,12 @@ impl BarWidget for Temperature {
         if let Some(feels) = self.feels {
             rows.push(row("Feels like", format!("{feels}°C")));
         }
+        if let Some(min) = self.temp_min {
+            rows.push(row("Min today", format!("{min}°C")));
+        }
+        if let Some(max) = self.temp_max {
+            rows.push(row("Max today", format!("{max}°C")));
+        }
         if let Some(humidity) = self.humidity {
             rows.push(row("Humidity", format!("{humidity}%")));
         }
@@ -95,7 +109,7 @@ impl Source for Temperature {
     fn poll() -> Option<Self> {
         let geo = Geo::resolve()?;
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?{}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&timezone=auto",
+            "https://api.open-meteo.com/v1/forecast?{}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
             geo.query()
         );
         // Keep the handle present (so the group shows) even when the fetch fails.
@@ -104,27 +118,38 @@ impl Source for Temperature {
             conditions: "Unknown",
             temp: None,
             feels: None,
+            temp_min: None,
+            temp_max: None,
             humidity: None,
             wind: None,
         };
         let Some(body) = http_get(&url, 10) else {
             return Some(unavailable);
         };
-        let Some(current) = serde_json::from_str::<Json>(&body)
-            .ok()
-            .and_then(|json| json.get("current").cloned())
-        else {
+        let Some(json) = serde_json::from_str::<Json>(&body).ok() else {
             return Some(unavailable);
         };
-        let (icon, conditions) = wmo(current
+        let Some(current) = json.get("current") else {
+            return Some(unavailable);
+        };
+        let daily_first = |key: &str| {
+            round_i(
+                json.get("daily")
+                    .and_then(|daily| daily.get(key))
+                    .and_then(|values| values.get(0)),
+            )
+        };
+        let wmo = wmo(current
             .get("weather_code")
             .and_then(Json::as_i64)
             .unwrap_or(-1));
         Some(Temperature {
-            icon,
-            conditions,
+            icon: wmo.icon,
+            conditions: wmo.description,
             temp: round_i(current.get("temperature_2m")),
             feels: round_i(current.get("apparent_temperature")),
+            temp_min: daily_first("temperature_2m_min"),
+            temp_max: daily_first("temperature_2m_max"),
             humidity: round_i(current.get("relative_humidity_2m")),
             wind: round_i(current.get("wind_speed_10m")),
         })

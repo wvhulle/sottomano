@@ -29,6 +29,7 @@ use crate::{
         },
     },
     message_subscriptions::niri_action,
+    wayland_layers::surface::{Margin, SurfaceSize},
 };
 
 /// Action keys odin runs itself against the hinted window instead of handing
@@ -77,8 +78,8 @@ struct ToastSurface {
     id: Id,
     output: Option<String>,
     anchor: Anchor,
-    margin: (i32, i32, i32, i32),
-    size: (u32, u32),
+    margin: Margin,
+    size: SurfaceSize,
 }
 
 #[derive(Default)]
@@ -446,11 +447,17 @@ impl NotificationLayer {
                 }
                 if let Some(margin) = margin {
                     existing.margin = margin;
-                    tasks.push(Task::done(Message::MarginChange { id: window, margin }));
+                    tasks.push(Task::done(Message::MarginChange {
+                        id: window,
+                        margin: margin.edges(),
+                    }));
                 }
                 if let Some(size) = size {
                     existing.size = size;
-                    tasks.push(Task::done(Message::SizeChange { id: window, size }));
+                    tasks.push(Task::done(Message::SizeChange {
+                        id: window,
+                        size: size.dimensions(),
+                    }));
                 }
                 Task::batch(tasks)
             }
@@ -509,7 +516,7 @@ impl NotificationLayer {
                     .as_deref()
                     .and_then(|output| outputs.get(output))
                     .map(|geometry| geometry.height);
-                let (anchor, margin) = stack::slot_placement(
+                let stack::SlotPlacement { anchor, margin } = stack::slot_placement(
                     place.vertical,
                     place.horizontal,
                     *offset,
@@ -523,7 +530,10 @@ impl NotificationLayer {
                     output: place.output.clone(),
                     anchor,
                     margin,
-                    size: (width, stack::surface_height(notif.estimated_height)),
+                    size: SurfaceSize {
+                        width,
+                        height: stack::surface_height(notif.estimated_height),
+                    },
                 }
             })
             .collect()
@@ -545,8 +555,8 @@ enum SurfaceChange {
     Adjust {
         id: u32,
         anchor: Option<Anchor>,
-        margin: Option<(i32, i32, i32, i32)>,
-        size: Option<(u32, u32)>,
+        margin: Option<Margin>,
+        size: Option<SurfaceSize>,
     },
     Close(u32),
 }
@@ -557,8 +567,8 @@ struct DesiredSurface {
     id: u32,
     output: Option<String>,
     anchor: Anchor,
-    margin: (i32, i32, i32, i32),
-    size: (u32, u32),
+    margin: Margin,
+    size: SurfaceSize,
 }
 
 /// Whether a notification's window has closed. Only "window-owned" toasts — one

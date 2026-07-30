@@ -37,7 +37,7 @@ struct RevealX<'a, Message> {
 /// step with what `draw` actually shows.
 pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
     match cursor.position() {
-        Some(position) if visible.contains(position) => cursor,
+        Some(position) if (visible.x..=visible.x + visible.width).contains(&position.x) => cursor,
         _ => Cursor::Unavailable,
     }
 }

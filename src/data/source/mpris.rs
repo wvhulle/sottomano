@@ -17,15 +17,13 @@ use iced::{
 };
 use tokio::time::{Duration, sleep};
 use zbus::{
-    Connection, MatchRule, MessageStream, Proxy, fdo::DBusProxy, message::Type,
-    zvariant::OwnedValue,
+    Connection, MatchRule, MessageStream, fdo::DBusProxy, message::Type, proxy,
+    proxy::CacheProperties, zvariant::OwnedValue,
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
 const PLAYERCTLD: &str = "org.mpris.MediaPlayer2.playerctld";
 const PATH: &str = "/org/mpris/MediaPlayer2";
-const ROOT: &str = "org.mpris.MediaPlayer2";
-const PLAYER: &str = "org.mpris.MediaPlayer2.Player";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -139,26 +137,83 @@ fn is_phantom(bus: &str, desktop_entry: Option<&str>) -> bool {
             .is_some_and(|seg| seg.starts_with("instance") && seg.len() > "instance".len())
 }
 
-async fn property<T>(connection: &Connection, bus: &str, interface: &str, name: &str) -> Option<T>
-where
-    T: TryFrom<OwnedValue>,
-    <T as TryFrom<OwnedValue>>::Error: Into<zbus::Error>,
-{
-    let proxy = Proxy::new(connection, bus, PATH, interface).await.ok()?;
-    proxy.get_property(name).await.ok()
+#[proxy(
+    interface = "org.mpris.MediaPlayer2.Player",
+    default_path = "/org/mpris/MediaPlayer2"
+)]
+trait Player {
+    fn next(&self) -> zbus::Result<()>;
+    fn previous(&self) -> zbus::Result<()>;
+    fn play_pause(&self) -> zbus::Result<()>;
+    fn stop(&self) -> zbus::Result<()>;
+    #[zbus(property)]
+    fn playback_status(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn metadata(&self) -> zbus::Result<HashMap<String, OwnedValue>>;
+    #[zbus(property)]
+    fn can_go_next(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn can_go_previous(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn can_pause(&self) -> zbus::Result<bool>;
+}
+
+#[proxy(
+    interface = "org.mpris.MediaPlayer2",
+    default_path = "/org/mpris/MediaPlayer2"
+)]
+trait MediaPlayer2 {
+    #[zbus(property)]
+    fn identity(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn desktop_entry(&self) -> zbus::Result<String>;
+}
+
+struct PlayerState {
+    bus: String,
+    status: Status,
+    identity: String,
+    desktop_entry: Option<String>,
+}
+
+async fn player_proxy(connection: &Connection, bus: &str) -> Option<PlayerProxy<'static>> {
+    PlayerProxy::builder(connection)
+        .destination(bus.to_owned())
+        .ok()?
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+        .ok()
+}
+
+async fn root_proxy(connection: &Connection, bus: &str) -> Option<MediaPlayer2Proxy<'static>> {
+    MediaPlayer2Proxy::builder(connection)
+        .destination(bus.to_owned())
+        .ok()?
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+        .ok()
 }
 
 /// One player's status, identity, and desktop entry (for phantom detection).
-async fn read_player(
-    connection: &Connection,
-    bus: &str,
-) -> Option<(Status, String, Option<String>)> {
-    let status = property::<String>(connection, bus, PLAYER, "PlaybackStatus").await?;
-    let identity = property::<String>(connection, bus, ROOT, "Identity")
-        .await
-        .unwrap_or_else(|| bus.to_string());
-    let desktop = property::<String>(connection, bus, ROOT, "DesktopEntry").await;
-    Some((Status::parse(&status), identity, desktop))
+async fn read_player(connection: &Connection, bus: String) -> Option<PlayerState> {
+    let status = Status::parse(
+        &player_proxy(connection, &bus)
+            .await?
+            .playback_status()
+            .await
+            .ok()?,
+    );
+    let root = root_proxy(connection, &bus).await?;
+    let identity = root.identity().await.unwrap_or_else(|_| bus.clone());
+    let desktop_entry = root.desktop_entry().await.ok();
+    Some(PlayerState {
+        bus,
+        status,
+        identity,
+        desktop_entry,
+    })
 }
 
 /// The current mpris player buses (skipping `playerctld`, which mirrors a real
@@ -182,45 +237,52 @@ async fn read_all(
     dbus: &DBusProxy<'_>,
     art: &mut HashMap<String, (String, image::Handle)>,
 ) -> Vec<Media> {
-    let players: Vec<(String, Status, String, Option<String>)> = iter(mpris_names(dbus).await)
+    let players: Vec<PlayerState> = iter(mpris_names(dbus).await)
         .filter_map(|bus| async move {
-            let (status, identity, desktop) = read_player(connection, &bus).await?;
-            (!is_phantom(&bus, desktop.as_deref())).then_some((bus, status, identity, desktop))
+            let state = read_player(connection, bus).await?;
+            (!is_phantom(&state.bus, state.desktop_entry.as_deref())).then_some(state)
         })
         .collect()
         .await;
-    art.retain(|bus, _| players.iter().any(|(b, ..)| b == bus));
+    art.retain(|bus, _| players.iter().any(|state| &state.bus == bus));
 
     let mut media = Vec::with_capacity(players.len());
-    for (bus, status, identity, desktop_entry) in players {
-        let metadata =
-            property::<HashMap<String, OwnedValue>>(connection, &bus, PLAYER, "Metadata")
-                .await
-                .unwrap_or_default();
+    for state in players {
+        let player = player_proxy(connection, &state.bus).await;
+        let metadata = match &player {
+            Some(player) => player.metadata().await.unwrap_or_default(),
+            None => HashMap::new(),
+        };
         let handle = if let Some(url) = string(&metadata, "mpris:artUrl") {
-            art_handle(&url, &bus, art).await
+            art_handle(&url, &state.bus, art).await
         } else {
-            art.remove(&bus);
+            art.remove(&state.bus);
             None
+        };
+        let can_next = match &player {
+            Some(player) => player.can_go_next().await.unwrap_or(false),
+            None => false,
+        };
+        let can_prev = match &player {
+            Some(player) => player.can_go_previous().await.unwrap_or(false),
+            None => false,
+        };
+        let can_toggle = match &player {
+            Some(player) => player.can_pause().await.unwrap_or(true),
+            None => true,
         };
         media.push(Media {
             title: string(&metadata, "xesam:title").unwrap_or_default(),
             artist: artist(&metadata),
             album: string(&metadata, "xesam:album").unwrap_or_default(),
             art: handle,
-            can_next: property(connection, &bus, PLAYER, "CanGoNext")
-                .await
-                .unwrap_or(false),
-            can_prev: property(connection, &bus, PLAYER, "CanGoPrevious")
-                .await
-                .unwrap_or(false),
-            can_toggle: property(connection, &bus, PLAYER, "CanPause")
-                .await
-                .unwrap_or(true),
-            status,
-            identity,
-            desktop_entry,
-            bus,
+            can_next,
+            can_prev,
+            can_toggle,
+            status: state.status,
+            identity: state.identity,
+            desktop_entry: state.desktop_entry,
+            bus: state.bus,
         });
     }
     media
@@ -307,21 +369,17 @@ async fn watch(output: &mut Sender<Vec<Media>>) -> zbus::Result<()> {
         .interface("org.freedesktop.DBus.Properties")?
         .member("PropertiesChanged")?
         .build();
-    let owners_rule = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender("org.freedesktop.DBus")?
-        .interface("org.freedesktop.DBus")?
-        .member("NameOwnerChanged")?
-        .build();
     // Merge both signal streams into one of "is this relevant?" — a property
     // change on any player is always relevant; a name change only when it names
     // an mpris player (one opened or closed).
     let properties = MessageStream::for_match_rule(properties_rule, &connection, Some(16))
         .await?
         .map(|_| true);
-    let owners = MessageStream::for_match_rule(owners_rule, &connection, Some(16))
-        .await?
-        .map(|message| is_mpris_owner_change(message.ok().as_ref()));
+    let owners = dbus.receive_name_owner_changed().await?.map(|signal| {
+        signal
+            .args()
+            .is_ok_and(|args| args.name().as_str().starts_with(PREFIX))
+    });
     let mut events = select(properties, owners);
 
     while let Some(relevant) = events.next().await {
@@ -337,21 +395,24 @@ async fn watch(output: &mut Sender<Vec<Media>>) -> zbus::Result<()> {
     Ok(())
 }
 
-/// Whether a `NameOwnerChanged` names an mpris player (one opened or closed).
-fn is_mpris_owner_change(message: Option<&zbus::Message>) -> bool {
-    message
-        .and_then(|m| m.body().deserialize::<(String, String, String)>().ok())
-        .is_some_and(|(name, _, _)| name.starts_with(PREFIX))
-}
-
 /// Run a no-argument control method (`Next`, `Previous`, `PlayPause`, `Stop`)
 /// on a player. Blocking one-shot, called off-thread.
 pub fn control(bus: &str, method: &str) {
-    use zbus::blocking::{Connection, Proxy};
+    use zbus::blocking::Connection;
     let Ok(connection) = Connection::session() else {
         return;
     };
-    if let Ok(proxy) = Proxy::new(&connection, bus, PATH, PLAYER) {
-        let _: zbus::Result<()> = proxy.call(method, &());
-    }
+    let Ok(proxy) = PlayerProxyBlocking::builder(&connection)
+        .destination(bus.to_owned())
+        .and_then(zbus::blocking::proxy::Builder::build)
+    else {
+        return;
+    };
+    let _ = match method {
+        "Next" => proxy.next(),
+        "Previous" => proxy.previous(),
+        "PlayPause" => proxy.play_pause(),
+        "Stop" => proxy.stop(),
+        _ => Ok(()),
+    };
 }

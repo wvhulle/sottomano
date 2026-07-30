@@ -34,7 +34,7 @@ use crate::{
     app::Message,
     config::resolved::ResolvedConfig,
     data::source::{RefreshInfo, Tooltip, TooltipBody, level_color, niri::OutputGeometry},
-    wayland_layers::surface::{Position, Surface},
+    wayland_layers::surface::{Margin, Position, Surface, SurfaceSize},
     widgets::text::{TextStyle, bar_text},
 };
 
@@ -147,7 +147,7 @@ struct Shown {
     /// against a stray exit from a sibling closing it.
     target: HoverTarget,
     /// Last surface size we requested, to ignore no-op resize reports.
-    size: Option<(u32, u32)>,
+    size: Option<SurfaceSize>,
     /// The hovered widget's bounds; `anchor.x` positions the panel
     /// horizontally.
     anchor: Rectangle,
@@ -267,16 +267,16 @@ impl TooltipHost {
         }
         shown.size = Some(requested);
         let bar = config.layout.outer_height_px as i32;
-        let left = panel_left(shown.anchor.x, shown.output_width, requested.0);
+        let left = panel_left(shown.anchor.x, shown.output_width, requested.width);
         let margin = tooltip_margin(shown.position, left, bar);
         Task::batch([
             Task::done(Message::MarginChange {
                 id: surface,
-                margin,
+                margin: margin.edges(),
             }),
             Task::done(Message::SizeChange {
                 id: surface,
-                size: requested,
+                size: requested.dimensions(),
             }),
         ])
     }
@@ -610,8 +610,11 @@ fn footer_text(info: RefreshInfo, now: SystemTime) -> String {
     )
 }
 
-fn surface_size(size: Size) -> (u32, u32) {
-    (size.width.ceil() as u32, size.height.ceil() as u32)
+fn surface_size(size: Size) -> SurfaceSize {
+    SurfaceSize {
+        width: size.width.ceil() as u32,
+        height: size.height.ceil() as u32,
+    }
 }
 
 fn column<'a>(lines: impl Iterator<Item = &'a str>, style: TextStyle) -> Size {
@@ -768,10 +771,20 @@ pub(crate) fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: 
 
 /// The four-sided surface margin `(top, right, bottom, left)` placing the panel
 /// `left` px from the output's left edge and `bar + GAP_PX` off the bar edge.
-pub(crate) fn tooltip_margin(position: Position, left: i32, bar: i32) -> (i32, i32, i32, i32) {
+pub(crate) fn tooltip_margin(position: Position, left: i32, bar: i32) -> Margin {
     match position {
-        Position::Top => (bar + GAP_PX, 0, 0, left),
-        Position::Bottom => (0, 0, bar + GAP_PX, left),
+        Position::Top => Margin {
+            top: bar + GAP_PX,
+            right: 0,
+            bottom: 0,
+            left,
+        },
+        Position::Bottom => Margin {
+            top: 0,
+            right: 0,
+            bottom: bar + GAP_PX,
+            left,
+        },
     }
 }
 
@@ -780,20 +793,20 @@ fn tooltip_settings(
     position: Position,
     anchor: Rectangle,
     output_width: Option<i32>,
-    size: (u32, u32),
+    size: SurfaceSize,
     config: &ResolvedConfig,
 ) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
-    let left = panel_left(anchor.x, output_width, size.0);
+    let left = panel_left(anchor.x, output_width, size.width);
     let anchor = match position {
         Position::Top => Anchor::Top | Anchor::Left,
         Position::Bottom => Anchor::Bottom | Anchor::Left,
     };
     NewLayerShellSettings {
-        size: Some(size),
+        size: Some(size.dimensions()),
         exclusive_zone: Some(0),
         anchor,
-        margin: Some(tooltip_margin(position, left, bar)),
+        margin: Some(tooltip_margin(position, left, bar).edges()),
         layer: Layer::Overlay,
         keyboard_interactivity: KeyboardInteractivity::None,
         output_option: OutputOption::OutputName(output.to_string()),

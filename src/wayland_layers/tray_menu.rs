@@ -22,7 +22,7 @@ use crate::{
     app::Message,
     config::resolved::ResolvedConfig,
     wayland_layers::{
-        surface::Position,
+        surface::{Position, SurfaceSize},
         tooltip::{MenuAnchor, panel_left, tooltip_margin},
     },
     widget_groups::tray_group::TrayMessage,
@@ -32,7 +32,10 @@ use crate::{
 /// A generous initial size for the menu surface; the panel lays itself out
 /// (shrink-to-fit) and a [`Sensor`] reports the true size, which then shrinks
 /// the surface — the same settle dance as the tooltip.
-const MENU_PROVISIONAL: (u32, u32) = (420, 800);
+const MENU_PROVISIONAL: SurfaceSize = SurfaceSize {
+    width: 420,
+    height: 800,
+};
 /// Fixed content width, so row highlights span the full menu and submenu
 /// chevrons right-align. Long labels wrap.
 const MENU_WIDTH: f32 = 250.0;
@@ -56,7 +59,7 @@ struct OpenMenu {
     anchor: Rectangle,
     output_width: Option<i32>,
     position: Position,
-    size: Option<(u32, u32)>,
+    size: Option<SurfaceSize>,
     settled: bool,
 }
 
@@ -138,23 +141,26 @@ impl TrayMenuHost {
         let Some(menu) = &mut self.shown else {
             return Task::none();
         };
-        let requested = (size.width.ceil() as u32, size.height.ceil() as u32);
+        let requested = SurfaceSize {
+            width: size.width.ceil() as u32,
+            height: size.height.ceil() as u32,
+        };
         if menu.surface != surface || menu.size == Some(requested) {
             return Task::none();
         }
         menu.size = Some(requested);
         menu.settled = true;
         let bar = config.layout.outer_height_px as i32;
-        let left = panel_left(menu.anchor.x, menu.output_width, requested.0);
+        let left = panel_left(menu.anchor.x, menu.output_width, requested.width);
         let margin = tooltip_margin(menu.position, left, bar);
         Task::batch([
             Task::done(Message::MarginChange {
                 id: surface,
-                margin,
+                margin: margin.edges(),
             }),
             Task::done(Message::SizeChange {
                 id: surface,
-                size: requested,
+                size: requested.dimensions(),
             }),
         ])
     }
@@ -171,16 +177,16 @@ impl TrayMenuHost {
 
 fn menu_settings(place: &MenuAnchor, config: &ResolvedConfig) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
-    let left = panel_left(place.anchor.x, place.output_width, MENU_PROVISIONAL.0);
+    let left = panel_left(place.anchor.x, place.output_width, MENU_PROVISIONAL.width);
     let anchor = match place.position {
         Position::Top => Anchor::Top | Anchor::Left,
         Position::Bottom => Anchor::Bottom | Anchor::Left,
     };
     NewLayerShellSettings {
-        size: Some(MENU_PROVISIONAL),
+        size: Some(MENU_PROVISIONAL.dimensions()),
         exclusive_zone: Some(0),
         anchor,
-        margin: Some(tooltip_margin(place.position, left, bar)),
+        margin: Some(tooltip_margin(place.position, left, bar).edges()),
         layer: Layer::Overlay,
         // No keyboard focus (like the toasts): taking focus would itself fire a
         // niri focus-change and self-dismiss. Dismissal is by selection, re-click,

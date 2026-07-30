@@ -712,7 +712,7 @@ impl Bar {
         Task::batch(self.surfaces.iter().map(|(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
-                margin: float_margin(surface.position, offset),
+                margin: float_margin(surface.position, offset).edges(),
             })
         }))
     }

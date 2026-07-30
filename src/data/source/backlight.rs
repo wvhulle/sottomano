@@ -17,7 +17,8 @@
 use std::{collections::HashSet, fs, time::Duration};
 
 use iced::Subscription;
-use zbus::blocking::{Connection, Proxy};
+use serde::{Deserialize, Serialize};
+use zbus::{blocking::Connection, proxy, zvariant::Type};
 
 use crate::{
     data::source::{
@@ -28,9 +29,28 @@ use crate::{
     message_subscriptions::poll_every,
 };
 
-const DEST: &str = "org.clightd.clightd";
-const PATH: &str = "/org/clightd/clightd/Backlight";
-const IFACE: &str = "org.clightd.clightd.Backlight";
+#[proxy(
+    interface = "org.clightd.clightd.Backlight",
+    default_service = "org.clightd.clightd",
+    default_path = "/org/clightd/clightd/Backlight"
+)]
+trait ClightdBacklight {
+    fn get_all(&self, serial: &str) -> zbus::Result<Vec<BacklightReading>>;
+    fn set(&self, target: f64, smooth: Smooth, serial: &str) -> zbus::Result<bool>;
+}
+
+#[derive(Debug, Deserialize, Type)]
+struct BacklightReading {
+    serial: String,
+    fraction: f64,
+}
+
+#[derive(Debug, Serialize, Type)]
+struct Smooth {
+    enabled: bool,
+    step: f64,
+    timeout: u32,
+}
 
 /// How a display's backlight is driven, for the icon and tooltip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,25 +118,25 @@ pub fn poll_all() -> Vec<Backlight> {
     let Ok(connection) = Connection::system() else {
         return Vec::new();
     };
-    let Ok(proxy) = Proxy::new(&connection, DEST, PATH, IFACE) else {
+    let Ok(proxy) = ClightdBacklightProxyBlocking::new(&connection) else {
         return Vec::new();
     };
-    let Ok(readings): zbus::Result<Vec<(String, f64)>> = proxy.call("GetAll", &("",)) else {
+    let Ok(readings) = proxy.get_all("") else {
         return Vec::new();
     };
     let internal = internal_names();
     let mut list: Vec<Backlight> = readings
         .into_iter()
-        .map(|(serial, fraction)| {
-            let kind = if internal.contains(&serial) {
+        .map(|reading| {
+            let kind = if internal.contains(&reading.serial) {
                 Kind::Internal
             } else {
                 Kind::External
             };
             #[allow(clippy::cast_possible_truncation)]
-            let percent = (fraction * 100.0).round() as i64;
+            let percent = (reading.fraction * 100.0).round() as i64;
             Backlight {
-                serial,
+                serial: reading.serial,
                 kind,
                 percent,
             }
@@ -164,9 +184,18 @@ fn clightd_set(serial: &str, frac: f64) -> bool {
     let Ok(connection) = Connection::system() else {
         return false;
     };
-    let Ok(proxy) = Proxy::new(&connection, DEST, PATH, IFACE) else {
+    let Ok(proxy) = ClightdBacklightProxyBlocking::new(&connection) else {
         return false;
     };
-    let result: zbus::Result<bool> = proxy.call("Set", &(frac, (false, 0.0_f64, 0_u32), serial));
-    result.unwrap_or(false)
+    proxy
+        .set(
+            frac,
+            Smooth {
+                enabled: false,
+                step: 0.0,
+                timeout: 0,
+            },
+            serial,
+        )
+        .unwrap_or(false)
 }

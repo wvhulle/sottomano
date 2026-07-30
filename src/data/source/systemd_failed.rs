@@ -11,10 +11,42 @@
 
 use std::time::{Duration, SystemTime};
 
+use serde::Deserialize;
 use zbus::{
-    blocking::{Connection, Proxy},
-    zvariant::OwnedObjectPath,
+    blocking::Connection,
+    proxy,
+    proxy::CacheProperties,
+    zvariant::{OwnedObjectPath, Type},
 };
+
+#[proxy(
+    interface = "org.freedesktop.systemd1.Manager",
+    default_service = "org.freedesktop.systemd1",
+    default_path = "/org/freedesktop/systemd1"
+)]
+trait Manager {
+    fn list_units_filtered(&self, states: &[&str]) -> zbus::Result<Vec<UnitRow>>;
+}
+
+#[proxy(
+    interface = "org.freedesktop.systemd1.Unit",
+    default_service = "org.freedesktop.systemd1"
+)]
+trait Unit {
+    #[zbus(property)]
+    fn state_change_timestamp_monotonic(&self) -> zbus::Result<u64>;
+}
+
+#[proxy(
+    interface = "org.freedesktop.systemd1.Service",
+    default_service = "org.freedesktop.systemd1"
+)]
+trait Service {
+    #[zbus(property)]
+    fn result(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn exec_main_status(&self) -> zbus::Result<i32>;
+}
 
 use crate::data::source::{
     BarWidget, Glyph, Level, LogEntry, Source, TooltipBody, font_awesome::Solid,
@@ -24,20 +56,20 @@ use crate::data::source::{
 const HORIZON: Duration = Duration::from_secs(3600);
 const POLL: Duration = Duration::from_secs(30);
 
-/// The `ListUnitsFiltered` row shape (a subset is used): name, description,
-/// load, active, sub, following, unit path, job id, job type, job path.
-type UnitRow = (
-    String,
-    String,
-    String,
-    String,
-    String,
-    String,
-    OwnedObjectPath,
-    u32,
-    String,
-    OwnedObjectPath,
-);
+#[derive(Debug, Deserialize, Type)]
+#[allow(dead_code)]
+struct UnitRow {
+    name: String,
+    description: String,
+    load_state: String,
+    active_state: String,
+    sub_state: String,
+    following: String,
+    unit_path: OwnedObjectPath,
+    job_id: u32,
+    job_type: String,
+    job_path: OwnedObjectPath,
+}
 
 #[derive(Debug, Clone)]
 struct FailedUnit {
@@ -134,14 +166,8 @@ fn poll_failed(user: bool) -> Option<Vec<FailedUnit>> {
         Connection::system()
     }
     .ok()?;
-    let manager = Proxy::new(
-        &connection,
-        "org.freedesktop.systemd1",
-        "/org/freedesktop/systemd1",
-        "org.freedesktop.systemd1.Manager",
-    )
-    .ok()?;
-    let rows: Vec<UnitRow> = manager.call("ListUnitsFiltered", &(vec!["failed"],)).ok()?;
+    let manager = ManagerProxyBlocking::new(&connection).ok()?;
+    let rows = manager.list_units_filtered(&["failed"]).ok()?;
     if rows.is_empty() {
         return None;
     }
@@ -160,8 +186,12 @@ fn failed_unit(
     uptime: Duration,
     now: SystemTime,
 ) -> FailedUnit {
-    let name = row.0;
-    let (result, status, changed_us) = details(connection, &row.6);
+    let name = row.name;
+    let UnitDetails {
+        result,
+        status,
+        changed_us,
+    } = details(connection, &row.unit_path);
     // systemd's monotonic timestamp is µs since boot; age it against the current
     // uptime and reproject onto the wall clock, exactly as odin does — avoids any
     // timezone parsing.
@@ -178,51 +208,36 @@ fn failed_unit(
 /// Read a failed unit's `Result`, main exit status, and last state-change
 /// monotonic timestamp. Non-service units (mounts, timers) have no `Service`
 /// interface, so those default gracefully.
-fn details(connection: &Connection, path: &OwnedObjectPath) -> (String, i32, u64) {
-    let changed_us = property(
-        connection,
-        path,
-        "org.freedesktop.systemd1.Unit",
-        "StateChangeTimestampMonotonic",
-    )
-    .unwrap_or(0);
-    let result = property(
-        connection,
-        path,
-        "org.freedesktop.systemd1.Service",
-        "Result",
-    )
-    .unwrap_or_else(|| "failed".to_string());
-    let status = property(
-        connection,
-        path,
-        "org.freedesktop.systemd1.Service",
-        "ExecMainStatus",
-    )
-    .unwrap_or(0);
-    (result, status, changed_us)
+struct UnitDetails {
+    result: String,
+    status: i32,
+    changed_us: u64,
 }
 
-/// One D-Bus property off an interface of a unit's object, or `None` if absent
-/// (the interface may not exist on this unit type, or the read may fail).
-fn property<T>(
-    connection: &Connection,
-    path: &OwnedObjectPath,
-    interface: &str,
-    name: &str,
-) -> Option<T>
-where
-    T: TryFrom<zbus::zvariant::OwnedValue>,
-    <T as TryFrom<zbus::zvariant::OwnedValue>>::Error: Into<zbus::Error>,
-{
-    Proxy::new(
-        connection,
-        "org.freedesktop.systemd1",
-        path.as_ref(),
-        interface,
-    )
-    .ok()
-    .and_then(|proxy| proxy.get_property(name).ok())
+fn details(connection: &Connection, path: &OwnedObjectPath) -> UnitDetails {
+    let unit = UnitProxyBlocking::builder(connection)
+        .path(path.clone())
+        .ok()
+        .and_then(|builder| builder.cache_properties(CacheProperties::No).build().ok());
+    let service = ServiceProxyBlocking::builder(connection)
+        .path(path.clone())
+        .ok()
+        .and_then(|builder| builder.cache_properties(CacheProperties::No).build().ok());
+    let changed_us = unit
+        .and_then(|unit| unit.state_change_timestamp_monotonic().ok())
+        .unwrap_or(0);
+    let result = service
+        .as_ref()
+        .and_then(|service| service.result().ok())
+        .unwrap_or_else(|| "failed".to_string());
+    let status = service
+        .and_then(|service| service.exec_main_status().ok())
+        .unwrap_or(0);
+    UnitDetails {
+        result,
+        status,
+        changed_us,
+    }
 }
 
 /// systemd's terse `Result` enum (+ main exit status) as a plain-language

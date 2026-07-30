@@ -8,18 +8,27 @@
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use zbus::{
-    blocking::{Connection, Proxy},
-    zvariant::Value as DbusValue,
-};
+use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
     BarWidget, Glyph, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
-const DEST: &str = "rs.wl-gammarelay";
-const PATH: &str = "/";
-const IFACE: &str = "rs.wl.gammarelay";
+#[proxy(
+    interface = "rs.wl.gammarelay",
+    default_service = "rs.wl-gammarelay",
+    default_path = "/"
+)]
+trait GammaRelay {
+    #[zbus(property)]
+    fn brightness(&self) -> zbus::Result<f64>;
+    #[zbus(property)]
+    fn set_brightness(&self, value: f64) -> zbus::Result<()>;
+    #[zbus(property)]
+    fn temperature(&self) -> zbus::Result<u16>;
+    #[zbus(property)]
+    fn set_temperature(&self, value: u16) -> zbus::Result<()>;
+}
 
 /// Slider range for color temperature (warm → cool), in Kelvin.
 pub const TEMP_RANGE: RangeInclusive<u16> = 3000..=6500;
@@ -58,9 +67,9 @@ impl Source for Gamma {
 
     fn poll() -> Option<Self> {
         let connection = Connection::session().ok()?;
-        let proxy = Proxy::new(&connection, DEST, PATH, IFACE).ok()?;
-        let brightness: f64 = proxy.get_property("Brightness").ok()?;
-        let temperature: u16 = proxy.get_property("Temperature").ok()?;
+        let proxy = GammaRelayProxyBlocking::new(&connection).ok()?;
+        let brightness = proxy.brightness().ok()?;
+        let temperature = proxy.temperature().ok()?;
         #[allow(clippy::cast_possible_truncation)]
         Some(Gamma {
             brightness: (brightness * 100.0).round() as i64,
@@ -72,25 +81,15 @@ impl Source for Gamma {
 /// Set the software dim across all outputs.
 pub fn set_brightness(percent: i64) -> bool {
     let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
-    set_property("Brightness", frac)
+    relay().is_some_and(|proxy| proxy.set_brightness(frac).is_ok())
 }
 
 /// Set the color temperature (Kelvin) across all outputs.
 pub fn set_temperature(kelvin: u16) -> bool {
     let clamped = kelvin.clamp(*TEMP_RANGE.start(), *TEMP_RANGE.end());
-    set_property("Temperature", clamped)
+    relay().is_some_and(|proxy| proxy.set_temperature(clamped).is_ok())
 }
 
-/// Write a property on wl-gammarelay's global root object.
-fn set_property<T>(name: &str, value: T) -> bool
-where
-    T: Into<DbusValue<'static>> + 'static,
-{
-    let Ok(connection) = Connection::session() else {
-        return false;
-    };
-    let Ok(proxy) = Proxy::new(&connection, DEST, PATH, IFACE) else {
-        return false;
-    };
-    proxy.set_property(name, value).is_ok()
+fn relay() -> Option<GammaRelayProxyBlocking<'static>> {
+    GammaRelayProxyBlocking::new(&Connection::session().ok()?).ok()
 }

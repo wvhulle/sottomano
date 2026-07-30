@@ -11,7 +11,13 @@ use iced_layershell::reexport::{
 use crate::{
     config::resolved::ResolvedConfig,
     data::source::niri::{HEdge, VEdge},
+    wayland_layers::surface::{Margin, SurfaceSize},
 };
+
+pub struct SlotPlacement {
+    pub anchor: Anchor,
+    pub margin: Margin,
+}
 
 pub const NAMESPACE: &str = "vetrata-notifications";
 /// Vertical gap between two cards sharing a corner.
@@ -36,7 +42,7 @@ pub fn slot_placement(
     group_height: f32,
     output_height: Option<i32>,
     config: &ResolvedConfig,
-) -> (Anchor, (i32, i32, i32, i32)) {
+) -> SlotPlacement {
     let side = config.notifications.edge_gap.round() as i32;
     let mut anchor = Anchor::empty();
     let (mut left, mut right) = (0, 0);
@@ -73,7 +79,15 @@ pub fn slot_placement(
             (top, 0)
         }
     };
-    (anchor, (top, right, bottom, left))
+    SlotPlacement {
+        anchor,
+        margin: Margin {
+            top,
+            right,
+            bottom,
+            left,
+        },
+    }
 }
 
 /// How far a card's edge sits from the panel edge on an anchored axis: the bar
@@ -87,11 +101,11 @@ fn edge_inset(offset: f32, config: &ResolvedConfig) -> i32 {
 pub fn toast_settings(
     output: Option<&str>,
     anchor: Anchor,
-    margin: (i32, i32, i32, i32),
-    size: (u32, u32),
+    margin: Margin,
+    size: SurfaceSize,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some(size),
+        size: Some(size.dimensions()),
         exclusive_zone: Some(0),
         anchor,
         layer: Layer::Overlay,
@@ -99,7 +113,7 @@ pub fn toast_settings(
         output_option: output.map_or(OutputOption::Active, |o| {
             OutputOption::OutputName(o.to_string())
         }),
-        margin: Some(margin),
+        margin: Some(margin.edges()),
         events_transparent: false,
         namespace: Some(NAMESPACE.to_string()),
     }

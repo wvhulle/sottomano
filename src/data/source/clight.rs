@@ -13,18 +13,33 @@
 
 use std::{env, fs, time::Duration};
 
-use zbus::blocking::{Connection, Proxy};
+use zbus::{blocking::Connection, proxy};
 
 use crate::{
     data::source::{BarWidget, Glyph, Source, TooltipBody, backlight, font_awesome::Solid, row},
     widgets::toggle_control::Toggle,
 };
 
-const DEST: &str = "org.clight.clight";
-const CONF_BACKLIGHT_PATH: &str = "/org/clight/clight/Conf/Backlight";
-const CONF_BACKLIGHT_IFACE: &str = "org.clight.clight.Conf.Backlight";
-const CLIGHT_PATH: &str = "/org/clight/clight";
-const CLIGHT_IFACE: &str = "org.clight.clight";
+#[proxy(
+    interface = "org.clight.clight.Conf.Backlight",
+    default_service = "org.clight.clight",
+    default_path = "/org/clight/clight/Conf/Backlight"
+)]
+trait ConfBacklight {
+    #[zbus(property)]
+    fn no_auto_calib(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn set_no_auto_calib(&self, value: bool) -> zbus::Result<()>;
+}
+
+#[proxy(
+    interface = "org.clight.clight",
+    default_service = "org.clight.clight",
+    default_path = "/org/clight/clight"
+)]
+trait ClightDaemon {
+    fn capture(&self, reset_timer: bool, capture_only: bool) -> zbus::Result<()>;
+}
 
 #[derive(Debug, Clone)]
 pub struct Clight {
@@ -76,18 +91,18 @@ impl Toggle for Clight {
 /// Read clight's `NoAutoCalib` property; `None` when clight is unavailable.
 fn no_auto_calib() -> Option<bool> {
     let connection = Connection::session().ok()?;
-    let proxy = Proxy::new(&connection, DEST, CONF_BACKLIGHT_PATH, CONF_BACKLIGHT_IFACE).ok()?;
-    proxy.get_property("NoAutoCalib").ok()
+    ConfBacklightProxyBlocking::new(&connection)
+        .ok()?
+        .no_auto_calib()
+        .ok()
 }
 
 fn set_no_auto_calib(value: bool) -> bool {
     let Ok(connection) = Connection::session() else {
         return false;
     };
-    let Ok(proxy) = Proxy::new(&connection, DEST, CONF_BACKLIGHT_PATH, CONF_BACKLIGHT_IFACE) else {
-        return false;
-    };
-    proxy.set_property("NoAutoCalib", value).is_ok()
+    ConfBacklightProxyBlocking::new(&connection)
+        .is_ok_and(|proxy| proxy.set_no_auto_calib(value).is_ok())
 }
 
 /// Fire an immediate webcam capture so a switch-to-auto adjusts at once rather
@@ -96,8 +111,8 @@ fn capture() {
     let Ok(connection) = Connection::session() else {
         return;
     };
-    if let Ok(proxy) = Proxy::new(&connection, DEST, CLIGHT_PATH, CLIGHT_IFACE) {
-        let _: zbus::Result<()> = proxy.call("Capture", &(true, false));
+    if let Ok(proxy) = ClightDaemonProxyBlocking::new(&connection) {
+        let _ = proxy.capture(true, false);
     }
 }
 

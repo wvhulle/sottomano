@@ -17,7 +17,11 @@ use iced_layershell::reexport::{
 use crate::{
     app::{Bar, Message},
     config::resolved::ResolvedConfig,
-    wayland_layers::{backdrop_shadow, surface::Position, tooltip},
+    wayland_layers::{
+        backdrop_shadow,
+        surface::{Margin, Position},
+        tooltip,
+    },
     widget_groups::{
         ai_group::AiMessage,
         audio_group::AudioMessage,
@@ -59,10 +63,20 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
 
 /// Margin (top, right, bottom, left) that insets the bar from the screen edges
 /// in floating mode — `0` on every side flush-mounts it instead.
-pub fn float_margin(position: Position, offset_px: i32) -> (i32, i32, i32, i32) {
+pub fn float_margin(position: Position, offset_px: i32) -> Margin {
     match position {
-        Position::Top => (offset_px, offset_px, 0, offset_px),
-        Position::Bottom => (0, offset_px, offset_px, offset_px),
+        Position::Top => Margin {
+            top: offset_px,
+            right: offset_px,
+            bottom: 0,
+            left: offset_px,
+        },
+        Position::Bottom => Margin {
+            top: 0,
+            right: offset_px,
+            bottom: offset_px,
+            left: offset_px,
+        },
     }
 }
 
@@ -76,7 +90,7 @@ pub fn layer_settings(
     output: &str,
     position: Position,
     height: u32,
-    margin: (i32, i32, i32, i32),
+    margin: Margin,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: Some((0, height)),
@@ -87,7 +101,7 @@ pub fn layer_settings(
         keyboard_interactivity: KeyboardInteractivity::None,
         // Bind this surface to a specific niri output by name.
         output_option: OutputOption::OutputName(output.to_string()),
-        margin: Some(margin),
+        margin: Some(margin.edges()),
         ..Default::default()
     }
 }

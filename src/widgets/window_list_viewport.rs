@@ -115,12 +115,12 @@ impl<Message> WindowListViewport<'_, Message> {
     /// it fits without scrolling. When it fits the child node equals its
     /// natural width, so this is a no-op shift; when it overflows the
     /// content is shifted left by the (clamped) scroll offset.
-    fn shift(&self, bounds: Rectangle, natural: f32) -> (Vector, bool) {
+    fn shift(&self, bounds: Rectangle, natural: f32) -> Vector {
         if natural <= bounds.width {
-            (Vector::new((bounds.width - natural) / 2.0, 0.0), true)
+            Vector::new((bounds.width - natural) / 2.0, 0.0)
         } else {
             let offset = self.offset.clamp(0.0, natural - bounds.width);
-            (Vector::new(-offset, 0.0), false)
+            Vector::new(-offset, 0.0)
         }
     }
 }
@@ -182,7 +182,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
     ) {
         let bounds = layout.bounds();
         let child_layout = layout.children().next().unwrap();
-        let (d, _) = self.shift(bounds, natural_width(layout));
+        let d = self.shift(bounds, natural_width(layout));
         let clip = Rectangle {
             x: bounds.x,
             width: bounds.width,
@@ -225,7 +225,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         let bounds = layout.bounds();
         let child_layout = layout.children().next().unwrap();
         let natural = natural_width(layout);
-        let (d, _) = self.shift(bounds, natural);
+        let d = self.shift(bounds, natural);
         let child_viewport = Rectangle {
             x: bounds.x - d.x,
             width: bounds.width,
@@ -292,7 +292,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
         let bounds = layout.bounds();
-        let (d, _) = self.shift(bounds, natural_width(layout));
+        let d = self.shift(bounds, natural_width(layout));
         self.content.as_widget().mouse_interaction(
             &tree.children[0],
             layout.children().next().unwrap(),
@@ -326,7 +326,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         translation: Vector,
     ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
         let bounds = layout.bounds();
-        let (d, _) = self.shift(bounds, natural_width(layout));
+        let d = self.shift(bounds, natural_width(layout));
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),
