@@ -7,6 +7,7 @@
 
 use iced::{
     Alignment, Element, Length,
+    alignment::Vertical,
     widget::{Row, Space, container, mouse_area, row, stack, text},
     window::Id,
 };
@@ -56,8 +57,6 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
         Position::Top => top_row(bar, surface.position),
         Position::Bottom => bottom_row(bar, &surface.output, surface.position),
     };
-    // Stamp this surface onto tooltip hovers bubbling out of the bar, so leaf
-    // groups need not carry it.
     chrome(bar, tooltip::on_surface(window, content))
 }
 
@@ -116,10 +115,14 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
     )
     .on_press(Message::DismissPressed);
 
-    container(stack![dismiss, content])
+    let centered = container(content)
         .width(Length::Fill)
         .height(Length::Fill)
-        .align_y(Alignment::Center)
+        .align_y(Vertical::Center);
+
+    container(stack![dismiss, centered])
+        .width(Length::Fill)
+        .height(Length::Fill)
         .style(|_| container::Style {
             background: Some(bar.config.palette.bar_background.into()),
             border: iced::Border {
