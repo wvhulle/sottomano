@@ -72,6 +72,9 @@
         nativeBuildInputs = [
           pkgs.pkg-config
           pkgs.autoAddDriverRunpath
+          # Sets LIBCLANG_PATH + BINDGEN_EXTRA_CLANG_ARGS for the `pipewire`
+          # crate's bindgen build (libspa-sys), in both the build and devShell.
+          pkgs.rustPlatform.bindgenHook
         ];
         buildInputs = with pkgs; [
           wayland
@@ -81,6 +84,8 @@
           # libsystemd, for the `systemd` crate's journal reader (kernel-errors
           # widget). Linked, not dlopen'd, so no RUNPATH/runtimeDeps entry.
           systemd
+          # libpipewire/libspa, linked by the `pipewire` crate (audio volume).
+          pipewire
         ];
       };
 

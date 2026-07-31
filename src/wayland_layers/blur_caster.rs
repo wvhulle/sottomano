@@ -1,10 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iced::{
-    Element, Length, Rectangle, Task,
-    widget::Space,
-    window::Id,
-};
+use iced::{Element, Length, Rectangle, Task, widget::Space, window::Id};
 use iced_layershell::reexport::{
     Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
 };
@@ -65,7 +61,8 @@ impl BlurCasters {
             .collect();
         self.strips.clear();
         self.pills.clear();
-        self.rects.retain(|(window, _), _| bars.contains_key(window));
+        self.rects
+            .retain(|(window, _), _| bars.contains_key(window));
         if config.layout.blur_background {
             if config.layout.disconnected_groups {
                 let rects = self.rects.clone();
@@ -204,12 +201,7 @@ impl BlurCasters {
         )
     }
 
-    fn open_strip(
-        &mut self,
-        bar: Id,
-        surface: &Surface,
-        config: &ResolvedConfig,
-    ) -> Task<Message> {
+    fn open_strip(&mut self, bar: Id, surface: &Surface, config: &ResolvedConfig) -> Task<Message> {
         let id = Id::unique();
         self.ids.insert(id);
         self.strips.insert(bar, id);

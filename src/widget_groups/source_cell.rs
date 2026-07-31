@@ -8,9 +8,18 @@ use std::time::{Duration, SystemTime};
 use iced::Subscription;
 
 use crate::{
-    data::source::{RefreshInfo, Source, Tooltip},
+    data::source::{BarWidget, RefreshInfo, Source, Tooltip},
     message_subscriptions::polling,
 };
+
+impl<S: BarWidget> SourceCell<S> {
+    pub fn live_tooltip(&self) -> Option<Tooltip> {
+        Some(Tooltip {
+            body: self.data.as_ref()?.tooltip(),
+            footer: None,
+        })
+    }
+}
 
 pub struct SourceCell<S> {
     data: Option<S>,

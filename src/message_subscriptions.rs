@@ -1,6 +1,6 @@
 //! Subscriptions and tasks for polling sources, niri events, and timers.
 
-use std::{convert::identity, path::PathBuf, time::Duration};
+use std::{convert::identity, future::Future, path::PathBuf, time::Duration};
 
 use iced::{Subscription, Task};
 use tokio::{
@@ -147,6 +147,17 @@ pub(crate) fn poll_every<T: Default + Send + 'static>(
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
         IntervalStream::new(timer).then(move |_| off_thread(key, poll))
     })
+}
+
+pub(crate) fn dbus<S, Fut>(
+    name: &'static str,
+    run: fn(iced::futures::channel::mpsc::Sender<Option<S>>) -> Fut,
+) -> Subscription<Option<S>>
+where
+    S: Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    Subscription::run_with((name, run), |&(_, run)| iced::stream::channel(16, run))
 }
 
 pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {

@@ -1,25 +1,21 @@
-//! Network throughput on the default-route interface, one gauge per direction.
-//! odin samples `/sys/class/net/<iface>/statistics` continuously; here each
-//! poll self-measures over a short window (it runs off the executor, so the
-//! in-poll sleep is free), which keeps it a plain stateless [`Source`].
-//!
-//! The gauge is log-scaled between a noise floor and a per-direction cap, so a
-//! busy link reads high without a trickle pinning it. Offline (no default
-//! route) is a critical, empty gauge.
-
-use std::{fs, thread::sleep, time::Duration};
-
-use serde_json::Value as Json;
-
-use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, command::output,
-    font_awesome::Solid, row,
+use std::{
+    fs,
+    time::{Duration, Instant},
 };
 
-/// Below this rate the gauge reads empty (odin's 50 kB/s floor).
+use iced::{
+    Subscription,
+    futures::{SinkExt, StreamExt},
+};
+use tokio::time::interval;
+use tokio_stream::wrappers::IntervalStream;
+use zbus::{Connection, proxy};
+
+use crate::data::source::{
+    BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::Solid, row,
+};
+
 const FLOOR: f64 = 50_000.0;
-/// The measurement window; the rate is the byte delta over it.
-const WINDOW: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone)]
 pub struct Throughput<const UP: bool> {
@@ -37,11 +33,11 @@ enum Connectivity {
 }
 
 impl Connectivity {
-    fn parse(s: &str) -> Self {
-        match s.trim() {
-            "full" => Self::Full,
-            "portal" | "limited" => Self::Limited,
-            "none" => Self::None,
+    fn from_nm(state: u32) -> Self {
+        match state {
+            4 => Self::Full,
+            2 | 3 => Self::Limited,
+            1 => Self::None,
             _ => Self::Unknown,
         }
     }
@@ -64,12 +60,10 @@ impl Connectivity {
     }
 }
 
-/// Per-direction gauge cap: 25 MB/s down, 12.5 MB/s up (odin's values).
 const fn cap<const UP: bool>() -> f64 {
     if UP { 12_500_000.0 } else { 25_000_000.0 }
 }
 
-/// A byte-rate as a compact `N.N U/s` string.
 fn format_rate(bytes_per_sec: f64) -> String {
     const UNITS: [&str; 4] = ["B", "kB", "MB", "GB"];
     let mut value = bytes_per_sec;
@@ -90,7 +84,6 @@ impl<const UP: bool> Throughput<UP> {
         self.rate < FLOOR
     }
 
-    /// Load severity from the log gauge fill (odin: ≥95 critical, ≥80 warning).
     fn load_level(&self) -> Level {
         match self.gauge_percent() {
             95.. => Level::Critical,
@@ -99,7 +92,6 @@ impl<const UP: bool> Throughput<UP> {
         }
     }
 
-    /// Log-scaled gauge fill between [`FLOOR`] and the direction's [`cap`].
     fn gauge_percent(&self) -> i64 {
         if self.interface.is_none() || self.rate < FLOOR {
             return 0;
@@ -121,7 +113,6 @@ impl<const UP: bool> BarWidget for Throughput<UP> {
     }
 
     fn disabled(&self) -> bool {
-        // Dim a quiet link, but only when nothing else is wrong.
         self.idle() && self.level() == Level::Ok
     }
 
@@ -153,53 +144,150 @@ impl<const UP: bool> BarWidget for Throughput<UP> {
     }
 }
 
-impl<const UP: bool> Source for Throughput<UP> {
-    const NAME: &'static str = if UP {
-        "throughput-up"
-    } else {
-        "throughput-down"
-    };
-    const INTERVAL: Duration = Duration::from_secs(1);
+#[derive(Debug, Clone)]
+pub struct Readings {
+    pub down: Throughput<false>,
+    pub up: Throughput<true>,
+}
 
-    fn poll() -> Option<Self> {
-        let connectivity = output("nmcli", &["networking", "connectivity"])
-            .map_or(Connectivity::Unknown, |s| Connectivity::parse(&s));
-        let Some(interface) = egress_interface() else {
-            return Some(Throughput {
-                interface: None,
-                rate: 0.0,
-                connectivity,
-            });
-        };
-        let counter = |iface: &str| {
-            let file = if UP { "tx_bytes" } else { "rx_bytes" };
-            fs::read_to_string(format!("/sys/class/net/{iface}/statistics/{file}"))
-                .ok()?
-                .trim()
-                .parse::<u64>()
-                .ok()
-        };
-        let before = counter(&interface)?;
-        sleep(WINDOW);
-        let after = counter(&interface)?;
-        #[allow(clippy::cast_precision_loss)]
-        let rate = after.saturating_sub(before) as f64 / WINDOW.as_secs_f64();
-        Some(Throughput {
-            interface: Some(interface),
-            rate,
-            connectivity,
-        })
+pub fn subscription() -> Subscription<Readings> {
+    Subscription::run_with("throughput", |_| {
+        iced::stream::channel(
+            16,
+            |mut output: iced::futures::channel::mpsc::Sender<Readings>| async move {
+                let connection = Connection::system().await.ok();
+                let mut ticks = IntervalStream::new(interval(Duration::from_secs(1)));
+                let mut previous: Option<Sample> = None;
+                while ticks.next().await.is_some() {
+                    let current = capture();
+                    let link = connectivity(connection.as_ref()).await;
+                    let readings = rate(previous.as_ref(), &current, link);
+                    previous = Some(current);
+                    if output.send(readings).await.is_err() {
+                        break;
+                    }
+                }
+            },
+        )
+    })
+}
+
+#[derive(Default)]
+struct Counters {
+    rx: u64,
+    tx: u64,
+}
+
+struct Sample {
+    interface: Option<String>,
+    counters: Counters,
+    at: Instant,
+}
+
+#[derive(Default)]
+struct Rates {
+    rx: f64,
+    tx: f64,
+}
+
+fn capture() -> Sample {
+    let interface = egress_interface();
+    let counters = interface.as_deref().map(read_counters).unwrap_or_default();
+    Sample {
+        interface,
+        counters,
+        at: Instant::now(),
     }
 }
 
-/// The default-route egress interface via `ip route get` (a routing lookup, no
-/// packets). `None` when offline.
+fn rate(previous: Option<&Sample>, current: &Sample, connectivity: Connectivity) -> Readings {
+    let rates = previous
+        .filter(|prev| current.interface.is_some() && prev.interface == current.interface)
+        .and_then(|prev| {
+            let seconds = current.at.duration_since(prev.at).as_secs_f64();
+            (seconds > 0.0).then(|| Rates {
+                rx: per_second(current.counters.rx, prev.counters.rx, seconds),
+                tx: per_second(current.counters.tx, prev.counters.tx, seconds),
+            })
+        })
+        .unwrap_or_default();
+    Readings {
+        down: Throughput {
+            interface: current.interface.clone(),
+            rate: rates.rx,
+            connectivity,
+        },
+        up: Throughput {
+            interface: current.interface.clone(),
+            rate: rates.tx,
+            connectivity,
+        },
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn per_second(now: u64, was: u64, seconds: f64) -> f64 {
+    now.saturating_sub(was) as f64 / seconds
+}
+
+fn read_counters(interface: &str) -> Counters {
+    let counter = |file: &str| {
+        fs::read_to_string(format!("/sys/class/net/{interface}/statistics/{file}"))
+            .ok()
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or(0)
+    };
+    Counters {
+        rx: counter("rx_bytes"),
+        tx: counter("tx_bytes"),
+    }
+}
+
+struct DefaultRoute {
+    interface: String,
+    metric: u32,
+}
+
 fn egress_interface() -> Option<String> {
-    let json: Json =
-        serde_json::from_str(&output("ip", &["-j", "route", "get", "1.1.1.1"])?).ok()?;
-    json.as_array()?
-        .first()?
-        .get("dev")?
-        .as_str()
-        .map(str::to_string)
+    let table = fs::read_to_string("/proc/net/route").ok()?;
+    table
+        .lines()
+        .skip(1)
+        .filter_map(parse_route)
+        .min_by_key(|route| route.metric)
+        .map(|route| route.interface)
+}
+
+fn parse_route(line: &str) -> Option<DefaultRoute> {
+    let mut fields = line.split_whitespace();
+    let interface = fields.next()?;
+    let destination = fields.next()?;
+    let metric = fields.nth(4)?.parse().ok()?;
+    (destination == "00000000").then(|| DefaultRoute {
+        interface: interface.to_owned(),
+        metric,
+    })
+}
+
+#[proxy(
+    interface = "org.freedesktop.NetworkManager",
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager"
+)]
+trait NetworkManager {
+    #[zbus(property)]
+    fn connectivity(&self) -> zbus::Result<u32>;
+}
+
+async fn connectivity(connection: Option<&Connection>) -> Connectivity {
+    let Some(connection) = connection else {
+        return Connectivity::Unknown;
+    };
+    match NetworkManagerProxy::new(connection).await {
+        Ok(proxy) => proxy
+            .connectivity()
+            .await
+            .map_or(Connectivity::Unknown, Connectivity::from_nm),
+        Err(_) => Connectivity::Unknown,
+    }
 }

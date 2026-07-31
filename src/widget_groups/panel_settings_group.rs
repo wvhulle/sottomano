@@ -136,14 +136,10 @@ impl PanelSettingsGroup {
             .icon_only()
             .readout_width(44.0)
             .readout(|value| format!("{} px", value.round())),
-            darken: SliderControl::new(
-                DARKEN_RANGE,
-                HoverTarget::DarkenChrome,
-                Solid::XRay.into(),
-            )
-            .icon_only()
-            .readout_width(44.0)
-            .readout(|value| format!("{} %", value.round())),
+            darken: SliderControl::new(DARKEN_RANGE, HoverTarget::DarkenChrome, Solid::XRay.into())
+                .icon_only()
+                .readout_width(44.0)
+                .readout(|value| format!("{} %", value.round())),
         }
     }
 

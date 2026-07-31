@@ -1,19 +1,14 @@
-//! Wired ethernet via `NetworkManager` (`nmcli`). Off the bar when no ethernet
-//! device exists; dimmed when present but unplugged; otherwise a plain icon
-//! with an interface/connection/IP/gateway tooltip.
-
-use std::time::Duration;
+use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender};
+use zbus::Connection;
 
 use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody,
-    command::output,
-    font_awesome::Solid,
-    net_interfaces::{dash, terse_split},
-    row,
+    BarWidget, Glyph, TooltipBody, font_awesome::Solid, net_interfaces::nm, row,
 };
 
+pub const NAME: &str = "ethernet";
+
 #[derive(Debug, Clone)]
-struct Device {
+struct Link {
     name: String,
     connected: bool,
     connection: String,
@@ -23,12 +18,12 @@ struct Device {
 
 #[derive(Debug, Clone)]
 pub struct Ethernet {
-    devices: Vec<Device>,
+    links: Vec<Link>,
 }
 
 impl Ethernet {
     fn connected_count(&self) -> usize {
-        self.devices.iter().filter(|d| d.connected).count()
+        self.links.iter().filter(|link| link.connected).count()
     }
 }
 
@@ -45,90 +40,75 @@ impl BarWidget for Ethernet {
         let connected = self.connected_count();
         if connected == 0 {
             return TooltipBody::Table(
-                self.devices
+                self.links
                     .iter()
-                    .map(|d| row(&d.name, "disconnected"))
+                    .map(|link| row(&link.name, "disconnected"))
                     .collect(),
             );
         }
-        // Prefix keys with the interface only when more than one link is up, so
-        // a single connection reads with bare keys.
-        let key = |device: &Device, label: &str| {
+        let key = |link: &Link, label: &str| {
             if connected > 1 {
-                format!("{} {label}", device.name)
+                format!("{} {label}", link.name)
             } else {
                 label.to_string()
             }
         };
         let mut rows = Vec::new();
-        for device in self.devices.iter().filter(|d| d.connected) {
-            rows.push(row(&key(device, "Interface"), device.name.clone()));
-            rows.push(row(&key(device, "Connection"), device.connection.clone()));
-            rows.push(row(&key(device, "IP"), device.ip.clone()));
-            rows.push(row(&key(device, "Gateway"), device.gateway.clone()));
+        for link in self.links.iter().filter(|link| link.connected) {
+            rows.push(row(&key(link, "Interface"), link.name.clone()));
+            rows.push(row(&key(link, "Connection"), link.connection.clone()));
+            rows.push(row(&key(link, "IP"), link.ip.clone()));
+            rows.push(row(&key(link, "Gateway"), link.gateway.clone()));
         }
         TooltipBody::Table(rows)
     }
 }
 
-impl Source for Ethernet {
-    const NAME: &'static str = "ethernet";
-    const INTERVAL: Duration = Duration::from_secs(10);
+async fn read(connection: &Connection) -> Option<Ethernet> {
+    let mut links = Vec::new();
+    for device in nm::devices(connection)
+        .await
+        .into_iter()
+        .filter(|device| device.kind == nm::TYPE_ETHERNET)
+    {
+        let (connection_id, ip, gateway) = if device.connected {
+            let ip = nm::ip(connection, &device.path).await;
+            (
+                nm::connection_id(connection, &device.path).await,
+                ip.address,
+                ip.gateway,
+            )
+        } else {
+            (
+                nm::DASH.to_owned(),
+                nm::DASH.to_owned(),
+                nm::DASH.to_owned(),
+            )
+        };
+        links.push(Link {
+            name: device.interface,
+            connected: device.connected,
+            connection: connection_id,
+            ip,
+            gateway,
+        });
+    }
+    (!links.is_empty()).then_some(Ethernet { links })
+}
 
-    fn poll() -> Option<Self> {
-        let status = output(
-            "nmcli",
-            &[
-                "-t",
-                "-f",
-                "TYPE,DEVICE,STATE,CONNECTION",
-                "device",
-                "status",
-            ],
-        )?;
-        let mut devices = Vec::new();
-        for line in status.lines() {
-            let fields = terse_split(line);
-            if fields.first().map(String::as_str) != Some("ethernet") {
-                continue;
-            }
-            let name = fields.get(1).cloned().unwrap_or_default();
-            let connected = fields.get(2).map(String::as_str) == Some("connected");
-            let mut connection = fields.get(3).cloned().unwrap_or_default();
-            let (mut ip, mut gateway) = (String::from("—"), String::from("—"));
-            if connected
-                && let Some(detail) = output(
-                    "nmcli",
-                    &[
-                        "-t",
-                        "-f",
-                        "IP4.ADDRESS,IP4.GATEWAY,GENERAL.CONNECTION",
-                        "device",
-                        "show",
-                        &name,
-                    ],
-                )
-            {
-                for line in detail.lines() {
-                    let Some((k, v)) = line.split_once(':') else {
-                        continue;
-                    };
-                    match k {
-                        "IP4.ADDRESS[1]" => ip = dash(v),
-                        "IP4.GATEWAY" => gateway = dash(v),
-                        "GENERAL.CONNECTION" => connection = dash(v),
-                        _ => {}
-                    }
-                }
-            }
-            devices.push(Device {
-                name,
-                connected,
-                connection: dash(&connection),
-                ip,
-                gateway,
-            });
+pub async fn run(mut sink: Sender<Option<Ethernet>>) {
+    let Ok(connection) = Connection::system().await else {
+        return;
+    };
+    if sink.send(read(&connection).await).await.is_err() {
+        return;
+    }
+    let Ok(mut signals) = nm::changes(&connection).await else {
+        return;
+    };
+    while signals.next().await.is_some() {
+        if sink.send(read(&connection).await).await.is_err() {
+            return;
         }
-        (!devices.is_empty()).then_some(Ethernet { devices })
     }
 }

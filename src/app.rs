@@ -135,7 +135,10 @@ pub enum Message {
     /// cache on [`Bar::desktop_entries`].
     IconsResolved(ResolvedIcons),
     DismissPressed,
-    WorkspaceClicked { id: u64, is_active: bool },
+    WorkspaceClicked {
+        id: u64,
+        is_active: bool,
+    },
     Niri(Vec<niri_ipc::Event>),
     /// A periodic repaint while a menu animates (from the frame-timer
     /// subscription gated on [`Bar::any_menu_animating`]); its handler does

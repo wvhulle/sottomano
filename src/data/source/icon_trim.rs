@@ -35,7 +35,11 @@ pub fn trimmed(path: &Path) -> PathBuf {
 
 pub fn trim_rgba(width: u32, height: u32, rgba: Vec<u8>) -> (u32, u32, Vec<u8>) {
     match significant_ink_bounds(width, height, &rgba) {
-        Some(bounds) => (bounds.width, bounds.height, crop_rgba(width, &rgba, &bounds)),
+        Some(bounds) => (
+            bounds.width,
+            bounds.height,
+            crop_rgba(width, &rgba, &bounds),
+        ),
         None => (width, height, rgba),
     }
 }

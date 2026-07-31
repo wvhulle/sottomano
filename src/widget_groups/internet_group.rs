@@ -17,7 +17,7 @@ use crate::{
     data::source::{
         BarWidget, Tooltip,
         tailscale::{Tailscale, open_admin},
-        throughput::Throughput,
+        throughput::{self, Readings, Throughput},
         wireguard::{Wireguard, disconnect},
     },
     wayland_layers::{
@@ -41,8 +41,7 @@ pub struct InternetGroup {
 
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
-    Down(Option<Throughput<false>>),
-    Up(Option<Throughput<true>>),
+    Throughput(Readings),
     Wireguard(Option<Wireguard>),
     Tailscale(Option<Tailscale>),
     Menu(MenuMessage),
@@ -64,8 +63,7 @@ impl InternetGroup {
 
     pub fn subscription() -> Subscription<InternetMessage> {
         Subscription::batch([
-            SourceCell::subscription().map(InternetMessage::Down),
-            SourceCell::subscription().map(InternetMessage::Up),
+            throughput::subscription().map(InternetMessage::Throughput),
             SourceCell::subscription().map(InternetMessage::Wireguard),
             SourceCell::subscription().map(InternetMessage::Tailscale),
         ])
@@ -74,8 +72,10 @@ impl InternetGroup {
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
         use crate::message_subscriptions::blocking;
         match msg {
-            InternetMessage::Down(reading) => self.down.load(reading),
-            InternetMessage::Up(reading) => self.up.load(reading),
+            InternetMessage::Throughput(readings) => {
+                self.down.load(Some(readings.down));
+                self.up.load(Some(readings.up));
+            }
             InternetMessage::Wireguard(reading) => self.wireguard.load(reading),
             InternetMessage::Tailscale(reading) => self.tailscale.load(reading),
             InternetMessage::Menu(m) => {
@@ -108,8 +108,8 @@ impl InternetGroup {
                     footer: None,
                 })
             }
-            HoverTarget::InternetDown => self.down.tooltip(),
-            HoverTarget::InternetUp => self.up.tooltip(),
+            HoverTarget::InternetDown => self.down.live_tooltip(),
+            HoverTarget::InternetUp => self.up.live_tooltip(),
             HoverTarget::Tailscale => self.tailscale.tooltip(),
             _ => None,
         }

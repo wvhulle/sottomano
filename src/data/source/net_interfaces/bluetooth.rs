@@ -1,41 +1,30 @@
-//! Bluetooth adapter state via `bluetoothctl`. Absent adapter → off the bar;
-//! powered off → a dimmed icon; powered on → a connected-count badge and, when
-//! any connected device reports RSSI, a link-quality gauge.
-
-use std::time::Duration;
+use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::select_all};
+use zbus::{
+    Connection, MatchRule, MessageStream,
+    fdo::{ManagedObjects, ObjectManagerProxy},
+};
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, command::output,
-    font_awesome::Brands, net_interfaces::signal_level, row,
+    BarWidget, Glyph, Level, TooltipBody, Unit, Value,
+    font_awesome::Brands,
+    net_interfaces::{interface, prop, signal_level},
+    row,
 };
+
+pub const NAME: &str = "bluetooth";
+
+const ADAPTER: &str = "org.bluez.Adapter1";
+const DEVICE: &str = "org.bluez.Device1";
 
 #[derive(Debug, Clone)]
 pub struct Bluetooth {
     powered: bool,
     connected: Vec<String>,
-    /// Best link quality (0..100) across connected devices that report RSSI.
     signal: Option<i64>,
 }
 
-/// RSSI in dBm to a 0..100 quality, odin's `rssi-to-quality`: clamp to
-/// [-90, -40] and map linearly.
 fn rssi_quality(dbm: i64) -> i64 {
     (dbm.clamp(-90, -40) + 90) * 2
-}
-
-/// The dBm value on a `bluetoothctl info` RSSI line, which prints either
-/// `RSSI: -72` or `RSSI: 0xffffffb8 (-72)`. Prefer the parenthesised decimal;
-/// fall back to the first signed integer token.
-fn parse_rssi(info: &str) -> Option<i64> {
-    let line = info.lines().find(|l| l.trim_start().starts_with("RSSI:"))?;
-    if let Some(start) = line.find('(') {
-        let inner = &line[start + 1..];
-        if let Some(end) = inner.find(')') {
-            return inner[..end].trim().parse().ok();
-        }
-    }
-    line.split_whitespace()
-        .find_map(|token| token.parse::<i64>().ok())
 }
 
 impl BarWidget for Bluetooth {
@@ -84,48 +73,87 @@ impl BarWidget for Bluetooth {
     }
 }
 
-impl Source for Bluetooth {
-    const NAME: &'static str = "bluetooth";
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    fn poll() -> Option<Self> {
-        let show = output("bluetoothctl", &["show"])?;
-        // A `show` with no adapter block prints nothing usable; treat an empty
-        // response as no adapter.
-        if show.trim().is_empty() {
-            return None;
-        }
-        let powered = show.lines().any(|l| l.trim() == "Powered: yes");
-        if !powered {
-            return Some(Bluetooth {
-                powered: false,
-                connected: Vec::new(),
-                signal: None,
-            });
-        }
-        let devices = output("bluetoothctl", &["devices", "Connected"]).unwrap_or_default();
-        let mut connected = Vec::new();
-        let mut best: Option<i64> = None;
-        for line in devices.lines() {
-            // `Device <MAC> <name>` — name may contain spaces.
-            let Some(rest) = line.trim().strip_prefix("Device ") else {
-                continue;
-            };
-            let Some((mac, name)) = rest.split_once(' ') else {
-                continue;
-            };
-            connected.push(name.to_string());
-            if let Some(info) = output("bluetoothctl", &["info", mac])
-                && let Some(dbm) = parse_rssi(&info)
-            {
-                let quality = rssi_quality(dbm);
-                best = Some(best.map_or(quality, |b| b.max(quality)));
-            }
-        }
-        Some(Bluetooth {
-            powered: true,
-            connected,
-            signal: best,
-        })
+fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
+    let powered = objects
+        .values()
+        .filter_map(|interfaces| interface(interfaces, ADAPTER))
+        .map(|adapter| prop::<bool>(adapter, "Powered").unwrap_or(false))
+        .reduce(|any, powered| any || powered)?;
+    if !powered {
+        return Some(Bluetooth {
+            powered: false,
+            connected: Vec::new(),
+            signal: None,
+        });
     }
+
+    let devices = objects
+        .values()
+        .filter_map(|interfaces| interface(interfaces, DEVICE))
+        .filter(|device| prop::<bool>(device, "Connected").unwrap_or(false));
+    let connected = devices
+        .clone()
+        .map(|device| {
+            prop::<String>(device, "Alias")
+                .or_else(|| prop::<String>(device, "Name"))
+                .unwrap_or_default()
+        })
+        .collect();
+    let signal = devices
+        .filter_map(|device| prop::<i16>(device, "RSSI"))
+        .map(|dbm| rssi_quality(i64::from(dbm)))
+        .max();
+    Some(Bluetooth {
+        powered: true,
+        connected,
+        signal,
+    })
+}
+
+async fn read(objects: &ObjectManagerProxy<'_>) -> Option<Bluetooth> {
+    reading(&objects.get_managed_objects().await.ok()?)
+}
+
+pub async fn run(mut sink: Sender<Option<Bluetooth>>) {
+    let Ok(connection) = Connection::system().await else {
+        return;
+    };
+    let Ok(objects) = ObjectManagerProxy::new(&connection, "org.bluez", "/").await else {
+        return;
+    };
+
+    if sink.send(read(&objects).await).await.is_err() {
+        return;
+    }
+
+    let Ok(added) = objects.receive_interfaces_added().await else {
+        return;
+    };
+    let Ok(removed) = objects.receive_interfaces_removed().await else {
+        return;
+    };
+    let Ok(changed) = changed_properties(&connection).await else {
+        return;
+    };
+    let mut signals = select_all([
+        added.map(|_| ()).boxed(),
+        removed.map(|_| ()).boxed(),
+        changed.map(|_| ()).boxed(),
+    ]);
+
+    while signals.next().await.is_some() {
+        if sink.send(read(&objects).await).await.is_err() {
+            return;
+        }
+    }
+}
+
+async fn changed_properties(connection: &Connection) -> zbus::Result<MessageStream> {
+    let rule = MatchRule::builder()
+        .msg_type(zbus::message::Type::Signal)
+        .sender("org.bluez")?
+        .interface("org.freedesktop.DBus.Properties")?
+        .member("PropertiesChanged")?
+        .build();
+    MessageStream::for_match_rule(rule, connection, Some(16)).await
 }

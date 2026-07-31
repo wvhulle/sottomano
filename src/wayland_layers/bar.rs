@@ -271,10 +271,15 @@ fn zone<'a>(
     } else {
         config.layout.horizontal_group_spacing_px
     };
-    Row::with_children(groups.into_iter().flatten().map(|group| pill(group, config)))
-        .spacing(spacing)
-        .align_y(Alignment::Center)
-        .into()
+    Row::with_children(
+        groups
+            .into_iter()
+            .flatten()
+            .map(|group| pill(group, config)),
+    )
+    .spacing(spacing)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a, Message> {
@@ -287,10 +292,7 @@ fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a,
     container(group)
         .height(Length::Fixed(config.layout.outer_height_px))
         .align_y(Vertical::Center)
-        .padding([
-            0.0,
-            curve_inset + config.layout.horizontal_group_padding_px,
-        ])
+        .padding([0.0, curve_inset + config.layout.horizontal_group_padding_px])
         .style(move |_| container::Style {
             background: Some(background.into()),
             border: iced::Border {
@@ -325,8 +327,9 @@ fn bottom_row<'a>(
     let start = zone(
         [slot(
             workspaces_group::view(&bar.niri_snapshot, output, config, position),
-            |WorkspacesMessage::Clicked { id, is_active }| {
-                Message::WorkspaceClicked { id, is_active }
+            |WorkspacesMessage::Clicked { id, is_active }| Message::WorkspaceClicked {
+                id,
+                is_active,
             },
         )],
         config,

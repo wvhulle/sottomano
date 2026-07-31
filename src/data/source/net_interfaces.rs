@@ -8,46 +8,34 @@
 pub mod bluetooth;
 pub mod ethernet;
 pub mod mobile;
+pub mod nm;
 pub mod wifi;
 
-use std::mem;
+use std::collections::HashMap;
+
+use zbus::{names::OwnedInterfaceName, zvariant::OwnedValue};
 
 use crate::data::source::Level;
 
-/// nmcli terse (`-t`) rows escape `:` and `\` inside field values as `\:` and
-/// `\\`; split on unescaped colons and unescape the survivors, so a value that
-/// legitimately contains a colon (an SSID, an IPv6 address) stays intact.
-pub(crate) fn terse_split(line: &str) -> Vec<String> {
-    let mut fields = Vec::new();
-    let mut current = String::new();
-    let mut chars = line.chars();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' => {
-                if let Some(next) = chars.next() {
-                    current.push(next);
-                }
-            }
-            ':' => fields.push(mem::take(&mut current)),
-            other => current.push(other),
-        }
-    }
-    fields.push(current);
-    fields
+pub(crate) type Properties = HashMap<String, OwnedValue>;
+
+pub(crate) fn interface<'a>(
+    interfaces: &'a HashMap<OwnedInterfaceName, Properties>,
+    name: &str,
+) -> Option<&'a Properties> {
+    interfaces
+        .iter()
+        .find(|(key, _)| key.as_str() == name)
+        .map(|(_, properties)| properties)
 }
 
-/// A missing terse value: nmcli prints `--` for an empty field, which odin
-/// renders as `—`.
-pub(crate) fn dash(value: &str) -> String {
-    if value.is_empty() || value == "--" {
-        "—".to_string()
-    } else {
-        value.to_string()
-    }
+pub(crate) fn prop<T: TryFrom<OwnedValue>>(properties: &Properties, key: &str) -> Option<T> {
+    properties
+        .get(key)
+        .and_then(|value| value.try_clone().ok())
+        .and_then(|value| T::try_from(value).ok())
 }
 
-/// odin's shared signal-quality severity: a 0..100 link quality is critical
-/// below 10, warning below 25, otherwise ok.
 pub(crate) fn signal_level(quality: i64) -> Level {
     match quality {
         ..10 => Level::Critical,

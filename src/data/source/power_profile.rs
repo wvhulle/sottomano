@@ -10,9 +10,10 @@ use adskalman::{
     KalmanFilterNoControl, ObservationModel, StateAndCovariance, TransitionModelLinearNoControl,
 };
 use nalgebra::{Matrix1, Matrix1x3, Matrix3, Matrix3x1, U1, U3, Vector1, Vector3};
+use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody, command,
+    BarWidget, Glyph, Source, TooltipBody,
     font_awesome::{FontAwesome, Solid},
     sysfs_sensors,
 };
@@ -87,12 +88,28 @@ impl Profile {
     }
 }
 
+#[proxy(
+    interface = "net.hadess.PowerProfiles",
+    default_service = "net.hadess.PowerProfiles",
+    default_path = "/net/hadess/PowerProfiles"
+)]
+trait PowerProfiles {
+    #[zbus(property)]
+    fn active_profile(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn set_active_profile(&self, value: &str) -> zbus::Result<()>;
+}
+
+fn daemon() -> Option<PowerProfilesProxyBlocking<'static>> {
+    PowerProfilesProxyBlocking::new(&Connection::system().ok()?).ok()
+}
+
 pub fn active() -> Option<Profile> {
-    Profile::from_name(&command::output("powerprofilesctl", &["get"])?)
+    Profile::from_name(&daemon()?.active_profile().ok()?)
 }
 
 pub fn set(profile: Profile) -> bool {
-    command::run("powerprofilesctl", &["set", profile.name()])
+    daemon().is_some_and(|daemon| daemon.set_active_profile(profile.name()).is_ok())
 }
 
 #[derive(Debug, Clone, Copy)]

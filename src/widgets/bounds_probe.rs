@@ -52,10 +52,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for BoundsProbe<'_, M
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let child =
-            self.content
-                .as_widget_mut()
-                .layout(&mut tree.children[0], renderer, limits);
+        let child = self
+            .content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits);
         Node::with_children(child.size(), vec![child])
     }
 

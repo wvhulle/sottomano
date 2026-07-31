@@ -9,7 +9,12 @@ use crate::{
     config::resolved::ResolvedConfig,
     data::source::{
         BarWidget, Tooltip,
-        net_interfaces::{bluetooth::Bluetooth, ethernet::Ethernet, mobile::Mobile, wifi::Wifi},
+        net_interfaces::{
+            bluetooth::{self, Bluetooth},
+            ethernet::{self, Ethernet},
+            mobile::{self, Mobile},
+            wifi::{self, Wifi},
+        },
     },
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
@@ -36,10 +41,14 @@ pub enum NetInterfacesMessage {
 impl NetInterfacesGroup {
     pub fn subscription() -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
-            SourceCell::subscription().map(NetInterfacesMessage::Bluetooth),
-            SourceCell::subscription().map(NetInterfacesMessage::Ethernet),
-            SourceCell::subscription().map(NetInterfacesMessage::Wifi),
-            SourceCell::subscription().map(NetInterfacesMessage::Mobile),
+            crate::message_subscriptions::dbus(bluetooth::NAME, bluetooth::run)
+                .map(NetInterfacesMessage::Bluetooth),
+            crate::message_subscriptions::dbus(ethernet::NAME, ethernet::run)
+                .map(NetInterfacesMessage::Ethernet),
+            crate::message_subscriptions::dbus(wifi::NAME, wifi::run)
+                .map(NetInterfacesMessage::Wifi),
+            crate::message_subscriptions::dbus(mobile::NAME, mobile::run)
+                .map(NetInterfacesMessage::Mobile),
         ])
     }
 
@@ -55,10 +64,10 @@ impl NetInterfacesGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Bluetooth => self.bluetooth.tooltip(),
-            HoverTarget::Ethernet => self.ethernet.tooltip(),
-            HoverTarget::Wifi => self.wifi.tooltip(),
-            HoverTarget::Mobile => self.mobile.tooltip(),
+            HoverTarget::Bluetooth => self.bluetooth.live_tooltip(),
+            HoverTarget::Ethernet => self.ethernet.live_tooltip(),
+            HoverTarget::Wifi => self.wifi.live_tooltip(),
+            HoverTarget::Mobile => self.mobile.live_tooltip(),
             _ => None,
         }
     }
