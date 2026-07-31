@@ -122,7 +122,7 @@ pub fn load() -> ResolvedConfig {
         darken_chrome_factor: 0.0,
         dnd: false,
         sound: true,
-        sound_theme: session_sound_theme(),
+        sound_theme: None,
         tray_deny_ids: user
             .tray
             .deny_ids
@@ -149,7 +149,7 @@ fn secret_path(var: &str) -> Option<PathBuf> {
 /// quotes the value (`'ocean'`), so the surrounding quotes are trimmed. `None`
 /// when gsettings is absent or the key is unset, leaving the sound lookup on
 /// its "freedesktop" default.
-fn session_sound_theme() -> Option<String> {
+pub(crate) fn session_sound_theme() -> Option<String> {
     let output = Command::new("gsettings")
         .args(["get", "org.gnome.desktop.sound", "theme-name"])
         .output()

@@ -123,6 +123,7 @@ pub enum Message {
     Idle(IdleEvent),
     /// Persisted panel settings finished loading from the sqlite store.
     PanelLoaded(state::panel::PanelSettings),
+    SoundThemeLoaded(Option<String>),
     Audio(AudioMessage),
     PowerProfile(PowerProfileMessage),
     Ai(AiMessage),
@@ -205,6 +206,8 @@ impl Bar {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
             Task::perform(state::panel::load(), Message::PanelLoaded),
+            blocking("sound theme", crate::config::resolved::session_sound_theme)
+                .map(Message::SoundThemeLoaded),
             query_outputs(),
         ]);
         (bar, init)
@@ -330,6 +333,10 @@ impl Bar {
                 .idle_timeouts_group
                 .connected(handle)
                 .map(Message::IdleTimeouts),
+            Message::SoundThemeLoaded(theme) => {
+                self.config.sound_theme = theme;
+                Task::none()
+            }
             Message::PanelLoaded(settings) => {
                 if let Some(floating) = settings.floating {
                     self.config.layout.floating = floating;
