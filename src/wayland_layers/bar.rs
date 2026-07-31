@@ -20,6 +20,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     wayland_layers::{
         backdrop_shadow,
+        blur_caster::{self, Zone},
         surface::{Margin, Position},
         tooltip,
     },
@@ -41,6 +42,7 @@ use crate::{
         weather_group::WeatherMessage,
         workspaces_group::{self, WorkspacesMessage},
     },
+    widgets::bounds_probe::bounds_probe,
 };
 
 /// Render the bar surface `window` draws: a top/bottom strip of widget groups
@@ -50,12 +52,15 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     if bar.backdrops.contains(&window) {
         return backdrop_shadow::fill();
     }
+    if bar.blur_casters.contains(window) {
+        return blur_caster::fill();
+    }
     let Some(surface) = bar.surfaces.get(&window) else {
         return container(text("")).into();
     };
     let content = match surface.position {
-        Position::Top => top_row(bar, surface.position),
-        Position::Bottom => bottom_row(bar, &surface.output, surface.position),
+        Position::Top => top_row(bar, window, surface.position),
+        Position::Bottom => bottom_row(bar, window, &surface.output, surface.position),
     };
     chrome(bar, tooltip::on_surface(window, content))
 }
@@ -124,7 +129,8 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| container::Style {
-            background: Some(bar.config.palette.bar_background.into()),
+            background: (!bar.config.layout.disconnected_groups)
+                .then(|| darkened_background(&bar.config).into()),
             border: iced::Border {
                 radius: bar.config.chrome_radius().into(),
                 ..Default::default()
@@ -135,7 +141,23 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .into()
 }
 
-fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
+fn darkened_background(config: &ResolvedConfig) -> iced::Color {
+    let factor = config.darken_chrome_factor;
+    let base = config.palette.bar_background;
+    let alpha = factor + base.a * (1.0 - factor);
+    if alpha <= 0.0 {
+        return iced::Color::TRANSPARENT;
+    }
+    let base_weight = base.a * (1.0 - factor) / alpha;
+    iced::Color {
+        r: base.r * base_weight,
+        g: base.g * base_weight,
+        b: base.b * base_weight,
+        a: alpha,
+    }
+}
+
+fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let start = zone(
         [
@@ -177,6 +199,7 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
         ],
         config,
     );
+    let start = measured(start, config, window, Zone::TopStart);
     let center = zone(
         [
             slot(bar.clock_group.view(config, position), Message::Clock),
@@ -184,6 +207,7 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
         ],
         config,
     );
+    let center = measured(center, config, window, Zone::TopCenter);
     let end = zone(
         [
             slot(bar.ai_group.view(config, position), |m| match m {
@@ -215,7 +239,24 @@ fn top_row(bar: &Bar, position: Position) -> Element<'_, Message> {
         ],
         config,
     );
+    let end = measured(end, config, window, Zone::TopEnd);
     bar_row(start, center, end, config)
+}
+
+fn measured<'a>(
+    content: Element<'a, Message>,
+    config: &ResolvedConfig,
+    window: Id,
+    zone: Zone,
+) -> Element<'a, Message> {
+    if !config.layout.disconnected_groups {
+        return content;
+    }
+    bounds_probe(content, move |rects| Message::PillBounds {
+        window,
+        zone,
+        rects,
+    })
 }
 
 /// A bar zone: the groups that want to show (the `Some` ones), spaced by the
@@ -225,9 +266,39 @@ fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     config: &ResolvedConfig,
 ) -> Element<'a, Message> {
-    Row::with_children(groups.into_iter().flatten())
-        .spacing(config.layout.horizontal_group_spacing_px)
+    let spacing = if config.layout.disconnected_groups {
+        config.layout.horizontal_widget_spacing_px
+    } else {
+        config.layout.horizontal_group_spacing_px
+    };
+    Row::with_children(groups.into_iter().flatten().map(|group| pill(group, config)))
+        .spacing(spacing)
         .align_y(Alignment::Center)
+        .into()
+}
+
+fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a, Message> {
+    if !config.layout.disconnected_groups {
+        return group;
+    }
+    let background = darkened_background(config);
+    let radius = config.layout.outer_height_px / 2.0;
+    let curve_inset = radius * (1.0 - core::f32::consts::FRAC_1_SQRT_2);
+    container(group)
+        .height(Length::Fixed(config.layout.outer_height_px))
+        .align_y(Vertical::Center)
+        .padding([
+            0.0,
+            curve_inset + config.layout.horizontal_group_padding_px,
+        ])
+        .style(move |_| container::Style {
+            background: Some(background.into()),
+            border: iced::Border {
+                radius: radius.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
         .into()
 }
 
@@ -244,37 +315,62 @@ fn slot<'a, M: 'a>(
     element.into().map(|e| e.map(wrap))
 }
 
-fn bottom_row<'a>(bar: &'a Bar, output: &'a str, position: Position) -> Element<'a, Message> {
+fn bottom_row<'a>(
+    bar: &'a Bar,
+    window: Id,
+    output: &'a str,
+    position: Position,
+) -> Element<'a, Message> {
     let config = &bar.config;
     let start = zone(
         [slot(
             workspaces_group::view(&bar.niri_snapshot, output, config, position),
-            |WorkspacesMessage::Clicked(id)| Message::WorkspaceClicked(id),
+            |WorkspacesMessage::Clicked { id, is_active }| {
+                Message::WorkspaceClicked { id, is_active }
+            },
         )],
         config,
     );
+    let start = measured(start, config, window, Zone::BottomStart);
     // Launcher + window list, centred as a pair in the Fill middle by the window
     // group. Shrink flanks (workspaces, tray) lay out first, so the middle
     // reserves exactly the space between them; the window list caps its width to
     // that budget and scrolls when it overflows, keeping the tray from being
     // overrun.
-    let middle = container(slot(
-        bar.window_group.view(
-            &bar.niri_snapshot,
-            &bar.desktop_entries,
-            output,
-            config,
-            position,
-        ),
-        Message::WindowGroup,
+    let middle = container(measured(
+        Row::with_children(
+            slot(
+                bar.window_group.view(
+                    &bar.niri_snapshot,
+                    &bar.desktop_entries,
+                    output,
+                    config,
+                    position,
+                ),
+                Message::WindowGroup,
+            )
+            .map(|group| pill(group, config)),
+        )
+        .into(),
+        config,
+        window,
+        Zone::BottomMiddle,
     ))
     .center_x(Length::Fill);
     // Bottom-right zone (odin: tray / ai-usage / notifications). Tray ported.
-    let end = slot(bar.tray_group.view(config, position), |m| match m {
-        TrayMessage::Tooltip(t) => Message::Tooltip(t),
-        m => Message::Tray(m),
-    })
-    .unwrap_or_else(|| Space::new().into());
+    let end = measured(
+        Row::with_children(
+            slot(bar.tray_group.view(config, position), |m| match m {
+                TrayMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Tray(m),
+            })
+            .map(|group| pill(group, config)),
+        )
+        .into(),
+        config,
+        window,
+        Zone::BottomEnd,
+    );
     row![start, middle, end]
         .align_y(Alignment::Center)
         .padding([0.0, config.layout.horizontal_group_padding_px])

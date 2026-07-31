@@ -74,6 +74,11 @@ let
   # default 8) so niri's clip matches what the notification card / tooltip actually
   # draws. Coerced to a float because niri wants 8.0, not 8.
   cornerRadius = 1.0 * (cfg.settings.layout.corner_radius_px or 8);
+  # Capsule radius for the per-pill blur casters (namespace "vetrata-blur-pill",
+  # src/wayland_layers/blur_caster.rs): pills span the full bar height, so fully
+  # circular ends mean half of layout.outer_height_px (src/config/disk.rs,
+  # default 24).
+  pillRadius = 0.5 * (cfg.settings.layout.outer_height_px or 24.0);
   # Drop shadow hugged straight to a card surface (notification toasts and tooltips).
   cardShadow = {
     enable = true;
@@ -96,6 +101,18 @@ let
       matches = [ { namespace = "^vetrata$"; } ];
       geometry-corner-radius = radius0;
       shadow.enable = false;
+    }
+    {
+      matches = [ { namespace = "^vetrata-blur$"; } ];
+      geometry-corner-radius = uniformRadius cornerRadius;
+      shadow.enable = false;
+      background-effect.blur = true;
+    }
+    {
+      matches = [ { namespace = "^vetrata-blur-pill$"; } ];
+      geometry-corner-radius = uniformRadius pillRadius;
+      shadow.enable = false;
+      background-effect.blur = true;
     }
     {
       matches = [ { namespace = "^vetrata-backdrop-top$"; } ];
@@ -167,6 +184,12 @@ in
         vetrata (src/config/disk.rs). Every key has a default, so set only the
         ones you override; leave this empty to keep the built-in gruvbox-dark
         defaults. Set `layout.shadow = true` to enable the legibility shadow.
+        Set `layout.blur_background = true` to open transparent caster surfaces
+        behind the bar chrome under the `vetrata-blur` namespace, whose
+        layer-rule below asks niri to frost the wallpaper behind them;
+        `layout.disconnected_groups = true` draws each widget group as its own
+        pill (with one blur caster per pill) instead of one continuous bar
+        fill.
       '';
     };
 

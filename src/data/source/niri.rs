@@ -440,6 +440,12 @@ pub fn focus_workspace(id: u64) {
     }
 }
 
+pub fn toggle_overview() {
+    if let Err(e) = send_action(niri_ipc::Action::ToggleOverview {}) {
+        eprintln!("niri: toggle overview: {e}");
+    }
+}
+
 pub fn close_window(id: u64) {
     if let Err(e) = send_action(niri_ipc::Action::CloseWindow { id: Some(id) }) {
         eprintln!("niri: close window {id}: {e}");

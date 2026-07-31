@@ -14,7 +14,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum WorkspacesMessage {
-    Clicked(u64),
+    Clicked { id: u64, is_active: bool },
 }
 
 pub fn view<'a>(
@@ -44,7 +44,10 @@ pub fn view<'a>(
         let ticks = window_ticks(config, niri, p.id);
 
         mouse_area(PagerSlot::new(label, focus).ticks(ticks).view(position))
-            .on_press(WorkspacesMessage::Clicked(p.id))
+            .on_press(WorkspacesMessage::Clicked {
+                id: p.id,
+                is_active: p.is_active,
+            })
             .into()
     });
     Some(

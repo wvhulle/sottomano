@@ -24,6 +24,7 @@ use crate::{
 };
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
+const DARKEN_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
 /// Resolve the two config-derived tooltips this group emits. Free-standing (not
 /// a method) since the tooltips are pure functions of the config, which the
@@ -32,6 +33,9 @@ pub fn tooltip_for(target: &HoverTarget, config: &ResolvedConfig) -> Option<Tool
     match target {
         HoverTarget::Floating => Some(floating_tooltip(config)),
         HoverTarget::FloatOffset => Some(offset_tooltip(config)),
+        HoverTarget::BlurBackground => Some(blur_tooltip(config)),
+        HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(config)),
+        HoverTarget::DarkenChrome => Some(darken_tooltip(config)),
         _ => None,
     }
 }
@@ -45,6 +49,48 @@ fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
             } else {
                 "off — flush, square"
             },
+        )]),
+        footer: None,
+    }
+}
+
+fn blur_tooltip(config: &ResolvedConfig) -> Tooltip {
+    Tooltip {
+        body: TooltipBody::Table(vec![row(
+            "Blur",
+            if config.layout.blur_background {
+                "on — frosted behind the chrome"
+            } else {
+                "off"
+            },
+        )]),
+        footer: None,
+    }
+}
+
+fn disconnected_tooltip(config: &ResolvedConfig) -> Tooltip {
+    Tooltip {
+        body: TooltipBody::Table(vec![row(
+            "Groups",
+            if config.layout.disconnected_groups {
+                "separate pills"
+            } else {
+                "one bar"
+            },
+        )]),
+        footer: None,
+    }
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn darken_tooltip(config: &ResolvedConfig) -> Tooltip {
+    Tooltip {
+        body: TooltipBody::Table(vec![row(
+            "Darken",
+            format!(
+                "{} % black tint over the chrome",
+                (config.darken_chrome_factor * 100.0).round() as i64
+            ),
         )]),
         footer: None,
     }
@@ -64,13 +110,17 @@ fn offset_tooltip(config: &ResolvedConfig) -> Tooltip {
 pub struct PanelSettingsGroup {
     pub(crate) menu: MenuGroup,
     offset: SliderControl,
+    darken: SliderControl,
 }
 
 #[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
     Menu(MenuMessage),
     ToggleFloating,
+    ToggleBlurBackground,
+    ToggleDisconnectedGroups,
     Offset(ControlMessage),
+    Darken(ControlMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -86,19 +136,30 @@ impl PanelSettingsGroup {
             .icon_only()
             .readout_width(44.0)
             .readout(|value| format!("{} px", value.round())),
+            darken: SliderControl::new(
+                DARKEN_RANGE,
+                HoverTarget::DarkenChrome,
+                Solid::XRay.into(),
+            )
+            .icon_only()
+            .readout_width(44.0)
+            .readout(|value| format!("{} %", value.round())),
         }
     }
 
     pub fn update(&mut self, msg: PanelSettingsMessage) {
         match msg {
-            // Collapsing the menu also closes the offset slider.
             PanelSettingsMessage::Menu(m) => {
                 if self.menu.update(m) {
                     self.offset.close();
+                    self.darken.close();
                 }
             }
             PanelSettingsMessage::ToggleFloating
+            | PanelSettingsMessage::ToggleBlurBackground
+            | PanelSettingsMessage::ToggleDisconnectedGroups
             | PanelSettingsMessage::Offset(_)
+            | PanelSettingsMessage::Darken(_)
             | PanelSettingsMessage::Tooltip(_) => {}
         }
     }
@@ -111,6 +172,14 @@ impl PanelSettingsGroup {
     /// Reconcile the offset control with the app-owned config value.
     pub fn sync_offset(&mut self, value: f32) {
         self.offset.update(ControlMessage::Reading(value));
+    }
+
+    pub fn update_darken(&mut self, msg: ControlMessage) -> Action {
+        self.darken.update(msg)
+    }
+
+    pub fn sync_darken(&mut self, value: f32) {
+        self.darken.update(ControlMessage::Reading(value));
     }
 
     #[allow(clippy::unnecessary_wraps)]
@@ -131,27 +200,45 @@ impl PanelSettingsGroup {
         .into();
 
         let floating = config.layout.floating;
-        let floating_toggle = {
-            let color = foreground.scale_alpha(if floating { 1.0 } else { 0.4 });
-            let icon = Solid::Compress
-                .widget()
-                .size(config.font.icon_size_px)
-                .color(color);
-            hoverable(
-                mouse_area(icon)
-                    .on_press(PanelSettingsMessage::ToggleFloating)
-                    .into(),
-                HoverTarget::Floating,
-                PanelSettingsMessage::Tooltip,
-            )
-        };
+        let disconnected_toggle = icon_toggle(
+            config,
+            Solid::Capsules,
+            config.layout.disconnected_groups,
+            PanelSettingsMessage::ToggleDisconnectedGroups,
+            HoverTarget::DisconnectedGroups,
+        );
+        let floating_toggle = icon_toggle(
+            config,
+            Solid::Compress,
+            floating,
+            PanelSettingsMessage::ToggleFloating,
+            HoverTarget::Floating,
+        );
+        let blur_toggle = icon_toggle(
+            config,
+            Solid::Snowflake,
+            config.layout.blur_background,
+            PanelSettingsMessage::ToggleBlurBackground,
+            HoverTarget::BlurBackground,
+        );
 
         let offset = floating.then(|| self.offset_element(config));
+        let darken = self.darken_element(config);
 
         let reveal = self.menu.reveal();
-        let content = Row::with_children([Some(floating_toggle), offset].into_iter().flatten())
-            .spacing(config.layout.horizontal_widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = Row::with_children(
+            [
+                Some(disconnected_toggle),
+                Some(floating_toggle),
+                Some(blur_toggle),
+                Some(darken),
+                offset,
+            ]
+            .into_iter()
+            .flatten(),
+        )
+        .spacing(config.layout.horizontal_widget_spacing_px)
+        .align_y(Alignment::Center);
         Some(self.menu.view(
             config,
             position,
@@ -168,4 +255,30 @@ impl PanelSettingsGroup {
             m => PanelSettingsMessage::Offset(m),
         })
     }
+
+    fn darken_element<'a>(&self, config: &ResolvedConfig) -> Element<'a, PanelSettingsMessage> {
+        self.darken.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
+            m => PanelSettingsMessage::Darken(m),
+        })
+    }
+}
+
+fn icon_toggle<'a>(
+    config: &ResolvedConfig,
+    icon: Solid,
+    active: bool,
+    press: PanelSettingsMessage,
+    target: HoverTarget,
+) -> Element<'a, PanelSettingsMessage> {
+    let color = config
+        .palette
+        .bar_foreground
+        .scale_alpha(if active { 1.0 } else { 0.4 });
+    let widget = icon.widget().size(config.font.icon_size_px).color(color);
+    hoverable(
+        mouse_area(widget).on_press(press).into(),
+        target,
+        PanelSettingsMessage::Tooltip,
+    )
 }

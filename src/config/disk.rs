@@ -194,7 +194,8 @@ pub struct Layout {
     pub horizontal_widget_spacing_px: f32,
     pub horizontal_group_spacing_px: f32,
     pub floating: bool,
-    pub blur: bool,
+    pub blur_background: bool,
+    pub disconnected_groups: bool,
     pub shadow: bool,
     /// Track width of a settings-panel slider (session UI chrome, not a bar
     /// element).
@@ -213,10 +214,11 @@ impl Default for Layout {
             horizontal_widget_spacing_px: 5.0,
             horizontal_group_spacing_px: 16.0,
             floating: false,
-            blur: false,
+            blur_background: false,
+            disconnected_groups: false,
             shadow: true,
             slider_width_px: 60.0,
-            outer_height_px: 24.0,
+            outer_height_px: 23.0,
             focus_underline_thickness_px: 3.4,
             window_segment_thickness_px: 2.0,
             menu_expand_ms: 90,

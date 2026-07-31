@@ -25,6 +25,7 @@ use crate::{
     wayland_layers::{
         backdrop_shadow,
         bar::{float_margin, layer_settings},
+        blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage},
@@ -94,6 +95,7 @@ pub struct Bar {
     /// `layout.shadow` is on). They carry no state — the view just renders each
     /// as an opaque fill so niri casts its edge shadow.
     pub(crate) backdrops: HashSet<Id>,
+    pub(crate) blur_casters: BlurCasters,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     /// The shared `.desktop` index (app metadata + icon resolution), consumed
@@ -133,7 +135,7 @@ pub enum Message {
     /// cache on [`Bar::desktop_entries`].
     IconsResolved(ResolvedIcons),
     DismissPressed,
-    WorkspaceClicked(u64),
+    WorkspaceClicked { id: u64, is_active: bool },
     Niri(Vec<niri_ipc::Event>),
     /// A periodic repaint while a menu animates (from the frame-timer
     /// subscription gated on [`Bar::any_menu_animating`]); its handler does
@@ -154,6 +156,11 @@ pub enum Message {
     /// query (at boot and on output connect).
     OutputsResolved(HashMap<String, niri::OutputGeometry>),
     ReloadDesktopEntries,
+    PillBounds {
+        window: Id,
+        zone: Zone,
+        rects: Vec<iced::Rectangle>,
+    },
 }
 
 impl Bar {
@@ -182,6 +189,7 @@ impl Bar {
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: HashSet::new(),
+            blur_casters: BlurCasters::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -326,13 +334,27 @@ impl Bar {
                 if let Some(offset) = settings.float_offset_px {
                     self.config.float_offset_px = offset;
                 }
+                if let Some(disconnected) = settings.disconnected_groups {
+                    self.config.layout.disconnected_groups = disconnected;
+                }
+                if let Some(blur) = settings.blur_background {
+                    self.config.layout.blur_background = blur;
+                }
                 self.config.dnd = settings.dnd;
                 if let Some(sound) = settings.sound {
                     self.config.sound = sound;
                 }
+                if let Some(factor) = settings.darken_chrome_factor {
+                    self.config.darken_chrome_factor = factor;
+                }
                 self.panel_settings_group
                     .sync_offset(self.config.float_offset_px);
-                self.remargin_surfaces()
+                self.panel_settings_group
+                    .sync_darken(self.config.darken_chrome_factor * 100.0);
+                Task::batch([
+                    self.remargin_surfaces(),
+                    self.blur_casters.rebuild(&self.config, &self.surfaces),
+                ])
             }
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::PowerProfile(msg) => self
@@ -347,8 +369,12 @@ impl Bar {
                 self.dismiss_menus();
                 self.tray_menu.close()
             }
-            Message::WorkspaceClicked(workspace) => {
-                niri_action(move || niri::focus_workspace(workspace))
+            Message::WorkspaceClicked { id, is_active } => {
+                if is_active {
+                    niri_action(niri::toggle_overview)
+                } else {
+                    niri_action(move || niri::focus_workspace(id))
+                }
             }
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => {
@@ -357,8 +383,15 @@ impl Bar {
                 self.tooltip.forget(window);
                 self.tray_menu.forget(window);
                 self.notifications.forget(window);
-                Task::none()
+                self.blur_casters.forget(window)
             }
+            Message::PillBounds {
+                window,
+                zone,
+                rects,
+            } => self
+                .blur_casters
+                .pill_rects(window, zone, &rects, &self.config, &self.surfaces),
             // A source with empty content suppresses its tooltip (odin drops
             // `{}`); the emptiness is decided here against the live reading.
             Message::Tooltip(TooltipMessage::Enter {
@@ -674,7 +707,24 @@ impl Bar {
                 let floating = self.config.layout.floating;
                 Task::batch([
                     self.remargin_surfaces(),
+                    self.blur_casters.reposition(&self.config, &self.surfaces),
                     Task::future(state::panel::save_floating(floating)).discard(),
+                ])
+            }
+            PanelSettingsMessage::ToggleBlurBackground => {
+                self.config.layout.blur_background = !self.config.layout.blur_background;
+                let blur = self.config.layout.blur_background;
+                Task::batch([
+                    self.blur_casters.rebuild(&self.config, &self.surfaces),
+                    Task::future(state::panel::save_blur_background(blur)).discard(),
+                ])
+            }
+            PanelSettingsMessage::ToggleDisconnectedGroups => {
+                self.config.layout.disconnected_groups = !self.config.layout.disconnected_groups;
+                let disconnected = self.config.layout.disconnected_groups;
+                Task::batch([
+                    self.blur_casters.rebuild(&self.config, &self.surfaces),
+                    Task::future(state::panel::save_disconnected_groups(disconnected)).discard(),
                 ])
             }
             PanelSettingsMessage::Offset(msg) => {
@@ -683,12 +733,29 @@ impl Bar {
                         self.config.float_offset_px = offset;
                         Task::batch([
                             self.remargin_surfaces(),
+                            self.blur_casters.reposition(&self.config, &self.surfaces),
                             Task::future(state::panel::save_float_offset(offset)).map(move |ok| {
                                 Message::PanelSettings(PanelSettingsMessage::Offset(
                                     ControlMessage::Confirmed { value: offset, ok },
                                 ))
                             }),
                         ])
+                    }
+                    _ => Task::none(),
+                }
+            }
+            PanelSettingsMessage::Darken(msg) => {
+                match self.panel_settings_group.update_darken(msg) {
+                    SliderAction::Commit(percent) => {
+                        self.config.darken_chrome_factor = percent / 100.0;
+                        Task::future(state::panel::save_darken_chrome_factor(
+                            self.config.darken_chrome_factor,
+                        ))
+                        .map(move |ok| {
+                            Message::PanelSettings(PanelSettingsMessage::Darken(
+                                ControlMessage::Confirmed { value: percent, ok },
+                            ))
+                        })
                     }
                     _ => Task::none(),
                 }
@@ -726,14 +793,15 @@ impl Bar {
         };
         let settings = layer_settings(output, position, height, float_margin(position, offset));
         let id = Id::unique();
-        self.surfaces.insert(
-            id,
-            Surface {
-                output: output.to_string(),
-                position,
-            },
-        );
-        Task::done(Message::NewLayerShell { settings, id })
+        let surface = Surface {
+            output: output.to_string(),
+            position,
+        };
+        let strip = self
+            .blur_casters
+            .open_strip_for_new_bar(id, &surface, &self.config);
+        self.surfaces.insert(id, surface);
+        Task::batch([Task::done(Message::NewLayerShell { settings, id }), strip])
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {

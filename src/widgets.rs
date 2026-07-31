@@ -7,6 +7,7 @@
 //! (`&ResolvedConfig`, `Position`) rather than a shared render context.
 
 pub mod activity_line;
+pub mod bounds_probe;
 pub mod confirm_button;
 pub mod context_menu;
 pub mod icon_gauge;
