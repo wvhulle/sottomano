@@ -14,7 +14,7 @@
     # its module as a path, so a desktop that also imports it deduplicates to one
     # instance.
     niri-hm = {
-      url = "git+https://codeberg.org/wvhulle/niri-hm";
+      url = "git+https://codeberg.org/wvhulle/niri-hm?ref=main";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     # umbra: the dark/light-mode CLI the brightness group shells out to

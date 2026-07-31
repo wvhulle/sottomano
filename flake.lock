@@ -212,13 +212,14 @@
       "locked": {
         "lastModified": 1785315694,
         "narHash": "sha256-o+o+0TbkWh6XUoOH7Poh1W8CK36iVPizC3+lGYHoEmU=",
-        "ref": "refs/heads/main",
+        "ref": "main",
         "rev": "21ed2767caa421976e6a8515c333c5ef1ca51fd5",
         "revCount": 17,
         "type": "git",
         "url": "https://codeberg.org/wvhulle/niri-hm"
       },
       "original": {
+        "ref": "main",
         "type": "git",
         "url": "https://codeberg.org/wvhulle/niri-hm"
       }
