@@ -99,6 +99,19 @@ pub fn battery_energy() -> Option<BatteryEnergy> {
     })
 }
 
+pub fn internal_brightness_frac() -> Option<f64> {
+    let panel = first_backlight()?;
+    let current = read_i64(panel.join("brightness"))?;
+    let max = read_i64(panel.join("max_brightness")).filter(|m| *m > 0)?;
+    Some((current as f64 / max as f64).clamp(0.0, 1.0))
+}
+
+fn first_backlight() -> Option<PathBuf> {
+    let mut panels = list_dir("/sys/class/backlight");
+    panels.sort();
+    panels.into_iter().next()
+}
+
 pub(super) fn list_dir(dir: impl AsRef<Path>) -> Vec<PathBuf> {
     std::fs::read_dir(dir)
         .into_iter()

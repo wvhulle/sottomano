@@ -53,22 +53,21 @@ impl Source for CpuUsage {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     fn poll() -> Option<Self> {
-        let s1 = cpu_stat()?;
-        thread::sleep(Duration::from_millis(200));
-        let s2 = cpu_stat()?;
-
-        let total: i64 = s1.iter().zip(&s2).map(|(a, b)| b - a).sum();
-        let idle = s2.get(3).copied().unwrap_or(0) - s1.get(3).copied().unwrap_or(0);
-        let percent = if total > 0 {
-            (((total - idle) as f64 * 100.0) / total as f64).round() as i64
-        } else {
-            0
-        };
+        let percent = (cpu_busy_frac().unwrap_or(0.0) * 100.0).round() as i64;
         Some(CpuUsage {
             percent,
             freqs_ghz: core_ghz(),
         })
     }
+}
+
+pub(crate) fn cpu_busy_frac() -> Option<f64> {
+    let s1 = cpu_stat()?;
+    thread::sleep(Duration::from_millis(200));
+    let s2 = cpu_stat()?;
+    let total: i64 = s1.iter().zip(&s2).map(|(a, b)| b - a).sum();
+    let idle = s2.get(3).copied().unwrap_or(0) - s1.get(3).copied().unwrap_or(0);
+    (total > 0).then(|| ((total - idle) as f64 / total as f64).clamp(0.0, 1.0))
 }
 
 /// The aggregate `cpu` line of `/proc/stat`, as its jiffy counters (idle at

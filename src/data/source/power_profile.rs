@@ -9,15 +9,12 @@ use std::{collections::HashMap, time::Duration};
 use adskalman::{
     KalmanFilterNoControl, ObservationModel, StateAndCovariance, TransitionModelLinearNoControl,
 };
-use nalgebra::{Matrix1, U1, Vector1};
+use nalgebra::{Matrix1, Matrix1x3, Matrix3, Matrix3x1, U1, U3, Vector1, Vector3};
 
-use crate::{
-    data::source::{
-        BarWidget, Glyph, Source, TooltipBody, command,
-        font_awesome::{FontAwesome, Solid},
-        sysfs_sensors,
-    },
-    state::power::RateState,
+use crate::data::source::{
+    BarWidget, Glyph, Source, TooltipBody, command,
+    font_awesome::{FontAwesome, Solid},
+    sysfs_sensors,
 };
 
 /// The three power-profiles-daemon profiles, least-to-most performant.
@@ -98,18 +95,45 @@ pub fn set(profile: Profile) -> bool {
     command::run("powerprofilesctl", &["set", profile.name()])
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Conditions {
+    pub brightness_frac: f64,
+    pub cpu_busy_frac: f64,
+}
+
+impl Conditions {
+    pub fn new(brightness_frac: f64, cpu_busy_frac: f64) -> Self {
+        Conditions {
+            brightness_frac,
+            cpu_busy_frac,
+        }
+    }
+
+    pub fn current() -> Self {
+        Conditions::new(
+            sysfs_sensors::internal_brightness_frac().unwrap_or(0.0),
+            sysfs_sensors::cpu_usage::cpu_busy_frac().unwrap_or(0.0),
+        )
+    }
+
+    fn design_row(self) -> Matrix1x3<f64> {
+        Matrix1x3::new(1.0, self.brightness_frac, self.cpu_busy_frac)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PowerProfile {
-    pub active: Profile,
+    pub active_profile: Profile,
     pub energy_j: Option<f64>,
     pub draw_w: Option<f64>,
     pub discharging: bool,
     pub battery_id: String,
+    pub conditions: Conditions,
 }
 
 impl BarWidget for PowerProfile {
     fn icon(&self) -> Glyph {
-        self.active.icon().into()
+        self.active_profile.icon().into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -122,76 +146,112 @@ impl Source for PowerProfile {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll() -> Option<Self> {
-        let active = active()?;
+        let active_profile = active()?;
         let energy = sysfs_sensors::battery_energy();
         Some(PowerProfile {
-            active,
+            active_profile,
             energy_j: energy.as_ref().and_then(|e| e.energy_j),
             draw_w: energy.as_ref().and_then(|e| e.draw_w),
             discharging: energy.as_ref().is_some_and(|e| e.discharging),
             battery_id: energy.map(|e| e.serial).unwrap_or_default(),
+            conditions: Conditions::current(),
         })
     }
 }
 
-/// Process/measurement noise (W²) and the variance a fresh profile starts at —
-/// large, so the first sample is trusted before the filter tightens.
-const PROCESS_NOISE: f64 = 0.25;
+const Q_BASE: f64 = 0.25;
+const Q_COEFF: f64 = 0.05;
 const MEASUREMENT_NOISE: f64 = 4.0;
-pub const SEED_VARIANCE: f64 = 100.0;
+const SEED_VARIANCE_BASE: f64 = 100.0;
+const SEED_VARIANCE_COEFF: f64 = 400.0;
 
 struct RandomWalk {
-    f: Matrix1<f64>,
-    q: Matrix1<f64>,
+    f: Matrix3<f64>,
+    q: Matrix3<f64>,
 }
 
-impl TransitionModelLinearNoControl<f64, U1> for RandomWalk {
-    fn F(&self) -> &Matrix1<f64> {
+impl TransitionModelLinearNoControl<f64, U3> for RandomWalk {
+    fn F(&self) -> &Matrix3<f64> {
         &self.f
     }
-    fn FT(&self) -> &Matrix1<f64> {
+    fn FT(&self) -> &Matrix3<f64> {
         &self.f
     }
-    fn Q(&self) -> &Matrix1<f64> {
+    fn Q(&self) -> &Matrix3<f64> {
         &self.q
     }
 }
 
-struct DirectObservation {
-    h: Matrix1<f64>,
+struct LinearObservation {
+    h: Matrix1x3<f64>,
+    ht: Matrix3x1<f64>,
     r: Matrix1<f64>,
 }
 
-impl ObservationModel<f64, U1, U1> for DirectObservation {
-    fn H(&self) -> &Matrix1<f64> {
+impl ObservationModel<f64, U3, U1> for LinearObservation {
+    fn H(&self) -> &Matrix1x3<f64> {
         &self.h
     }
-    fn HT(&self) -> &Matrix1<f64> {
-        &self.h
+    fn HT(&self) -> &Matrix3x1<f64> {
+        &self.ht
     }
     fn R(&self) -> &Matrix1<f64> {
         &self.r
     }
 }
 
-pub fn kalman_step(prior: RateState, observed_w: f64) -> RateState {
-    let transition = RandomWalk {
-        f: Matrix1::identity(),
-        q: Matrix1::new(PROCESS_NOISE),
-    };
-    let observation = DirectObservation {
-        h: Matrix1::identity(),
-        r: Matrix1::new(MEASUREMENT_NOISE),
-    };
-    let filter = KalmanFilterNoControl::new(&transition, &observation);
-    let estimate =
-        StateAndCovariance::new(Vector1::new(prior.rate_w), Matrix1::new(prior.variance));
-    filter
-        .step(&estimate, &Vector1::new(observed_w))
-        .map_or(prior, |posterior| RateState {
-            rate_w: posterior.state()[0],
-            variance: posterior.covariance()[(0, 0)],
-        })
+#[derive(Debug, Clone, Copy)]
+pub struct RegressionState {
+    pub coefficients: Vector3<f64>,
+    pub covariance: Matrix3<f64>,
+}
+
+impl RegressionState {
+    pub fn seed(first_draw_w: f64) -> Self {
+        RegressionState {
+            coefficients: Vector3::new(first_draw_w, 0.0, 0.0),
+            covariance: Matrix3::from_diagonal(&Vector3::new(
+                SEED_VARIANCE_BASE,
+                SEED_VARIANCE_COEFF,
+                SEED_VARIANCE_COEFF,
+            )),
+        }
+    }
+
+    pub fn observe(self, conditions: Conditions, observed_w: f64) -> Self {
+        let transition = RandomWalk {
+            f: Matrix3::identity(),
+            q: Matrix3::from_diagonal(&Vector3::new(Q_BASE, Q_COEFF, Q_COEFF)),
+        };
+        let regressor_row = conditions.design_row();
+        let observation = LinearObservation {
+            h: regressor_row,
+            ht: regressor_row.transpose(),
+            r: Matrix1::new(MEASUREMENT_NOISE),
+        };
+        let filter = KalmanFilterNoControl::new(&transition, &observation);
+        let prior = StateAndCovariance::new(self.coefficients, self.covariance);
+        filter
+            .step(&prior, &Vector1::new(observed_w))
+            .map_or(self, |posterior| RegressionState {
+                coefficients: *posterior.state(),
+                covariance: *posterior.covariance(),
+            })
+    }
+
+    fn predict(&self, conditions: Conditions) -> Prediction {
+        let regressor_row = conditions.design_row();
+        Prediction {
+            draw_w: (regressor_row * self.coefficients)[0],
+            draw_variance: (regressor_row * self.covariance * regressor_row.transpose())[(0, 0)],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Prediction {
+    draw_w: f64,
+    draw_variance: f64,
 }
 
 /// Time to depletion for a profile, with a ± uncertainty band from the rate's
@@ -203,45 +263,51 @@ pub struct Estimate {
 }
 
 pub fn estimate(
-    energy_j: Option<f64>,
-    active: Profile,
-    states: &HashMap<Profile, RateState>,
-    live_w: Option<f64>,
+    reading: &PowerProfile,
+    profile_models: &HashMap<Profile, RegressionState>,
 ) -> HashMap<Profile, Option<Estimate>> {
-    let active_rate = states
-        .get(&active)
-        .map(|s| s.rate_w)
-        .filter(|r| *r > 0.0)
-        .or_else(|| live_w.filter(|w| *w > 0.0));
+    let active_profile = reading.active_profile;
+    let live_w = reading.draw_w.filter(|_| reading.discharging);
+    let learned = |profile| {
+        profile_models
+            .get(&profile)
+            .map(|model| model.predict(reading.conditions))
+    };
+    let active_draw = learned(active_profile)
+        .filter(|prediction| prediction.draw_w > 0.0)
+        .or_else(|| live_w.filter(|w| *w > 0.0).map(observed_draw));
+    let scaled_from_active = |profile: Profile| {
+        let ratio = profile.scale() / active_profile.scale();
+        active_draw.map(|prediction| Prediction {
+            draw_w: prediction.draw_w * ratio,
+            draw_variance: prediction.draw_variance * ratio * ratio,
+        })
+    };
     Profile::ALL
         .into_iter()
         .map(|profile| {
-            (
-                profile,
-                estimate_one(energy_j, active, active_rate, states, profile),
-            )
+            let draw = learned(profile).or_else(|| scaled_from_active(profile));
+            (profile, depletion(reading.energy_j, draw))
         })
         .collect()
 }
 
-fn estimate_one(
-    energy_j: Option<f64>,
-    active: Profile,
-    active_rate: Option<f64>,
-    states: &HashMap<Profile, RateState>,
-    profile: Profile,
-) -> Option<Estimate> {
+fn observed_draw(draw_w: f64) -> Prediction {
+    Prediction {
+        draw_w,
+        draw_variance: 0.0,
+    }
+}
+
+fn depletion(energy_j: Option<f64>, draw: Option<Prediction>) -> Option<Estimate> {
     let energy = energy_j.filter(|e| *e > 0.0)?;
-    let (rate, variance) = match states.get(&profile) {
-        Some(state) if state.rate_w > 0.0 => (state.rate_w, state.variance),
-        _ => {
-            let scaled = active_rate? * profile.scale() / active.scale();
-            (scaled, scaled * scaled)
-        }
-    };
-    (rate > 0.0).then(|| Estimate {
-        time: whole_minutes(energy / rate),
-        band: whole_minutes(energy / (rate * rate) * variance.sqrt()),
+    let Prediction {
+        draw_w,
+        draw_variance,
+    } = draw.filter(|prediction| prediction.draw_w > 0.0)?;
+    Some(Estimate {
+        time: whole_minutes(energy / draw_w),
+        band: whole_minutes(energy / (draw_w * draw_w) * draw_variance.sqrt()),
     })
 }
 
@@ -253,19 +319,26 @@ fn whole_minutes(seconds: f64) -> Duration {
 mod tests {
     use super::*;
 
-    fn seed(rate_w: f64) -> RateState {
-        RateState {
-            rate_w,
-            variance: SEED_VARIANCE,
+    impl PowerProfile {
+        fn on_battery(active_profile: Profile, energy_wh: f64) -> Self {
+            PowerProfile {
+                active_profile,
+                energy_j: Some(energy_wh * 3600.0),
+                draw_w: None,
+                discharging: true,
+                battery_id: String::new(),
+                conditions: Conditions::new(0.0, 0.0),
+            }
+        }
+
+        fn at(mut self, conditions: Conditions) -> Self {
+            self.conditions = conditions;
+            self
         }
     }
 
     fn hrs(duration: Duration) -> f64 {
         duration.as_secs_f64() / 3600.0
-    }
-
-    fn joules(watt_hours: f64) -> f64 {
-        watt_hours * 3600.0
     }
 
     fn get(estimates: &HashMap<Profile, Option<Estimate>>, profile: Profile) -> Estimate {
@@ -276,65 +349,102 @@ mod tests {
             .expect("estimate present")
     }
 
+    fn balanced(model: RegressionState) -> HashMap<Profile, RegressionState> {
+        HashMap::from([(Profile::Balanced, model)])
+    }
+
     #[test]
-    fn kalman_converges_to_steady_draw() {
-        let mut state = seed(10.0);
+    fn recovers_known_coefficients() {
+        let true_draw = |c: Conditions| 5.0 + 8.0 * c.brightness_frac + 40.0 * c.cpu_busy_frac;
+        let samples = [
+            Conditions::new(0.1, 0.2),
+            Conditions::new(0.9, 0.1),
+            Conditions::new(0.3, 0.8),
+            Conditions::new(0.6, 0.5),
+            Conditions::new(0.2, 0.4),
+            Conditions::new(0.8, 0.9),
+        ];
+        let mut model = RegressionState::seed(true_draw(samples[0]));
+        for _ in 0..15 {
+            for conditions in samples {
+                model = model.observe(conditions, true_draw(conditions));
+            }
+        }
+        assert!(
+            (model.coefficients[0] - 5.0).abs() < 1.0,
+            "base {}",
+            model.coefficients[0]
+        );
+        assert!(
+            (model.coefficients[1] - 8.0).abs() < 2.0,
+            "k_bright {}",
+            model.coefficients[1]
+        );
+        assert!(
+            (model.coefficients[2] - 40.0).abs() < 2.0,
+            "k_load {}",
+            model.coefficients[2]
+        );
+    }
+
+    #[test]
+    fn responds_to_brightness_without_relearning() {
+        let true_draw = |c: Conditions| 5.0 + 20.0 * c.brightness_frac;
+        let dim = Conditions::new(0.1, 0.0);
+        let bright = Conditions::new(0.9, 0.0);
+        let mut model = RegressionState::seed(true_draw(dim));
+        for _ in 0..80 {
+            model = model.observe(dim, true_draw(dim));
+            model = model.observe(bright, true_draw(bright));
+        }
+        let models = balanced(model);
+        let life = |conditions| {
+            let reading = PowerProfile::on_battery(Profile::Balanced, 50.0).at(conditions);
+            hrs(get(&estimate(&reading, &models), Profile::Balanced).time)
+        };
+        assert!(
+            life(bright) < life(dim),
+            "a brighter screen should shorten predicted life: {} vs {}",
+            life(bright),
+            life(dim)
+        );
+    }
+
+    #[test]
+    fn band_shrinks_as_filter_learns() {
+        let conditions = Conditions::new(0.5, 0.3);
+        let after_one = RegressionState::seed(10.0).observe(conditions, 10.0);
+        let mut after_many = RegressionState::seed(10.0);
         for _ in 0..50 {
-            state = kalman_step(state, 12.0);
+            after_many = after_many.observe(conditions, 10.0);
         }
+        let band = |model| {
+            let reading = PowerProfile::on_battery(Profile::Balanced, 50.0).at(conditions);
+            hrs(get(&estimate(&reading, &balanced(model)), Profile::Balanced).band)
+        };
         assert!(
-            (state.rate_w - 12.0).abs() < 0.5,
-            "rate {} should approach the observed 12 W",
-            state.rate_w
-        );
-        assert!(
-            state.variance < SEED_VARIANCE,
-            "variance {} should shrink below the seed",
-            state.variance
-        );
-    }
-
-    #[test]
-    fn kalman_smooths_alternating_noise() {
-        let mut state = seed(10.0);
-        for i in 0..40 {
-            let watts = if i % 2 == 0 { 6.0 } else { 14.0 };
-            state = kalman_step(state, watts);
-        }
-        assert!(
-            (state.rate_w - 10.0).abs() < 1.5,
-            "smoothed rate {} should stay near 10 W",
-            state.rate_w
+            band(after_many) < band(after_one),
+            "band should tighten with more samples: {} vs {}",
+            band(after_many),
+            band(after_one)
         );
     }
 
     #[test]
-    fn estimate_active_profile_time_and_band() {
-        let states = HashMap::from([(
-            Profile::Balanced,
-            RateState {
-                rate_w: 10.0,
-                variance: 0.25,
-            },
-        )]);
-        let estimates = estimate(Some(joules(50.0)), Profile::Balanced, &states, Some(10.0));
-        let balanced = get(&estimates, Profile::Balanced);
-        assert!((hrs(balanced.time) - 5.0).abs() < 0.01);
-        assert!((hrs(balanced.band) - 0.25).abs() < 0.01);
+    fn cold_start_matches_observed_draw() {
+        let reading =
+            PowerProfile::on_battery(Profile::Balanced, 60.0).at(Conditions::new(0.7, 0.4));
+        let estimates = estimate(&reading, &balanced(RegressionState::seed(12.0)));
+        assert!((hrs(get(&estimates, Profile::Balanced).time) - 5.0).abs() < 0.01);
     }
 
     #[test]
-    fn estimate_scales_unobserved_profiles() {
-        let states = HashMap::from([(
-            Profile::Balanced,
-            RateState {
-                rate_w: 10.0,
-                variance: 1.0,
-            },
-        )]);
-        let estimates = estimate(Some(joules(50.0)), Profile::Balanced, &states, Some(10.0));
+    fn scales_unobserved_profiles() {
+        let reading =
+            PowerProfile::on_battery(Profile::Balanced, 50.0).at(Conditions::new(0.0, 0.0));
+        let estimates = estimate(&reading, &balanced(RegressionState::seed(10.0)));
         let saver = hrs(get(&estimates, Profile::PowerSaver).time);
-        let balanced = hrs(get(&estimates, Profile::Balanced).time);
+        let balanced_life = hrs(get(&estimates, Profile::Balanced).time);
         let performance = hrs(get(&estimates, Profile::Performance).time);
         assert!(
             (performance - 50.0 / 15.0).abs() < 0.05,
@@ -342,37 +452,41 @@ mod tests {
         );
         assert!((saver - 50.0 / 6.0).abs() < 0.05, "saver {saver}");
         assert!(
-            performance < balanced && balanced < saver,
+            performance < balanced_life && balanced_life < saver,
             "life should order performance < balanced < power-saver"
         );
     }
 
     #[test]
-    fn estimate_on_ac_without_history_is_unknown() {
-        let estimates = estimate(Some(joules(50.0)), Profile::Balanced, &HashMap::new(), None);
+    fn without_history_is_unknown() {
+        let reading =
+            PowerProfile::on_battery(Profile::Balanced, 50.0).at(Conditions::new(0.5, 0.5));
+        let estimates = estimate(&reading, &HashMap::new());
         assert!(estimates[&Profile::Balanced].is_none());
     }
 
     #[test]
-    fn uncertainty_band_shrinks_as_filter_learns() {
-        let after_one = kalman_step(seed(10.0), 10.0);
-        let mut after_many = seed(10.0);
-        for _ in 0..50 {
-            after_many = kalman_step(after_many, 10.0);
+    fn missing_backlight_leaves_brightness_coefficient_inert() {
+        let mut model = RegressionState::seed(10.0);
+        for step in 0..60 {
+            let cpu_busy_frac = if step % 2 == 0 { 0.2 } else { 0.8 };
+            let draw = 10.0 + 30.0 * cpu_busy_frac;
+            model = model.observe(Conditions::new(0.0, cpu_busy_frac), draw);
         }
-        let band = |state| {
-            let states = HashMap::from([(Profile::Balanced, state)]);
-            hrs(get(
-                &estimate(Some(joules(50.0)), Profile::Balanced, &states, Some(10.0)),
-                Profile::Balanced,
-            )
-            .band)
-        };
         assert!(
-            band(after_many) < band(after_one),
-            "band should tighten with more samples: {} vs {}",
-            band(after_many),
-            band(after_one)
+            model.coefficients[1].abs() < 0.5,
+            "k_bright {} should stay near its seed of 0",
+            model.coefficients[1]
+        );
+        assert!(
+            model.covariance[(1, 1)] > SEED_VARIANCE_COEFF,
+            "k_bright variance {} should not shrink without brightness variation",
+            model.covariance[(1, 1)]
+        );
+        assert!(
+            (model.coefficients[2] - 30.0).abs() < 2.0,
+            "k_load {} should still be learned",
+            model.coefficients[2]
         );
     }
 }
