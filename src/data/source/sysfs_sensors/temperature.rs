@@ -11,7 +11,7 @@ const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 
 /// One per-core temperature sample.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TempReading {
     pub chip: String,
     pub celsius: f64,
@@ -21,7 +21,7 @@ pub struct TempReading {
 /// directly from hwmon rather than via `sensors`. Chip names are the raw hwmon
 /// `name` (e.g. `k10temp`), not `sensors`' bus-qualified form
 /// (`k10temp-pci-00c3`) — a minor tooltip deviation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub readings: Vec<TempReading>,
 }

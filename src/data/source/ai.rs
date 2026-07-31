@@ -28,7 +28,7 @@ pub mod openrouter;
 /// [`Source`](crate::data::source::Source) but its [`poll`](ApiSource::poll)
 /// takes the resolved secret-file path (`None` for the keyless Copilot-CLI
 /// source, which reads only local `ccusage` data).
-pub trait ApiSource: BarWidget + Sized + Send + 'static {
+pub trait ApiSource: BarWidget + Clone + PartialEq + Sized + Send + 'static {
     const NAME: &'static str;
     const INTERVAL: Duration;
 

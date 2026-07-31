@@ -11,7 +11,7 @@ const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
 const POWER_GAUGE_MAX_W: f64 = 40.0;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PowerDraw {
     pub watts: f64,
     pub status: ChargeStatus,

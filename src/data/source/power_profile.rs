@@ -112,7 +112,7 @@ pub fn set(profile: Profile) -> bool {
     daemon().is_some_and(|daemon| daemon.set_active_profile(profile.name()).is_ok())
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Conditions {
     pub brightness_frac: f64,
     pub cpu_busy_frac: f64,
@@ -138,7 +138,7 @@ impl Conditions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PowerProfile {
     pub active_profile: Profile,
     pub energy_j: Option<f64>,
@@ -217,7 +217,7 @@ impl ObservationModel<f64, U3, U1> for LinearObservation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RegressionState {
     pub coefficients: Vector3<f64>,
     pub covariance: Matrix3<f64>,
@@ -265,7 +265,7 @@ impl RegressionState {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct Prediction {
     draw_w: f64,
     draw_variance: f64,
@@ -273,7 +273,7 @@ struct Prediction {
 
 /// Time to depletion for a profile, with a ± uncertainty band from the rate's
 /// posterior variance propagated through `energy / rate`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Estimate {
     pub time: Duration,
     pub band: Duration,

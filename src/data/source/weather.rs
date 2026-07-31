@@ -51,7 +51,7 @@ fn round_i(json: Option<&Json>) -> Option<i64> {
 
 // ── current temperature (the group handle) ──────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     icon: FontAwesome,
     conditions: &'static str,
@@ -158,7 +158,7 @@ impl Source for Temperature {
 
 // ── current rain (Buienradar nowcast) ───────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Rain {
     icon: FontAwesome,
     mm_per_h: f64,
@@ -236,7 +236,7 @@ const SPECIES: [(&str, &str); 6] = [
 
 /// Grass vs the other tree species (birch): different icon, thresholds, and
 /// cap.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Pollen<const GRASS: bool> {
     value: f64,
     /// All six species' current values, for the tooltip.
@@ -351,7 +351,7 @@ impl<const GRASS: bool> Source for Pollen<GRASS> {
 
 // ── location pin ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Location {
     geo: Geo,
 }

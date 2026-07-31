@@ -9,7 +9,7 @@ use crate::data::source::{
 
 /// CPU busy percent over a 200 ms `/proc/stat` delta, plus per-core GHz
 /// (`cpu.nu`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CpuUsage {
     pub percent: i64,
     pub freqs_ghz: Vec<f64>,

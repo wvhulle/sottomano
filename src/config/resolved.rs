@@ -183,13 +183,14 @@ fn to_iced(c: DynamicColor) -> Color {
 }
 
 fn resolve_font(config: &DiskFontConfig) -> ResolvedFontConfig {
+    let matched = fc_match_family_file(config.name.as_deref().unwrap_or("sans-serif"));
     let name = config
         .name
         .clone()
-        .or_else(|| fc_match("sans-serif", "%{family}"))
+        .or_else(|| matched.as_ref().map(|m| m.family.clone()))
         .unwrap_or_else(|| "sans-serif".to_owned());
-    let bytes = fc_match(&name, "%{file}")
-        .and_then(|path| std::fs::read(path).ok())
+    let bytes = matched
+        .and_then(|m| std::fs::read(m.file).ok())
         .expect("no readable sans-serif font found");
     let face = ttf_parser::Face::parse(&bytes, 0).expect("sans-serif font failed to parse");
     let covered = covered_chars(&face);
@@ -226,8 +227,6 @@ pub fn fallback_font(ch: char) -> Option<Font> {
         .map(|family| Font::with_name(String::leak(family)))
 }
 
-/// One field of fontconfig's best match for `pattern`, via the `fc-match`
-/// subprocess.
 fn fc_match(pattern: &str, format: &str) -> Option<String> {
     let output = Command::new("fc-match")
         .args(["-f", format, pattern])
@@ -237,7 +236,29 @@ fn fc_match(pattern: &str, format: &str) -> Option<String> {
         return None;
     }
     let stdout = String::from_utf8(output.stdout).ok()?;
-    // fontconfig may return a comma-separated alias list; take the first.
     let value = stdout.lines().next()?.split(',').next()?.trim().to_owned();
     (!value.is_empty()).then_some(value)
+}
+
+struct FontMatch {
+    family: String,
+    file: String,
+}
+
+fn fc_match_family_file(pattern: &str) -> Option<FontMatch> {
+    let output = Command::new("fc-match")
+        .args(["-f", "%{family}\t%{file}", pattern])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let line = stdout.lines().next()?;
+    let (family, file) = line.split_once('\t')?;
+    let family = family.split(',').next()?.trim();
+    (!family.is_empty() && !file.is_empty()).then(|| FontMatch {
+        family: family.to_owned(),
+        file: file.trim().to_owned(),
+    })
 }

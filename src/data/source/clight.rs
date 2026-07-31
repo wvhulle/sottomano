@@ -41,7 +41,7 @@ trait ClightDaemon {
     fn capture(&self, reset_timer: bool, capture_only: bool) -> zbus::Result<()>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Clight {
     /// Whether webcam auto-calibration is driving the backlight.
     pub auto: bool,

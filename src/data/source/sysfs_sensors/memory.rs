@@ -9,7 +9,7 @@ use crate::data::source::{
 const KIB_PER_GIB: f64 = 1_048_576.0;
 
 /// RAM usage from `/proc/meminfo` (`memory.nu`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Memory {
     pub used_kb: i64,
     pub total_kb: i64,

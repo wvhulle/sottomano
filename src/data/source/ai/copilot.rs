@@ -24,7 +24,7 @@ const USER_URL: &str = "https://api.github.com/copilot_internal/user";
 const USER_AGENT: &str = "vetrata";
 
 /// A metered (paid-quota) plan's premium/chat request budget as a gauge.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
     plan: String,
     quota: String,
@@ -118,7 +118,7 @@ impl ApiSource for CopilotMetered {
 }
 
 /// A free-tier plan's remaining chat count.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
     plan: String,
     chat: i64,
@@ -184,7 +184,7 @@ impl ApiSource for CopilotFree {
 }
 
 /// Copilot-CLI month spend from the local `ccusage` CLI (no GitHub token).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CopilotCcusage {
     month: String,
     tokens: u64,

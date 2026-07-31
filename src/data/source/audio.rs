@@ -112,8 +112,7 @@ struct NodeState {
     channel_volumes: Vec<f32>,
     mute: bool,
     proxy: Option<Node>,
-    #[allow(dead_code)]
-    listener: Option<NodeListener>,
+    _listener: Option<NodeListener>,
 }
 
 #[derive(Default)]
@@ -121,10 +120,11 @@ struct Graph {
     nodes: HashMap<u32, NodeState>,
     default_sink: Option<String>,
     default_source: Option<String>,
-    #[allow(dead_code)]
-    defaults: Option<Metadata>,
-    #[allow(dead_code)]
-    defaults_listener: Option<MetadataListener>,
+}
+
+struct Defaults {
+    _metadata: Metadata,
+    _listener: MetadataListener,
 }
 
 fn run(states: &watch::Sender<AudioState>, commands: pipewire::channel::Receiver<Command>) {
@@ -144,6 +144,7 @@ fn run(states: &watch::Sender<AudioState>, commands: pipewire::channel::Receiver
     let registry = Rc::new(registry);
     let graph = Rc::new(RefCell::new(Graph::default()));
     let states = Rc::new(states.clone());
+    let defaults = Rc::new(RefCell::new(Vec::<Defaults>::new()));
 
     let _command_receiver = commands.attach(main_loop.loop_(), {
         let graph = graph.clone();
@@ -156,7 +157,8 @@ fn run(states: &watch::Sender<AudioState>, commands: pipewire::channel::Receiver
             let registry = registry.clone();
             let graph = graph.clone();
             let states = states.clone();
-            move |global| add_global(&registry, &graph, &states, global)
+            let defaults = defaults.clone();
+            move |global| add_global(&registry, &graph, &states, &defaults, global)
         })
         .global_remove({
             let graph = graph.clone();
@@ -175,6 +177,7 @@ fn add_global(
     registry: &Rc<Registry>,
     graph: &Rc<RefCell<Graph>>,
     states: &Rc<watch::Sender<AudioState>>,
+    defaults: &Rc<RefCell<Vec<Defaults>>>,
     global: &GlobalObject<&DictRef>,
 ) {
     let Some(props) = global.props else {
@@ -222,7 +225,7 @@ fn add_global(
                         .unwrap_or_default()
                         .to_owned(),
                     proxy: Some(node),
-                    listener: Some(listener),
+                    _listener: Some(listener),
                     ..NodeState::default()
                 },
             );
@@ -256,9 +259,10 @@ fn add_global(
                     }
                 })
                 .register();
-            let mut graph = graph.borrow_mut();
-            graph.defaults = Some(metadata);
-            graph.defaults_listener = Some(listener);
+            defaults.borrow_mut().push(Defaults {
+                _metadata: metadata,
+                _listener: listener,
+            });
         }
         _ => {}
     }

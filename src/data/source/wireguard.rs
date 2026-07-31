@@ -21,7 +21,7 @@ use crate::data::source::{
 /// (odin's 3-minute threshold).
 const CONNECTED_WINDOW: u64 = 180;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Peer {
     endpoint: String,
     allowed_ips: String,
@@ -37,7 +37,7 @@ impl Peer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tunnel {
     pub name: String,
     server: bool,
@@ -137,7 +137,7 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Wireguard {
     pub tunnels: Vec<Tunnel>,
 }

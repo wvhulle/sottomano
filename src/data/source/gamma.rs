@@ -33,7 +33,7 @@ trait GammaRelay {
 /// Slider range for color temperature (warm → cool), in Kelvin.
 pub const TEMP_RANGE: RangeInclusive<u16> = 3000..=6500;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Gamma {
     /// Software dim, as a percentage (100 = no dimming).
     pub brightness: i64,

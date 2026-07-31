@@ -26,7 +26,7 @@ const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const BACKOFF: Duration = Duration::from_mins(15);
 
 /// Subscription usage: the 5-hour session gauge plus 7-day/Sonnet/extra rows.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ClaudeOauth {
     /// A 429 (live or still inside the backoff window) — odin's `!`/critical
     /// pill.
@@ -155,7 +155,7 @@ impl ApiSource for ClaudeOauth {
 
 /// API-key Claude spend for today, via the local `ccusage` CLI. Hidden on
 /// subscription machines (where an OAuth token is present).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeCcusage {
     cost: f64,
     tokens: u64,

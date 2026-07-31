@@ -32,7 +32,7 @@ trait Location1 {
     fn description(&self) -> zbus::Result<String>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Geo {
     pub latitude: f64,
     pub longitude: f64,

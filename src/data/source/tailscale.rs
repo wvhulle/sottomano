@@ -13,13 +13,13 @@ use crate::data::source::{
     row,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Peer {
     name: String,
     ip: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tailscale {
     running: bool,
     self_name: String,

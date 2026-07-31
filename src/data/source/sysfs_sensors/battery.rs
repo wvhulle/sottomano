@@ -39,7 +39,7 @@ impl ChargeStatus {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Battery {
     pub capacity: u8,
     pub status: ChargeStatus,

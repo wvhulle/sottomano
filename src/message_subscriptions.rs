@@ -107,16 +107,27 @@ pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
     use iced::futures::StreamExt;
     Subscription::run_with(S::NAME, |_| {
         let mut timer = interval(S::INTERVAL);
-        // After a suspend/resume, take one catch-up poll, not a burst.
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        IntervalStream::new(timer).then(|_| off_thread(S::NAME, S::poll))
+        let readings = IntervalStream::new(timer).then(|_| off_thread(S::NAME, S::poll));
+        emit_changes(readings)
     })
 }
 
-/// Like [`polling`] but for an [`ApiSource`], whose `poll` takes the resolved
-/// secret-file path. The path rides in the keyed `run_with` data (alongside the
-/// source name) so the stream survives the per-update subscription rebuild and
-/// re-keys if the path ever changes.
+pub(crate) fn emit_changes<T: Clone + PartialEq>(
+    readings: impl iced::futures::Stream<Item = T>,
+) -> impl iced::futures::Stream<Item = T> {
+    use iced::futures::StreamExt;
+    readings
+        .scan(None, |previous, reading| {
+            let changed = previous.as_ref() != Some(&reading);
+            if changed {
+                *previous = Some(reading.clone());
+            }
+            std::future::ready(Some(changed.then_some(reading)))
+        })
+        .filter_map(std::future::ready)
+}
+
 pub(crate) fn poll_arg<S: ApiSource>(key: Option<PathBuf>) -> Subscription<Option<S>> {
     use iced::futures::StreamExt;
     Subscription::run_with((S::NAME, key), |(name, key)| {
@@ -124,28 +135,25 @@ pub(crate) fn poll_arg<S: ApiSource>(key: Option<PathBuf>) -> Subscription<Optio
         let key = key.clone();
         let mut timer = interval(S::INTERVAL);
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        IntervalStream::new(timer).then(move |_| {
+        let readings = IntervalStream::new(timer).then(move |_| {
             let key = key.clone();
             off_thread(name, move || S::poll(key))
-        })
+        });
+        emit_changes(readings)
     })
 }
 
-/// Like [`polling`] but for a source that yields a whole list each tick (e.g. a
-/// varying set of displays): an immediate first poll, then one per `every`, run
-/// off-thread and keyed by `key` so it survives the subscription rebuild.
-pub(crate) fn poll_every<T: Default + Send + 'static>(
+pub(crate) fn poll_every<T: Clone + PartialEq + Default + Send + 'static>(
     key: &'static str,
     every: Duration,
     poll: fn() -> T,
 ) -> Subscription<T> {
-    // `run_with` takes a plain `fn` builder (no captures), so the parameters ride
-    // in as the keyed `data` tuple and are destructured back out inside it.
     Subscription::run_with((key, every, poll), |&(key, every, poll)| {
         use iced::futures::StreamExt;
         let mut timer = interval(every);
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        IntervalStream::new(timer).then(move |_| off_thread(key, poll))
+        let readings = IntervalStream::new(timer).then(move |_| off_thread(key, poll));
+        emit_changes(readings)
     })
 }
 

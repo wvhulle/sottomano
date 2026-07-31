@@ -21,7 +21,7 @@ use crate::data::source::{
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpenRouter {
     /// Set when a request failed; rendered as odin's `?`/critical error pill.
     error: Option<String>,
@@ -31,7 +31,7 @@ pub struct OpenRouter {
     credits: Option<Credits>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Credits {
     total: f64,
     used: f64,

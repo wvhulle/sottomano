@@ -255,9 +255,8 @@ pub trait BarWidget {
     fn tooltip(&self) -> TooltipBody;
 }
 
-pub trait Source: BarWidget + Sized {
+pub trait Source: BarWidget + Clone + PartialEq + Sized {
     const NAME: &'static str;
-    /// How often the reading is re-polled.
     const INTERVAL: Duration;
 
     fn poll() -> Option<Self>;

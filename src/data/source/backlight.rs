@@ -61,7 +61,7 @@ pub enum Kind {
     External,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Backlight {
     /// clightd's identifier: sysfs name (internal) or EDID serial (external).
     pub serial: String,

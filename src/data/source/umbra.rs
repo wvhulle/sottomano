@@ -12,7 +12,7 @@ use crate::{
     widgets::toggle_control::Toggle,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Umbra {
     pub dark: bool,
 }

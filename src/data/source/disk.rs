@@ -9,7 +9,7 @@ const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 const FREE_WARN_BYTES: u64 = 100_000_000_000; // 100 GB
 const FREE_CRITICAL_BYTES: u64 = 2_000_000_000; // 2 GB
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Disk {
     pub total_bytes: u64,
     pub free_bytes: u64,
