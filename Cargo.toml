@@ -27,6 +27,7 @@ iced_font_awesome = "0.4.2"
 # https (not ssh) so both local cargo and the Nix build sandbox can fetch without
 # an ssh-agent.
 iced_layershell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
+image = { version = "0.25", default-features = false, features = ["png"] }
 libc = "0.2.176"
 niri-ipc = "26.4.0"
 # Album art for the media widget is often a remote https url (Spotify, browser

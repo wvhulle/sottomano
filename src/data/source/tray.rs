@@ -118,6 +118,7 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
     for pixel in bytes.as_chunks_mut::<4>().0 {
         pixel.rotate_left(1);
     }
+    let (width, height, bytes) = super::icon_trim::trim_rgba(width, height, bytes);
     Some(image::Handle::from_rgba(width, height, bytes))
 }
 
@@ -143,7 +144,7 @@ fn resolve_visual(
     icon_theme_path
         .and_then(|dir| from_theme_path(dir, name))
         .or_else(|| entries.theme_icon(name))
-        .map(IconSource::Themed)
+        .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
 }
 
 /// The entry's own icon: prefer inline `icon-data` (encoded image bytes), else
@@ -152,10 +153,25 @@ fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
     if let Some(data) = &item.icon_data
         && !data.is_empty()
     {
-        return Some(IconSource::Pixmap(image::Handle::from_bytes(data.clone())));
+        return Some(IconSource::Pixmap(trimmed_encoded(data)));
     }
     let name = item.icon_name.as_deref().filter(|n| !n.is_empty())?;
-    entries.theme_icon(name).map(IconSource::Themed)
+    entries
+        .theme_icon(name)
+        .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
+}
+
+fn trimmed_encoded(data: &[u8]) -> image::Handle {
+    match ::image::load_from_memory(data) {
+        Ok(decoded) => {
+            let rgba = decoded.into_rgba8();
+            let (width, height) = rgba.dimensions();
+            let (width, height, bytes) =
+                super::icon_trim::trim_rgba(width, height, rgba.into_raw());
+            image::Handle::from_rgba(width, height, bytes)
+        }
+        Err(_) => image::Handle::from_bytes(data.to_vec()),
+    }
 }
 
 /// Adapt one crate `MenuItem` into a [`MenuNode`], dropping invisible entries.

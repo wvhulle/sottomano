@@ -19,25 +19,25 @@ use std::{
 
 use sha2::{Digest, Sha256};
 
-/// Below this the margin isn't worth cropping — return the original so we don't
-/// churn the cache for icons that already fill their canvas.
 const MIN_MARGIN_FRACTION: f32 = 0.02;
 
-/// Bumped whenever the trim algorithm changes, to invalidate on-disk caches
-/// written by an earlier version (keyed only by icon path + mtime otherwise).
-const CACHE_VERSION: u32 = 2;
+const ALPHA_INK_THRESHOLD: u8 = 8;
 
-/// Return a path to a margin-trimmed copy of `path`, or `path` itself when it
-/// is not an SVG, can't be parsed, or already fills its canvas. Never fails: on
-/// any error it falls back to the original path so the icon still renders.
+const CACHE_VERSION: u32 = 3;
+
 pub fn trimmed(path: &Path) -> PathBuf {
-    if path
-        .extension()
-        .is_none_or(|e| !e.eq_ignore_ascii_case("svg"))
-    {
-        return path.to_path_buf();
+    let cropped = match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("svg") => trim_svg(path),
+        _ => trim_raster(path),
+    };
+    cropped.unwrap_or_else(|| path.to_path_buf())
+}
+
+pub fn trim_rgba(width: u32, height: u32, rgba: Vec<u8>) -> (u32, u32, Vec<u8>) {
+    match significant_ink_bounds(width, height, &rgba) {
+        Some(bounds) => (bounds.width, bounds.height, crop_rgba(width, &rgba, &bounds)),
+        None => (width, height, rgba),
     }
-    trim_svg(path).unwrap_or_else(|| path.to_path_buf())
 }
 
 fn trim_svg(path: &Path) -> Option<PathBuf> {
@@ -109,7 +109,78 @@ fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<St
     ))
 }
 
-/// Per-user cache for trimmed icons, under `$XDG_STATE_HOME/vetrata/icon-trim`.
+fn trim_raster(path: &Path) -> Option<PathBuf> {
+    let mtime = fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs());
+    let key = format!("{CACHE_VERSION}:raster:{}:{mtime}", path.display());
+    let cache = cache_dir()?.join(format!("{}.png", sha256_hex(&key)));
+    if cache.exists() {
+        return Some(cache);
+    }
+
+    let image = image::open(path).ok()?.into_rgba8();
+    let (width, height) = image.dimensions();
+    let bounds = significant_ink_bounds(width, height, image.as_raw())?;
+    image::imageops::crop_imm(&image, bounds.x, bounds.y, bounds.width, bounds.height)
+        .to_image()
+        .save(&cache)
+        .ok()?;
+    Some(cache)
+}
+
+struct InkBounds {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+fn significant_ink_bounds(width: u32, height: u32, rgba: &[u8]) -> Option<InkBounds> {
+    let bounds = ink_bounds(width, height, rgba)?;
+    let margin_x = 1.0 - bounds.width as f32 / width as f32;
+    let margin_y = 1.0 - bounds.height as f32 / height as f32;
+    (margin_x >= MIN_MARGIN_FRACTION || margin_y >= MIN_MARGIN_FRACTION).then_some(bounds)
+}
+
+fn ink_bounds(width: u32, height: u32, rgba: &[u8]) -> Option<InkBounds> {
+    if width == 0 || height == 0 || rgba.len() < (width as usize) * (height as usize) * 4 {
+        return None;
+    }
+    let (mut min_x, mut min_y, mut max_x, mut max_y) = (width, height, 0, 0);
+    let mut found = false;
+    for y in 0..height {
+        for x in 0..width {
+            let alpha = rgba[(y as usize * width as usize + x as usize) * 4 + 3];
+            if alpha > ALPHA_INK_THRESHOLD {
+                found = true;
+                min_x = min_x.min(x);
+                min_y = min_y.min(y);
+                max_x = max_x.max(x);
+                max_y = max_y.max(y);
+            }
+        }
+    }
+    found.then(|| InkBounds {
+        x: min_x,
+        y: min_y,
+        width: max_x - min_x + 1,
+        height: max_y - min_y + 1,
+    })
+}
+
+fn crop_rgba(width: u32, rgba: &[u8], bounds: &InkBounds) -> Vec<u8> {
+    let row_bytes = bounds.width as usize * 4;
+    let mut cropped = Vec::with_capacity(row_bytes * bounds.height as usize);
+    for y in bounds.y..bounds.y + bounds.height {
+        let start = (y as usize * width as usize + bounds.x as usize) * 4;
+        cropped.extend_from_slice(&rgba[start..start + row_bytes]);
+    }
+    cropped
+}
+
 fn cache_dir() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)

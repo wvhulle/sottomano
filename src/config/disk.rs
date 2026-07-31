@@ -127,7 +127,7 @@ impl Default for DiskFontConfig {
         Self {
             name: None,
             text_size_px: 14.0,
-            icon_size_px: 15.0,
+            icon_size_px: 16.0,
         }
     }
 }
