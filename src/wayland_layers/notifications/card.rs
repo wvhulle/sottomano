@@ -12,7 +12,7 @@ use iced::{
 
 use super::{Notification, NotificationMessage, markup};
 use crate::{
-    config::resolved::{ResolvedConfig, ResolvedFontConfig},
+    config::resolved::{ResolvedConfig, ResolvedFontConfig, ResolvedPaletteConfig},
     data::{
         notifications::model::{NotifImage, Urgency},
         source::app_icon::DesktopEntries,
@@ -260,12 +260,7 @@ pub fn card<'a>(
     if has_actions {
         let mut actions = Row::new().spacing(6.0).align_y(Alignment::Center);
         for action in &button_actions {
-            let destructive = action.key == "quit" || action.key == "deny";
-            let tint = if destructive {
-                palette.urgent
-            } else {
-                palette.focus
-            };
+            let tint = action_tint(&action.key, palette);
             actions = actions.push(action_button(
                 action.label.clone(),
                 NotificationMessage::ActionClicked {
@@ -377,6 +372,14 @@ fn icon_widget<'a>(icon: &CardIcon, size: f32) -> Element<'a, NotificationMessag
     match icon {
         CardIcon::Raster(handle) => image(handle.clone()).width(size).height(size).into(),
         CardIcon::Svg(handle) => svg(handle.clone()).width(size).height(size).into(),
+    }
+}
+
+fn action_tint(key: &str, palette: &ResolvedPaletteConfig) -> Color {
+    match key {
+        "quit" | "deny" | "end" | "reject" => palette.urgent,
+        "stop" | "cancel" | "later" | "snooze" => palette.warning,
+        _ => palette.focus,
     }
 }
 

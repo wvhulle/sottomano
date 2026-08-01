@@ -251,6 +251,7 @@ impl MediaGroup {
         let reveal = self.menu.reveal();
         let title = bar_text(&config.font, truncate(&media.label()))
             .color(config.palette.bar_foreground.scale_alpha(reveal));
+        let title = mouse_area(title).on_press(MediaMessage::Source(media.bus.clone()));
         let content = Row::with_children(
             [
                 Some(title.into()),
