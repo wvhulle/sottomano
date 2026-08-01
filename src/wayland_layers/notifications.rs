@@ -230,36 +230,28 @@ impl NotificationLayer {
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        let (activation, keep_up) = match self
+        let survives_action_invocation = self.live.iter().any(|n| n.data.id == id && n.data.resident);
+        let activation = match self
             .window_of(id, placement)
             .filter(|_| is_window_action(key))
         {
-            Some(window) => (
-                match key {
-                    "default" => niri_action(move || niri::focus_window(window)),
-                    "quit" => niri_action(move || niri::close_window(window)),
-                    "move" => placement
-                        .active_workspace_for_move()
-                        .map_or_else(Task::none, |target| {
-                            niri_action(move || niri::move_window_here(window, target))
-                        }),
-                    _ => Task::none(),
-                },
-                false,
-            ),
-            None => {
-                let resident = self.live.iter().any(|n| n.data.id == id && n.data.resident);
-                (
-                    self.emit(Outbound::ActionInvoked {
-                        id,
-                        key: key.to_owned(),
+            Some(window) => match key {
+                "default" => niri_action(move || niri::focus_window(window)),
+                "quit" => niri_action(move || niri::close_window(window)),
+                "move" => placement
+                    .active_workspace_for_move()
+                    .map_or_else(Task::none, |target| {
+                        niri_action(move || niri::move_window_here(window, target))
                     }),
-                    resident,
-                )
-            }
+                _ => Task::none(),
+            },
+            None => self.emit(Outbound::ActionInvoked {
+                id,
+                key: key.to_owned(),
+            }),
         };
 
-        if keep_up {
+        if survives_action_invocation {
             activation
         } else {
             Task::batch([
