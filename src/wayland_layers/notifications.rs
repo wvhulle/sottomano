@@ -230,7 +230,8 @@ impl NotificationLayer {
         outputs: &HashMap<String, OutputGeometry>,
         config: &ResolvedConfig,
     ) -> Task<Message> {
-        let survives_action_invocation = self.live.iter().any(|n| n.data.id == id && n.data.resident);
+        let survives_action_invocation =
+            self.live.iter().any(|n| n.data.id == id && n.data.resident);
         let activation = match self
             .window_of(id, placement)
             .filter(|_| is_window_action(key))

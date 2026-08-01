@@ -23,7 +23,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     font::{Style as FontStyle, Weight},
-    widget::{Column, Sensor, container, row},
+    widget::{Column, Row as RowWidget, Sensor, container, row},
     window::Id,
 };
 use iced_layershell::reexport::{
@@ -33,7 +33,7 @@ use iced_layershell::reexport::{
 use crate::{
     app::Message,
     config::resolved::ResolvedConfig,
-    data::source::{RefreshInfo, Tooltip, TooltipBody, level_color, niri::OutputGeometry},
+    data::source::{RefreshInfo, Row, Tooltip, TooltipBody, level_color, niri::OutputGeometry},
     wayland_layers::surface::{Margin, Position, Surface, SurfaceSize},
     widgets::text::{TextStyle, bar_text},
 };
@@ -553,21 +553,46 @@ fn tooltip_grid<'a>(
     now: SystemTime,
 ) -> Element<'a, Message> {
     match body {
-        TooltipBody::Table(rows) => row![
-            Column::with_children(
-                rows.iter()
-                    .map(|entry| bar_text(&config.font, entry.key.clone()).color(dim).into()),
-            )
-            .spacing(ROW_SPACING_PX),
-            Column::with_children(rows.iter().map(|entry| {
-                bar_text(&config.font, entry.value.clone())
-                    .color(foreground)
-                    .into()
-            }))
-            .spacing(ROW_SPACING_PX),
-        ]
-        .spacing(COLUMN_GAP_PX)
-        .into(),
+        TooltipBody::Table(rows) => {
+            let text_column = |cells: Vec<String>, color: Color| {
+                Column::with_children(
+                    cells
+                        .into_iter()
+                        .map(|cell| bar_text(&config.font, cell).color(color).into()),
+                )
+                .spacing(ROW_SPACING_PX)
+            };
+            let mut columns = vec![
+                text_column(rows.iter().map(|entry| entry.key.clone()).collect(), dim).into(),
+                text_column(
+                    rows.iter().map(|entry| entry.value.clone()).collect(),
+                    foreground,
+                )
+                .into(),
+            ];
+            if rows.iter().any(|entry| entry.second.is_some()) {
+                let second_key = |entry: &Row| {
+                    entry
+                        .second
+                        .as_ref()
+                        .map(|(key, _)| key.clone())
+                        .unwrap_or_default()
+                };
+                let second_value = |entry: &Row| {
+                    entry
+                        .second
+                        .as_ref()
+                        .map(|(_, value)| value.clone())
+                        .unwrap_or_default()
+                };
+                columns.push(text_column(rows.iter().map(second_key).collect(), dim).into());
+                columns
+                    .push(text_column(rows.iter().map(second_value).collect(), foreground).into());
+            }
+            RowWidget::with_children(columns)
+                .spacing(COLUMN_GAP_PX)
+                .into()
+        }
         TooltipBody::Log(entries) => row![
             Column::with_children(entries.iter().map(|entry| {
                 bar_text(&config.font, relative(entry.at, now))
@@ -653,10 +678,35 @@ fn measure_panel(tooltip: &Tooltip, config: &ResolvedConfig) -> Size {
     let now = SystemTime::now();
 
     let grid = match &tooltip.body {
-        TooltipBody::Table(rows) => beside(
-            column(rows.iter().map(|entry| entry.key.as_str()), base),
-            column(rows.iter().map(|entry| entry.value.as_str()), base),
-        ),
+        TooltipBody::Table(rows) => {
+            let mut size = beside(
+                column(rows.iter().map(|entry| entry.key.as_str()), base),
+                column(rows.iter().map(|entry| entry.value.as_str()), base),
+            );
+            if rows.iter().any(|entry| entry.second.is_some()) {
+                size = beside(
+                    size,
+                    beside(
+                        column(
+                            rows.iter().map(|entry| {
+                                entry.second.as_ref().map_or("", |(key, _)| key.as_str())
+                            }),
+                            base,
+                        ),
+                        column(
+                            rows.iter().map(|entry| {
+                                entry
+                                    .second
+                                    .as_ref()
+                                    .map_or("", |(_, value)| value.as_str())
+                            }),
+                            base,
+                        ),
+                    ),
+                );
+            }
+            size
+        }
         TooltipBody::Log(entries) => {
             let times: Vec<String> = entries
                 .iter()

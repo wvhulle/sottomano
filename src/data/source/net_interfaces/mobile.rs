@@ -10,7 +10,7 @@ use zbus::{
 use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Solid,
-    net_interfaces::{interface, prop, signal_level},
+    net_interfaces::{group, interface, prop, signal_level},
     row,
 };
 
@@ -19,17 +19,20 @@ pub const NAME: &str = "mobile-broadband";
 const MODEM: &str = "org.freedesktop.ModemManager1.Modem";
 const MODEM_3GPP: &str = "org.freedesktop.ModemManager1.Modem.Modem3gpp";
 const BEARER: &str = "org.freedesktop.ModemManager1.Bearer";
-const DASH: &str = "—";
 
 #[derive(Debug, Clone)]
 pub struct Mobile {
-    model: String,
-    operator: String,
+    model: Option<String>,
+    operator: Option<String>,
     technology: Vec<String>,
     signal: Option<i64>,
-    registration: String,
+    signal_recent: bool,
+    registration: Option<String>,
     state: String,
-    ip: Option<String>,
+    ipv4: Option<String>,
+    ipv6: Option<String>,
+    rx: Option<u64>,
+    tx: Option<u64>,
     failed_reason: Option<String>,
 }
 
@@ -54,25 +57,68 @@ impl BarWidget for Mobile {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![
-            row("Model", self.model.clone()),
-            row("Operator", self.operator.clone()),
-            row("Technology", self.technology.join(", ")),
-        ];
+        let mut identity = Vec::new();
+        if let Some(model) = &self.model {
+            identity.push(row("Model", model.clone()));
+        }
+        if let Some(operator) = &self.operator {
+            identity.push(row("Operator", operator.clone()));
+        }
+        if !self.technology.is_empty() {
+            identity.push(row("Technology", self.technology.join(", ")));
+        }
         if let Some(signal) = self.signal {
-            rows.push(row("Signal", format!("{signal}%")));
+            let suffix = if self.signal_recent { "" } else { " (cached)" };
+            identity.push(row("Signal", format!("{signal}%{suffix}")));
         }
-        rows.push(row("Registration", self.registration.clone()));
-        match &self.ip {
-            Some(ip) if self.state == "connected" => rows.push(row("IP", ip.clone())),
-            _ => rows.push(row("State", self.state.clone())),
+        if let Some(registration) = &self.registration {
+            identity.push(row("Registration", registration.clone()));
         }
-        if self.state == "failed"
-            && let Some(reason) = &self.failed_reason
-        {
-            rows.push(row("FailedReason", reason.clone()));
+
+        let mut rows = Vec::new();
+        group(&mut rows, identity);
+        if self.state == "connected" {
+            let mut addresses = Vec::new();
+            if let Some(ip) = &self.ipv4 {
+                addresses.push(row("IPv4", ip.clone()));
+            }
+            if let Some(ip) = &self.ipv6 {
+                addresses.push(row("IPv6", ip.clone()));
+            }
+            group(&mut rows, addresses);
+        } else {
+            let mut status = vec![row("State", self.state.clone())];
+            if self.state == "failed"
+                && let Some(reason) = &self.failed_reason
+            {
+                status.push(row("FailedReason", reason.clone()));
+            }
+            group(&mut rows, status);
         }
+        let mut stats = Vec::new();
+        if let Some(rx) = self.rx {
+            stats.push(row("RX", humanize_bytes(rx)));
+        }
+        if let Some(tx) = self.tx {
+            stats.push(row("TX", humanize_bytes(tx)));
+        }
+        group(&mut rows, stats);
         TooltipBody::Table(rows)
+    }
+}
+
+fn humanize_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1000.0 && unit < UNITS.len() - 1 {
+        value /= 1000.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
     }
 }
 
@@ -148,18 +194,43 @@ fn technologies(bits: u32) -> Vec<String> {
         .collect()
 }
 
-fn clean(value: Option<String>) -> Option<String> {
-    value.filter(|s| !s.is_empty() && s != "--")
+#[derive(Default)]
+struct BearerInfo {
+    ipv4: Option<String>,
+    ipv6: Option<String>,
+    rx: Option<u64>,
+    tx: Option<u64>,
 }
 
-fn bearer_ip(objects: &ManagedObjects, path: &OwnedObjectPath) -> Option<String> {
-    let bearer = interface(objects.get(path)?, BEARER)?;
-    let config: HashMap<String, OwnedValue> = prop(bearer, "Ip4Config")?;
-    let address = config
+fn bearer_address(config: &HashMap<String, OwnedValue>) -> Option<String> {
+    config
         .get("address")
         .and_then(|value| value.try_clone().ok())
-        .and_then(|value| String::try_from(value).ok())?;
-    clean(Some(address))
+        .and_then(|value| String::try_from(value).ok())
+}
+
+fn stat(stats: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
+    stats
+        .get(key)
+        .and_then(|value| value.try_clone().ok())
+        .and_then(|value| u64::try_from(value).ok())
+}
+
+fn bearer_info(objects: &ManagedObjects, path: &OwnedObjectPath) -> BearerInfo {
+    let Some(bearer) = objects.get(path).and_then(|iface| interface(iface, BEARER)) else {
+        return BearerInfo::default();
+    };
+    let stats = prop::<HashMap<String, OwnedValue>>(bearer, "Stats");
+    BearerInfo {
+        ipv4: prop::<HashMap<String, OwnedValue>>(bearer, "Ip4Config")
+            .as_ref()
+            .and_then(bearer_address),
+        ipv6: prop::<HashMap<String, OwnedValue>>(bearer, "Ip6Config")
+            .as_ref()
+            .and_then(bearer_address),
+        rx: stats.as_ref().and_then(|stats| stat(stats, "rx-bytes")),
+        tx: stats.as_ref().and_then(|stats| stat(stats, "tx-bytes")),
+    }
 }
 
 fn reading(objects: &ManagedObjects) -> Option<Mobile> {
@@ -170,29 +241,32 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     let modem_3gpp = interface(interfaces, MODEM_3GPP);
 
     let state = state_name(prop::<i32>(modem, "State").unwrap_or(0)).to_owned();
-    let ip = prop::<Vec<OwnedObjectPath>>(modem, "Bearers")
+    let bearer = prop::<Vec<OwnedObjectPath>>(modem, "Bearers")
         .unwrap_or_default()
         .first()
-        .and_then(|bearer| bearer_ip(objects, bearer));
+        .map(|bearer| bearer_info(objects, bearer))
+        .unwrap_or_default();
+    let signal = prop::<(u32, bool)>(modem, "SignalQuality");
 
     Some(Mobile {
-        model: clean(prop::<String>(modem, "Model")).unwrap_or_else(|| DASH.to_owned()),
+        model: prop::<String>(modem, "Model"),
         operator: modem_3gpp
-            .and_then(|group| clean(prop::<String>(group, "OperatorName")))
-            .unwrap_or_else(|| DASH.to_owned()),
+            .and_then(|iface| prop::<String>(iface, "OperatorName"))
+            .filter(|operator| !operator.is_empty()),
         technology: technologies(prop::<u32>(modem, "AccessTechnologies").unwrap_or(0)),
-        signal: prop::<(u32, bool)>(modem, "SignalQuality").map(|(quality, _)| i64::from(quality)),
+        signal: signal.map(|(quality, _)| i64::from(quality)),
+        signal_recent: signal.is_none_or(|(_, recent)| recent),
         registration: modem_3gpp
-            .and_then(|group| prop::<u32>(group, "RegistrationState"))
-            .map_or_else(
-                || DASH.to_owned(),
-                |state| registration_name(state).to_owned(),
-            ),
+            .and_then(|iface| prop::<u32>(iface, "RegistrationState"))
+            .map(|state| registration_name(state).to_owned()),
         failed_reason: prop::<u32>(modem, "StateFailedReason")
             .filter(|reason| *reason != 0)
             .map(|reason| failed_reason_name(reason).to_owned()),
         state,
-        ip,
+        ipv4: bearer.ipv4,
+        ipv6: bearer.ipv6,
+        rx: bearer.rx,
+        tx: bearer.tx,
     })
 }
 
