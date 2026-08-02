@@ -1,18 +1,17 @@
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::select_all};
-use zbus::{
-    Connection, MatchRule, MessageStream,
-    fdo::{ManagedObjects, ObjectManagerProxy},
-};
+use iced::futures::Stream;
+use zbus::fdo::ManagedObjects;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Brands,
-    net_interfaces::{interface, prop, signal_level},
+    net_interfaces::{interface, managed_objects_readings, prop, signal_level},
     row,
 };
 
 pub const NAME: &str = "bluetooth";
 
+const SERVICE: &str = "org.bluez";
+const ROOT: &str = "/";
 const ADAPTER: &str = "org.bluez.Adapter1";
 const DEVICE: &str = "org.bluez.Device1";
 
@@ -110,50 +109,6 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
     })
 }
 
-async fn read(objects: &ObjectManagerProxy<'_>) -> Option<Bluetooth> {
-    reading(&objects.get_managed_objects().await.ok()?)
-}
-
-pub async fn run(mut sink: Sender<Option<Bluetooth>>) {
-    let Ok(connection) = Connection::system().await else {
-        return;
-    };
-    let Ok(objects) = ObjectManagerProxy::new(&connection, "org.bluez", "/").await else {
-        return;
-    };
-
-    if sink.send(read(&objects).await).await.is_err() {
-        return;
-    }
-
-    let Ok(added) = objects.receive_interfaces_added().await else {
-        return;
-    };
-    let Ok(removed) = objects.receive_interfaces_removed().await else {
-        return;
-    };
-    let Ok(changed) = changed_properties(&connection).await else {
-        return;
-    };
-    let mut signals = select_all([
-        added.map(|_| ()).boxed(),
-        removed.map(|_| ()).boxed(),
-        changed.map(|_| ()).boxed(),
-    ]);
-
-    while signals.next().await.is_some() {
-        if sink.send(read(&objects).await).await.is_err() {
-            return;
-        }
-    }
-}
-
-async fn changed_properties(connection: &Connection) -> zbus::Result<MessageStream> {
-    let rule = MatchRule::builder()
-        .msg_type(zbus::message::Type::Signal)
-        .sender("org.bluez")?
-        .interface("org.freedesktop.DBus.Properties")?
-        .member("PropertiesChanged")?
-        .build();
-    MessageStream::for_match_rule(rule, connection, Some(16)).await
+pub fn readings() -> impl Stream<Item = Option<Bluetooth>> {
+    managed_objects_readings(NAME, SERVICE, ROOT, reading)
 }

@@ -1,10 +1,10 @@
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender};
+use iced::futures::{Stream, future::try_join_all, try_join};
 use zbus::Connection;
 
 use crate::data::source::{
     BarWidget, Glyph, TooltipBody,
     font_awesome::Solid,
-    net_interfaces::{address_rows, dns_rows, group, link_stats_rows, nm},
+    net_interfaces::{address_rows, dns_rows, group, link_stats_rows, nm, nm_readings},
     row,
 };
 
@@ -82,56 +82,49 @@ impl BarWidget for Ethernet {
     }
 }
 
-async fn read(connection: &Connection) -> Option<Ethernet> {
-    let mut links = Vec::new();
-    for device in nm::devices(connection)
-        .await
-        .into_iter()
-        .filter(|device| device.kind == nm::TYPE_ETHERNET)
-    {
-        if device.connected {
-            let ip = nm::ip(connection, &device.path).await;
-            links.push(Link {
-                name: device.interface,
-                connected: true,
-                connection: nm::connection_id(connection, &device.path).await,
-                mac: nm::hw_address(connection, &device.path).await,
-                ipv4: ip.v4,
-                ipv6: ip.v6,
-                dns: ip.dns,
-                speed: nm::wired_speed(connection, &device.path).await,
-                mtu: nm::mtu(connection, &device.path).await,
-            });
-        } else {
-            links.push(Link {
-                name: device.interface,
-                connected: false,
-                connection: None,
-                mac: None,
-                ipv4: None,
-                ipv6: None,
-                dns: Vec::new(),
-                speed: 0,
-                mtu: 0,
-            });
-        }
+async fn link(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<Link> {
+    if !device.connected {
+        return Ok(Link {
+            name: device.interface,
+            connected: false,
+            connection: None,
+            mac: None,
+            ipv4: None,
+            ipv6: None,
+            dns: Vec::new(),
+            speed: 0,
+            mtu: 0,
+        });
     }
-    (!links.is_empty()).then_some(Ethernet { links })
+    let (ip, connection_id, mac, speed, mtu) = try_join!(
+        nm::ip(connection, &device.path),
+        nm::connection_id(connection, &device.path),
+        nm::hw_address(connection, &device.path),
+        nm::wired_speed(connection, &device.path),
+        nm::mtu(connection, &device.path)
+    )?;
+    Ok(Link {
+        name: device.interface,
+        connected: true,
+        connection: connection_id,
+        mac,
+        ipv4: ip.v4,
+        ipv6: ip.v6,
+        dns: ip.dns,
+        speed,
+        mtu,
+    })
 }
 
-pub async fn run(mut sink: Sender<Option<Ethernet>>) {
-    let Ok(connection) = Connection::system().await else {
-        return;
-    };
-    if sink.send(read(&connection).await).await.is_err() {
-        return;
-    }
-    let Ok(mut signals) = nm::changes(&connection).await else {
-        return;
-    };
-    while signals.next().await.is_some() {
-        if sink.send(read(&connection).await).await.is_err() {
-            return;
-        }
-    }
+async fn read(connection: Connection) -> zbus::Result<Option<Ethernet>> {
+    let devices = nm::devices(&connection)
+        .await?
+        .into_iter()
+        .filter(|device| device.kind == nm::TYPE_ETHERNET);
+    let links = try_join_all(devices.map(|device| link(&connection, device))).await?;
+    Ok((!links.is_empty()).then_some(Ethernet { links }))
+}
+
+pub fn readings() -> impl Stream<Item = Option<Ethernet>> {
+    nm_readings(NAME, read)
 }

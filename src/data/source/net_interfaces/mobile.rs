@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::select_all};
+use iced::futures::Stream;
 use zbus::{
-    Connection, MatchRule, MessageStream,
-    fdo::{ManagedObjects, ObjectManagerProxy},
+    fdo::ManagedObjects,
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
 use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Solid,
-    net_interfaces::{group, interface, prop, signal_level},
+    net_interfaces::{group, interface, managed_objects_readings, prop, signal_level},
     row,
 };
 
 pub const NAME: &str = "mobile-broadband";
 
+const SERVICE: &str = "org.freedesktop.ModemManager1";
+const ROOT: &str = "/org/freedesktop/ModemManager1";
 const MODEM: &str = "org.freedesktop.ModemManager1.Modem";
 const MODEM_3GPP: &str = "org.freedesktop.ModemManager1.Modem.Modem3gpp";
 const BEARER: &str = "org.freedesktop.ModemManager1.Bearer";
@@ -270,56 +271,6 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     })
 }
 
-async fn read(objects: &ObjectManagerProxy<'_>) -> Option<Mobile> {
-    reading(&objects.get_managed_objects().await.ok()?)
-}
-
-pub async fn run(mut sink: Sender<Option<Mobile>>) {
-    let Ok(connection) = Connection::system().await else {
-        return;
-    };
-    let Ok(objects) = ObjectManagerProxy::new(
-        &connection,
-        "org.freedesktop.ModemManager1",
-        "/org/freedesktop/ModemManager1",
-    )
-    .await
-    else {
-        return;
-    };
-
-    if sink.send(read(&objects).await).await.is_err() {
-        return;
-    }
-
-    let Ok(added) = objects.receive_interfaces_added().await else {
-        return;
-    };
-    let Ok(removed) = objects.receive_interfaces_removed().await else {
-        return;
-    };
-    let Ok(changed) = changed_properties(&connection).await else {
-        return;
-    };
-    let mut signals = select_all([
-        added.map(|_| ()).boxed(),
-        removed.map(|_| ()).boxed(),
-        changed.map(|_| ()).boxed(),
-    ]);
-
-    while signals.next().await.is_some() {
-        if sink.send(read(&objects).await).await.is_err() {
-            return;
-        }
-    }
-}
-
-async fn changed_properties(connection: &Connection) -> zbus::Result<MessageStream> {
-    let rule = MatchRule::builder()
-        .msg_type(zbus::message::Type::Signal)
-        .sender("org.freedesktop.ModemManager1")?
-        .interface("org.freedesktop.DBus.Properties")?
-        .member("PropertiesChanged")?
-        .build();
-    MessageStream::for_match_rule(rule, connection, Some(16)).await
+pub fn readings() -> impl Stream<Item = Option<Mobile>> {
+    managed_objects_readings(NAME, SERVICE, ROOT, reading)
 }

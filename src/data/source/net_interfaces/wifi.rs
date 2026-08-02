@@ -1,10 +1,12 @@
-use iced::futures::{SinkExt, StreamExt, channel::mpsc::Sender};
+use iced::futures::{Stream, try_join};
 use zbus::Connection;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Solid,
-    net_interfaces::{address_rows, dns_rows, group, link_stats_rows, nm, signal_level},
+    net_interfaces::{
+        address_rows, dns_rows, group, link_stats_rows, nm, nm_readings, signal_level,
+    },
     row, row_pair,
 };
 
@@ -90,54 +92,49 @@ impl BarWidget for Wifi {
     }
 }
 
-async fn read(connection: &Connection) -> Option<Wifi> {
-    let device = nm::devices(connection)
-        .await
+async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
+    let Some(device) = nm::devices(&connection)
+        .await?
         .into_iter()
-        .find(|device| device.kind == nm::TYPE_WIFI)?;
+        .find(|device| device.kind == nm::TYPE_WIFI)
+    else {
+        return Ok(None);
+    };
     if !device.connected {
-        return Some(Wifi {
+        return Ok(Some(Wifi {
             device: device.interface,
             link: None,
-        });
+        }));
     }
-    let link = match nm::access_point(connection, &device.path).await {
-        Some(ap) => {
-            let ip = nm::ip(connection, &device.path).await;
-            Some(Link {
-                ssid: ap.ssid,
-                signal: ap.signal,
-                frequency: ap.frequency,
-                security: ap.security,
-                mac: nm::hw_address(connection, &device.path).await,
-                ipv4: ip.v4,
-                ipv6: ip.v6,
-                dns: ip.dns,
-                bitrate: nm::wireless_rate(connection, &device.path).await,
-                mtu: nm::mtu(connection, &device.path).await,
-            })
-        }
-        None => None,
+    let Some(ap) = nm::access_point(&connection, &device.path).await? else {
+        return Ok(Some(Wifi {
+            device: device.interface,
+            link: None,
+        }));
     };
-    Some(Wifi {
+    let (ip, mac, bitrate, mtu) = try_join!(
+        nm::ip(&connection, &device.path),
+        nm::hw_address(&connection, &device.path),
+        nm::wireless_rate(&connection, &device.path),
+        nm::mtu(&connection, &device.path)
+    )?;
+    Ok(Some(Wifi {
         device: device.interface,
-        link,
-    })
+        link: Some(Link {
+            ssid: ap.ssid,
+            signal: ap.signal,
+            frequency: ap.frequency,
+            security: ap.security,
+            mac,
+            ipv4: ip.v4,
+            ipv6: ip.v6,
+            dns: ip.dns,
+            bitrate,
+            mtu,
+        }),
+    }))
 }
 
-pub async fn run(mut sink: Sender<Option<Wifi>>) {
-    let Ok(connection) = Connection::system().await else {
-        return;
-    };
-    if sink.send(read(&connection).await).await.is_err() {
-        return;
-    }
-    let Ok(mut signals) = nm::changes(&connection).await else {
-        return;
-    };
-    while signals.next().await.is_some() {
-        if sink.send(read(&connection).await).await.is_err() {
-            return;
-        }
-    }
+pub fn readings() -> impl Stream<Item = Option<Wifi>> {
+    nm_readings(NAME, read)
 }

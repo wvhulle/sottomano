@@ -15,25 +15,14 @@ chrono = { version = "0.4", default-features = false, features = [
 color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
-# XDG Sound Theme lookup (notification alert sounds) — the pure-Rust sibling of
-# freedesktop-icons above, same author. Resolves a themed sound name to a file;
-# playback itself stays a `pw-play` shell-out.
 freedesktop-sound = "0.1"
 humantime = "2.3"
 iced = { version = "0.14.0", features = ["tokio", "image", "svg", "canvas"] }
 iced_font_awesome = "0.4.2"
-# Local fork of wvhulle/exwlshelleventloop with the multi-surface present-error
-# fix (Outdated/Lost → reconfigure/recreate). Track master; force-push to update.
-# https (not ssh) so both local cargo and the Nix build sandbox can fetch without
-# an ssh-agent.
 iced_layershell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 libc = "0.2.176"
 niri-ipc = "26.4.0"
-# Album art for the media widget is often a remote https url (Spotify, browser
-# players); this fetches it into the on-disk cache. rustls (not native-tls) so
-# there's no OpenSSL/pkg-config link — keeps the crane build free of a system
-# dependency. On tokio, which is already the runtime.
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ] }
@@ -41,18 +30,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-# Brand logos (Anthropic/Claude, GitHub Copilot, OpenRouter) for the AI-usage
-# pills — Font Awesome has no marks for these. Ships the Simple Icons set as
-# `&'static str` SVGs; we render them through iced's svg widget, tinted to the
-# bar palette. Tracks the upstream Simple Icons release version.
 simpleicons-rs = "16.27"
-# libsystemd binding for reading the journal (kernel-errors indicator). Its
-# blocking reader runs off the executor from the sync source poll, like zbus's
-# blocking API below. Links libsystemd via pkg-config (wired in flake.nix).
 systemd = "0.10"
-# StatusNotifierItem tray host (the SNI host ironbar uses): registers the
-# watcher/host, decodes items + icons, and parses each item's dbusmenu into a
-# tree delivered through its event stream. Pure-Rust on the zbus already present.
 system-tray = "0.8"
 ttf-parser = "0.25"
 tokio = { version = "1.53.0", features = [
@@ -66,21 +45,10 @@ tokio-stream = { version = "0.1", default-features = false, features = [
   "time",
 ] }
 toml = "0.8.23"
-# Pure-Rust SQLite (the Turso/Limbo rewrite) for vetrata's own persistent state,
-# e.g. the quick-launch frequency store. Async; runs on the iced/tokio runtime.
 turso = "0.8.0-pre.1"
-# Trim the transparent margin themed icon SVGs ship with (see data_sources::icon_trim).
-# Pinned to the version iced_tiny_skia already resolves, so no second usvg copy.
 usvg = "0.45"
-# Wayland client for the in-process idle-timeout daemon (absorbed from
-# wvhulle/idle-manager): arms one ext-idle-notify-v1 notification per enabled
-# subsystem and spawns its bound command when the compositor reports idle.
 wayrs-client = { version = "1", features = ["tokio"] }
 wayrs-protocols = { version = "0.14", features = ["ext-idle-notify-v1"] }
-# Pure-Rust D-Bus (no libdbus). Two uses: the async notification server
-# (org.freedesktop.Notifications) on iced's tokio runtime, and the blocking API
-# from sync source polls (systemd's Manager for failed units) — hence both the
-# `tokio` and `blocking-api` features.
 zbus = { version = "5.18", default-features = false, features = [
   "tokio",
   "blocking-api",

@@ -1,12 +1,3 @@
-# Home-manager module for vetrata, factored out of flake.nix to keep it
-# readable. The caller passes the flake-level `self` (for the default package).
-#
-# Unlike the Quickshell Odin, vetrata has no Quickshell wrapper and runs its own
-# niri window tracker (Turso), so it never enables services.niri.windowTracker.
-# It reads a single static TOML at ~/.config/vetrata.toml, resolved once at
-# startup (no hot reload). When `umbra.enable` is on (the default) it registers
-# with the umbra app registry for runtime dark/light palette switching — it does
-# NOT import the umbra module itself; the desktop layer supplies services.umbra.
 { self }:
 {
   config,
@@ -19,27 +10,17 @@ let
   themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
 
-  # The bar surface is transparent (bar_background left unset) over the wallpaper
-  # with a legibility shadow, so its text must stay light in EVERY mode. base16
-  # slots invert between light and dark schemes (base05 is light in a dark
-  # scheme, dark in a light one), so no single slot reads "light" in both modes.
-  # Hence the foreground family (text/inactive/dim) is pinned to the DARK
-  # scheme's light slots for both variants; only the semantic accents follow the
-  # active base16 mode. Names describe the UI role, not syntax.
   foregroundPalette = p: {
-    bar_foreground = p.base05; # main text (light)
-    inactive = p.base04; # muted text (light)
-    dim = p.base03; # faint text
+    bar_foreground = p.base05;
+    inactive = p.base04;
+    dim = p.base03;
   };
   accentPalette = p: {
-    urgent = p.base08; # red
-    warning = p.base0A; # yellow
-    focus = p.base0C; # aqua
+    urgent = p.base08;
+    warning = p.base0A;
+    focus = p.base0C;
   };
 
-  # One per-mode TOML file: the user's `settings` (layout/font/notifications) as
-  # the base, then the fixed light foreground + the mode's accents merged in.
-  # Any palette key the user set explicitly still wins.
   variantToml =
     modePalette:
     tomlFormat.generate "vetrata.toml" (
@@ -51,13 +32,6 @@ let
       }
     );
 
-  # vetrata's niri layer-rules. The bar surface ("vetrata") wants square corners
-  # and no drop shadow of its own; the two off-screen background-layer casters
-  # ("vetrata-backdrop-<pos>") are the surfaces that bloom the gradient shadow
-  # onto the screen edge so the bar's white text stays legible over light
-  # wallpaper (see src/layer_surface.rs `backdrop_settings`). The casters only
-  # exist when layout.shadow is set in vetrata.toml — the same toggle these rules
-  # target, so the two stay in agreement.
   radius0 = {
     top-left = 0.0;
     top-right = 0.0;
@@ -70,16 +44,8 @@ let
     bottom-left = r;
     bottom-right = r;
   };
-  # Card corner radius follows the user's layout.corner_radius_px (src/config/disk.rs,
-  # default 8) so niri's clip matches what the notification card / tooltip actually
-  # draws. Coerced to a float because niri wants 8.0, not 8.
   cornerRadius = 1.0 * (cfg.settings.layout.corner_radius_px or 8);
-  # Capsule radius for the per-pill blur casters (namespace "vetrata-blur-pill",
-  # src/wayland_layers/blur_caster.rs): pills span the full bar height, so fully
-  # circular ends mean half of layout.outer_height_px (src/config/disk.rs,
-  # default 24).
   pillRadius = 0.5 * (cfg.settings.layout.outer_height_px or 24.0);
-  # Drop shadow hugged straight to a card surface (notification toasts and tooltips).
   cardShadow = {
     enable = true;
     softness = 30;
@@ -124,17 +90,11 @@ let
       geometry-corner-radius = radius0;
       shadow = gradientShadow 1;
     }
-    # Each toast has its own tightly-sized overlay surface
-    # (namespace "vetrata-notifications", src/notifications/stack.rs), so niri can
-    # hug a drop shadow straight to the card — no off-screen caster like the bar.
-    # Corners match the card's `layout.corner_radius_px` (src/config/disk.rs).
     {
       matches = [ { namespace = "^vetrata-notifications$"; } ];
       geometry-corner-radius = uniformRadius cornerRadius;
       shadow = cardShadow;
     }
-    # Tooltips (namespace "vetrata-tooltip", src/wayland_layers/tooltip.rs) are cards
-    # like toasts: same hugged drop shadow and corner rounding.
     {
       matches = [ { namespace = "^vetrata-tooltip$"; } ];
       geometry-corner-radius = uniformRadius cornerRadius;
@@ -207,14 +167,6 @@ in
       '';
     };
 
-    # Secret-file paths for the AI-usage widget group (ported from Quickshell
-    # odin's AiUsage). Each option takes the *path* of a plaintext/decrypted
-    # credential file (e.g. an agenix/sops secret); the path is handed to
-    # vetrata through the systemd service environment (see config below) and the
-    # file is read at poll time. The secret itself never enters the Nix store,
-    # ~/.config/vetrata.toml, or the process environment — so this is
-    # independent of the umbra config swap and needs no TOML changes. Any
-    # provider whose file is unset simply shows no pill.
     secretFiles = {
       openRouterManagement = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
@@ -266,21 +218,10 @@ in
 
     home.packages = [ cfg.package ];
 
-    # vetrata reads ~/.config/vetrata.toml directly (HOME/.config, not
-    # XDG_CONFIG_HOME); xdg.configFile lands there. Only write it when the user
-    # set something, so an empty config keeps vetrata's built-in defaults rather
-    # than pinning an empty file. When umbra is on it owns this path at runtime
-    # (ln -sf between the dark-/light- variants it declares), so we must NOT
-    # also declare it here — the two would collide.
     xdg.configFile."vetrata.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
       source = tomlFormat.generate "vetrata.toml" cfg.settings;
     };
 
-    # Register with the umbra app registry: umbra writes the dark-/light-vetrata
-    # variant files and swaps ~/.config/vetrata.toml between them on mode switch.
-    # vetrata reads its config only at startup and has no IPC, so the swap must
-    # restart it — reload.restartUnits makes umbra do exactly that (a systemd
-    # path unit can't see the `ln -sf`, hence this rather than a path watch).
     services.umbra.apps.vetrata = lib.mkIf cfg.umbra.enable {
       target = "vetrata.toml";
       dark.source = variantToml themeCfg.palettes.dark;
@@ -288,10 +229,6 @@ in
       reload.restartUnits = [ "vetrata.service" ];
     };
 
-    # Contribute vetrata's niri layer-rules. niri merges multi-matching rules in
-    # order with later fields winning, so these MUST land after any catch-all
-    # `namespace=".*"` rule; `lib.mkAfter` appends them. vetrata only runs under
-    # niri, so this is unconditional.
     services.niri.settings.layer-rules = lib.mkAfter vetrataLayerRules;
 
     systemd.user.services.vetrata = lib.mkIf cfg.systemdUnit {
@@ -304,10 +241,6 @@ in
         ExecStart = lib.getExe cfg.package;
         Restart = "on-failure";
         RestartSec = 2;
-        # AI-usage secret-file *paths* (not the secrets). vetrata reads each file
-        # at poll time; only the path rides in the environment, so the key never
-        # enters the store or a `systemctl show`-visible variable. Providers with
-        # an unset file contribute no variable and no pill.
         Environment = lib.mapAttrsToList (name: value: "${name}=${toString value}") (
           lib.filterAttrs (_: value: value != null) {
             VETRATA_OPENROUTER_KEY_FILE = cfg.secretFiles.openRouterManagement;
@@ -319,12 +252,6 @@ in
       Install.WantedBy = [ "graphical-session.target" ];
     };
 
-    # Restart vetrata when its config file is edited in place. This complements
-    # umbra's reload.restartUnits (which handles the dark/light symlink swap):
-    # a path unit fires on writes to the file, not on `ln -sf`, so it covers
-    # direct edits of a real ~/.config/vetrata.toml. A path unit only *starts*
-    # its unit, and starting an already-running service is a no-op, so it
-    # triggers a oneshot that restarts instead.
     systemd.user.paths.vetrata = lib.mkIf cfg.systemdUnit {
       Unit = {
         Description = "Watch vetrata config and restart the bar on change";

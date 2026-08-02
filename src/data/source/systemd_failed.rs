@@ -27,25 +27,46 @@ impl<const USER: bool> Failed<USER> {
 
     pub fn follow_log_args(&self) -> Vec<String> {
         let scope = USER.then(|| String::from("--user"));
-        let this_boot = ["-b"].map(String::from);
         if self.units.is_empty() {
             return scope
                 .into_iter()
-                .chain(this_boot)
-                .chain(["-f", "-p", "warning"].map(String::from))
+                .chain(["-x", "-b", "-f", "-p", "warning"].map(String::from))
                 .collect();
         }
         scope
             .into_iter()
-            .chain(this_boot)
-            .chain(["-n", "all"].map(String::from))
-            .chain(
-                self.units
-                    .iter()
-                    .flat_map(|unit| [String::from("-u"), unit.name.clone()]),
-            )
-            .chain(["-f".to_string()])
+            .chain(["-x", "-b", "-n", "all", "-f"].map(String::from))
+            .chain(self.journal_matches())
             .collect()
+    }
+
+    fn journal_matches(&self) -> impl Iterator<Item = String> {
+        self.units
+            .iter()
+            .flat_map(|unit| Self::matches_for(&unit.name))
+            .enumerate()
+            .flat_map(|(index, matcher)| {
+                (index > 0)
+                    .then(|| String::from("+"))
+                    .into_iter()
+                    .chain([matcher])
+            })
+    }
+
+    fn matches_for(name: &str) -> [String; 4] {
+        let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+        let logged_by_unit = if USER {
+            "_SYSTEMD_USER_UNIT"
+        } else {
+            "_SYSTEMD_UNIT"
+        };
+        let logged_about_unit = if USER { "USER_UNIT" } else { "UNIT" };
+        [
+            format!("{logged_by_unit}={name}"),
+            format!("{logged_about_unit}={name}"),
+            format!("SYSLOG_IDENTIFIER={stem}"),
+            format!("SYSLOG_IDENTIFIER={stem}-start"),
+        ]
     }
 
     fn severity(recent: bool) -> Level {
@@ -124,30 +145,74 @@ mod tests {
     }
 
     #[test]
-    fn system_scope_follows_every_failed_unit() {
+    fn system_scope_matches_the_unit_and_its_own_output() {
         let failed = Failed::<false> {
-            units: vec![unit("a.service"), unit("b.timer")],
+            units: vec![unit("a.service")],
         };
         assert_eq!(
             failed.follow_log_args(),
-            ["-b", "-n", "all", "-u", "a.service", "-u", "b.timer", "-f"]
+            [
+                "-x",
+                "-b",
+                "-n",
+                "all",
+                "-f",
+                "_SYSTEMD_UNIT=a.service",
+                "+",
+                "UNIT=a.service",
+                "+",
+                "SYSLOG_IDENTIFIER=a",
+                "+",
+                "SYSLOG_IDENTIFIER=a-start",
+            ]
         );
     }
 
     #[test]
-    fn user_scope_leads_with_the_user_flag() {
+    fn every_failed_unit_is_or_ed_into_one_stream() {
+        let failed = Failed::<false> {
+            units: vec![unit("a.service"), unit("b.timer")],
+        };
+        let args = failed.follow_log_args();
+        assert_eq!(args.iter().filter(|arg| *arg == "+").count(), 7);
+        assert!(args.contains(&"_SYSTEMD_UNIT=a.service".to_string()));
+        assert!(args.contains(&"_SYSTEMD_UNIT=b.timer".to_string()));
+        assert!(args.contains(&"SYSLOG_IDENTIFIER=b-start".to_string()));
+        assert!(!args.starts_with(&["+".to_string()]));
+        assert_ne!(args.last().map(String::as_str), Some("+"));
+    }
+
+    #[test]
+    fn user_scope_matches_user_unit_fields() {
         let failed = Failed::<true> {
             units: vec![unit("a.service")],
         };
         assert_eq!(
             failed.follow_log_args(),
-            ["--user", "-b", "-n", "all", "-u", "a.service", "-f"]
+            [
+                "--user",
+                "-x",
+                "-b",
+                "-n",
+                "all",
+                "-f",
+                "_SYSTEMD_USER_UNIT=a.service",
+                "+",
+                "USER_UNIT=a.service",
+                "+",
+                "SYSLOG_IDENTIFIER=a",
+                "+",
+                "SYSLOG_IDENTIFIER=a-start",
+            ]
         );
     }
 
     #[test]
     fn without_units_falls_back_to_warnings() {
         let failed = Failed::<false> { units: Vec::new() };
-        assert_eq!(failed.follow_log_args(), ["-b", "-f", "-p", "warning"]);
+        assert_eq!(
+            failed.follow_log_args(),
+            ["-x", "-b", "-f", "-p", "warning"]
+        );
     }
 }

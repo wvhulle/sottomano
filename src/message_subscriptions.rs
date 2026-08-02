@@ -1,4 +1,4 @@
-use std::{convert::identity, future::Future, path::PathBuf, time::Duration};
+use std::{convert::identity, path::PathBuf, time::Duration};
 
 use iced::{Subscription, Task};
 use tokio::{
@@ -138,15 +138,12 @@ pub(crate) fn poll_every<T: Clone + PartialEq + Default + Send + 'static>(
     })
 }
 
-pub(crate) fn dbus<S, Fut>(
-    name: &'static str,
-    run: fn(iced::futures::channel::mpsc::Sender<Option<S>>) -> Fut,
-) -> Subscription<Option<S>>
+pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<Option<S>>
 where
     S: Send + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
+    St: iced::futures::Stream<Item = Option<S>> + Send + 'static,
 {
-    Subscription::run_with((name, run), |&(_, run)| iced::stream::channel(16, run))
+    Subscription::run_with((name, readings), |&(_, readings)| readings())
 }
 
 pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {

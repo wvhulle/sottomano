@@ -8,7 +8,7 @@ use std::{
     time::SystemTime,
 };
 
-use iced::{Element, Task, window::Id};
+use iced::{Element, Size, Task, widget::Sensor, window::Id};
 use iced_layershell::reexport::Anchor;
 use placement::{ToastPlacement, placement_for, resolve_window_id};
 
@@ -27,6 +27,8 @@ use crate::{
     wayland_layers::surface::{Margin, SurfaceSize},
 };
 
+const RESIZE_DEADBAND_PX: f32 = 1.0;
+
 fn is_window_action(key: &str) -> bool {
     matches!(key, "default" | "move" | "quit")
 }
@@ -40,6 +42,7 @@ pub enum NotificationMessage {
     HoverChanged { id: u32, hovered: bool },
     Dismiss(u32),
     ActionClicked { id: u32, key: String },
+    Resized { id: u32, size: Size },
 }
 
 pub struct Notification {
@@ -47,7 +50,7 @@ pub struct Notification {
     pub created_at: SystemTime,
     seq: u64,
     pub icons: card::CardIcons,
-    estimated_height: f32,
+    measured_height: f32,
 }
 
 struct ToastSurface {
@@ -107,7 +110,7 @@ impl NotificationLayer {
                     tasks.push(sound::play(&data, config.sound_theme.as_deref()));
                 }
                 let icons = card::resolve_icons(&data, entries);
-                let estimated_height = card::measure_height(&data, &icons, config);
+                let measured_height = card::measure_height(&data, &icons, config);
                 let seq = self.next_seq;
                 self.next_seq += 1;
                 self.live.push(Notification {
@@ -115,7 +118,7 @@ impl NotificationLayer {
                     created_at: SystemTime::now(),
                     seq,
                     icons,
-                    estimated_height,
+                    measured_height,
                 });
                 tasks.push(self.reconcile(placement, outputs, config));
                 Task::batch(tasks)
@@ -144,6 +147,9 @@ impl NotificationLayer {
             NotificationMessage::CloseRequested(id) => {
                 self.dismiss(id, close_reason::CLOSED_BY_CALL, placement, outputs, config)
             }
+            NotificationMessage::Resized { id, size } => {
+                self.adopt_measured_height(id, size.height, placement, outputs, config)
+            }
         }
     }
 
@@ -169,6 +175,24 @@ impl NotificationLayer {
         }
         tasks.push(self.reconcile(placement, outputs, config));
         Task::batch(tasks)
+    }
+
+    fn adopt_measured_height(
+        &mut self,
+        id: u32,
+        height: f32,
+        placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
+        config: &ResolvedConfig,
+    ) -> Task<Message> {
+        let Some(notif) = self.live.iter_mut().find(|n| n.data.id == id) else {
+            return Task::none();
+        };
+        if (height - notif.measured_height).abs() < RESIZE_DEADBAND_PX {
+            return Task::none();
+        }
+        notif.measured_height = height;
+        self.reconcile(placement, outputs, config)
     }
 
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
@@ -221,7 +245,13 @@ impl NotificationLayer {
         let (&notif_id, _) = self.surfaces.iter().find(|(_, s)| s.id == id)?;
         let notif = self.live.iter().find(|n| n.data.id == notif_id)?;
         let hovered = self.hovered == Some(notif_id);
-        Some(Element::from(card::card(notif, hovered, config)).map(Message::Notification))
+        Some(
+            Element::from(
+                Sensor::new(card::card(notif, hovered, config))
+                    .on_resize(move |size| NotificationMessage::Resized { id: notif_id, size }),
+            )
+            .map(Message::Notification),
+        )
     }
 
     pub fn forget(&mut self, id: Id) {
@@ -413,7 +443,7 @@ impl NotificationLayer {
             .iter()
             .map(|notif| {
                 let place = placement_for(&notif.data, placement, config);
-                (*notif, place, notif.estimated_height)
+                (*notif, place, notif.measured_height)
             })
             .collect();
 
@@ -453,7 +483,7 @@ impl NotificationLayer {
                     margin,
                     size: SurfaceSize {
                         width,
-                        height: stack::surface_height(notif.estimated_height),
+                        height: stack::surface_height(notif.measured_height),
                     },
                 }
             })

@@ -8,21 +8,10 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Theme-blind niri module. The home-manager module contributes
-    # services.niri.settings.layer-rules (the gradient-shadow casters), so it
-    # imports this to keep that option in scope and validated. niri-hm exports
-    # its module as a path, so a desktop that also imports it deduplicates to one
-    # instance.
     niri-hm = {
       url = "git+https://codeberg.org/wvhulle/niri-hm?ref=main";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # umbra: the dark/light-mode CLI the brightness group shells out to
-    # (`umbra get` / `umbra toggle`). Only the binary is needed — vetrata does
-    # not register with the services.umbra theme registry — so it goes on PATH
-    # via runtimeDeps, like situo's CLI in odin. clight / clightd / wl-gammarelay
-    # are D-Bus daemons read over their session/system interfaces (the user's own
-    # config), so they are not bundled here.
     umbra = {
       url = "git+https://codeberg.org/wvhulle/umbra";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -58,22 +47,12 @@
 
       src = craneLib.cleanCargoSource ./.;
 
-      # System libs iced_layershell + wgpu / winit dlopen at run time.
-      # `autoAddDriverRunpath` only adds the GPU *driver* runpath
-      # (/run/opengl-driver/lib) for the vulkan ICD — it does NOT patch the
-      # `buildInputs` store paths into RUNPATH. The dlopen'd client libs
-      # themselves (libwayland-client, libGL, libvulkan, libxkbcommon) are not
-      # DT_NEEDED, so they resolve only if on the loader path. The devShell sets
-      # LD_LIBRARY_PATH for that; the wrapped binary gets the same via
-      # wrapProgram below (otherwise `ConnectError(NoWaylandLib)` at startup).
       commonArgs = {
         inherit src;
         strictDeps = true;
         nativeBuildInputs = [
           pkgs.pkg-config
           pkgs.autoAddDriverRunpath
-          # Sets LIBCLANG_PATH + BINDGEN_EXTRA_CLANG_ARGS for the `pipewire`
-          # crate's bindgen build (libspa-sys), in both the build and devShell.
           pkgs.rustPlatform.bindgenHook
         ];
         buildInputs = with pkgs; [
@@ -81,60 +60,35 @@
           libxkbcommon
           libGL
           vulkan-loader
-          # libsystemd, for the `systemd` crate's journal reader (kernel-errors
-          # widget). Linked, not dlopen'd, so no RUNPATH/runtimeDeps entry.
           systemd
-          # libpipewire/libspa, linked by the `pipewire` crate (audio volume).
           pipewire
         ];
       };
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-      # `freedesktop_icons::default_theme_gtk()` (used to pin the icon-theme for
-      # window-list app icons) picks the theme by shelling out to
-      # `gsettings get org.gnome.desktop.interface icon-theme`. That needs the
-      # `gsettings` binary on PATH, the `org.gnome.desktop.interface` schema on
-      # XDG_DATA_DIRS, and the dconf GIO backend on GIO_EXTRA_MODULES (without
-      # dconf, gsettings returns the schema default instead of the value the
-      # session persisted). Missing any of the three makes the call return None,
-      # leaving only hicolor-backed icons (Firefox, kitty) visible. Shared by
-      # the wrapper and the devShell so the two can't drift.
       gsettingsRuntime = {
         binPath = "${pkgs.glib.bin}/bin";
         schemaDir = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}";
         gioModules = "${pkgs.dconf.lib}/lib/gio/modules";
       };
 
-      # The freedesktop default sound theme (`sounds/freedesktop/stereo/*.oga`)
-      # the notification-sound module looks up via `freedesktop-sound`. Added to
-      # XDG_DATA_DIRS on both the wrapper and the devShell so the `.oga` files
-      # resolve regardless of the ambient session (don't rely on a system theme
-      # being installed). Shared so the two can't drift.
       soundThemeShare = "${pkgs.sound-theme-freedesktop}/share";
 
-      # Standard system CLIs the bar's data sources shell out to at run time.
-      # Put on the wrapped binary's PATH and into the dev shell, so both
-      # `nix run` and `nix develop -c cargo run` resolve them regardless of the
-      # ambient session. The wvhulle *daemons* are not here — situo, clight,
-      # clightd and wl-gammarelay are read over their D-Bus interfaces and the
-      # idle daemon runs in-process, so their binaries aren't needed (their
-      # daemons are the user's own config). umbra is the exception: the dark-mode
-      # widget shells out to its CLI, so its binary is on PATH (appended below).
       runtimeDeps =
         (with pkgs; [
-          iproute2 # ip route/addr — throughput, wireguard
-          networkmanager # nmcli — ethernet, wifi, connectivity, vpn
-          modemmanager # mmcli — mobile broadband
-          bluez # bluetoothctl — bluetooth
-          wireplumber # wpctl — audio volume
-          pipewire # pw-play — notification alert sounds (daemon is the user's session, like wpctl's)
-          wireguard-tools # wg — wireguard peer state
-          tailscale # tailscale status
-          xdg-utils # xdg-open — tailscale admin console
+          iproute2
+          networkmanager
+          modemmanager
+          bluez
+          wireplumber
+          pipewire
+          wireguard-tools
+          tailscale
+          xdg-utils
         ])
         ++ [
-          umbra.packages.${system}.default # umbra get/toggle — dark-mode widget
+          umbra.packages.${system}.default
         ];
 
       vetrata = craneLib.buildPackage (
@@ -142,8 +96,6 @@
         // {
           inherit cargoArtifacts;
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
-          # `--prefix` (prepend), not `--set`: compose with any values the
-          # session already exports rather than clobbering them.
           postInstall = ''
             wrapProgram $out/bin/vetrata \
               --prefix PATH : ${gsettingsRuntime.binPath} \
@@ -158,8 +110,6 @@
         }
       );
 
-      # Home-manager module lives in ./hm-module.nix to keep this file focused on
-      # packaging. It needs the flake-level `self` (for the default package).
       homeModule = import ./hm-module.nix { inherit self; };
     in
     {
@@ -168,9 +118,6 @@
         vetrata = vetrata;
       };
 
-      # niri-hm provides the services.niri option surface the module's
-      # layer-rules contribution writes to; its path-exported module dedupes when
-      # a desktop also imports it directly.
       homeModules.default = {
         imports = [
           niri-hm.homeModules.default
@@ -178,19 +125,6 @@
         ];
       };
 
-      # `autoAddDriverRunpath` (above) patches RUNPATH on the installed binary
-      # at build time, so `nix build .#vetrata && ./result/bin/vetrata`
-      # resolves dlopen'd libs. For `nix develop -c cargo run`, the dev-built
-      # binary has no such RUNPATH, and `ash` (wgpu) + `wayland-egl` always
-      # dlopen libvulkan / libwayland-egl with no static-link option. Declare
-      # the loader path here so the dev shell mirrors what the package's
-      # RUNPATH provides.
-      #
-      # The dev-built binary is also unwrapped, so mirror the wrapper's
-      # gsettings runtime (see `gsettingsRuntime` above) here too — otherwise
-      # `nix develop -c cargo run` resolves no icon theme. `pkgs.glib.bin` puts
-      # `gsettings` on PATH; the shellHook prepends the schema and dconf paths,
-      # composing with any session values.
       devShells.${system}.default = craneLib.devShell {
         packages =
           commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
