@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     time::{Duration, Instant},
 };
@@ -16,11 +17,11 @@ use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
-const FLOOR: f64 = 50_000.0;
+const FLOOR: f64 = 10_000.0;
 
 #[derive(Debug, Clone)]
 pub struct Throughput<const UP: bool> {
-    interface: Option<String>,
+    interfaces: Vec<String>,
     rate: f64,
     connectivity: Connectivity,
 }
@@ -94,7 +95,7 @@ impl<const UP: bool> Throughput<UP> {
     }
 
     fn gauge_percent(&self) -> i64 {
-        if self.interface.is_none() || self.rate < FLOOR {
+        if self.interfaces.is_empty() || self.rate < FLOOR {
             return 0;
         }
         let fraction = (self.rate / FLOOR).ln() / (cap::<UP>() / FLOOR).ln();
@@ -118,7 +119,7 @@ impl<const UP: bool> BarWidget for Throughput<UP> {
     }
 
     fn level(&self) -> Level {
-        if self.interface.is_none() {
+        if self.interfaces.is_empty() {
             return Level::Critical;
         }
         self.connectivity.level().max(self.load_level())
@@ -132,13 +133,13 @@ impl<const UP: bool> BarWidget for Throughput<UP> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let Some(interface) = &self.interface else {
+        if self.interfaces.is_empty() {
             return TooltipBody::Table(vec![row("Connectivity", "none")]);
-        };
+        }
         let direction = if UP { "Up" } else { "Down" };
         TooltipBody::Table(vec![
             row(direction, format_rate(self.rate)),
-            row("Interface", interface.clone()),
+            row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),
             row("Capacity", format_rate(cap::<UP>())),
         ])
@@ -170,15 +171,14 @@ pub fn subscription() -> Subscription<Readings> {
     })
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct Counters {
     rx: u64,
     tx: u64,
 }
 
 struct Sample {
-    interface: Option<String>,
-    counters: Counters,
+    counters: BTreeMap<String, Counters>,
     at: Instant,
 }
 
@@ -189,34 +189,42 @@ struct Rates {
 }
 
 fn capture() -> Sample {
-    let interface = egress_interface();
-    let counters = interface.as_deref().map(read_counters).unwrap_or_default();
     Sample {
-        interface,
-        counters,
+        counters: carrying_interfaces()
+            .map(|interface| {
+                let counters = read_counters(&interface);
+                (interface, counters)
+            })
+            .collect(),
         at: Instant::now(),
     }
 }
 
 fn rate(previous: Option<&Sample>, current: &Sample, connectivity: Connectivity) -> Readings {
     let rates = previous
-        .filter(|prev| current.interface.is_some() && prev.interface == current.interface)
-        .and_then(|prev| {
-            let seconds = current.at.duration_since(prev.at).as_secs_f64();
-            (seconds > 0.0).then(|| Rates {
-                rx: per_second(current.counters.rx, prev.counters.rx, seconds),
-                tx: per_second(current.counters.tx, prev.counters.tx, seconds),
-            })
+        .map(|prev| current.at.duration_since(prev.at).as_secs_f64())
+        .filter(|seconds| *seconds > 0.0)
+        .zip(previous)
+        .map(|(seconds, prev)| {
+            current
+                .counters
+                .iter()
+                .filter_map(|(interface, now)| Some((now, prev.counters.get(interface)?)))
+                .fold(Rates::default(), |total, (now, was)| Rates {
+                    rx: total.rx + per_second(now.rx, was.rx, seconds),
+                    tx: total.tx + per_second(now.tx, was.tx, seconds),
+                })
         })
         .unwrap_or_default();
+    let interfaces: Vec<String> = current.counters.keys().cloned().collect();
     Readings {
         down: Throughput {
-            interface: current.interface.clone(),
+            interfaces: interfaces.clone(),
             rate: rates.rx,
             connectivity,
         },
         up: Throughput {
-            interface: current.interface.clone(),
+            interfaces,
             rate: rates.tx,
             connectivity,
         },
@@ -241,30 +249,17 @@ fn read_counters(interface: &str) -> Counters {
     }
 }
 
-struct DefaultRoute {
-    interface: String,
-    metric: u32,
-}
-
-fn egress_interface() -> Option<String> {
-    let table = fs::read_to_string("/proc/net/route").ok()?;
-    table
-        .lines()
-        .skip(1)
-        .filter_map(parse_route)
-        .min_by_key(|route| route.metric)
-        .map(|route| route.interface)
-}
-
-fn parse_route(line: &str) -> Option<DefaultRoute> {
-    let mut fields = line.split_whitespace();
-    let interface = fields.next()?;
-    let destination = fields.next()?;
-    let metric = fields.nth(4)?.parse().ok()?;
-    (destination == "00000000").then(|| DefaultRoute {
-        interface: interface.to_owned(),
-        metric,
-    })
+fn carrying_interfaces() -> impl Iterator<Item = String> {
+    fs::read_dir("/sys/class/net")
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.join("device").exists())
+        .filter(|path| {
+            fs::read_to_string(path.join("operstate")).is_ok_and(|state| state.trim() == "up")
+        })
+        .filter_map(|path| path.file_name()?.to_str().map(str::to_owned))
 }
 
 #[proxy(
