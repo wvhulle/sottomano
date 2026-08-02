@@ -16,8 +16,6 @@ use iced::{
 
 use crate::config::resolved::ResolvedFontConfig;
 
-/// A text widget pre-styled with the bar font, size, and advanced shaping
-/// (needed for workspace names and window titles with special characters).
 pub fn bar_text<'a>(
     font: &ResolvedFontConfig,
     content: impl IntoFragment<'a>,
@@ -124,11 +122,6 @@ impl TextStyle {
     }
 }
 
-/// Split `content` into rich-text spans: the bar font for glyphs it has, the
-/// pre-resolved `fallbacks` for glyphs it lacks (so glyphs the bar font is
-/// missing still match the rest of the desktop), and `base` for uncovered
-/// glyphs with no fallback yet. `color` styles every span; `None` keeps the
-/// theme default.
 pub fn fallback_spans<'a>(
     font: &ResolvedFontConfig,
     content: &str,

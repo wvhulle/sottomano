@@ -1,7 +1,3 @@
-//! The stateful bar segments ("groups"): each owns its own state, `Message`,
-//! `update`, and `view`, and is composed into the bar by
-//! [`wayland_layers::bar`](crate::wayland_layers::bar).
-
 pub mod ai_group;
 pub mod audio_group;
 pub mod battery_group;

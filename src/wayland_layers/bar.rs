@@ -1,10 +1,3 @@
-//! The bar-strip layer: the full-width panel drawn on each output/edge — its
-//! chrome and click-to-dismiss overlay, and the composition of the
-//! [`widget_groups`](crate::widget_groups) into its top and bottom rows — plus
-//! the off-screen backdrop fill whose silhouette casts the edge shadow. The
-//! surface *settings* for both live in [`surface`](super::surface); this module
-//! is what those surfaces actually draw.
-
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
@@ -45,9 +38,6 @@ use crate::{
     widgets::bounds_probe::bounds_probe,
 };
 
-/// Render the bar surface `window` draws: a top/bottom strip of widget groups
-/// wrapped in the bar chrome, or — for the off-screen shadow caster — the
-/// opaque backdrop fill. An unknown window (already closed) draws nothing.
 pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     if bar.backdrops.contains(&window) {
         return backdrop_shadow::fill();
@@ -65,8 +55,6 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     chrome(bar, tooltip::on_surface(window, content))
 }
 
-/// Margin (top, right, bottom, left) that insets the bar from the screen edges
-/// in floating mode — `0` on every side flush-mounts it instead.
 pub fn float_margin(position: Position, offset_px: i32) -> Margin {
     match position {
         Position::Top => Margin {
@@ -84,12 +72,6 @@ pub fn float_margin(position: Position, offset_px: i32) -> Margin {
     }
 }
 
-/// Layer-shell settings for one bar strip. It reserves its own strip via an
-/// exclusive zone equal to its height (odin's `exclusiveZone: barOuterHeight`),
-/// so niri tiles windows clear of it instead of letting them overlap. `height`
-/// is odin's `barOuterHeight` from the shared config; the two bars stack below
-/// odin's own reserved zone so they sit flush without overlapping windows.
-/// `margin` is odin's floating inset — `(0, 0, 0, 0)` when flush.
 pub fn layer_settings(
     output: &str,
     position: Position,
@@ -101,17 +83,13 @@ pub fn layer_settings(
         exclusive_zone: Some(height as i32),
         anchor: position.anchor(),
         layer: Layer::Top,
-        // Never take keyboard focus — mirrors Odin's WlrKeyboardFocus.None.
         keyboard_interactivity: KeyboardInteractivity::None,
-        // Bind this surface to a specific niri output by name.
         output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(margin.edges()),
         ..Default::default()
     }
 }
 
-/// Wrap the bar content in the strip chrome: a full-bleed click-to-dismiss
-/// layer behind it, and the rounded, tinted panel background.
 fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Message> {
     let dismiss = mouse_area(
         container(Space::new())
@@ -165,23 +143,29 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
                 WeatherMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Weather(m),
             }),
-            slot(bar.battery_group.view(config), |m| match m {
+            slot(bar.battery_group.view(config, position), |m| match m {
                 BatteryMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Battery(m),
             }),
-            slot(bar.power_profile_group.view(config), |m| match m {
-                PowerProfileMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::PowerProfile(m),
-            }),
+            slot(
+                bar.power_profile_group.view(config, position),
+                |m| match m {
+                    PowerProfileMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::PowerProfile(m),
+                },
+            ),
             slot(bar.system_group.view(config, position), |m| match m {
                 SystemMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::System(m),
             }),
-            slot(bar.net_interfaces_group.view(config), |m| match m {
-                NetInterfacesMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::NetInterfaces(m),
-            }),
-            slot(bar.journal_group.view(config), |m| match m {
+            slot(
+                bar.net_interfaces_group.view(config, position),
+                |m| match m {
+                    NetInterfacesMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::NetInterfaces(m),
+                },
+            ),
+            slot(bar.journal_group.view(config, position), |m| match m {
                 JournalMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Journal(m),
             }),
@@ -203,7 +187,10 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
     let center = zone(
         [
             slot(bar.clock_group.view(config, position), Message::Clock),
-            slot(notification_group::view(config), Message::NotificationGroup),
+            slot(
+                notification_group::view(config, position),
+                Message::NotificationGroup,
+            ),
         ],
         config,
     );
@@ -232,7 +219,7 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
                     m => Message::Media(m),
                 },
             ),
-            slot(bar.audio_group.view(config), |m| match m {
+            slot(bar.audio_group.view(config, position), |m| match m {
                 AudioMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Audio(m),
             }),
@@ -259,9 +246,6 @@ fn measured<'a>(
     })
 }
 
-/// A bar zone: the groups that want to show (the `Some` ones), spaced by the
-/// configured group spacing. Hidden groups (`None`) contribute no slot, so they
-/// never widen the gap between their visible neighbours.
 fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     config: &ResolvedConfig,
@@ -304,12 +288,6 @@ fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a,
         .into()
 }
 
-/// Lift a group element into the bar's `Message`: a hidden group stays `None`,
-/// otherwise the widget's own message is remapped by `wrap` (which peels off
-/// the shared `Tooltip` variant). Accepts either a plain `Element`
-/// (always-shown groups, coerced via `Some`) or an `Option<Element>` (groups
-/// that can hide), so every call site reads the same. Collapses the
-/// `Option`-over-`Element` map each slot would otherwise nest.
 fn slot<'a, M: 'a>(
     element: impl Into<Option<Element<'a, M>>>,
     wrap: impl Fn(M) -> Message + 'a,
@@ -335,11 +313,6 @@ fn bottom_row<'a>(
         config,
     );
     let start = measured(start, config, window, Zone::BottomStart);
-    // Launcher + window list, centred as a pair in the Fill middle by the window
-    // group. Shrink flanks (workspaces, tray) lay out first, so the middle
-    // reserves exactly the space between them; the window list caps its width to
-    // that budget and scrolls when it overflows, keeping the tray from being
-    // overrun.
     let middle = container(measured(
         Row::with_children(
             slot(
@@ -360,7 +333,6 @@ fn bottom_row<'a>(
         Zone::BottomMiddle,
     ))
     .center_x(Length::Fill);
-    // Bottom-right zone (odin: tray / ai-usage / notifications). Tray ported.
     let end = measured(
         Row::with_children(
             slot(bar.tray_group.view(config, position), |m| match m {

@@ -1,13 +1,3 @@
-//! System tray via the freedesktop `StatusNotifierItem` protocol (odin's
-//! `Tray`), backed by the `system-tray` crate — the SNI host ironbar uses. The
-//! crate registers the watcher/host, discovers items, and parses each item's
-//! dbusmenu into a tree delivered through its event stream, so this module is
-//! only a thin adapter: fold the crate's events into our render model, decode
-//! icons, and route click/menu actions back to the crate's `Client`.
-//!
-//! Icons are rendered as-is (odin's glyph map is intentionally not ported):
-//! prefer the item's pixmap, else its themed icon name.
-
 use std::path::{Path, PathBuf};
 
 use iced::{
@@ -36,15 +26,12 @@ use crate::{
     },
 };
 
-/// The tooltip content an item advertises, when any.
 #[derive(Debug, Clone)]
 pub struct Tip {
     pub title: String,
     pub body: String,
 }
 
-/// One live tray item, adapted from the crate's `StatusNotifierItem` +
-/// `TrayMenu`.
 #[derive(Debug, Clone)]
 pub struct TrayItem {
     pub address: String,
@@ -58,7 +45,6 @@ pub struct TrayItem {
 }
 
 impl TrayItem {
-    /// The label a tooltip/menu shows: the item's title, else its id.
     pub fn name(&self) -> &str {
         if self.title.is_empty() {
             &self.id
@@ -68,16 +54,12 @@ impl TrayItem {
     }
 }
 
-/// What the subscription streams to the bar: first the command handle, then the
-/// current item set on every change.
 #[derive(Debug, Clone)]
 pub enum TrayUpdate {
     Connected(TrayHandle),
     Items(Vec<TrayItem>),
 }
 
-/// An action the bar asks the tray to perform. Routed to the owning `Client` in
-/// the subscription task, since `Client` is not `Clone`.
 #[derive(Debug, Clone)]
 pub enum TrayCommand {
     Activate(String),
@@ -89,7 +71,6 @@ pub enum TrayCommand {
     },
 }
 
-/// A cheap, cloneable handle the bar keeps to issue [`TrayCommand`]s.
 #[derive(Debug, Clone)]
 pub struct TrayHandle(mpsc::Sender<TrayCommand>);
 
@@ -99,7 +80,6 @@ impl TrayHandle {
     }
 }
 
-/// The largest valid pixmap, converted ARGB32→RGBA into an iced image handle.
 fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
     let best = pixmaps
         .iter()
@@ -122,8 +102,6 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
     Some(image::Handle::from_rgba(width, height, bytes))
 }
 
-/// A themed icon shipped in the item's own `icon_theme_path`, tried before the
-/// shared icon theme (some apps only ship icons in their private dir).
 fn from_theme_path(theme_path: &str, name: &str) -> Option<PathBuf> {
     ["svg", "png"].into_iter().find_map(|ext| {
         let path = Path::new(theme_path).join(format!("{name}.{ext}"));
@@ -147,8 +125,6 @@ fn resolve_visual(
         .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
 }
 
-/// The entry's own icon: prefer inline `icon-data` (encoded image bytes), else
-/// a themed `icon-name`.
 fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
     if let Some(data) = &item.icon_data
         && !data.is_empty()
@@ -174,7 +150,6 @@ fn trimmed_encoded(data: &[u8]) -> image::Handle {
     }
 }
 
-/// Adapt one crate `MenuItem` into a [`MenuNode`], dropping invisible entries.
 fn adapt_menu_item(item: &MenuItem, entries: &DesktopEntries) -> Option<MenuNode> {
     if !item.visible {
         return None;
@@ -210,8 +185,6 @@ fn adapt_menu(menu: &TrayMenu, entries: &DesktopEntries) -> Vec<MenuNode> {
         .collect()
 }
 
-/// Strip the `_` mnemonic markers dbusmenu labels carry (`"_Quit"` → `"Quit"`;
-/// `"__"` collapses to a literal underscore).
 fn clean_label(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
@@ -236,7 +209,6 @@ fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
     })
 }
 
-/// Build a [`TrayItem`] from a crate item and its (optional) parsed menu.
 fn build_item(
     address: &str,
     item: &StatusNotifierItem,
@@ -260,8 +232,6 @@ fn build_item(
     }
 }
 
-/// The signal-driven tray stream: the command handle once, then a fresh
-/// `Vec<TrayItem>` on every change. Reconnects if the client drops.
 pub fn subscription() -> Subscription<TrayUpdate> {
     Subscription::run(|| {
         stream::channel(64, |mut output: Sender<TrayUpdate>| async move {
@@ -294,8 +264,6 @@ async fn run(output: &mut Sender<TrayUpdate>) {
     let entries = DesktopEntries::empty();
     let mut items: Vec<TrayItem> = Vec::new();
 
-    // Seed from the crate's current map: items discovered before/at subscribe are
-    // not re-delivered over the broadcast, so read them directly.
     if let Ok(map) = client.items().lock() {
         items = map
             .iter()
@@ -330,7 +298,6 @@ fn find_mut<'a>(items: &'a mut [TrayItem], address: &str) -> Option<&'a mut Tray
     items.iter_mut().find(|item| item.address == address)
 }
 
-/// Re-read one item's parsed menu from the crate's (already diff-applied) map.
 fn menu_from_map(client: &Client, address: &str, entries: &DesktopEntries) -> Vec<MenuNode> {
     client
         .items()
@@ -355,8 +322,6 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &Des
         }
         Event::Remove(address) => items.retain(|item| item.address != address),
         Event::Update(address, update) => {
-            // Menu re-reads come from the crate's map (below), so resolve that
-            // before borrowing the item mutably.
             let menu = matches!(update, UpdateEvent::Menu(_) | UpdateEvent::MenuDiff(_))
                 .then(|| menu_from_map(client, &address, entries));
             let Some(item) = find_mut(items, &address) else {

@@ -1,5 +1,3 @@
-//! RAM usage, ported from odin's `memory.nu`.
-
 use std::time::Duration;
 
 use crate::data::source::{
@@ -8,7 +6,6 @@ use crate::data::source::{
 
 const KIB_PER_GIB: f64 = 1_048_576.0;
 
-/// RAM usage from `/proc/meminfo` (`memory.nu`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Memory {
     pub used_kb: i64,
@@ -71,7 +68,6 @@ impl Source for Memory {
     }
 }
 
-/// The kB value of a `/proc/meminfo` line, e.g. `MemTotal:  32768000 kB`.
 fn meminfo_kb(info: &str, key: &str) -> Option<i64> {
     info.lines().find_map(|line| {
         let rest = line.strip_prefix(key)?.strip_prefix(':')?;

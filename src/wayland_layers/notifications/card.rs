@@ -1,8 +1,3 @@
-//! One notification drawn as a card. Chrome follows the tooltip/bar conventions
-//! (opaque tinted fill, hairline border, config corner radius). Ports odin's
-//! `NotificationCard`: app icon, summary, app name, markup body, action
-//! buttons, and a relative arrival time riding the last content line.
-
 use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
@@ -29,29 +24,18 @@ const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const WIDEST_RELTIME: &str = "59 min ago";
 
-/// A resolved icon, ready to render without touching the filesystem in `view`.
 #[derive(Debug, Clone)]
 pub enum CardIcon {
     Raster(image::Handle),
     Svg(svg::Handle),
 }
 
-/// The two icons a card can carry, resolved once at arrival: the notification's
-/// own `image` (rendered large and central) and the `badge` app icon (a small
-/// superscript over the image, or the sole icon when there is no image) —
-/// mirroring odin's `NotificationCard`.
 #[derive(Debug, Clone, Default)]
 pub struct CardIcons {
     pub image: Option<CardIcon>,
     pub badge: Option<CardIcon>,
 }
 
-/// Resolve a notification's image and badge icons, reusing the shared
-/// `.desktop` index. The `image` is the notification's own picture (the
-/// `image-data` raster or `image-path` name/path — where `notify-send -i` puts
-/// its icon); the `badge` is the application icon (the `app_icon` argument,
-/// else the desktop entry). Does filesystem lookup — call once at arrival, not
-/// per redraw.
 pub fn resolve_icons(
     data: &crate::data::notifications::model::NotificationData,
     entries: Option<&DesktopEntries>,
@@ -92,11 +76,6 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
     })
 }
 
-/// Alpha-composite `fg` over an opaque `bg`, returning an opaque colour. Used
-/// for the faint resting border: a translucent border would let the desktop
-/// bleed through the 2px border ring on the otherwise-transparent toast
-/// surface, so the faint look is baked into an opaque colour over the card fill
-/// instead.
 fn over(fg: Color, bg: Color) -> Color {
     Color {
         r: bg.r * (1.0 - fg.a) + fg.r * fg.a,
@@ -194,8 +173,6 @@ pub fn card<'a>(
     let dim = palette.dim;
     let body_color = palette.inactive;
 
-    // The buttons worth drawing: the client's actions minus the `default` action
-    // (invoked by clicking the body) and any label-less blank.
     let button_actions: Vec<&crate::data::notifications::model::NotifAction> = data
         .actions
         .iter()
@@ -231,7 +208,6 @@ pub fn card<'a>(
                 .color(dim),
         );
     }
-    // The time rides the title only when it is the last content line.
     if let Some(time) = reltime_span(!has_actions && !has_body) {
         title = title.push(time);
     }
@@ -292,11 +268,6 @@ pub fn card<'a>(
         ..palette.bar_background
     };
     let background = fill;
-    // Border: a faint hairline at rest, thicker in the accent tint on hover
-    // (odin's `NotificationCard`). Critical keeps its urgent tint throughout;
-    // others rest as a faint foreground hairline and reach for the focus accent
-    // on hover. The resting hairline is composited opaque over the fill so the
-    // border ring never lets the desktop bleed through it.
     let rest = if critical {
         palette.urgent
     } else {
@@ -338,11 +309,6 @@ pub fn card<'a>(
         .into()
 }
 
-/// The card's icon slot: the notification image drawn large with the app icon
-/// as a small badge over its top-left corner, or — when there is no image —
-/// just the app icon at normal size. `None` when the notification carries
-/// neither. Sizes come from the notification config so they can be tuned per
-/// setup.
 fn icon_slot<'a>(
     icons: &CardIcons,
     config: &crate::config::disk::NotificationConfig,

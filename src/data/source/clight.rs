@@ -1,16 +1,3 @@
-//! clight's webcam auto-calibration state, over the **user** bus
-//! (`org.clight.clight`). The indicator shows whether auto-brightness is on
-//! (eye) or the backlight is under manual control (eye-slash); toggling flips
-//! clight's `NoAutoCalib` and persists the choice to `~/.config/clight.conf` so
-//! it survives a clight restart (every rebuild restarts the user service).
-//!
-//! Switching to auto fires an immediate webcam `Capture` instead of waiting for
-//! clight's next scheduled one; switching to manual halts any in-flight clightd
-//! ramp (see [`backlight::halt_ramp`]) so the level freezes where it is. `None`
-//! when clight is absent, which simply hides the toggle.
-//!
-//! [`backlight::halt_ramp`]: crate::data::source::backlight::halt_ramp
-
 use std::{env, fs, time::Duration};
 
 use zbus::{blocking::Connection, proxy};
@@ -43,7 +30,6 @@ trait ClightDaemon {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Clight {
-    /// Whether webcam auto-calibration is driving the backlight.
     pub auto: bool,
 }
 
@@ -56,7 +42,6 @@ impl BarWidget for Clight {
         }
     }
 
-    /// Dim when under manual control — the auto pipeline is idle.
     fn disabled(&self) -> bool {
         !self.auto
     }
@@ -88,7 +73,6 @@ impl Toggle for Clight {
     }
 }
 
-/// Read clight's `NoAutoCalib` property; `None` when clight is unavailable.
 fn no_auto_calib() -> Option<bool> {
     let connection = Connection::session().ok()?;
     ConfBacklightProxyBlocking::new(&connection)
@@ -105,8 +89,6 @@ fn set_no_auto_calib(value: bool) -> bool {
         .is_ok_and(|proxy| proxy.set_no_auto_calib(value).is_ok())
 }
 
-/// Fire an immediate webcam capture so a switch-to-auto adjusts at once rather
-/// than on clight's next scheduled tick.
 fn capture() {
     let Ok(connection) = Connection::session() else {
         return;
@@ -116,9 +98,6 @@ fn capture() {
     }
 }
 
-/// Persist the auto/manual choice to `~/.config/clight.conf`. clight reads this
-/// natively on startup, so the value survives a service restart. The file holds
-/// only this one key; everything else is merged from the system config.
 fn persist(manual: bool) {
     let dir = env::var("XDG_CONFIG_HOME")
         .ok()
@@ -132,19 +111,13 @@ fn persist(manual: bool) {
     let _ = fs::write(format!("{dir}/clight.conf"), contents);
 }
 
-/// Pause auto-calibration (used before a manual brightness set so the webcam
-/// doesn't fight the change), persisting the choice.
 pub fn pause_auto_calib() {
     set_no_auto_calib(true);
     persist(true);
 }
 
-/// Flip auto ↔ manual: set `NoAutoCalib`, then capture (→ auto) or halt the
-/// clightd ramp (→ manual), and persist. Returns whether the property write
-/// succeeded.
 fn flip() -> bool {
     let currently_auto = no_auto_calib().is_some_and(|no| !no);
-    // Toggling away from auto means switching to manual.
     let manual = currently_auto;
     let ok = set_no_auto_calib(manual);
     if manual {

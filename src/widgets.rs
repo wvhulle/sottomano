@@ -1,11 +1,3 @@
-//! Shared rendering primitives (odin's `ReusableComponent` equivalent): the
-//! visual vocabulary every leaf widget and concrete widget is drawn with — a
-//! gauge fill, a state indicator, the edge-anchored layout it sits in, and the
-//! source-backed leaf rendering that combines them. Not a widget itself; this
-//! is what widgets are drawn with, so it lives beside `widget_groups` rather
-//! than inside it. Each function takes exactly the data it needs
-//! (`&ResolvedConfig`, `Position`) rather than a shared render context.
-
 pub mod activity_line;
 pub mod bounds_probe;
 pub mod confirm_button;

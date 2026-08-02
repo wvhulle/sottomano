@@ -1,11 +1,3 @@
-//! Active `WireGuard` tunnels via `wg show`. Each tunnel becomes a pill: a
-//! server (has a listen port) shows a connected-client badge; a client shows
-//! its handshake and transfer. odin adds a generic `NetworkManager` VPN shield
-//! for non-`WireGuard` VPNs — not ported here (`WireGuard` is the wired case).
-//!
-//! [`Wireguard`] is a list source (all tunnels in one poll); it renders through
-//! its [`tunnels`](Wireguard::tunnels), so its own [`BarWidget`] impl is inert.
-
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value as Json;
@@ -17,8 +9,6 @@ use crate::data::source::{
     row,
 };
 
-/// A peer whose last handshake is within this window counts as connected
-/// (odin's 3-minute threshold).
 const CONNECTED_WINDOW: u64 = 180;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -61,8 +51,6 @@ impl BarWidget for Tunnel {
         }
     }
 
-    /// A server dims when no client is connected; a client dims when its
-    /// handshake is stale.
     fn disabled(&self) -> bool {
         if self.server {
             self.connected_peers() == 0
@@ -120,7 +108,6 @@ impl BarWidget for Tunnel {
     }
 }
 
-/// Bytes as a compact `N.N U` string (tunnel transfer totals).
 fn human_bytes(bytes: u64) -> String {
     const UNITS: [&str; 5] = ["B", "kB", "MB", "GB", "TB"];
     #[allow(clippy::cast_precision_loss)]
@@ -142,7 +129,6 @@ pub struct Wireguard {
     pub tunnels: Vec<Tunnel>,
 }
 
-// Inert: the group renders each tunnel, never the aggregate.
 impl BarWidget for Wireguard {
     fn icon(&self) -> Glyph {
         Solid::ShieldHalved.into()
@@ -167,13 +153,10 @@ impl Source for Wireguard {
     }
 }
 
-/// One tunnel's state from `wg show <iface> dump` (tab-separated: an interface
-/// line then one line per peer) plus its address from `ip addr`.
 fn read_tunnel(iface: &str) -> Option<Tunnel> {
     let dump = output("wg", &["show", iface, "dump"])?;
     let mut lines = dump.lines();
     let interface = lines.next()?;
-    // Interface line: private-key, public-key, listen-port, fwmark.
     let port: Option<u32> = interface
         .split('\t')
         .nth(2)
@@ -184,8 +167,6 @@ fn read_tunnel(iface: &str) -> Option<Tunnel> {
         .map_or(0, |d| d.as_secs());
     let peers = lines
         .map(|line| {
-            // Peer line: public-key, preshared, endpoint, allowed-ips,
-            // latest-handshake, rx, tx, keepalive.
             let f: Vec<&str> = line.split('\t').collect();
             let handshake: u64 = f.get(4).and_then(|h| h.parse().ok()).unwrap_or(0);
             Peer {
@@ -210,7 +191,6 @@ fn read_tunnel(iface: &str) -> Option<Tunnel> {
     })
 }
 
-/// The tunnel interface's IPv4 address via `ip addr`.
 fn interface_ip(iface: &str) -> String {
     output("ip", &["-j", "-4", "addr", "show", iface])
         .and_then(|out| serde_json::from_str::<Json>(&out).ok())
@@ -224,7 +204,6 @@ fn interface_ip(iface: &str) -> String {
         .unwrap_or_else(|| "—".to_string())
 }
 
-/// Bring `name` down (odin's right-click on a tunnel pill).
 pub fn disconnect(name: &str) -> bool {
     run("nmcli", &["connection", "down", name])
 }

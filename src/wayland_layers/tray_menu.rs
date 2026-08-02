@@ -1,12 +1,3 @@
-//! The tray context-menu popup: an interactive layer surface the bar owns
-//! (mirroring [`TooltipHost`](crate::wayland_layers::tooltip::TooltipHost) but
-//! taking input), whose body is rendered by
-//! [`widgets::context_menu`](crate::widgets::context_menu). It lives here
-//! rather than in `widgets/` because it emits
-//! [`Message`](crate::app::Message) and creates/destroys surfaces,
-//! which the message-generic widgets never do. Unlike the tooltip, it carries
-//! its content — a snapshot of the item's menu taken when it opens.
-
 use std::collections::HashSet;
 
 use iced::{
@@ -29,21 +20,14 @@ use crate::{
     widgets::context_menu::{MenuNode, context_menu},
 };
 
-/// A generous initial size for the menu surface; the panel lays itself out
-/// (shrink-to-fit) and a [`Sensor`] reports the true size, which then shrinks
-/// the surface — the same settle dance as the tooltip.
 const MENU_PROVISIONAL: SurfaceSize = SurfaceSize {
     width: 420,
     height: 800,
 };
-/// Fixed content width, so row highlights span the full menu and submenu
-/// chevrons right-align. Long labels wrap.
 const MENU_WIDTH: f32 = 250.0;
 const MENU_PADDING: f32 = 6.0;
-/// Border alpha, scaled by the settle paint.
 const BORDER_ALPHA: f32 = 0.25;
 
-/// The single open tray context-menu popup surface, if any. Owned by the bar.
 #[derive(Default)]
 pub struct TrayMenuHost {
     shown: Option<OpenMenu>,
@@ -54,7 +38,6 @@ struct OpenMenu {
     address: String,
     menu_path: String,
     nodes: Vec<MenuNode>,
-    /// dbusmenu ids of the submenus currently expanded in place.
     submenu_open: HashSet<i32>,
     anchor: Rectangle,
     output_width: Option<i32>,
@@ -70,7 +53,6 @@ impl TrayMenuHost {
             .is_some_and(|menu| menu.address == address)
     }
 
-    /// The open menu's target `(address, menu_path)`, for dispatching a click.
     pub fn target(&self) -> Option<(String, String)> {
         self.shown
             .as_ref()
@@ -134,9 +116,6 @@ impl TrayMenuHost {
         }
     }
 
-    /// Shrink the surface to the measured panel size and re-place its left
-    /// margin against the true width (dedup so the settle doesn't loop) —
-    /// the menu counterpart of the tooltip's resize.
     pub fn resize(&mut self, surface: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
         let Some(menu) = &mut self.shown else {
             return Task::none();
@@ -188,12 +167,8 @@ fn menu_settings(place: &MenuAnchor, config: &ResolvedConfig) -> NewLayerShellSe
         anchor,
         margin: Some(tooltip_margin(place.position, left, bar).edges()),
         layer: Layer::Overlay,
-        // No keyboard focus (like the toasts): taking focus would itself fire a
-        // niri focus-change and self-dismiss. Dismissal is by selection, re-click,
-        // the bar backdrop, or a real focus change.
         keyboard_interactivity: KeyboardInteractivity::None,
         output_option: OutputOption::OutputName(place.output.clone()),
-        // Interactive, unlike the click-through tooltip.
         events_transparent: false,
         namespace: Some("vetrata-tray-menu".to_string()),
     }
@@ -204,8 +179,6 @@ fn menu_surface<'a>(
     menu: &OpenMenu,
     config: &'a ResolvedConfig,
 ) -> Element<'a, Message> {
-    // Transparent on the pre-settle frame so a near-right-edge menu that re-places
-    // on settle doesn't flash at the provisional offset (as the tooltip does).
     let paint = if menu.settled { 1.0 } else { 0.0 };
     let body = context_menu(
         config,
@@ -215,17 +188,12 @@ fn menu_surface<'a>(
         &|id| Message::Tray(TrayMessage::MenuItemClicked(id)),
         &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
     );
-    // A popup needs an opaque background: force the palette background's alpha to
-    // `paint` (its own alpha is 0 for the blur-backed bar, which the compositor
-    // does not blur behind this namespace).
     let background = Color {
         a: paint,
         ..config.palette.bar_background
     };
     let panel = container(body)
         .width(Length::Fixed(MENU_WIDTH))
-        // Vertical padding only — a horizontal inset would keep the separators off
-        // the panel edges; entries carry their own horizontal padding.
         .padding([MENU_PADDING, 0.0])
         .style(move |_| container::Style {
             background: Some(Background::Color(background)),
@@ -235,8 +203,6 @@ fn menu_surface<'a>(
                     .bar_foreground
                     .scale_alpha(BORDER_ALPHA * paint),
                 width: 1.0,
-                // Always rounded — a popup, not the flush bar (chrome_radius is 0
-                // when the bar is docked).
                 radius: f32::from(config.layout.corner_radius_px).into(),
             },
             ..Default::default()

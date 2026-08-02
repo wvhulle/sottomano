@@ -1,5 +1,3 @@
-//! Niri workspace pager.
-
 use iced::{
     Alignment, Element,
     widget::{Row, mouse_area, row},

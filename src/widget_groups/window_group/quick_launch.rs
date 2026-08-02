@@ -1,14 +1,3 @@
-//! odin's `QuickLaunch`: a per-workspace row of apps launched often here but
-//! not open right now. The bar handle is a rocket; toggling it unfolds the
-//! ranked app icons to its right, each dimmed until hovered and launched on
-//! click.
-//!
-//! Ranking lives in [`LaunchTracker`](crate::data::source::launch_tracker): the
-//! app ranks each output's candidates in memory and pushes the results here via
-//! [`set_ranked`](QuickLaunch::set_ranked); icon paths come from the app-wide
-//! `DesktopIndex` cache at view time. Ranked lists are keyed by output name
-//! (each output's active workspace differs).
-
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use iced::{
@@ -26,17 +15,11 @@ use crate::{
     widgets::menu_group::{MenuGroup, MenuMessage},
 };
 
-/// How many ranked icons to show at most (odin's `maxItems`).
 pub const MAX_ITEMS: usize = 4;
-/// Resting opacity of a ranked icon, brightened to full on hover, so closed
-/// apps read as secondary to the live window list beside them (odin's `0.65`).
 const RESTING_OPACITY: f32 = 0.65;
 
 pub struct QuickLaunch {
-    /// Ranked app-ids per output, pushed in by the app.
     ranked: HashMap<String, Vec<String>>,
-    /// The shared `.desktop` index, kept for launching (`Exec` lookup) — icon
-    /// paths come from the app-wide cache instead.
     desktop_entries: Option<Arc<DesktopEntries>>,
     hovered: Option<String>,
     pub(crate) menu: MenuGroup,
@@ -46,8 +29,6 @@ pub struct QuickLaunch {
 pub enum QuickLaunchMessage {
     Menu(MenuMessage),
     IconHover(Option<String>),
-    /// A ranked icon was clicked; the group resolves it to a launch itself (it
-    /// owns the desktop index and the niri-spawn fallback).
     Launch(String),
 }
 
@@ -84,13 +65,6 @@ impl QuickLaunch {
         Task::none()
     }
 
-    /// Launch a ranked app through niri: resolve its command from the desktop
-    /// entry's `Exec` (falling back to the bare app-id), then hand it to
-    /// `niri msg action spawn`. Spawning via the compositor lands the window in
-    /// niri's scope and avoids forking a new process from vetrata's own
-    /// GPU-heavy address space (slow, and it would make the app a child of the
-    /// bar). Fire-and-forget — the launched window arrives back as a niri
-    /// event.
     fn launch(&self, app_id: String) -> Task<QuickLaunchMessage> {
         let command = self
             .desktop_entries
@@ -127,9 +101,6 @@ impl QuickLaunch {
         .spacing(config.layout.horizontal_widget_spacing_px)
         .align_y(Alignment::Center);
 
-        // Hover on the whole group only brightens the activity line (via the
-        // menu); the toggle lives on the handle so clicking an icon launches it
-        // without also toggling the menu.
         Some(self.menu.view(
             config,
             position,
@@ -140,8 +111,6 @@ impl QuickLaunch {
         ))
     }
 
-    /// One ranked icon: dimmed until hovered, fading in with the reveal, that
-    /// launches its app on click. `None` until its icon has resolved.
     fn icon_slot<'a>(
         &self,
         config: &ResolvedConfig,
@@ -165,9 +134,6 @@ impl QuickLaunch {
     }
 }
 
-/// An icon file as a sized, faded widget. Themed icons ship scalable SVGs while
-/// hicolor app icons are raster; iced decodes them through different widgets,
-/// so the extension picks the path (as in the window list).
 fn icon_image<'a>(path: &Path, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {
     let is_svg = path
         .extension()

@@ -1,9 +1,3 @@
-//! Per-toast layer-shell surface: one Wayland surface per notification,
-//! anchored to its corner and sized to the card's pre-measured height, so niri
-//! can target each toast by its namespace (blur/shadow layer rules). Cards
-//! sharing a corner stack via a per-toast margin offset; a corner change
-//! re-anchors (a jump, not a slide).
-
 use iced_layershell::reexport::{
     Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
 };
@@ -20,21 +14,8 @@ pub struct SlotPlacement {
 }
 
 pub const NAMESPACE: &str = "vetrata-notifications";
-/// Vertical gap between two cards sharing a corner.
 pub const STACK_SPACING: f32 = 8.0;
 
-/// The anchor and margin (top, right, bottom, left) for one card in its corner
-/// group. Anchored axes (top / bottom) inset the freshest card from the panel
-/// edge and push older siblings inward by `offset`.
-///
-/// A centred *vertical* stack has no edge to offset against — the compositor
-/// would centre each surface's own midpoint, so cards of different heights
-/// overlap. It is instead anchored to the top and given an absolute margin that
-/// centres the whole `group_height` on the output (odin's
-/// `(win.height - groupHeight) / 2 + offset`), with `offset` stepping within
-/// it. When the output height is unknown it falls back to top-anchoring, so
-/// cards still stack rather than pile up. A centred *horizontal* axis stays
-/// unanchored (the compositor centres it, which is what we want).
 pub fn slot_placement(
     vertical: VEdge,
     horizontal: HEdge,
@@ -90,14 +71,10 @@ pub fn slot_placement(
     }
 }
 
-/// How far a card's edge sits from the panel edge on an anchored axis: the bar
-/// height, the configured gap, and the stacking `offset` for older siblings.
 fn edge_inset(offset: f32, config: &ResolvedConfig) -> i32 {
     (config.layout.outer_height_px + config.notifications.edge_gap + offset).round() as i32
 }
 
-/// Layer-shell settings for one toast surface, bound to `output` (or the active
-/// output when none resolves).
 pub fn toast_settings(
     output: Option<&str>,
     anchor: Anchor,

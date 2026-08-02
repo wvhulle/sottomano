@@ -1,20 +1,3 @@
-//! In-process HTTP for the AI-usage sources — the faithful equivalent of odin's
-//! nushell `http get`/`http post`. Unlike the curl-backed
-//! [`command::http_get`](crate::data::source::command::http_get), it sets an
-//! `Authorization` header and does POST without ever putting the bearer token
-//! on a process argv (visible in `ps`).
-//!
-//! `reqwest` is built with `default-features = false`, so the `json` feature is
-//! off — bodies are (de)serialized with `serde_json` over the raw bytes rather
-//! than via `RequestBuilder::json`/`Response::json`.
-//!
-//! The provider sources call these from their synchronous `poll`, which the app
-//! runs on a `spawn_blocking` thread; the async request is driven there via
-//! [`block_on`], reusing the app's runtime when one is in scope and otherwise
-//! spinning up a throwaway current-thread one. `reqwest` sends no default
-//! `User-Agent`, and GitHub's API rejects UA-less requests — so every caller
-//! passes its full header set (see the per-provider modules).
-
 use std::{future::Future, time::Duration};
 
 use reqwest::{
@@ -24,10 +7,6 @@ use reqwest::{
 use serde_json::Value;
 use tokio::runtime::{Builder, Handle};
 
-/// A completed HTTP exchange: the status code and the JSON body (`None` when
-/// the body was absent or not JSON). Callers inspect `status` themselves —
-/// odin's scripts branch on it (e.g. Claude's 429 backoff), so this preserves
-/// it rather than collapsing non-200 to a bare `None`.
 pub struct Response {
     pub status: u16,
     pub body: Option<Value>,

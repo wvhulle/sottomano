@@ -1,18 +1,14 @@
-//! Per-core CPU clock speeds, ported from odin's `cpu-clock.nu`.
-
 use std::time::Duration;
 
 use super::{core_freqs, favg, fmax, fmin, ghz};
 use crate::data::source::{BarWidget, Glyph, Source, TooltipBody, font_awesome::Solid, row};
 
-/// One core's current frequency.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreFreq {
     pub core: u32,
     pub ghz: f64,
 }
 
-/// Per-core CPU clock speeds (`cpu-clock.nu`). Bar label is the average GHz.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuClock {
     pub cores: Vec<CoreFreq>,

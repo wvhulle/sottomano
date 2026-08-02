@@ -1,10 +1,3 @@
-//! odin's `NetworkInterfaces`: a flat row of per-radio indicators — bluetooth,
-//! ethernet, wifi, mobile broadband — each hidden unless its device exists.
-//! Read-only (odin wires no click actions here): an icon, an optional signal
-//! gauge, a connected-count badge, and a hover tooltip. Backed by the same CLIs
-//! odin's scripts drive (`bluetoothctl`, `nmcli`, `mmcli`), run off-thread in
-//! each source's [`poll`](crate::data::source::Source::poll).
-
 pub mod bluetooth;
 pub mod ethernet;
 pub mod mobile;

@@ -1,8 +1,3 @@
-//! The Pango/HTML subset notification bodies use (`<b>`, `<i>`, `<u>`,
-//! `<pre>`/`<tt>`), rendered as iced `rich_text` spans. Unknown tags are
-//! stripped (their text kept); entities are decoded. Nothing is ever fetched —
-//! this is the safe subset, never `RichText` that could load a remote `<img>`.
-
 use iced::{
     Color, Font,
     font::{Style as FontStyle, Weight},
@@ -46,18 +41,12 @@ impl Emphasis {
     }
 }
 
-/// One lexed piece of a body: a run of decoded text, or an opening/closing tag
-/// (lower-cased element name, attributes dropped).
 enum Token {
     Text(String),
     Open(String),
     Close(String),
 }
 
-/// Render `body` into styled spans coloured `color` at `size`, using
-/// `font.iced_font` for prose and `mono` for `<pre>`/`<tt>` runs. Lexes into
-/// [`Token`]s, then folds over them tracking the active-tag stack so each text
-/// run is styled by the emphasis in force at its position.
 pub fn body_spans<'a>(
     body: &str,
     color: Color,
@@ -90,10 +79,6 @@ pub fn body_spans<'a>(
     spans
 }
 
-/// Split a body into text runs and tags. Deliberately lenient with the
-/// arbitrary markup clients send: a `<` with no closing `>`, or a `&` that
-/// starts no known entity, is kept as a literal character; unknown and
-/// self-closing tags emit no token (their inner text survives as `Text`).
 fn tokenize(body: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut text = String::new();
@@ -139,8 +124,6 @@ fn tokenize(body: &str) -> Vec<Token> {
     tokens
 }
 
-/// Turn the inside of a `<...>` into an [`Open`](Token::Open) or
-/// [`Close`](Token::Close) token, or `None` for a self-closing or empty tag.
 fn tag_token(tag: &str) -> Option<Token> {
     if let Some(name) = tag.strip_prefix('/') {
         return Some(Token::Close(name.trim().to_ascii_lowercase()));
@@ -148,7 +131,6 @@ fn tag_token(tag: &str) -> Option<Token> {
     if tag.ends_with('/') {
         return None;
     }
-    // Keep only the element name, dropping any attributes.
     let name = tag.split_whitespace().next()?.to_ascii_lowercase();
     (!name.is_empty()).then_some(Token::Open(name))
 }

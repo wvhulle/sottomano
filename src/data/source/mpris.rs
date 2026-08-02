@@ -1,8 +1,3 @@
-//! Media playback via MPRIS2 over the session bus (odin's `MediaService`),
-//! signal-driven: a subscription watches `PropertiesChanged` on the mpris
-//! object path plus `NameOwnerChanged`, and re-reads the active player on each
-//! — so track/status/art updates land instantly instead of on a poll tick.
-
 use std::collections::HashMap;
 
 use iced::{
@@ -54,16 +49,11 @@ impl Status {
 pub struct Media {
     pub bus: String,
     pub identity: String,
-    /// The player's freedesktop desktop-entry name, when it advertises one —
-    /// the most authoritative handle for resolving its app glyph and window.
     pub desktop_entry: Option<String>,
     pub title: String,
     pub artist: String,
     pub album: String,
     pub status: Status,
-    /// The current track's album art, decoded in memory. `None` when the player
-    /// exposes no art (or it couldn't be fetched); the widget shows a glyph
-    /// then.
     pub art: Option<image::Handle>,
     pub can_next: bool,
     pub can_prev: bool,
@@ -78,8 +68,6 @@ impl Media {
             .unwrap_or_else(|| app_handle(&self.bus))
     }
 
-    /// `"Artist — Title"`, or whichever half is present, or the player
-    /// identity.
     pub fn label(&self) -> String {
         match (self.artist.is_empty(), self.title.is_empty()) {
             (false, false) => format!("{} — {}", self.artist, self.title),
@@ -105,12 +93,6 @@ fn artist(metadata: &HashMap<String, OwnedValue>) -> String {
         .unwrap_or_default()
 }
 
-/// The canonical app handle from an mpris bus name: strip the
-/// `org.mpris.MediaPlayer2.` prefix and any chromium/Electron `.instanceNNNN`
-/// suffix, then take the last dotted segment. E.g.
-/// `…MediaPlayer2.chromium.instance2144933` → `chromium`,
-/// `…MediaPlayer2.io.github.htkhiem.Euphonica` → `Euphonica`. Ports odin's
-/// `MediaService.busHandle`.
 pub fn app_handle(bus: &str) -> String {
     let stripped = bus.strip_prefix(PREFIX).unwrap_or(bus);
     let stripped = stripped
@@ -127,8 +109,6 @@ pub fn app_handle(bus: &str) -> String {
         .to_string()
 }
 
-/// A bus like `…MediaPlayer2.chromium.instance2144933` is a CEF duplicate when
-/// it has no desktop entry — filtered out of the picker.
 fn is_phantom(bus: &str, desktop_entry: Option<&str>) -> bool {
     desktop_entry.is_none_or(str::is_empty)
         && bus
@@ -196,7 +176,6 @@ async fn root_proxy(connection: &Connection, bus: &str) -> Option<MediaPlayer2Pr
         .ok()
 }
 
-/// One player's status, identity, and desktop entry (for phantom detection).
 async fn read_player(connection: &Connection, bus: String) -> Option<PlayerState> {
     let status = Status::parse(
         &player_proxy(connection, &bus)
@@ -216,8 +195,6 @@ async fn read_player(connection: &Connection, bus: String) -> Option<PlayerState
     })
 }
 
-/// The current mpris player buses (skipping `playerctld`, which mirrors a real
-/// player).
 async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
     dbus.list_names()
         .await
@@ -228,10 +205,6 @@ async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
         .collect()
 }
 
-/// Every non-phantom player's full track + transport state — the bar picks
-/// which one to surface and lets the user switch between them. `art` memoises
-/// each bus's last fetched `(url, handle)` so art is downloaded once per track,
-/// not on every play/pause or status signal; buses that vanish are pruned.
 async fn read_all(
     connection: &Connection,
     dbus: &DBusProxy<'_>,
@@ -288,10 +261,6 @@ async fn read_all(
     media
 }
 
-/// The decoded album-art handle for `bus`'s `url`, reusing `cache[bus]` when
-/// the url is unchanged so a fetch happens only when that player's track (and
-/// its art) changes. On any fetch failure the bus's cache entry is cleared and
-/// `None` returned.
 async fn art_handle(
     url: &str,
     bus: &str,
@@ -314,9 +283,6 @@ async fn art_handle(
     handle
 }
 
-/// Decode album art from an mpris `mpris:artUrl`: a local `file://` path, or a
-/// remote `http(s)://` image fetched into memory. Any other scheme yields
-/// `None`.
 async fn load_art(url: &str) -> Option<image::Handle> {
     if let Some(path) = url.strip_prefix("file://") {
         return Some(image::Handle::from_path(path));
@@ -335,9 +301,6 @@ async fn load_art(url: &str) -> Option<image::Handle> {
     None
 }
 
-/// The signal-driven media stream: an empty list while no player is present, a
-/// fresh [`Media`] per player on every relevant change. Reconnects if the bus
-/// drops.
 pub fn subscription() -> Subscription<Vec<Media>> {
     Subscription::run(|| {
         stream::channel(16, |mut output: Sender<Vec<Media>>| async move {
@@ -369,9 +332,6 @@ async fn watch(output: &mut Sender<Vec<Media>>) -> zbus::Result<()> {
         .interface("org.freedesktop.DBus.Properties")?
         .member("PropertiesChanged")?
         .build();
-    // Merge both signal streams into one of "is this relevant?" — a property
-    // change on any player is always relevant; a name change only when it names
-    // an mpris player (one opened or closed).
     let properties = MessageStream::for_match_rule(properties_rule, &connection, Some(16))
         .await?
         .map(|_| true);
@@ -395,8 +355,6 @@ async fn watch(output: &mut Sender<Vec<Media>>) -> zbus::Result<()> {
     Ok(())
 }
 
-/// Run a no-argument control method (`Next`, `Previous`, `PlayPause`, `Stop`)
-/// on a player. Blocking one-shot, called off-thread.
 pub fn control(bus: &str, method: &str) {
     use zbus::blocking::Connection;
     let Ok(connection) = Connection::session() else {

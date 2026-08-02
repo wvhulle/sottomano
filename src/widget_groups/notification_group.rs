@@ -1,9 +1,3 @@
-//! The notification controls: two always-visible bar toggles for do-not-disturb
-//! (suppress and discard toasts) and the alert sound. Stateless — the truth
-//! lives in [`ResolvedConfig::dnd`]/[`ResolvedConfig::sound`], which the
-//! application owns and applies; this only renders it and emits the press
-//! intents.
-
 use iced::{
     Alignment, Element,
     widget::{Row, mouse_area},
@@ -12,6 +6,8 @@ use iced::{
 use crate::{
     config::resolved::ResolvedConfig,
     data::source::font_awesome::{FontAwesome, Solid},
+    wayland_layers::surface::Position,
+    widgets::pager_slot::permanently_inactive_slot,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -20,7 +16,10 @@ pub enum NotificationGroupMessage {
     ToggleSound,
 }
 
-pub fn view<'a>(config: &ResolvedConfig) -> Element<'a, NotificationGroupMessage> {
+pub fn view<'a>(
+    config: &ResolvedConfig,
+    position: Position,
+) -> Element<'a, NotificationGroupMessage> {
     let do_not_disturb = toggle(
         config,
         if config.dnd {
@@ -28,7 +27,6 @@ pub fn view<'a>(config: &ResolvedConfig) -> Element<'a, NotificationGroupMessage
         } else {
             Solid::Bell.into()
         },
-        // Muted reads as inactive, so dim it.
         !config.dnd,
         NotificationGroupMessage::ToggleDoNotDisturb,
     );
@@ -43,15 +41,14 @@ pub fn view<'a>(config: &ResolvedConfig) -> Element<'a, NotificationGroupMessage
         NotificationGroupMessage::ToggleSound,
     );
 
-    Row::new()
+    let toggles = Row::new()
         .push(do_not_disturb)
         .push(sound)
         .spacing(config.layout.horizontal_widget_spacing_px)
-        .align_y(Alignment::Center)
-        .into()
+        .align_y(Alignment::Center);
+    permanently_inactive_slot(toggles.into(), config, position)
 }
 
-/// One toggle icon, full-strength when `active` and dimmed when not.
 fn toggle<'a>(
     config: &ResolvedConfig,
     icon: FontAwesome,

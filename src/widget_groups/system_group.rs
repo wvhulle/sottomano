@@ -1,8 +1,3 @@
-//! Expandable system group: the cpu handle unfolds temperature/memory/disk.
-//! A thin instance of the reusable menu-group primitive — it composes four
-//! self-polling source cells and supplies a handle and a content row; the
-//! expand animation lives in that primitive.
-
 use iced::{
     Alignment, Element, Subscription,
     widget::{Row, mouse_area},
@@ -26,9 +21,6 @@ use crate::{
     },
 };
 
-/// A reading wrapped so hovering it opens its tooltip. Carries only the
-/// `target` identity — the panel content is derived from the live reading at
-/// render time, not snapshotted here.
 fn hover_reading<'a>(
     config: &ResolvedConfig,
     widget: &dyn BarWidget,
@@ -111,8 +103,6 @@ impl SystemGroup {
             1.0,
             HoverTarget::Cpu,
         )?;
-        // The handle carries the toggle press (only the handle toggles, so
-        // clicking the revealed readings never collapses the group).
         let handle = mouse_area(handle)
             .on_press(SystemMessage::Menu(MenuMessage::Toggle))
             .into();

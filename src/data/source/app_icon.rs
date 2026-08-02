@@ -1,11 +1,3 @@
-//! App icon resolution via `.desktop` entries and the icon theme.
-//!
-//! Resolution stays off the render path: one step gathers the distinct
-//! app-ids/theme-names currently needed by open windows, and a second resolves
-//! a batch of them off-thread. App-ids and theme-names stay separate pipelines
-//! — they resolve differently and miss differently — so no cache lives here;
-//! the caller's maps are the only cache.
-
 use std::{collections::HashMap, path::PathBuf};
 
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
@@ -77,21 +69,11 @@ impl DesktopEntries {
         freedesktop_desktop_entry::find_app_by_id(&self.entries, Ascii::new(app_id))
     }
 
-    /// Whether an app-id is one a normal launcher would show: it has a desktop
-    /// entry that is neither `NoDisplay` nor `Hidden`. Excludes a shell's own
-    /// hidden entry and wrapped binaries with no entry, so quick-launch only
-    /// ranks apps whose icon it can actually show and launch (odin's
-    /// `launchable`).
     pub fn is_launchable(&self, app_id: &str) -> bool {
         self.find(app_id)
             .is_some_and(|entry| !entry.no_display() && !entry.hidden())
     }
 
-    /// The command to spawn for an app-id, parsed from its desktop entry's
-    /// `Exec` by the crate's spec-compliant parser (quoting honoured, field
-    /// codes like `%U`/`%f` resolved against no files) — enough to launch it
-    /// directly (odin's `DesktopEntries.byId(id).execute()`). `None` when there
-    /// is no entry or its `Exec` is missing/empty/malformed.
     pub fn exec_command(&self, app_id: &str) -> Option<Vec<String>> {
         self.find(app_id)?
             .parse_exec()
@@ -99,9 +81,6 @@ impl DesktopEntries {
             .filter(|c| !c.is_empty())
     }
 
-    /// Resolve an icon-theme name directly, bypassing the `.desktop`/app-id
-    /// lookup — for icons picked by convention rather than by app-id, e.g. a
-    /// terminal's command-word icon.
     pub fn theme_icon(&self, name: &str) -> Option<PathBuf> {
         self.theme_lookup(name)
     }
@@ -115,9 +94,6 @@ impl DesktopEntries {
     }
 }
 
-/// Distinct app-ids across every window niri currently knows about. Every
-/// window carries an app-id fallback candidate, so this covers all windows,
-/// not just ones missing a more specific icon.
 pub fn app_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
     icon_keys(niri_state, |c| match c {
         IconCandidate::AppId(id) => Some(id),
@@ -125,9 +101,6 @@ pub fn app_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
     })
 }
 
-/// Distinct icon-theme names across every window (e.g. a terminal's
-/// command-word icon) — only windows whose formatting rule picks a theme-name
-/// candidate contribute one.
 pub fn theme_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
     icon_keys(niri_state, |c| match c {
         IconCandidate::Theme(name) => Some(name),
@@ -153,8 +126,6 @@ fn icon_keys(
     keys
 }
 
-/// Resolve a batch of `.desktop`-entry app-ids. Unresolvable ones are simply
-/// absent from the result.
 pub fn resolve_app_icons(entries: &DesktopEntries, ids: Vec<String>) -> HashMap<String, PathBuf> {
     ids.into_iter()
         .filter_map(|id| {
@@ -165,7 +136,6 @@ pub fn resolve_app_icons(entries: &DesktopEntries, ids: Vec<String>) -> HashMap<
         .collect()
 }
 
-/// Resolve a batch of icon-theme names. Unresolvable ones are simply absent.
 pub fn resolve_theme_icons(
     entries: &DesktopEntries,
     names: Vec<String>,

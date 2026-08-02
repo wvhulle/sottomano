@@ -1,8 +1,3 @@
-//! odin's `NetworkInterfaces`: a flat row of per-radio indicators (bluetooth,
-//! ethernet, wifi, mobile broadband), each hidden while its device is absent —
-//! a machine with only wifi shows one pill. Read-only, like the journal group:
-//! each indicator is hoverable for its own tooltip; odin wires no click here.
-
 use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
@@ -16,9 +11,12 @@ use crate::{
             wifi::{self, Wifi},
         },
     },
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widget_groups::source_cell::SourceCell,
-    widgets::icon_gauge::source_reading,
+    widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
 };
 
 #[derive(Default)]
@@ -72,8 +70,11 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, NetInterfacesMessage>> {
-        // Ethernet, wifi, bluetooth, mobile — mirroring odin's declaration order.
+    pub fn view<'a>(
+        &self,
+        config: &ResolvedConfig,
+        position: Position,
+    ) -> Option<Element<'a, NetInterfacesMessage>> {
         let indicators: Vec<Element<'a, NetInterfacesMessage>> = [
             indicator(
                 config,
@@ -102,17 +103,17 @@ impl NetInterfacesGroup {
         if indicators.is_empty() {
             return None;
         }
-        Some(
+        Some(permanently_inactive_slot(
             Row::with_children(indicators)
                 .spacing(config.layout.horizontal_widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
-        )
+            config,
+            position,
+        ))
     }
 }
 
-/// One radio's indicator (icon + optional gauge + badge), hoverable for its
-/// tooltip; `None` when that radio is absent.
 fn indicator<'a>(
     config: &ResolvedConfig,
     widget: Option<&dyn BarWidget>,

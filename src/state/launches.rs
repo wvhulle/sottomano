@@ -1,9 +1,3 @@
-//! Quick-launch frequency persistence — the on-disk half of the
-//! [`LaunchTracker`](crate::data::source::launch_tracker). The model is loaded
-//! once at startup and each counted launch is written back as an upsert of the
-//! absolute count, so the table mirrors the in-memory model rather than
-//! re-incrementing.
-
 use chrono::{DateTime, Duration, Utc};
 
 use crate::{
@@ -11,8 +5,6 @@ use crate::{
     state::{BoxError, integer, open, text},
 };
 
-/// Drop launch entries not used within this window, so the store stays bounded
-/// and abandoned apps disappear from quick-launch (odin's `FREQUENCY_TTL`).
 const TTL_DAYS: i64 = 60;
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS launches (
@@ -23,8 +15,6 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS launches (
     PRIMARY KEY (workspace, app_id)
 )";
 
-/// Load the persisted model, pruning entries past the TTL first. Degrades to an
-/// empty model on any error (absent DB, unreadable state dir).
 pub async fn load() -> Buckets {
     match try_load().await {
         Ok(buckets) => buckets,
@@ -35,7 +25,6 @@ pub async fn load() -> Buckets {
     }
 }
 
-/// Persist one counted launch as an upsert of its absolute count and time.
 pub async fn record(delta: LaunchDelta) {
     if let Err(e) = try_record(&delta).await {
         eprintln!("launch store: record failed: {e}");

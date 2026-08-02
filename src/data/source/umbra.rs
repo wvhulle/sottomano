@@ -1,10 +1,3 @@
-//! Dark/light mode via odin's `umbra` CLI. The indicator shows a moon (dark) or
-//! sun (light); clicking runs `umbra toggle`. `None` when `umbra` is not on
-//! PATH, which hides the toggle.
-//!
-//! odin's widget also renders a heliocron countdown to the next sunrise/sunset
-//! switch; that label is deferred — the icon and mode tooltip come first.
-
 use std::time::Duration;
 
 use crate::{

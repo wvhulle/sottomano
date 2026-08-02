@@ -17,6 +17,12 @@ impl KernelErrors {
     pub fn from_entries(entries: Vec<KernelEntry>) -> Option<Self> {
         (!entries.is_empty()).then_some(Self { entries })
     }
+
+    pub fn follow_log_args() -> Vec<String> {
+        ["-k", "-b", "-f", "-p", "warning"]
+            .map(String::from)
+            .to_vec()
+    }
 }
 
 impl BarWidget for KernelErrors {
@@ -60,5 +66,18 @@ fn priority_level(priority: u8) -> Level {
         Level::Critical
     } else {
         Level::Warning
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn follows_this_boot_at_warning_and_above() {
+        assert_eq!(
+            KernelErrors::follow_log_args(),
+            ["-k", "-b", "-f", "-p", "warning"]
+        );
     }
 }

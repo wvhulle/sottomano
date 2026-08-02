@@ -1,13 +1,3 @@
-//! In-process idle-timeout daemon, absorbed from wvhulle/idle-manager so
-//! vetrata owns idle management (state in sqlite, arming here) rather than
-//! shelling out.
-//!
-//! A background subscription holds the wayland connection ([`wayland`]); the
-//! bar pushes an [`Arm`] list (timeout + [`IdleAction`]) whenever the persisted
-//! timeouts change. Each armed notification fires independently; on idle the
-//! daemon [`perform`]s that arm's action — the same native action (logind /
-//! niri IPC) the subsystem's trigger button runs.
-
 pub mod timer;
 pub mod wayland;
 
@@ -39,7 +29,6 @@ const LADDER: [(u64, &str); 11] = [
     (14400, "4h"),
 ];
 
-/// The ladder label nearest to `duration`.
 pub fn label_for(duration: Duration) -> &'static str {
     let secs = duration.as_secs();
     LADDER
@@ -48,14 +37,9 @@ pub fn label_for(duration: Duration) -> &'static str {
         .map_or("∞", |(_, label)| label)
 }
 
-/// The slider/scroll spans `0..=MAX_POSITION`: rungs `0..=10` are the ladder
-/// (10s..4h) and the top position is ∞ — disabling the subsystem. Scrolling
-/// above 4h therefore clears the timeout.
 #[allow(clippy::cast_precision_loss)]
 pub const MAX_POSITION: f32 = LADDER.len() as f32;
 
-/// Slider position for a timeout: the nearest ladder rung, or the top (∞) when
-/// disabled.
 #[allow(clippy::cast_precision_loss)]
 pub fn position(timeout: Option<Duration>) -> f32 {
     match timeout {
@@ -72,23 +56,16 @@ pub fn position(timeout: Option<Duration>) -> f32 {
     }
 }
 
-/// The timeout at a slider position (rounded); the top position (past the last
-/// rung) disables the subsystem.
 pub fn from_position(pos: f32) -> Option<Duration> {
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let rung = pos.round().max(0.0) as usize;
     LADDER.get(rung).map(|(secs, _)| Duration::from_secs(*secs))
 }
 
-/// The label at a slider position, for the readout.
 pub fn label_at(pos: f32) -> &'static str {
     from_position(pos).map_or("∞", label_for)
 }
 
-/// The native action a subsystem performs when its idle timeout is reached —
-/// the same action its trigger button runs. All standard session APIs (logind /
-/// niri IPC), so the daemon carries the effect itself rather than a shell
-/// command.
 #[derive(Debug, Clone, Copy)]
 pub enum IdleAction {
     Lock,
@@ -117,9 +94,6 @@ impl IdleAction {
     }
 }
 
-/// Perform an idle action now. Blocking (logind D-Bus / niri IPC); call off the
-/// render path — the daemon runs it on a blocking task, the trigger via
-/// `blocking`.
 pub fn perform(action: IdleAction) {
     match action {
         IdleAction::Lock => logind::lock(),
@@ -129,16 +103,12 @@ pub fn perform(action: IdleAction) {
     }
 }
 
-/// One notification to arm: an idle timeout and the action to perform when it
-/// fires.
 #[derive(Debug, Clone, Copy)]
 pub struct Arm {
     pub timeout: Duration,
     pub action: IdleAction,
 }
 
-/// The bar's handle to the running daemon: replaces the armed set whenever the
-/// persisted timeouts change.
 #[derive(Debug, Clone)]
 pub struct IdleHandle {
     tx: mpsc::Sender<Vec<Arm>>,
@@ -155,9 +125,6 @@ pub enum IdleEvent {
     Connected(IdleHandle),
 }
 
-/// The daemon subscription: connect to wayland, hand the bar an [`IdleHandle`],
-/// then rearm on each pushed spec and perform an action on idle. Ends quietly
-/// if the compositor has no `ext-idle-notify-v1`.
 pub fn subscription() -> Subscription<IdleEvent> {
     Subscription::run(|| {
         stream::channel(16, |mut output: Sender<IdleEvent>| async move {
@@ -186,8 +153,6 @@ pub fn subscription() -> Subscription<IdleEvent> {
                         match pumped {
                             Ok(effects) => {
                                 for SideEffect::Idled(action) in effects {
-                                    // Off the wayland loop: logind Suspend/PowerOff block
-                                    // until the system acts.
                                     tokio::task::spawn_blocking(move || perform(action));
                                 }
                             }

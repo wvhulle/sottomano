@@ -1,6 +1,3 @@
-//! Config as read from the TOML file on disk, before the font is loaded and
-//! colours are converted.
-
 use std::path::PathBuf;
 
 use color::DynamicColor;
@@ -8,10 +5,6 @@ use serde::Deserialize;
 
 use crate::data::source::niri::{HEdge, VEdge};
 
-/// A screen corner, for the notification fallback position. Deserialized
-/// directly from the TOML string (`bottom-right`, `top-left`, …); an
-/// unrecognized value fails the whole parse, so the config falls back to
-/// defaults rather than silently placing toasts in the wrong corner.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Corner {
@@ -45,7 +38,7 @@ impl Corner {
     }
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 #[serde(default)]
 pub struct DiskConfig {
     pub palette: DiskPaletteConfig,
@@ -53,12 +46,22 @@ pub struct DiskConfig {
     pub font: DiskFontConfig,
     pub notifications: NotificationConfig,
     pub tray: TrayConfig,
+    pub terminal: Vec<String>,
 }
 
-/// System-tray settings. `deny_ids` hides tray items the shell already surfaces
-/// natively (network, bluetooth, media), so they aren't shown twice; each entry
-/// is a case-insensitive substring matched against the item's SNI id. Set it to
-/// an empty list to show every item.
+impl Default for DiskConfig {
+    fn default() -> Self {
+        Self {
+            palette: DiskPaletteConfig::default(),
+            layout: Layout::default(),
+            font: DiskFontConfig::default(),
+            notifications: NotificationConfig::default(),
+            tray: TrayConfig::default(),
+            terminal: ["kitty", "-e"].map(String::from).to_vec(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct TrayConfig {
@@ -75,28 +78,15 @@ impl Default for TrayConfig {
     }
 }
 
-/// Toast settings, mirroring odin's `UserConfig/NotificationConfig`. There is
-/// no timeout: a toast is dismissed by an event (user action or its target
-/// window closing), never by a clock.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
 pub struct NotificationConfig {
-    /// When true (default), a toast is drawn near the screen edge of the window
-    /// that produced it. When false, every toast is drawn in
-    /// `fallback_position` regardless of its producer window.
     pub point_at_source: bool,
-    /// Fallback corner, used when a notification has no producer window to
-    /// point at, or when `point_at_source` is false.
     pub fallback_position: Corner,
-    /// Extra gap from the panel edge, on top of the bar-height inset.
     pub edge_gap: f32,
     pub card_width: f32,
-    /// The app icon shown when a notification carries no image of its own.
     pub app_icon_size: f32,
-    /// The notification's own image (album art, a screenshot), drawn larger and
-    /// central.
     pub image_size: f32,
-    /// The app icon shown as a small badge over the corner of the image.
     pub badge_size: f32,
 }
 
@@ -132,8 +122,6 @@ impl Default for DiskFontConfig {
     }
 }
 
-/// Colours are CSS Color Level 4 strings (hex, `rgb()`, `hsl()`, named,
-/// `oklab()`, …). Defaults are gruvbox-dark.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "snake_case")]
 pub struct DiskPaletteConfig {
@@ -171,8 +159,6 @@ fn srgb(s: &str) -> DynamicColor {
     color::parse_color(s).expect("invalid default color")
 }
 
-/// Deserialize a colour from a CSS Color Level 4 string, so the TOML can be
-/// just `key = "#rrggbb"`.
 mod css_color {
     use std::str::FromStr;
 
@@ -197,8 +183,6 @@ pub struct Layout {
     pub blur_background: bool,
     pub disconnected_groups: bool,
     pub shadow: bool,
-    /// Track width of a settings-panel slider (session UI chrome, not a bar
-    /// element).
     pub slider_width_px: f32,
     pub outer_height_px: f32,
     pub focus_underline_thickness_px: f32,

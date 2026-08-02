@@ -25,6 +25,29 @@ impl<const USER: bool> Failed<USER> {
             .is_some_and(|age| age <= HORIZON)
     }
 
+    pub fn follow_log_args(&self) -> Vec<String> {
+        let scope = USER.then(|| String::from("--user"));
+        let this_boot = ["-b"].map(String::from);
+        if self.units.is_empty() {
+            return scope
+                .into_iter()
+                .chain(this_boot)
+                .chain(["-f", "-p", "warning"].map(String::from))
+                .collect();
+        }
+        scope
+            .into_iter()
+            .chain(this_boot)
+            .chain(["-n", "all"].map(String::from))
+            .chain(
+                self.units
+                    .iter()
+                    .flat_map(|unit| [String::from("-u"), unit.name.clone()]),
+            )
+            .chain(["-f".to_string()])
+            .collect()
+    }
+
     fn severity(recent: bool) -> Level {
         if !USER && recent {
             Level::Critical
@@ -84,5 +107,47 @@ fn describe_failure(result: &str, status: i32) -> String {
         "start-limit-hit" => "too many restarts".to_string(),
         "resources" => "could not start (resources)".to_string(),
         other => other.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unit(name: &str) -> FailedUnitInfo {
+        FailedUnitInfo {
+            name: name.to_string(),
+            result: "exit-code".to_string(),
+            status: 1,
+            at: None,
+        }
+    }
+
+    #[test]
+    fn system_scope_follows_every_failed_unit() {
+        let failed = Failed::<false> {
+            units: vec![unit("a.service"), unit("b.timer")],
+        };
+        assert_eq!(
+            failed.follow_log_args(),
+            ["-b", "-n", "all", "-u", "a.service", "-u", "b.timer", "-f"]
+        );
+    }
+
+    #[test]
+    fn user_scope_leads_with_the_user_flag() {
+        let failed = Failed::<true> {
+            units: vec![unit("a.service")],
+        };
+        assert_eq!(
+            failed.follow_log_args(),
+            ["--user", "-b", "-n", "all", "-u", "a.service", "-f"]
+        );
+    }
+
+    #[test]
+    fn without_units_falls_back_to_warnings() {
+        let failed = Failed::<false> { units: Vec::new() };
+        assert_eq!(failed.follow_log_args(), ["-b", "-f", "-p", "warning"]);
     }
 }

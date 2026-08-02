@@ -1,17 +1,3 @@
-//! Hover tooltips, rendered on their own Wayland surface.
-//!
-//! The bar surface is exactly bar-height, so a tooltip below/above it cannot be
-//! drawn in-surface. Instead — like odin's popup-backed `HoverTooltip` — each
-//! tooltip is a separate layer-shell surface, positioned under the hovered
-//! widget and made click-through (`events_transparent`) so it never steals
-//! input. Content is the widget's own rows, rendered as a two-column
-//! key/value panel; no subprocess is involved.
-//!
-//! Positioning is encapsulated in the widget: [`hoverable`] wraps a widget in a
-//! [`HoverArea`], which reads its own `layout.bounds()` and reports them as the
-//! tooltip anchor on hover — no global cursor. The panel then sizes itself: a
-//! `Sensor` reports iced's measured size, which shrinks the surface to fit.
-
 use std::{collections::HashMap, time::SystemTime};
 
 use iced::{
@@ -38,15 +24,6 @@ use crate::{
     widgets::text::{TextStyle, bar_text},
 };
 
-/// Which hoverable region a tooltip belongs to — the one identity that rides
-/// the hover message. The hovered widget publishes only this; the panel content
-/// is re-derived live from it each frame by the owning group (see
-/// [`Bar::tooltip_for`]), so an open tooltip always tracks its reading and
-/// nothing is computed while nothing is hovered. The two multi-instance
-/// families carry their instance's real identifier as data (a display serial, a
-/// tunnel interface name), stable across list reordering.
-///
-/// [`Bar::tooltip_for`]: crate::app::Bar
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HoverTarget {
     Cpu,
@@ -70,7 +47,6 @@ pub enum HoverTarget {
     AudioSink,
     AudioSource,
     PowerProfile,
-    /// One display's hardware backlight, by its serial.
     Backlight(String),
     GammaDim,
     ColorTemperature,
@@ -83,7 +59,6 @@ pub enum HoverTarget {
     InternetDown,
     InternetUp,
     Tailscale,
-    /// One `WireGuard` tunnel, by its interface name.
     Wireguard(String),
     WeatherTemp,
     WeatherRain,
@@ -97,19 +72,13 @@ pub enum HoverTarget {
     AiCopilotMetered,
     AiCopilotFree,
     AiCopilotCli,
-    /// A tray item, carrying its own static tooltip content (title +
-    /// description). Unlike the gauges, a tray tooltip does not change per
-    /// frame, so it rides in the target itself rather than being re-derived
-    /// from a reading.
     Tray(Box<Tooltip>),
 }
 
-/// Gap between the bar edge and the tooltip (odin's `gap: 6`).
 const GAP_PX: i32 = 6;
 const PANEL_PADDING: Padding = Padding::new(10.0);
 const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
-/// Gap between the tooltip body grid and its refresh footer.
 const FOOTER_GAP_PX: f32 = 6.0;
 const FOOTER_SCALE: f32 = 0.85;
 const FOOTER_PADDING: Padding = Padding {
@@ -121,11 +90,6 @@ const FOOTER_PADDING: Padding = Padding {
 
 #[derive(Debug, Clone)]
 pub enum TooltipMessage {
-    /// Emitted by a hovered [`HoverArea`], which knows its anchor but not which
-    /// surface it lives on. [`on_surface`] completes it into an [`Enter`] by
-    /// stamping the surface id.
-    ///
-    /// [`Enter`]: TooltipMessage::Enter
     EnterAnchor {
         target: HoverTarget,
         anchor: Rectangle,
@@ -146,28 +110,14 @@ pub enum TooltipMessage {
 
 struct Shown {
     surface: Id,
-    /// The widget this tooltip belongs to: drives content derivation and guards
-    /// against a stray exit from a sibling closing it.
     target: HoverTarget,
-    /// Last surface size we requested, to ignore no-op resize reports.
     size: Option<SurfaceSize>,
-    /// The hovered widget's bounds; `anchor.x` positions the panel
-    /// horizontally.
     anchor: Rectangle,
-    /// The output's logical width, for right-edge placement math. `None` when
-    /// the output geometry is unknown — placement then falls back to
-    /// `anchor.x`.
     output_width: Option<i32>,
-    /// The output the parent bar lives on, so a popup anchored to the same
-    /// hovered widget (the tray context menu) can bind to the same output.
     output: String,
-    /// Which screen edge the parent bar hugs, to rebuild the vertical margin
-    /// when the surface settles.
     position: Position,
 }
 
-/// Placement of a popup anchored to a hovered widget, reused by the tray
-/// context menu so it lands under the same icon the tooltip would.
 #[derive(Debug, Clone)]
 pub struct MenuAnchor {
     pub anchor: Rectangle,
@@ -176,7 +126,6 @@ pub struct MenuAnchor {
     pub position: Position,
 }
 
-/// The single active tooltip surface, if any. One at a time.
 #[derive(Default)]
 pub struct TooltipHost {
     shown: Option<Shown>,
@@ -200,8 +149,6 @@ impl TooltipHost {
         config: &ResolvedConfig,
         content: &Tooltip,
     ) -> Task<Message> {
-        // Already showing this target (a stray re-enter): keep the open surface
-        // rather than tearing it down — content refreshes at view time.
         if self.shown.as_ref().is_some_and(|s| s.target == target) {
             return Task::none();
         }
@@ -240,9 +187,6 @@ impl TooltipHost {
         ])
     }
 
-    /// Close only when the widget being left is the one the tooltip belongs to:
-    /// moving between adjacent readings can deliver the new enter before the
-    /// old exit, and this keeps the newer hover.
     fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
         if self
             .shown
@@ -255,11 +199,6 @@ impl TooltipHost {
         }
     }
 
-    /// The tooltip surface's own layout pass measured the panel; shrink the
-    /// surface to that exact size, and re-place its left margin now that the
-    /// true content width is known — so a near-right-edge panel sits flush to
-    /// the screen edge (drawn to the left of the cursor) at full width instead
-    /// of being clamped narrow. Deduplicated so the settle doesn't loop.
     fn resize(&mut self, surface: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
         let Some(shown) = &mut self.shown else {
             return Task::none();
@@ -284,7 +223,6 @@ impl TooltipHost {
         ])
     }
 
-    /// Close the open tooltip surface, if any.
     pub fn close(&mut self) -> Task<Message> {
         match self.shown.take() {
             Some(shown) => Task::done(Message::RemoveWindow(shown.surface)),
@@ -296,16 +234,12 @@ impl TooltipHost {
         self.shown.as_ref().map(|shown| shown.surface)
     }
 
-    /// Drop the record of the open surface without asking to close it — for
-    /// when the compositor has already closed it.
     pub fn forget(&mut self, surface: Id) {
         if self.shown_surface() == Some(surface) {
             self.shown = None;
         }
     }
 
-    /// The hover target drawn on `surface`, if that is the open tooltip. The
-    /// caller derives live content from it and passes it to [`panel_surface`].
     pub fn target_for(&self, surface: Id) -> Option<&HoverTarget> {
         self.shown
             .as_ref()
@@ -313,16 +247,10 @@ impl TooltipHost {
             .map(|shown| &shown.target)
     }
 
-    /// The open tooltip's hover target, if any — for gating the relative-time
-    /// tick on whether a [`TooltipBody::Log`] is shown.
     pub fn target(&self) -> Option<&HoverTarget> {
         self.shown.as_ref().map(|shown| &shown.target)
     }
 
-    /// Placement for a popup anchored to the currently-hovered tray item — its
-    /// icon bounds, output, and edge — reused by the tray context menu. `None`
-    /// unless a tray tooltip is open (right-clicking an icon means it is
-    /// hovered, so its tooltip is showing and carries the anchor).
     pub fn menu_anchor(&self) -> Option<MenuAnchor> {
         let shown = self.shown.as_ref()?;
         matches!(shown.target, HoverTarget::Tray(_)).then(|| MenuAnchor {
@@ -334,9 +262,6 @@ impl TooltipHost {
     }
 }
 
-/// Render `tooltip` as the panel for surface `id`, wrapped in a size sensor so
-/// iced's layout pass reports its true size back, which drives the surface
-/// resize. Content is derived by the caller from the live reading each render.
 pub fn panel_surface<'a>(
     surface: Id,
     tooltip: &Tooltip,
@@ -347,15 +272,6 @@ pub fn panel_surface<'a>(
         .into()
 }
 
-/// Wrap a widget so hovering it opens a tooltip for `target`, with the tooltip
-/// messages delivered as `wrap(..)` so callers with their own message enums can
-/// embed them. The widget reports only its `target` and anchor on hover — the
-/// panel content is derived from the live reading at render time (the owning
-/// group resolves `target` back to a reading, see [`Bar::tooltip_for`]) — and
-/// the surface it lives on is stamped later by [`on_surface`] at the bar root,
-/// so a hoverable widget need not know which surface it is drawn into.
-///
-/// [`Bar::tooltip_for`]: crate::app::Bar
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
@@ -368,14 +284,6 @@ pub fn hoverable<'a, M: 'a>(
     })
 }
 
-/// Stamp the surface `id` onto every tooltip [`EnterAnchor`] bubbling out of
-/// `content`, turning it into an [`Enter`] the host can place. Applied once, at
-/// the bar root, by the code that owns the surface→id table — the only layer
-/// that knows a widget's surface (iced strips the window id from widget-emitted
-/// messages, so a `HoverArea` cannot supply it itself).
-///
-/// [`EnterAnchor`]: TooltipMessage::EnterAnchor
-/// [`Enter`]: TooltipMessage::Enter
 pub fn on_surface(surface: Id, content: Element<'_, Message>) -> Element<'_, Message> {
     content.map(move |message| match message {
         Message::Tooltip(TooltipMessage::EnterAnchor { target, anchor }) => {
@@ -389,9 +297,6 @@ pub fn on_surface(surface: Id, content: Element<'_, Message>) -> Element<'_, Mes
     })
 }
 
-/// Reports its content's absolute bounds as the tooltip anchor when hovered.
-/// Everything else delegates straight to the content, so it is invisible to
-/// layout and drawing.
 struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
@@ -538,13 +443,6 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 }
 
-/// The tooltip body as a laid-out element. Table/Log render as two
-/// shrink-to-content columns side by side — odin's `TooltipRows` grid; both
-/// size to their widest cell, so the panel is exactly as wide as its content
-/// (no `Fill`, which would make it greedy and defeat the `Sensor` measurement).
-/// A Table shows dimmed key | value; a Log shows dimmed relative time |
-/// level-tinted message; Text renders as a bold title stacked over a dimmed
-/// body (a tray item's own tooltip).
 fn tooltip_grid<'a>(
     body: &TooltipBody,
     config: &ResolvedConfig,
@@ -790,9 +688,6 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
         .into()
 }
 
-/// `at` as a coarse relative time, ported from odin's `RelativeTime.format`:
-/// `just now` under 5 s, then `N s|min|h|d ago`. `now` is passed so the caller
-/// samples the clock once per render; a future `at` degrades to `just now`.
 pub(crate) fn relative(at: SystemTime, now: SystemTime) -> String {
     let secs = now.duration_since(at).map_or(0, |d| d.as_secs());
     match secs {
@@ -804,13 +699,6 @@ pub(crate) fn relative(at: SystemTime, now: SystemTime) -> String {
     }
 }
 
-/// The panel's left margin for a surface `panel_width` px wide. Left-aligned
-/// under the hovered widget (`anchor_x`), but when the panel would overflow the
-/// right screen edge it is shifted left to sit flush against it — so a
-/// right-edge tooltip is drawn to the left of the cursor at full width instead
-/// of being clamped narrow. `output_width` is `None` when the geometry is
-/// unknown, in which case the widget's `anchor_x` is used unchanged (today's
-/// behaviour, no regression). Never negative.
 pub(crate) fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32 {
     let left = anchor_x as i32;
     let left = match output_width {
@@ -820,8 +708,6 @@ pub(crate) fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: 
     left.max(0)
 }
 
-/// The four-sided surface margin `(top, right, bottom, left)` placing the panel
-/// `left` px from the output's left edge and `bar + GAP_PX` off the bar edge.
 pub(crate) fn tooltip_margin(position: Position, left: i32, bar: i32) -> Margin {
     match position {
         Position::Top => Margin {

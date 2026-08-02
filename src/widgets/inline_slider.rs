@@ -1,16 +1,3 @@
-//! odin's `InlineSlider`: a horizontal slider accented by severity — `focus` at
-//! `Level::Ok`, the warning/urgent palette tints beyond — shared by the
-//! write-capable groups (audio, idle, panel) that unfold a slider on click. The
-//! caller supplies the range, value, severity, and message mapping; committing
-//! the write is the caller's concern.
-//!
-//! The whole face — rail, handle, and the hollow ghost — is drawn on a canvas;
-//! the built-in `slider` underneath is made fully transparent and kept only for
-//! pointer input. Drawing it ourselves lets the rail be *omitted* across the
-//! ghost knob (rather than showing through a transparent ring) and lets the
-//! handle grow while dragging. `ghost` marks the value last *confirmed* on disk
-//! / in the OS, so the user can watch the write land while the handle leads.
-
 use std::ops::RangeInclusive;
 
 use iced::{
@@ -24,21 +11,11 @@ use crate::{
     data::source::{Level, level_color},
 };
 
-/// Handle/ghost radius at rest, and the larger handle radius while dragging.
 const KNOB_RADIUS: f32 = 5.0;
 const KNOB_RADIUS_DRAG: f32 = 7.0;
-/// Horizontal inset of a knob centre from each end, sized to the largest knob
-/// so nothing is clipped at the extremes. Shared by handle and ghost so they
-/// track the same geometry.
 const EDGE_INSET: f32 = KNOB_RADIUS_DRAG;
-/// Rail thickness.
 const RAIL_WIDTH: f32 = 4.0;
 
-/// A severity-accented slider over `range`, stepping by `step`, emitting
-/// `on_change` while dragging and `on_release` when let go. The accent is the
-/// palette's `focus` at [`Level::Ok`], else its warning/urgent tint. When
-/// `ghost` is `Some`, a hollow marker trails at the last-confirmed value and
-/// the handle grows to signal the active drag.
 #[allow(clippy::too_many_arguments)]
 pub fn inline_slider<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
@@ -61,8 +38,6 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         accent,
         track: config.palette.bar_foreground.scale_alpha(0.25),
     };
-    // The transparent slider is *always* stacked under the same face so the
-    // widget tree never changes shape mid-drag (which would reset its drag state).
     stack![
         interaction_slider(config, range, value, step, on_change, on_release),
         canvas(face)
@@ -72,8 +47,6 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     .into()
 }
 
-/// The built-in slider stripped to nothing visible: it exists only to own the
-/// press/drag/release interaction; all pixels come from [`SliderFace`].
 fn interaction_slider<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     range: RangeInclusive<f32>,
@@ -103,9 +76,6 @@ fn interaction_slider<'a, Message: Clone + 'a>(
         })
 }
 
-/// The full slider face: the rail (accent up to the handle, dim track beyond),
-/// the solid handle at `value`, and a hollow ghost ring at the confirmed value.
-/// The rail is omitted across the ghost so no line shows through its centre.
 struct SliderFace {
     range: RangeInclusive<f32>,
     value: f32,
@@ -138,18 +108,13 @@ impl<Message> canvas::Program<Message> for SliderFace {
 
         let rail_y = bounds.height / 2.0;
         let handle_x = centre(self.value);
-        // The filled rail ends at the confirmed value (the lagging ghost); the
-        // stretch from there to the handle is pending, so it reads as empty.
         let fill_x = centre(self.ghost.unwrap_or(self.value));
-        // The rail is cut where the hollow ghost sits, so nothing shows through it.
         let gap = self
             .ghost
             .map(|g| (centre(g) - KNOB_RADIUS, centre(g) + KNOB_RADIUS));
 
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
-        // Rail: accent up to the confirmed value, dim track beyond — each span cut
-        // where the hollow ghost sits.
         [
             (0.0, fill_x, self.accent),
             (fill_x, bounds.width, self.track),
@@ -164,7 +129,6 @@ impl<Message> canvas::Program<Message> for SliderFace {
             );
         });
 
-        // Hollow ghost ring at the confirmed value, shown only while interacting.
         if let Some(ghost) = self.ghost {
             frame.stroke(
                 &canvas::Path::circle(Point::new(centre(ghost), rail_y), KNOB_RADIUS),
@@ -174,7 +138,6 @@ impl<Message> canvas::Program<Message> for SliderFace {
             );
         }
 
-        // Solid handle at the finger, larger while dragging.
         let handle_radius = if self.ghost.is_some() {
             KNOB_RADIUS_DRAG
         } else {
@@ -189,9 +152,6 @@ impl<Message> canvas::Program<Message> for SliderFace {
     }
 }
 
-/// The non-empty sub-intervals of `[from, to]` with `gap` removed — used to
-/// omit the rail across the ghost knob. With no gap the interval passes through
-/// whole.
 fn without_gap(from: f32, to: f32, gap: Option<(f32, f32)>) -> impl Iterator<Item = (f32, f32)> {
     let (g0, g1) = gap.unwrap_or((f32::INFINITY, f32::INFINITY));
     [(from, to.min(g0)), (from.max(g1), to)]

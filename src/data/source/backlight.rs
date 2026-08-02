@@ -1,19 +1,3 @@
-//! Per-display hardware backlight over clightd's v1
-//! `org.clightd.clightd.Backlight` interface (system bus), which addresses each
-//! display individually by serial: internal panels appear under their
-//! `/sys/class/backlight/*` name, external DDC/CI monitors under their EDID
-//! serial. One backend covers both, and keeps clight's webcam auto-calibration
-//! in the loop.
-//!
-//! A manual set pauses clight auto-calibration first (see [`clight`]) so the
-//! webcam doesn't re-adjust the level. The list is dynamic (monitors come and
-//! go), so this polls a `Vec` on a long interval — DDC/i2c reads are ~1 s and
-//! flaky, so the UI leans on optimistic slider state between polls. Software
-//! gamma dimming lives in [`gamma`](crate::data::source::gamma), a different
-//! mechanism.
-//!
-//! [`clight`]: crate::data::source::clight
-
 use std::{collections::HashSet, fs, time::Duration};
 
 use iced::Subscription;
@@ -52,18 +36,14 @@ struct Smooth {
     timeout: u32,
 }
 
-/// How a display's backlight is driven, for the icon and tooltip.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
-    /// A built-in panel (a `/sys/class/backlight` device).
     Internal,
-    /// An external monitor driven over DDC/CI.
     External,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Backlight {
-    /// clightd's identifier: sysfs name (internal) or EDID serial (external).
     pub serial: String,
     pub kind: Kind,
     pub percent: i64,
@@ -103,17 +83,12 @@ impl BarWidget for Backlight {
     }
 }
 
-/// Re-poll cadence. Long, because DDC/i2c reads are slow and flaky; the
-/// slider's optimistic [`Tracked`](crate::widgets::tracked::Tracked) state
-/// covers the gap.
 const INTERVAL: Duration = Duration::from_secs(10);
 
 pub fn subscription() -> Subscription<Vec<Backlight>> {
     poll_every("backlight", INTERVAL, poll_all)
 }
 
-/// Every backlight clightd manages, classified and sorted by serial for a
-/// stable slider order. Empty when clightd is unavailable.
 pub fn poll_all() -> Vec<Backlight> {
     let Ok(connection) = Connection::system() else {
         return Vec::new();
@@ -146,8 +121,6 @@ pub fn poll_all() -> Vec<Backlight> {
     list
 }
 
-/// `/sys/class/backlight` device names — clightd reports internal panels under
-/// these, so anything else it lists is an external DDC monitor.
 fn internal_names() -> HashSet<String> {
     fs::read_dir("/sys/class/backlight")
         .into_iter()
@@ -157,17 +130,12 @@ fn internal_names() -> HashSet<String> {
         .collect()
 }
 
-/// Set one display (by serial) to `percent`, pausing clight auto-calibration
-/// first so the webcam doesn't fight the change. Returns clightd's success
-/// flag.
 pub fn set(serial: &str, percent: i64) -> bool {
     let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
     clight::pause_auto_calib();
     clightd_set(serial, frac)
 }
 
-/// Freeze every display at its current level (re-set through clightd), aborting
-/// an in-flight clight ramp when switching to manual.
 pub fn halt_ramp() {
     for Backlight {
         serial, percent, ..
@@ -178,8 +146,6 @@ pub fn halt_ramp() {
     }
 }
 
-/// clightd v1 `Set(target, (smooth, step, timeout), serial) -> ok`; instant
-/// (no smoothing) so the slider lands immediately.
 fn clightd_set(serial: &str, frac: f64) -> bool {
     let Ok(connection) = Connection::system() else {
         return false;

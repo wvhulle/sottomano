@@ -9,11 +9,6 @@ use iced::{
     mouse::Cursor,
 };
 
-/// Horizontally reveals `content`, clipped to `fraction` (0..1) of its natural
-/// width — the width growth half of odin's `MenuGroup` expand. Stateless: the
-/// caller animates `fraction` and re-renders; this measures the child at its
-/// full width every layout and clips the overflow, so the reveal is pixel-exact
-/// without measuring back into application state.
 pub fn reveal_x<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
@@ -29,12 +24,6 @@ struct RevealX<'a, Message> {
     fraction: f32,
 }
 
-/// Hide the cursor from the child whenever it sits over the clipped-away width.
-/// `layout` reports only `fraction` of the child's natural width, but the child
-/// node keeps its full width, so widgets in the not-yet-revealed remainder
-/// would otherwise still see the cursor as `is_over` and react (e.g. open a
-/// tooltip). Reporting `Unavailable` past the visible edge keeps interaction in
-/// step with what `draw` actually shows.
 pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
     match cursor.position() {
         Some(position) if (visible.x..=visible.x + visible.width).contains(&position.x) => cursor,
@@ -64,9 +53,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        // Measure the child at its natural width (unbounded main axis), then
-        // report only `fraction` of it. The child node keeps its full width at
-        // local x = 0, overflowing to the right where `draw` clips it.
         let natural_limits = Limits::new(Size::ZERO, Size::new(f32::INFINITY, limits.max().height));
         let child = self
             .content
@@ -89,8 +75,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        // Clip only horizontally — hide the not-yet-revealed width, but never
-        // trim a child that is taller than the row (e.g. a slider knob).
         let bounds = layout.bounds();
         let clip = Rectangle {
             x: bounds.x,
@@ -174,8 +158,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
-        // An overlay from a not-yet-revealed child (past the clipped edge) would
-        // otherwise pop up detached from anything visible.
         if self.fraction <= 0.0 {
             return None;
         }

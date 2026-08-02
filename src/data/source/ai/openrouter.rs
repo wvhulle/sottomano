@@ -1,11 +1,3 @@
-//! `OpenRouter` spend & credits, ported from odin's `openrouter-usage.nu`.
-//!
-//! Spend is aggregated since **local** midnight (not a rolling 24 h, not UTC
-//! midnight) via `POST /analytics/query`, which — unlike `GET /activity` (only
-//! completed UTC days) or `GET /key` (UTC midnight, no per-model breakdown) —
-//! accepts an arbitrary `time_range` and groups by model. The key is a
-//! **management** key: a plain API key can't reach `/analytics/query`.
-
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{Local, SecondsFormat, TimeZone, Utc};
@@ -23,10 +15,8 @@ const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenRouter {
-    /// Set when a request failed; rendered as odin's `?`/critical error pill.
     error: Option<String>,
     spend: f64,
-    /// `(short model name, cost)`, highest first.
     models: Vec<(String, f64)>,
     credits: Option<Credits>,
 }

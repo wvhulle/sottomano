@@ -1,13 +1,11 @@
-//! Disk usage on `/`, read via `statvfs(2)`.
-
 use std::{ffi::CStr, mem::zeroed, time::Duration};
 
 use super::{BarWidget, Level, Source, TooltipBody, Unit, Value, row};
 use crate::data::source::{Glyph, font_awesome::Solid};
 
 const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
-const FREE_WARN_BYTES: u64 = 100_000_000_000; // 100 GB
-const FREE_CRITICAL_BYTES: u64 = 2_000_000_000; // 2 GB
+const FREE_WARN_BYTES: u64 = 100_000_000_000;
+const FREE_CRITICAL_BYTES: u64 = 2_000_000_000;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Disk {
@@ -63,8 +61,6 @@ impl Source for Disk {
 
     fn poll() -> Option<Self> {
         let path = CStr::from_bytes_with_nul(b"/\0").ok()?;
-        // SAFETY: `stat` is zeroed then filled by `statvfs`; we read it only on success
-        // (0).
         let mut stat = unsafe { zeroed::<libc::statvfs>() };
         let rc = unsafe { libc::statvfs(path.as_ptr(), &raw mut stat) };
         if rc != 0 {

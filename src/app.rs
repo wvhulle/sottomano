@@ -1,6 +1,3 @@
-//! The bar application: a multi-output daemon with one layer-shell surface per
-//! output/edge.
-
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
@@ -79,27 +76,15 @@ pub struct Bar {
     pub(crate) tray_group: TrayGroup,
     pub(crate) tray_menu: TrayMenuHost,
     pub(crate) window_group: WindowGroup,
-    /// In-memory launch-frequency model feeding quick-launch, persisted to disk
-    /// by [`state::launches`].
     pub(crate) launch_tracker: LaunchTracker,
     pub(crate) niri: EventStreamState,
-    /// Bar-facing derivation of `niri`, recomputed once per niri event so
-    /// `view` reads borrowed slices instead of re-collecting per redraw.
     pub(crate) niri_snapshot: niri::Snapshot,
-    /// Per-output logical geometry, from a niri `Outputs` query — general
-    /// compositor state (currently read by notification placement to centre a
-    /// stack against the screen, available to any future consumer).
     pub(crate) outputs: HashMap<String, niri::OutputGeometry>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
-    /// The off-screen shadow-caster window ids (one per bar edge when
-    /// `layout.shadow` is on). They carry no state — the view just renders each
-    /// as an opaque fill so niri casts its edge shadow.
     pub(crate) backdrops: HashSet<Id>,
     pub(crate) blur_casters: BlurCasters,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
-    /// The shared `.desktop` index (app metadata + icon resolution), consumed
-    /// by both the window list and the notification cards.
     pub(crate) desktop_entries: DesktopIndex,
 }
 
@@ -119,21 +104,15 @@ pub enum Message {
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
-    /// The in-process idle daemon connected to wayland.
     Idle(IdleEvent),
-    /// Persisted panel settings finished loading from the sqlite store.
     PanelLoaded(state::panel::PanelSettings),
     SoundThemeLoaded(Option<String>),
     Audio(AudioMessage),
     PowerProfile(PowerProfileMessage),
     Ai(AiMessage),
     WindowGroup(WindowGroupMessage),
-    /// The persisted launch-frequency model finished loading from disk.
     TrackerLoaded(Buckets),
-    /// The shared `.desktop` index finished (re)loading.
     DesktopEntriesLoaded(Arc<DesktopEntries>),
-    /// An off-thread icon-resolve pass finished; merged into the app-wide
-    /// cache on [`Bar::desktop_entries`].
     IconsResolved(ResolvedIcons),
     DismissPressed,
     WorkspaceClicked {
@@ -141,23 +120,12 @@ pub enum Message {
         is_active: bool,
     },
     Niri(Vec<niri_ipc::Event>),
-    /// A periodic repaint while a menu animates (from the frame-timer
-    /// subscription gated on [`Bar::any_menu_animating`]); its handler does
-    /// nothing but trigger a redraw, and `MenuGroup::reveal` re-samples the
-    /// eased curve at the current instant.
     Redraw,
     WindowClosed(Id),
-    /// The pointer left a surface — closes any open tooltip that no `HoverArea`
-    /// exit reached (the cursor left the bar without entering another
-    /// hoverable).
     PointerLeft,
-    /// 1 Hz tick, live only while a Log tooltip is shown, to advance its
-    /// relative timestamps.
     TooltipTick,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
-    /// The connected outputs' logical geometry arrived from a niri `Outputs`
-    /// query (at boot and on output connect).
     OutputsResolved(HashMap<String, niri::OutputGeometry>),
     ReloadDesktopEntries,
     PillBounds {
@@ -220,8 +188,6 @@ impl Bar {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
-                // Re-query output sizes too: a new output changes where a centred
-                // notification stack lands.
                 Task::batch([self.open_bars(&name), query_outputs()])
             }
             Message::WindowGroup(msg) => match self.window_group.update(msg) {
@@ -283,10 +249,7 @@ impl Bar {
                 self.config.sound = !self.config.sound;
                 Task::future(state::panel::save_sound(self.config.sound)).discard()
             }
-            Message::Journal(msg) => {
-                self.journal_group.update(msg);
-                Task::none()
-            }
+            Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
             Message::NetInterfaces(msg) => {
                 self.net_interfaces_group.update(msg);
                 Task::none()
@@ -402,8 +365,6 @@ impl Bar {
             } => self
                 .blur_casters
                 .pill_rects(window, zone, &rects, &self.config, &self.surfaces),
-            // A source with empty content suppresses its tooltip (odin drops
-            // `{}`); the emptiness is decided here against the live reading.
             Message::Tooltip(TooltipMessage::Enter {
                 surface,
                 target,
@@ -423,9 +384,6 @@ impl Bar {
                 }
             }
             Message::Tooltip(msg) => self.tooltip.update(msg, &self.config),
-            // The pointer left a surface without crossing another hoverable (e.g.
-            // straight off the bar edge), so no `HoverArea` fired its exit; close
-            // any open tooltip so it can't strand.
             Message::PointerLeft => self.tooltip.close(),
             Message::Notification(msg) => {
                 let placement = niri::Placement::derive(&self.niri);
@@ -439,18 +397,11 @@ impl Bar {
             }
             Message::OutputsResolved(outputs) => {
                 self.outputs = outputs;
-                // Re-place existing toasts now the screen size is known.
                 let placement = niri::Placement::derive(&self.niri);
                 self.notifications
                     .on_niri_changed(&placement, &self.outputs, &self.config)
             }
-            // Both need only a repaint: `Redraw` drives a niri-triggered menu
-            // collapse frame; `TooltipTick` lets the tooltip view re-derive and
-            // re-format its relative times.
             Message::Redraw | Message::TooltipTick => Task::none(),
-            // Disconnected outputs are handled via the WindowClosed each
-            // surface receives; the rest are layer-shell actions the runtime
-            // intercepts before update.
             Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
             | Message::AnchorChange { .. }
             | Message::SetInputRegion { .. }
@@ -471,14 +422,7 @@ impl Bar {
         }
     }
 
-    /// Live content for a hovered widget, resolved by asking each group to
-    /// interpret the `target` it emitted (foreign targets yield `None`). Called
-    /// only while a tooltip surface is shown, so nothing is computed when no
-    /// tooltip is open. An unresolved or absent reading yields an empty
-    /// tooltip.
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
-        // The tray carries its own content in the target (it is static, not a
-        // live reading), so it resolves here without a group lookup.
         if let HoverTarget::Tray(tooltip) = target {
             return (**tooltip).clone();
         }
@@ -499,9 +443,6 @@ impl Bar {
             .unwrap_or_else(Tooltip::empty)
     }
 
-    /// Whether the open tooltip (if any) has live relative time — a refresh
-    /// footer or a [`TooltipBody::Log`] — to gate the 1 Hz tick that advances
-    /// it.
     pub fn tooltip_has_relative_time(&self) -> bool {
         self.tooltip.target().is_some_and(|target| {
             let tooltip = self.tooltip_for(target);
@@ -509,11 +450,6 @@ impl Bar {
         })
     }
 
-    /// Open the context menu for the tray item at visible-row `index`, anchored
-    /// under its icon. Re-clicking the same item closes it. The icon is hovered
-    /// when right-clicked, so its tooltip anchor gives the placement (no
-    /// separate bounds-tracking widget needed). A no-op for an item with no
-    /// menu.
     fn open_tray_menu(&mut self, index: usize) -> Task<Message> {
         let (address, menu_path, nodes) = {
             let visible = self.tray_group.visible(&self.config);
@@ -538,8 +474,6 @@ impl Bar {
         ])
     }
 
-    /// The expandable groups' menus, in one place, for the cross-group reads
-    /// below.
     fn menus(&self) -> [&MenuGroup; 11] {
         [
             &self.clock_group.menu,
@@ -556,17 +490,10 @@ impl Bar {
         ]
     }
 
-    /// Whether any group's expand curve is in flight — gates the frame-timer
-    /// subscription that paints menu animations. Under layer-shell a widget
-    /// can't self-drive redraws from a subscription-triggered state change,
-    /// so this app-level signal drives the frames instead.
     pub fn any_menu_animating(&self) -> bool {
         self.menus().iter().any(|menu| menu.is_animating())
     }
 
-    /// Collapse every open expandable group. Close-tasks are discarded —
-    /// closing only mutates menu state (and, for idle/panel-settings, tears
-    /// down a child slider); none needs a follow-up Task.
     fn dismiss_menus(&mut self) {
         self.panel_settings_group
             .update(PanelSettingsMessage::Menu(MenuMessage::Close));
@@ -597,11 +524,6 @@ impl Bar {
         self.ai_group.update(AiMessage::Menu(MenuMessage::Close));
     }
 
-    /// Apply a coalesced burst of niri events as one update: fold every event
-    /// into niri state, then derive and refresh **once**. A single focus/
-    /// workspace action emits 3-4 events, so per-event re-derivation (each an
-    /// O(all-windows) rebuild) was multiplying UI-thread work and stalling the
-    /// menu-close repaint.
     fn apply_niri_events(&mut self, events: Vec<niri_ipc::Event>) -> Task<Message> {
         let mut window_change = false;
         let mut workspace_change = false;
@@ -614,26 +536,18 @@ impl Bar {
                     | niri_ipc::Event::WindowOpenedOrChanged { .. }
                     | niri_ipc::Event::WindowClosed { .. }
             );
-            // The active-workspace change and the open-app-set change are exactly
-            // when quick-launch's ranking can change.
             workspace_change |= matches!(
                 event,
                 niri_ipc::Event::WorkspacesChanged { .. }
                     | niri_ipc::Event::WorkspaceActivated { .. }
             );
             focus_change |= matches!(event, niri_ipc::Event::WindowFocusChanged { .. });
-            // Fold the event into the launch tracker before it is consumed; a
-            // counted launch is persisted to disk (fire-and-forget).
             if let Some(delta) = self.launch_tracker.observe(&event) {
                 tasks.push(Task::future(state::launches::record(delta)).discard());
             }
             let _ = self.niri.apply(event);
         }
         self.niri_snapshot = niri::Snapshot::derive(&self.niri);
-        // Focus moving to another window (or to nothing) means the user left the
-        // bar — dismiss any open menu group. Gated to the focus event alone:
-        // window title/property churn must not collapse an open menu. The bar
-        // never takes keyboard focus, so opening a menu cannot self-trigger this.
         if focus_change {
             self.dismiss_menus();
             tasks.push(self.tray_menu.close());
@@ -648,10 +562,6 @@ impl Bar {
         if window_change || workspace_change {
             tasks.push(self.refresh_quick_launch());
         }
-        // Toast placement is only needed while toasts are up — a niri change can
-        // move a toast's corner or re-home it. Derived on demand here (and at the
-        // other notification sites), never cached, so a bare focus change pays
-        // nothing for it.
         if self.notifications.is_active() {
             let placement = niri::Placement::derive(&self.niri);
             tasks.push(
@@ -662,11 +572,6 @@ impl Bar {
         Task::batch(tasks)
     }
 
-    /// Re-rank quick-launch for every open output from the in-memory tracker:
-    /// for each distinct output (a top and bottom surface share one), rank its
-    /// active workspace's candidates against the currently-open set, gated to
-    /// launchable apps. Cheap and synchronous; the ranked icons resolve through
-    /// the shared cache. A no-op until the `.desktop` index has loaded.
     fn refresh_quick_launch(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
@@ -706,10 +611,6 @@ impl Bar {
             .map(Message::IconsResolved)
     }
 
-    /// The config-mutating knobs are intercepted here rather than handled in
-    /// the panel-settings group: the config and the open-surface table (needed
-    /// to re-margin open surfaces) both belong to the application. Everything
-    /// else is the group's own menu state.
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
         match msg {
             PanelSettingsMessage::ToggleFloating => {
@@ -777,9 +678,6 @@ impl Bar {
         }
     }
 
-    /// Re-issue each open surface's margin from the current floating/offset
-    /// config — the live counterpart of the margin applied when a surface is
-    /// first opened.
     fn remargin_surfaces(&self) -> Task<Message> {
         let offset = if self.config.layout.floating {
             self.config.float_offset_px as i32
@@ -822,9 +720,6 @@ impl Bar {
         Task::done(Message::NewLayerShell { settings, id })
     }
 
-    /// Open both bar strips for a new output, plus the two shadow casters when
-    /// `layout.shadow` is on (the casters exist only to bloom niri's gradient
-    /// drop-shadow onto the screen edge for text legibility).
     fn open_bars(&mut self, output: &str) -> Task<Message> {
         let mut opens: Vec<Task<Message>> = Position::ALL
             .into_iter()
@@ -840,12 +735,7 @@ impl Bar {
         Task::batch(opens)
     }
 
-    /// Route a window to the layer it draws: a hover tooltip, the tray context
-    /// menu, a notification toast, or — falling through — the bar strip (or its
-    /// off-screen shadow backdrop).
     pub fn view(&self, window: Id) -> Element<'_, Message> {
-        // The tooltip surface derives its content live from the hovered target,
-        // so it always tracks the reading and costs nothing while unhovered.
         if let Some(target) = self.tooltip.target_for(window) {
             return crate::wayland_layers::tooltip::panel_surface(
                 window,
@@ -870,8 +760,6 @@ impl Bar {
     }
 }
 
-/// Query niri for the connected outputs' logical geometry off-thread, into the
-/// app's shared output registry.
 fn query_outputs() -> Task<Message> {
     blocking("niri outputs", niri::output_geometry).map(Message::OutputsResolved)
 }

@@ -1,7 +1,3 @@
-//! Idle-timeout persistence: one row of the four subsystems' absolute timeouts
-//! (seconds, `NULL` = disabled). vetrata owns this state now — the idle daemon
-//! runs in-process reading from here — replacing idle-manager's `state.toml`.
-
 use std::time::Duration;
 
 use crate::state::{BoxError, open};
@@ -22,7 +18,6 @@ pub struct Timeouts {
     pub power_down: Option<Duration>,
 }
 
-/// Load the saved timeouts, degrading to all-disabled on any error.
 pub async fn load() -> Timeouts {
     match try_load().await {
         Ok(timeouts) => timeouts,
@@ -33,9 +28,6 @@ pub async fn load() -> Timeouts {
     }
 }
 
-/// Persist the whole set (one row).
-/// Persist the timeouts, reporting whether the write succeeded so a caller can
-/// confirm the value actually landed.
 pub async fn save(timeouts: Timeouts) -> bool {
     match try_save(timeouts).await {
         Ok(()) => true,

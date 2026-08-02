@@ -1,7 +1,3 @@
-//! odin's `Audio`: default sink and source volume, each a [`SliderControl`]
-//! that owns its expansion + poll/write reconciliation. The group holds the
-//! two, addresses them by [`ControlKind`], and runs the wpctl writes.
-
 use std::ops::RangeInclusive;
 
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
@@ -15,8 +11,14 @@ use crate::{
         row,
     },
     message_subscriptions::blocking,
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage},
-    widgets::slider_control::{Action, ControlMessage, SliderControl},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage},
+    },
+    widgets::{
+        pager_slot::permanently_inactive_slot,
+        slider_control::{Action, ControlMessage, SliderControl},
+    },
 };
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
@@ -157,7 +159,11 @@ impl AudioGroup {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, AudioMessage>> {
+    pub fn view<'a>(
+        &self,
+        config: &ResolvedConfig,
+        position: Position,
+    ) -> Option<Element<'a, AudioMessage>> {
         let source = self.source.as_ref().map(|_| {
             self.source_control
                 .view(config, 1.0)
@@ -174,12 +180,14 @@ impl AudioGroup {
         if widgets.is_empty() {
             return None;
         }
-        Some(
+        Some(permanently_inactive_slot(
             Row::with_children(widgets)
                 .spacing(config.layout.horizontal_widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
-        )
+            config,
+            position,
+        ))
     }
 }
 
@@ -226,9 +234,6 @@ fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
     }
 }
 
-/// Test hook: `VETRATA_SLOW_WRITE_MS` blocks the volume write for that many
-/// milliseconds, so the slider's confirmation-driven ghost can be exercised
-/// against a slow write. Runs on the blocking pool, so the UI stays responsive.
 fn slow_write_delay() {
     if let Ok(raw) = std::env::var("VETRATA_SLOW_WRITE_MS")
         && let Ok(ms) = raw.parse::<u64>()

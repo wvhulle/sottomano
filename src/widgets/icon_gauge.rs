@@ -56,9 +56,6 @@ pub fn source_reading<'a, Message: 'a>(
     Some(badged(config, reading, widget.badge(), color))
 }
 
-/// Attach a superscript count to a reading (odin's `badge`), top-aligned to the
-/// right so it rides above the glyph's baseline. `None` or `0` leaves the
-/// reading untouched.
 fn badged<'a, Message: 'a>(
     config: &ResolvedConfig,
     reading: Element<'a, Message>,
@@ -80,10 +77,6 @@ fn badged<'a, Message: 'a>(
     }
 }
 
-/// odin's `PercentGauge`: a thin vertical fill bar for a 0..100 value. A faint
-/// full-height track keeps the frame visible; a solid bar fills from the bottom
-/// in proportion. Height matches the icon size so it lines up with the
-/// Font Awesome icon beside it.
 fn gauge<'a, Message: 'a>(percent: i64, color: Color, height: f32) -> Element<'a, Message> {
     let fill_height = height * (percent as f32 / 100.0).clamp(0.0, 1.0);
     let track_height = height - fill_height;

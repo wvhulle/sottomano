@@ -1,9 +1,3 @@
-//! odin's `WidgetGroup/AiUsage.qml`: a robot-glyph handle that unfolds a row of
-//! AI-provider usage/spend pills to its right. Each pill is one
-//! [`ApiSource`](crate::data::source::ai) reading, polled with its own secret
-//! file path. The whole group hides until at least one provider has something
-//! to show.
-
 use iced::{
     Alignment, Element, Subscription,
     widget::{Row, mouse_area},

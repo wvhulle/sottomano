@@ -1,9 +1,3 @@
-//! Weather sources, ported from odin's `weather-*.nu` / `pollen.nu`: current
-//! temperature (Open-Meteo), current rain (Buienradar nowcast), and birch/grass
-//! pollen (Open-Meteo air quality). All resolve coordinates from
-//! [`Geo`](crate::data::source::geolocation::Geo) and fetch over HTTP via
-//! `curl`. odin's forecast-chart popup is not ported.
-
 use std::time::Duration;
 
 use serde_json::Value as Json;
@@ -21,7 +15,6 @@ struct Wmo {
     description: &'static str,
 }
 
-/// A WMO weather code to an icon and description (odin's `wmo-decode`).
 fn wmo(code: i64) -> Wmo {
     let (icon, description) = match code {
         0 => (Solid::Sun.into(), "Clear sky"),
@@ -48,8 +41,6 @@ fn round_i(json: Option<&Json>) -> Option<i64> {
     #[allow(clippy::cast_possible_truncation)]
     json.and_then(Json::as_f64).map(|v| v.round() as i64)
 }
-
-// ── current temperature (the group handle) ──────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
@@ -112,7 +103,6 @@ impl Source for Temperature {
             "https://api.open-meteo.com/v1/forecast?{}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
             geo.query()
         );
-        // Keep the handle present (so the group shows) even when the fetch fails.
         let unavailable = Temperature {
             icon: Solid::CloudSun.into(),
             conditions: "Unknown",
@@ -156,15 +146,12 @@ impl Source for Temperature {
     }
 }
 
-// ── current rain (Buienradar nowcast) ───────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rain {
     icon: FontAwesome,
     mm_per_h: f64,
 }
 
-/// Buienradar intensity byte (0..255) to mm/h.
 fn buienradar_mm(value: f64) -> f64 {
     if value > 0.0 {
         10f64.powf((value - 109.0) / 32.0)
@@ -199,13 +186,11 @@ impl Source for Rain {
             geo.latitude, geo.longitude
         );
         let body = http_get(&url, 5)?;
-        // Each line is `value|HH:MM`; the next 60 min is the first 12 lines.
         let intensities: Vec<f64> = body
             .lines()
             .take(12)
             .filter_map(|line| line.split('|').next()?.trim().parse::<f64>().ok())
             .collect();
-        // Hidden unless it is raining somewhere in the window (odin drops it).
         if intensities.is_empty() || !intensities.iter().any(|v| *v > 77.0) {
             return None;
         }
@@ -223,8 +208,6 @@ impl Source for Rain {
     }
 }
 
-// ── pollen (Open-Meteo air quality) ─────────────────────────────────────────
-
 const SPECIES: [(&str, &str); 6] = [
     ("alder_pollen", "Alder"),
     ("birch_pollen", "Birch"),
@@ -234,17 +217,13 @@ const SPECIES: [(&str, &str); 6] = [
     ("ragweed_pollen", "Ragweed"),
 ];
 
-/// Grass vs the other tree species (birch): different icon, thresholds, and
-/// cap.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pollen<const GRASS: bool> {
     value: f64,
-    /// All six species' current values, for the tooltip.
     all: Vec<(&'static str, f64)>,
 }
 
 impl<const GRASS: bool> Pollen<GRASS> {
-    /// `[moderate, high, very-high]` grains/m³ thresholds.
     const fn thresholds() -> [f64; 3] {
         if GRASS {
             [20.0, 50.0, 80.0]
@@ -283,7 +262,6 @@ impl<const GRASS: bool> BarWidget for Pollen<GRASS> {
     }
 
     fn value(&self) -> Option<Value> {
-        // Log-scaled fill between 1 grain and the very-high cap.
         let cap = Self::thresholds()[2];
         let percent = if self.value < 1.0 {
             0
@@ -341,15 +319,12 @@ impl<const GRASS: bool> Source for Pollen<GRASS> {
             .get(Self::key())
             .and_then(Json::as_f64)
             .unwrap_or(0.0);
-        // Hidden when this species is absent (odin drops it).
         if value <= 0.0 {
             return None;
         }
         Some(Pollen { value, all })
     }
 }
-
-// ── location pin ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {

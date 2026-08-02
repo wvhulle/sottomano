@@ -1,10 +1,3 @@
-//! A stateful icon toggle (odin's `CommandIndicator`): an icon reflecting a
-//! polled boolean source that flips it on click. The widget owns its reading,
-//! its refresh subscription, the optimistic flip shown until the next poll, the
-//! click command, and its own view — so a group composing it carries no
-//! toggle-specific logic. Reused for clight auto-brightness and umbra
-//! dark-mode.
-
 use iced::{Element, Subscription, Task, widget::mouse_area};
 
 use crate::{
@@ -16,23 +9,13 @@ use crate::{
     widgets::icon_gauge::source_reading,
 };
 
-/// A [`Source`] whose click action and next state the widget can drive itself:
-/// [`toggled`](Toggle::toggled) predicts the optimistic frame, [`toggle`] runs
-/// the side effect (D-Bus / CLI) off-thread.
-///
-/// [`toggle`]: Toggle::toggle
 pub trait Toggle: Source + Clone {
-    /// The predicted state right after a click, shown until the next poll
-    /// lands.
     fn toggled(&self) -> Self;
-    /// Run the toggle side effect; `true` on success.
     fn toggle() -> bool;
 }
 
 pub struct ToggleControl<S> {
     cell: SourceCell<S>,
-    /// Optimistic override shown from click until the next reading reconciles
-    /// it.
     pending: Option<S>,
 }
 
@@ -65,7 +48,6 @@ impl<S: Toggle + Send + 'static> ToggleControl<S> {
                 Task::none()
             }
             ToggleMessage::Press => {
-                // Flip optimistically for instant feedback; the next poll reconciles.
                 self.pending = self.cell.get().map(S::toggled);
                 blocking(S::NAME, S::toggle).discard()
             }
@@ -77,8 +59,6 @@ impl<S: Toggle + Send + 'static> ToggleControl<S> {
         &self.cell
     }
 
-    /// The toggle's icon (optimistic state preferred), hover-tooltipped and
-    /// clickable. `None` until the first reading — an absent source hides it.
     pub fn view<'a>(
         &self,
         config: &ResolvedConfig,

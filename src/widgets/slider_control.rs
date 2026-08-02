@@ -1,14 +1,3 @@
-//! An icon that expands to an inline slider on click, shared by every
-//! write-back control (audio, idle, panel). It owns the expansion, the scroll
-//! input, and — as a self-contained component — all of its own runtime state:
-//! the device reading, the muted flag, and the value model ([`Tracked`], which
-//! keeps the optimistic ghost). Callers feed those in through
-//! [`ControlMessage`] (never as `view` arguments), so
-//! [`view`](SliderControl::view) needs only the config and the parent reveal.
-//!
-//! The control is itself a [`BarWidget`], so its collapsed state renders
-//! through the shared [`source_reading`] without a throwaway widget.
-
 use std::ops::RangeInclusive;
 
 use iced::{
@@ -36,49 +25,26 @@ pub struct SliderControl {
     open: bool,
     accum: f32,
     value: Tracked,
-    /// Muted / inactive (fed via [`ControlMessage::Disabled`]) — dims the
-    /// collapsed reading.
     disabled: bool,
-    /// An externally-supplied collapsed-state label (fed via
-    /// [`ControlMessage::Caption`]) — for text that isn't a function of the
-    /// slider value, e.g. a power profile's estimated time remaining. Takes
-    /// precedence over the [`label`](Self::label) formatter.
     caption: Option<String>,
-    /// Static config, set once at construction (iced-style builder).
     range: RangeInclusive<f32>,
     scroll_step: f32,
     slider_step: f32,
     readout_width: f32,
-    /// Formats the open-state readout from the live value (e.g. `"80%"`,
-    /// `"5m"`). A non-capturing `fn` (not a generic or boxed closure) so
-    /// `SliderControl` stays a concrete type its holders can name without
-    /// becoming generic.
     readout: fn(f32) -> String,
-    /// The collapsed indicator drawn beside the icon. Default: a vertical gauge
-    /// (`gauge = true`); [`label`](Self::label) switches to text and clears the
-    /// gauge; [`icon_only`](Self::icon_only) leaves neither.
     gauge: bool,
     label: Option<fn(f32) -> String>,
-    /// The bar/menu icon. A static default plus an optional
-    /// value/disabled-driven override for the audio glyph (volume level,
-    /// mute).
     icon: FontAwesome,
     glyph: Option<fn(f32, bool) -> FontAwesome>,
-    /// Trip points tinting the rail and gauge (none = always [`Level::Ok`]).
     thresholds: SeverityThresholds,
     target: HoverTarget,
     right_click: bool,
 }
 
-/// Warning/urgent trip points and the direction that counts as worse. With no
-/// trip point set (the default), [`level`](Self::level) is always
-/// [`Level::Ok`].
 #[derive(Default)]
 struct SeverityThresholds {
     warn: Option<f32>,
     urgent: Option<f32>,
-    /// `true` = high values are the severe end (loud sink); `false` = low
-    /// values are (quiet mic, low battery).
     higher_worse: bool,
 }
 
@@ -109,19 +75,9 @@ pub enum ControlMessage {
     Scroll(ScrollDelta),
     Set(f32),
     Release,
-    /// A committed write returned: `value` is what was written, `ok` whether it
-    /// succeeded. Drives the ghost forward and may release the next write.
-    Confirmed {
-        value: f32,
-        ok: bool,
-    },
-    /// A fresh authoritative reading (poll / config), reconciled into the value
-    /// model — the write-side counterpart the group forwards on refresh.
+    Confirmed { value: f32, ok: bool },
     Reading(f32),
-    /// Muted / inactive state (e.g. an audio sink muted).
     Disabled(bool),
-    /// An external collapsed-state label (e.g. a power profile's time
-    /// estimate); `None` clears it.
     Caption(Option<String>),
     Right,
     Tooltip(TooltipMessage),
@@ -135,9 +91,6 @@ pub enum Action {
 }
 
 impl SliderControl {
-    /// A slider over `range` with the collapsed `icon`, emitting tooltips for
-    /// `target`. Defaults: one-unit scroll step, 40px readout, gauge indicator,
-    /// no thresholds, no right-click. Override via the builder methods.
     pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: FontAwesome) -> Self {
         Self {
             open: false,
@@ -160,37 +113,30 @@ impl SliderControl {
         }
     }
 
-    /// How the open-state readout is formatted from the live value (default:
-    /// the rounded number).
     #[must_use]
     pub fn readout(mut self, format: fn(f32) -> String) -> Self {
         self.readout = format;
         self
     }
 
-    /// Per-scroll-notch increment (default one unit).
     #[must_use]
     pub fn scroll_step(mut self, step: f32) -> Self {
         self.scroll_step = step;
         self
     }
 
-    /// Drag granularity of the inline slider (default one unit).
     #[must_use]
     pub fn slider_step(mut self, step: f32) -> Self {
         self.slider_step = step;
         self
     }
 
-    /// Width of the open-state readout label (default 40px).
     #[must_use]
     pub fn readout_width(mut self, width: f32) -> Self {
         self.readout_width = width;
         self
     }
 
-    /// Draw a text label (from the live value) as the collapsed indicator
-    /// instead of the default gauge.
     #[must_use]
     pub fn label(mut self, format: fn(f32) -> String) -> Self {
         self.label = Some(format);
@@ -198,24 +144,18 @@ impl SliderControl {
         self
     }
 
-    /// Draw neither gauge nor label — just the icon — when collapsed.
     #[must_use]
     pub fn icon_only(mut self) -> Self {
         self.gauge = false;
         self
     }
 
-    /// A value/disabled-driven glyph override (default: the static icon).
     #[must_use]
     pub fn glyph(mut self, glyph: fn(f32, bool) -> FontAwesome) -> Self {
         self.glyph = Some(glyph);
         self
     }
 
-    /// Tint the rail and gauge by severity: `warning` past `warn`, `urgent`
-    /// past `urgent`. `higher_worse` states the direction — `true` when
-    /// high values are the severe end (loud sink), `false` when low ones
-    /// are (quiet mic).
     #[must_use]
     pub fn thresholds(mut self, warn: f32, urgent: f32, higher_worse: bool) -> Self {
         self.thresholds = SeverityThresholds {
@@ -226,7 +166,6 @@ impl SliderControl {
         self
     }
 
-    /// Emit [`Action::Right`] on right-press (default off).
     #[must_use]
     pub fn right_click(mut self, on: bool) -> Self {
         self.right_click = on;
@@ -237,13 +176,10 @@ impl SliderControl {
         self.open = false;
     }
 
-    /// The merged display value: the optimistic drag over the last reading.
     pub fn current(&self) -> f32 {
         self.value.value()
     }
 
-    /// Severity of the current value against the trip points; `Ok` when none
-    /// are set.
     fn severity(&self) -> Level {
         self.thresholds.level(self.current())
     }
@@ -292,9 +228,6 @@ impl SliderControl {
         }
     }
 
-    /// The pill: the inline slider when open, else the collapsed reading (icon
-    /// + gauge/label) faded by `reveal` — the parent menu's render-time
-    /// expand sample, the one value not owned as state.
     pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, ControlMessage> {
         if self.open {
             let glyph = mouse_area(
@@ -369,8 +302,6 @@ impl BarWidget for SliderControl {
     }
 }
 
-// Consumes the `Write` by value: taking ownership is what discharges its
-// `must_use` write obligation.
 #[allow(clippy::needless_pass_by_value)]
 fn into_action(write: Option<Write>) -> Action {
     match write {

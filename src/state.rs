@@ -1,15 +1,3 @@
-//! vetrata's single on-disk state database — all persisted vetrata-owned state
-//! lives here, at `$XDG_STATE_HOME/vetrata/state.db`, backed by Turso
-//! (pure-Rust SQLite) via its local-file API.
-//!
-//! Everything vetrata itself remembers across runs goes through this one DB:
-//! quick-launch frequencies ([`launches`]), panel settings ([`panel`]), and
-//! idle-timeout preferences ([`idle`]). Read-only *user config*
-//! (`~/.config/vetrata.toml`) is separate and never written here. Every
-//! operation is async (Turso runs on the tokio runtime) and is issued as a
-//! fire-and-forget iced task off the render path; any error degrades to a
-//! default load / a skipped write, logged.
-
 pub mod idle;
 pub mod launches;
 pub mod panel;
@@ -21,9 +9,6 @@ use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-/// The one long-lived database, opened once. turso forbids concurrent use of a
-/// connection, so all access is serialized behind [`LOCK`]; rapid writes (e.g.
-/// scrolling an idle timeout) queue rather than racing.
 struct Store {
     connection: turso::Connection,
     _database: turso::Database,
@@ -32,9 +17,6 @@ struct Store {
 static STORE: OnceCell<Store> = OnceCell::const_new();
 static LOCK: Mutex<()> = Mutex::const_new(());
 
-/// An exclusive handle to the shared connection: holds the serialization guard
-/// for as long as it is alive and derefs to the connection, so a caller uses it
-/// like a plain `Connection` while access stays serialized.
 pub(crate) struct Handle {
     _guard: MutexGuard<'static, ()>,
     connection: turso::Connection,
@@ -48,8 +30,6 @@ impl Deref for Handle {
     }
 }
 
-/// Acquire the shared connection, opening the database (and creating every
-/// table) exactly once. Held exclusively until the returned handle is dropped.
 pub(crate) async fn open() -> Result<Handle, BoxError> {
     let guard = LOCK.lock().await;
     let store = STORE.get_or_try_init(build).await?;
@@ -81,7 +61,6 @@ async fn build() -> Result<Store, BoxError> {
     })
 }
 
-/// `$XDG_STATE_HOME/vetrata/state.db` (falling back to `~/.local/state`).
 fn db_path() -> Option<PathBuf> {
     let state = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)

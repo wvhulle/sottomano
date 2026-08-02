@@ -1,12 +1,3 @@
-//! Niri window list: the clickable per-window buttons, plus the icon and
-//! fallback-font pipelines that feed them.
-//!
-//! Resolution stays off the render path: every pipeline gathers its keys from
-//! the current niri window set and resolves them in a [`blocking`] task, so
-//! `view` only does map lookups. Each in-flight resolve carries an
-//! abort-on-drop handle; replacing it cancels the superseded task, so a stale
-//! result can never overwrite a newer map.
-
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -42,12 +33,6 @@ use crate::{
 
 const ICONS_BACKSTOP: Duration = Duration::from_secs(20);
 
-/// A resolved favicon ready to render: an iced handle built once from the blob,
-/// plus the blob itself so a re-poll that finds the same bytes can keep this
-/// same handle. Raster handles (`image::Handle::from_bytes`) get a fresh cache
-/// id on every construction, so rebuilding one every poll would re-upload the
-/// GPU texture; reusing the handle keeps the id — and thus the texture —
-/// stable.
 #[derive(Clone)]
 pub struct Favicon {
     bytes: Arc<[u8]>,
@@ -61,8 +46,6 @@ enum FaviconHandle {
 }
 
 impl Favicon {
-    /// Build the iced handle from the blob. Call once per distinct blob, not
-    /// per frame (see the type-level note).
     pub fn new(raw: RawFavicon) -> Self {
         let handle = match raw.kind {
             FaviconKind::Raster => {
@@ -76,8 +59,6 @@ impl Favicon {
         }
     }
 
-    /// Whether `raw` is byte-for-byte the favicon this was built from, so its
-    /// handle can be reused instead of rebuilt.
     pub fn is(&self, raw: &RawFavicon) -> bool {
         *self.bytes == *raw.bytes
     }
@@ -98,7 +79,6 @@ impl Favicon {
     }
 }
 
-/// Abort-on-drop handles for the in-flight resolves.
 #[derive(Default)]
 struct Resolves {
     favicons: Option<Handle>,
@@ -108,15 +88,8 @@ struct Resolves {
 #[derive(Default)]
 pub struct WindowList {
     favicons: HashMap<String, Favicon>,
-    /// Per-char fonts for glyphs the bar font lacks, resolved via fontconfig
-    /// off-thread; chars fontconfig has no answer for map to the bar font so
-    /// they are not re-queried.
     fallback_fonts: HashMap<char, Font>,
-    /// Caller-owned horizontal scroll offset for the overflowing window list.
     scroll: f32,
-    /// Item geometry the viewport last measured, used to fade items at the
-    /// overflowing edges (iced has no per-pixel alpha mask, so the fade is
-    /// baked per-item in `view`). See [`Metrics`].
     metrics: Metrics,
     resolves: Resolves,
 }
@@ -131,20 +104,13 @@ pub enum WindowListMessage {
     MetricsChanged(Metrics),
 }
 
-/// What the parent must do in response to an update; effects that need
-/// app-owned state (niri, the `.desktop` index) are described, not performed.
 pub enum Action {
     None,
-    /// Focus this niri window — the app owns the niri connection.
     FocusWindow(u64),
-    /// Re-run the icon/font resolves — the app owns the inputs and responds
-    /// by calling [`WindowList::refresh`].
     RefreshIcons,
 }
 
 impl WindowList {
-    /// Periodic backstop for the icon polls, in case a niri window-change event
-    /// was missed. The `.desktop`-index reload is driven by the app, not here.
     pub fn subscription() -> Subscription<WindowListMessage> {
         iced::time::every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed)
     }
@@ -153,9 +119,6 @@ impl WindowList {
         match msg {
             WindowListMessage::Clicked(window) => Action::FocusWindow(window),
             WindowListMessage::FaviconsLoaded(raw) => {
-                // Reuse the existing handle when a re-poll returns the same
-                // blob, so its GPU texture stays cached (raster handles get a
-                // fresh cache id on every rebuild — see `Favicon`).
                 let previous = std::mem::take(&mut self.favicons);
                 self.favicons = raw
                     .into_iter()
@@ -197,8 +160,6 @@ impl WindowList {
         ])
     }
 
-    /// Firefox favicons, read synchronously off-thread from Firefox's
-    /// history/favicon DBs, keyed by the brand-stripped page title.
     fn poll_favicons(&mut self, niri: &EventStreamState) -> Task<WindowListMessage> {
         let keys = favicons::firefox_keys(niri);
         let (task, handle) = blocking("favicons", move || favicons::resolve(keys))
@@ -208,8 +169,6 @@ impl WindowList {
         task
     }
 
-    /// Ask fontconfig (off-thread) which font to use for title glyphs the bar
-    /// font lacks, so `view` renders them from a plain map lookup.
     fn resolve_fallback_fonts(
         &mut self,
         niri: &EventStreamState,
@@ -255,9 +214,6 @@ impl WindowList {
             fallbacks: &self.fallback_fonts,
         };
         let focused_index = windows.iter().position(|win| win.is_focused);
-        // Fade each item by how close it sits to an overflowing edge (the
-        // viewport reports the geometry this reads from). Items in the visible
-        // core render fully opaque.
         let buttons = windows.iter().enumerate().map(|(i, win)| {
             let alpha = self.metrics.item_alpha(self.scroll, i);
             window_button(config, icons, win, position, alpha)
@@ -275,8 +231,6 @@ impl WindowList {
     }
 }
 
-/// The lookup maps a window button draws from, bundled so they thread through
-/// the per-button helpers as one cheap `Copy` handle.
 #[derive(Clone, Copy)]
 struct Icons<'a> {
     index: &'a DesktopIndex,
@@ -284,8 +238,6 @@ struct Icons<'a> {
     fallbacks: &'a HashMap<char, Font>,
 }
 
-/// One window's clickable button: its content (icon + title) laid over the
-/// focus underline, as a single element that focuses the window when pressed.
 fn window_button<'a>(
     config: &ResolvedConfig,
     icons: Icons<'a>,
@@ -301,10 +253,6 @@ fn window_button<'a>(
         .into()
 }
 
-/// Assemble a window's parsed title and icon into the button's content. This
-/// `match` is the per-app seam: each rule can arrange its pieces differently.
-/// They currently share one icon-beside-title layout, so a new app that wants a
-/// distinct arrangement gets its own arm here without disturbing the others.
 fn button_content<'a>(
     config: &ResolvedConfig,
     icons: Icons<'a>,
@@ -314,8 +262,6 @@ fn button_content<'a>(
 ) -> Element<'a, WindowListMessage> {
     let icon = window_icon(config, icons, rule, win, alpha);
     let parts = rule.rewrite(label_for(win));
-    // Per-app seam: terminals lead with the binary and trail the cwd; every
-    // other app leads with its dim context and trails the prominent title.
     let title = match rule {
         AppRule::Terminal => title_element(config, &parts, icons.fallbacks, false, alpha),
         AppRule::Firefox | AppRule::Browser { .. } | AppRule::Fallback => {
@@ -325,8 +271,6 @@ fn button_content<'a>(
     icon_beside_title(config, icon, title)
 }
 
-/// FontAwesome (when resolved) and title in a horizontal row — the shared
-/// arrangement every current app-rule uses.
 fn icon_beside_title<'a>(
     config: &ResolvedConfig,
     icon: Option<Element<'a, WindowListMessage>>,
@@ -340,8 +284,6 @@ fn icon_beside_title<'a>(
         .into()
 }
 
-/// The focus/urgency underline for a window: fully shown when urgent or
-/// focused, invisible otherwise.
 fn focus_line<'a>(
     config: &ResolvedConfig,
     win: &niri::WinEntry,
@@ -361,8 +303,6 @@ fn focus_line<'a>(
     )
 }
 
-/// The window's own title, or its app-id when the title is empty — the string
-/// each rule's `rewrite` parses.
 fn label_for(win: &niri::WinEntry) -> &str {
     if win.title.is_empty() {
         &win.app_id
@@ -371,11 +311,6 @@ fn label_for(win: &niri::WinEntry) -> &str {
     }
 }
 
-/// The prominent `main` text and the muted italic `lead` context joined by
-/// " · ", mirroring odin's `WindowTitleContext` / `WindowTitleBody`. With
-/// `lead_first` the context leads (browsers: "site · page"); without it the
-/// main text leads (terminals: "binary · cwd"). An empty lead is skipped
-/// entirely, so the main text sits alone with no stray dot.
 fn title_element<'a>(
     config: &ResolvedConfig,
     parts: &TitleParts,
@@ -383,9 +318,6 @@ fn title_element<'a>(
     lead_first: bool,
     alpha: f32,
 ) -> Element<'a, WindowListMessage> {
-    // Bake the edge-fade opacity into the glyph colours: iced can't alpha-mask a
-    // `rich_text`, and `main` must carry an explicit colour (not the inherited
-    // container text colour) for the fade to reach it.
     let context_color = config.palette.inactive.scale_alpha(alpha);
     let main_color = config.palette.bar_foreground.scale_alpha(alpha);
     let font = &config.font;
@@ -422,8 +354,6 @@ fn window_icon<'a>(
     alpha: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
     let side = config.font.icon_size_px;
-    // A tab's favicon (Firefox) always wins over the app-id icon; it is rendered
-    // straight from its in-memory blob rather than a resolved file path.
     if let Some(favicon) = rule
         .favicon_key(&win.title)
         .and_then(|key| icons.favicons.get(&key))
@@ -434,9 +364,6 @@ fn window_icon<'a>(
         .icon_candidates(win)
         .into_iter()
         .find_map(|c| resolve_candidate(icons, c))?;
-    // FontAwesome themes (e.g. Colloid) ship scalable SVGs; hicolor app icons are
-    // raster. iced's `image` widget only decodes raster formats, so SVGs must
-    // go through the `svg` widget or they render blank.
     let is_svg = path
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("svg"));

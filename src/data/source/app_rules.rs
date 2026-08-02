@@ -1,7 +1,3 @@
-//! Per-app window formatting: title rewrite (a lead + main split) and icon
-//! candidates, ported from odin's
-//! `DataProvider/{AppRule,BrowserRule,FirefoxRule,TerminalRule}.qml`.
-
 use super::niri::WinEntry;
 
 const SEPARATORS: [&str; 3] = [" — ", " · ", " - "];
@@ -10,9 +6,6 @@ const TERMINAL_KEYWORDS: [&str; 5] = ["kitty", "foot", "alacritty", "wezterm", "
 
 const FIREFOX_BRANDS: [&str; 2] = ["Mozilla Firefox", "Firefox"];
 
-/// Which per-app formatting rule a window's app-id matches. Checked in a
-/// fixed, most-specific-first order (`chromium` before `chrome`, browsers
-/// before the generic fallback).
 #[derive(Debug, Clone, Copy)]
 pub enum AppRule {
     Terminal,
@@ -48,14 +41,9 @@ pub struct TitleParts {
     pub main: String,
 }
 
-/// An ordered icon source; the first candidate that resolves to an actual
-/// image wins. A browser tab's favicon is handled separately (rendered from
-/// memory), so it is not a candidate here.
 #[derive(Debug, Clone)]
 pub enum IconCandidate {
-    /// An icon-theme name, resolved directly (not via a `.desktop` entry).
     Theme(String),
-    /// Resolved via the app's `.desktop` entry / icon-theme fallback chain.
     AppId(String),
 }
 
@@ -81,9 +69,6 @@ impl AppRule {
         }
     }
 
-    /// The brand-stripped page title, i.e. the title as Firefox recorded it
-    /// in history — the key the favicon lookup uses. `None` when the title
-    /// carries no recognized brand suffix (or the rule isn't Firefox).
     pub fn favicon_key(self, title: &str) -> Option<String> {
         match self {
             AppRule::Firefox => core(title, &FIREFOX_BRANDS).filter(|c| !c.is_empty()),
@@ -128,9 +113,6 @@ fn browser_rewrite(title: &str, brands: &[&str]) -> TitleParts {
     }
 }
 
-/// Title with a trailing "<separator><brand>" suffix removed, checking
-/// `brands` in order and, for each, every separator; the first match wins.
-/// `None` if no brand suffix matched.
 fn core(title: &str, brands: &[&str]) -> Option<String> {
     brands.iter().find_map(|brand| {
         SEPARATORS
@@ -140,8 +122,6 @@ fn core(title: &str, brands: &[&str]) -> Option<String> {
     })
 }
 
-/// Split on whichever known separator occurs earliest (`from_end: false`) or
-/// latest (`from_end: true`); `None` if none are present.
 fn split(s: &str, from_end: bool) -> Option<(&str, &str)> {
     let mut best: Option<(usize, usize)> = None;
     for sep in SEPARATORS {
@@ -204,9 +184,6 @@ fn terminal_icon(win: &WinEntry) -> Option<String> {
         .map(|(_, icon)| (*icon).to_string())
 }
 
-/// True when `title` opens with Claude Code's session-status glyph: ✳ (idle)
-/// or a braille spinner U+2800-U+28FF (working) — set once Claude overwrites
-/// the terminal title, so the command word is no longer visible to key off.
 fn is_claude_session(title: &str) -> bool {
     title
         .trim()
@@ -221,9 +198,6 @@ mod tests {
 
     #[test]
     fn firefox_title_rewrite() {
-        // Brand suffix stripped, then split on the *last* separator: the
-        // segment before it (the page title) becomes the main text, the
-        // segment after (the site/section) the lead.
         let parts = AppRule::Firefox.rewrite("Inbox — user@example.com — Mozilla Firefox");
         assert_eq!(parts.lead, "user@example.com");
         assert_eq!(parts.main, "Inbox");

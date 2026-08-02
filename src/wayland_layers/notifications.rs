@@ -1,8 +1,3 @@
-//! The notification system: an `org.freedesktop.Notifications` server feeding
-//! one layer-shell toast surface per live notification. vetrata owns the daemon
-//! so a notification's action can jump to the niri window that sent it,
-//! in-process, after the posting client dies.
-
 pub mod card;
 pub mod markup;
 pub mod placement;
@@ -32,48 +27,29 @@ use crate::{
     wayland_layers::surface::{Margin, SurfaceSize},
 };
 
-/// Action keys odin runs itself against the hinted window instead of handing
-/// back to the client: `default` (the freedesktop primary action) and the
-/// `move`/`quit` verbs the window-notification producers use.
 fn is_window_action(key: &str) -> bool {
     matches!(key, "default" | "move" | "quit")
 }
 
 #[derive(Debug, Clone)]
 pub enum NotificationMessage {
-    /// First message from the D-Bus bridge, carrying the handle the app emits
-    /// signals through.
     Connected(NotifHandle),
-    /// A client posted (or replaced) a notification.
     Served(NotificationData),
-    /// A client called `CloseNotification`.
     CloseRequested(u32),
-    /// The card body was left-clicked.
     BodyClicked(u32),
-    /// The pointer entered or left a card, for its hover-border highlight.
     HoverChanged { id: u32, hovered: bool },
-    /// The card was right-clicked, or otherwise dismissed by the user.
     Dismiss(u32),
-    /// An action button was pressed.
     ActionClicked { id: u32, key: String },
 }
 
-/// One tracked notification. The freedesktop notification carries no timestamp,
-/// so arrival is recorded here for the card's relative time. The app icon is
-/// resolved once at arrival (off the render path), not per redraw.
 pub struct Notification {
     pub data: NotificationData,
     pub created_at: SystemTime,
-    /// Monotonic arrival order, used to sort the stack. Unlike `created_at`
-    /// (wall-clock, so two toasts in one tick can tie or invert), this strictly
-    /// increases, so newest-first stacking order is deterministic.
     seq: u64,
     pub icons: card::CardIcons,
     estimated_height: f32,
 }
 
-/// The live layer-shell surface for one toast, and the geometry last applied to
-/// it (so reconciliation emits only real changes).
 struct ToastSurface {
     id: Id,
     output: Option<String>,
@@ -87,10 +63,7 @@ pub struct NotificationLayer {
     handle: Option<NotifHandle>,
     live: Vec<Notification>,
     surfaces: HashMap<u32, ToastSurface>,
-    /// Next monotonic arrival number, stamped onto each served notification's
-    /// [`Notification::seq`] to give the stack a deterministic order.
     next_seq: u64,
-    /// The card the pointer is currently over, for its hover-border highlight.
     hovered: Option<u32>,
 }
 
@@ -109,18 +82,11 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Served(data) => {
-                // While muted, drop the toast on arrival. The server already
-                // answered the client with a valid id, so the sender still sees
-                // success — nothing errors or blocks.
                 if config.dnd {
                     return Task::none();
                 }
                 let id = data.id;
-                // A replacing notification (same id) supersedes the old one.
                 self.live.retain(|n| n.data.id != id);
-                // One live notification per window: an older toast from the same
-                // window is answered or obsolete, and leaving it up is what
-                // produces "I clicked it and nothing happened".
                 let mut tasks = Vec::new();
                 if let Some(window) = data.window_id_hint {
                     let dupes: Vec<u32> = self
@@ -137,8 +103,6 @@ impl NotificationLayer {
                         }));
                     }
                 }
-                // Alert sound: gated on the sound toggle and the client's
-                // suppress-sound hint. Read `data` before it moves into `live`.
                 if config.sound && !data.suppress_sound {
                     tasks.push(sound::play(&data, config.sound_theme.as_deref()));
                 }
@@ -156,8 +120,6 @@ impl NotificationLayer {
                 tasks.push(self.reconcile(placement, outputs, config));
                 Task::batch(tasks)
             }
-            // Left-clicking the body invokes the primary action: jump to the
-            // source window and dismiss when there is one, else just dismiss.
             NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
                 Some(window) => Task::batch([
                     niri_action(move || niri::focus_window(window)),
@@ -165,9 +127,6 @@ impl NotificationLayer {
                 ]),
                 None => self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
             },
-            // Hover changes only the border tint/width — a pure repaint, no
-            // geometry change, so no reconcile. Guard the exit so a stray leave
-            // from a card the pointer already left doesn't clear a newer hover.
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
                     self.hovered = Some(id);
@@ -188,9 +147,6 @@ impl NotificationLayer {
         }
     }
 
-    /// After a niri change: dismiss notifications whose target window has
-    /// closed (they can never serve their purpose), then recompute the
-    /// surviving toasts' corners. Driven from `Bar::apply_niri_events`.
     pub fn on_niri_changed(
         &mut self,
         placement: &Placement,
@@ -215,7 +171,6 @@ impl NotificationLayer {
         Task::batch(tasks)
     }
 
-    /// A notification's resolvable, still-live target window, if any.
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
         let notif = self.live.iter().find(|n| n.data.id == id)?;
         resolve_window_id(&notif.data, placement)
@@ -269,21 +224,14 @@ impl NotificationLayer {
         Some(Element::from(card::card(notif, hovered, config)).map(Message::Notification))
     }
 
-    /// Drop the record of a toast surface the compositor already closed.
     pub fn forget(&mut self, id: Id) {
         self.surfaces.retain(|_, s| s.id != id);
     }
 
-    /// Whether any toast is live — gates the per-niri-event placement
-    /// recompute.
     pub fn is_active(&self) -> bool {
         !self.live.is_empty()
     }
 
-    /// React to a do-not-disturb change (the app already flipped `config.dnd`):
-    /// muting discards the backlog outright — the D-Bus clients already got
-    /// their id, so this is a silent drop, not a Closed signal — then reconcile
-    /// so the surfaces follow.
     pub fn sync_dnd(
         &mut self,
         placement: &Placement,
@@ -315,7 +263,6 @@ impl NotificationLayer {
         Task::batch([closed, self.reconcile(placement, outputs, config)])
     }
 
-    /// Send an outbound signal to the D-Bus side, fire-and-forget.
     fn emit(&self, outbound: Outbound) -> Task<Message> {
         match &self.handle {
             Some(handle) => {
@@ -329,11 +276,6 @@ impl NotificationLayer {
         }
     }
 
-    /// Bring the live layer-shell surfaces in line with the live notifications:
-    /// a pure [`plan_changes`](Self::plan_changes) of the differences, then
-    /// [`apply_changes`](Self::apply_changes) performs them — the decision is a
-    /// value, and only the apply step touches the surface bookkeeping or emits
-    /// commands.
     fn reconcile(
         &mut self,
         placement: &Placement,
@@ -345,10 +287,6 @@ impl NotificationLayer {
         self.apply_changes(changes)
     }
 
-    /// The surface changes that would bring the open set in line with
-    /// `desired`. Pure — reads the current surfaces but mutates nothing and
-    /// emits nothing, so it reads as a diff of two sets: open the new,
-    /// adjust the moved, close the gone (or DND-suppressed).
     fn plan_changes(&self, desired: &[DesiredSurface]) -> Vec<SurfaceChange> {
         let desired_ids: HashSet<u32> = desired.iter().map(|wanted| wanted.id).collect();
         let opens_and_adjusts =
@@ -356,7 +294,6 @@ impl NotificationLayer {
                 .iter()
                 .flat_map(|wanted| match self.surfaces.get(&wanted.id) {
                     None => vec![SurfaceChange::Open(wanted.clone())],
-                    // A surface cannot move between outputs; close and reopen.
                     Some(existing) if existing.output != wanted.output => {
                         vec![
                             SurfaceChange::Close(wanted.id),
@@ -388,8 +325,6 @@ impl NotificationLayer {
         opens_and_adjusts.chain(closes).collect()
     }
 
-    /// Perform the planned changes: the sole place surfaces are opened, moved,
-    /// or closed, and the sole place layer-shell commands are emitted.
     fn apply_changes(&mut self, changes: Vec<SurfaceChange>) -> Task<Message> {
         Task::batch(
             changes
@@ -461,10 +396,6 @@ impl NotificationLayer {
         }
     }
 
-    /// Each visible toast's placement: its output plus the anchor and margin
-    /// its surface should take. Freshest hugs the edge, older siblings step
-    /// inward; a centred vertical group is centred as a whole against the
-    /// output height. Empty while DND is on.
     fn desired_surfaces(
         &self,
         placement: &Placement,
@@ -475,7 +406,6 @@ impl NotificationLayer {
             return Vec::new();
         }
         let width = config.notifications.card_width.round() as u32;
-        // Newest first, so walking a corner group meets the freshest toast first.
         let mut order: Vec<&Notification> = self.live.iter().collect();
         order.sort_by_key(|n| std::cmp::Reverse(n.seq));
 
@@ -487,8 +417,6 @@ impl NotificationLayer {
             })
             .collect();
 
-        // Total height of each corner group (card heights plus the gaps between
-        // them), so a centred stack can be centred as one block.
         let mut totals: HashMap<GroupKey, (f32, usize)> = HashMap::new();
         for (_, place, height) in &placed {
             let entry = totals.entry(group_key(place)).or_insert((0.0, 0));
@@ -533,16 +461,12 @@ impl NotificationLayer {
     }
 }
 
-/// The corner a toast groups into: its output and both edges.
 type GroupKey = (Option<String>, VEdge, HEdge);
 
 fn group_key(place: &ToastPlacement) -> GroupKey {
     (place.output.clone(), place.vertical, place.horizontal)
 }
 
-/// One change to reconcile a toast's surface with the desired set. Produced by
-/// [`NotificationLayer::plan_changes`], performed by
-/// [`NotificationLayer::perform_change`].
 enum SurfaceChange {
     Open(DesiredSurface),
     Adjust {
@@ -554,7 +478,6 @@ enum SurfaceChange {
     Close(u32),
 }
 
-/// A toast's fully-resolved desired surface: where it goes and how big.
 #[derive(Clone)]
 struct DesiredSurface {
     id: u32,
@@ -564,10 +487,6 @@ struct DesiredSurface {
     size: SurfaceSize,
 }
 
-/// Whether a notification's window has closed. Only "window-owned" toasts — one
-/// with a resolvable window and no foreign action — go stale; a notification
-/// carrying an allow/deny action is a question the client is blocked on and
-/// must never be auto-dismissed.
 fn is_stale(data: &NotificationData, placement: &Placement) -> bool {
     let Some(window) = resolve_window_id(data, placement) else {
         return false;

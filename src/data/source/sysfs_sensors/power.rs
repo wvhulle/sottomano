@@ -1,5 +1,3 @@
-//! Live system power draw in watts.
-
 use std::time::Duration;
 
 use super::{battery::ChargeStatus, first_power_supply, read_trimmed};

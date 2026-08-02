@@ -1,12 +1,3 @@
-//! odin's `InternetConnectivity`: a downlink throughput gauge on the bar that
-//! unfolds an uplink gauge, one pill per active `WireGuard` tunnel, and a
-//! tailscale pill. The downlink handle both shows live throughput and toggles
-//! the menu; hovering any element shows its tooltip.
-//!
-//! Deviations: odin's generic `NetworkManager` VPN shield (for non-WireGuard
-//! VPNs) is not ported, and the per-tunnel/tailscale pills act on right/left
-//! click but have no drag slider (there is nothing to drag).
-
 use iced::{
     Alignment, Element, Subscription, Task,
     widget::{Row, mouse_area},
@@ -94,8 +85,6 @@ impl InternetGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            // Each tunnel is keyed by its (unique) interface name, built from the
-            // tunnel's own body — the aggregate cell tooltip is inert.
             HoverTarget::Wireguard(name) => {
                 let tunnel = self
                     .wireguard
@@ -120,7 +109,6 @@ impl InternetGroup {
         config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, InternetMessage>> {
-        // The downlink gauge is the persistent handle; without it the group hides.
         let down = self.down.get()?;
         let handle_reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)?;
         let handle = mouse_area(hoverable(

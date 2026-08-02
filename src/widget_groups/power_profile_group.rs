@@ -1,9 +1,3 @@
-//! odin's power-profile widget: a writable [`SliderControl`] selecting the
-//! power-profiles-daemon profile (power-saver / balanced / performance). The
-//! collapsed pill shows the profile glyph plus the estimated time to depletion;
-//! committing a stop switches the profile via `powerprofilesctl`. Per-profile
-//! discharge rates are learned by a Kalman filter and persisted to turso.
-
 use std::{collections::HashMap, ops::RangeInclusive};
 
 use iced::{Element, Subscription, Task};
@@ -17,15 +11,19 @@ use crate::{
     },
     message_subscriptions::blocking,
     state::power,
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage},
+    },
     widget_groups::source_cell::SourceCell,
-    widgets::slider_control::{Action, ControlMessage, SliderControl},
+    widgets::{
+        pager_slot::permanently_inactive_slot,
+        slider_control::{Action, ControlMessage, SliderControl},
+    },
 };
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
-/// Slider stop spacing: three profiles at 0 / 50 / 100.
 const STEP: f32 = 50.0;
-/// Below this draw (W) a sample is treated as noise/idle and not learned.
 const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileGroup {
@@ -173,12 +171,17 @@ impl PowerProfileGroup {
         self.cell.tooltip_with(TooltipBody::Table(rows))
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, PowerProfileMessage>> {
+    pub fn view<'a>(
+        &self,
+        config: &ResolvedConfig,
+        position: Position,
+    ) -> Option<Element<'a, PowerProfileMessage>> {
         self.cell.get()?;
-        Some(self.control.view(config, 1.0).map(|m| match m {
+        let control = self.control.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => PowerProfileMessage::Tooltip(t),
             m => PowerProfileMessage::Control(m),
-        }))
+        });
+        Some(permanently_inactive_slot(control, config, position))
     }
 }
 

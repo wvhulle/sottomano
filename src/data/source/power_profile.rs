@@ -1,9 +1,3 @@
-//! The active power profile (power-profiles-daemon), read and set via
-//! `powerprofilesctl` exactly as odin's `power-profile.nu` does. Rendered as a
-//! writable [`SliderControl`](crate::widgets::slider_control::SliderControl)
-//! selector; the reading also carries the battery's live energy/draw for the
-//! per-profile time-to-depletion estimate, learned by a Kalman filter.
-
 use std::{collections::HashMap, time::Duration};
 
 use adskalman::{
@@ -18,7 +12,6 @@ use crate::data::source::{
     sysfs_sensors,
 };
 
-/// The three power-profiles-daemon profiles, least-to-most performant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Profile {
     PowerSaver,
@@ -271,8 +264,6 @@ struct Prediction {
     draw_variance: f64,
 }
 
-/// Time to depletion for a profile, with a ± uncertainty band from the rate's
-/// posterior variance propagated through `energy / rate`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Estimate {
     pub time: Duration,

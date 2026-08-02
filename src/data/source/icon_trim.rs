@@ -1,17 +1,3 @@
-//! Trim the transparent margin that desktop-theme app icons ship with.
-//!
-//! FontAwesome themes (Colloid, Papirus, …) draw each glyph inside a padded
-//! canvas — e.g. artwork occupying the central ~80% of a 24×24 box. Rendered at
-//! the same nominal side as a Font Awesome glyph (which fills its em-box), the
-//! themed icon then looks noticeably smaller and lighter than its neighbours.
-//!
-//! The QML original couldn't fix this: Quickshell served themed icons as opaque
-//! `image://` URLs, so the padding couldn't be measured. vetrata resolves the
-//! actual SVG *file*, so we can parse it, measure the artwork's tight bounding
-//! box, and rewrite the root `viewBox` to crop the margin — staying vector, so
-//! it renders crisply at any size. The trimmed copy is cached on disk and its
-//! path returned; the render path then loads it exactly like any other icon.
-
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -45,10 +31,6 @@ pub fn trim_rgba(width: u32, height: u32, rgba: Vec<u8>) -> (u32, u32, Vec<u8>) 
 }
 
 fn trim_svg(path: &Path) -> Option<PathBuf> {
-    // Key the cache on path + mtime so a re-themed icon (same path, new bytes)
-    // re-trims, but an unchanged one is a pure existence check — no re-parse.
-    // The leading version tag invalidates every entry when the trim algorithm
-    // changes, so stale results from an older algorithm aren't served.
     let mtime = fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
@@ -64,12 +46,6 @@ fn trim_svg(path: &Path) -> Option<PathBuf> {
     let tree = usvg::Tree::from_data(&data, &usvg::Options::default()).ok()?;
     let size = tree.size();
 
-    // `abs_bounding_box` includes geometry, strokes and filter (drop-shadow)
-    // regions that routinely spill outside the canvas — many themed icons draw
-    // past the viewport and rely on it to clip. The *visible* artwork is that
-    // bbox intersected with the canvas; trimming the raw bbox would zoom the
-    // icon out by whatever the overhang happens to be (and by a different
-    // amount per icon, so they'd end up inconsistent sizes).
     let bbox = tree.root().abs_bounding_box();
     let x0 = bbox.x().max(0.0);
     let y0 = bbox.y().max(0.0);
@@ -80,7 +56,6 @@ fn trim_svg(path: &Path) -> Option<PathBuf> {
         return None;
     }
 
-    // Skip when the visible artwork already (near-)fills the canvas in both axes.
     let margin_x = 1.0 - vw / size.width();
     let margin_y = 1.0 - vh / size.height();
     if margin_x < MIN_MARGIN_FRACTION && margin_y < MIN_MARGIN_FRACTION {
@@ -92,11 +67,6 @@ fn trim_svg(path: &Path) -> Option<PathBuf> {
     Some(cache)
 }
 
-/// Re-serialize `tree` with the root `<svg>`'s `viewBox` set to the artwork's
-/// bounding box, cropping the padding. usvg's writer emits the root tag with
-/// `width`/`height` (from the canvas) and no `viewBox`, drawing content in
-/// user-space coords — so replacing the opening tag with one whose `viewBox`
-/// and `width`/`height` are the bbox maps just the artwork onto the canvas.
 fn crop_view_box(tree: &usvg::Tree, x: f32, y: f32, w: f32, h: f32) -> Option<String> {
     let svg = tree.to_string(&usvg::WriteOptions::default());
     let tag_end = svg.find('>')?;

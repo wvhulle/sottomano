@@ -1,15 +1,3 @@
-//! odin's `Tray`: the `StatusNotifierItem` host rendered on the bar. Each item
-//! is a native icon (never a substituted glyph); the whole row lives behind a
-//! [`MenuGroup`] handle that unfolds it with the shell's shared reveal
-//! animation. Left-click activates an item, middle-click is its secondary
-//! action, and right-click opens its `com.canonical.dbusmenu` context menu
-//! (rendered by [`widgets::context_menu`](crate::widgets::context_menu) on a
-//! popup surface the bar owns — see [`tray_menu`](super::tray_menu)).
-//!
-//! Items the shell already surfaces natively (network, bluetooth, media) are
-//! hidden by `config.tray_deny_ids`; an item advertising `NeedsAttention` is
-//! marked with the focus accent instead of relying on the app's own blink.
-
 use iced::{
     Alignment, Element, Size,
     widget::{Column, Row, mouse_area},
@@ -46,19 +34,10 @@ pub enum TrayMessage {
     Menu(MenuMessage),
     Activate(String),
     Secondary(String),
-    /// Right-click: open (or re-close) the item's context menu, by its index in
-    /// the visible row. The bar owns the popup surface, so it intercepts this
-    /// and every variant below.
     OpenMenu(usize),
-    /// A standard/toggle menu entry was clicked (dbusmenu node id).
     MenuItemClicked(i32),
-    /// A submenu header was clicked (dbusmenu node id): expand/collapse it.
     ToggleSubmenu(i32),
-    /// The menu popup surface reported its measured size.
-    MenuResized {
-        surface: Id,
-        size: Size,
-    },
+    MenuResized { surface: Id, size: Size },
     Tooltip(TooltipMessage),
 }
 
@@ -84,8 +63,6 @@ impl TrayGroup {
             }
             TrayMessage::Activate(address) => self.command(TrayCommand::Activate(address)),
             TrayMessage::Secondary(address) => self.command(TrayCommand::Secondary(address)),
-            // Every context-menu message is intercepted by the bar (it owns the
-            // popup surface), so they never reach here.
             TrayMessage::OpenMenu(_)
             | TrayMessage::MenuItemClicked(_)
             | TrayMessage::ToggleSubmenu(_)
@@ -94,17 +71,12 @@ impl TrayGroup {
         }
     }
 
-    /// Issue a tray command over the connected handle (a no-op until
-    /// connected).
     pub fn command(&self, command: TrayCommand) {
         if let Some(handle) = &self.handle {
             handle.send(command);
         }
     }
 
-    /// The tray items the shell should show — those not hidden by the
-    /// deny-list. Order matches the underlying item order, so a visible
-    /// index is stable enough to address a context menu within one frame.
     pub fn visible<'a>(&'a self, config: &ResolvedConfig) -> Vec<&'a TrayItem> {
         self.items
             .iter()
@@ -151,7 +123,6 @@ impl TrayGroup {
     }
 }
 
-/// Whether an item is hidden because the shell already surfaces it natively.
 fn denied(config: &ResolvedConfig, item: &TrayItem) -> bool {
     let id = item.id.to_lowercase();
     config
@@ -160,9 +131,6 @@ fn denied(config: &ResolvedConfig, item: &TrayItem) -> bool {
         .any(|deny| !deny.is_empty() && id.contains(deny))
 }
 
-/// The static tooltip content an item carries: its advertised
-/// title/description, falling back to the item name so a hover always
-/// identifies the app.
 fn item_tooltip(item: &TrayItem) -> Tooltip {
     let (title, body) = match &item.tooltip {
         Some(tip) if !tip.title.is_empty() => (tip.title.clone(), tip.body.clone()),
@@ -191,8 +159,6 @@ fn item_view<'a>(
             .into(),
     };
 
-    // An item needing attention gets a focus-accent underline — the shell's own
-    // active-state vocabulary — instead of the app's blink.
     let marked: Element<'a, TrayMessage> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,

@@ -1,8 +1,3 @@
-//! One idle subsystem's control: its icon, tooltip identity, current timeout
-//! (an embedded [`SliderControl`] for the expand/scroll/drag interaction), and
-//! a [`ConfirmButton`] that runs the subsystem's action now. Self-contained —
-//! the group holds one per subsystem and routes messages to it by kind.
-
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
@@ -25,18 +20,12 @@ fn fire_time(timeout: Duration) -> DateTime<Local> {
     Local::now() + chrono::Duration::from_std(timeout).unwrap_or_default()
 }
 
-/// One control's messages: the timeout slider's interaction, or its run-now
-/// button.
 #[derive(Debug, Clone)]
 pub enum TimerMessage {
     Slider(ControlMessage),
     Trigger,
 }
 
-/// What a control's update asks the group to do: nothing; close the other
-/// controls (this one just opened); persist the committed timeout (the `f32` is
-/// the slider position, so the write's confirmation can be routed back); or run
-/// this subsystem's action now.
 pub enum TimerChange {
     None,
     Opened,
@@ -45,7 +34,6 @@ pub enum TimerChange {
 }
 
 pub struct IdleTimer {
-    /// The hover target this control emits, e.g. [`HoverTarget::IdleLockUser`].
     target: HoverTarget,
     timeout: Option<Duration>,
     control: SliderControl,
@@ -73,8 +61,6 @@ impl IdleTimer {
         self.timeout
     }
 
-    /// This subsystem's daemon arm, if it has a timeout set (`None` =
-    /// disabled).
     pub fn arm(&self) -> Option<Arm> {
         self.timeout.map(|timeout| Arm {
             timeout,
@@ -82,7 +68,6 @@ impl IdleTimer {
         })
     }
 
-    /// Adopt a persisted timeout (on load) and resync the control to it.
     pub fn set_timeout(&mut self, timeout: Option<Duration>) {
         self.timeout = timeout;
         self.control
@@ -115,8 +100,6 @@ impl IdleTimer {
                 }
                 Action::None | Action::Right => TimerChange::None,
             },
-            // Harmless subsystems fire on the first click; disruptive ones arm,
-            // then fire on the confirming second click.
             TimerMessage::Trigger => match self.button.press() {
                 Press::Armed => TimerChange::None,
                 Press::Fire => TimerChange::Fire(self.action),
@@ -138,8 +121,6 @@ impl IdleTimer {
         }
     }
 
-    /// The timeout slider paired with its run-now button, hugging each other (a
-    /// tight gap) so the button clearly binds to this subsystem's value.
     pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, TimerMessage> {
         let slider = self.control.view(config, reveal).map(TimerMessage::Slider);
         let trigger = self.button.view(

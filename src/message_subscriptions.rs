@@ -1,5 +1,3 @@
-//! Subscriptions and tasks for polling sources, niri events, and timers.
-
 use std::{convert::identity, future::Future, path::PathBuf, time::Duration};
 
 use iced::{Subscription, Task};
@@ -30,17 +28,11 @@ use crate::{
 };
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    // Paints menu expand/collapse frames while any group is mid-transition. A
-    // layer-shell widget can't self-drive its redraws from a subscription-
-    // triggered state change, so this app-level timer wakes the loop each frame;
-    // it stays idle otherwise. Re-evaluated after every update, so it starts and
-    // stops with the animation.
     let animation = if state.any_menu_animating() {
         iced::time::every(Duration::from_millis(16)).map(|_| Message::Redraw)
     } else {
         Subscription::none()
     };
-    // Only ticks while a Log tooltip is shown, to advance its relative times.
     let tooltip_tick = if state.tooltip_has_relative_time() {
         iced::time::every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
     } else {
@@ -63,15 +55,10 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         state.ai_group.subscription().map(Message::Ai),
         WindowGroup::subscription().map(Message::WindowGroup),
         iced::window::close_events().map(Message::WindowClosed),
-        // Closes a stranded tooltip when the pointer leaves a surface without
-        // crossing another hoverable (its `HoverArea` never fires an exit).
         iced::event::listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(iced::mouse::Event::CursorLeft) => Some(Message::PointerLeft),
             _ => None,
         }),
-        // The shared `.desktop` index reload (new app installed, theme switch)
-        // lives here, at the app that owns it. Quick-launch re-ranks off niri
-        // events (from its own in-memory tracker), so it needs no timer.
         iced::time::every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
         niri_subscription(),
         notifications_subscription(),
@@ -80,8 +67,6 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     ])
 }
 
-/// Run blocking work off the executor, degrading to `T::default()` if the
-/// work panics.
 async fn off_thread<T: Default + Send + 'static>(
     context: &'static str,
     work: impl FnOnce() -> T + Send + 'static,
@@ -92,7 +77,6 @@ async fn off_thread<T: Default + Send + 'static>(
     })
 }
 
-/// [`off_thread`] as a one-shot [`Task`].
 pub(crate) fn blocking<T: Default + Send + 'static>(
     context: &'static str,
     work: impl FnOnce() -> T + Send + 'static,
@@ -100,9 +84,6 @@ pub(crate) fn blocking<T: Default + Send + 'static>(
     Task::perform(off_thread(context, work), identity)
 }
 
-/// Readings for one source: an immediate first poll, then one per
-/// [`Source::INTERVAL`], each run off-thread. Keyed by [`Source::NAME`], so
-/// the stream survives the per-update subscription rebuild.
 pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
     use iced::futures::StreamExt;
     Subscription::run_with(S::NAME, |_| {
@@ -179,11 +160,6 @@ fn niri_subscription() -> Subscription<Message> {
             256,
             |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
                 let rx = niri::spawn_event_thread();
-                // Coalesce a burst: one user focus/workspace action emits 3-4
-                // niri events back-to-back. `ready_chunks` yields the first, then
-                // everything already buffered, as one Vec — so the burst collapses
-                // to a single update (one niri re-derivation, one repaint) instead
-                // of one per event.
                 let mut bursts = ReceiverStream::new(rx).ready_chunks(256);
                 while let Some(batch) = bursts.next().await {
                     if output.send(Message::Niri(batch)).await.is_err() {
@@ -195,10 +171,6 @@ fn niri_subscription() -> Subscription<Message> {
     })
 }
 
-/// The notification server and its bridge: builds the zbus connection (stealing
-/// the bus name), forwards each `ServerEvent` as a `Message::Notification`, and
-/// hands the app the outbound handle via a first `Connected` message. Same
-/// background-producer-into-a-channel shape as [`niri_subscription`].
 fn notifications_subscription() -> Subscription<Message> {
     use iced::futures::SinkExt;
     Subscription::run(|| {

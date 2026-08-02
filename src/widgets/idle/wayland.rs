@@ -1,7 +1,3 @@
-//! The `ext-idle-notify-v1` client, lifted from wvhulle/idle-manager. Arms one
-//! idle notification per [`Arm`] carrying its action; the compositor reports
-//! `Idled` per notification, which the daemon loop performs.
-
 use std::{error::Error as StdError, fmt, io, mem::take};
 
 use wayrs_client::{
@@ -38,7 +34,6 @@ impl fmt::Display for WaylandError {
 
 impl StdError for WaylandError {}
 
-/// An armed notification reached its idle threshold: the action to perform.
 #[derive(Debug, Clone, Copy)]
 pub enum SideEffect {
     Idled(IdleAction),
@@ -89,8 +84,6 @@ pub async fn connect() -> Result<Wayland, WaylandError> {
     })
 }
 
-/// Tear down all armed notifications and arm one per [`Arm`] on every seat,
-/// each carrying the action to perform when it fires.
 pub fn rearm(w: &mut Wayland, arms: &[Arm]) {
     for (notif, _) in w.state.notifications.drain(..) {
         notif.destroy(&mut w.conn);
@@ -109,7 +102,6 @@ pub fn rearm(w: &mut Wayland, arms: &[Arm]) {
     }
 }
 
-/// One dispatch tick: flush + await events + dispatch + drain effects.
 pub async fn pump(w: &mut Wayland) -> Result<Vec<SideEffect>, WaylandError> {
     w.conn.async_flush().await.map_err(WaylandError::Io)?;
     w.conn.async_recv_events().await.map_err(WaylandError::Io)?;
@@ -138,9 +130,6 @@ fn registry_cb(
     _state: &mut DispatchState,
     _: &wl_registry::Event,
 ) {
-    // Only the initial seat/notifier binding is handled; hot-add would go here.
 }
 
-fn seat_cb(_ctx: EventCtx<DispatchState, WlSeat>) {
-    // Idle notifications are seat-scoped but need no capability negotiation.
-}
+fn seat_cb(_ctx: EventCtx<DispatchState, WlSeat>) {}

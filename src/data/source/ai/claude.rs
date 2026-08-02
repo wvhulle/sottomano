@@ -1,10 +1,3 @@
-//! Claude usage, ported from odin's `claude-usage-oauth.nu` and
-//! `claude-usage-ccusage.nu`. The two are mutually exclusive by design: the
-//! OAuth source shows the subscription 5-hour/7-day windows on a subscription
-//! machine, the ccusage source shows API-key spend (via the local `ccusage`
-//! CLI) on a non-subscription machine. Both read the Claude Code credentials
-//! JSON; the presence of an OAuth access token is what tells them apart.
-
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -25,14 +18,10 @@ use crate::data::source::{
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const BACKOFF: Duration = Duration::from_mins(15);
 
-/// Subscription usage: the 5-hour session gauge plus 7-day/Sonnet/extra rows.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClaudeOauth {
-    /// A 429 (live or still inside the backoff window) — odin's `!`/critical
-    /// pill.
     Error(String),
     Usage {
-        /// Session budget left (`100 - utilization`), driving the gauge.
         session_remaining: i64,
         tooltip: Vec<Row>,
     },
@@ -153,8 +142,6 @@ impl ApiSource for ClaudeOauth {
     }
 }
 
-/// API-key Claude spend for today, via the local `ccusage` CLI. Hidden on
-/// subscription machines (where an OAuth token is present).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeCcusage {
     cost: f64,

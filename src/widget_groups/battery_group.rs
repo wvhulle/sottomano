@@ -6,9 +6,12 @@ use crate::{
         BarWidget, Tooltip,
         sysfs_sensors::{battery::Battery, power::PowerDraw},
     },
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widget_groups::source_cell::SourceCell,
-    widgets::icon_gauge::source_reading,
+    widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
 };
 
 #[derive(Default)]
@@ -48,7 +51,11 @@ impl BatteryGroup {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig) -> Option<Element<'a, BatteryMessage>> {
+    pub fn view<'a>(
+        &self,
+        config: &ResolvedConfig,
+        position: Position,
+    ) -> Option<Element<'a, BatteryMessage>> {
         let readings = [
             self.charge
                 .get()
@@ -68,11 +75,13 @@ impl BatteryGroup {
         if readings.is_empty() {
             return None;
         }
-        Some(
+        Some(permanently_inactive_slot(
             Row::with_children(readings)
                 .spacing(config.layout.horizontal_widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
-        )
+            config,
+            position,
+        ))
     }
 }

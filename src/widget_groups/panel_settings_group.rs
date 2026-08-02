@@ -1,8 +1,3 @@
-//! odin's `PanelSettings`: session-only layout knobs. The sliders handle
-//! unfolds a floating toggle plus (when floating) an expandable float-offset
-//! slider — a [`SliderControl`] like the idle/audio pills. The config-mutating
-//! side lives in the application, which owns the config and the open surfaces.
-
 use std::ops::RangeInclusive;
 
 use iced::{
@@ -26,9 +21,6 @@ use crate::{
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 const DARKEN_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
-/// Resolve the two config-derived tooltips this group emits. Free-standing (not
-/// a method) since the tooltips are pure functions of the config, which the
-/// application owns.
 pub fn tooltip_for(target: &HoverTarget, config: &ResolvedConfig) -> Option<Tooltip> {
     match target {
         HoverTarget::Floating => Some(floating_tooltip(config)),
@@ -160,12 +152,10 @@ impl PanelSettingsGroup {
         }
     }
 
-    /// Drive the offset control; the app applies the returned [`Action`].
     pub fn update_offset(&mut self, msg: ControlMessage) -> Action {
         self.offset.update(msg)
     }
 
-    /// Reconcile the offset control with the app-owned config value.
     pub fn sync_offset(&mut self, value: f32) {
         self.offset.update(ControlMessage::Reading(value));
     }
@@ -185,7 +175,6 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        // The handle carries the toggle press (only the handle toggles).
         let handle: Element<'a, PanelSettingsMessage> = mouse_area(
             Solid::Sliders
                 .widget()

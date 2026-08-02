@@ -1,9 +1,3 @@
-//! GitHub Copilot usage, ported from odin's `copilot-usage-metered.nu`,
-//! `copilot-usage-free.nu`, and `copilot-usage-ccusage.nu`. The metered and
-//! free sources both hit `/copilot_internal/user` (a bare `gho_` token) and are
-//! mutually exclusive by account type; the ccusage source needs no token and
-//! reads month spend from the local `ccusage` CLI.
-
 use std::{
     path::{Path, PathBuf},
     time::Duration,
@@ -23,7 +17,6 @@ use crate::data::source::{
 const USER_URL: &str = "https://api.github.com/copilot_internal/user";
 const USER_AGENT: &str = "vetrata";
 
-/// A metered (paid-quota) plan's premium/chat request budget as a gauge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
     plan: String,
@@ -117,7 +110,6 @@ impl ApiSource for CopilotMetered {
     }
 }
 
-/// A free-tier plan's remaining chat count.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
     plan: String,
@@ -183,7 +175,6 @@ impl ApiSource for CopilotFree {
     }
 }
 
-/// Copilot-CLI month spend from the local `ccusage` CLI (no GitHub token).
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotCcusage {
     month: String,

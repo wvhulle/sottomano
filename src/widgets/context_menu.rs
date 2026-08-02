@@ -1,10 +1,3 @@
-//! A reusable context-menu popup body (odin's dbusmenu popup, but domain-
-//! agnostic): a vertical list of entries — rows that highlight on hover,
-//! section dividers, in-place submenus, and check toggles. The caller supplies
-//! the tree and maps a node id to its own message; the set of expanded submenus
-//! lives with the caller. Knows nothing about D-Bus, so any future menu can
-//! reuse it.
-
 use std::collections::HashSet;
 
 use iced::{
@@ -25,15 +18,11 @@ use crate::{
 const ROW_SPACING: f32 = 1.0;
 const ROW_RADIUS: f32 = 5.0;
 const ROW_PADDING: [f32; 2] = [5.0, 8.0];
-/// Left indent applied to a revealed submenu's rows.
 const SUBMENU_INDENT: f32 = 16.0;
 const DIVIDER_ALPHA: f32 = 0.3;
 const HOVER_ALPHA: f32 = 0.22;
-/// Submenu chevrons render a touch smaller than the text icons.
 const CHEVRON_SCALE: f32 = 0.85;
 
-/// One entry in the menu tree. `id` is an opaque handle the caller maps to a
-/// message; `icon` is the entry's own icon, if any.
 #[derive(Debug, Clone)]
 pub struct MenuNode {
     pub id: i32,
@@ -49,14 +38,9 @@ pub enum MenuKind {
     Standard,
     Separator,
     Submenu,
-    /// A checkbox/radio entry and whether it is currently on.
     Toggle(bool),
 }
 
-/// Render the menu as a `Column`. `open` holds the ids of expanded submenus;
-/// `paint` fades the whole body (0 while a popup surface settles).
-/// `on_activate` maps a clicked standard/toggle entry's id to a message;
-/// `on_toggle` maps a submenu header's id.
 pub fn context_menu<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     nodes: &[MenuNode],
@@ -74,8 +58,6 @@ pub fn context_menu<'a, Message: Clone + 'a>(
         .into()
 }
 
-/// The element(s) a node contributes: a divider, a plain entry, or — for an
-/// open submenu — the header followed by its indented children.
 fn entry_rows<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     node: &MenuNode,
@@ -106,10 +88,6 @@ fn entry_rows<'a, Message: Clone + 'a>(
     }
 }
 
-/// One clickable row: a leading icon (the entry's own, else a check for a
-/// toggled item), the label, and — for a submenu — a right-aligned chevron.
-/// Rendered as a `button` so it highlights on hover; a disabled entry is dimmed
-/// and inert.
 fn entry<'a, Message: Clone + 'a>(
     config: &ResolvedConfig,
     node: &MenuNode,
@@ -180,8 +158,6 @@ fn button_style(status: button::Status, text: Color, accent: Color, paint: f32) 
     }
 }
 
-/// A subtle full-width 1px rule between sections, edge to edge, with a little
-/// vertical breathing room. Its alpha is set directly on the colour.
 fn divider<'a, Message: 'a>(config: &ResolvedConfig, paint: f32) -> Element<'a, Message> {
     let color = config
         .palette
@@ -200,8 +176,6 @@ fn divider<'a, Message: 'a>(config: &ResolvedConfig, paint: f32) -> Element<'a, 
         .into()
 }
 
-/// Drop redundant separators — leading, trailing, and runs of consecutive ones
-/// (apps often leave empty sections) — so every rendered rule is a real divide.
 fn clean_separators(nodes: &[MenuNode]) -> Vec<&MenuNode> {
     let mut out: Vec<&MenuNode> = Vec::new();
     for node in nodes {

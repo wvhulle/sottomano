@@ -1,10 +1,3 @@
-//! The `org.freedesktop.Notifications` D-Bus server and its bridge to the app.
-//!
-//! The zbus side owns only D-Bus identity (the id counter and the connection to
-//! emit signals through); the app owns the render truth. Two channels cross the
-//! bridge: [`ServerEvent`] inbound (a client called us) and [`Outbound`] back
-//! (we must emit a signal to a client). This mirrors the niri event thread.
-
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU32, Ordering},
@@ -25,7 +18,6 @@ const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
 
 struct NotificationServer {
-    /// Never 0 (0 tells a client "server-assigned"); starts at 1.
     next_id: AtomicU32,
     events: mpsc::Sender<ServerEvent>,
 }
@@ -44,8 +36,6 @@ impl NotificationServer {
         hints: HashMap<String, OwnedValue>,
         _expire_timeout: i32,
     ) -> u32 {
-        // expire_timeout is ignored on purpose: odin dismisses a toast by an
-        // event (user action or window-close), never by a clock.
         let id = if replaces_id != 0 {
             replaces_id
         } else {
@@ -118,10 +108,6 @@ impl NotificationServer {
     ) -> zbus::Result<()>;
 }
 
-/// Claim the bus name (stealing it from a running Quickshell odin), register
-/// the object server, and spawn the outbound signal drainer. Returns once the
-/// name is claimed; the spawned task owns the connection for the app's
-/// lifetime.
 pub async fn serve(
     events: mpsc::Sender<ServerEvent>,
     mut outbound: mpsc::Receiver<Outbound>,
@@ -135,9 +121,6 @@ pub async fn serve(
         .build()
         .await?;
 
-    // ReplaceExisting|AllowReplacement steals the name from odin *if odin itself
-    // requested it with AllowReplacement*; otherwise we land InQueue and stay
-    // dormant until odin exits.
     match conn
         .request_name_with_flags(
             NAME,
@@ -181,7 +164,6 @@ pub async fn serve(
     Ok(())
 }
 
-/// The `--action` list is `[key, label, key, label, ...]`.
 fn parse_actions(actions: &[String]) -> Vec<NotifAction> {
     actions
         .as_chunks::<2>()
@@ -222,9 +204,6 @@ fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// The notification's own image, in freedesktop priority: the raw-pixel
-/// `image-data` hint, then the `image-path` name/path, then the deprecated
-/// `icon_data` raster.
 fn hint_image(hints: &HashMap<String, OwnedValue>) -> Option<NotifImage> {
     if let Some(handle) = ["image-data", "image_data"]
         .iter()
@@ -242,9 +221,6 @@ fn hint_image(hints: &HashMap<String, OwnedValue>) -> Option<NotifImage> {
         .map(NotifImage::Rgba)
 }
 
-/// The `image-data` hint is `(iiibiiay)`: width, height, rowstride, has-alpha,
-/// bits-per-sample, channels, and the pixel bytes. iced wants tightly-packed
-/// RGBA, so this drops any row padding and widens RGB to RGBA.
 fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
     let (width, height, rowstride, has_alpha, _bits, channels, data): (
         i32,

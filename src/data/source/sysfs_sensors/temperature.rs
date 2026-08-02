@@ -1,5 +1,3 @@
-//! CPU temperature, ported from odin's `temperature.nu`.
-
 use std::{path::Path, time::Duration};
 
 use super::{favg, fmax, fmin, list_dir, read_i64, read_trimmed};
@@ -10,17 +8,12 @@ use crate::data::source::{
 const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 
-/// One per-core temperature sample.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TempReading {
     pub chip: String,
     pub celsius: f64,
 }
 
-/// CPU temperature across all per-core sensors (`temperature.nu`), read
-/// directly from hwmon rather than via `sensors`. Chip names are the raw hwmon
-/// `name` (e.g. `k10temp`), not `sensors`' bus-qualified form
-/// (`k10temp-pci-00c3`) — a minor tooltip deviation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub readings: Vec<TempReading>,
@@ -49,7 +42,6 @@ impl BarWidget for Temperature {
     }
 
     fn value(&self) -> Option<Value> {
-        // Gauge caps at 100 (°C read as a percent, odin's `[avg 100] | math min`).
         let avg = favg(&self.temps()).round() as i64;
         Some(Value::Gauge {
             percent: avg.min(100),
@@ -81,7 +73,6 @@ impl Source for Temperature {
     }
 }
 
-/// Gather per-core temps from every CPU hwmon chip.
 fn cpu_temp_readings() -> Vec<TempReading> {
     let mut chips = list_dir("/sys/class/hwmon");
     chips.sort();
@@ -99,9 +90,6 @@ fn cpu_temp_readings() -> Vec<TempReading> {
         .collect()
 }
 
-/// The per-core readings of one chip. Core labels are `Core N` (Intel) or
-/// `Tccd*` (AMD); with none, fall back to the first present of
-/// Tdie/Tctl/Package id 0.
 fn chip_readings(chip: &Path, name: &str, is_coretemp: bool) -> Vec<TempReading> {
     let labels: Vec<(u32, String)> = temp_labels(chip);
     let is_core = |label: &str| {
@@ -136,7 +124,6 @@ fn chip_readings(chip: &Path, name: &str, is_coretemp: bool) -> Vec<TempReading>
         .collect()
 }
 
-/// `(index, label)` for every `tempN_label` on a chip.
 fn temp_labels(chip: &Path) -> Vec<(u32, String)> {
     list_dir(chip)
         .iter()

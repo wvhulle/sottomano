@@ -1,7 +1,3 @@
-//! odin's `Weather`: a temperature handle that unfolds a location pin, current
-//! rain, and birch/grass pollen gauges. Hidden until situo has a fix. odin's
-//! hover forecast-chart popup is not ported; hovering shows the tooltips.
-
 use iced::{
     Alignment, Element, Subscription,
     widget::{Row, mouse_area},
@@ -96,7 +92,6 @@ impl WeatherGroup {
         config: &ResolvedConfig,
         position: Position,
     ) -> Option<Element<'a, WeatherMessage>> {
-        // Temperature is the persistent handle; without it the group hides.
         let temp = self.temp.get()?;
         let handle_reading = source_reading(config, Some(temp as &dyn BarWidget), 1.0)?;
         let handle = mouse_area(hoverable(

@@ -1,11 +1,3 @@
-//! Software gamma via `wl-gammarelay` (user bus): a global dim (the
-//! `Brightness` property, 0..1, a lossy color-ramp scale — not the hardware
-//! backlight) and color temperature (`Temperature`, Kelvin). Both live on the
-//! daemon's **root** object (`/`), where a write applies to every output at
-//! once — exactly the aggregate one-dim / one-warmth control the group wants.
-//! `None` when wl-gammarelay is absent (no external displays under gamma
-//! control).
-
 use std::{ops::RangeInclusive, time::Duration};
 
 use zbus::{blocking::Connection, proxy};
@@ -30,14 +22,11 @@ trait GammaRelay {
     fn set_temperature(&self, value: u16) -> zbus::Result<()>;
 }
 
-/// Slider range for color temperature (warm → cool), in Kelvin.
 pub const TEMP_RANGE: RangeInclusive<u16> = 3000..=6500;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Gamma {
-    /// Software dim, as a percentage (100 = no dimming).
     pub brightness: i64,
-    /// Color temperature, in Kelvin.
     pub temperature: u16,
 }
 
@@ -78,13 +67,11 @@ impl Source for Gamma {
     }
 }
 
-/// Set the software dim across all outputs.
 pub fn set_brightness(percent: i64) -> bool {
     let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
     relay().is_some_and(|proxy| proxy.set_brightness(frac).is_ok())
 }
 
-/// Set the color temperature (Kelvin) across all outputs.
 pub fn set_temperature(kelvin: u16) -> bool {
     let clamped = kelvin.clamp(*TEMP_RANGE.start(), *TEMP_RANGE.end());
     relay().is_some_and(|proxy| proxy.set_temperature(clamped).is_ok())

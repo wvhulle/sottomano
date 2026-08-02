@@ -1,18 +1,3 @@
-//! odin's `ReusableComponent/MenuGroup`: an expandable in-place group. A
-//! persistent handle sits on the bar; toggling unfolds a hidden content row to
-//! its right — the content fades in and the horizontal space grows from zero,
-//! while an edge hairline brightens to mark the group active. One eased scalar
-//! (`reveal`, 0..1) drives all three. Concrete groups own their data plus one
-//! `MenuGroup` and supply a handle and a content row.
-//!
-//! The group also owns the shared interaction: a single [`MenuMessage`]
-//! (toggle / cursor-enter / cursor-exit / close) instead of each concrete group
-//! re-declaring those, and [`view`](MenuGroup::view) wraps the composed element
-//! in the hover mouse-area itself. The expand curve is a pure function of time
-//! ([`reveal`](MenuGroup::reveal) samples it at the current instant); the
-//! application paints the frames via a timer gated on
-//! [`is_animating`](MenuGroup::is_animating).
-
 use iced::{
     Alignment, Animation, Element, Padding,
     animation::Easing,
@@ -26,9 +11,6 @@ use crate::{
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 
-/// The interactions every expandable group shares. One variant per concrete
-/// interaction — no boolean-flag payload; `CursorEntered`/`CursorExited` mirror
-/// the `mouse_area` events they originate from.
 #[derive(Debug, Clone, Copy)]
 pub enum MenuMessage {
     Toggle,
@@ -52,9 +34,6 @@ impl MenuGroup {
         }
     }
 
-    /// Apply a shared interaction. Returns `true` only on the open→closed edge
-    /// (this message collapsed an open menu), so callers can tear down
-    /// dependent state exactly once — never on a mere hover.
     pub fn update(&mut self, msg: MenuMessage) -> bool {
         let was_open = self.is_open();
         match msg {
@@ -66,37 +45,18 @@ impl MenuGroup {
         was_open && !self.is_open()
     }
 
-    /// Whether the group is (targeting) open — for closing dependent state when
-    /// it collapses.
     pub fn is_open(&self) -> bool {
         self.expand.value()
     }
 
-    /// Whether the expand curve is still in flight — gates the app's
-    /// frame-timer subscription (see `Bar::any_menu_animating`). Under
-    /// layer-shell a widget cannot self-drive its redraws from a
-    /// subscription-triggered state change, so an app-level timer paints
-    /// the frames while this is true.
     pub fn is_animating(&self) -> bool {
         self.expand.is_animating(Instant::now())
     }
 
-    /// The eased reveal fraction sampled at the current instant. Because the
-    /// animation is a pure curve, this samples `Instant::now()` directly; the
-    /// app's frame timer (gated on [`is_animating`](Self::is_animating)) keeps
-    /// frames coming so successive samples advance the transition.
     pub fn reveal(&self) -> f32 {
         self.expand.interpolate(0.0, 1.0, Instant::now())
     }
 
-    /// Compose the group: `handle` (always shown) beside the revealed
-    /// `content`, in the shared pager slot with an edge hairline, wrapped
-    /// in the hover mouse-area (its enter/exit mapped through
-    /// `to_message`). The handle owns the toggle press, so the caller wires
-    /// `.on_press(to_message(MenuMessage::Toggle))` onto it.
-    ///
-    /// `reveal` is passed in so the caller can fade its own `content` colours
-    /// by the same factor it computed once via [`reveal`](Self::reveal).
     pub fn view<'a, Message: 'a + Clone, F>(
         &self,
         config: &ResolvedConfig,
@@ -120,9 +80,6 @@ impl MenuGroup {
     }
 }
 
-/// The content row, gap-padded and horizontally scaled by `reveal` so the
-/// handle→content gap grows as the group unfolds (odin's `anim * (gap +
-/// content)`).
 fn revealed_content<'a, Message: 'a>(
     config: &ResolvedConfig,
     reveal: f32,
@@ -132,8 +89,6 @@ fn revealed_content<'a, Message: 'a>(
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }
 
-/// The inner-edge hairline marking the group active; brightens toward the focus
-/// colour as the group is hovered / revealed.
 fn edge_indicator<'a, Message: 'a>(
     config: &ResolvedConfig,
     hovered: bool,

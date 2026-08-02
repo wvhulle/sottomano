@@ -1,7 +1,3 @@
-//! vetrata — a pure-Rust niri bar on iced + `iced_layershell`. Launches a
-//! multi-output layer-shell daemon (one bar per output/edge); must run inside a
-//! niri session.
-
 mod app;
 mod config;
 mod data;
@@ -18,10 +14,6 @@ use iced_layershell::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load config (which resolves the sans-serif font) before building the daemon,
-    // so we can register that font and make it the default *before* the first
-    // frame — otherwise iced resolves no matching family and text renders in the
-    // Font Awesome icon font (tofu). Hand the same config to the bar.
     let config = config::resolved::load();
 
     let mut settings = Settings {

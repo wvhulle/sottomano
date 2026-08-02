@@ -1,8 +1,3 @@
-//! Panel-settings persistence: the session-tunable layout knobs (floating
-//! on/off and the float offset) the panel-settings group exposes. Stored as a
-//! tiny key/value table so new knobs can be added without a migration. Loaded
-//! once at startup and written back on each change.
-
 use crate::state::{BoxError, open, text};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_settings (
@@ -18,8 +13,6 @@ const DARKEN_CHROME_FACTOR: &str = "darken_chrome_factor";
 const DND: &str = "dnd";
 const SOUND: &str = "sound";
 
-/// The persisted panel settings, if any were saved. Missing keys are `None`, so
-/// the caller keeps its config default.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PanelSettings {
     pub floating: Option<bool>,
@@ -27,16 +20,10 @@ pub struct PanelSettings {
     pub blur_background: Option<bool>,
     pub disconnected_groups: Option<bool>,
     pub darken_chrome_factor: Option<f32>,
-    /// Do-not-disturb. Unlike the others, a missing key means "not muted" (the
-    /// layer's own default), so this is a plain bool with no "keep the default"
-    /// distinction to preserve.
     pub dnd: bool,
-    /// Notification sound on/off. `None` keeps the config default (on), so a
-    /// saved-off value is distinguishable from never-saved.
     pub sound: Option<bool>,
 }
 
-/// Load the saved panel settings, degrading to none on any error.
 pub async fn load() -> PanelSettings {
     match try_load().await {
         Ok(settings) => settings,
@@ -47,13 +34,10 @@ pub async fn load() -> PanelSettings {
     }
 }
 
-/// Persist the floating toggle.
 pub async fn save_floating(floating: bool) {
     put(FLOATING, if floating { "1" } else { "0" }).await;
 }
 
-/// Persist the float offset, reporting whether the write succeeded so a caller
-/// can confirm the value actually landed.
 pub async fn save_float_offset(offset: f32) -> bool {
     put(FLOAT_OFFSET, &offset.to_string()).await
 }
@@ -70,12 +54,10 @@ pub async fn save_darken_chrome_factor(factor: f32) -> bool {
     put(DARKEN_CHROME_FACTOR, &factor.to_string()).await
 }
 
-/// Persist the do-not-disturb toggle.
 pub async fn save_dnd(dnd: bool) {
     put(DND, if dnd { "1" } else { "0" }).await;
 }
 
-/// Persist the notification-sound toggle.
 pub async fn save_sound(sound: bool) {
     put(SOUND, if sound { "1" } else { "0" }).await;
 }

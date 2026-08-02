@@ -1,11 +1,3 @@
-//! One-shot power/lock actions via systemd-logind over the **system** bus
-//! (`org.freedesktop.login1`) — the manual counterpart to the idle daemon's
-//! timed actions. Blocking and fire-and-forget, modeled on [`mpris::control`];
-//! call off the render path. `interactive = true` so `PolicyKit` may prompt and
-//! inhibitor delays are honored.
-//!
-//! [`mpris::control`]: crate::data::source::mpris::control
-
 use zbus::{blocking::Connection, proxy};
 
 #[proxy(
@@ -35,9 +27,6 @@ pub fn power_off() {
     }
 }
 
-/// Lock the caller's session (equivalent to `loginctl lock-session`). Only
-/// takes visible effect if a lock handler is listening for logind's `Lock`
-/// signal.
 pub fn lock() {
     let Ok(session) = std::env::var("XDG_SESSION_ID") else {
         return;

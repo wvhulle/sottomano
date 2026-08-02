@@ -1,18 +1,3 @@
-//! The shared `.desktop` index and the app-wide resolved-icon cache: app
-//! metadata plus one app-id → icon-path and one theme-name → icon-path map,
-//! loaded and resolved off-thread, owned by the application and read by every
-//! widget that shows app icons (window list, quick-launch, media sources,
-//! notification cards) — rather than each widget keeping a private copy.
-//!
-//! Callers batch [`DesktopIndex::resolve_missing`] freely on their change
-//! triggers: it only spawns work for keys not cached yet, so it is a no-op in
-//! the common nothing-changed case. Keys that fail to resolve stay absent and
-//! re-try on later calls. The index reloads periodically (a newly installed
-//! app or a live theme switch is picked up without a restart), and
-//! [`DesktopIndex::set`] clears the cache on reload, which is both its
-//! eviction — keys for closed apps drop out — and the bound on that retry
-//! churn.
-
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -27,10 +12,8 @@ use crate::{
     message_subscriptions::blocking,
 };
 
-/// How often the index is reloaded.
 pub const RELOAD: Duration = Duration::from_secs(300);
 
-/// One off-thread resolve pass's results, merged into the cache on arrival.
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedIcons {
     app: HashMap<String, PathBuf>,
@@ -42,8 +25,6 @@ pub struct DesktopIndex {
     entries: Option<Arc<DesktopEntries>>,
     app_icons: HashMap<String, PathBuf>,
     theme_icons: HashMap<String, PathBuf>,
-    /// Abort-on-drop handle of the in-flight resolve, so a superseded pass
-    /// can't land after a newer one.
     resolve: Option<Handle>,
 }
 

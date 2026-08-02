@@ -7,7 +7,6 @@ use std::{
     process::Command,
 };
 
-/// Single-character digit slugs (`0`..=`9`) can't be identifiers; name them.
 const DIGIT_WORDS: [&str; 10] = [
     "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
 ];
@@ -28,8 +27,6 @@ fn to_ident(slug: &str) -> String {
             }
         })
         .collect();
-    // A leading digit (brand slugs like `42-group`, `500px`) can't start a Rust
-    // identifier; prefix it.
     if ident.starts_with(|c: char| c.is_ascii_digit()) {
         format!("Icon{ident}")
     } else {
@@ -37,9 +34,6 @@ fn to_ident(slug: &str) -> String {
     }
 }
 
-/// Locate `icons-light.json` inside the resolved `iced_font_awesome` source,
-/// via `cargo metadata` — the only cross-environment way (registry, Nix vendor
-/// dir) to find a dependency's non-Rust assets.
 fn metadata_json_path() -> PathBuf {
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = Command::new(cargo)

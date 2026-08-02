@@ -1,15 +1,3 @@
-//! The monitor group: an expandable group under a static display handle that
-//! gathers the orthogonal display controls. Each connected display gets its own
-//! hardware-backlight slider (internal or external DDC, via clightd); a single
-//! software-dim slider and a color-temperature slider drive `wl-gammarelay`;
-//! and the clight auto-brightness and umbra dark-mode toggles ride alongside.
-//!
-//! Thin composition: [`MenuGroup`] owns expand/collapse, each [`SliderControl`]
-//! owns one value model (with its optimistic ghost), and the [`ToggleControl`]s
-//! own their toggle state. Per-display sliders are keyed by serial and
-//! reconciled as monitors come and go. Every backend call lives in
-//! `data::source`.
-
 use std::{collections::BTreeMap, ops::RangeInclusive};
 
 use iced::{
@@ -42,16 +30,12 @@ use crate::{
 };
 
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
-/// Per-scroll-notch step for the percentage sliders (odin's ±5%).
 const STEP: f32 = 5.0;
-/// Warmth slider range in Kelvin (mirrors [`gamma::TEMP_RANGE`]) and its step.
 const WARMTH_RANGE: RangeInclusive<f32> = 3000.0..=6500.0;
 const WARMTH_STEP: f32 = 100.0;
 
 pub struct MonitorGroup {
-    /// Latest per-display reading, sorted by serial (index = tooltip index).
     backlights: Vec<Backlight>,
-    /// One slider per display serial, persistent across the dynamic reading.
     sliders: BTreeMap<String, SliderControl>,
     gamma: SourceCell<Gamma>,
     dim: SliderControl,
@@ -123,7 +107,6 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlights(list) => {
-                // Reconcile the per-display sliders with the new display set.
                 self.sliders
                     .retain(|serial, _| list.iter().any(|b| &b.serial == serial));
                 for backlight in &list {
@@ -215,9 +198,6 @@ impl MonitorGroup {
         }
     }
 
-    /// Close every per-display slider except (optionally) `keep`. The gamma dim
-    /// / warmth sliders are closed by their callers as needed, giving "one
-    /// open at a time" across the whole group.
     fn close_backlight_sliders(&mut self, keep: Option<&str>) {
         for (serial, control) in &mut self.sliders {
             if Some(serial.as_str()) != keep {
@@ -228,8 +208,6 @@ impl MonitorGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            // Each display's backlight is keyed by its stable serial (which
-            // survives monitors coming and going, unlike a positional index).
             HoverTarget::Backlight(serial) => {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
                 Some(Tooltip {
@@ -237,8 +215,6 @@ impl MonitorGroup {
                     footer: None,
                 })
             }
-            // The dim and warmth sliders drive the one gamma reading but show
-            // different slices of it, so their tooltips must not be identical.
             HoverTarget::GammaDim => self.gamma.get().and_then(|gamma| {
                 self.gamma.tooltip_with(TooltipBody::Table(vec![row(
                     "Dim",
@@ -300,9 +276,6 @@ impl MonitorGroup {
         ))
     }
 
-    /// The bar handle: a brightness glyph that unfolds the group. Deliberately
-    /// *not* a monitor icon — the per-display sliders use the monitor glyphs
-    /// (laptop / desktop), so the handle must read differently from them.
     fn handle<'a>(config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
         mouse_area(
             Solid::Lightbulb
@@ -329,8 +302,6 @@ impl MonitorGroup {
     }
 }
 
-/// One display's hardware-backlight slider, tagged by its serial on the way
-/// out.
 fn backlight_slider<'a>(
     config: &ResolvedConfig,
     control: &SliderControl,
@@ -358,8 +329,6 @@ fn as_kelvin(value: f32) -> u16 {
     value.round() as u16
 }
 
-/// Route a toggle's `Tooltip` sub-message to the group's `Tooltip` and
-/// everything else through `wrap`.
 fn lift<S>(
     wrap: impl Fn(ToggleMessage<S>) -> MonitorMessage,
 ) -> impl Fn(ToggleMessage<S>) -> MonitorMessage {

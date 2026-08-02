@@ -1,7 +1,3 @@
-//! Tailscale mesh status via `tailscale status --json`. A circle-nodes icon
-//! with an online-peer badge when the backend is running; a dimmed icon when
-//! not. Off the bar when `tailscale` is not installed.
-
 use std::time::Duration;
 
 use serde_json::Value as Json;
@@ -28,7 +24,6 @@ pub struct Tailscale {
     total_peers: usize,
 }
 
-/// The first label of a tailscale DNS name (`ryzen.tail….ts.net.` → `ryzen`).
 fn short_name(dns: &str) -> String {
     dns.split('.').next().unwrap_or(dns).to_string()
 }
@@ -126,7 +121,6 @@ impl Source for Tailscale {
     }
 }
 
-/// Open the tailscale admin console (odin's left-click on the tailscale pill).
 pub fn open_admin() -> bool {
     run("xdg-open", &["https://login.tailscale.com/admin/machines"])
 }

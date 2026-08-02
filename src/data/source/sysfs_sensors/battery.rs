@@ -1,5 +1,3 @@
-//! Battery charge level and power-source state.
-
 use std::time::Duration;
 
 use super::{energy_wh, first_power_supply, read_trimmed};
@@ -7,7 +5,6 @@ use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
-/// Power-source charge state, from `/sys/class/power_supply/*/status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeStatus {
     Charging,

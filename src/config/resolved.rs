@@ -1,6 +1,3 @@
-//! Config resolved once at startup: the font is loaded and parsed, colours are
-//! converted. Fields are plain data — read them directly.
-
 use std::{collections::HashSet, path::PathBuf, process::Command, sync::Arc};
 
 use color::{ColorSpaceTag, DynamicColor, Srgb};
@@ -15,61 +12,25 @@ pub struct ResolvedConfig {
     pub palette: ResolvedPaletteConfig,
     pub layout: Layout,
     pub font: ResolvedFontConfig,
-    /// Passed through from disk unchanged: notification settings need no
-    /// font/colour resolution, and the fallback corner is already an enum.
     pub notifications: NotificationConfig,
-    /// Float inset in px — pure persisted UI state, not a `vetrata.toml` knob.
-    /// Starts at 0 and is loaded from the sqlite state DB (`state::panel`) at
-    /// startup, then mutated live by the panel-settings slider.
     pub float_offset_px: f32,
     pub darken_chrome_factor: f32,
-    /// Do-not-disturb: suppress and discard all notification toasts. The single
-    /// home for this state — the notification layer and the bell widget both
-    /// read it here. Persisted UI state, not a `vetrata.toml` knob: starts
-    /// `false`, loaded from the state DB at startup, toggled live from the
-    /// notification group.
     pub dnd: bool,
-    /// Whether an alert sound plays on each incoming notification. Persisted UI
-    /// state; starts `true` (sounds on), loaded from the state DB at startup,
-    /// toggled live from the notification group.
     pub sound: bool,
-    /// The session's configured XDG sound theme (`org.gnome.desktop.sound
-    /// theme-name`), resolved once at startup — the sound analogue of the
-    /// gsettings icon-theme pick. `None` (no gsettings / unset) leaves the
-    /// sound lookup on its "freedesktop" default.
     pub sound_theme: Option<String>,
-    /// Lowercased SNI id substrings whose tray items are hidden (already
-    /// surfaced natively by the shell). See `disk::TrayConfig::deny_ids`.
     pub tray_deny_ids: Vec<String>,
-    /// Paths to the AI-provider secret files, resolved once from the
-    /// environment at startup. The files themselves are read at poll time
-    /// by the AI group's sources, so the secrets never sit in this
-    /// process's memory between polls.
+    pub terminal_command_prefix: Vec<String>,
     pub secrets: SecretPaths,
 }
 
-/// Filesystem paths to the AI-provider credential files, each `None` when its
-/// environment variable is unset or empty. Only the *path* is held here (and
-/// passed through `hm-module.nix`'s systemd `Environment`); the secret contents
-/// are read fresh on each poll, so a rotated token is picked up automatically
-/// and no secret ever enters the config or lingers in memory.
 #[derive(Debug, Clone, Default)]
 pub struct SecretPaths {
-    /// OpenRouter **management** key (a plain API key can't call
-    /// `/analytics/query`). From `VETRATA_OPENROUTER_KEY_FILE`.
     pub openrouter_management: Option<PathBuf>,
-    /// Claude Code OAuth credentials JSON (`claudeAiOauth.accessToken`). From
-    /// `VETRATA_CLAUDE_CODE_OAUTH_FILE`.
     pub claude_code_oauth: Option<PathBuf>,
-    /// A bare `gho_` GitHub OAuth token, for the Copilot usage endpoints. From
-    /// `VETRATA_GH_AUTH_TOKEN_FILE`.
     pub gh_auth_token: Option<PathBuf>,
 }
 
 impl ResolvedConfig {
-    /// Corner radius to draw: the configured radius when floating, else `0`.
-    /// Derived from the live layout rather than resolved once, so it follows
-    /// a runtime floating toggle.
     pub fn chrome_radius(&self) -> f32 {
         if self.layout.floating {
             f32::from(self.layout.corner_radius_px)
@@ -92,8 +53,6 @@ pub struct ResolvedPaletteConfig {
 
 #[derive(Debug, Clone)]
 pub struct ResolvedFontConfig {
-    /// Leaked once at startup: the family name must be `'static` for the
-    /// program's lifetime.
     pub iced_font: Font,
     pub text_size_px: f32,
     pub icon_size_px: f32,
@@ -101,8 +60,6 @@ pub struct ResolvedFontConfig {
     pub covered: Arc<HashSet<char>>,
 }
 
-/// Read the config from disk and resolve it. Panics if no sans-serif font can
-/// be loaded at all. Call once, at startup.
 pub fn load() -> ResolvedConfig {
     let path = disk::config_path();
     let user = match disk::read(&path) {
@@ -117,7 +74,6 @@ pub fn load() -> ResolvedConfig {
         layout: user.layout,
         font: resolve_font(&user.font),
         notifications: user.notifications,
-        // Overwritten by the persisted values once `state::panel` loads.
         float_offset_px: 0.0,
         darken_chrome_factor: 0.0,
         dnd: false,
@@ -129,6 +85,7 @@ pub fn load() -> ResolvedConfig {
             .iter()
             .map(|id| id.to_lowercase())
             .collect(),
+        terminal_command_prefix: user.terminal,
         secrets: SecretPaths {
             openrouter_management: secret_path("VETRATA_OPENROUTER_KEY_FILE"),
             claude_code_oauth: secret_path("VETRATA_CLAUDE_CODE_OAUTH_FILE"),
@@ -143,12 +100,6 @@ fn secret_path(var: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// The session's configured sound theme from gsettings
-/// (`org.gnome.desktop.sound theme-name`), so notification alert sounds follow
-/// the desktop's choice — the audio analogue of the icon-theme pick. gsettings
-/// quotes the value (`'ocean'`), so the surrounding quotes are trimmed. `None`
-/// when gsettings is absent or the key is unset, leaving the sound lookup on
-/// its "freedesktop" default.
 pub(crate) fn session_sound_theme() -> Option<String> {
     let output = Command::new("gsettings")
         .args(["get", "org.gnome.desktop.sound", "theme-name"])
@@ -220,8 +171,6 @@ fn covered_chars(face: &ttf_parser::Face) -> HashSet<char> {
     set
 }
 
-/// The family fontconfig picks for a single codepoint. Spawns a subprocess;
-/// call off the render path and cache the result.
 pub fn fallback_font(ch: char) -> Option<Font> {
     fc_match(&format!(":charset={:x}", ch as u32), "%{family}")
         .map(|family| Font::with_name(String::leak(family)))

@@ -1,9 +1,3 @@
-//! The window group: the bottom-centre "windows area" that pairs the
-//! [`quick_launch`] rocket with the live [`window_list`], centred as one unit.
-//! Its two children are widgets *of* this group — not groups themselves — so
-//! their state, messages, and views are owned and composed here; the app talks
-//! to the pair through this one group.
-
 pub mod quick_launch;
 pub mod window_list;
 
@@ -31,15 +25,10 @@ pub enum WindowGroupMessage {
     WindowList(WindowListMessage),
 }
 
-/// What the app must do in response to an update; effects that need app-owned
-/// state (niri, the `.desktop` index) are described, not performed.
 pub enum Action {
     None,
     Run(Task<WindowGroupMessage>),
-    /// Focus this niri window — the app owns the niri connection.
     FocusWindow(u64),
-    /// Re-run the window list's resolves — the app owns the inputs and
-    /// responds by calling [`WindowGroup::refresh_window_list`].
     RefreshWindowList,
 }
 
@@ -51,8 +40,6 @@ impl WindowGroup {
         }
     }
 
-    /// Only the window-list widget polls (its icon backstop); quick-launch
-    /// re-ranks off niri events and needs no timer.
     pub fn subscription() -> Subscription<WindowGroupMessage> {
         WindowList::subscription().map(WindowGroupMessage::WindowList)
     }
@@ -72,14 +59,10 @@ impl WindowGroup {
         }
     }
 
-    /// Push freshly ranked quick-launch candidates (computed by the app from
-    /// its launch tracker) into the quick-launch widget.
     pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) {
         self.quick_launch.set_ranked(ranked);
     }
 
-    /// Hand the shared `.desktop` index to the quick-launch widget for
-    /// launching (`Exec` lookup).
     pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
         self.quick_launch.set_desktop_entries(entries);
     }
@@ -88,8 +71,6 @@ impl WindowGroup {
         self.quick_launch.icon_keys()
     }
 
-    /// Re-run the window list's resolve pipelines against the current window
-    /// set.
     pub fn refresh_window_list(
         &mut self,
         niri: &EventStreamState,
@@ -100,9 +81,6 @@ impl WindowGroup {
             .map(WindowGroupMessage::WindowList)
     }
 
-    /// The launcher and window list, centred as a pair. Each widget hides
-    /// itself (`None`) when it has nothing to show, so an empty group is an
-    /// empty row.
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,

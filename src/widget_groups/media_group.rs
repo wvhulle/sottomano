@@ -1,14 +1,3 @@
-//! odin's `Media`: album-art handle that unfolds the track title, transport
-//! controls, and a source-switch row for the MPRIS players on the bus, updated
-//! signal-driven from [`mpris::subscription`]. Hidden when no player is
-//! present. When two or more players have a loaded track, an app icon per
-//! player sits after the transport buttons: clicking one re-points what the bar
-//! controls (selection only — no playback change), clicking the active one
-//! raises its window. Each icon is the player's real themed desktop icon
-//! (resolved off-thread through the same pipeline the window list uses),
-//! falling back to a Font Awesome glyph when none resolves. Deviation: odin's
-//! circular art clipping is not ported.
-
 use iced::{
     Alignment, Element, Subscription, Task,
     widget::{Row, image, mouse_area, svg},
@@ -40,11 +29,7 @@ const MAX_TITLE: usize = 40;
 
 pub struct MediaGroup {
     players: Vec<Media>,
-    /// The bus the user pinned as the source to show and control; cleared when
-    /// that player disappears. `None` falls back to the status-priority pick.
     forced: Option<String>,
-    /// Playback status shown right after a transport press, until the next
-    /// signal confirms it — so the button reacts instantly.
     optimistic: Option<Status>,
     pub(crate) menu: MenuGroup,
 }
@@ -54,7 +39,6 @@ pub enum MediaMessage {
     Reading(Vec<Media>),
     Menu(MenuMessage),
     Transport(&'static str),
-    /// A player's icon in the source row was clicked (its bus name).
     Source(String),
     Tooltip(TooltipMessage),
 }
@@ -73,9 +57,6 @@ impl MediaGroup {
         mpris::subscription().map(MediaMessage::Reading)
     }
 
-    /// The player the bar currently shows and controls: the pinned source if it
-    /// is still present, else the first playing, else the first paused, else
-    /// the first available (odin's `_pickPlayer`).
     fn current(&self) -> Option<&Media> {
         self.forced
             .as_ref()
@@ -85,19 +66,15 @@ impl MediaGroup {
             .or_else(|| self.players.first())
     }
 
-    /// The status to show: the optimistic override while a transport press is
-    /// in flight, else the last reading.
     fn status(&self, media: &Media) -> Status {
         self.optimistic.unwrap_or(media.status)
     }
 
     pub fn update(&mut self, msg: MediaMessage, niri: &EventStreamState) -> Task<MediaMessage> {
         match msg {
-            // A fresh signal reading is authoritative; drop the optimistic override.
             MediaMessage::Reading(reading) => {
                 self.players = reading;
                 self.optimistic = None;
-                // Unpin a source that has gone away so the pick falls back.
                 if let Some(bus) = &self.forced
                     && !self.players.iter().any(|m| &m.bus == bus)
                 {
@@ -108,9 +85,6 @@ impl MediaGroup {
                 self.menu.update(m);
             }
             MediaMessage::Source(bus) => {
-                // Re-clicking the active source raises its window; clicking any
-                // other source re-points the bar to it without touching
-                // playback.
                 if self.current().is_some_and(|m| m.bus == bus) {
                     return self.raise(&bus, niri);
                 }
@@ -121,8 +95,6 @@ impl MediaGroup {
                     return Task::none();
                 };
                 let bus = media.bus.clone();
-                // Flip the shown status now so the button reacts instantly; the
-                // next poll confirms (or corrects) it. No artificial delay.
                 self.optimistic = match method {
                     "PlayPause" => Some(if self.status(media) == Status::Playing {
                         Status::Paused
@@ -139,11 +111,6 @@ impl MediaGroup {
         Task::none()
     }
 
-    /// Raise the app window of the player on `bus`, matched through niri IPC
-    /// (MPRIS `Raise` is a no-op on Wayland for Spotify and others). App-handle
-    /// preference mirrors odin's `raisePlayer`: desktop entry, then the bus
-    /// handle, then the identity. Windowless daemons (mpd) match nothing and
-    /// are left alone.
     fn raise(&self, bus: &str, niri: &EventStreamState) -> Task<MediaMessage> {
         let Some(media) = self.players.iter().find(|m| m.bus == bus) else {
             return Task::none();
@@ -169,10 +136,6 @@ impl MediaGroup {
         self.players.iter().map(Media::app_id).collect()
     }
 
-    /// The source-switch row: one app icon per player with a loaded track, the
-    /// active source full-strength and the rest dimmed to the same `0.4` the
-    /// bar uses elsewhere for "not the active thing". Omitted unless at least
-    /// two players are switchable, since there is nothing to switch between.
     fn sources<'a>(
         &self,
         config: &ResolvedConfig,
@@ -275,7 +238,6 @@ impl MediaGroup {
     }
 }
 
-/// The persistent handle: the track's album art, or a fallback glyph.
 fn handle<'a>(
     config: &ResolvedConfig,
     media: &Media,
@@ -333,11 +295,6 @@ fn source_icon<'a>(
         .into()
 }
 
-/// The player's app glyph: the first Font Awesome slug that matches its desktop
-/// entry, bus handle, or an identity word (odin's `MediaSource` glyph
-/// resolution) — mpd's "Music Player Daemon" yields the solid `music` glyph.
-/// Falls back to a generic music note when nothing matches. Used only when no
-/// themed app icon resolved.
 fn player_icon(media: &Media) -> FontAwesome {
     let mut handles = Vec::new();
     if let Some(desktop) = &media.desktop_entry
@@ -359,8 +316,6 @@ fn player_icon(media: &Media) -> FontAwesome {
         .unwrap_or(Solid::Music.into())
 }
 
-/// The transport row: previous / play-pause / stop / next, each shown only when
-/// the player supports it.
 fn transport<'a>(
     config: &ResolvedConfig,
     media: &Media,

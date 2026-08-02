@@ -18,10 +18,7 @@ use crate::{
     },
 };
 
-/// The strftime format the time handle renders. The tick period is derived from
-/// it ([`period`]), so changing the precision here adjusts the redraw rate too.
 const TIME_FORMAT: &str = "%H:%M:%S";
-/// The strftime format the revealed date renders.
 const DATE_FORMAT: &str = "%a %d %b";
 
 pub struct ClockGroup {
@@ -58,9 +55,6 @@ impl ClockGroup {
         }
     }
 
-    /// Ticks just after each wall-clock boundary of [`period`] — a fixed
-    /// cadence from subscription start (`iced::time::every`) would leave the
-    /// display lagging real time by up to a whole period.
     pub fn subscription() -> Subscription<ClockMessage> {
         use iced::futures::SinkExt;
         Subscription::run(|| {
@@ -75,7 +69,6 @@ impl ClockGroup {
         })
     }
 
-    /// The time as the always-visible handle; expanding reveals the date.
     pub fn view<'a>(
         &self,
         config: &ResolvedConfig,
@@ -103,8 +96,6 @@ impl ClockGroup {
     }
 }
 
-/// The coarsest tick period that keeps `format` current: every second only
-/// when a seconds field is rendered, else every minute.
 fn period(format: &str) -> Duration {
     let has_seconds = ["%S", "%T", "%X", "%r", "%s"]
         .iter()
@@ -116,17 +107,12 @@ fn period(format: &str) -> Duration {
     }
 }
 
-/// Time left until `now`'s next wall-clock multiple of `period`. Derived from
-/// the UTC timestamp: local offsets are whole minutes, so second and minute
-/// boundaries coincide with UTC's.
 fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
     let secs_into = now
         .timestamp()
         .rem_euclid(period.as_secs().cast_signed())
         .cast_unsigned();
-    // Modulo folds a leap second's nanos back into range.
     let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
-    // Never actually saturates: subsec_ns < 1 s ≤ the remaining whole seconds.
     Duration::from_secs(period.as_secs() - secs_into)
         .saturating_sub(Duration::from_nanos(subsec_ns))
 }

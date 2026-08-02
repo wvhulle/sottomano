@@ -1,9 +1,3 @@
-//! Location from the situo daemon's session-bus interface `dev.situo.Location1`
-//! (its own reverse-geocoder: Wi-Fi → `BeaconDB` → place). Read over D-Bus with
-//! zbus's blocking API, so it fits a sync poll. `None` when the daemon is
-//! absent or has no valid fix — which takes the whole weather group off the
-//! bar.
-
 use zbus::{blocking::Connection, proxy};
 
 #[proxy(
@@ -45,8 +39,6 @@ pub struct Geo {
 }
 
 impl Geo {
-    /// The current fix, or `None` if situo is unavailable or its fix is
-    /// invalid.
     pub fn resolve() -> Option<Self> {
         let connection = Connection::session().ok()?;
         let proxy = Location1ProxyBlocking::new(&connection).ok()?;
@@ -65,7 +57,6 @@ impl Geo {
         })
     }
 
-    /// `--lat <n> --lon <n>` query params for the weather APIs.
     pub fn query(&self) -> String {
         format!("latitude={}&longitude={}", self.latitude, self.longitude)
     }

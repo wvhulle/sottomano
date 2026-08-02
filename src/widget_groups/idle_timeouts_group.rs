@@ -1,11 +1,3 @@
-//! odin's `IdleTimeouts`: a stopwatch handle unfolding four idle-subsystem
-//! controls — lock, screen-off, standby, power-down. Each is an [`IdleTimer`]
-//! that owns its timeout slider, its run-now button, and its action; this group
-//! holds the four as named fields, routes messages to them by [`TimerKind`],
-//! and owns the menu, the sqlite persistence, and the in-process daemon handle.
-//! Its `update` returns a [`Task`], so the bar delegates to it like any other
-//! group.
-
 use std::{thread, time::Duration};
 
 use iced::{
@@ -32,9 +24,6 @@ use crate::{
     },
 };
 
-/// Which subsystem an [`IdleTimeoutsMessage::Timer`] targets — the routing tag
-/// the group matches to the corresponding field. Declaration order == bar
-/// order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimerKind {
     LockUser,
@@ -59,7 +48,6 @@ pub struct IdleTimeoutsGroup {
     screen_off: IdleTimer,
     standby: IdleTimer,
     power_down: IdleTimer,
-    /// Handle to the in-process idle daemon, once it has connected to wayland.
     handle: Option<IdleHandle>,
     pub(crate) menu: MenuGroup,
 }
@@ -122,15 +110,12 @@ impl IdleTimeoutsGroup {
         ]
     }
 
-    /// Adopt the daemon handle once the wayland subscription connects, and arm
-    /// it with the current timeouts.
     pub fn connected(&mut self, handle: IdleHandle) -> Task<IdleTimeoutsMessage> {
         self.handle = Some(handle);
         self.rearm();
         Task::none()
     }
 
-    /// Close every control's slider and cancel any pending confirm.
     fn close_all(&mut self) {
         for kind in TimerKind::ALL {
             let timer = self.timer_mut(kind);
@@ -139,8 +124,6 @@ impl IdleTimeoutsGroup {
         }
     }
 
-    /// Close every *other* control (one slider open at a time) and cancel their
-    /// pending confirms.
     fn close_others(&mut self, kept: TimerKind) {
         for kind in TimerKind::ALL {
             if kind != kept {
@@ -161,7 +144,6 @@ impl IdleTimeoutsGroup {
                 self.rearm();
                 Task::none()
             }
-            // Collapsing the menu closes every control's slider.
             IdleTimeoutsMessage::Menu(m) => {
                 if self.menu.update(m) {
                     self.close_all();
@@ -170,13 +152,10 @@ impl IdleTimeoutsGroup {
             }
             IdleTimeoutsMessage::Timer(kind, msg) => match self.timer_mut(kind).update(msg) {
                 TimerChange::None => Task::none(),
-                // This control just opened — close the others.
                 TimerChange::Opened => {
                     self.close_others(kind);
                     Task::none()
                 }
-                // A committed timeout rearms the daemon and persists; the save's
-                // result confirms the optimistic slider value (or rolls it back).
                 TimerChange::Persist(value) => {
                     self.rearm();
                     Task::future(state::idle::save(self.timeouts())).map(move |ok| {
@@ -186,8 +165,6 @@ impl IdleTimeoutsGroup {
                         )
                     })
                 }
-                // The run-now button confirmed — perform the action, the same one
-                // the daemon performs when this subsystem's timeout is reached.
                 TimerChange::Fire(action) => {
                     self.close_others(kind);
                     blocking("idle action", move || {
@@ -217,7 +194,6 @@ impl IdleTimeoutsGroup {
             .map(|(_, timer)| timer.tooltip())
     }
 
-    /// Push each control's arm (timeout + action) to the daemon, if connected.
     fn rearm(&self) {
         let Some(handle) = &self.handle else {
             return;
@@ -236,8 +212,6 @@ impl IdleTimeoutsGroup {
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
         let reveal = self.menu.reveal();
-        // A wide gap separates subsystems; each control hugs its own run-now
-        // button internally (see `IdleTimer::view`).
         let group_gap = config.layout.horizontal_widget_spacing_px * 1.5;
         let controls = self.entries().map(|(kind, timer)| {
             timer.view(config, reveal).map(move |m| match m {
