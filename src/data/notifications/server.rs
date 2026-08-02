@@ -1,5 +1,3 @@
-#![allow(clippy::used_underscore_binding)]
-
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU32, Ordering},
@@ -14,7 +12,9 @@ use zbus::{
     zvariant::{OwnedValue, Value},
 };
 
-use super::model::{NotifAction, NotifImage, NotificationData, Outbound, ServerEvent, Urgency};
+use super::model::{
+    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ServerEvent, Urgency,
+};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
@@ -37,7 +37,7 @@ impl NotificationServer {
         body: String,
         actions: Vec<String>,
         hints: HashMap<String, OwnedValue>,
-        _expire_timeout: i32,
+        expire_timeout: i32,
     ) -> u32 {
         let id = if replaces_id != 0 {
             replaces_id
@@ -52,6 +52,7 @@ impl NotificationServer {
             body,
             actions: parse_actions(&actions),
             urgency: parse_urgency(&hints),
+            expire_timeout: ExpireTimeout::from_millis(expire_timeout),
             window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
             desktop_entry: hint_str(&hints, "desktop-entry"),
             image: hint_image(&hints),

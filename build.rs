@@ -58,6 +58,49 @@ fn metadata_json_path() -> PathBuf {
         .join("assets/font-awesome-7/icons-light.json")
 }
 
+fn slugs_with_style(metadata: &serde_json::Value, style: &str) -> Vec<String> {
+    let mut slugs: Vec<String> = metadata
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|icon| {
+            icon["styles"]
+                .as_array()
+                .is_some_and(|s| s.iter().any(|s| s == style))
+        })
+        .map(|icon| icon["label"].as_str().unwrap().to_owned())
+        .collect();
+    slugs.sort_unstable();
+    slugs.dedup();
+    slugs
+}
+
+fn face(slugs: &[String], enum_name: &str) -> (String, String, String) {
+    let mut variants = String::new();
+    let mut name_arms = String::new();
+    let mut slug_arms = String::new();
+    let mut seen = HashSet::new();
+    for slug in slugs {
+        let ident = to_ident(slug);
+        assert!(
+            ident.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_'),
+            "slug {slug:?} produced invalid Rust identifier {ident:?}",
+        );
+        assert!(
+            seen.insert(ident.clone()),
+            "slug {slug:?} produced duplicate identifier {ident:?} in {enum_name}",
+        );
+        writeln!(variants, "    {ident},").unwrap();
+        writeln!(name_arms, "            {enum_name}::{ident} => {slug:?},").unwrap();
+        writeln!(
+            slug_arms,
+            "            {slug:?} => Some({enum_name}::{ident}),"
+        )
+        .unwrap();
+    }
+    (variants, name_arms, slug_arms)
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=Cargo.lock");
@@ -68,56 +111,23 @@ fn main() {
     let metadata: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&json_path).unwrap()).unwrap();
 
-    let slugs_with_style = |style: &str| -> Vec<String> {
-        let mut slugs: Vec<String> = metadata
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|icon| {
-                icon["styles"]
-                    .as_array()
-                    .is_some_and(|s| s.iter().any(|s| s == style))
-            })
-            .map(|icon| icon["label"].as_str().unwrap().to_owned())
-            .collect();
-        slugs.sort_unstable();
-        slugs.dedup();
-        slugs
-    };
-    let face = |slugs: &[String], enum_name: &str| -> (String, String, String) {
-        let mut variants = String::new();
-        let mut name_arms = String::new();
-        let mut slug_arms = String::new();
-        let mut seen = HashSet::new();
-        for slug in slugs {
-            let ident = to_ident(slug);
-            assert!(
-                ident.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_'),
-                "slug {slug:?} produced invalid Rust identifier {ident:?}",
-            );
-            assert!(
-                seen.insert(ident.clone()),
-                "slug {slug:?} produced duplicate identifier {ident:?} in {enum_name}",
-            );
-            writeln!(variants, "    {ident},").unwrap();
-            writeln!(name_arms, "            {enum_name}::{ident} => {slug:?},").unwrap();
-            writeln!(
-                slug_arms,
-                "            {slug:?} => Some({enum_name}::{ident}),"
-            )
-            .unwrap();
-        }
-        (variants, name_arms, slug_arms)
-    };
-
-    let (solid_variants, solid_names, solid_slugs) = face(&slugs_with_style("solid"), "Solid");
-    let (brand_variants, brand_names, brand_slugs) = face(&slugs_with_style("brands"), "Brands");
+    let (solid_variants, solid_names, solid_slugs) =
+        face(&slugs_with_style(&metadata, "solid"), "Solid");
+    let (regular_variants, regular_names, regular_slugs) =
+        face(&slugs_with_style(&metadata, "regular"), "Regular");
+    let (brand_variants, brand_names, brand_slugs) =
+        face(&slugs_with_style(&metadata, "brands"), "Brands");
 
     let code = format!(
         r"#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Solid {{
 {solid_variants}}}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum Regular {{
+{regular_variants}}}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
@@ -135,6 +145,22 @@ impl Solid {{
     pub fn from_slug(slug: &str) -> Option<Solid> {{
         match slug {{
 {solid_slugs}            _ => None,
+        }}
+    }}
+}}
+
+#[allow(dead_code)]
+impl Regular {{
+    #[allow(clippy::too_many_lines)]
+    pub const fn name(self) -> &'static str {{
+        match self {{
+{regular_names}        }}
+    }}
+
+    #[allow(clippy::too_many_lines)]
+    pub fn from_slug(slug: &str) -> Option<Regular> {{
+        match slug {{
+{regular_slugs}            _ => None,
         }}
     }}
 }}

@@ -36,6 +36,8 @@ use crate::{
     widgets::idle,
 };
 
+const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
+
 pub fn subscription(state: &Bar) -> Subscription<Message> {
     let animation = if state.any_menu_animating() {
         every(Duration::from_millis(16)).map(|_| Message::Redraw)
@@ -44,6 +46,11 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     };
     let tooltip_tick = if state.tooltip_has_relative_time() {
         every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
+    } else {
+        Subscription::none()
+    };
+    let expiry_tick = if state.any_notification_expiring() {
+        every(NOTIFICATION_EXPIRY_TICK).map(|_| Message::Notification(NotificationMessage::Tick))
     } else {
         Subscription::none()
     };
@@ -73,6 +80,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         notifications_subscription(),
         animation,
         tooltip_tick,
+        expiry_tick,
     ])
 }
 

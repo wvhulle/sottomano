@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, time::Duration};
 
 use iced::widget::image;
 use tokio::sync::mpsc;
@@ -9,6 +9,23 @@ pub enum Urgency {
     #[default]
     Normal,
     Critical,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExpireTimeout {
+    Never,
+    After(Duration),
+    ServerDefault,
+}
+
+impl ExpireTimeout {
+    pub fn from_millis(requested: i32) -> Self {
+        match u64::try_from(requested) {
+            Ok(0) => Self::Never,
+            Ok(millis) => Self::After(Duration::from_millis(millis)),
+            Err(_) => Self::ServerDefault,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +49,7 @@ pub struct NotificationData {
     pub body: String,
     pub actions: Vec<NotifAction>,
     pub urgency: Urgency,
+    pub expire_timeout: ExpireTimeout,
     pub window_id_hint: Option<u64>,
     pub desktop_entry: Option<String>,
     pub image: Option<NotifImage>,
@@ -48,6 +66,7 @@ pub enum ServerEvent {
 }
 
 pub mod close_reason {
+    pub const EXPIRED: u32 = 1;
     pub const DISMISSED: u32 = 2;
     pub const CLOSED_BY_CALL: u32 = 3;
     pub const UNDEFINED: u32 = 4;

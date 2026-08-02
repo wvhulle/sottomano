@@ -1,4 +1,5 @@
 pub mod card;
+pub mod countdown;
 pub mod markup;
 pub mod placement;
 pub mod stack;
@@ -6,9 +7,10 @@ pub mod stack;
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 
+use countdown::Countdown;
 use iced::{Element, Task, widget::Sensor, window::Id};
 use iced_layershell::reexport::Anchor;
 use placement::{ToastPlacement, placement_for, resolve_window_id};
@@ -42,11 +44,13 @@ pub enum NotificationMessage {
     Dismiss(u32),
     ActionClicked { id: u32, key: String },
     Resized { id: u32, height: f32 },
+    Tick,
 }
 
 pub struct Notification {
     pub data: NotificationData,
     pub created_at: SystemTime,
+    countdown: Option<Countdown>,
     seq: u64,
     pub icons: card::CardIcons,
     measured_height: f32,
@@ -104,6 +108,7 @@ impl NotificationLayer {
                             reason: close_reason::DISMISSED,
                         }));
                     }
+                    self.prune_hover();
                 }
                 if config.sound && !data.suppress_sound {
                     tasks.push(sound::play(&data, config.sound_theme.as_deref()));
@@ -112,13 +117,19 @@ impl NotificationLayer {
                 let measured_height = card::measure_height(&data, &icons, config);
                 let seq = self.next_seq;
                 self.next_seq += 1;
+                let now = Instant::now();
+                let countdown =
+                    countdown::lifetime(data.expire_timeout, data.urgency, &config.notifications)
+                        .map(|remaining| Countdown::started(remaining, now));
                 self.live.push(Notification {
                     data: *data,
                     created_at: SystemTime::now(),
+                    countdown,
                     seq,
                     icons,
                     measured_height,
                 });
+                self.sync_countdowns(now);
                 tasks.push(self.reconcile(placement, outputs, config));
                 Task::batch(tasks)
             }
@@ -135,6 +146,7 @@ impl NotificationLayer {
                 } else if self.hovered == Some(id) {
                     self.hovered = None;
                 }
+                self.sync_countdowns(Instant::now());
                 Task::none()
             }
             NotificationMessage::Dismiss(id) => {
@@ -149,6 +161,7 @@ impl NotificationLayer {
             NotificationMessage::Resized { id, height } => {
                 self.adopt_measured_height(id, height, placement, outputs, config)
             }
+            NotificationMessage::Tick => self.expire(placement, outputs, config),
         }
     }
 
@@ -172,8 +185,67 @@ impl NotificationLayer {
                 reason: close_reason::UNDEFINED,
             }));
         }
+        self.prune_hover();
         tasks.push(self.reconcile(placement, outputs, config));
         Task::batch(tasks)
+    }
+
+    fn expire(
+        &mut self,
+        placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
+        config: &ResolvedConfig,
+    ) -> Task<Message> {
+        let now = Instant::now();
+        let expired: Vec<u32> = self
+            .live
+            .iter()
+            .filter(|n| n.countdown.is_some_and(|c| c.has_elapsed(now)))
+            .map(|n| n.data.id)
+            .collect();
+        if expired.is_empty() {
+            return Task::none();
+        }
+        self.live.retain(|n| !expired.contains(&n.data.id));
+        self.prune_hover();
+        let mut tasks: Vec<Task<Message>> = expired
+            .into_iter()
+            .map(|id| {
+                self.emit(Outbound::Closed {
+                    id,
+                    reason: close_reason::EXPIRED,
+                })
+            })
+            .collect();
+        tasks.push(self.reconcile(placement, outputs, config));
+        Task::batch(tasks)
+    }
+
+    fn sync_countdowns(&mut self, now: Instant) {
+        let hovered = self.hovered;
+        for notif in &mut self.live {
+            let under_pointer = hovered == Some(notif.data.id);
+            notif.countdown = notif.countdown.map(|countdown| {
+                if under_pointer {
+                    countdown.paused(now)
+                } else {
+                    countdown.resumed(now)
+                }
+            });
+        }
+    }
+
+    fn prune_hover(&mut self) {
+        let live = &self.live;
+        self.hovered = self
+            .hovered
+            .filter(|id| live.iter().any(|n| n.data.id == *id));
+    }
+
+    pub fn has_running_countdown(&self) -> bool {
+        self.live
+            .iter()
+            .any(|n| n.countdown.is_some_and(Countdown::is_running))
     }
 
     fn adopt_measured_height(
@@ -288,6 +360,7 @@ impl NotificationLayer {
     ) -> Task<Message> {
         let existed = self.live.iter().any(|n| n.data.id == id);
         self.live.retain(|n| n.data.id != id);
+        self.prune_hover();
         let closed = if existed {
             self.emit(Outbound::Closed { id, reason })
         } else {

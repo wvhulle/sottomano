@@ -486,6 +486,10 @@ impl Bar {
             .unwrap_or_else(Tooltip::empty)
     }
 
+    pub fn any_notification_expiring(&self) -> bool {
+        self.notifications.has_running_countdown()
+    }
+
     pub fn tooltip_has_relative_time(&self) -> bool {
         self.tooltip.target().is_some_and(|target| {
             let tooltip = self.tooltip_for(target);

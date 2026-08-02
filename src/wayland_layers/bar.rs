@@ -190,7 +190,7 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
         [
             slot(bar.clock_group.view(config, position), Message::Clock),
             slot(
-                notification_group::view(config, position),
+                notification_group::view(config, position, bar.notifications.is_active()),
                 Message::NotificationGroup,
             ),
         ],

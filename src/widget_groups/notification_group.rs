@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{
     config::resolved::ResolvedConfig,
-    data::source::font_awesome::{FontAwesome, Solid},
+    data::source::font_awesome::{FontAwesome, Regular, Solid},
     wayland_layers::surface::Position,
     widgets::pager_slot::permanently_inactive_slot,
 };
@@ -19,23 +19,25 @@ pub enum NotificationGroupMessage {
 pub fn view<'a>(
     config: &ResolvedConfig,
     position: Position,
+    any_pending: bool,
 ) -> Element<'a, NotificationGroupMessage> {
     let do_not_disturb = toggle(
         config,
-        if config.dnd {
-            Solid::BellSlash.into()
-        } else {
-            Solid::Bell.into()
+        match (config.dnd, any_pending) {
+            (true, _) => Solid::CommentSlash.into(),
+            (false, true) => Solid::Comment.into(),
+            (false, false) => Regular::Comment.into(),
         },
         !config.dnd,
         NotificationGroupMessage::ToggleDoNotDisturb,
     );
     let sound = toggle(
         config,
-        if config.sound {
-            Solid::VolumeHigh.into()
-        } else {
-            Solid::VolumeXmark.into()
+        match (config.sound, any_pending) {
+            (true, true) => Solid::Bell.into(),
+            (true, false) => Regular::Bell.into(),
+            (false, true) => Solid::BellSlash.into(),
+            (false, false) => Regular::BellSlash.into(),
         },
         config.sound,
         NotificationGroupMessage::ToggleSound,

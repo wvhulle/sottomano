@@ -92,6 +92,9 @@ pub struct NotificationConfig {
     pub app_icon_size: f32,
     pub image_size: f32,
     pub badge_size: f32,
+    pub low_timeout_ms: u64,
+    pub normal_timeout_ms: u64,
+    pub critical_timeout_ms: u64,
 }
 
 impl Default for NotificationConfig {
@@ -104,6 +107,9 @@ impl Default for NotificationConfig {
             app_icon_size: 40.0,
             image_size: 48.0,
             badge_size: 20.0,
+            low_timeout_ms: 8_000,
+            normal_timeout_ms: 12_000,
+            critical_timeout_ms: 0,
         }
     }
 }
