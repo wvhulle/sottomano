@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    mem::take,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -9,6 +10,7 @@ use iced::{
     Alignment, Element, Font, Subscription, Task,
     font::Style as FontStyle,
     task::Handle,
+    time::every,
     widget::{Row, image, mouse_area, rich_text, svg},
 };
 use niri_ipc::state::EventStreamState;
@@ -112,14 +114,14 @@ pub enum Action {
 
 impl WindowList {
     pub fn subscription() -> Subscription<WindowListMessage> {
-        iced::time::every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed)
+        every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed)
     }
 
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
         match msg {
             WindowListMessage::Clicked(window) => Action::FocusWindow(window),
             WindowListMessage::FaviconsLoaded(raw) => {
-                let previous = std::mem::take(&mut self.favicons);
+                let previous = take(&mut self.favicons);
                 self.favicons = raw
                     .into_iter()
                     .map(|(title, raw)| {

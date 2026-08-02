@@ -1,4 +1,4 @@
-use std::ops::RangeInclusive;
+use std::{env, ops::RangeInclusive, thread, time::Duration};
 
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
@@ -235,9 +235,9 @@ fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
 }
 
 fn slow_write_delay() {
-    if let Ok(raw) = std::env::var("VETRATA_SLOW_WRITE_MS")
+    if let Ok(raw) = env::var("VETRATA_SLOW_WRITE_MS")
         && let Ok(ms) = raw.parse::<u64>()
     {
-        std::thread::sleep(std::time::Duration::from_millis(ms));
+        thread::sleep(Duration::from_millis(ms));
     }
 }

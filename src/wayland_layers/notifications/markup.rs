@@ -1,3 +1,5 @@
+use std::mem::take;
+
 use iced::{
     Color, Font,
     font::{Style as FontStyle, Weight},
@@ -6,38 +8,28 @@ use iced::{
 
 use crate::config::resolved::ResolvedFontConfig;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct Emphasis {
-    bold: bool,
-    italic: bool,
+    font: Font,
     underline: bool,
-    mono: bool,
 }
 
 impl Emphasis {
-    fn from_stack(stack: &[String]) -> Self {
-        let mut e = Emphasis::default();
+    fn from_stack(stack: &[String], base: Font, mono: Font) -> Self {
+        let mut emphasis = Self {
+            font: base,
+            underline: false,
+        };
         for tag in stack {
             match tag.as_str() {
-                "b" => e.bold = true,
-                "i" => e.italic = true,
-                "u" => e.underline = true,
-                "pre" | "tt" => e.mono = true,
+                "b" => emphasis.font.weight = Weight::Bold,
+                "i" => emphasis.font.style = FontStyle::Italic,
+                "u" => emphasis.underline = true,
+                "pre" | "tt" => emphasis.font.family = mono.family,
                 _ => {}
             }
         }
-        e
-    }
-
-    fn font(self, base: Font, mono: Font) -> Font {
-        let mut font = if self.mono { mono } else { base };
-        if self.bold {
-            font.weight = Weight::Bold;
-        }
-        if self.italic {
-            font.style = FontStyle::Italic;
-        }
-        font
+        emphasis
     }
 }
 
@@ -59,10 +51,10 @@ pub fn body_spans<'a>(
     for token in tokenize(body) {
         match token {
             Token::Text(text) => {
-                let emphasis = Emphasis::from_stack(&stack);
+                let emphasis = Emphasis::from_stack(&stack, font.iced_font, mono);
                 spans.push(
                     span(text)
-                        .font(emphasis.font(font.iced_font, mono))
+                        .font(emphasis.font)
                         .size(size)
                         .color(color)
                         .underline(emphasis.underline),
@@ -84,7 +76,7 @@ fn tokenize(body: &str) -> Vec<Token> {
     let mut text = String::new();
     let flush = |text: &mut String, tokens: &mut Vec<Token>| {
         if !text.is_empty() {
-            tokens.push(Token::Text(std::mem::take(text)));
+            tokens.push(Token::Text(take(text)));
         }
     };
 
@@ -155,6 +147,8 @@ fn decode_entity(entity: &str) -> Option<char> {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashSet, sync::Arc};
+
     use super::*;
 
     fn render(body: &str) -> String {
@@ -162,8 +156,8 @@ mod tests {
             iced_font: Font::DEFAULT,
             text_size_px: 14.0,
             icon_size_px: 14.0,
-            data: std::sync::Arc::from([].as_slice()),
-            covered: std::sync::Arc::new(std::collections::HashSet::new()),
+            data: Arc::from([].as_slice()),
+            covered: Arc::new(HashSet::new()),
         };
         body_spans(
             body,

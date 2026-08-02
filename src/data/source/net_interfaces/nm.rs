@@ -1,5 +1,15 @@
+use std::{
+    collections::HashMap,
+    net::{Ipv4Addr, Ipv6Addr},
+};
+
 use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
-use zbus::{Connection, MatchRule, MessageStream, proxy, zvariant::OwnedObjectPath};
+use zbus::{
+    Connection, MatchRule, MessageStream,
+    message::Type,
+    proxy,
+    zvariant::{OwnedObjectPath, OwnedValue},
+};
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
@@ -93,15 +103,11 @@ trait ActiveConnection {
 )]
 trait Ip4Config {
     #[zbus(property)]
-    fn address_data(
-        &self,
-    ) -> zbus::Result<Vec<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>>;
+    fn address_data(&self) -> zbus::Result<Vec<HashMap<String, OwnedValue>>>;
     #[zbus(property)]
     fn gateway(&self) -> zbus::Result<String>;
     #[zbus(property)]
-    fn nameserver_data(
-        &self,
-    ) -> zbus::Result<Vec<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>>;
+    fn nameserver_data(&self) -> zbus::Result<Vec<HashMap<String, OwnedValue>>>;
 }
 
 #[proxy(
@@ -110,9 +116,7 @@ trait Ip4Config {
 )]
 trait Ip6Config {
     #[zbus(property)]
-    fn address_data(
-        &self,
-    ) -> zbus::Result<Vec<std::collections::HashMap<String, zbus::zvariant::OwnedValue>>>;
+    fn address_data(&self) -> zbus::Result<Vec<HashMap<String, OwnedValue>>>;
     #[zbus(property)]
     fn gateway(&self) -> zbus::Result<String>;
     #[zbus(property)]
@@ -214,9 +218,7 @@ pub async fn ip(connection: &Connection, device: &OwnedObjectPath) -> zbus::Resu
     })
 }
 
-fn first_address(
-    entries: &[std::collections::HashMap<String, zbus::zvariant::OwnedValue>],
-) -> Option<(String, u32)> {
+fn first_address(entries: &[HashMap<String, OwnedValue>]) -> Option<(String, u32)> {
     let global = entries.iter().find(|entry| {
         entry
             .get("address")
@@ -278,7 +280,7 @@ async fn ip6_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
             .into_iter()
             .filter_map(|bytes| {
                 let raw = <[u8; 16]>::try_from(bytes.as_slice()).ok()?;
-                Some(std::net::Ipv6Addr::from(raw).to_string())
+                Some(Ipv6Addr::from(raw).to_string())
             })
             .collect(),
     })
@@ -294,7 +296,7 @@ fn prefix_to_netmask(prefix: u32) -> String {
         32.. => !0,
         _ => !0u32 << (32 - prefix),
     };
-    std::net::Ipv4Addr::from(bits).to_string()
+    Ipv4Addr::from(bits).to_string()
 }
 
 pub async fn hw_address(
@@ -401,7 +403,7 @@ fn security(flags: u32, wpa: u32, rsn: u32) -> Option<String> {
 
 pub async fn changes(connection: &Connection) -> zbus::Result<impl Stream<Item = ()> + use<>> {
     let rule = MatchRule::builder()
-        .msg_type(zbus::message::Type::Signal)
+        .msg_type(Type::Signal)
         .sender(SERVICE)?
         .build();
     Ok(MessageStream::for_match_rule(rule, connection, Some(16))

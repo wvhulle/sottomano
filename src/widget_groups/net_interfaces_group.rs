@@ -11,6 +11,7 @@ use crate::{
             wifi::{self, Wifi},
         },
     },
+    message_subscriptions::dbus,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -39,14 +40,10 @@ pub enum NetInterfacesMessage {
 impl NetInterfacesGroup {
     pub fn subscription() -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
-            crate::message_subscriptions::dbus(bluetooth::NAME, bluetooth::readings)
-                .map(NetInterfacesMessage::Bluetooth),
-            crate::message_subscriptions::dbus(ethernet::NAME, ethernet::readings)
-                .map(NetInterfacesMessage::Ethernet),
-            crate::message_subscriptions::dbus(wifi::NAME, wifi::readings)
-                .map(NetInterfacesMessage::Wifi),
-            crate::message_subscriptions::dbus(mobile::NAME, mobile::readings)
-                .map(NetInterfacesMessage::Mobile),
+            dbus(bluetooth::NAME, bluetooth::readings).map(NetInterfacesMessage::Bluetooth),
+            dbus(ethernet::NAME, ethernet::readings).map(NetInterfacesMessage::Ethernet),
+            dbus(wifi::NAME, wifi::readings).map(NetInterfacesMessage::Wifi),
+            dbus(mobile::NAME, mobile::readings).map(NetInterfacesMessage::Mobile),
         ])
     }
 

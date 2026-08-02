@@ -1,3 +1,5 @@
+use core::f32::consts::FRAC_1_SQRT_2;
+
 use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
@@ -80,7 +82,7 @@ pub fn layer_settings(
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: Some((0, height)),
-        exclusive_zone: Some(height as i32),
+        exclusive_zone: Some(height.cast_signed()),
         anchor: position.anchor(),
         layer: Layer::Top,
         keyboard_interactivity: KeyboardInteractivity::None,
@@ -272,7 +274,7 @@ fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a,
     }
     let background = darkened_background(config);
     let radius = config.layout.outer_height_px / 2.0;
-    let curve_inset = radius * (1.0 - core::f32::consts::FRAC_1_SQRT_2);
+    let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
     container(group)
         .height(Length::Fixed(config.layout.outer_height_px))
         .align_y(Vertical::Center)

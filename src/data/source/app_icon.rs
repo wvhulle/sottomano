@@ -97,14 +97,14 @@ impl DesktopEntries {
 pub fn app_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
     icon_keys(niri_state, |c| match c {
         IconCandidate::AppId(id) => Some(id),
-        _ => None,
+        IconCandidate::Theme(_) => None,
     })
 }
 
 pub fn theme_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
     icon_keys(niri_state, |c| match c {
         IconCandidate::Theme(name) => Some(name),
-        _ => None,
+        IconCandidate::AppId(_) => None,
     })
 }
 

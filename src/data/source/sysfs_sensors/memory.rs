@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{fs, time::Duration};
 
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
@@ -58,7 +58,7 @@ impl Source for Memory {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll() -> Option<Self> {
-        let info = std::fs::read_to_string("/proc/meminfo").ok()?;
+        let info = fs::read_to_string("/proc/meminfo").ok()?;
         let total_kb = meminfo_kb(&info, "MemTotal")?;
         let available_kb = meminfo_kb(&info, "MemAvailable")?;
         Some(Memory {

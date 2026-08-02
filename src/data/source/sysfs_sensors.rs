@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub mod battery;
 #[allow(dead_code)]
@@ -97,7 +100,7 @@ fn first_backlight() -> Option<PathBuf> {
 }
 
 pub(super) fn list_dir(dir: impl AsRef<Path>) -> Vec<PathBuf> {
-    std::fs::read_dir(dir)
+    fs::read_dir(dir)
         .into_iter()
         .flatten()
         .filter_map(|e| e.ok().map(|e| e.path()))
@@ -105,7 +108,7 @@ pub(super) fn list_dir(dir: impl AsRef<Path>) -> Vec<PathBuf> {
 }
 
 pub(super) fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {
-    Some(std::fs::read_to_string(path).ok()?.trim().to_string())
+    Some(fs::read_to_string(path).ok()?.trim().to_string())
 }
 
 pub(super) fn read_i64(path: impl AsRef<Path>) -> Option<i64> {

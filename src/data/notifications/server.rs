@@ -1,3 +1,5 @@
+#![allow(clippy::used_underscore_binding)]
+
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU32, Ordering},
@@ -23,6 +25,7 @@ struct NotificationServer {
 }
 
 #[zbus::interface(name = "org.freedesktop.Notifications")]
+#[allow(clippy::unused_async_trait_impl, clippy::unused_self)]
 impl NotificationServer {
     #[allow(clippy::too_many_arguments)]
     async fn notify(
@@ -57,14 +60,14 @@ impl NotificationServer {
             category: hint_str(&hints, "category"),
             resident: hint_bool(&hints, "resident"),
         };
-        if let Err(e) = self.events.try_send(ServerEvent::Notify(data)) {
+        if let Err(e) = self.events.send(ServerEvent::Notify(Box::new(data))).await {
             eprintln!("notifications: dropping Notify: {e}");
         }
         id
     }
 
     async fn close_notification(&self, id: u32) {
-        if let Err(e) = self.events.try_send(ServerEvent::CloseRequested(id)) {
+        if let Err(e) = self.events.send(ServerEvent::CloseRequested(id)).await {
             eprintln!("notifications: dropping CloseNotification: {e}");
         }
     }
@@ -253,5 +256,9 @@ fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
             });
         }
     }
-    Some(image::Handle::from_rgba(width as u32, height as u32, rgba))
+    Some(image::Handle::from_rgba(
+        u32::try_from(width).ok()?,
+        u32::try_from(height).ok()?,
+        rgba,
+    ))
 }

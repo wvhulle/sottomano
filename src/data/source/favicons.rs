@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -103,7 +103,7 @@ fn resolve_one(places: &Connection, favicons: &Connection, title: &str) -> Optio
 }
 
 fn profile_dir() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
+    let home = env::var_os("HOME")?;
     let firefox_dir = PathBuf::from(home).join(".mozilla/firefox");
     fs::read_dir(firefox_dir)
         .ok()?
@@ -118,11 +118,9 @@ fn profile_dir() -> Option<PathBuf> {
 }
 
 fn state_dir() -> Option<PathBuf> {
-    let base = std::env::var_os("XDG_STATE_HOME")
+    let base = env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state"))
-        })?;
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
     let dir = base.join("vetrata/favicons");
     fs::create_dir_all(&dir).ok()?;
     Some(dir)

@@ -5,7 +5,8 @@ use std::{
 
 use iced::{
     Subscription,
-    futures::{SinkExt, StreamExt},
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
+    stream::channel,
 };
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
@@ -152,23 +153,20 @@ pub struct Readings {
 
 pub fn subscription() -> Subscription<Readings> {
     Subscription::run_with("throughput", |_| {
-        iced::stream::channel(
-            16,
-            |mut output: iced::futures::channel::mpsc::Sender<Readings>| async move {
-                let connection = Connection::system().await.ok();
-                let mut ticks = IntervalStream::new(interval(Duration::from_secs(1)));
-                let mut previous: Option<Sample> = None;
-                while ticks.next().await.is_some() {
-                    let current = capture();
-                    let link = connectivity(connection.as_ref()).await;
-                    let readings = rate(previous.as_ref(), &current, link);
-                    previous = Some(current);
-                    if output.send(readings).await.is_err() {
-                        break;
-                    }
+        channel(16, |mut output: Sender<Readings>| async move {
+            let connection = Connection::system().await.ok();
+            let mut ticks = IntervalStream::new(interval(Duration::from_secs(1)));
+            let mut previous: Option<Sample> = None;
+            while ticks.next().await.is_some() {
+                let current = capture();
+                let link = connectivity(connection.as_ref()).await;
+                let readings = rate(previous.as_ref(), &current, link);
+                previous = Some(current);
+                if output.send(readings).await.is_err() {
+                    break;
                 }
-            },
-        )
+            }
+        })
     })
 }
 

@@ -7,13 +7,15 @@ mod wayland_layers;
 mod widget_groups;
 mod widgets;
 
+use std::error::Error;
+
 use app::Bar;
 use iced_layershell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let config = config::resolved::load();
 
     let mut settings = Settings {

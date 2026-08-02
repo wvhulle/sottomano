@@ -1,3 +1,5 @@
+use std::env;
+
 use zbus::{blocking::Connection, proxy};
 
 #[proxy(
@@ -28,7 +30,7 @@ pub fn power_off() {
 }
 
 pub fn lock() {
-    let Ok(session) = std::env::var("XDG_SESSION_ID") else {
+    let Ok(session) = env::var("XDG_SESSION_ID") else {
         return;
     };
     if let Some(proxy) = manager() {

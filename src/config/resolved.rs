@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, process::Command, sync::Arc};
+use std::{collections::HashSet, env, fs, path::PathBuf, process::Command, sync::Arc};
 
 use color::{ColorSpaceTag, DynamicColor, Srgb};
 use iced::{Color, Font};
@@ -95,7 +95,7 @@ pub fn load() -> ResolvedConfig {
 }
 
 fn secret_path(var: &str) -> Option<PathBuf> {
-    std::env::var_os(var)
+    env::var_os(var)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
 }
@@ -125,8 +125,8 @@ fn resolve_palette(palette: &DiskPaletteConfig) -> ResolvedPaletteConfig {
     }
 }
 
-fn to_iced(c: DynamicColor) -> Color {
-    let [r, g, b, a] = c
+fn to_iced(dynamic: DynamicColor) -> Color {
+    let [r, g, b, a] = dynamic
         .convert(ColorSpaceTag::Srgb)
         .to_alpha_color::<Srgb>()
         .components;
@@ -141,7 +141,7 @@ fn resolve_font(config: &DiskFontConfig) -> ResolvedFontConfig {
         .or_else(|| matched.as_ref().map(|m| m.family.clone()))
         .unwrap_or_else(|| "sans-serif".to_owned());
     let bytes = matched
-        .and_then(|m| std::fs::read(m.file).ok())
+        .and_then(|m| fs::read(m.file).ok())
         .expect("no readable sans-serif font found");
     let face = ttf_parser::Face::parse(&bytes, 0).expect("sans-serif font failed to parse");
     let covered = covered_chars(&face);

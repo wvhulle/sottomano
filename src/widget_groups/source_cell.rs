@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 use iced::Subscription;
 
 use crate::{
-    data::source::{BarWidget, RefreshInfo, Source, Tooltip},
+    data::source::{BarWidget, RefreshInfo, Source, Tooltip, TooltipBody},
     message_subscriptions::polling,
 };
 
@@ -55,7 +55,7 @@ impl<S: Source + Send + 'static> SourceCell<S> {
         self.tooltip_with(self.data.as_ref()?.tooltip())
     }
 
-    pub fn tooltip_with(&self, body: crate::data::source::TooltipBody) -> Option<Tooltip> {
+    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
         self.data.as_ref()?;
         Some(Tooltip {
             body,

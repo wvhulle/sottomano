@@ -3,11 +3,11 @@ pub mod launches;
 pub mod panel;
 pub mod power;
 
-use std::{ops::Deref, path::PathBuf};
+use std::{env, error::Error, fs, ops::Deref, path::PathBuf};
 
 use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
-pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
+pub(crate) type BoxError = Box<dyn Error + Send + Sync>;
 
 struct Store {
     connection: turso::Connection,
@@ -44,7 +44,7 @@ async fn build() -> Result<Store, BoxError> {
         return Err("no state directory".into());
     };
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent)?;
     }
     let database = turso::Builder::new_local(&path.to_string_lossy())
         .build()
@@ -62,11 +62,9 @@ async fn build() -> Result<Store, BoxError> {
 }
 
 fn db_path() -> Option<PathBuf> {
-    let state = std::env::var_os("XDG_STATE_HOME")
+    let state = env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state"))
-        })?;
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
     Some(state.join("vetrata/state.db"))
 }
 

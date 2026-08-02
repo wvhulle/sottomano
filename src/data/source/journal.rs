@@ -1,5 +1,5 @@
 use std::{
-    thread,
+    fs, thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -9,9 +9,9 @@ use iced::futures::{
 };
 use serde::Deserialize;
 use systemd::journal::{Journal, OpenOptions};
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::spawn_blocking};
 use zbus::{
-    blocking, proxy,
+    blocking, message, proxy,
     proxy::CacheProperties,
     zvariant::{OwnedObjectPath, Type},
 };
@@ -188,7 +188,7 @@ async fn systemd_signals(
     connection: &zbus::Connection,
 ) -> zbus::Result<impl Stream<Item = ()> + use<>> {
     let rule = zbus::MatchRule::builder()
-        .msg_type(zbus::message::Type::Signal)
+        .msg_type(message::Type::Signal)
         .sender("org.freedesktop.systemd1")?
         .build();
     let stream = zbus::MessageStream::for_match_rule(rule, connection, Some(64)).await?;
@@ -196,7 +196,7 @@ async fn systemd_signals(
 }
 
 async fn failed_units_off_thread(user: bool) -> Vec<FailedUnitInfo> {
-    tokio::task::spawn_blocking(move || failed_units(user))
+    spawn_blocking(move || failed_units(user))
         .await
         .unwrap_or_default()
 }
@@ -283,7 +283,7 @@ fn details(connection: &blocking::Connection, path: &OwnedObjectPath) -> UnitDet
 }
 
 fn uptime() -> Option<Duration> {
-    let content = std::fs::read_to_string("/proc/uptime").ok()?;
+    let content = fs::read_to_string("/proc/uptime").ok()?;
     let secs: f64 = content.split_whitespace().next()?.parse().ok()?;
     Some(Duration::from_secs_f64(secs))
 }

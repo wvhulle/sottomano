@@ -6,6 +6,9 @@ version = "0.1.0"
 [lints.clippy]
 absolute_paths = "warn"
 pedantic = { priority = -1, level = "warn" }
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = [

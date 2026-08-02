@@ -1,11 +1,14 @@
-use iced::{Border, Color, Element, Length, widget::container};
+use iced::{
+    Border, Color, Element, Length,
+    widget::{Space, container},
+};
 
 pub fn activity_line<'a, Message: 'a>(
     color: Color,
     opacity: f32,
     thickness: f32,
 ) -> Element<'a, Message> {
-    container(iced::widget::Space::new().width(Length::Fill))
+    container(Space::new().width(Length::Fill))
         .width(Length::Fill)
         .height(thickness)
         .style(move |_| container::Style {

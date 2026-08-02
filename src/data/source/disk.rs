@@ -1,4 +1,4 @@
-use std::{ffi::CStr, mem::zeroed, time::Duration};
+use std::{mem::zeroed, time::Duration};
 
 use super::{BarWidget, Level, Source, TooltipBody, Unit, Value, row};
 use crate::data::source::{Glyph, font_awesome::Solid};
@@ -60,9 +60,8 @@ impl Source for Disk {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     fn poll() -> Option<Self> {
-        let path = CStr::from_bytes_with_nul(b"/\0").ok()?;
         let mut stat = unsafe { zeroed::<libc::statvfs>() };
-        let rc = unsafe { libc::statvfs(path.as_ptr(), &raw mut stat) };
+        let rc = unsafe { libc::statvfs(c"/".as_ptr(), &raw mut stat) };
         if rc != 0 {
             return None;
         }

@@ -17,6 +17,7 @@ use iced::futures::{
 use zbus::{
     Connection, MatchRule, MessageStream,
     fdo::{ManagedObjects, ObjectManagerProxy},
+    message::Type,
     names::OwnedInterfaceName,
     zvariant::OwnedValue,
 };
@@ -130,7 +131,7 @@ pub(crate) async fn properties_changed(
     service: &'static str,
 ) -> zbus::Result<MessageStream> {
     let rule = MatchRule::builder()
-        .msg_type(zbus::message::Type::Signal)
+        .msg_type(Type::Signal)
         .sender(service)?
         .interface("org.freedesktop.DBus.Properties")?
         .member("PropertiesChanged")?

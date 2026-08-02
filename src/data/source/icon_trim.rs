@@ -1,8 +1,12 @@
 use std::{
+    env,
+    fmt::Write,
     fs,
     path::{Path, PathBuf},
+    time::UNIX_EPOCH,
 };
 
+use image::imageops::crop_imm;
 use sha2::{Digest, Sha256};
 
 const MIN_MARGIN_FRACTION: f32 = 0.02;
@@ -34,7 +38,7 @@ fn trim_svg(path: &Path) -> Option<PathBuf> {
     let mtime = fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map_or(0, |d| d.as_secs());
     let key = format!("{CACHE_VERSION}:{}:{mtime}", path.display());
     let cache = cache_dir()?.join(format!("{}.svg", sha256_hex(&key)));
@@ -87,7 +91,7 @@ fn trim_raster(path: &Path) -> Option<PathBuf> {
     let mtime = fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map_or(0, |d| d.as_secs());
     let key = format!("{CACHE_VERSION}:raster:{}:{mtime}", path.display());
     let cache = cache_dir()?.join(format!("{}.png", sha256_hex(&key)));
@@ -98,7 +102,7 @@ fn trim_raster(path: &Path) -> Option<PathBuf> {
     let image = image::open(path).ok()?.into_rgba8();
     let (width, height) = image.dimensions();
     let bounds = significant_ink_bounds(width, height, image.as_raw())?;
-    image::imageops::crop_imm(&image, bounds.x, bounds.y, bounds.width, bounds.height)
+    crop_imm(&image, bounds.x, bounds.y, bounds.width, bounds.height)
         .to_image()
         .save(&cache)
         .ok()?;
@@ -156,9 +160,9 @@ fn crop_rgba(width: u32, rgba: &[u8], bounds: &InkBounds) -> Vec<u8> {
 }
 
 fn cache_dir() -> Option<PathBuf> {
-    let base = std::env::var_os("XDG_STATE_HOME")
+    let base = env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))?;
+        .or_else(|| env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))?;
     let dir = base.join("vetrata/icon-trim");
     fs::create_dir_all(&dir).ok()?;
     Some(dir)
@@ -167,9 +171,8 @@ fn cache_dir() -> Option<PathBuf> {
 fn sha256_hex(s: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(s.as_bytes());
-    hasher
-        .finalize()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    hasher.finalize().iter().fold(String::new(), |mut out, b| {
+        write!(out, "{b:02x}").expect("writing to a String cannot fail");
+        out
+    })
 }

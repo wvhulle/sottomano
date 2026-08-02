@@ -1,7 +1,12 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt, io, rc::Rc, thread};
 
-use iced::{Subscription, futures::SinkExt};
+use iced::{
+    Subscription,
+    futures::{SinkExt, channel::mpsc::Sender},
+    stream::channel,
+};
 use pipewire::{
+    channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
     context::Context,
     main_loop::MainLoop,
     metadata::{Metadata, MetadataListener},
@@ -41,11 +46,11 @@ pub enum AudioEvent {
 
 #[derive(Clone)]
 pub struct Commands {
-    sender: pipewire::channel::Sender<Command>,
+    sender: CommandSender<Command>,
 }
 
-impl std::fmt::Debug for Commands {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Commands {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("Commands")
     }
 }
@@ -66,30 +71,27 @@ impl Commands {
 
 pub fn subscription() -> Subscription<AudioEvent> {
     Subscription::run_with("audio", |_| {
-        iced::stream::channel(
-            16,
-            move |mut output: iced::futures::channel::mpsc::Sender<AudioEvent>| async move {
-                let (states, mut updates) = watch::channel(AudioState::default());
-                let (commands, requests) = pipewire::channel::channel::<Command>();
-                if std::thread::Builder::new()
-                    .name("pipewire-audio".to_owned())
-                    .spawn(move || run(&states, requests))
-                    .is_err()
-                {
-                    return;
+        channel(16, move |mut output: Sender<AudioEvent>| async move {
+            let (states, mut updates) = watch::channel(AudioState::default());
+            let (commands, requests) = command_channel::<Command>();
+            if thread::Builder::new()
+                .name("pipewire-audio".to_owned())
+                .spawn(move || run(&states, requests))
+                .is_err()
+            {
+                return;
+            }
+            let connected = AudioEvent::Connected(Commands { sender: commands });
+            if output.send(connected).await.is_err() {
+                return;
+            }
+            while updates.changed().await.is_ok() {
+                let state = updates.borrow_and_update().clone();
+                if output.send(AudioEvent::State(state)).await.is_err() {
+                    break;
                 }
-                let connected = AudioEvent::Connected(Commands { sender: commands });
-                if output.send(connected).await.is_err() {
-                    return;
-                }
-                while updates.changed().await.is_ok() {
-                    let state = updates.borrow_and_update().clone();
-                    if output.send(AudioEvent::State(state)).await.is_err() {
-                        break;
-                    }
-                }
-            },
-        )
+            }
+        })
     })
 }
 
@@ -127,7 +129,7 @@ struct Defaults {
     _listener: MetadataListener,
 }
 
-fn run(states: &watch::Sender<AudioState>, commands: pipewire::channel::Receiver<Command>) {
+fn run(states: &watch::Sender<AudioState>, commands: CommandReceiver<Command>) {
     pipewire::init();
     let Ok(main_loop) = MainLoop::new(None) else {
         return;
@@ -377,6 +379,6 @@ fn props_pod(properties: Vec<Property>) -> Option<Vec<u8>> {
         id: SPA_PARAM_Props,
         properties,
     });
-    let (cursor, _) = PodSerializer::serialize(std::io::Cursor::new(Vec::new()), &object).ok()?;
+    let (cursor, _) = PodSerializer::serialize(io::Cursor::new(Vec::new()), &object).ok()?;
     Some(cursor.into_inner())
 }

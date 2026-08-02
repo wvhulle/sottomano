@@ -135,10 +135,10 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn update(&mut self, msg: PanelSettingsMessage) {
+    pub fn update(&mut self, msg: &PanelSettingsMessage) {
         match msg {
-            PanelSettingsMessage::Menu(m) => {
-                if self.menu.update(m) {
+            PanelSettingsMessage::Menu(menu) => {
+                if self.menu.update(*menu) {
                     self.offset.close();
                     self.darken.close();
                 }

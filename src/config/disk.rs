@@ -1,7 +1,11 @@
-use std::path::PathBuf;
+use std::{
+    env, fmt, fs, io,
+    path::{Path, PathBuf},
+};
 
 use color::DynamicColor;
 use serde::Deserialize;
+use toml::de;
 
 use crate::data::source::niri::{HEdge, VEdge};
 
@@ -174,6 +178,7 @@ mod css_color {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Layout {
     pub corner_radius_px: u16,
     pub horizontal_group_padding_px: f32,
@@ -212,24 +217,24 @@ impl Default for Layout {
 
 #[derive(Debug)]
 pub enum LoadError {
-    Read(std::io::Error),
-    Parse(toml::de::Error),
+    Read(io::Error),
+    Parse(de::Error),
 }
 
-impl From<std::io::Error> for LoadError {
-    fn from(e: std::io::Error) -> Self {
+impl From<io::Error> for LoadError {
+    fn from(e: io::Error) -> Self {
         Self::Read(e)
     }
 }
 
-impl From<toml::de::Error> for LoadError {
-    fn from(e: toml::de::Error) -> Self {
+impl From<de::Error> for LoadError {
+    fn from(e: de::Error) -> Self {
         Self::Parse(e)
     }
 }
 
-impl std::fmt::Display for LoadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Read(e) => write!(f, "read failed: {e}"),
             Self::Parse(e) => write!(f, "parse failed: {e}"),
@@ -238,11 +243,11 @@ impl std::fmt::Display for LoadError {
 }
 
 pub fn config_path() -> PathBuf {
-    let base: PathBuf = std::env::var_os("HOME").unwrap().into();
+    let base: PathBuf = env::var_os("HOME").unwrap().into();
     base.join(".config").join("vetrata.toml")
 }
 
-pub fn read(path: &std::path::Path) -> Result<DiskConfig, LoadError> {
-    let text = std::fs::read_to_string(path)?;
+pub fn read(path: &Path) -> Result<DiskConfig, LoadError> {
+    let text = fs::read_to_string(path)?;
     Ok(toml::from_str(&text)?)
 }

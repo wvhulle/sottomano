@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+};
 
 use chrono::{DateTime, Utc};
 use niri_ipc::Event;
@@ -109,7 +112,7 @@ impl LaunchTracker {
             .collect();
         scored.sort_by(|a, b| {
             b.0.partial_cmp(&a.0)
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
                 .then(b.1.cmp(&a.1))
                 .then(a.2.cmp(b.2))
         });

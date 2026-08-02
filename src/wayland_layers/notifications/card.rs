@@ -2,14 +2,18 @@ use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
     Alignment, Border, Color, Element, Font, Length,
-    widget::{Column, Row, button, container, image, mouse_area, rich_text, svg},
+    font::Weight,
+    widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
 };
 
 use super::{Notification, NotificationMessage, markup};
 use crate::{
-    config::resolved::{ResolvedConfig, ResolvedFontConfig, ResolvedPaletteConfig},
+    config::{
+        disk::NotificationConfig,
+        resolved::{ResolvedConfig, ResolvedFontConfig, ResolvedPaletteConfig},
+    },
     data::{
-        notifications::model::{NotifImage, Urgency},
+        notifications::model::{NotifAction, NotifImage, NotificationData, Urgency},
         source::app_icon::DesktopEntries,
     },
     wayland_layers::tooltip::relative,
@@ -36,10 +40,7 @@ pub struct CardIcons {
     pub badge: Option<CardIcon>,
 }
 
-pub fn resolve_icons(
-    data: &crate::data::notifications::model::NotificationData,
-    entries: Option<&DesktopEntries>,
-) -> CardIcons {
+pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
     let image = match &data.image {
         Some(NotifImage::Rgba(handle)) => Some(CardIcon::Raster(handle.clone())),
         Some(NotifImage::Named(name)) => resolve_name(name, entries),
@@ -85,11 +86,7 @@ fn over(fg: Color, bg: Color) -> Color {
     }
 }
 
-pub fn measure_height(
-    data: &crate::data::notifications::model::NotificationData,
-    icons: &CardIcons,
-    config: &ResolvedConfig,
-) -> f32 {
+pub fn measure_height(data: &NotificationData, icons: &CardIcons, config: &ResolvedConfig) -> f32 {
     let font = &config.font;
     let notifications = &config.notifications;
     let base = TextStyle::of(font);
@@ -163,9 +160,80 @@ pub fn card<'a>(
     hovered: bool,
     config: &ResolvedConfig,
 ) -> Element<'a, NotificationMessage> {
+    let id = notif.data.id;
+    let mut body_row = Row::new()
+        .spacing(BODY_ROW_SPACING)
+        .align_y(Alignment::Center);
+    if let Some(icon) = icon_slot(&notif.icons, &config.notifications) {
+        body_row = body_row.push(icon);
+    }
+    body_row = body_row.push(card_column(notif, config));
+
+    let chrome = card_chrome(hovered, notif.data.urgency == Urgency::Critical, config);
+    let panel = container(body_row)
+        .width(Length::Fixed(config.notifications.card_width))
+        .padding(PADDING_PX)
+        .style(move |_| container::Style {
+            background: Some(chrome.background.into()),
+            border: chrome.border,
+            text_color: Some(chrome.foreground),
+            ..Default::default()
+        });
+
+    mouse_area(panel)
+        .on_enter(NotificationMessage::HoverChanged { id, hovered: true })
+        .on_exit(NotificationMessage::HoverChanged { id, hovered: false })
+        .on_press(NotificationMessage::BodyClicked(id))
+        .on_right_press(NotificationMessage::Dismiss(id))
+        .into()
+}
+
+#[derive(Clone, Copy)]
+struct CardChrome {
+    background: Color,
+    border: Border,
+    foreground: Color,
+}
+
+fn card_chrome(hovered: bool, critical: bool, config: &ResolvedConfig) -> CardChrome {
+    let palette = &config.palette;
+    let fill = Color {
+        a: 1.0,
+        ..palette.bar_background
+    };
+    let rest = if critical {
+        palette.urgent
+    } else {
+        over(
+            Color {
+                a: 0.25,
+                ..palette.bar_foreground
+            },
+            fill,
+        )
+    };
+    let accent = if critical {
+        palette.urgent
+    } else {
+        palette.focus
+    };
+    CardChrome {
+        background: fill,
+        border: Border {
+            color: if hovered { accent } else { rest },
+            width: if hovered { 3.0 } else { 2.0 },
+            radius: f32::from(config.layout.corner_radius_px).into(),
+        },
+        foreground: palette.bar_foreground,
+    }
+}
+
+fn card_column<'a>(
+    notif: &Notification,
+    config: &ResolvedConfig,
+) -> Column<'a, NotificationMessage> {
     let data = &notif.data;
     let id = data.id;
-    let critical = data.urgency == Urgency::Critical;
     let font = &config.font;
     let palette = &config.palette;
 
@@ -173,7 +241,7 @@ pub fn card<'a>(
     let dim = palette.dim;
     let body_color = palette.inactive;
 
-    let button_actions: Vec<&crate::data::notifications::model::NotifAction> = data
+    let button_actions: Vec<&NotifAction> = data
         .actions
         .iter()
         .filter(|a| a.key != "default" && !a.label.trim().is_empty())
@@ -196,7 +264,7 @@ pub fn card<'a>(
             bar_text(font, data.summary.clone())
                 .color(foreground)
                 .font(Font {
-                    weight: iced::font::Weight::Bold,
+                    weight: Weight::Bold,
                     ..font.iced_font
                 })
                 .width(Length::Fill),
@@ -214,7 +282,6 @@ pub fn card<'a>(
 
     let mut column = Column::new().spacing(COLUMN_SPACING).push(title);
     if has_body {
-        let mono = Font::MONOSPACE;
         let body = Row::new()
             .spacing(ROW_SPACING)
             .align_y(Alignment::End)
@@ -224,7 +291,7 @@ pub fn card<'a>(
                     body_color,
                     font.text_size_px * SUBTEXT_SCALE,
                     font,
-                    mono,
+                    Font::MONOSPACE,
                 ))
                 .width(Length::Fill),
             );
@@ -236,82 +303,28 @@ pub fn card<'a>(
     if has_actions {
         let mut actions = Row::new().spacing(6.0).align_y(Alignment::Center);
         for action in &button_actions {
-            let tint = action_tint(&action.key, palette);
             actions = actions.push(action_button(
                 action.label.clone(),
                 NotificationMessage::ActionClicked {
                     id,
                     key: action.key.clone(),
                 },
-                tint,
+                action_tint(&action.key, palette),
                 font,
             ));
         }
-        actions = actions.push(iced::widget::Space::new().width(Length::Fill));
+        actions = actions.push(Space::new().width(Length::Fill));
         if let Some(time) = reltime_span(true) {
             actions = actions.push(time);
         }
         column = column.push(actions);
     }
-
-    let mut body_row = Row::new()
-        .spacing(BODY_ROW_SPACING)
-        .align_y(Alignment::Center);
-    if let Some(icon) = icon_slot(&notif.icons, &config.notifications) {
-        body_row = body_row.push(icon);
-    }
-    body_row = body_row.push(column);
-
-    let radius = f32::from(config.layout.corner_radius_px);
-    let fill = Color {
-        a: 1.0,
-        ..palette.bar_background
-    };
-    let background = fill;
-    let rest = if critical {
-        palette.urgent
-    } else {
-        over(
-            Color {
-                a: 0.25,
-                ..palette.bar_foreground
-            },
-            fill,
-        )
-    };
-    let accent = if critical {
-        palette.urgent
-    } else {
-        palette.focus
-    };
-    let border_color = if hovered { accent } else { rest };
-    let border_width = if hovered { 3.0 } else { 2.0 };
-
-    let panel = container(body_row)
-        .width(Length::Fixed(config.notifications.card_width))
-        .padding(PADDING_PX)
-        .style(move |_| container::Style {
-            background: Some(background.into()),
-            border: Border {
-                color: border_color,
-                width: border_width,
-                radius: radius.into(),
-            },
-            text_color: Some(foreground),
-            ..Default::default()
-        });
-
-    mouse_area(panel)
-        .on_enter(NotificationMessage::HoverChanged { id, hovered: true })
-        .on_exit(NotificationMessage::HoverChanged { id, hovered: false })
-        .on_press(NotificationMessage::BodyClicked(id))
-        .on_right_press(NotificationMessage::Dismiss(id))
-        .into()
+    column
 }
 
 fn icon_slot<'a>(
     icons: &CardIcons,
-    config: &crate::config::disk::NotificationConfig,
+    config: &NotificationConfig,
 ) -> Option<Element<'a, NotificationMessage>> {
     match (&icons.image, &icons.badge) {
         (Some(image), badge) => {

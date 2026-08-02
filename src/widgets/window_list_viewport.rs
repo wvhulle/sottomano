@@ -1,3 +1,5 @@
+use std::slice::from_ref;
+
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
@@ -101,7 +103,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(std::slice::from_ref(&self.content));
+        tree.diff_children(from_ref(&self.content));
     }
 
     fn size(&self) -> Size<Length> {

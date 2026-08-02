@@ -1,4 +1,4 @@
-use std::{thread, time::Duration};
+use std::{fs, thread, time::Duration};
 
 use super::{core_ghz, favg, fmax, fmin, ghz};
 use crate::data::source::{
@@ -67,7 +67,7 @@ pub(crate) fn cpu_busy_frac() -> Option<f64> {
 }
 
 fn cpu_stat() -> Option<Vec<i64>> {
-    let content = std::fs::read_to_string("/proc/stat").ok()?;
+    let content = fs::read_to_string("/proc/stat").ok()?;
     let first = content.lines().next()?;
     Some(
         first

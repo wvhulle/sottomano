@@ -4,11 +4,12 @@ pub mod placement;
 pub mod stack;
 
 use std::{
+    cmp::Reverse,
     collections::{HashMap, HashSet},
     time::SystemTime,
 };
 
-use iced::{Element, Size, Task, widget::Sensor, window::Id};
+use iced::{Element, Task, widget::Sensor, window::Id};
 use iced_layershell::reexport::Anchor;
 use placement::{ToastPlacement, placement_for, resolve_window_id};
 
@@ -27,8 +28,6 @@ use crate::{
     wayland_layers::surface::{Margin, SurfaceSize},
 };
 
-const RESIZE_DEADBAND_PX: f32 = 1.0;
-
 fn is_window_action(key: &str) -> bool {
     matches!(key, "default" | "move" | "quit")
 }
@@ -36,13 +35,13 @@ fn is_window_action(key: &str) -> bool {
 #[derive(Debug, Clone)]
 pub enum NotificationMessage {
     Connected(NotifHandle),
-    Served(NotificationData),
+    Served(Box<NotificationData>),
     CloseRequested(u32),
     BodyClicked(u32),
     HoverChanged { id: u32, hovered: bool },
     Dismiss(u32),
     ActionClicked { id: u32, key: String },
-    Resized { id: u32, size: Size },
+    Resized { id: u32, height: f32 },
 }
 
 pub struct Notification {
@@ -114,7 +113,7 @@ impl NotificationLayer {
                 let seq = self.next_seq;
                 self.next_seq += 1;
                 self.live.push(Notification {
-                    data,
+                    data: *data,
                     created_at: SystemTime::now(),
                     seq,
                     icons,
@@ -147,8 +146,8 @@ impl NotificationLayer {
             NotificationMessage::CloseRequested(id) => {
                 self.dismiss(id, close_reason::CLOSED_BY_CALL, placement, outputs, config)
             }
-            NotificationMessage::Resized { id, size } => {
-                self.adopt_measured_height(id, size.height, placement, outputs, config)
+            NotificationMessage::Resized { id, height } => {
+                self.adopt_measured_height(id, height, placement, outputs, config)
             }
         }
     }
@@ -188,7 +187,7 @@ impl NotificationLayer {
         let Some(notif) = self.live.iter_mut().find(|n| n.data.id == id) else {
             return Task::none();
         };
-        if (height - notif.measured_height).abs() < RESIZE_DEADBAND_PX {
+        if stack::surface_height(height) == stack::surface_height(notif.measured_height) {
             return Task::none();
         }
         notif.measured_height = height;
@@ -247,8 +246,12 @@ impl NotificationLayer {
         let hovered = self.hovered == Some(notif_id);
         Some(
             Element::from(
-                Sensor::new(card::card(notif, hovered, config))
-                    .on_resize(move |size| NotificationMessage::Resized { id: notif_id, size }),
+                Sensor::new(card::card(notif, hovered, config)).on_resize(move |size| {
+                    NotificationMessage::Resized {
+                        id: notif_id,
+                        height: size.height,
+                    }
+                }),
             )
             .map(Message::Notification),
         )
@@ -437,7 +440,7 @@ impl NotificationLayer {
         }
         let width = config.notifications.card_width.round() as u32;
         let mut order: Vec<&Notification> = self.live.iter().collect();
-        order.sort_by_key(|n| std::cmp::Reverse(n.seq));
+        order.sort_by_key(|n| Reverse(n.seq));
 
         let placed: Vec<(&Notification, ToastPlacement, f32)> = order
             .iter()

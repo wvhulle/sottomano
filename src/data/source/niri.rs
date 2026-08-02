@@ -416,9 +416,9 @@ pub fn power_off_monitors() {
     }
 }
 
-pub fn spawn(command: Vec<String>) {
+pub fn spawn(command: &[String]) {
     if let Err(e) = send_action(niri_ipc::Action::Spawn {
-        command: command.clone(),
+        command: command.to_vec(),
     }) {
         eprintln!("niri: spawn {command:?}: {e}");
     }
@@ -442,8 +442,8 @@ pub fn output_geometry() -> HashMap<String, OutputGeometry> {
                     (
                         name,
                         OutputGeometry {
-                            width: logical.width as i32,
-                            height: logical.height as i32,
+                            width: logical.width.cast_signed(),
+                            height: logical.height.cast_signed(),
                         },
                     )
                 })

@@ -16,7 +16,7 @@ pub fn namespace(position: Position) -> &'static str {
 }
 
 pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
-    let h = height as i32;
+    let h = height.cast_signed();
     let margin = match position {
         Position::Top => (-h, 0, 0, 0),
         Position::Bottom => (0, 0, -h, 0),

@@ -1,7 +1,16 @@
-use std::{convert::identity, path::PathBuf, time::Duration};
+use std::{convert::identity, future::ready, path::PathBuf, time::Duration};
 
-use iced::{Subscription, Task};
+use iced::{
+    Subscription, Task,
+    event::listen_with,
+    futures::{Stream, channel::mpsc::Sender},
+    mouse::Event,
+    stream::channel,
+    time::every,
+    window::close_events,
+};
 use tokio::{
+    sync::mpsc,
     task::spawn_blocking,
     time::{MissedTickBehavior, interval},
 };
@@ -29,12 +38,12 @@ use crate::{
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
     let animation = if state.any_menu_animating() {
-        iced::time::every(Duration::from_millis(16)).map(|_| Message::Redraw)
+        every(Duration::from_millis(16)).map(|_| Message::Redraw)
     } else {
         Subscription::none()
     };
     let tooltip_tick = if state.tooltip_has_relative_time() {
-        iced::time::every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
+        every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
     } else {
         Subscription::none()
     };
@@ -54,12 +63,12 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         PowerProfileGroup::subscription().map(Message::PowerProfile),
         state.ai_group.subscription().map(Message::Ai),
         WindowGroup::subscription().map(Message::WindowGroup),
-        iced::window::close_events().map(Message::WindowClosed),
-        iced::event::listen_with(|event, _status, _window| match event {
-            iced::Event::Mouse(iced::mouse::Event::CursorLeft) => Some(Message::PointerLeft),
+        close_events().map(Message::WindowClosed),
+        listen_with(|event, _status, _window| match event {
+            iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),
             _ => None,
         }),
-        iced::time::every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
+        every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
         niri_subscription(),
         notifications_subscription(),
         animation,
@@ -95,8 +104,8 @@ pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
 }
 
 pub(crate) fn emit_changes<T: Clone + PartialEq>(
-    readings: impl iced::futures::Stream<Item = T>,
-) -> impl iced::futures::Stream<Item = T> {
+    readings: impl Stream<Item = T>,
+) -> impl Stream<Item = T> {
     use iced::futures::StreamExt;
     readings
         .scan(None, |previous, reading| {
@@ -104,9 +113,9 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
             if changed {
                 *previous = Some(reading.clone());
             }
-            std::future::ready(Some(changed.then_some(reading)))
+            ready(Some(changed.then_some(reading)))
         })
-        .filter_map(std::future::ready)
+        .filter_map(ready)
 }
 
 pub(crate) fn poll_arg<S: ApiSource>(key: Option<PathBuf>) -> Subscription<Option<S>> {
@@ -141,7 +150,7 @@ pub(crate) fn poll_every<T: Clone + PartialEq + Default + Send + 'static>(
 pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<Option<S>>
 where
     S: Send + 'static,
-    St: iced::futures::Stream<Item = Option<S>> + Send + 'static,
+    St: Stream<Item = Option<S>> + Send + 'static,
 {
     Subscription::run_with((name, readings), |&(_, readings)| readings())
 }
@@ -153,53 +162,47 @@ pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Messag
 fn niri_subscription() -> Subscription<Message> {
     use iced::futures::{SinkExt, StreamExt};
     Subscription::run(|| {
-        iced::stream::channel(
-            256,
-            |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                let rx = niri::spawn_event_thread();
-                let mut bursts = ReceiverStream::new(rx).ready_chunks(256);
-                while let Some(batch) = bursts.next().await {
-                    if output.send(Message::Niri(batch)).await.is_err() {
-                        break;
-                    }
+        channel(256, |mut output: Sender<Message>| async move {
+            let rx = niri::spawn_event_thread();
+            let mut bursts = ReceiverStream::new(rx).ready_chunks(256);
+            while let Some(batch) = bursts.next().await {
+                if output.send(Message::Niri(batch)).await.is_err() {
+                    break;
                 }
-            },
-        )
+            }
+        })
     })
 }
 
 fn notifications_subscription() -> Subscription<Message> {
     use iced::futures::SinkExt;
     Subscription::run(|| {
-        iced::stream::channel(
-            256,
-            |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<ServerEvent>(256);
-                let (outbound_tx, outbound_rx) = tokio::sync::mpsc::channel::<Outbound>(256);
-                if let Err(e) = server::serve(event_tx, outbound_rx).await {
-                    eprintln!("notifications: server failed to start: {e}");
-                    return;
+        channel(256, |mut output: Sender<Message>| async move {
+            let (event_tx, mut event_rx) = mpsc::channel::<ServerEvent>(256);
+            let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(256);
+            if let Err(e) = server::serve(event_tx, outbound_rx).await {
+                eprintln!("notifications: server failed to start: {e}");
+                return;
+            }
+            let handle = NotifHandle::new(outbound_tx);
+            if output
+                .send(Message::Notification(NotificationMessage::Connected(
+                    handle,
+                )))
+                .await
+                .is_err()
+            {
+                return;
+            }
+            while let Some(event) = event_rx.recv().await {
+                let message = match event {
+                    ServerEvent::Notify(data) => NotificationMessage::Served(data),
+                    ServerEvent::CloseRequested(id) => NotificationMessage::CloseRequested(id),
+                };
+                if output.send(Message::Notification(message)).await.is_err() {
+                    break;
                 }
-                let handle = NotifHandle::new(outbound_tx);
-                if output
-                    .send(Message::Notification(NotificationMessage::Connected(
-                        handle,
-                    )))
-                    .await
-                    .is_err()
-                {
-                    return;
-                }
-                while let Some(event) = event_rx.recv().await {
-                    let message = match event {
-                        ServerEvent::Notify(data) => NotificationMessage::Served(data),
-                        ServerEvent::CloseRequested(id) => NotificationMessage::CloseRequested(id),
-                    };
-                    if output.send(Message::Notification(message)).await.is_err() {
-                        break;
-                    }
-                }
-            },
-        )
+            }
+        })
     })
 }

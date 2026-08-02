@@ -97,5 +97,5 @@ pub fn toast_settings(
 }
 
 pub fn surface_height(height: f32) -> u32 {
-    height.ceil() as u32
+    height.floor() as u32
 }

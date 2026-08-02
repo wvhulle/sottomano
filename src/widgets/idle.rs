@@ -8,7 +8,7 @@ use iced::{
     futures::{SinkExt, channel::mpsc::Sender},
     stream,
 };
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::spawn_blocking};
 
 use crate::{
     data::source::{logind, niri},
@@ -153,7 +153,7 @@ pub fn subscription() -> Subscription<IdleEvent> {
                         match pumped {
                             Ok(effects) => {
                                 for SideEffect::Idled(action) in effects {
-                                    tokio::task::spawn_blocking(move || perform(action));
+                                    spawn_blocking(move || perform(action));
                                 }
                             }
                             Err(e) => {

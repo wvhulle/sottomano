@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::{collections::HashMap, slice::from_ref, time::SystemTime};
 
 use iced::{
     Border, Color, Element, Event, Font, Length, Padding, Rectangle, Size, Task, Vector,
@@ -322,7 +322,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(std::slice::from_ref(&self.content));
+        tree.diff_children(from_ref(&self.content));
     }
 
     fn size(&self) -> Size<Length> {
@@ -702,7 +702,7 @@ pub(crate) fn relative(at: SystemTime, now: SystemTime) -> String {
 pub(crate) fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32 {
     let left = anchor_x as i32;
     let left = match output_width {
-        Some(width) => left.min(width - panel_width as i32),
+        Some(width) => left.min(width - panel_width.cast_signed()),
         None => left,
     };
     left.max(0)

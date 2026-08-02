@@ -9,23 +9,24 @@ use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::resolved::{ResolvedConfig, session_sound_theme},
     data::source::{
         Tooltip, TooltipBody,
         app_icon::{self, DesktopEntries},
         desktop_entries::{self, DesktopIndex, ResolvedIcons},
         launch_tracker::{Buckets, LaunchTracker},
         niri,
+        tray::TrayCommand,
     },
     message_subscriptions::{blocking, niri_action},
     state,
     wayland_layers::{
         backdrop_shadow,
-        bar::{float_margin, layer_settings},
+        bar::{float_margin, layer_settings, view},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
-        tooltip::{HoverTarget, TooltipHost, TooltipMessage},
+        tooltip::{HoverTarget, TooltipHost, TooltipMessage, panel_surface},
         tray_menu::TrayMenuHost,
     },
     widget_groups::{
@@ -51,7 +52,7 @@ use crate::{
         },
     },
     widgets::{
-        idle::IdleEvent,
+        idle::{IdleEvent, IdleHandle},
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action as SliderAction, ControlMessage},
     },
@@ -174,8 +175,7 @@ impl Bar {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
             Task::perform(state::panel::load(), Message::PanelLoaded),
-            blocking("sound theme", crate::config::resolved::session_sound_theme)
-                .map(Message::SoundThemeLoaded),
+            blocking("sound theme", session_sound_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
         ]);
         (bar, init)
@@ -190,28 +190,9 @@ impl Bar {
             Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
                 Task::batch([self.open_bars(&name), query_outputs()])
             }
-            Message::WindowGroup(msg) => match self.window_group.update(msg) {
-                window_group::Action::Run(task) => task.map(Message::WindowGroup),
-                window_group::Action::FocusWindow(window) => {
-                    niri_action(move || niri::focus_window(window))
-                }
-                window_group::Action::RefreshWindowList => Task::batch([
-                    self.window_group
-                        .refresh_window_list(&self.niri, &self.config.font)
-                        .map(Message::WindowGroup),
-                    self.resolve_icons(),
-                ]),
-                window_group::Action::None => Task::none(),
-            },
-            Message::TrackerLoaded(buckets) => {
-                self.launch_tracker.load_from(buckets);
-                self.refresh_quick_launch()
-            }
-            Message::DesktopEntriesLoaded(entries) => {
-                self.desktop_entries.set(entries.clone());
-                self.window_group.set_desktop_entries(entries);
-                self.refresh_quick_launch()
-            }
+            Message::WindowGroup(msg) => self.update_window_group(msg),
+            Message::TrackerLoaded(buckets) => self.load_launch_tracker(buckets),
+            Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
             Message::ReloadDesktopEntries => {
                 desktop_entries::load().map(Message::DesktopEntriesLoaded)
             }
@@ -236,19 +217,7 @@ impl Bar {
                 self.clock_group.update(msg);
                 Task::none()
             }
-            Message::NotificationGroup(NotificationGroupMessage::ToggleDoNotDisturb) => {
-                self.config.dnd = !self.config.dnd;
-                let placement = niri::Placement::derive(&self.niri);
-                let applied = self
-                    .notifications
-                    .sync_dnd(&placement, &self.outputs, &self.config);
-                let save = Task::future(state::panel::save_dnd(self.config.dnd)).discard();
-                Task::batch([applied, save])
-            }
-            Message::NotificationGroup(NotificationGroupMessage::ToggleSound) => {
-                self.config.sound = !self.config.sound;
-                Task::future(state::panel::save_sound(self.config.sound)).discard()
-            }
+            Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
             Message::NetInterfaces(msg) => {
                 self.net_interfaces_group.update(msg);
@@ -256,79 +225,12 @@ impl Bar {
             }
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
-            Message::Media(msg) => {
-                let players_changed = matches!(msg, MediaMessage::Reading(_));
-                let task = self.media_group.update(msg, &self.niri).map(Message::Media);
-                if players_changed {
-                    Task::batch([task, self.resolve_icons()])
-                } else {
-                    task
-                }
-            }
-            Message::Tray(TrayMessage::OpenMenu(index)) => self.open_tray_menu(index),
-            Message::Tray(TrayMessage::MenuItemClicked(id)) => {
-                if let Some((address, menu_path)) = self.tray_menu.target() {
-                    self.tray_group
-                        .command(crate::data::source::tray::TrayCommand::MenuClick {
-                            address,
-                            menu_path,
-                            id,
-                        });
-                }
-                self.tray_menu.close()
-            }
-            Message::Tray(TrayMessage::ToggleSubmenu(id)) => {
-                self.tray_menu.toggle_submenu(id);
-                Task::none()
-            }
-            Message::Tray(TrayMessage::MenuResized { surface, size }) => {
-                self.tray_menu.resize(surface, size, &self.config)
-            }
-            Message::Tray(msg) => {
-                self.tray_group.update(msg);
-                Task::none()
-            }
-            Message::IdleTimeouts(msg) => self
-                .idle_timeouts_group
-                .update(msg)
-                .map(Message::IdleTimeouts),
-            Message::Idle(IdleEvent::Connected(handle)) => self
-                .idle_timeouts_group
-                .connected(handle)
-                .map(Message::IdleTimeouts),
-            Message::SoundThemeLoaded(theme) => {
-                self.config.sound_theme = theme;
-                Task::none()
-            }
-            Message::PanelLoaded(settings) => {
-                if let Some(floating) = settings.floating {
-                    self.config.layout.floating = floating;
-                }
-                if let Some(offset) = settings.float_offset_px {
-                    self.config.float_offset_px = offset;
-                }
-                if let Some(disconnected) = settings.disconnected_groups {
-                    self.config.layout.disconnected_groups = disconnected;
-                }
-                if let Some(blur) = settings.blur_background {
-                    self.config.layout.blur_background = blur;
-                }
-                self.config.dnd = settings.dnd;
-                if let Some(sound) = settings.sound {
-                    self.config.sound = sound;
-                }
-                if let Some(factor) = settings.darken_chrome_factor {
-                    self.config.darken_chrome_factor = factor;
-                }
-                self.panel_settings_group
-                    .sync_offset(self.config.float_offset_px);
-                self.panel_settings_group
-                    .sync_darken(self.config.darken_chrome_factor * 100.0);
-                Task::batch([
-                    self.remargin_surfaces(),
-                    self.blur_casters.rebuild(&self.config, &self.surfaces),
-                ])
-            }
+            Message::Media(msg) => self.update_media(msg),
+            Message::Tray(msg) => self.update_tray(msg),
+            Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
+            Message::Idle(IdleEvent::Connected(handle)) => self.connect_idle_notifier(handle),
+            Message::SoundThemeLoaded(theme) => self.adopt_sound_theme(theme),
+            Message::PanelLoaded(settings) => self.apply_saved_panel_settings(&settings),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::PowerProfile(msg) => self
                 .power_profile_group
@@ -342,22 +244,12 @@ impl Bar {
                 self.dismiss_menus();
                 self.tray_menu.close()
             }
-            Message::WorkspaceClicked { id, is_active } => {
-                if is_active {
-                    niri_action(niri::toggle_overview)
-                } else {
-                    niri_action(move || niri::focus_workspace(id))
-                }
-            }
+            Message::WorkspaceClicked {
+                is_active: true, ..
+            } => niri_action(niri::toggle_overview),
+            Message::WorkspaceClicked { id, .. } => niri_action(move || niri::focus_workspace(id)),
             Message::Niri(events) => self.apply_niri_events(events),
-            Message::WindowClosed(window) => {
-                self.surfaces.remove(&window);
-                self.backdrops.remove(&window);
-                self.tooltip.forget(window);
-                self.tray_menu.forget(window);
-                self.notifications.forget(window);
-                self.blur_casters.forget(window)
-            }
+            Message::WindowClosed(window) => self.forget_window(window),
             Message::PillBounds {
                 window,
                 zone,
@@ -365,44 +257,13 @@ impl Bar {
             } => self
                 .blur_casters
                 .pill_rects(window, zone, &rects, &self.config, &self.surfaces),
-            Message::Tooltip(TooltipMessage::Enter {
-                surface,
-                target,
-                anchor,
-            }) => {
-                let content = self.tooltip_for(&target);
-                match self.surfaces.get(&surface) {
-                    Some(parent) if !content.is_empty() => self.tooltip.open(
-                        parent,
-                        target,
-                        anchor,
-                        &self.outputs,
-                        &self.config,
-                        &content,
-                    ),
-                    _ => Task::none(),
-                }
-            }
-            Message::Tooltip(msg) => self.tooltip.update(msg, &self.config),
+            Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.close(),
-            Message::Notification(msg) => {
-                let placement = niri::Placement::derive(&self.niri);
-                self.notifications.update(
-                    msg,
-                    &placement,
-                    &self.outputs,
-                    self.desktop_entries.get(),
-                    &self.config,
-                )
-            }
-            Message::OutputsResolved(outputs) => {
-                self.outputs = outputs;
-                let placement = niri::Placement::derive(&self.niri);
-                self.notifications
-                    .on_niri_changed(&placement, &self.outputs, &self.config)
-            }
-            Message::Redraw | Message::TooltipTick => Task::none(),
-            Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
+            Message::Notification(msg) => self.update_notification(msg),
+            Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
+            Message::Redraw
+            | Message::TooltipTick
+            | Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
             | Message::AnchorChange { .. }
             | Message::SetInputRegion { .. }
             | Message::AnchorSizeChange { .. }
@@ -420,6 +281,188 @@ impl Bar {
             | Message::RemoveWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
+        self.idle_timeouts_group
+            .update(msg)
+            .map(Message::IdleTimeouts)
+    }
+
+    fn connect_idle_notifier(&mut self, handle: IdleHandle) -> Task<Message> {
+        self.idle_timeouts_group
+            .connected(handle)
+            .map(Message::IdleTimeouts)
+    }
+
+    fn adopt_sound_theme(&mut self, theme: Option<String>) -> Task<Message> {
+        self.config.sound_theme = theme;
+        Task::none()
+    }
+
+    fn load_launch_tracker(&mut self, buckets: Buckets) -> Task<Message> {
+        self.launch_tracker.load_from(buckets);
+        self.refresh_quick_launch()
+    }
+
+    fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
+        self.desktop_entries.set(entries.clone());
+        self.window_group.set_desktop_entries(entries);
+        self.refresh_quick_launch()
+    }
+
+    fn forget_window(&mut self, window: Id) -> Task<Message> {
+        self.surfaces.remove(&window);
+        self.backdrops.remove(&window);
+        self.tooltip.forget(window);
+        self.tray_menu.forget(window);
+        self.notifications.forget(window);
+        self.blur_casters.forget(window)
+    }
+
+    fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
+        let placement = niri::Placement::derive(&self.niri);
+        self.notifications.update(
+            msg,
+            &placement,
+            &self.outputs,
+            self.desktop_entries.get(),
+            &self.config,
+        )
+    }
+
+    fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputGeometry>) -> Task<Message> {
+        self.outputs = outputs;
+        let placement = niri::Placement::derive(&self.niri);
+        self.notifications
+            .on_niri_changed(&placement, &self.outputs, &self.config)
+    }
+
+    fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
+        match self.window_group.update(msg) {
+            window_group::Action::Run(task) => task.map(Message::WindowGroup),
+            window_group::Action::FocusWindow(window) => {
+                niri_action(move || niri::focus_window(window))
+            }
+            window_group::Action::RefreshWindowList => Task::batch([
+                self.window_group
+                    .refresh_window_list(&self.niri, &self.config.font)
+                    .map(Message::WindowGroup),
+                self.resolve_icons(),
+            ]),
+            window_group::Action::None => Task::none(),
+        }
+    }
+
+    fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
+        let players_changed = matches!(msg, MediaMessage::Reading(_));
+        let task = self.media_group.update(msg, &self.niri).map(Message::Media);
+        if players_changed {
+            Task::batch([task, self.resolve_icons()])
+        } else {
+            task
+        }
+    }
+
+    fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
+        match msg {
+            NotificationGroupMessage::ToggleDoNotDisturb => {
+                self.config.dnd = !self.config.dnd;
+                let placement = niri::Placement::derive(&self.niri);
+                let applied = self
+                    .notifications
+                    .sync_dnd(&placement, &self.outputs, &self.config);
+                let save = Task::future(state::panel::save_dnd(self.config.dnd)).discard();
+                Task::batch([applied, save])
+            }
+            NotificationGroupMessage::ToggleSound => {
+                self.config.sound = !self.config.sound;
+                Task::future(state::panel::save_sound(self.config.sound)).discard()
+            }
+        }
+    }
+
+    fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
+        match msg {
+            TrayMessage::OpenMenu(index) => self.open_tray_menu(index),
+            TrayMessage::MenuItemClicked(id) => {
+                if let Some((address, menu_path)) = self.tray_menu.target() {
+                    self.tray_group.command(TrayCommand::MenuClick {
+                        address,
+                        menu_path,
+                        id,
+                    });
+                }
+                self.tray_menu.close()
+            }
+            TrayMessage::ToggleSubmenu(id) => {
+                self.tray_menu.toggle_submenu(id);
+                Task::none()
+            }
+            TrayMessage::MenuResized { surface, size } => {
+                self.tray_menu.resize(surface, size, &self.config)
+            }
+            msg => {
+                self.tray_group.update(msg);
+                Task::none()
+            }
+        }
+    }
+
+    fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
+        let TooltipMessage::Enter {
+            surface,
+            target,
+            anchor,
+        } = msg
+        else {
+            return self.tooltip.update(msg, &self.config);
+        };
+        let content = self.tooltip_for(&target);
+        match self.surfaces.get(&surface) {
+            Some(parent) if !content.is_empty() => self.tooltip.open(
+                parent,
+                target,
+                anchor,
+                &self.outputs,
+                &self.config,
+                &content,
+            ),
+            _ => Task::none(),
+        }
+    }
+
+    fn apply_saved_panel_settings(
+        &mut self,
+        settings: &state::panel::PanelSettings,
+    ) -> Task<Message> {
+        if let Some(floating) = settings.floating {
+            self.config.layout.floating = floating;
+        }
+        if let Some(offset) = settings.float_offset_px {
+            self.config.float_offset_px = offset;
+        }
+        if let Some(disconnected) = settings.disconnected_groups {
+            self.config.layout.disconnected_groups = disconnected;
+        }
+        if let Some(blur) = settings.blur_background {
+            self.config.layout.blur_background = blur;
+        }
+        self.config.dnd = settings.dnd;
+        if let Some(sound) = settings.sound {
+            self.config.sound = sound;
+        }
+        if let Some(factor) = settings.darken_chrome_factor {
+            self.config.darken_chrome_factor = factor;
+        }
+        self.panel_settings_group
+            .sync_offset(self.config.float_offset_px);
+        self.panel_settings_group
+            .sync_darken(self.config.darken_chrome_factor * 100.0);
+        Task::batch([
+            self.remargin_surfaces(),
+            self.blur_casters.rebuild(&self.config, &self.surfaces),
+        ])
     }
 
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
@@ -496,7 +539,7 @@ impl Bar {
 
     fn dismiss_menus(&mut self) {
         self.panel_settings_group
-            .update(PanelSettingsMessage::Menu(MenuMessage::Close));
+            .update(&PanelSettingsMessage::Menu(MenuMessage::Close));
         self.system_group
             .update(SystemMessage::Menu(MenuMessage::Close));
         let _ = self
@@ -672,7 +715,7 @@ impl Bar {
                 }
             }
             msg => {
-                self.panel_settings_group.update(msg);
+                self.panel_settings_group.update(&msg);
                 Task::none()
             }
         }
@@ -737,11 +780,7 @@ impl Bar {
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         if let Some(target) = self.tooltip.target_for(window) {
-            return crate::wayland_layers::tooltip::panel_surface(
-                window,
-                &self.tooltip_for(target),
-                &self.config,
-            );
+            return panel_surface(window, &self.tooltip_for(target), &self.config);
         }
         if let Some(element) = self.tray_menu.view(window, &self.config) {
             return element;
@@ -749,7 +788,7 @@ impl Bar {
         if let Some(element) = self.notifications.view(window, &self.config) {
             return element;
         }
-        crate::wayland_layers::bar::view(self, window)
+        view(self, window)
     }
 
     pub fn style(&self, _theme: &iced::Theme) -> Style {
