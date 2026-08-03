@@ -9,7 +9,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     font::{Style as FontStyle, Weight},
-    widget::{Column, Row as RowWidget, Sensor, container, row},
+    widget::{Column, Row as RowWidget, container, row},
     window::Id,
 };
 use iced_layershell::reexport::{
@@ -87,6 +87,7 @@ const FOOTER_PADDING: Padding = Padding {
     bottom: 2.0,
     left: 6.0,
 };
+const WIDEST_RELTIME: &str = "59 min ago";
 
 #[derive(Debug, Clone)]
 pub enum TooltipMessage {
@@ -102,16 +103,11 @@ pub enum TooltipMessage {
     Exit {
         target: HoverTarget,
     },
-    Resized {
-        surface: Id,
-        size: Size,
-    },
 }
 
 struct Shown {
     surface: Id,
     target: HoverTarget,
-    size: Option<SurfaceSize>,
     anchor: Rectangle,
     output_width: Option<i32>,
     output: String,
@@ -132,11 +128,10 @@ pub struct TooltipHost {
 }
 
 impl TooltipHost {
-    pub fn update(&mut self, message: TooltipMessage, config: &ResolvedConfig) -> Task<Message> {
+    pub fn update(&mut self, message: TooltipMessage) -> Task<Message> {
         match message {
             TooltipMessage::Enter { .. } | TooltipMessage::EnterAnchor { .. } => Task::none(),
             TooltipMessage::Exit { target } => self.exit(&target),
-            TooltipMessage::Resized { surface, size } => self.resize(surface, size, config),
         }
     }
 
@@ -172,7 +167,6 @@ impl TooltipHost {
         self.shown = Some(Shown {
             surface,
             target,
-            size: Some(size),
             anchor,
             output_width,
             output: parent.output.clone(),
@@ -197,30 +191,6 @@ impl TooltipHost {
         } else {
             Task::none()
         }
-    }
-
-    fn resize(&mut self, surface: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
-        let Some(shown) = &mut self.shown else {
-            return Task::none();
-        };
-        let requested = surface_size(size);
-        if shown.surface != surface || shown.size == Some(requested) {
-            return Task::none();
-        }
-        shown.size = Some(requested);
-        let bar = config.layout.outer_height_px as i32;
-        let left = panel_left(shown.anchor.x, shown.output_width, requested.width);
-        let margin = tooltip_margin(shown.position, left, bar);
-        Task::batch([
-            Task::done(Message::MarginChange {
-                id: surface,
-                margin: margin.edges(),
-            }),
-            Task::done(Message::SizeChange {
-                id: surface,
-                size: requested.dimensions(),
-            }),
-        ])
     }
 
     pub fn close(&mut self) -> Task<Message> {
@@ -262,14 +232,8 @@ impl TooltipHost {
     }
 }
 
-pub fn panel_surface<'a>(
-    surface: Id,
-    tooltip: &Tooltip,
-    config: &ResolvedConfig,
-) -> Element<'a, Message> {
-    Sensor::new(panel(tooltip, config))
-        .on_resize(move |size| Message::Tooltip(TooltipMessage::Resized { surface, size }))
-        .into()
+pub fn panel_surface<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message> {
+    panel(tooltip, config)
 }
 
 pub fn hoverable<'a, M: 'a>(
@@ -529,9 +493,12 @@ fn tooltip_grid<'a>(
 }
 
 fn footer_text(info: RefreshInfo, now: SystemTime) -> String {
+    footer_text_with(&relative(info.last, now), info)
+}
+
+fn footer_text_with(reltime: &str, info: RefreshInfo) -> String {
     format!(
-        "updated {} · every {}",
-        relative(info.last, now),
+        "updated {reltime} · every {}",
         humantime::format_duration(info.every),
     )
 }
@@ -544,12 +511,19 @@ fn surface_size(size: Size) -> SurfaceSize {
 }
 
 fn column<'a>(lines: impl Iterator<Item = &'a str>, style: TextStyle) -> Size {
-    let lines: Vec<&str> = lines.collect();
-    let measured = style.measure(&lines.join("\n"));
-    Size::new(
-        measured.width,
-        measured.height + lines.len().saturating_sub(1) as f32 * ROW_SPACING_PX,
-    )
+    let measured: Vec<Size> = lines
+        .map(|line| {
+            if line.is_empty() {
+                Size::new(0.0, style.line_height())
+            } else {
+                style.measure(line)
+            }
+        })
+        .collect();
+    let width = measured.iter().map(|line| line.width).fold(0.0, f32::max);
+    let height = measured.iter().map(|line| line.height).sum::<f32>()
+        + measured.len().saturating_sub(1) as f32 * ROW_SPACING_PX;
+    Size::new(width, height)
 }
 
 fn beside(left: Size, right: Size) -> Size {
@@ -569,6 +543,10 @@ fn stack(top: Size, bottom: Size, gap: f32) -> Size {
         top.width.max(bottom.width),
         top.height + gap + bottom.height,
     )
+}
+
+fn widened(column: Size, widest: Size) -> Size {
+    Size::new(column.width.max(widest.width), column.height)
 }
 
 fn measure_panel(tooltip: &Tooltip, config: &ResolvedConfig) -> Size {
@@ -611,7 +589,10 @@ fn measure_panel(tooltip: &Tooltip, config: &ResolvedConfig) -> Size {
                 .map(|entry| relative(entry.at, now))
                 .collect();
             beside(
-                column(times.iter().map(String::as_str), base),
+                widened(
+                    column(times.iter().map(String::as_str), base),
+                    base.measure(WIDEST_RELTIME),
+                ),
                 column(entries.iter().map(|entry| entry.message.as_str()), base),
             )
         }
@@ -624,11 +605,12 @@ fn measure_panel(tooltip: &Tooltip, config: &ResolvedConfig) -> Size {
 
     let body = match tooltip.footer {
         Some(info) => {
-            let footer = base
-                .italic()
-                .scaled(FOOTER_SCALE)
-                .measure(&footer_text(info, now))
-                .expand(FOOTER_PADDING);
+            let style = base.italic().scaled(FOOTER_SCALE);
+            let footer = widened(
+                style.measure(&footer_text(info, now)),
+                style.measure(&footer_text_with(WIDEST_RELTIME, info)),
+            )
+            .expand(FOOTER_PADDING);
             stack(grid, footer, FOOTER_GAP_PX)
         }
         None => grid,
@@ -672,8 +654,7 @@ fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message>
     };
     let radius = f32::from(config.layout.corner_radius_px);
     container(body)
-        .width(Length::Fill)
-        .height(Length::Fill)
+        .center(Length::Fill)
         .padding(PANEL_PADDING)
         .style(move |_| container::Style {
             background: Some(background.into()),
