@@ -416,7 +416,7 @@ impl Bar {
             anchor,
         } = msg
         else {
-            return self.tooltip.update(msg, &self.config);
+            return self.tooltip.update(msg);
         };
         let content = self.tooltip_for(&target);
         match self.surfaces.get(&surface) {
@@ -784,7 +784,7 @@ impl Bar {
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         if let Some(target) = self.tooltip.target_for(window) {
-            return panel_surface(window, &self.tooltip_for(target), &self.config);
+            return panel_surface(&self.tooltip_for(target), &self.config);
         }
         if let Some(element) = self.tray_menu.view(window, &self.config) {
             return element;
