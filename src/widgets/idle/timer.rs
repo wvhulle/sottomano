@@ -98,7 +98,7 @@ impl IdleTimer {
                         .update(ControlMessage::Disabled(self.timeout.is_none()));
                     TimerChange::Persist(value)
                 }
-                Action::None | Action::Right => TimerChange::None,
+                Action::None | Action::Right | Action::Adjust(_) => TimerChange::None,
             },
             TimerMessage::Trigger => match self.button.press() {
                 Press::Armed => TimerChange::None,

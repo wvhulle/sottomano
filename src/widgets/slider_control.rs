@@ -16,7 +16,7 @@ use crate::{
         icon_gauge::source_reading,
         inline_slider::inline_slider,
         text::bar_text,
-        tracked::{Tracked, Write},
+        tracked::{Nudge, Tracked, Write},
     },
 };
 
@@ -39,6 +39,7 @@ pub struct SliderControl {
     thresholds: SeverityThresholds,
     target: HoverTarget,
     right_click: bool,
+    relative_scroll: bool,
 }
 
 #[derive(Default)]
@@ -76,6 +77,7 @@ pub enum ControlMessage {
     Set(f32),
     Release,
     Confirmed { value: f32, ok: bool },
+    Adjusted(Option<f32>),
     Reading(f32),
     Disabled(bool),
     Caption(Option<String>),
@@ -87,6 +89,7 @@ pub enum Action {
     None,
     Opened,
     Commit(f32),
+    Adjust(f32),
     Right,
 }
 
@@ -110,6 +113,7 @@ impl SliderControl {
             thresholds: SeverityThresholds::default(),
             target,
             right_click: false,
+            relative_scroll: false,
         }
     }
 
@@ -172,6 +176,12 @@ impl SliderControl {
         self
     }
 
+    #[must_use]
+    pub fn relative_scroll(mut self) -> Self {
+        self.relative_scroll = true;
+        self
+    }
+
     pub fn close(&mut self) {
         self.open = false;
     }
@@ -206,11 +216,20 @@ impl SliderControl {
                 #[allow(clippy::cast_precision_loss)]
                 let target = (self.current() + step as f32 * self.scroll_step)
                     .clamp(*self.range.start(), *self.range.end());
-                into_action(self.value.scroll(target))
+                if self.relative_scroll {
+                    let nudge = Nudge {
+                        delta: target - self.current(),
+                        optimistic: target,
+                    };
+                    into_action(self.value.adjust(nudge))
+                } else {
+                    into_action(self.value.scroll(target))
+                }
             }
             ControlMessage::Set(pos) => into_action(self.value.drag(pos)),
             ControlMessage::Release => into_action(self.value.end_drag()),
             ControlMessage::Confirmed { value, ok } => into_action(self.value.confirmed(value, ok)),
+            ControlMessage::Adjusted(resolved) => into_action(self.value.adjusted(resolved)),
             ControlMessage::Reading(reading) => {
                 self.value.sync(reading);
                 Action::None
@@ -305,7 +324,8 @@ impl BarWidget for SliderControl {
 #[allow(clippy::needless_pass_by_value)]
 fn into_action(write: Option<Write>) -> Action {
     match write {
-        Some(Write(value)) => Action::Commit(value),
+        Some(Write::Absolute(value)) => Action::Commit(value),
+        Some(Write::Relative(delta)) => Action::Adjust(delta),
         None => Action::None,
     }
 }

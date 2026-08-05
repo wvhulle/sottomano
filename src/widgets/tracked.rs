@@ -1,9 +1,22 @@
-#[must_use = "perform the write and report the result via `confirmed`, or the value never advances"]
-pub struct Write(pub f32);
+use std::mem;
+
+#[must_use = "perform the write and report the result via `confirmed` or `adjusted`, or the value \
+              never advances"]
+pub enum Write {
+    Absolute(f32),
+    Relative(f32),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Nudge {
+    pub delta: f32,
+    pub optimistic: f32,
+}
 
 #[derive(Default)]
 pub struct Tracked {
     pending: Option<f32>,
+    queued_delta: f32,
     dragging: bool,
     acked: f32,
     reading: f32,
@@ -21,7 +34,7 @@ impl Tracked {
 
     pub fn sync(&mut self, reading: f32) {
         self.reading = reading;
-        if self.dragging {
+        if self.dragging || self.in_flight || self.queued_delta != 0.0 {
             return;
         }
         self.pending = None;
@@ -31,37 +44,62 @@ impl Tracked {
     pub fn drag(&mut self, pos: f32) -> Option<Write> {
         self.dragging = true;
         self.pending = Some(pos);
-        self.issue(pos)
+        self.next_write()
     }
 
     pub fn scroll(&mut self, target: f32) -> Option<Write> {
         self.pending = Some(target);
-        self.issue(target)
+        self.next_write()
+    }
+
+    pub fn adjust(&mut self, nudge: Nudge) -> Option<Write> {
+        let Nudge { delta, optimistic } = nudge;
+        self.pending = Some(optimistic);
+        self.queued_delta += delta;
+        self.next_write()
     }
 
     pub fn end_drag(&mut self) -> Option<Write> {
         self.dragging = false;
-        self.pending.and_then(|pos| self.issue(pos))
+        self.next_write()
     }
 
-    #[allow(clippy::float_cmp)]
     pub fn confirmed(&mut self, value: f32, ok: bool) -> Option<Write> {
         self.in_flight = false;
         if ok {
             self.acked = value;
         }
-        match self.pending {
-            Some(pos) if pos != self.acked => self.issue(pos),
-            _ => None,
+        self.next_write()
+    }
+
+    pub fn adjusted(&mut self, resolved: Option<f32>) -> Option<Write> {
+        self.in_flight = false;
+        if let Some(value) = resolved {
+            self.acked = value;
+            self.reading = value;
+            self.pending = (self.queued_delta != 0.0).then_some(value + self.queued_delta);
+        } else {
+            self.queued_delta = 0.0;
+            self.pending = None;
         }
+        self.next_write()
     }
 
     #[allow(clippy::float_cmp)]
-    fn issue(&mut self, pos: f32) -> Option<Write> {
-        if self.in_flight || pos == self.acked {
+    fn next_write(&mut self) -> Option<Write> {
+        if self.in_flight {
             return None;
         }
-        self.in_flight = true;
-        Some(Write(pos))
+        if self.queued_delta != 0.0 {
+            self.in_flight = true;
+            return Some(Write::Relative(mem::take(&mut self.queued_delta)));
+        }
+        match self.pending {
+            Some(pos) if pos != self.acked => {
+                self.in_flight = true;
+                Some(Write::Absolute(pos))
+            }
+            _ => None,
+        }
     }
 }

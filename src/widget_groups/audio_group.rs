@@ -6,8 +6,8 @@ use crate::{
     config::resolved::ResolvedConfig,
     data::source::{
         Tooltip, TooltipBody,
-        audio::{self, AudioEvent, AudioState, Commands, Reading},
-        font_awesome::Solid,
+        audio::{self, AudioEvent, AudioState, Commands, Reading, Target},
+        font_awesome::{FontAwesome, Solid},
         row,
     },
     message_subscriptions::blocking,
@@ -30,6 +30,15 @@ pub enum ControlKind {
     Source,
 }
 
+impl ControlKind {
+    fn target(self) -> Target {
+        match self {
+            ControlKind::Sink => Target::DefaultSink,
+            ControlKind::Source => Target::DefaultSource,
+        }
+    }
+}
+
 pub struct AudioGroup {
     sink: Option<Reading>,
     source: Option<Reading>,
@@ -50,32 +59,21 @@ impl Default for AudioGroup {
                 Solid::VolumeHigh.into(),
             )
             .scroll_step(SCROLL_STEP)
+            .relative_scroll()
+            .right_click(true)
             .readout(|value| format!("{}%", as_percent(value)))
-            .glyph(|value, off| {
-                if off {
-                    Solid::VolumeXmark.into()
-                } else if value > 50.0 {
-                    Solid::VolumeHigh.into()
-                } else {
-                    Solid::VolumeLow.into()
-                }
-            })
+            .glyph(output_glyph)
             .thresholds(80.0, 95.0, true),
             source_control: SliderControl::new(
                 RANGE,
                 HoverTarget::AudioSource,
-                Solid::Microphone.into(),
+                Solid::MicrophoneLines.into(),
             )
             .scroll_step(SCROLL_STEP)
+            .relative_scroll()
             .right_click(true)
             .readout(|value| format!("{}%", as_percent(value)))
-            .glyph(|_value, off| {
-                if off {
-                    Solid::MicrophoneSlash.into()
-                } else {
-                    Solid::Microphone.into()
-                }
-            })
+            .glyph(input_glyph)
             .thresholds(50.0, 15.0, false),
         }
     }
@@ -110,45 +108,73 @@ impl AudioGroup {
                 feed(&mut self.source_control, self.source.as_ref());
                 Task::none()
             }
-            AudioMessage::Control(ControlKind::Sink, msg) => match self.sink_control.update(msg) {
-                Action::Opened => {
-                    self.source_control.close();
-                    Task::none()
-                }
-                Action::Commit(value) => self.write(false, value, ControlKind::Sink),
-                Action::None | Action::Right => Task::none(),
-            },
-            AudioMessage::Control(ControlKind::Source, msg) => {
-                match self.source_control.update(msg) {
-                    Action::Opened => {
-                        self.sink_control.close();
-                        Task::none()
-                    }
-                    Action::Commit(value) => self.write(true, value, ControlKind::Source),
-                    Action::Right => match self.commands.clone() {
-                        Some(commands) => {
-                            blocking("audio mute source", move || commands.toggle_mute(true))
-                                .discard()
-                        }
-                        None => Task::none(),
-                    },
-                    Action::None => Task::none(),
-                }
-            }
+            AudioMessage::Control(kind, m) => self.update_control(kind, m),
             AudioMessage::Tooltip(_) => Task::none(),
         }
     }
 
-    fn write(&self, input: bool, value: f32, kind: ControlKind) -> Task<AudioMessage> {
+    fn update_control(&mut self, kind: ControlKind, m: ControlMessage) -> Task<AudioMessage> {
+        let action = match kind {
+            ControlKind::Sink => self.sink_control.update(m),
+            ControlKind::Source => self.source_control.update(m),
+        };
+        let target = kind.target();
+        match action {
+            Action::Opened => {
+                match kind {
+                    ControlKind::Sink => self.source_control.close(),
+                    ControlKind::Source => self.sink_control.close(),
+                }
+                Task::none()
+            }
+            Action::Commit(value) => self.write(kind, target, value),
+            Action::Adjust(delta) => self.nudge(kind, target, delta),
+            Action::Right => self.mute(target),
+            Action::None => Task::none(),
+        }
+    }
+
+    fn write(&self, kind: ControlKind, target: Target, value: f32) -> Task<AudioMessage> {
         let Some(commands) = self.commands.clone() else {
             return Task::none();
         };
-        let target = as_percent(value);
+        let percent = as_percent(value);
         blocking("audio set volume", move || {
             slow_write_delay();
-            commands.set_volume(input, target)
+            commands.set_volume(target, percent)
         })
-        .map(move |ok| AudioMessage::Control(kind, ControlMessage::Confirmed { value, ok }))
+        .map(move |resolved| {
+            AudioMessage::Control(
+                kind,
+                ControlMessage::Confirmed {
+                    value,
+                    ok: resolved.is_some(),
+                },
+            )
+        })
+    }
+
+    fn nudge(&self, kind: ControlKind, target: Target, delta: f32) -> Task<AudioMessage> {
+        let Some(commands) = self.commands.clone() else {
+            return Task::none();
+        };
+        let step = as_percent(delta);
+        blocking("audio adjust volume", move || {
+            slow_write_delay();
+            commands.adjust_volume(target, step)
+        })
+        .map(move |resolved| {
+            AudioMessage::Control(kind, ControlMessage::Adjusted(resolved.map(percent_f)))
+        })
+    }
+
+    fn mute(&self, target: Target) -> Task<AudioMessage> {
+        match self.commands.clone() {
+            Some(commands) => {
+                blocking("audio toggle mute", move || commands.toggle_mute(target)).discard()
+            }
+            None => Task::none(),
+        }
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
@@ -191,9 +217,25 @@ impl AudioGroup {
     }
 }
 
+fn output_glyph(_value: f32, muted: bool) -> FontAwesome {
+    if muted {
+        Solid::VolumeXmark.into()
+    } else {
+        Solid::VolumeHigh.into()
+    }
+}
+
+fn input_glyph(_value: f32, muted: bool) -> FontAwesome {
+    if muted {
+        Solid::MicrophoneSlash.into()
+    } else {
+        Solid::MicrophoneLines.into()
+    }
+}
+
 fn feed(control: &mut SliderControl, reading: Option<&Reading>) {
     if let Some(reading) = reading {
-        control.update(ControlMessage::Reading(slider_value(reading)));
+        control.update(ControlMessage::Reading(percent_f(reading.percent)));
         control.update(ControlMessage::Disabled(reading.muted));
     }
 }
@@ -218,8 +260,8 @@ fn tooltip(reading: &Reading, input: bool) -> Tooltip {
 }
 
 #[allow(clippy::cast_precision_loss)]
-fn slider_value(reading: &Reading) -> f32 {
-    reading.percent as f32
+fn percent_f(percent: i64) -> f32 {
+    percent as f32
 }
 
 #[allow(clippy::cast_possible_truncation)]
@@ -228,7 +270,7 @@ fn as_percent(value: f32) -> i64 {
 }
 
 fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
-    move |msg| match msg {
+    move |m| match m {
         ControlMessage::Tooltip(t) => AudioMessage::Tooltip(t),
         m => AudioMessage::Control(kind, m),
     }

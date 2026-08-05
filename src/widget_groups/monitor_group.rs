@@ -148,7 +148,7 @@ impl MonitorGroup {
                     blocking("gamma dim", move || gamma::set_brightness(target))
                         .map(move |ok| MonitorMessage::Dim(ControlMessage::Confirmed { value, ok }))
                 }
-                Action::None | Action::Right => Task::none(),
+                Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
             MonitorMessage::Warmth(m) => match self.warmth.update(m) {
                 Action::Opened => {
@@ -162,7 +162,7 @@ impl MonitorGroup {
                         move |ok| MonitorMessage::Warmth(ControlMessage::Confirmed { value, ok }),
                     )
                 }
-                Action::None | Action::Right => Task::none(),
+                Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
             MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
             MonitorMessage::Umbra(m) => self.umbra.update(m).map(MonitorMessage::Umbra),
@@ -194,7 +194,7 @@ impl MonitorGroup {
                     },
                 )
             }
-            Action::None | Action::Right => Task::none(),
+            Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
     }
 
