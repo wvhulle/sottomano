@@ -129,7 +129,7 @@ impl PowerProfileGroup {
                         },
                     )
                 }
-                Action::Opened | Action::None | Action::Right => Task::none(),
+                Action::Opened | Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
             PowerProfileMessage::Tooltip(_) => Task::none(),
         }
