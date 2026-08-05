@@ -40,14 +40,14 @@ use tokio::sync::watch;
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
     pub percent: i64,
     pub muted: bool,
     pub device: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioState {
     pub sink: Option<Reading>,
     pub source: Option<Reading>,
@@ -108,11 +108,11 @@ pub fn subscription() -> Subscription<AudioEvent> {
         channel(16, move |mut output: Sender<AudioEvent>| async move {
             let (states, mut updates) = watch::channel(AudioState::default());
             let (commands, requests) = command_channel::<Command>();
-            if thread::Builder::new()
+            if let Err(e) = thread::Builder::new()
                 .name("pipewire-audio".to_owned())
                 .spawn(move || run(&states, requests))
-                .is_err()
             {
+                eprintln!("audio: pipewire thread spawn failed: {e}");
                 return;
             }
             let connected = AudioEvent::Connected(Commands { sender: commands });
@@ -143,6 +143,7 @@ enum CommandKind {
     ToggleMute,
 }
 
+#[derive(PartialEq, Eq)]
 struct NodeRoute {
     device: u32,
     route_device: u32,
@@ -188,24 +189,20 @@ struct Graph {
 fn run(states: &watch::Sender<AudioState>, commands: CommandReceiver<Command>) {
     pipewire::init();
     let states = Rc::new(states.clone());
-    serve(&states, commands);
+    if let Err(e) = serve(&states, commands) {
+        eprintln!("audio: pipewire connect failed: {e}");
+    }
     states.send_replace(AudioState::default());
 }
 
-fn serve(states: &Rc<watch::Sender<AudioState>>, commands: CommandReceiver<Command>) {
-    let Ok(main_loop) = MainLoop::new(None) else {
-        return;
-    };
-    let Ok(context) = Context::new(&main_loop) else {
-        return;
-    };
-    let Ok(core) = context.connect(None) else {
-        return;
-    };
-    let Ok(registry) = core.get_registry() else {
-        return;
-    };
-    let registry = Rc::new(registry);
+fn serve(
+    states: &Rc<watch::Sender<AudioState>>,
+    commands: CommandReceiver<Command>,
+) -> Result<(), pipewire::Error> {
+    let main_loop = MainLoop::new(None)?;
+    let context = Context::new(&main_loop)?;
+    let core = context.connect(None)?;
+    let registry = Rc::new(core.get_registry()?);
     let graph = Rc::new(RefCell::new(Graph::default()));
 
     let _attached = commands.attach(main_loop.loop_(), {
@@ -222,7 +219,10 @@ fn serve(states: &Rc<watch::Sender<AudioState>>, commands: CommandReceiver<Comma
         .add_listener_local()
         .error({
             let main_loop = main_loop.clone();
-            move |_, _, _, _| main_loop.quit()
+            move |id, _, res, message| {
+                eprintln!("audio: pipewire object {id} failed ({res}): {message}");
+                main_loop.quit();
+            }
         })
         .register();
 
@@ -249,6 +249,7 @@ fn serve(states: &Rc<watch::Sender<AudioState>>, commands: CommandReceiver<Comma
         .register();
 
     main_loop.run();
+    Ok(())
 }
 
 fn add_global(
@@ -281,8 +282,12 @@ fn add_node(
     ) {
         return;
     }
-    let Ok(proxy) = registry.bind::<Node, _>(global) else {
-        return;
+    let proxy = match registry.bind::<Node, _>(global) {
+        Ok(proxy) => proxy,
+        Err(e) => {
+            eprintln!("audio: bind node {} failed: {e}", global.id);
+            return;
+        }
     };
     proxy.subscribe_params(&[ParamType::Props]);
     let id = global.id;
@@ -295,13 +300,19 @@ fn add_node(
                 let Some(route) = info.props().and_then(node_route) else {
                     return;
                 };
-                {
+                let changed = {
                     let mut graph = graph.borrow_mut();
-                    if let Some(node) = graph.nodes.get_mut(&id) {
-                        node.route = Some(route);
+                    match graph.nodes.get_mut(&id) {
+                        Some(node) if node.route.as_ref() != Some(&route) => {
+                            node.route = Some(route);
+                            true
+                        }
+                        _ => false,
                     }
+                };
+                if changed {
+                    publish(&graph.borrow(), &states);
                 }
-                publish(&graph.borrow(), &states);
             }
         })
         .param({
@@ -354,8 +365,12 @@ fn add_device(
     if props.get("media.class") != Some("Audio/Device") {
         return;
     }
-    let Ok(proxy) = registry.bind::<Device, _>(global) else {
-        return;
+    let proxy = match registry.bind::<Device, _>(global) {
+        Ok(proxy) => proxy,
+        Err(e) => {
+            eprintln!("audio: bind device {} failed: {e}", global.id);
+            return;
+        }
     };
     proxy.subscribe_params(&[ParamType::Route]);
     let id = global.id;
@@ -416,8 +431,12 @@ fn add_defaults(
     if props.get("metadata.name") != Some("default") {
         return;
     }
-    let Ok(proxy) = registry.bind::<Metadata, _>(global) else {
-        return;
+    let proxy = match registry.bind::<Metadata, _>(global) {
+        Ok(proxy) => proxy,
+        Err(e) => {
+            eprintln!("audio: bind default metadata {} failed: {e}", global.id);
+            return;
+        }
     };
     let listener = proxy
         .add_listener_local()
@@ -570,9 +589,16 @@ fn dispatch(graph: &Graph, node: &NodeState, change: &LevelChange) -> Option<()>
 }
 
 fn publish(graph: &Graph, states: &watch::Sender<AudioState>) {
-    states.send_replace(AudioState {
+    let next = AudioState {
         sink: reading(graph, graph.default_sink.as_deref()),
         source: reading(graph, graph.default_source.as_deref()),
+    };
+    states.send_if_modified(|current| {
+        if *current == next {
+            return false;
+        }
+        *current = next;
+        true
     });
 }
 
