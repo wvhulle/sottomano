@@ -27,6 +27,8 @@ const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const WIDEST_RELTIME: &str = "59 min ago";
+const URGENCY_TINT_ALPHA: f32 = 0.25;
+const RESTING_BORDER_ALPHA: f32 = 0.6;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -169,7 +171,7 @@ pub fn card<'a>(
     }
     body_row = body_row.push(card_column(notif, config));
 
-    let chrome = card_chrome(hovered, notif.data.urgency == Urgency::Critical, config);
+    let chrome = card_chrome(hovered, notif.data.urgency, config);
     let panel = container(body_row)
         .width(Length::Fixed(config.notifications.card_width))
         .padding(PADDING_PX)
@@ -195,36 +197,43 @@ struct CardChrome {
     foreground: Color,
 }
 
-fn card_chrome(hovered: bool, critical: bool, config: &ResolvedConfig) -> CardChrome {
+fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> CardChrome {
     let palette = &config.palette;
-    let fill = Color {
+    let base = Color {
         a: 1.0,
         ..palette.bar_background
     };
-    let rest = if critical {
-        palette.urgent
-    } else {
-        over(
-            Color {
-                a: 0.25,
-                ..palette.bar_foreground
-            },
-            fill,
-        )
-    };
-    let accent = if critical {
-        palette.urgent
-    } else {
-        palette.focus
-    };
+    let accent = urgency_tint(urgency, palette);
+    let background = over(
+        Color {
+            a: URGENCY_TINT_ALPHA,
+            ..accent
+        },
+        base,
+    );
+    let rest = over(
+        Color {
+            a: RESTING_BORDER_ALPHA,
+            ..accent
+        },
+        background,
+    );
     CardChrome {
-        background: fill,
+        background,
         border: Border {
             color: if hovered { accent } else { rest },
             width: if hovered { 3.0 } else { 2.0 },
             radius: f32::from(config.layout.corner_radius_px).into(),
         },
         foreground: palette.bar_foreground,
+    }
+}
+
+fn urgency_tint(urgency: Urgency, palette: &ResolvedPaletteConfig) -> Color {
+    match urgency {
+        Urgency::Low => palette.inactive,
+        Urgency::Normal => palette.focus,
+        Urgency::Critical => palette.urgent,
     }
 }
 
