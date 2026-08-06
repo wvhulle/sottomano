@@ -16,10 +16,11 @@ use iced::{
 use pipewire::{
     channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
     context::Context,
-    device::{Device, DeviceChangeMask, DeviceListener},
+    device::{Device, DeviceChangeMask, DeviceInfoRef, DeviceListener},
     main_loop::MainLoop,
     metadata::{Metadata, MetadataListener},
-    node::{Node, NodeListener},
+    node::{Node, NodeInfoRef, NodeListener},
+    proxy::ProxyT,
     registry::{GlobalObject, Registry},
     spa::{
         param::ParamType,
@@ -143,47 +144,339 @@ enum CommandKind {
     ToggleMute,
 }
 
-#[derive(PartialEq, Eq)]
-struct NodeRoute {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Direction {
+    Output,
+    Input,
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct Levels {
+    channel_volumes: Vec<f32>,
+    mute: bool,
+}
+
+impl Levels {
+    fn percent(&self) -> i64 {
+        let Some(&cubic) = self.channel_volumes.first() else {
+            return 0;
+        };
+        #[allow(clippy::cast_possible_truncation)]
+        let percent = (cubic.cbrt() * 100.0).round() as i64;
+        percent.clamp(0, 100)
+    }
+
+    fn merge(&mut self, update: LevelsUpdate) {
+        if let Some(volumes) = update.channel_volumes {
+            self.channel_volumes = volumes;
+        }
+        if let Some(mute) = update.mute {
+            self.mute = mute;
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct LevelsUpdate {
+    channel_volumes: Option<Vec<f32>>,
+    mute: Option<bool>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct RoutePlacement {
     device: u32,
     route_device: u32,
 }
 
-struct NodeState {
+#[derive(Debug)]
+struct AudioNode {
     name: String,
     description: String,
-    route: Option<NodeRoute>,
-    channel_volumes: Vec<f32>,
-    mute: bool,
+    serial: u64,
+    placement: Option<RoutePlacement>,
+    levels: Levels,
+}
+
+#[derive(Debug)]
+struct Route {
+    index: u32,
+    levels: Levels,
+}
+
+#[derive(Debug, Default)]
+struct Graph {
+    nodes: HashMap<u32, AudioNode>,
+    routes: HashMap<u32, HashMap<u32, Route>>,
+    default_sink: Option<String>,
+    default_source: Option<String>,
+}
+
+#[derive(Debug)]
+enum Event {
+    NodeAdded {
+        id: u32,
+        node: AudioNode,
+    },
+    NodePlacement {
+        id: u32,
+        placement: RoutePlacement,
+    },
+    NodeLevels {
+        id: u32,
+        update: LevelsUpdate,
+    },
+    RouteLevels {
+        device: u32,
+        route: RouteLevels,
+    },
+    DefaultChanged {
+        direction: Direction,
+        name: Option<String>,
+    },
+    Removed {
+        id: u32,
+    },
+}
+
+#[derive(Debug, PartialEq)]
+struct RouteLevels {
+    index: u32,
+    route_device: u32,
+    update: LevelsUpdate,
+}
+
+fn reduce(graph: &mut Graph, event: Event) {
+    match event {
+        Event::NodeAdded { id, node } => {
+            graph.nodes.insert(id, node);
+        }
+        Event::NodePlacement { id, placement } => {
+            if let Some(node) = graph.nodes.get_mut(&id) {
+                node.placement = Some(placement);
+            }
+        }
+        Event::NodeLevels { id, update } => {
+            if let Some(node) = graph.nodes.get_mut(&id) {
+                node.levels.merge(update);
+            }
+        }
+        Event::RouteLevels { device, route } => {
+            let entry = graph
+                .routes
+                .entry(device)
+                .or_default()
+                .entry(route.route_device)
+                .or_insert_with(|| Route {
+                    index: route.index,
+                    levels: Levels::default(),
+                });
+            entry.index = route.index;
+            entry.levels.merge(route.update);
+        }
+        Event::DefaultChanged { direction, name } => match direction {
+            Direction::Output => graph.default_sink = name,
+            Direction::Input => graph.default_source = name,
+        },
+        Event::Removed { id } => {
+            graph.nodes.remove(&id);
+            graph.routes.remove(&id);
+        }
+    }
+}
+
+fn node_id_by_name(graph: &Graph, name: &str) -> Option<u32> {
+    graph
+        .nodes
+        .iter()
+        .filter(|(_, node)| node.name == name)
+        .max_by_key(|(id, node)| (node.serial, **id))
+        .map(|(id, _)| *id)
+}
+
+fn default_node_id(graph: &Graph, target: Target) -> Option<u32> {
+    let name = match target {
+        Target::DefaultSink => graph.default_sink.as_deref()?,
+        Target::DefaultSource => graph.default_source.as_deref()?,
+    };
+    node_id_by_name(graph, name)
+}
+
+fn route_levels<'graph>(graph: &'graph Graph, node: &AudioNode) -> Option<&'graph Levels> {
+    let placement = node.placement.as_ref()?;
+    let route = graph.routes.get(&placement.device)?;
+    Some(&route.get(&placement.route_device)?.levels)
+}
+
+fn effective_levels<'graph>(graph: &'graph Graph, node: &'graph AudioNode) -> &'graph Levels {
+    route_levels(graph, node).unwrap_or(&node.levels)
+}
+
+fn reading(graph: &Graph, name: Option<&str>) -> Option<Reading> {
+    let node = graph.nodes.get(&node_id_by_name(graph, name?)?)?;
+    let levels = effective_levels(graph, node);
+    let percent = levels.percent();
+    Some(Reading {
+        percent,
+        muted: levels.mute || percent == 0,
+        device: (!node.description.is_empty()).then(|| node.description.clone()),
+    })
+}
+
+fn snapshot(graph: &Graph) -> AudioState {
+    AudioState {
+        sink: reading(graph, graph.default_sink.as_deref()),
+        source: reading(graph, graph.default_source.as_deref()),
+    }
+}
+
+enum LevelChange {
+    Volumes(Vec<f32>),
+    Mute(bool),
+}
+
+struct Resolved {
+    change: LevelChange,
+    percent: i64,
+}
+
+fn resolve(levels: &Levels, kind: CommandKind) -> Option<Resolved> {
+    let current = levels.percent();
+    let channels = levels.channel_volumes.len();
+    let uniform = |percent: i64| {
+        (channels > 0).then(|| Resolved {
+            change: LevelChange::Volumes(vec![cubic(percent); channels]),
+            percent,
+        })
+    };
+    match kind {
+        CommandKind::SetVolume(percent) => uniform(percent),
+        CommandKind::AdjustVolume(delta) => uniform((current + delta).clamp(0, 100)),
+        CommandKind::ToggleMute => Some(Resolved {
+            change: LevelChange::Mute(!levels.mute),
+            percent: current,
+        }),
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn cubic(percent: i64) -> f32 {
+    (percent as f32 / 100.0).powi(3)
+}
+
+struct NodeProxy {
     proxy: Node,
     _listener: NodeListener,
 }
 
-struct RouteState {
-    index: u32,
-    device: u32,
-    channel_volumes: Vec<f32>,
-    mute: bool,
-}
-
-struct DeviceState {
+struct DeviceProxy {
     proxy: Device,
-    routes: HashMap<u32, RouteState>,
     _listener: DeviceListener,
 }
 
-struct Defaults {
+struct DefaultsProxy {
     _proxy: Metadata,
     _listener: MetadataListener,
 }
 
 #[derive(Default)]
-struct Graph {
-    nodes: HashMap<u32, NodeState>,
-    devices: HashMap<u32, DeviceState>,
-    defaults: Vec<Defaults>,
-    default_sink: Option<String>,
-    default_source: Option<String>,
+struct Proxies {
+    nodes: HashMap<u32, NodeProxy>,
+    devices: HashMap<u32, DeviceProxy>,
+    defaults: Vec<DefaultsProxy>,
+}
+
+#[derive(Default)]
+struct Session {
+    graph: Graph,
+    proxies: Proxies,
+}
+
+enum Destination<'session> {
+    Route {
+        device: &'session Device,
+        index: u32,
+        route_device: u32,
+    },
+    NodeProps(&'session Node),
+}
+
+fn destination(session: &Session, id: u32) -> Option<Destination<'_>> {
+    route_destination(session, id).or_else(|| {
+        Some(Destination::NodeProps(
+            &session.proxies.nodes.get(&id)?.proxy,
+        ))
+    })
+}
+
+fn route_destination(session: &Session, id: u32) -> Option<Destination<'_>> {
+    let placement = session.graph.nodes.get(&id)?.placement.as_ref()?;
+    let route = session
+        .graph
+        .routes
+        .get(&placement.device)?
+        .get(&placement.route_device)?;
+    Some(Destination::Route {
+        device: &session.proxies.devices.get(&placement.device)?.proxy,
+        index: route.index,
+        route_device: placement.route_device,
+    })
+}
+
+fn apply(session: &Session, target: Target, kind: CommandKind) -> Option<i64> {
+    let id = default_node_id(&session.graph, target)?;
+    let node = session.graph.nodes.get(&id)?;
+    let resolved = resolve(effective_levels(&session.graph, node), kind)?;
+    write(session, id, &resolved.change)?;
+    Some(resolved.percent)
+}
+
+fn write(session: &Session, id: u32, change: &LevelChange) -> Option<()> {
+    match destination(session, id)? {
+        Destination::Route {
+            device,
+            index,
+            route_device,
+        } => {
+            let bytes = pod_bytes(&route_object(index, route_device, change))?;
+            device.set_param(ParamType::Route, 0, Pod::from_bytes(&bytes)?);
+        }
+        Destination::NodeProps(node) => {
+            let bytes = pod_bytes(&props_object(vec![level_property(change)]))?;
+            node.set_param(ParamType::Props, 0, Pod::from_bytes(&bytes)?);
+        }
+    }
+    Some(())
+}
+
+type Publisher = Rc<watch::Sender<AudioState>>;
+type Shared = Rc<RefCell<Session>>;
+
+fn dispatch(session: &Shared, states: &Publisher, event: Event) {
+    reduce(&mut session.borrow_mut().graph, event);
+    let next = snapshot(&session.borrow().graph);
+    states.send_if_modified(|current| {
+        if *current == next {
+            return false;
+        }
+        report_unresolved(current, &next, &session.borrow().graph);
+        *current = next;
+        true
+    });
+}
+
+fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &Graph) {
+    if previous.sink.is_some() && next.sink.is_none() {
+        eprintln!(
+            "audio: default sink {:?} no longer resolves to a node",
+            graph.default_sink
+        );
+    }
+    if previous.source.is_some() && next.source.is_none() {
+        eprintln!(
+            "audio: default source {:?} no longer resolves to a node",
+            graph.default_source
+        );
+    }
 }
 
 fn run(states: &watch::Sender<AudioState>, commands: CommandReceiver<Command>) {
@@ -195,21 +488,18 @@ fn run(states: &watch::Sender<AudioState>, commands: CommandReceiver<Command>) {
     states.send_replace(AudioState::default());
 }
 
-fn serve(
-    states: &Rc<watch::Sender<AudioState>>,
-    commands: CommandReceiver<Command>,
-) -> Result<(), pipewire::Error> {
+fn serve(states: &Publisher, commands: CommandReceiver<Command>) -> Result<(), pipewire::Error> {
     let main_loop = MainLoop::new(None)?;
     let context = Context::new(&main_loop)?;
     let core = context.connect(None)?;
     let registry = Rc::new(core.get_registry()?);
-    let graph = Rc::new(RefCell::new(Graph::default()));
+    let session = Shared::default();
 
     let _attached = commands.attach(main_loop.loop_(), {
-        let graph = graph.clone();
+        let session = session.clone();
         move |command: Command| {
             let outcome = (Instant::now() <= command.expires_at)
-                .then(|| apply(&graph.borrow(), command.target, command.kind))
+                .then(|| apply(&session.borrow(), command.target, command.kind))
                 .flatten();
             let _ = command.reply.send(outcome);
         }
@@ -217,12 +507,8 @@ fn serve(
 
     let _core_listener = core
         .add_listener_local()
-        .error({
-            let main_loop = main_loop.clone();
-            move |id, _, res, message| {
-                eprintln!("audio: pipewire object {id} failed ({res}): {message}");
-                main_loop.quit();
-            }
+        .error(|id, _, res, message| {
+            eprintln!("audio: pipewire object {id} reported an error ({res}): {message}");
         })
         .register();
 
@@ -230,20 +516,20 @@ fn serve(
         .add_listener_local()
         .global({
             let registry = registry.clone();
-            let graph = graph.clone();
+            let session = session.clone();
             let states = states.clone();
-            move |global| add_global(&registry, &graph, &states, global)
+            move |global| track(&registry, &session, &states, global)
         })
         .global_remove({
-            let graph = graph.clone();
+            let session = session.clone();
             let states = states.clone();
             move |id| {
                 {
-                    let mut graph = graph.borrow_mut();
-                    graph.nodes.remove(&id);
-                    graph.devices.remove(&id);
+                    let mut owned = session.borrow_mut();
+                    owned.proxies.nodes.remove(&id);
+                    owned.proxies.devices.remove(&id);
                 }
-                publish(&graph.borrow(), &states);
+                dispatch(&session, &states, Event::Removed { id });
             }
         })
         .register();
@@ -252,379 +538,230 @@ fn serve(
     Ok(())
 }
 
-fn add_global(
-    registry: &Rc<Registry>,
-    graph: &Rc<RefCell<Graph>>,
-    states: &Rc<watch::Sender<AudioState>>,
+fn track(
+    registry: &Registry,
+    session: &Shared,
+    states: &Publisher,
     global: &GlobalObject<&DictRef>,
 ) {
     let Some(props) = global.props else {
         return;
     };
     match global.type_ {
-        ObjectType::Node => add_node(registry, graph, states, global, props),
-        ObjectType::Device => add_device(registry, graph, states, global, props),
-        ObjectType::Metadata => add_defaults(registry, graph, states, global, props),
+        ObjectType::Node => track_node(registry, session, states, global, props),
+        ObjectType::Device => track_device(registry, session, states, global, props),
+        ObjectType::Metadata => track_defaults(registry, session, states, global, props),
         _ => {}
     }
 }
 
-fn add_node(
-    registry: &Rc<Registry>,
-    graph: &Rc<RefCell<Graph>>,
-    states: &Rc<watch::Sender<AudioState>>,
+fn bind<P: ProxyT>(registry: &Registry, global: &GlobalObject<&DictRef>, label: &str) -> Option<P> {
+    registry
+        .bind::<P, _>(global)
+        .inspect_err(|e| eprintln!("audio: bind {label} {} failed: {e}", global.id))
+        .ok()
+}
+
+fn track_node(
+    registry: &Registry,
+    session: &Shared,
+    states: &Publisher,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
-    if !matches!(
-        props.get("media.class"),
-        Some("Audio/Sink" | "Audio/Source")
-    ) {
+    if node_direction(props).is_none() {
         return;
     }
-    let proxy = match registry.bind::<Node, _>(global) {
-        Ok(proxy) => proxy,
-        Err(e) => {
-            eprintln!("audio: bind node {} failed: {e}", global.id);
-            return;
-        }
+    let Some(proxy) = bind::<Node>(registry, global, "node") else {
+        return;
     };
     proxy.subscribe_params(&[ParamType::Props]);
     let id = global.id;
     let listener = proxy
         .add_listener_local()
-        .info({
-            let graph = graph.clone();
-            let states = states.clone();
-            move |info| {
-                let Some(route) = info.props().and_then(node_route) else {
-                    return;
-                };
-                let changed = {
-                    let mut graph = graph.borrow_mut();
-                    match graph.nodes.get_mut(&id) {
-                        Some(node) if node.route.as_ref() != Some(&route) => {
-                            node.route = Some(route);
-                            true
-                        }
-                        _ => false,
-                    }
-                };
-                if changed {
-                    publish(&graph.borrow(), &states);
-                }
-            }
-        })
-        .param({
-            let graph = graph.clone();
-            let states = states.clone();
-            move |_, _, _, _, param| {
-                let Some(update) = param.and_then(parse_props) else {
-                    return;
-                };
-                {
-                    let mut graph = graph.borrow_mut();
-                    if let Some(node) = graph.nodes.get_mut(&id) {
-                        if let Some(volumes) = update.volumes {
-                            node.channel_volumes = volumes;
-                        }
-                        if let Some(mute) = update.mute {
-                            node.mute = mute;
-                        }
-                    }
-                }
-                publish(&graph.borrow(), &states);
-            }
-        })
+        .info(on_node_info(id, session, states))
+        .param(on_node_param(id, session, states))
         .register();
-    graph.borrow_mut().nodes.insert(
+    dispatch(
+        session,
+        states,
+        Event::NodeAdded {
+            id,
+            node: node_from_props(props),
+        },
+    );
+    session.borrow_mut().proxies.nodes.insert(
         id,
-        NodeState {
-            name: props.get("node.name").unwrap_or_default().to_owned(),
-            description: props
-                .get("node.nick")
-                .or_else(|| props.get("node.description"))
-                .unwrap_or_default()
-                .to_owned(),
-            route: None,
-            channel_volumes: Vec::new(),
-            mute: false,
+        NodeProxy {
             proxy,
             _listener: listener,
         },
     );
 }
 
-fn add_device(
-    registry: &Rc<Registry>,
-    graph: &Rc<RefCell<Graph>>,
-    states: &Rc<watch::Sender<AudioState>>,
+fn track_device(
+    registry: &Registry,
+    session: &Shared,
+    states: &Publisher,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
     if props.get("media.class") != Some("Audio/Device") {
         return;
     }
-    let proxy = match registry.bind::<Device, _>(global) {
-        Ok(proxy) => proxy,
-        Err(e) => {
-            eprintln!("audio: bind device {} failed: {e}", global.id);
-            return;
-        }
+    let Some(proxy) = bind::<Device>(registry, global, "device") else {
+        return;
     };
     proxy.subscribe_params(&[ParamType::Route]);
     let id = global.id;
     let listener = proxy
         .add_listener_local()
-        .info({
-            let graph = graph.clone();
-            move |info| {
-                if !info.change_mask().contains(DeviceChangeMask::PARAMS) {
-                    return;
-                }
-                if let Some(device) = graph.borrow().devices.get(&id) {
-                    device
-                        .proxy
-                        .enum_params(0, Some(ParamType::Route), 0, u32::MAX);
-                }
-            }
-        })
-        .param({
-            let graph = graph.clone();
-            let states = states.clone();
-            move |_, param_type, _, _, param| {
-                if param_type != ParamType::Route {
-                    return;
-                }
-                let Some(update) = param.and_then(parse_route) else {
-                    return;
-                };
-                {
-                    let mut graph = graph.borrow_mut();
-                    let Some(device) = graph.devices.get_mut(&id) else {
-                        return;
-                    };
-                    merge_route(device, update);
-                }
-                publish(&graph.borrow(), &states);
-            }
-        })
+        .info(on_device_info(id, session))
+        .param(on_device_param(id, session, states))
         .register();
     proxy.enum_params(0, Some(ParamType::Route), 0, u32::MAX);
-    graph.borrow_mut().devices.insert(
+    session.borrow_mut().proxies.devices.insert(
         id,
-        DeviceState {
+        DeviceProxy {
             proxy,
-            routes: HashMap::new(),
             _listener: listener,
         },
     );
 }
 
-fn add_defaults(
-    registry: &Rc<Registry>,
-    graph: &Rc<RefCell<Graph>>,
-    states: &Rc<watch::Sender<AudioState>>,
+fn track_defaults(
+    registry: &Registry,
+    session: &Shared,
+    states: &Publisher,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
     if props.get("metadata.name") != Some("default") {
         return;
     }
-    let proxy = match registry.bind::<Metadata, _>(global) {
-        Ok(proxy) => proxy,
-        Err(e) => {
-            eprintln!("audio: bind default metadata {} failed: {e}", global.id);
-            return;
-        }
+    let Some(proxy) = bind::<Metadata>(registry, global, "default metadata") else {
+        return;
     };
     let listener = proxy
         .add_listener_local()
-        .property({
-            let graph = graph.clone();
-            let states = states.clone();
-            move |_, key, _, value| {
-                {
-                    let mut graph = graph.borrow_mut();
-                    match key {
-                        Some("default.audio.sink") => {
-                            graph.default_sink = value.and_then(default_node_name);
-                        }
-                        Some("default.audio.source") => {
-                            graph.default_source = value.and_then(default_node_name);
-                        }
-                        Some(_) => return 0,
-                        None => {
-                            graph.default_sink = None;
-                            graph.default_source = None;
-                        }
-                    }
-                }
-                publish(&graph.borrow(), &states);
-                0
-            }
-        })
+        .property(on_default_property(session, states))
         .register();
-    graph.borrow_mut().defaults.push(Defaults {
+    session.borrow_mut().proxies.defaults.push(DefaultsProxy {
         _proxy: proxy,
         _listener: listener,
     });
 }
 
-fn node_route(props: &DictRef) -> Option<NodeRoute> {
-    Some(NodeRoute {
+fn on_node_info(id: u32, session: &Shared, states: &Publisher) -> impl Fn(&NodeInfoRef) + 'static {
+    let session = session.clone();
+    let states = states.clone();
+    move |info| {
+        if let Some(placement) = info.props().and_then(route_placement) {
+            dispatch(&session, &states, Event::NodePlacement { id, placement });
+        }
+    }
+}
+
+fn on_node_param(
+    id: u32,
+    session: &Shared,
+    states: &Publisher,
+) -> impl Fn(i32, ParamType, u32, u32, Option<&Pod>) + 'static {
+    let session = session.clone();
+    let states = states.clone();
+    move |_, _, _, _, param| {
+        if let Some(update) = param.and_then(parse_props) {
+            dispatch(&session, &states, Event::NodeLevels { id, update });
+        }
+    }
+}
+
+fn on_device_info(id: u32, session: &Shared) -> impl Fn(&DeviceInfoRef) + 'static {
+    let session = session.clone();
+    move |info| {
+        if info.change_mask().contains(DeviceChangeMask::PARAMS)
+            && let Some(device) = session.borrow().proxies.devices.get(&id)
+        {
+            device
+                .proxy
+                .enum_params(0, Some(ParamType::Route), 0, u32::MAX);
+        }
+    }
+}
+
+fn on_device_param(
+    id: u32,
+    session: &Shared,
+    states: &Publisher,
+) -> impl Fn(i32, ParamType, u32, u32, Option<&Pod>) + 'static {
+    let session = session.clone();
+    let states = states.clone();
+    move |_, param_type, _, _, param| {
+        if param_type != ParamType::Route {
+            return;
+        }
+        if let Some(route) = param.and_then(parse_route) {
+            dispatch(&session, &states, Event::RouteLevels { device: id, route });
+        }
+    }
+}
+
+fn on_default_property(
+    session: &Shared,
+    states: &Publisher,
+) -> impl Fn(u32, Option<&str>, Option<&str>, Option<&str>) -> i32 + 'static {
+    let session = session.clone();
+    let states = states.clone();
+    move |_, key, _, value| {
+        if let Some(event) = default_event(key, value) {
+            dispatch(&session, &states, event);
+        }
+        0
+    }
+}
+
+fn default_event(key: Option<&str>, value: Option<&str>) -> Option<Event> {
+    let changed = |direction| Event::DefaultChanged {
+        direction,
+        name: value.and_then(default_node_name),
+    };
+    match key? {
+        "default.audio.sink" => Some(changed(Direction::Output)),
+        "default.audio.source" => Some(changed(Direction::Input)),
+        _ => None,
+    }
+}
+
+fn node_direction(props: &DictRef) -> Option<Direction> {
+    match props.get("media.class")? {
+        "Audio/Sink" => Some(Direction::Output),
+        "Audio/Source" => Some(Direction::Input),
+        _ => None,
+    }
+}
+
+fn node_from_props(props: &DictRef) -> AudioNode {
+    AudioNode {
+        name: props.get("node.name").unwrap_or_default().to_owned(),
+        description: props
+            .get("node.nick")
+            .or_else(|| props.get("node.description"))
+            .unwrap_or_default()
+            .to_owned(),
+        serial: props
+            .get("object.serial")
+            .and_then(|serial| serial.parse().ok())
+            .unwrap_or_default(),
+        placement: None,
+        levels: Levels::default(),
+    }
+}
+
+fn route_placement(props: &DictRef) -> Option<RoutePlacement> {
+    Some(RoutePlacement {
         device: props.get("device.id")?.parse().ok()?,
         route_device: props.get("card.profile.device")?.parse().ok()?,
     })
-}
-
-fn merge_route(device: &mut DeviceState, update: RouteUpdate) {
-    let route = device
-        .routes
-        .entry(update.device)
-        .or_insert_with(|| RouteState {
-            index: update.index,
-            device: update.device,
-            channel_volumes: Vec::new(),
-            mute: false,
-        });
-    route.index = update.index;
-    if let Some(volumes) = update.volumes {
-        route.channel_volumes = volumes;
-    }
-    if let Some(mute) = update.mute {
-        route.mute = mute;
-    }
-}
-
-struct RouteTarget<'graph> {
-    device: &'graph DeviceState,
-    route: &'graph RouteState,
-}
-
-struct Levels {
-    channel_volumes: Vec<f32>,
-    mute: bool,
-}
-
-enum LevelChange {
-    Volumes(Vec<f32>),
-    Mute(bool),
-}
-
-fn target_node(graph: &Graph, target: Target) -> Option<&NodeState> {
-    let name = match target {
-        Target::DefaultSink => graph.default_sink.as_deref()?,
-        Target::DefaultSource => graph.default_source.as_deref()?,
-    };
-    node_by_name(graph, name)
-}
-
-fn node_by_name<'graph>(graph: &'graph Graph, name: &str) -> Option<&'graph NodeState> {
-    graph
-        .nodes
-        .iter()
-        .filter(|(_, node)| node.name == name)
-        .max_by_key(|(id, _)| **id)
-        .map(|(_, node)| node)
-}
-
-fn route_of<'graph>(graph: &'graph Graph, node: &NodeState) -> Option<RouteTarget<'graph>> {
-    let placement = node.route.as_ref()?;
-    let device = graph.devices.get(&placement.device)?;
-    let route = device.routes.get(&placement.route_device)?;
-    Some(RouteTarget { device, route })
-}
-
-fn levels(graph: &Graph, node: &NodeState) -> Levels {
-    match route_of(graph, node) {
-        Some(target) => Levels {
-            channel_volumes: target.route.channel_volumes.clone(),
-            mute: target.route.mute,
-        },
-        None => Levels {
-            channel_volumes: node.channel_volumes.clone(),
-            mute: node.mute,
-        },
-    }
-}
-
-fn apply(graph: &Graph, target: Target, kind: CommandKind) -> Option<i64> {
-    let node = target_node(graph, target)?;
-    let levels = levels(graph, node);
-    let current = volume_percent(&levels.channel_volumes);
-    match kind {
-        CommandKind::SetVolume(percent) => write_volume(graph, node, &levels, percent),
-        CommandKind::AdjustVolume(delta) => {
-            write_volume(graph, node, &levels, (current + delta).clamp(0, 100))
-        }
-        CommandKind::ToggleMute => {
-            dispatch(graph, node, &LevelChange::Mute(!levels.mute))?;
-            Some(current)
-        }
-    }
-}
-
-fn write_volume(graph: &Graph, node: &NodeState, levels: &Levels, percent: i64) -> Option<i64> {
-    let channels = levels.channel_volumes.len();
-    if channels == 0 {
-        return None;
-    }
-    let volumes = vec![cubic(percent); channels];
-    dispatch(graph, node, &LevelChange::Volumes(volumes))?;
-    Some(percent)
-}
-
-fn dispatch(graph: &Graph, node: &NodeState, change: &LevelChange) -> Option<()> {
-    if let Some(target) = route_of(graph, node) {
-        let bytes = pod_bytes(&route_object(target.route, change))?;
-        let pod = Pod::from_bytes(&bytes)?;
-        target.device.proxy.set_param(ParamType::Route, 0, pod);
-    } else {
-        let bytes = pod_bytes(&props_object(vec![level_property(change)]))?;
-        let pod = Pod::from_bytes(&bytes)?;
-        node.proxy.set_param(ParamType::Props, 0, pod);
-    }
-    Some(())
-}
-
-fn publish(graph: &Graph, states: &watch::Sender<AudioState>) {
-    let next = AudioState {
-        sink: reading(graph, graph.default_sink.as_deref()),
-        source: reading(graph, graph.default_source.as_deref()),
-    };
-    states.send_if_modified(|current| {
-        if *current == next {
-            return false;
-        }
-        *current = next;
-        true
-    });
-}
-
-fn reading(graph: &Graph, name: Option<&str>) -> Option<Reading> {
-    let node = node_by_name(graph, name?)?;
-    let levels = levels(graph, node);
-    let percent = volume_percent(&levels.channel_volumes);
-    Some(Reading {
-        percent,
-        muted: levels.mute || percent == 0,
-        device: (!node.description.is_empty()).then(|| node.description.clone()),
-    })
-}
-
-fn volume_percent(channel_volumes: &[f32]) -> i64 {
-    let Some(&cubic) = channel_volumes.first() else {
-        return 0;
-    };
-    #[allow(clippy::cast_possible_truncation)]
-    let percent = (cubic.cbrt() * 100.0).round() as i64;
-    percent.clamp(0, 100)
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn cubic(percent: i64) -> f32 {
-    (percent as f32 / 100.0).powi(3)
 }
 
 fn default_node_name(value: &str) -> Option<String> {
@@ -635,34 +772,21 @@ fn default_node_name(value: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-struct PropsUpdate {
-    volumes: Option<Vec<f32>>,
-    mute: Option<bool>,
+fn parse_props(pod: &Pod) -> Option<LevelsUpdate> {
+    parse_object(pod, SPA_TYPE_OBJECT_Props)
+        .as_ref()
+        .map(levels_update)
 }
 
-struct RouteUpdate {
-    index: u32,
-    device: u32,
-    volumes: Option<Vec<f32>>,
-    mute: Option<bool>,
-}
-
-fn parse_props(pod: &Pod) -> Option<PropsUpdate> {
-    let object = parse_object(pod, SPA_TYPE_OBJECT_Props)?;
-    Some(PropsUpdate {
-        volumes: volumes_of(&object),
-        mute: mute_of(&object),
-    })
-}
-
-fn parse_route(pod: &Pod) -> Option<RouteUpdate> {
+fn parse_route(pod: &Pod) -> Option<RouteLevels> {
     let object = parse_object(pod, SPA_TYPE_OBJECT_ParamRoute)?;
-    let props = nested_props(&object);
-    Some(RouteUpdate {
+    Some(RouteLevels {
         index: int_of(&object, SPA_PARAM_ROUTE_index)?.try_into().ok()?,
-        device: int_of(&object, SPA_PARAM_ROUTE_device)?.try_into().ok()?,
-        volumes: props.as_ref().and_then(volumes_of),
-        mute: props.as_ref().and_then(mute_of),
+        route_device: int_of(&object, SPA_PARAM_ROUTE_device)?.try_into().ok()?,
+        update: nested_props(&object)
+            .as_ref()
+            .map(levels_update)
+            .unwrap_or_default(),
     })
 }
 
@@ -674,62 +798,61 @@ fn parse_object(pod: &Pod, type_: u32) -> Option<Object> {
     }
 }
 
+fn levels_update(object: &Object) -> LevelsUpdate {
+    LevelsUpdate {
+        channel_volumes: volumes_of(object),
+        mute: mute_of(object),
+    }
+}
+
 fn nested_props(object: &Object) -> Option<Object> {
-    object
-        .properties
-        .iter()
-        .find_map(|property| match &property.value {
-            Value::Object(nested) if property.key == SPA_PARAM_ROUTE_props => Some(nested.clone()),
-            _ => None,
-        })
+    property_value(object, SPA_PARAM_ROUTE_props).and_then(|value| match value {
+        Value::Object(nested) => Some(nested.clone()),
+        _ => None,
+    })
 }
 
 fn volumes_of(object: &Object) -> Option<Vec<f32>> {
-    object
-        .properties
-        .iter()
-        .find_map(|property| match &property.value {
-            Value::ValueArray(ValueArray::Float(values))
-                if property.key == SPA_PROP_channelVolumes =>
-            {
-                Some(values.clone())
-            }
-            _ => None,
-        })
+    match property_value(object, SPA_PROP_channelVolumes)? {
+        Value::ValueArray(ValueArray::Float(values)) => Some(values.clone()),
+        _ => None,
+    }
 }
 
 fn mute_of(object: &Object) -> Option<bool> {
-    object
-        .properties
-        .iter()
-        .find_map(|property| match property.value {
-            Value::Bool(value) if property.key == SPA_PROP_mute => Some(value),
-            _ => None,
-        })
+    match property_value(object, SPA_PROP_mute)? {
+        Value::Bool(value) => Some(*value),
+        _ => None,
+    }
 }
 
 fn int_of(object: &Object, key: u32) -> Option<i32> {
+    match property_value(object, key)? {
+        Value::Int(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn property_value(object: &Object, key: u32) -> Option<&Value> {
     object
         .properties
         .iter()
-        .find_map(|property| match property.value {
-            Value::Int(value) if property.key == key => Some(value),
-            _ => None,
-        })
+        .find(|property| property.key == key)
+        .map(|property| &property.value)
 }
 
 fn level_property(change: &LevelChange) -> Property {
-    match change {
-        LevelChange::Volumes(volumes) => Property {
-            key: SPA_PROP_channelVolumes,
-            flags: PropertyFlags::empty(),
-            value: Value::ValueArray(ValueArray::Float(volumes.clone())),
-        },
-        LevelChange::Mute(mute) => Property {
-            key: SPA_PROP_mute,
-            flags: PropertyFlags::empty(),
-            value: Value::Bool(*mute),
-        },
+    let (key, value) = match change {
+        LevelChange::Volumes(volumes) => (
+            SPA_PROP_channelVolumes,
+            Value::ValueArray(ValueArray::Float(volumes.clone())),
+        ),
+        LevelChange::Mute(mute) => (SPA_PROP_mute, Value::Bool(*mute)),
+    };
+    Property {
+        key,
+        flags: PropertyFlags::empty(),
+        value,
     }
 }
 
@@ -742,31 +865,23 @@ fn props_object(properties: Vec<Property>) -> Value {
 }
 
 #[allow(clippy::cast_possible_wrap)]
-fn route_object(route: &RouteState, change: &LevelChange) -> Value {
+fn route_object(index: u32, route_device: u32, change: &LevelChange) -> Value {
+    let field = |key, value| Property {
+        key,
+        flags: PropertyFlags::empty(),
+        value,
+    };
     Value::Object(Object {
         type_: SPA_TYPE_OBJECT_ParamRoute,
         id: SPA_PARAM_Route,
         properties: vec![
-            Property {
-                key: SPA_PARAM_ROUTE_index,
-                flags: PropertyFlags::empty(),
-                value: Value::Int(route.index as i32),
-            },
-            Property {
-                key: SPA_PARAM_ROUTE_device,
-                flags: PropertyFlags::empty(),
-                value: Value::Int(route.device as i32),
-            },
-            Property {
-                key: SPA_PARAM_ROUTE_props,
-                flags: PropertyFlags::empty(),
-                value: props_object(vec![level_property(change)]),
-            },
-            Property {
-                key: SPA_PARAM_ROUTE_save,
-                flags: PropertyFlags::empty(),
-                value: Value::Bool(true),
-            },
+            field(SPA_PARAM_ROUTE_index, Value::Int(index as i32)),
+            field(SPA_PARAM_ROUTE_device, Value::Int(route_device as i32)),
+            field(
+                SPA_PARAM_ROUTE_props,
+                props_object(vec![level_property(change)]),
+            ),
+            field(SPA_PARAM_ROUTE_save, Value::Bool(true)),
         ],
     })
 }
@@ -774,4 +889,348 @@ fn route_object(route: &RouteState, change: &LevelChange) -> Value {
 fn pod_bytes(value: &Value) -> Option<Vec<u8>> {
     let (cursor, _) = PodSerializer::serialize(io::Cursor::new(Vec::new()), value).ok()?;
     Some(cursor.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn node(name: &str, volumes: &[f32]) -> AudioNode {
+        serialised(name, volumes, 0)
+    }
+
+    fn serialised(name: &str, volumes: &[f32], serial: u64) -> AudioNode {
+        AudioNode {
+            name: name.to_owned(),
+            description: name.to_owned(),
+            serial,
+            placement: None,
+            levels: Levels {
+                channel_volumes: volumes.to_vec(),
+                mute: false,
+            },
+        }
+    }
+
+    fn graph_with(events: Vec<Event>) -> Graph {
+        let mut graph = Graph::default();
+        for event in events {
+            reduce(&mut graph, event);
+        }
+        graph
+    }
+
+    #[test]
+    fn percent_round_trips_through_cubic_volume() {
+        for percent in 0..=100 {
+            let levels = Levels {
+                channel_volumes: vec![cubic(percent)],
+                mute: false,
+            };
+            assert_eq!(levels.percent(), percent);
+        }
+    }
+
+    #[test]
+    fn reading_prefers_route_over_node_props() {
+        let graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 56,
+                node: node("speaker", &[cubic(54)]),
+            },
+            Event::NodePlacement {
+                id: 56,
+                placement: RoutePlacement {
+                    device: 46,
+                    route_device: 3,
+                },
+            },
+            Event::RouteLevels {
+                device: 46,
+                route: RouteLevels {
+                    index: 3,
+                    route_device: 3,
+                    update: LevelsUpdate {
+                        channel_volumes: Some(vec![cubic(29)]),
+                        mute: None,
+                    },
+                },
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("speaker".to_owned()),
+            },
+        ]);
+        assert_eq!(snapshot(&graph).sink.unwrap().percent, 29);
+    }
+
+    #[test]
+    fn reading_falls_back_to_node_props_without_route() {
+        let graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 7,
+                node: node("null-sink", &[cubic(42)]),
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("null-sink".to_owned()),
+            },
+        ]);
+        assert_eq!(snapshot(&graph).sink.unwrap().percent, 42);
+    }
+
+    #[test]
+    fn highest_serial_wins_when_names_collide_on_a_recycled_id() {
+        let graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 91,
+                node: serialised("bluez", &[cubic(10)], 1593),
+            },
+            Event::NodeAdded {
+                id: 90,
+                node: serialised("bluez", &[cubic(70)], 29349),
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("bluez".to_owned()),
+            },
+        ]);
+        assert_eq!(snapshot(&graph).sink.unwrap().percent, 70);
+    }
+
+    #[test]
+    fn a_headset_connect_then_disconnect_round_trips() {
+        let built_in = vec![
+            Event::NodeAdded {
+                id: 58,
+                node: serialised("mic1", &[cubic(60)], 58),
+            },
+            Event::DefaultChanged {
+                direction: Direction::Input,
+                name: Some("mic1".to_owned()),
+            },
+        ];
+        let mut graph = graph_with(built_in);
+        assert_eq!(snapshot(&graph).source.unwrap().percent, 60);
+
+        for event in [
+            Event::NodeAdded {
+                id: 97,
+                node: serialised("bluez_in", &[], 1593),
+            },
+            Event::NodePlacement {
+                id: 97,
+                placement: RoutePlacement {
+                    device: 93,
+                    route_device: 0,
+                },
+            },
+            Event::RouteLevels {
+                device: 93,
+                route: RouteLevels {
+                    index: 0,
+                    route_device: 0,
+                    update: LevelsUpdate {
+                        channel_volumes: Some(vec![cubic(35)]),
+                        mute: Some(false),
+                    },
+                },
+            },
+            Event::DefaultChanged {
+                direction: Direction::Input,
+                name: Some("bluez_in".to_owned()),
+            },
+        ] {
+            reduce(&mut graph, event);
+        }
+        assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
+
+        reduce(&mut graph, Event::Removed { id: 97 });
+        reduce(&mut graph, Event::Removed { id: 93 });
+        assert!(snapshot(&graph).source.is_none());
+
+        reduce(
+            &mut graph,
+            Event::DefaultChanged {
+                direction: Direction::Input,
+                name: Some("mic1".to_owned()),
+            },
+        );
+        assert_eq!(snapshot(&graph).source.unwrap().percent, 60);
+    }
+
+    #[test]
+    fn a_bluez_profile_switch_recovers_the_reading() {
+        let mut graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 97,
+                node: serialised("bluez_in", &[cubic(35)], 1593),
+            },
+            Event::DefaultChanged {
+                direction: Direction::Input,
+                name: Some("bluez_in".to_owned()),
+            },
+        ]);
+        assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
+
+        reduce(&mut graph, Event::Removed { id: 97 });
+        assert!(snapshot(&graph).source.is_none());
+
+        reduce(
+            &mut graph,
+            Event::NodeAdded {
+                id: 101,
+                node: serialised("bluez_in", &[cubic(35)], 29349),
+            },
+        );
+        assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
+    }
+
+    #[test]
+    fn removing_a_device_drops_its_routes() {
+        let mut graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 56,
+                node: node("speaker", &[cubic(54)]),
+            },
+            Event::NodePlacement {
+                id: 56,
+                placement: RoutePlacement {
+                    device: 46,
+                    route_device: 3,
+                },
+            },
+            Event::RouteLevels {
+                device: 46,
+                route: RouteLevels {
+                    index: 3,
+                    route_device: 3,
+                    update: LevelsUpdate {
+                        channel_volumes: Some(vec![cubic(29)]),
+                        mute: None,
+                    },
+                },
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("speaker".to_owned()),
+            },
+        ]);
+        reduce(&mut graph, Event::Removed { id: 46 });
+        assert_eq!(snapshot(&graph).sink.unwrap().percent, 54);
+    }
+
+    #[test]
+    fn a_metadata_clear_never_forgets_the_default() {
+        let mut graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 56,
+                node: node("speaker", &[cubic(54)]),
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("speaker".to_owned()),
+            },
+        ]);
+        assert!(default_event(None, None).is_none());
+        assert_eq!(snapshot(&graph).sink.unwrap().percent, 54);
+        reduce(&mut graph, Event::Removed { id: 56 });
+        assert!(snapshot(&graph).sink.is_none());
+    }
+
+    #[test]
+    fn partial_levels_update_keeps_untouched_fields() {
+        let mut levels = Levels {
+            channel_volumes: vec![cubic(30), cubic(30)],
+            mute: false,
+        };
+        levels.merge(LevelsUpdate {
+            channel_volumes: None,
+            mute: Some(true),
+        });
+        assert_eq!(levels.percent(), 30);
+        assert!(levels.mute);
+    }
+
+    #[test]
+    fn adjust_resolves_against_current_level() {
+        let levels = Levels {
+            channel_volumes: vec![cubic(33), cubic(33)],
+            mute: false,
+        };
+        let resolved = resolve(&levels, CommandKind::AdjustVolume(5)).unwrap();
+        assert_eq!(resolved.percent, 38);
+        match resolved.change {
+            LevelChange::Volumes(volumes) => assert_eq!(volumes, vec![cubic(38); 2]),
+            LevelChange::Mute(_) => panic!("expected a volume change"),
+        }
+    }
+
+    #[test]
+    fn adjust_clamps_at_the_ceiling() {
+        let levels = Levels {
+            channel_volumes: vec![cubic(98)],
+            mute: false,
+        };
+        assert_eq!(
+            resolve(&levels, CommandKind::AdjustVolume(5))
+                .unwrap()
+                .percent,
+            100
+        );
+    }
+
+    #[test]
+    fn resolve_refuses_before_channel_count_is_known() {
+        let levels = Levels::default();
+        assert!(resolve(&levels, CommandKind::SetVolume(50)).is_none());
+    }
+
+    #[test]
+    fn route_pod_round_trips_through_the_parser() {
+        let change = LevelChange::Volumes(vec![cubic(38), cubic(38)]);
+        let bytes = pod_bytes(&route_object(3, 3, &change)).unwrap();
+        let parsed = parse_route(Pod::from_bytes(&bytes).unwrap()).unwrap();
+        assert_eq!(
+            parsed,
+            RouteLevels {
+                index: 3,
+                route_device: 3,
+                update: LevelsUpdate {
+                    channel_volumes: Some(vec![cubic(38), cubic(38)]),
+                    mute: None,
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn props_pod_round_trips_mute() {
+        let bytes = pod_bytes(&props_object(vec![level_property(&LevelChange::Mute(
+            true,
+        ))]))
+        .unwrap();
+        let parsed = parse_props(Pod::from_bytes(&bytes).unwrap()).unwrap();
+        assert_eq!(
+            parsed,
+            LevelsUpdate {
+                channel_volumes: None,
+                mute: Some(true),
+            }
+        );
+    }
+
+    #[test]
+    fn metadata_keys_map_to_events() {
+        let sink = default_event(Some("default.audio.sink"), Some(r#"{"name":"speaker"}"#));
+        assert!(matches!(
+            sink,
+            Some(Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some(ref name),
+            }) if name == "speaker"
+        ));
+        assert!(default_event(None, None).is_none());
+        assert!(default_event(Some("default.video.source"), None).is_none());
+    }
 }
