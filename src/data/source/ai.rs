@@ -24,6 +24,16 @@ pub fn read_secret(path: &Path) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
 }
 
+pub fn level_from_remaining(remaining: i64) -> Level {
+    if remaining < 10 {
+        Level::Critical
+    } else if remaining < 25 {
+        Level::Warning
+    } else {
+        Level::Ok
+    }
+}
+
 pub fn level_from_cost(cost: f64) -> Level {
     if cost >= 20.0 {
         Level::Critical

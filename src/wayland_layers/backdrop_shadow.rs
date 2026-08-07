@@ -2,11 +2,12 @@ use iced::{
     Color, Element, Length,
     widget::{Space, container},
 };
-use iced_layershell::reexport::{
-    KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
-};
+use iced_layershell::reexport::{Layer, NewLayerShellSettings};
 
-use crate::{app::Message, wayland_layers::surface::Position};
+use crate::{
+    app::Message,
+    wayland_layers::surface::{self, Position},
+};
 
 pub fn namespace(position: Position) -> &'static str {
     match position {
@@ -26,11 +27,9 @@ pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellS
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Background,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(margin),
         events_transparent: true,
-        namespace: Some(namespace(position).to_string()),
+        ..surface::base_settings(Some(output), namespace(position))
     }
 }
 

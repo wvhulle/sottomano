@@ -92,10 +92,7 @@ impl InternetGroup {
                     .tunnels
                     .iter()
                     .find(|t| &t.name == name)?;
-                Some(Tooltip {
-                    body: tunnel.tooltip(),
-                    footer: None,
-                })
+                Some(Tooltip::of(tunnel.tooltip()))
             }
             HoverTarget::InternetDown => self.down.live_tooltip(),
             HoverTarget::InternetUp => self.up.live_tooltip(),

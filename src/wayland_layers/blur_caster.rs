@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iced::{Element, Length, Rectangle, Task, widget::Space, window::Id};
-use iced_layershell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
-};
+use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
 
 use crate::{
     app::Message,
@@ -11,7 +9,7 @@ use crate::{
     state::ChromeState,
     wayland_layers::{
         bar::float_margin,
-        surface::{Margin, Position, Surface},
+        surface::{self, Margin, Position, Surface},
     },
 };
 
@@ -265,11 +263,9 @@ fn strip_settings(
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Bottom,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(active_float_margin(chrome, position).edges()),
         events_transparent: true,
-        namespace: Some(strip_namespace().to_string()),
+        ..surface::base_settings(Some(output), strip_namespace())
     }
 }
 
@@ -281,20 +277,14 @@ fn pill_settings(
     chrome: &ChromeState,
 ) -> NewLayerShellSettings {
     let float = active_float_margin(chrome, position);
-    let edge = match position {
-        Position::Top => Anchor::Top,
-        Position::Bottom => Anchor::Bottom,
-    };
     NewLayerShellSettings {
         size: Some(pill_size(rect, config)),
         exclusive_zone: Some(-1),
-        anchor: edge | Anchor::Left,
+        anchor: position.edge() | Anchor::Left,
         layer: Layer::Bottom,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(pill_margin(position, float, rect).edges()),
         events_transparent: true,
-        namespace: Some(pill_namespace().to_string()),
+        ..surface::base_settings(Some(output), pill_namespace())
     }
 }
 

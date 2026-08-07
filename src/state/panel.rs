@@ -24,7 +24,7 @@ pub async fn load() -> Session {
 }
 
 pub async fn save_floating(floating: bool) {
-    put(FLOATING, if floating { "1" } else { "0" }).await;
+    put_flag(FLOATING, floating).await;
 }
 
 pub async fn save_float_offset(offset: f32) -> bool {
@@ -32,11 +32,11 @@ pub async fn save_float_offset(offset: f32) -> bool {
 }
 
 pub async fn save_blur_background(blur: bool) {
-    put(BLUR_BACKGROUND, if blur { "1" } else { "0" }).await;
+    put_flag(BLUR_BACKGROUND, blur).await;
 }
 
 pub async fn save_disconnected_groups(disconnected: bool) {
-    put(DISCONNECTED_GROUPS, if disconnected { "1" } else { "0" }).await;
+    put_flag(DISCONNECTED_GROUPS, disconnected).await;
 }
 
 pub async fn save_darken_chrome_factor(factor: f32) -> bool {
@@ -44,11 +44,19 @@ pub async fn save_darken_chrome_factor(factor: f32) -> bool {
 }
 
 pub async fn save_dnd(dnd: bool) {
-    put(DND, if dnd { "1" } else { "0" }).await;
+    put_flag(DND, dnd).await;
 }
 
 pub async fn save_sound(sound: bool) {
-    put(SOUND, if sound { "1" } else { "0" }).await;
+    put_flag(SOUND, sound).await;
+}
+
+async fn put_flag(key: &str, flag: bool) -> bool {
+    put(key, if flag { "1" } else { "0" }).await
+}
+
+fn parse_flag(value: &str) -> bool {
+    value != "0"
 }
 
 async fn put(key: &str, value: &str) -> bool {
@@ -82,15 +90,15 @@ async fn try_load() -> Result<Session, StoreError> {
         let key = text(&row, 0)?;
         let value = text(&row, 1)?;
         match key.as_str() {
-            FLOATING => session.chrome.floating = value != "0",
+            FLOATING => session.chrome.floating = parse_flag(&value),
             FLOAT_OFFSET => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
-            BLUR_BACKGROUND => session.chrome.blur_background = value != "0",
-            DISCONNECTED_GROUPS => session.chrome.disconnected_groups = value != "0",
+            BLUR_BACKGROUND => session.chrome.blur_background = parse_flag(&value),
+            DISCONNECTED_GROUPS => session.chrome.disconnected_groups = parse_flag(&value),
             DARKEN_CHROME_FACTOR => {
                 session.chrome.darken_chrome_factor = value.parse().unwrap_or_default();
             }
-            DND => session.notifications.dnd = value != "0",
-            SOUND => session.notifications.sound = value != "0",
+            DND => session.notifications.dnd = parse_flag(&value),
+            SOUND => session.notifications.sound = parse_flag(&value),
             _ => {}
         }
     }

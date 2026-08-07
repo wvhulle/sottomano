@@ -1,11 +1,9 @@
-use iced_layershell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
-};
+use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
 
 use crate::{
     config::Config,
     data::source::niri::{HEdge, VEdge},
-    wayland_layers::surface::{Margin, SurfaceSize},
+    wayland_layers::surface::{self, Margin, SurfaceSize},
 };
 
 pub struct SlotPlacement {
@@ -86,13 +84,8 @@ pub fn toast_settings(
         exclusive_zone: Some(0),
         anchor,
         layer: Layer::Overlay,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: output.map_or(OutputOption::Active, |o| {
-            OutputOption::OutputName(o.to_string())
-        }),
         margin: Some(margin.edges()),
-        events_transparent: false,
-        namespace: Some(NAMESPACE.to_string()),
+        ..surface::base_settings(output, NAMESPACE)
     }
 }
 

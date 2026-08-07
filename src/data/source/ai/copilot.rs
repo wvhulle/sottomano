@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value as GaugeValue,
-    ai::{ApiSource, level_from_cost, read_secret},
+    ai::{ApiSource, level_from_cost, level_from_remaining, read_secret},
     command::{exists, output},
     row,
     simple_icons::SimpleIcon,
@@ -34,13 +34,7 @@ impl BarWidget for CopilotMetered {
     }
 
     fn level(&self) -> Level {
-        if self.percent_remaining < 10 {
-            Level::Critical
-        } else if self.percent_remaining < 25 {
-            Level::Warning
-        } else {
-            Level::Ok
-        }
+        level_from_remaining(self.percent_remaining)
     }
 
     fn value(&self) -> Option<GaugeValue> {

@@ -64,7 +64,7 @@ impl JournalGroup {
             HoverTarget::JournalKernel => self.kernel.get()?.tooltip(),
             _ => return None,
         };
-        Some(Tooltip { body, footer: None })
+        Some(Tooltip::of(body))
     }
 
     pub fn view<'a>(

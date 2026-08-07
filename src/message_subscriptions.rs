@@ -7,7 +7,7 @@ use iced::{
     mouse::Event,
     stream::channel,
     time::every,
-    window::close_events,
+    window::{close_events, frames},
 };
 use tokio::{
     sync::mpsc,
@@ -40,7 +40,7 @@ const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
     let animation = if state.any_menu_animating() {
-        every(Duration::from_millis(16)).map(|_| Message::Redraw)
+        frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
     };

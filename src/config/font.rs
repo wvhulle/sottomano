@@ -1,7 +1,9 @@
-use std::{collections::HashSet, fs, process::Command, sync::Arc};
+use std::{collections::HashSet, fs, sync::Arc};
 
 use iced::Font;
 use serde::Deserialize;
+
+use crate::data::source::command;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
@@ -74,14 +76,7 @@ pub fn fallback_font(ch: char) -> Option<Font> {
 }
 
 fn fc_match(pattern: &str, format: &str) -> Option<String> {
-    let output = Command::new("fc-match")
-        .args(["-f", format, pattern])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8(output.stdout).ok()?;
+    let stdout = command::output("fc-match", &["-f", format, pattern])?;
     let value = stdout.lines().next()?.split(',').next()?.trim().to_owned();
     (!value.is_empty()).then_some(value)
 }
@@ -92,14 +87,7 @@ struct FontMatch {
 }
 
 fn fc_match_family_file(pattern: &str) -> Option<FontMatch> {
-    let output = Command::new("fc-match")
-        .args(["-f", "%{family}\t%{file}", pattern])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8(output.stdout).ok()?;
+    let stdout = command::output("fc-match", &["-f", "%{family}\t%{file}", pattern])?;
     let line = stdout.lines().next()?;
     let (family, file) = line.split_once('\t')?;
     let family = family.split(',').next()?.trim();

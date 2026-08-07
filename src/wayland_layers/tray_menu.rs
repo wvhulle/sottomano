@@ -5,15 +5,13 @@ use iced::{
     widget::{Sensor, container},
     window::Id,
 };
-use iced_layershell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
-};
+use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
 
 use crate::{
     app::Message,
     config::Config,
     wayland_layers::{
-        surface::{Position, SurfaceSize},
+        surface::{self, Position, SurfaceSize},
         tooltip::{MenuAnchor, panel_left, tooltip_margin},
     },
     widget_groups::tray_group::TrayMessage,
@@ -153,20 +151,13 @@ impl TrayMenuHost {
 fn menu_settings(place: &MenuAnchor, config: &Config) -> NewLayerShellSettings {
     let bar = config.chrome.outer_height_px as i32;
     let left = panel_left(place.anchor.x, place.output_width, MENU_PROVISIONAL.width);
-    let anchor = match place.position {
-        Position::Top => Anchor::Top | Anchor::Left,
-        Position::Bottom => Anchor::Bottom | Anchor::Left,
-    };
     NewLayerShellSettings {
         size: Some(MENU_PROVISIONAL.dimensions()),
         exclusive_zone: Some(0),
-        anchor,
+        anchor: place.position.edge() | Anchor::Left,
         margin: Some(tooltip_margin(place.position, left, bar).edges()),
         layer: Layer::Overlay,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(place.output.clone()),
-        events_transparent: false,
-        namespace: Some("vetrata-tray-menu".to_string()),
+        ..surface::base_settings(Some(&place.output), "vetrata-tray-menu")
     }
 }
 

@@ -329,3 +329,13 @@ fn into_action(write: Option<Write>) -> Action {
         None => Action::None,
     }
 }
+
+#[allow(clippy::cast_precision_loss)]
+pub(crate) fn percent_f(percent: i64) -> f32 {
+    percent as f32
+}
+
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn as_percent(value: f32) -> i64 {
+    value.round() as i64
+}

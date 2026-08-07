@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{Tooltip, TooltipBody, font_awesome::Solid, row},
+    data::source::{Tooltip, font_awesome::Solid, row},
     state::ChromeState,
     wayland_layers::{
         surface::Position,
@@ -35,70 +35,55 @@ pub fn tooltip_for(target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip
 }
 
 fn floating_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip {
-        body: TooltipBody::Table(vec![row(
-            "Floating",
-            if chrome.floating {
-                "on — rounded, inset from edges"
-            } else {
-                "off — flush, square"
-            },
-        )]),
-        footer: None,
-    }
+    Tooltip::table(vec![row(
+        "Floating",
+        if chrome.floating {
+            "on — rounded, inset from edges"
+        } else {
+            "off — flush, square"
+        },
+    )])
 }
 
 fn blur_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip {
-        body: TooltipBody::Table(vec![row(
-            "Blur",
-            if chrome.blur_background {
-                "on — frosted behind the chrome"
-            } else {
-                "off"
-            },
-        )]),
-        footer: None,
-    }
+    Tooltip::table(vec![row(
+        "Blur",
+        if chrome.blur_background {
+            "on — frosted behind the chrome"
+        } else {
+            "off"
+        },
+    )])
 }
 
 fn disconnected_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip {
-        body: TooltipBody::Table(vec![row(
-            "Groups",
-            if chrome.disconnected_groups {
-                "separate pills"
-            } else {
-                "one bar"
-            },
-        )]),
-        footer: None,
-    }
+    Tooltip::table(vec![row(
+        "Groups",
+        if chrome.disconnected_groups {
+            "separate pills"
+        } else {
+            "one bar"
+        },
+    )])
 }
 
 #[allow(clippy::cast_possible_truncation)]
 fn darken_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip {
-        body: TooltipBody::Table(vec![row(
-            "Darken",
-            format!(
-                "{} % black tint over the chrome",
-                (chrome.darken_chrome_factor * 100.0).round() as i64
-            ),
-        )]),
-        footer: None,
-    }
+    Tooltip::table(vec![row(
+        "Darken",
+        format!(
+            "{} % black tint over the chrome",
+            (chrome.darken_chrome_factor * 100.0).round() as i64
+        ),
+    )])
 }
 
 #[allow(clippy::cast_possible_truncation)]
 fn offset_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip {
-        body: TooltipBody::Table(vec![row(
-            "Offset",
-            format!("{} px", chrome.float_offset_px.round() as i64),
-        )]),
-        footer: None,
-    }
+    Tooltip::table(vec![row(
+        "Offset",
+        format!("{} px", chrome.float_offset_px.round() as i64),
+    )])
 }
 
 pub struct PanelSettingsGroup {
