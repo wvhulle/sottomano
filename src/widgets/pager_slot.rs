@@ -1,4 +1,7 @@
-use iced::{Alignment, Element, Length, widget::Column};
+use iced::{
+    Alignment, Element, Length,
+    widget::{Column, Space},
+};
 
 use crate::{
     config::Config, wayland_layers::surface::Position, widgets::activity_line::activity_line,
@@ -25,13 +28,17 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
         self
     }
 
-    pub fn view(self, position: Position) -> Element<'a, Message> {
-        let (top, bottom) = match position {
-            Position::Bottom => (Some(self.indicator), self.ticks),
-            Position::Top => (self.ticks, Some(self.indicator)),
+    pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
+        let edge_side = self.ticks.unwrap_or_else(|| {
+            Space::new()
+                .height(config.widgets.window_segment_thickness_px)
+                .into()
+        });
+        let (top, middle, bottom) = match position {
+            Position::Bottom => (self.indicator, self.content, edge_side),
+            Position::Top => (edge_side, self.content, self.indicator),
         };
-        let stacked = [top, Some(self.content), bottom].into_iter().flatten();
-        Column::with_children(stacked)
+        Column::with_children([top, middle, bottom])
             .width(Length::Shrink)
             .align_x(Alignment::Center)
             .into()
@@ -48,5 +55,5 @@ pub fn permanently_inactive_slot<'a, Message: 'a>(
         0.0,
         config.widgets.focus_underline_thickness_px,
     );
-    PagerSlot::new(content, inactive_indicator).view(position)
+    PagerSlot::new(content, inactive_indicator).view(config, position)
 }

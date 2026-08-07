@@ -254,7 +254,7 @@ fn window_button<'a>(
     let rule = app_rules::rule_for(&win.app_id);
     let content = button_content(config, icons, rule, win, alpha);
     let focus = focus_line(config, win, alpha);
-    button(PagerSlot::new(content, focus).view(position))
+    button(PagerSlot::new(content, focus).view(config, position))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
         .on_press(WindowListMessage::Clicked(win.id))
