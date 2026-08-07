@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::SystemTime};
 use iced::{
     Alignment, Border, Color, Element, Font, Length,
     font::Weight,
+    theme::palette::{mix, readable},
     widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
 };
 
@@ -27,9 +28,8 @@ const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const WIDEST_RELTIME: &str = "59 min ago";
-const URGENCY_TINT_ALPHA: f32 = 0.25;
-const SUBTEXT_ALPHA: f32 = 0.5;
-const RESTING_BORDER_ALPHA: f32 = 0.6;
+const URGENCY_TINT_AMOUNT: f32 = 0.06;
+const RESTING_BORDER_TINT_AMOUNT: f32 = 0.6;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -78,41 +78,6 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
     } else {
         CardIcon::Raster(image::Handle::from_path(path))
     })
-}
-
-fn over(fg: Color, bg: Color) -> Color {
-    Color {
-        r: bg.r * (1.0 - fg.a) + fg.r * fg.a,
-        g: bg.g * (1.0 - fg.a) + fg.g * fg.a,
-        b: bg.b * (1.0 - fg.a) + fg.b * fg.a,
-        a: 1.0,
-    }
-}
-
-fn relative_luminance(color: Color) -> f32 {
-    let channel = |c: f32| {
-        if c <= 0.03928 {
-            c / 12.92
-        } else {
-            ((c + 0.055) / 1.055).powf(2.4)
-        }
-    };
-    0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
-}
-
-fn contrast_ratio(one: Color, other: Color) -> f32 {
-    let (a, b) = (relative_luminance(one), relative_luminance(other));
-    (a.max(b) + 0.05) / (a.min(b) + 0.05)
-}
-
-fn most_legible_on(background: Color, candidates: [Color; 2]) -> Color {
-    candidates
-        .into_iter()
-        .map(|candidate| over(candidate, background))
-        .max_by(|one, other| {
-            contrast_ratio(*one, background).total_cmp(&contrast_ratio(*other, background))
-        })
-        .unwrap_or(background)
 }
 
 pub fn measure_height(data: &NotificationData, icons: &CardIcons, config: &ResolvedConfig) -> f32 {
@@ -227,25 +192,13 @@ struct CardChrome {
 
 fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> CardChrome {
     let palette = &config.palette;
+    let accent = urgency_accent(urgency, palette);
     let base = Color {
         a: 1.0,
         ..palette.bar_background
     };
-    let accent = urgency_tint(urgency, palette);
-    let background = over(
-        Color {
-            a: URGENCY_TINT_ALPHA,
-            ..accent
-        },
-        base,
-    );
-    let rest = over(
-        Color {
-            a: RESTING_BORDER_ALPHA,
-            ..accent
-        },
-        background,
-    );
+    let background = mix(base, accent, URGENCY_TINT_AMOUNT);
+    let rest = mix(background, accent, RESTING_BORDER_TINT_AMOUNT);
     CardChrome {
         background,
         border: Border {
@@ -254,20 +207,11 @@ fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> Card
             radius: f32::from(config.layout.corner_radius_px).into(),
         },
         foreground: palette.bar_foreground,
-        subtext: most_legible_on(
-            background,
-            [
-                palette.dim,
-                Color {
-                    a: SUBTEXT_ALPHA,
-                    ..palette.bar_foreground
-                },
-            ],
-        ),
+        subtext: readable(background, palette.dim),
     }
 }
 
-fn urgency_tint(urgency: Urgency, palette: &ResolvedPaletteConfig) -> Color {
+fn urgency_accent(urgency: Urgency, palette: &ResolvedPaletteConfig) -> Color {
     match urgency {
         Urgency::Low => palette.inactive,
         Urgency::Normal => palette.focus,
@@ -444,58 +388,42 @@ fn action_button<'a>(
 mod tests {
     use super::*;
 
-    const BLACK: Color = Color::BLACK;
-    const WHITE: Color = Color::WHITE;
-
     fn rgb(r: u8, g: u8, b: u8) -> Color {
         Color::from_rgb8(r, g, b)
     }
 
-    #[test]
-    fn black_on_white_is_maximum_contrast() {
-        assert!((contrast_ratio(BLACK, WHITE) - 21.0).abs() < 0.01);
-        assert!((contrast_ratio(WHITE, WHITE) - 1.0).abs() < 0.01);
+    fn tinted_card(accent: Color) -> Color {
+        mix(Color::BLACK, accent, URGENCY_TINT_AMOUNT)
     }
 
     #[test]
-    fn contrast_ratio_is_symmetric() {
-        let one = rgb(0xbd, 0xae, 0x93);
-        let other = rgb(0x3e, 0x12, 0x0d);
-        assert!((contrast_ratio(one, other) - contrast_ratio(other, one)).abs() < 0.001);
+    fn tinted_card_is_distinguishable_from_a_black_window_behind_it() {
+        let fill = tinted_card(rgb(0xfb, 0x49, 0x34));
+        assert!(fill.relative_luminance() > Color::BLACK.relative_luminance());
+        assert!(fill.relative_contrast(Color::BLACK) > 1.2);
     }
 
     #[test]
-    fn subtext_rejects_a_dim_darker_than_the_card() {
-        let tinted_fill = rgb(0x3c, 0x1c, 0x1e);
+    fn tinted_card_keeps_title_and_body_legible() {
+        let title = Color::WHITE;
+        let body = rgb(0xbd, 0xae, 0x93);
+        for accent in [
+            rgb(0xbd, 0xae, 0x93),
+            rgb(0x8e, 0xc0, 0x7c),
+            rgb(0xfb, 0x49, 0x34),
+        ] {
+            let fill = tinted_card(accent);
+            assert!(title.relative_contrast(fill) > 4.5);
+            assert!(body.relative_contrast(fill) > 4.5);
+        }
+    }
+
+    #[test]
+    fn subtext_stays_legible_when_dim_is_darker_than_the_card() {
+        let fill = tinted_card(rgb(0xf0, 0x71, 0x78));
         let unusable_dim = rgb(0x3e, 0x4b, 0x59);
-        let derived = Color {
-            a: SUBTEXT_ALPHA,
-            ..rgb(0xe6, 0xe1, 0xcf)
-        };
-        let chosen = most_legible_on(tinted_fill, [unusable_dim, derived]);
-        assert!(contrast_ratio(chosen, tinted_fill) > contrast_ratio(unusable_dim, tinted_fill));
-        assert!(contrast_ratio(chosen, tinted_fill) > 3.0);
-    }
-
-    #[test]
-    fn subtext_keeps_a_legible_dim() {
-        let tinted_fill = rgb(0x3e, 0x12, 0x0d);
-        let legible_dim = Color { a: 0.5, ..WHITE };
-        let chosen = most_legible_on(tinted_fill, [legible_dim, legible_dim]);
-        assert_eq!(chosen, over(legible_dim, tinted_fill));
-    }
-
-    #[test]
-    fn urgency_tint_lightens_the_card_away_from_black() {
-        let fill = over(
-            Color {
-                a: URGENCY_TINT_ALPHA,
-                ..rgb(0xfb, 0x49, 0x34)
-            },
-            BLACK,
-        );
-        assert!(relative_luminance(fill) > relative_luminance(BLACK));
-        assert!(contrast_ratio(WHITE, fill) > 4.5);
-        assert!(contrast_ratio(rgb(0xbd, 0xae, 0x93), fill) > 4.5);
+        let subtext = readable(fill, unusable_dim);
+        assert!(subtext.relative_contrast(fill) > unusable_dim.relative_contrast(fill));
+        assert!(subtext.relative_contrast(fill) > 4.5);
     }
 }

@@ -86,13 +86,7 @@ fn gauge<'a, Message: 'a>(percent: i64, color: Color, height: f32) -> Element<'a
             .width(3.0)
             .height(bar_height)
             .style(move |_| container::Style {
-                background: Some(
-                    Color {
-                        a: alpha * color.a,
-                        ..color
-                    }
-                    .into(),
-                ),
+                background: Some(color.scale_alpha(alpha).into()),
                 border: Border::default().rounded(1.0),
                 ..Default::default()
             })

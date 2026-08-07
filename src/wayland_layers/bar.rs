@@ -12,6 +12,7 @@ use iced_layershell::reexport::{
 
 use crate::{
     app::{Bar, Message},
+    blend,
     config::resolved::ResolvedConfig,
     wayland_layers::{
         backdrop_shadow,
@@ -109,8 +110,13 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| container::Style {
-            background: (!bar.config.layout.disconnected_groups)
-                .then(|| darkened_background(&bar.config).into()),
+            background: (!bar.config.layout.disconnected_groups).then(|| {
+                blend::darkened(
+                    bar.config.palette.bar_background,
+                    bar.config.darken_chrome_factor,
+                )
+                .into()
+            }),
             border: iced::Border {
                 radius: bar.config.chrome_radius().into(),
                 ..Default::default()
@@ -119,22 +125,6 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
             ..Default::default()
         })
         .into()
-}
-
-fn darkened_background(config: &ResolvedConfig) -> iced::Color {
-    let factor = config.darken_chrome_factor;
-    let base = config.palette.bar_background;
-    let alpha = factor + base.a * (1.0 - factor);
-    if alpha <= 0.0 {
-        return iced::Color::TRANSPARENT;
-    }
-    let base_weight = base.a * (1.0 - factor) / alpha;
-    iced::Color {
-        r: base.r * base_weight,
-        g: base.g * base_weight,
-        b: base.b * base_weight,
-        a: alpha,
-    }
 }
 
 fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
@@ -272,7 +262,7 @@ fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a,
     if !config.layout.disconnected_groups {
         return group;
     }
-    let background = darkened_background(config);
+    let background = blend::darkened(config.palette.bar_background, config.darken_chrome_factor);
     let radius = config.layout.outer_height_px / 2.0;
     let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
     container(group)

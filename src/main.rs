@@ -1,4 +1,5 @@
 mod app;
+mod blend;
 mod config;
 mod data;
 mod message_subscriptions;

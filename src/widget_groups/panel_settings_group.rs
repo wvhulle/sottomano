@@ -13,6 +13,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        DISABLED_ALPHA,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl},
     },
@@ -256,10 +257,8 @@ fn icon_toggle<'a>(
     press: PanelSettingsMessage,
     target: HoverTarget,
 ) -> Element<'a, PanelSettingsMessage> {
-    let color = config
-        .palette
-        .bar_foreground
-        .scale_alpha(if active { 1.0 } else { 0.4 });
+    let alpha = if active { 1.0 } else { DISABLED_ALPHA };
+    let color = config.palette.bar_foreground.scale_alpha(alpha);
     let widget = icon.widget().size(config.font.icon_size_px).color(color);
     hoverable(
         mouse_area(widget).on_press(press).into(),

@@ -1,4 +1,4 @@
-use iced::{Color, Element, widget::mouse_area};
+use iced::{Element, widget::mouse_area};
 
 use crate::{config::resolved::ResolvedConfig, data::source::font_awesome::Solid};
 
@@ -48,10 +48,7 @@ impl ConfirmButton {
         } else {
             (Solid::Bolt, config.palette.inactive)
         };
-        let color = Color {
-            a: color.a * alpha,
-            ..color
-        };
+        let color = color.scale_alpha(alpha);
         mouse_area(glyph.widget().size(config.font.icon_size_px).color(color))
             .on_press(on_press)
             .into()
