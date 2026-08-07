@@ -12,7 +12,7 @@ impl Default for Chrome {
     fn default() -> Self {
         Self {
             corner_radius_px: 8,
-            outer_height_px: 23.0,
+            outer_height_px: 25.0,
             shadow: true,
         }
     }
