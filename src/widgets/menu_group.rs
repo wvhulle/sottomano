@@ -45,6 +45,10 @@ impl MenuGroup {
         was_open && !self.is_open()
     }
 
+    pub fn close(&mut self) -> bool {
+        self.update(MenuMessage::Close)
+    }
+
     pub fn is_open(&self) -> bool {
         self.expand.value()
     }

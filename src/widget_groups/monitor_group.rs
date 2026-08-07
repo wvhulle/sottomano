@@ -16,7 +16,6 @@ use crate::{
         row,
         umbra::Umbra,
     },
-    message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
         tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
@@ -110,13 +109,23 @@ impl MonitorGroup {
         ])
     }
 
+    fn close_controls(&mut self) {
+        self.close_backlight_sliders(None);
+        self.dim.close();
+        self.warmth.close();
+    }
+
+    pub fn close_menu(&mut self) {
+        if self.menu.close() {
+            self.close_controls();
+        }
+    }
+
     pub fn update(&mut self, msg: MonitorMessage) -> Task<MonitorMessage> {
         match msg {
             MonitorMessage::Menu(m) => {
                 if self.menu.update(m) {
-                    self.close_backlight_sliders(None);
-                    self.dim.close();
-                    self.warmth.close();
+                    self.close_controls();
                 }
                 Task::none()
             }
@@ -157,11 +166,10 @@ impl MonitorGroup {
                     self.warmth.close();
                     Task::none()
                 }
-                Action::Commit(value) => {
-                    let target = as_percent(value);
-                    blocking("gamma dim", move || gamma::set_brightness(target))
-                        .map(move |ok| MonitorMessage::Dim(ControlMessage::Confirmed { value, ok }))
-                }
+                Action::Commit(value) => ControlMessage::commit("gamma dim", value, move || {
+                    gamma::set_brightness(as_percent(value))
+                })
+                .map(MonitorMessage::Dim),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
             MonitorMessage::Warmth(m) => match self.warmth.update(m) {
@@ -171,10 +179,10 @@ impl MonitorGroup {
                     Task::none()
                 }
                 Action::Commit(value) => {
-                    let kelvin = as_kelvin(value);
-                    blocking("gamma temperature", move || gamma::set_temperature(kelvin)).map(
-                        move |ok| MonitorMessage::Warmth(ControlMessage::Confirmed { value, ok }),
-                    )
+                    ControlMessage::commit("gamma temperature", value, move || {
+                        gamma::set_temperature(as_kelvin(value))
+                    })
+                    .map(MonitorMessage::Warmth)
                 }
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
@@ -197,16 +205,11 @@ impl MonitorGroup {
                 Task::none()
             }
             Action::Commit(value) => {
-                let target = as_percent(value);
                 let set_serial = serial.clone();
-                blocking("backlight set", move || backlight::set(&set_serial, target)).map(
-                    move |ok| {
-                        MonitorMessage::Backlight(
-                            serial.clone(),
-                            ControlMessage::Confirmed { value, ok },
-                        )
-                    },
-                )
+                ControlMessage::commit("backlight set", value, move || {
+                    backlight::set(&set_serial, as_percent(value))
+                })
+                .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }

@@ -175,14 +175,7 @@ impl NotificationLayer {
                 .filter(|n| n.data.window_id_hint == Some(window))
                 .map(|n| n.data.id)
                 .collect();
-            for dup in dupes {
-                self.live.retain(|n| n.data.id != dup);
-                tasks.push(self.emit(Outbound::Closed {
-                    id: dup,
-                    reason: close_reason::DISMISSED,
-                }));
-            }
-            self.prune_hover();
+            tasks.extend(self.close_all(dupes, close_reason::DISMISSED));
         }
         if notif_state.sound && !data.suppress_sound {
             tasks.push(sound::play(&data, self.sound_theme.as_deref()));
@@ -221,15 +214,7 @@ impl NotificationLayer {
             .filter(|n| is_stale(&n.data, placement))
             .map(|n| n.data.id)
             .collect();
-        let mut tasks = Vec::new();
-        for id in stale {
-            self.live.retain(|n| n.data.id != id);
-            tasks.push(self.emit(Outbound::Closed {
-                id,
-                reason: close_reason::UNDEFINED,
-            }));
-        }
-        self.prune_hover();
+        let mut tasks = self.close_all(stale, close_reason::UNDEFINED);
         tasks.push(self.reconcile(placement, outputs, config, notif_state));
         Task::batch(tasks)
     }
@@ -251,17 +236,7 @@ impl NotificationLayer {
         if expired.is_empty() {
             return Task::none();
         }
-        self.live.retain(|n| !expired.contains(&n.data.id));
-        self.prune_hover();
-        let mut tasks: Vec<Task<Message>> = expired
-            .into_iter()
-            .map(|id| {
-                self.emit(Outbound::Closed {
-                    id,
-                    reason: close_reason::EXPIRED,
-                })
-            })
-            .collect();
+        let mut tasks = self.close_all(expired, close_reason::EXPIRED);
         tasks.push(self.reconcile(placement, outputs, config, notif_state));
         Task::batch(tasks)
     }
@@ -278,6 +253,23 @@ impl NotificationLayer {
                 }
             });
         }
+    }
+
+    fn close_all(
+        &mut self,
+        candidates: impl IntoIterator<Item = u32>,
+        reason: u32,
+    ) -> Vec<Task<Message>> {
+        let closing: Vec<u32> = candidates
+            .into_iter()
+            .filter(|id| self.live.iter().any(|n| n.data.id == *id))
+            .collect();
+        self.live.retain(|n| !closing.contains(&n.data.id));
+        self.prune_hover();
+        closing
+            .into_iter()
+            .map(|id| self.emit(Outbound::Closed { id, reason }))
+            .collect()
     }
 
     fn prune_hover(&mut self) {
@@ -414,18 +406,9 @@ impl NotificationLayer {
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
-        let existed = self.live.iter().any(|n| n.data.id == id);
-        self.live.retain(|n| n.data.id != id);
-        self.prune_hover();
-        let closed = if existed {
-            self.emit(Outbound::Closed { id, reason })
-        } else {
-            Task::none()
-        };
-        Task::batch([
-            closed,
-            self.reconcile(placement, outputs, config, notif_state),
-        ])
+        let mut tasks = self.close_all([id], reason);
+        tasks.push(self.reconcile(placement, outputs, config, notif_state));
+        Task::batch(tasks)
     }
 
     fn emit(&self, outbound: Outbound) -> Task<Message> {
