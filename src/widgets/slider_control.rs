@@ -10,7 +10,7 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
     widgets::{
         flat_button,
@@ -84,6 +84,19 @@ pub enum ControlMessage {
     Caption(Option<String>),
     Right,
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for ControlMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 pub enum Action {

@@ -13,7 +13,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
@@ -40,6 +40,19 @@ pub enum InternetMessage {
     Disconnect(String),
     OpenTailscale,
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for InternetMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl InternetGroup {

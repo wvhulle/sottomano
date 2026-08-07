@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Element, Subscription,
+    Element, Subscription,
     widget::{Row, button},
 };
 
@@ -11,9 +11,9 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     },
-    widget_groups::source_cell::SourceCell,
+    widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
         icon_gauge::source_reading,
@@ -39,6 +39,19 @@ pub enum WeatherMessage {
     Location(Option<Location>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for WeatherMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl WeatherGroup {
@@ -106,30 +119,14 @@ impl WeatherGroup {
         .into();
 
         let reveal = self.menu.reveal();
-        let pills = [
-            self.location
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::Location)),
-            self.rain
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::WeatherRain)),
-            self.birch
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::PollenBirch)),
-            self.grass
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::PollenGrass)),
-        ]
-        .into_iter()
-        .flatten()
-        .filter_map(|(widget, target)| {
-            let reading = source_reading(config, Some(widget), reveal)?;
-            Some(hoverable(reading, target, WeatherMessage::Tooltip))
-        });
-
-        let content = Row::with_children(pills)
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = Pills::new()
+            .alpha(reveal)
+            .push(self.location.get(), HoverTarget::Location)
+            .push(self.rain.get(), HoverTarget::WeatherRain)
+            .push(self.birch.get(), HoverTarget::PollenBirch)
+            .push(self.grass.get(), HoverTarget::PollenGrass)
+            .row(config)
+            .unwrap_or_else(Row::new);
 
         Some(self.menu.view(
             config,

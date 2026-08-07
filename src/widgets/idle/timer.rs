@@ -6,7 +6,7 @@ use iced::{Alignment, Element, widget::Row};
 use crate::{
     config::Config,
     data::source::{Tooltip, font_awesome::FontAwesome, row},
-    wayland_layers::tooltip::HoverTarget,
+    wayland_layers::tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
     widgets::{
         confirm_button::{ConfirmButton, Press},
         idle::{Arm, IdleAction, MAX_POSITION, from_position, label_at, label_for, position},
@@ -24,6 +24,19 @@ fn fire_time(timeout: Duration) -> DateTime<Local> {
 pub enum TimerMessage {
     Slider(ControlMessage),
     Trigger,
+}
+
+impl CarriesTooltip for TimerMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Slider(ControlMessage::Tooltip(tooltip)) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Slider(ControlMessage::Tooltip(tooltip))
+    }
 }
 
 pub enum TimerChange {

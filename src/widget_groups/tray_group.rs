@@ -13,7 +13,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         activity_line::activity_line,
@@ -40,6 +40,19 @@ pub enum TrayMessage {
     ToggleSubmenu(i32),
     MenuResized { surface: Id, size: Size },
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for TrayMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl TrayGroup {

@@ -1,9 +1,9 @@
-use iced::{Alignment, Element, Subscription, widget::Row};
+use iced::{Element, Subscription};
 
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip,
+        Tooltip,
         net_interfaces::{
             bluetooth::{self, Bluetooth},
             ethernet::{self, Ethernet},
@@ -14,10 +14,9 @@ use crate::{
     message_subscriptions::dbus,
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
     },
-    widget_groups::source_cell::SourceCell,
-    widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
+    widget_groups::{pills::Pills, source_cell::SourceCell},
 };
 
 #[derive(Default)]
@@ -35,6 +34,19 @@ pub enum NetInterfacesMessage {
     Wifi(Option<Wifi>),
     Mobile(Option<Mobile>),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for NetInterfacesMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl NetInterfacesGroup {
@@ -72,50 +84,11 @@ impl NetInterfacesGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, NetInterfacesMessage>> {
-        let indicators: Vec<Element<'a, NetInterfacesMessage>> = [
-            indicator(
-                config,
-                self.bluetooth.get().map(|w| w as &dyn BarWidget),
-                HoverTarget::Bluetooth,
-            ),
-            indicator(
-                config,
-                self.ethernet.get().map(|w| w as &dyn BarWidget),
-                HoverTarget::Ethernet,
-            ),
-            indicator(
-                config,
-                self.wifi.get().map(|w| w as &dyn BarWidget),
-                HoverTarget::Wifi,
-            ),
-            indicator(
-                config,
-                self.mobile.get().map(|w| w as &dyn BarWidget),
-                HoverTarget::Mobile,
-            ),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        if indicators.is_empty() {
-            return None;
-        }
-        Some(permanently_inactive_slot(
-            Row::with_children(indicators)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into(),
-            config,
-            position,
-        ))
+        Pills::new()
+            .push(self.bluetooth.get(), HoverTarget::Bluetooth)
+            .push(self.ethernet.get(), HoverTarget::Ethernet)
+            .push(self.wifi.get(), HoverTarget::Wifi)
+            .push(self.mobile.get(), HoverTarget::Mobile)
+            .slot(config, position)
     }
-}
-
-fn indicator<'a>(
-    config: &Config,
-    widget: Option<&dyn BarWidget>,
-    target: HoverTarget,
-) -> Option<Element<'a, NetInterfacesMessage>> {
-    let reading = source_reading(config, widget, 1.0)?;
-    Some(hoverable(reading, target, NetInterfacesMessage::Tooltip))
 }
