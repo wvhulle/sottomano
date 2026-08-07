@@ -17,7 +17,7 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         flat_button,
@@ -42,6 +42,19 @@ pub enum MediaMessage {
     Transport(&'static str),
     Source(String),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for MediaMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl MediaGroup {

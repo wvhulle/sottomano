@@ -19,7 +19,7 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
@@ -57,6 +57,19 @@ pub enum MonitorMessage {
     Clight(ToggleMessage<Clight>),
     Umbra(ToggleMessage<Umbra>),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for MonitorMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl MonitorGroup {
@@ -250,10 +263,10 @@ impl MonitorGroup {
         }
 
         if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
-            children.push(clight.map(lift(MonitorMessage::Clight)));
+            children.push(clight.map(|m| m.lifted(MonitorMessage::Clight)));
         }
         if let Some(umbra) = self.umbra.view(config, HoverTarget::DarkMode, 1.0) {
-            children.push(umbra.map(lift(MonitorMessage::Umbra)));
+            children.push(umbra.map(|m| m.lifted(MonitorMessage::Umbra)));
         }
 
         if children.is_empty() {
@@ -288,17 +301,15 @@ impl MonitorGroup {
     }
 
     fn dim_slider<'a>(&self, config: &Config) -> Element<'a, MonitorMessage> {
-        self.dim.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-            m => MonitorMessage::Dim(m),
-        })
+        self.dim
+            .view(config, 1.0)
+            .map(|m| m.lifted(MonitorMessage::Dim))
     }
 
     fn warmth_slider<'a>(&self, config: &Config) -> Element<'a, MonitorMessage> {
-        self.warmth.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-            m => MonitorMessage::Warmth(m),
-        })
+        self.warmth
+            .view(config, 1.0)
+            .map(|m| m.lifted(MonitorMessage::Warmth))
     }
 }
 
@@ -308,22 +319,12 @@ fn backlight_slider<'a>(
     serial: &str,
 ) -> Element<'a, MonitorMessage> {
     let serial = serial.to_string();
-    control.view(config, 1.0).map(move |m| match m {
-        ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-        m => MonitorMessage::Backlight(serial.clone(), m),
-    })
+    control
+        .view(config, 1.0)
+        .map(move |m| m.lifted(|m| MonitorMessage::Backlight(serial.clone(), m)))
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn as_kelvin(value: f32) -> u16 {
     value.round() as u16
-}
-
-fn lift<S>(
-    wrap: impl Fn(ToggleMessage<S>) -> MonitorMessage,
-) -> impl Fn(ToggleMessage<S>) -> MonitorMessage {
-    move |m| match m {
-        ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-        m => wrap(m),
-    }
 }

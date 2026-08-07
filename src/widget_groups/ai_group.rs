@@ -1,12 +1,12 @@
 use iced::{
-    Alignment, Element, Subscription,
+    Element, Subscription,
     widget::{Row, button},
 };
 
 use crate::{
     config::{Config, SecretPaths},
     data::source::{
-        BarWidget, Tooltip,
+        Tooltip,
         ai::{
             ApiSource,
             claude::{ClaudeCcusage, ClaudeOauth},
@@ -18,12 +18,11 @@ use crate::{
     message_subscriptions::poll_arg,
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
     },
-    widget_groups::source_cell::SourceCell,
+    widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
-        icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
 };
@@ -49,6 +48,19 @@ pub enum AiMessage {
     CopilotCli(Option<CopilotCcusage>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for AiMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl AiGroup {
@@ -133,35 +145,17 @@ impl AiGroup {
 
     pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, AiMessage>> {
         let reveal = self.menu.reveal();
-        let pills: Vec<Element<'a, AiMessage>> = [
-            self.claude_oauth
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::AiClaudeOauth)),
-            self.claude_ccusage
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::AiClaudeCcusage)),
-            self.copilot_metered
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::AiCopilotMetered)),
-            self.copilot_free
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::AiCopilotFree)),
-            self.copilot_cli
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::AiCopilotCli)),
-            self.openrouter
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::AiOpenRouter)),
-        ]
-        .into_iter()
-        .flatten()
-        .filter_map(|(widget, target)| {
-            let reading = source_reading(config, Some(widget), reveal)?;
-            Some(hoverable(reading, target, AiMessage::Tooltip))
-        })
-        .collect();
+        let pills = Pills::new()
+            .alpha(reveal)
+            .push(self.claude_oauth.get(), HoverTarget::AiClaudeOauth)
+            .push(self.claude_ccusage.get(), HoverTarget::AiClaudeCcusage)
+            .push(self.copilot_metered.get(), HoverTarget::AiCopilotMetered)
+            .push(self.copilot_free.get(), HoverTarget::AiCopilotFree)
+            .push(self.copilot_cli.get(), HoverTarget::AiCopilotCli)
+            .push(self.openrouter.get(), HoverTarget::AiOpenRouter)
+            .row(config);
 
-        if !self.configured() && pills.is_empty() {
+        if !self.configured() && pills.is_none() {
             return None;
         }
 
@@ -170,9 +164,7 @@ impl AiGroup {
             .style(flat_button(config.palette.bar_foreground))
             .on_press(AiMessage::Menu(MenuMessage::Toggle))
             .into();
-        let content = Row::with_children(pills)
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = pills.unwrap_or_else(Row::new);
         Some(self.menu.view(
             config,
             position,

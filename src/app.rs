@@ -29,7 +29,7 @@ use crate::{
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
-        tooltip::{HoverTarget, TooltipHost, TooltipMessage, panel_surface},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipHost, TooltipMessage, panel_surface},
         tray_menu::TrayMenuHost,
     },
     widget_groups::{
@@ -138,6 +138,19 @@ pub enum Message {
         zone: Zone,
         rects: Vec<iced::Rectangle>,
     },
+}
+
+impl CarriesTooltip for Message {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl Bar {

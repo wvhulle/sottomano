@@ -11,7 +11,7 @@ use crate::{
     state::ChromeState,
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         DISABLED_ALPHA, flat_button,
@@ -101,6 +101,19 @@ pub enum PanelSettingsMessage {
     Offset(ControlMessage),
     Darken(ControlMessage),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for PanelSettingsMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl PanelSettingsGroup {
@@ -225,17 +238,15 @@ impl PanelSettingsGroup {
     }
 
     fn offset_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
-        self.offset.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
-            m => PanelSettingsMessage::Offset(m),
-        })
+        self.offset
+            .view(config, 1.0)
+            .map(|m| m.lifted(PanelSettingsMessage::Offset))
     }
 
     fn darken_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
-        self.darken.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
-            m => PanelSettingsMessage::Darken(m),
-        })
+        self.darken
+            .view(config, 1.0)
+            .map(|m| m.lifted(PanelSettingsMessage::Darken))
     }
 }
 

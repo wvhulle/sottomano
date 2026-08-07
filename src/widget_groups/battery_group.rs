@@ -1,17 +1,16 @@
-use iced::{Alignment, Element, Subscription, widget::Row};
+use iced::{Element, Subscription};
 
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip,
+        Tooltip,
         sysfs_sensors::{battery::Battery, power::PowerDraw},
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
     },
-    widget_groups::source_cell::SourceCell,
-    widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
+    widget_groups::{pills::Pills, source_cell::SourceCell},
 };
 
 #[derive(Default)]
@@ -25,6 +24,19 @@ pub enum BatteryMessage {
     Charge(Option<Battery>),
     Draw(Option<PowerDraw>),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for BatteryMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl BatteryGroup {
@@ -56,32 +68,9 @@ impl BatteryGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, BatteryMessage>> {
-        let readings = [
-            self.charge
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::Battery)),
-            self.draw
-                .get()
-                .map(|w| (w as &dyn BarWidget, HoverTarget::PowerDraw)),
-        ]
-        .into_iter()
-        .flatten()
-        .filter_map(|(widget, target)| {
-            let reading = source_reading(config, Some(widget), 1.0)?;
-            Some(hoverable(reading, target, BatteryMessage::Tooltip))
-        })
-        .collect::<Vec<_>>();
-
-        if readings.is_empty() {
-            return None;
-        }
-        Some(permanently_inactive_slot(
-            Row::with_children(readings)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into(),
-            config,
-            position,
-        ))
+        Pills::new()
+            .push(self.charge.get(), HoverTarget::Battery)
+            .push(self.draw.get(), HoverTarget::PowerDraw)
+            .slot(config, position)
     }
 }

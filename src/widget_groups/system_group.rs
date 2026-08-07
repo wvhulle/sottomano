@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Element, Subscription,
+    Element, Subscription,
     widget::{Row, button},
 };
 
@@ -12,9 +12,9 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     },
-    widget_groups::source_cell::SourceCell,
+    widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
         icon_gauge::source_reading,
@@ -48,6 +48,19 @@ pub enum SystemMessage {
     Disk(Option<Disk>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
+}
+
+impl CarriesTooltip for SystemMessage {
+    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
+        match self {
+            Self::Tooltip(tooltip) => Ok(tooltip),
+            message => Err(message),
+        }
+    }
+
+    fn from_tooltip(tooltip: TooltipMessage) -> Self {
+        Self::Tooltip(tooltip)
+    }
 }
 
 impl SystemGroup {
@@ -111,24 +124,13 @@ impl SystemGroup {
             .into();
 
         let reveal = self.menu.reveal();
-        let content = Row::with_children(
-            [
-                self.temperature
-                    .get()
-                    .map(|w| (w as &dyn BarWidget, HoverTarget::Temperature)),
-                self.memory
-                    .get()
-                    .map(|w| (w as &dyn BarWidget, HoverTarget::Memory)),
-                self.disk
-                    .get()
-                    .map(|w| (w as &dyn BarWidget, HoverTarget::Disk)),
-            ]
-            .into_iter()
-            .flatten()
-            .filter_map(|(widget, target)| hover_reading(config, widget, reveal, target)),
-        )
-        .spacing(config.spacing.widget_spacing_px)
-        .align_y(Alignment::Center);
+        let content = Pills::new()
+            .alpha(reveal)
+            .push(self.temperature.get(), HoverTarget::Temperature)
+            .push(self.memory.get(), HoverTarget::Memory)
+            .push(self.disk.get(), HoverTarget::Disk)
+            .row(config)
+            .unwrap_or_else(Row::new);
 
         Some(self.menu.view(
             config,
