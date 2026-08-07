@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct Widgets {
     pub slider_width_px: f32,
     pub focus_underline_thickness_px: f32,

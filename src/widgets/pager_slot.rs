@@ -1,6 +1,7 @@
 use iced::{
     Alignment, Element, Length,
-    widget::{Column, Space},
+    alignment::Vertical,
+    widget::{Column, Space, container},
 };
 
 use crate::{
@@ -29,11 +30,17 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
     }
 
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
-        let edge_side = self.ticks.unwrap_or_else(|| {
-            Space::new()
-                .height(config.widgets.window_segment_thickness_px)
-                .into()
-        });
+        let band = config
+            .widgets
+            .focus_underline_thickness_px
+            .max(config.widgets.window_segment_thickness_px);
+        let edge_side = match self.ticks {
+            Some(ticks) => container(ticks)
+                .height(band)
+                .align_y(Vertical::Center)
+                .into(),
+            None => Space::new().height(band).into(),
+        };
         let (top, middle, bottom) = match position {
             Position::Bottom => (self.indicator, self.content, edge_side),
             Position::Top => (edge_side, self.content, self.indicator),

@@ -1,6 +1,7 @@
 use std::{
     env, fmt, fs, io,
     path::{Path, PathBuf},
+    process,
 };
 
 use serde::Deserialize;
@@ -36,7 +37,7 @@ pub struct SecretPaths {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct UserConfig {
     palette: Palette,
     chrome: Chrome,
@@ -64,7 +65,7 @@ impl Default for UserConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct TrayToml {
     deny_ids: Vec<String>,
 }
@@ -81,27 +82,33 @@ impl Default for TrayToml {
 
 #[derive(Debug)]
 pub enum LoadError {
-    Read(io::Error),
-    Parse(de::Error),
+    Missing,
+    Unreadable(io::Error),
+    Invalid(de::Error),
 }
 
 impl From<io::Error> for LoadError {
     fn from(e: io::Error) -> Self {
-        Self::Read(e)
+        if e.kind() == io::ErrorKind::NotFound {
+            Self::Missing
+        } else {
+            Self::Unreadable(e)
+        }
     }
 }
 
 impl From<de::Error> for LoadError {
     fn from(e: de::Error) -> Self {
-        Self::Parse(e)
+        Self::Invalid(e)
     }
 }
 
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Read(e) => write!(f, "read failed: {e}"),
-            Self::Parse(e) => write!(f, "parse failed: {e}"),
+            Self::Missing => write!(f, "file not found"),
+            Self::Unreadable(e) => write!(f, "cannot be read: {e}"),
+            Self::Invalid(e) => write!(f, "\n{e}"),
         }
     }
 }
@@ -119,10 +126,11 @@ fn read(path: &Path) -> Result<UserConfig, LoadError> {
 pub fn load() -> Config {
     let path = config_path();
     let user = match read(&path) {
-        Ok(c) => c,
+        Ok(user) => user,
+        Err(LoadError::Missing) => UserConfig::default(),
         Err(e) => {
-            eprintln!("config: {} {e}; using defaults", path.display());
-            UserConfig::default()
+            eprintln!("invalid configuration {}: {e}", path.display());
+            process::exit(1);
         }
     };
     Config {

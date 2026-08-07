@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_field_names)]
 pub struct Spacing {
     pub group_padding_px: f32,

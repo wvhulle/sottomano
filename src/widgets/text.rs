@@ -16,6 +16,8 @@ use iced::{
 
 use crate::config::font::FontConfig;
 
+pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Relative(1.1);
+
 pub fn bar_text<'a>(
     font: &FontConfig,
     content: impl IntoFragment<'a>,
@@ -23,6 +25,7 @@ pub fn bar_text<'a>(
     text(content)
         .size(font.text_size_px)
         .font(font.iced_font)
+        .line_height(LINE_HEIGHT)
         .shaping(Shaping::Advanced)
 }
 
@@ -72,9 +75,7 @@ impl TextStyle {
     }
 
     pub fn line_height(self) -> f32 {
-        advanced_text::LineHeight::default()
-            .to_absolute(Pixels(self.size))
-            .0
+        LINE_HEIGHT.to_absolute(Pixels(self.size)).0
     }
 
     pub fn measure(self, content: &str) -> Size {
@@ -112,7 +113,7 @@ impl TextStyle {
             content,
             bounds: Size::new(width, f32::INFINITY),
             size: Pixels(self.size),
-            line_height: advanced_text::LineHeight::default(),
+            line_height: LINE_HEIGHT,
             font: self.font,
             align_x: advanced_text::Alignment::Left,
             align_y: Vertical::Top,

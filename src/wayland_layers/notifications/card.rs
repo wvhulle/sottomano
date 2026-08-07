@@ -15,7 +15,7 @@ use crate::{
         source::app_icon::DesktopEntries,
     },
     wayland_layers::tooltip::relative,
-    widgets::text::{TextStyle, bar_text},
+    widgets::text::{LINE_HEIGHT, TextStyle, bar_text},
 };
 
 const PADDING_PX: f32 = 10.0;
@@ -282,6 +282,7 @@ fn card_column<'a>(
                     font,
                     Font::MONOSPACE,
                 ))
+                .line_height(LINE_HEIGHT)
                 .width(Length::Fill),
             );
         column = column.push(match reltime_span(!has_actions) {
