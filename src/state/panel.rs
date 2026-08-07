@@ -1,4 +1,4 @@
-use crate::state::{BoxError, Session, open, text};
+use crate::state::{Session, StoreError, open, text};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_settings (
     key TEXT PRIMARY KEY,
@@ -61,7 +61,7 @@ async fn put(key: &str, value: &str) -> bool {
     }
 }
 
-async fn try_put(key: &str, value: &str) -> Result<(), BoxError> {
+async fn try_put(key: &str, value: &str) -> Result<(), StoreError> {
     let conn = open().await?;
     conn.execute(
         "INSERT INTO panel_settings (key, value) VALUES (?1, ?2)
@@ -72,7 +72,7 @@ async fn try_put(key: &str, value: &str) -> Result<(), BoxError> {
     Ok(())
 }
 
-async fn try_load() -> Result<Session, BoxError> {
+async fn try_load() -> Result<Session, StoreError> {
     let conn = open().await?;
     let mut rows = conn
         .query("SELECT key, value FROM panel_settings", ())

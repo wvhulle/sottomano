@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::{
     data::source::launch_tracker::{Buckets, LaunchDelta, Record},
-    state::{BoxError, integer, open, text},
+    state::{StoreError, integer, open, text},
 };
 
 const TTL_DAYS: i64 = 60;
@@ -31,7 +31,7 @@ pub async fn record(delta: LaunchDelta) {
     }
 }
 
-async fn try_load() -> Result<Buckets, BoxError> {
+async fn try_load() -> Result<Buckets, StoreError> {
     let conn = open().await?;
     let cutoff = (Utc::now() - Duration::days(TTL_DAYS)).to_rfc3339();
     conn.execute("DELETE FROM launches WHERE last_used < ?1", (cutoff,))
@@ -61,7 +61,7 @@ async fn try_load() -> Result<Buckets, BoxError> {
     Ok(buckets)
 }
 
-async fn try_record(delta: &LaunchDelta) -> Result<(), BoxError> {
+async fn try_record(delta: &LaunchDelta) -> Result<(), StoreError> {
     let conn = open().await?;
     conn.execute(
         "INSERT INTO launches (workspace, app_id, count, last_used) VALUES (?1, ?2, ?3, ?4)

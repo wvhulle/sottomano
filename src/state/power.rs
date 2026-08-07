@@ -4,7 +4,7 @@ use nalgebra::{Matrix3, Vector3};
 
 use crate::{
     data::source::power_profile::{Profile, RegressionState},
-    state::{BoxError, open, text},
+    state::{StoreError, open, text},
 };
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS power_regression (
@@ -32,7 +32,7 @@ pub async fn save(battery: String, profile: Profile, state: RegressionState) {
     }
 }
 
-async fn try_load(battery: &str) -> Result<HashMap<Profile, RegressionState>, BoxError> {
+async fn try_load(battery: &str) -> Result<HashMap<Profile, RegressionState>, StoreError> {
     let conn = open().await?;
     let mut rows = conn
         .query(
@@ -67,7 +67,11 @@ async fn try_load(battery: &str) -> Result<HashMap<Profile, RegressionState>, Bo
     Ok(states)
 }
 
-async fn try_save(battery: &str, profile: Profile, state: RegressionState) -> Result<(), BoxError> {
+async fn try_save(
+    battery: &str,
+    profile: Profile,
+    state: RegressionState,
+) -> Result<(), StoreError> {
     let conn = open().await?;
     conn.execute(
         "INSERT INTO power_regression (battery, profile, base_w, k_bright, k_load, covariance)

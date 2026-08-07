@@ -4,7 +4,7 @@ pub mod panel;
 pub mod power;
 pub mod store;
 
-pub(crate) use store::{BoxError, integer, open, text};
+pub(crate) use store::{StoreError, integer, open, text};
 
 use crate::config::chrome::Chrome;
 

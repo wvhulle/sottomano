@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::state::{BoxError, open};
+use crate::state::{StoreError, open};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -48,7 +48,7 @@ fn duration(row: &turso::Row, index: usize) -> Option<Duration> {
     Some(Duration::from_secs(u64::try_from(secs).unwrap_or(0)))
 }
 
-async fn try_load() -> Result<Timeouts, BoxError> {
+async fn try_load() -> Result<Timeouts, StoreError> {
     let conn = open().await?;
     let mut rows = conn
         .query(
@@ -67,7 +67,7 @@ async fn try_load() -> Result<Timeouts, BoxError> {
     })
 }
 
-async fn try_save(timeouts: Timeouts) -> Result<(), BoxError> {
+async fn try_save(timeouts: Timeouts) -> Result<(), StoreError> {
     let conn = open().await?;
     conn.execute(
         "INSERT INTO idle_timeouts (id, lock_user, screen_off, standby, power_down)

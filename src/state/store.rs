@@ -1,10 +1,60 @@
-use std::{env, error::Error, fs, ops::Deref, path::PathBuf};
+use std::{env, fmt, fs, io, ops::Deref, path::PathBuf};
 
 use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
 use super::{idle, launches, panel, power};
 
-pub(crate) type BoxError = Box<dyn Error + Send + Sync>;
+#[derive(Debug)]
+pub(crate) enum StoreError {
+    MissingStateDirectory,
+    CreateDirectory(io::Error),
+    Database(turso::Error),
+    Column(ColumnError),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ColumnError {
+    NotText { index: usize },
+    NotInteger { index: usize },
+}
+
+impl From<io::Error> for StoreError {
+    fn from(e: io::Error) -> Self {
+        Self::CreateDirectory(e)
+    }
+}
+
+impl From<turso::Error> for StoreError {
+    fn from(e: turso::Error) -> Self {
+        Self::Database(e)
+    }
+}
+
+impl From<ColumnError> for StoreError {
+    fn from(e: ColumnError) -> Self {
+        Self::Column(e)
+    }
+}
+
+impl fmt::Display for StoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingStateDirectory => write!(f, "no state directory"),
+            Self::CreateDirectory(e) => write!(f, "creating state directory failed: {e}"),
+            Self::Database(e) => write!(f, "database error: {e}"),
+            Self::Column(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl fmt::Display for ColumnError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotText { index } => write!(f, "column {index} is not text"),
+            Self::NotInteger { index } => write!(f, "column {index} is not an integer"),
+        }
+    }
+}
 
 struct Store {
     connection: turso::Connection,
@@ -27,7 +77,7 @@ impl Deref for Handle {
     }
 }
 
-pub(crate) async fn open() -> Result<Handle, BoxError> {
+pub(crate) async fn open() -> Result<Handle, StoreError> {
     let guard = LOCK.lock().await;
     let store = STORE.get_or_try_init(build).await?;
     Ok(Handle {
@@ -36,9 +86,9 @@ pub(crate) async fn open() -> Result<Handle, BoxError> {
     })
 }
 
-async fn build() -> Result<Store, BoxError> {
+async fn build() -> Result<Store, StoreError> {
     let Some(path) = db_path() else {
-        return Err("no state directory".into());
+        return Err(StoreError::MissingStateDirectory);
     };
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -65,16 +115,18 @@ fn db_path() -> Option<PathBuf> {
     Some(state.join("vetrata/state.db"))
 }
 
-pub(crate) fn text(row: &turso::Row, index: usize) -> Result<String, BoxError> {
-    row.get_value(index)?
-        .as_text()
-        .map(ToString::to_string)
-        .ok_or_else(|| format!("column {index} is not text").into())
+pub(crate) fn text(row: &turso::Row, index: usize) -> Result<String, StoreError> {
+    let value = row.get_value(index)?;
+    let Some(text) = value.as_text() else {
+        return Err(ColumnError::NotText { index }.into());
+    };
+    Ok(text.clone())
 }
 
-pub(crate) fn integer(row: &turso::Row, index: usize) -> Result<i64, BoxError> {
-    row.get_value(index)?
-        .as_integer()
-        .copied()
-        .ok_or_else(|| format!("column {index} is not an integer").into())
+pub(crate) fn integer(row: &turso::Row, index: usize) -> Result<i64, StoreError> {
+    let value = row.get_value(index)?;
+    let Some(integer) = value.as_integer() else {
+        return Err(ColumnError::NotInteger { index }.into());
+    };
+    Ok(*integer)
 }
