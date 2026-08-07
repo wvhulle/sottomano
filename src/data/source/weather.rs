@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{marker::PhantomData, time::Duration};
 
 use serde_json::Value as Json;
 
@@ -217,41 +217,47 @@ const SPECIES: [(&str, &str); 6] = [
     ("ragweed_pollen", "Ragweed"),
 ];
 
+pub trait Allergen {
+    const SOURCE_NAME: &'static str;
+    const KEY: &'static str;
+    const ICON: Solid;
+    const THRESHOLDS: [f64; 3];
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub struct Pollen<const GRASS: bool> {
+pub struct Grass;
+
+impl Allergen for Grass {
+    const SOURCE_NAME: &'static str = "pollen-grass";
+    const KEY: &'static str = "grass_pollen";
+    const ICON: Solid = Solid::Seedling;
+    const THRESHOLDS: [f64; 3] = [20.0, 50.0, 80.0];
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Birch;
+
+impl Allergen for Birch {
+    const SOURCE_NAME: &'static str = "pollen-birch";
+    const KEY: &'static str = "birch_pollen";
+    const ICON: Solid = Solid::Tree;
+    const THRESHOLDS: [f64; 3] = [10.0, 45.0, 100.0];
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pollen<A: Allergen> {
     value: f64,
     all: Vec<(&'static str, f64)>,
+    allergen: PhantomData<A>,
 }
 
-impl<const GRASS: bool> Pollen<GRASS> {
-    const fn thresholds() -> [f64; 3] {
-        if GRASS {
-            [20.0, 50.0, 80.0]
-        } else {
-            [10.0, 45.0, 100.0]
-        }
-    }
-
-    fn key() -> &'static str {
-        if GRASS {
-            "grass_pollen"
-        } else {
-            "birch_pollen"
-        }
-    }
-}
-
-impl<const GRASS: bool> BarWidget for Pollen<GRASS> {
+impl<A: Allergen> BarWidget for Pollen<A> {
     fn icon(&self) -> Glyph {
-        if GRASS {
-            Solid::Seedling.into()
-        } else {
-            Solid::Tree.into()
-        }
+        A::ICON.into()
     }
 
     fn level(&self) -> Level {
-        let [moderate, high, _] = Self::thresholds();
+        let [moderate, high, _] = A::THRESHOLDS;
         if self.value >= high {
             Level::Critical
         } else if self.value >= moderate {
@@ -262,7 +268,7 @@ impl<const GRASS: bool> BarWidget for Pollen<GRASS> {
     }
 
     fn value(&self) -> Option<Value> {
-        let cap = Self::thresholds()[2];
+        let cap = A::THRESHOLDS[2];
         let percent = if self.value < 1.0 {
             0
         } else {
@@ -287,12 +293,8 @@ impl<const GRASS: bool> BarWidget for Pollen<GRASS> {
     }
 }
 
-impl<const GRASS: bool> Source for Pollen<GRASS> {
-    const NAME: &'static str = if GRASS {
-        "pollen-grass"
-    } else {
-        "pollen-birch"
-    };
+impl<A: Allergen + Clone + PartialEq + Send + 'static> Source for Pollen<A> {
+    const NAME: &'static str = A::SOURCE_NAME;
     const INTERVAL: Duration = Duration::from_mins(30);
 
     fn poll() -> Option<Self> {
@@ -315,14 +317,15 @@ impl<const GRASS: bool> Source for Pollen<GRASS> {
                 )
             })
             .collect();
-        let value = current
-            .get(Self::key())
-            .and_then(Json::as_f64)
-            .unwrap_or(0.0);
+        let value = current.get(A::KEY).and_then(Json::as_f64).unwrap_or(0.0);
         if value <= 0.0 {
             return None;
         }
-        Some(Pollen { value, all })
+        Some(Pollen {
+            value,
+            all,
+            allergen: PhantomData,
+        })
     }
 }
 

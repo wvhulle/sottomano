@@ -8,7 +8,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip, journal, kernel_errors::KernelErrors, niri, systemd_failed::Failed,
+        BarWidget, Tooltip, journal,
+        kernel_errors::KernelErrors,
+        niri,
+        systemd_failed::{Failed, JournalScope, System, User},
     },
     message_subscriptions::blocking,
     wayland_layers::{
@@ -21,15 +24,15 @@ use crate::{
 
 #[derive(Default)]
 pub struct JournalGroup {
-    system: SourceCell<Failed<false>>,
-    user: SourceCell<Failed<true>>,
+    system: SourceCell<Failed<System>>,
+    user: SourceCell<Failed<User>>,
     kernel: SourceCell<KernelErrors>,
 }
 
 #[derive(Debug, Clone)]
 pub enum JournalMessage {
-    System(Option<Failed<false>>),
-    User(Option<Failed<true>>),
+    System(Option<Failed<System>>),
+    User(Option<Failed<User>>),
     Kernel(Option<KernelErrors>),
     OpenLog(Vec<String>),
     Tooltip(TooltipMessage),
@@ -52,8 +55,8 @@ impl JournalGroup {
     pub fn subscription() -> Subscription<JournalMessage> {
         Subscription::batch([
             kernel_subscription(),
-            failed_subscription::<false>("systemd-failed-system", JournalMessage::System),
-            failed_subscription::<true>("systemd-failed-user", JournalMessage::User),
+            failed_subscription::<System>("systemd-failed-system", JournalMessage::System),
+            failed_subscription::<User>("systemd-failed-user", JournalMessage::User),
         ])
     }
 
@@ -129,12 +132,12 @@ fn kernel_subscription() -> Subscription<JournalMessage> {
     })
 }
 
-fn failed_subscription<const USER: bool>(
+fn failed_subscription<S: JournalScope + 'static>(
     key: &'static str,
-    map: fn(Option<Failed<USER>>) -> JournalMessage,
+    map: fn(Option<Failed<S>>) -> JournalMessage,
 ) -> Subscription<JournalMessage> {
     Subscription::run_with((key, map), |&(_, map)| {
-        journal::failed_stream::<USER>().map(move |units| map(Failed::from_units(units)))
+        journal::failed_stream(S::PER_USER).map(move |units| map(Failed::from_units(units)))
     })
 }
 

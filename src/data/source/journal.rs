@@ -147,8 +147,8 @@ pub struct FailedUnitInfo {
     pub at: Option<SystemTime>,
 }
 
-pub fn failed_stream<const USER: bool>() -> impl Stream<Item = Vec<FailedUnitInfo>> {
-    stream::once(watch_failed(USER)).flatten()
+pub fn failed_stream(per_user: bool) -> impl Stream<Item = Vec<FailedUnitInfo>> {
+    stream::once(watch_failed(per_user)).flatten()
 }
 
 async fn watch_failed(user: bool) -> BoxStream<'static, Vec<FailedUnitInfo>> {

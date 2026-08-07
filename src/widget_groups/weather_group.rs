@@ -7,7 +7,7 @@ use crate::{
     config::Config,
     data::source::{
         BarWidget, Tooltip,
-        weather::{Location, Pollen, Rain, Temperature},
+        weather::{Birch, Grass, Location, Pollen, Rain, Temperature},
     },
     wayland_layers::{
         surface::Position,
@@ -24,8 +24,8 @@ use crate::{
 pub struct WeatherGroup {
     temp: SourceCell<Temperature>,
     rain: SourceCell<Rain>,
-    birch: SourceCell<Pollen<false>>,
-    grass: SourceCell<Pollen<true>>,
+    birch: SourceCell<Pollen<Birch>>,
+    grass: SourceCell<Pollen<Grass>>,
     location: SourceCell<Location>,
     pub(crate) menu: MenuGroup,
 }
@@ -34,8 +34,8 @@ pub struct WeatherGroup {
 pub enum WeatherMessage {
     Temp(Option<Temperature>),
     Rain(Option<Rain>),
-    Birch(Option<Pollen<false>>),
-    Grass(Option<Pollen<true>>),
+    Birch(Option<Pollen<Birch>>),
+    Grass(Option<Pollen<Grass>>),
     Location(Option<Location>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
