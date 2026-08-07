@@ -13,7 +13,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
@@ -23,6 +23,7 @@ use crate::{
     },
 };
 
+#[derive(Default)]
 pub struct InternetGroup {
     down: SourceCell<Throughput<Download>>,
     up: SourceCell<Throughput<Upload>>,
@@ -42,30 +43,7 @@ pub enum InternetMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for InternetMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl InternetGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            down: SourceCell::default(),
-            up: SourceCell::default(),
-            wireguard: SourceCell::default(),
-            tailscale: SourceCell::default(),
-            menu: MenuGroup::new(menu_expand_ms),
-        }
-    }
-
     pub fn subscription() -> Subscription<InternetMessage> {
         Subscription::batch([
             throughput::subscription().map(InternetMessage::Throughput),

@@ -14,6 +14,7 @@ use crate::{
     wayland_layers::surface::Position,
 };
 
+#[derive(Default)]
 pub struct WindowGroup {
     pub(crate) quick_launch: QuickLaunch,
     pub(crate) window_list: WindowList,
@@ -33,13 +34,6 @@ pub enum Action {
 }
 
 impl WindowGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            quick_launch: QuickLaunch::new(menu_expand_ms),
-            window_list: WindowList::default(),
-        }
-    }
-
     pub fn subscription() -> Subscription<WindowGroupMessage> {
         WindowList::subscription().map(WindowGroupMessage::WindowList)
     }

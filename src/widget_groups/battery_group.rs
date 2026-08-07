@@ -8,7 +8,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
+        tooltip::{HoverTarget, TooltipMessage},
     },
     widget_groups::{pills::Pills, source_cell::SourceCell},
 };
@@ -24,19 +24,6 @@ pub enum BatteryMessage {
     Charge(Option<Battery>),
     Draw(Option<PowerDraw>),
     Tooltip(TooltipMessage),
-}
-
-impl CarriesTooltip for BatteryMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
 }
 
 impl BatteryGroup {
@@ -71,6 +58,6 @@ impl BatteryGroup {
         Pills::new()
             .push(self.charge.get(), HoverTarget::Battery)
             .push(self.draw.get(), HoverTarget::PowerDraw)
-            .slot(config, position)
+            .slot(config, position, BatteryMessage::Tooltip)
     }
 }

@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     data::source::{BarWidget, Source},
     message_subscriptions::blocking,
-    wayland_layers::tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
     widgets::{flat_button, icon_gauge::source_reading},
 };
@@ -33,19 +33,6 @@ pub enum ToggleMessage<S> {
     Reading(Option<S>),
     Press,
     Tooltip(TooltipMessage),
-}
-
-impl<S> CarriesTooltip for ToggleMessage<S> {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
 }
 
 impl<S: Toggle + Send + 'static> ToggleControl<S> {

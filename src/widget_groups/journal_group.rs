@@ -16,7 +16,7 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::source_cell::SourceCell,
     widgets::{flat_button, icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
@@ -36,19 +36,6 @@ pub enum JournalMessage {
     Kernel(Option<KernelErrors>),
     OpenLog(Vec<String>),
     Tooltip(TooltipMessage),
-}
-
-impl CarriesTooltip for JournalMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
 }
 
 impl JournalGroup {

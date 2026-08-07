@@ -87,19 +87,6 @@ const FOOTER_PADDING: Padding = Padding {
 };
 const WIDEST_RELTIME: &str = "59 min ago";
 
-pub trait CarriesTooltip: Sized {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self>;
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self;
-
-    fn lifted<P: CarriesTooltip>(self, wrap: impl FnOnce(Self) -> P) -> P {
-        match self.into_tooltip() {
-            Ok(tooltip) => P::from_tooltip(tooltip),
-            Err(message) => wrap(message),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum TooltipMessage {
     EnterAnchor {

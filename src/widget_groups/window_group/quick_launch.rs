@@ -21,6 +21,7 @@ use crate::{
 pub const MAX_ITEMS: usize = 4;
 const RESTING_OPACITY: f32 = 0.65;
 
+#[derive(Default)]
 pub struct QuickLaunch {
     ranked: HashMap<String, Vec<String>>,
     desktop_entries: Option<Arc<DesktopEntries>>,
@@ -34,14 +35,6 @@ pub enum QuickLaunchMessage {
 }
 
 impl QuickLaunch {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            ranked: HashMap::new(),
-            desktop_entries: None,
-            menu: MenuGroup::new(menu_expand_ms),
-        }
-    }
-
     pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
         self.desktop_entries = Some(entries);
     }

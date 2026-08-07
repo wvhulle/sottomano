@@ -1,30 +1,35 @@
 use std::ops::RangeInclusive;
 
 use iced::{
-    Alignment, Element, Task,
+    Alignment, Animation, Element, Padding, Task,
     alignment::Horizontal,
+    animation::Easing,
     mouse::ScrollDelta,
-    widget::{Row, button, mouse_area},
+    time::{Duration, Instant},
+    widget::{Row, button, container, mouse_area},
 };
 
 use crate::{
     config::Config,
     data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
     message_subscriptions::blocking,
-    wayland_layers::tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
     widgets::{
         flat_button,
         icon_gauge::source_reading,
         inline_slider::inline_slider,
+        reveal::reveal_x,
         text::bar_text,
         tracked::{Nudge, Tracked, Write},
     },
 };
 
+const EXPAND: Duration = Duration::from_millis(90);
+
 #[allow(clippy::struct_excessive_bools)]
 pub struct SliderControl {
-    open: bool,
+    open: Animation<bool>,
     accum: f32,
     value: Tracked,
     disabled: bool,
@@ -97,19 +102,6 @@ impl ControlMessage {
     }
 }
 
-impl CarriesTooltip for ControlMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 pub enum Action {
     None,
     Opened,
@@ -121,7 +113,9 @@ pub enum Action {
 impl SliderControl {
     pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: FontAwesome) -> Self {
         Self {
-            open: false,
+            open: Animation::new(false)
+                .easing(Easing::EaseOutCubic)
+                .duration(EXPAND),
             accum: 0.0,
             value: Tracked::default(),
             disabled: false,
@@ -208,7 +202,11 @@ impl SliderControl {
     }
 
     pub fn close(&mut self) {
-        self.open = false;
+        self.open.go_mut(false, Instant::now());
+    }
+
+    pub fn is_animating(&self) -> bool {
+        self.open.is_animating(Instant::now())
     }
 
     pub fn current(&self) -> f32 {
@@ -227,8 +225,8 @@ impl SliderControl {
     pub fn update(&mut self, msg: ControlMessage) -> Action {
         match msg {
             ControlMessage::Press => {
-                self.open = !self.open;
-                if self.open {
+                self.open.go_mut(!self.open.value(), Instant::now());
+                if self.open.value() {
                     Action::Opened
                 } else {
                     Action::None
@@ -273,7 +271,8 @@ impl SliderControl {
     }
 
     pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
-        if self.open {
+        let expand = self.open.interpolate(0.0, 1.0, Instant::now());
+        if expand > 0.0 {
             let glyph = button(
                 self.effective_icon()
                     .widget()
@@ -293,14 +292,25 @@ impl SliderControl {
                 ControlMessage::Set,
                 ControlMessage::Release,
             );
-            let readout = bar_text(&config.font, (self.readout)(self.current()))
-                .width(self.readout_width)
-                .align_x(Horizontal::Center)
-                .color(config.palette.bar_foreground);
-            return Row::with_children([glyph.into(), slider, readout.into()])
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into();
+            let readout = button(
+                bar_text(&config.font, (self.readout)(self.current()))
+                    .width(self.readout_width)
+                    .align_x(Horizontal::Center)
+                    .color(config.palette.bar_foreground),
+            )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(ControlMessage::Press);
+            let gap = config.spacing.widget_spacing_px;
+            let revealed = Row::with_children([slider, readout.into()])
+                .spacing(gap)
+                .align_y(Alignment::Center);
+            return Row::with_children([
+                glyph.into(),
+                reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
+            ])
+            .align_y(Alignment::Center)
+            .into();
         }
 
         let reading = source_reading(config, Some(self as &dyn BarWidget), reveal)

@@ -13,7 +13,7 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
+        tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
         pager_slot::permanently_inactive_slot,
@@ -79,25 +79,18 @@ impl Default for AudioGroup {
     }
 }
 
+impl AudioGroup {
+    pub fn is_animating(&self) -> bool {
+        self.sink_control.is_animating() || self.source_control.is_animating()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum AudioMessage {
     Connected(Commands),
     State(AudioState),
     Control(ControlKind, ControlMessage),
     Tooltip(TooltipMessage),
-}
-
-impl CarriesTooltip for AudioMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
 }
 
 impl AudioGroup {
@@ -261,7 +254,10 @@ fn tooltip(reading: &Reading, input: bool) -> Tooltip {
 }
 
 fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
-    move |m| m.lifted(|m| AudioMessage::Control(kind, m))
+    move |m| match m {
+        ControlMessage::Tooltip(t) => AudioMessage::Tooltip(t),
+        m => AudioMessage::Control(kind, m),
+    }
 }
 
 fn slow_write_delay() {

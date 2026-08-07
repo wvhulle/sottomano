@@ -11,6 +11,8 @@ use crate::{
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
 
+const EXPAND: Duration = Duration::from_millis(90);
+
 #[derive(Debug, Clone, Copy)]
 pub enum MenuMessage {
     Toggle,
@@ -24,16 +26,18 @@ pub struct MenuGroup {
     hovered: bool,
 }
 
-impl MenuGroup {
-    pub fn new(expand_ms: u64) -> Self {
+impl Default for MenuGroup {
+    fn default() -> Self {
         Self {
             expand: Animation::new(false)
                 .easing(Easing::EaseOutCubic)
-                .duration(Duration::from_millis(expand_ms)),
+                .duration(EXPAND),
             hovered: false,
         }
     }
+}
 
+impl MenuGroup {
     pub fn update(&mut self, msg: MenuMessage) -> bool {
         let was_open = self.is_open();
         match msg {

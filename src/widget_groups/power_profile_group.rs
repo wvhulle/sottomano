@@ -12,7 +12,7 @@ use crate::{
     state::power,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
+        tooltip::{HoverTarget, TooltipMessage},
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
@@ -63,20 +63,11 @@ pub enum PowerProfileMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for PowerProfileMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl PowerProfileGroup {
+    pub fn is_animating(&self) -> bool {
+        self.control.is_animating()
+    }
+
     pub fn subscription() -> Subscription<PowerProfileMessage> {
         SourceCell::subscription().map(PowerProfileMessage::Reading)
     }
@@ -188,10 +179,10 @@ impl PowerProfileGroup {
         position: Position,
     ) -> Option<Element<'a, PowerProfileMessage>> {
         self.cell.get()?;
-        let control = self
-            .control
-            .view(config, 1.0)
-            .map(|m| m.lifted(PowerProfileMessage::Control));
+        let control = self.control.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => PowerProfileMessage::Tooltip(t),
+            m => PowerProfileMessage::Control(m),
+        });
         Some(permanently_inactive_slot(control, config, position))
     }
 }
