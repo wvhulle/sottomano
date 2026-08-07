@@ -5,7 +5,7 @@ use iced::{
     Alignment, Element, Subscription,
     futures::channel::mpsc::Sender,
     stream,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 use tokio::time::sleep;
 
@@ -13,6 +13,7 @@ use crate::{
     config::Config,
     wayland_layers::surface::Position,
     widgets::{
+        flat_button,
         menu_group::{MenuGroup, MenuMessage},
         text::bar_text,
     },
@@ -71,7 +72,9 @@ impl ClockGroup {
 
     pub fn view<'a>(&self, config: &Config, position: Position) -> Element<'a, ClockMessage> {
         let handle: Element<'a, ClockMessage> =
-            mouse_area(bar_text(&config.font, self.time_text.clone()))
+            button(bar_text(&config.font, self.time_text.clone()))
+                .padding(0)
+                .style(flat_button(config.palette.bar_foreground))
                 .on_press(ClockMessage::Menu(MenuMessage::Toggle))
                 .into();
 

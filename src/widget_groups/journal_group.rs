@@ -1,7 +1,7 @@
 use iced::{
     Alignment, Element, Subscription, Task,
     futures::StreamExt,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -16,7 +16,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::source_cell::SourceCell,
-    widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
+    widgets::{flat_button, icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
 };
 
 #[derive(Default)]
@@ -142,5 +142,11 @@ fn indicator<'a>(
             .chain(journalctl_args?)
             .collect(),
     );
-    Some(mouse_area(hover).on_press(open_log).into())
+    Some(
+        button(hover)
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(open_log)
+            .into(),
+    )
 }

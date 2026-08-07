@@ -2,7 +2,7 @@ use std::{thread, time::Duration};
 
 use iced::{
     Alignment, Element, Task,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
+        flat_button,
         idle::{
             IdleAction, IdleHandle, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
@@ -220,12 +221,14 @@ impl IdleTimeoutsGroup {
             })
         });
 
-        let handle = mouse_area(
+        let handle = button(
             Solid::Stopwatch
                 .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(IdleTimeoutsMessage::Menu(MenuMessage::Toggle))
         .into();
 

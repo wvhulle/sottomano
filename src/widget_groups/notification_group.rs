@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     data::source::font_awesome::{FontAwesome, Regular, Solid},
     state::NotificationState,
     wayland_layers::surface::Position,
-    widgets::{DISABLED_ALPHA, pager_slot::permanently_inactive_slot},
+    widgets::{DISABLED_ALPHA, flat_button, pager_slot::permanently_inactive_slot},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -61,7 +61,9 @@ fn toggle<'a>(
 ) -> Element<'a, NotificationGroupMessage> {
     let alpha = if active { 1.0 } else { DISABLED_ALPHA };
     let color = config.palette.bar_foreground.scale_alpha(alpha);
-    mouse_area(icon.widget().size(config.font.icon_size_px).color(color))
+    button(icon.widget().size(config.font.icon_size_px).color(color))
+        .padding(0)
+        .style(flat_button(color))
         .on_press(message)
         .into()
 }

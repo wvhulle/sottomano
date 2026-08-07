@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use iced::{
     Alignment, Element,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        DISABLED_ALPHA,
+        DISABLED_ALPHA, flat_button,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl},
     },
@@ -163,12 +163,14 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let handle: Element<'a, PanelSettingsMessage> = mouse_area(
+        let handle: Element<'a, PanelSettingsMessage> = button(
             Solid::Sliders
                 .widget()
                 .size(config.font.icon_size_px)
                 .color(foreground),
         )
+        .padding(0)
+        .style(flat_button(foreground))
         .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
         .into();
 
@@ -248,7 +250,11 @@ fn icon_toggle<'a>(
     let color = config.palette.bar_foreground.scale_alpha(alpha);
     let widget = icon.widget().size(config.font.icon_size_px).color(color);
     hoverable(
-        mouse_area(widget).on_press(press).into(),
+        button(widget)
+            .padding(0)
+            .style(flat_button(color))
+            .on_press(press)
+            .into(),
         target,
         PanelSettingsMessage::Tooltip,
     )

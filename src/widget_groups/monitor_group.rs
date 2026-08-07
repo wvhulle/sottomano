@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, ops::RangeInclusive};
 
 use iced::{
     Alignment, Element, Subscription, Task,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 
 use crate::{
@@ -23,6 +23,7 @@ use crate::{
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
+        flat_button,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
@@ -274,12 +275,14 @@ impl MonitorGroup {
     }
 
     fn handle<'a>(config: &Config) -> Element<'a, MonitorMessage> {
-        mouse_area(
+        button(
             Solid::Lightbulb
                 .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(MonitorMessage::Menu(MenuMessage::Toggle))
         .into()
     }

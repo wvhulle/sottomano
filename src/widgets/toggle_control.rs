@@ -1,4 +1,4 @@
-use iced::{Element, Subscription, Task, widget::mouse_area};
+use iced::{Element, Subscription, Task, widget::button};
 
 use crate::{
     config::Config,
@@ -6,7 +6,7 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
-    widgets::icon_gauge::source_reading,
+    widgets::{flat_button, icon_gauge::source_reading},
 };
 
 pub trait Toggle: Source + Clone {
@@ -68,6 +68,12 @@ impl<S: Toggle + Send + 'static> ToggleControl<S> {
         let display = self.pending.as_ref().or_else(|| self.cell.get())?;
         let reading = source_reading(config, Some(display as &dyn BarWidget), alpha)?;
         let hover = hoverable(reading, target, ToggleMessage::Tooltip);
-        Some(mouse_area(hover).on_press(ToggleMessage::Press).into())
+        Some(
+            button(hover)
+                .padding(0)
+                .style(flat_button(config.palette.bar_foreground))
+                .on_press(ToggleMessage::Press)
+                .into(),
+        )
     }
 }

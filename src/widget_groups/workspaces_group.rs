@@ -1,13 +1,13 @@
 use iced::{
     Alignment, Element,
-    widget::{Row, mouse_area, row},
+    widget::{Row, button, row},
 };
 
 use crate::{
     config::Config,
     data::source::niri,
     wayland_layers::surface::Position,
-    widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
+    widgets::{activity_line::activity_line, flat_button, pager_slot::PagerSlot, text::bar_text},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -41,7 +41,9 @@ pub fn view<'a>(
         );
         let ticks = window_ticks(config, niri, p.id);
 
-        mouse_area(PagerSlot::new(label, focus).ticks(ticks).view(position))
+        button(PagerSlot::new(label, focus).ticks(ticks).view(position))
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
             .on_press(WorkspacesMessage::Clicked {
                 id: p.id,
                 is_active: p.is_active,

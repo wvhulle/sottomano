@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Subscription,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
+        flat_button,
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
@@ -94,11 +95,13 @@ impl WeatherGroup {
     ) -> Option<Element<'a, WeatherMessage>> {
         let temp = self.temp.get()?;
         let handle_reading = source_reading(config, Some(temp as &dyn BarWidget), 1.0)?;
-        let handle = mouse_area(hoverable(
+        let handle = button(hoverable(
             handle_reading,
             HoverTarget::WeatherTemp,
             WeatherMessage::Tooltip,
         ))
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(WeatherMessage::Menu(MenuMessage::Toggle))
         .into();
 
