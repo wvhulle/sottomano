@@ -11,7 +11,7 @@ use crate::{
     state::ChromeState,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         DISABLED_ALPHA, flat_button,
@@ -103,23 +103,10 @@ pub enum PanelSettingsMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for PanelSettingsMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
-impl PanelSettingsGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
+impl Default for PanelSettingsGroup {
+    fn default() -> Self {
         Self {
-            menu: MenuGroup::new(menu_expand_ms),
+            menu: MenuGroup::default(),
             offset: SliderControl::new(
                 OFFSET_RANGE,
                 HoverTarget::FloatOffset,
@@ -133,6 +120,12 @@ impl PanelSettingsGroup {
                 .readout_width(44.0)
                 .readout(|value| format!("{} %", value.round())),
         }
+    }
+}
+
+impl PanelSettingsGroup {
+    pub fn is_animating(&self) -> bool {
+        self.offset.is_animating() || self.darken.is_animating()
     }
 
     fn close_sliders(&mut self) {
@@ -248,15 +241,17 @@ impl PanelSettingsGroup {
     }
 
     fn offset_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
-        self.offset
-            .view(config, 1.0)
-            .map(|m| m.lifted(PanelSettingsMessage::Offset))
+        self.offset.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
+            m => PanelSettingsMessage::Offset(m),
+        })
     }
 
     fn darken_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
-        self.darken
-            .view(config, 1.0)
-            .map(|m| m.lifted(PanelSettingsMessage::Darken))
+        self.darken.view(config, 1.0).map(|m| match m {
+            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
+            m => PanelSettingsMessage::Darken(m),
+        })
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
@@ -32,6 +32,7 @@ fn hover_reading<'a>(
     Some(hoverable(reading, target, SystemMessage::Tooltip))
 }
 
+#[derive(Default)]
 pub struct SystemGroup {
     cpu: SourceCell<CpuUsage>,
     memory: SourceCell<Memory>,
@@ -50,30 +51,7 @@ pub enum SystemMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for SystemMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl SystemGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            cpu: SourceCell::default(),
-            memory: SourceCell::default(),
-            temperature: SourceCell::default(),
-            disk: SourceCell::default(),
-            menu: MenuGroup::new(menu_expand_ms),
-        }
-    }
-
     pub fn subscription() -> Subscription<SystemMessage> {
         Subscription::batch([
             SourceCell::subscription().map(SystemMessage::Cpu),
@@ -129,7 +107,7 @@ impl SystemGroup {
             .push(self.temperature.get(), HoverTarget::Temperature)
             .push(self.memory.get(), HoverTarget::Memory)
             .push(self.disk.get(), HoverTarget::Disk)
-            .row(config)
+            .row(config, SystemMessage::Tooltip)
             .unwrap_or_else(Row::new);
 
         Some(self.menu.view(

@@ -29,7 +29,7 @@ use crate::{
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
-        tooltip::{CarriesTooltip, HoverTarget, TooltipHost, TooltipMessage, panel_surface},
+        tooltip::{HoverTarget, TooltipHost, TooltipMessage, panel_surface},
         tray_menu::TrayMenuHost,
     },
     widget_groups::{
@@ -137,39 +137,26 @@ pub enum Message {
     },
 }
 
-impl CarriesTooltip for Message {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl Bar {
     pub fn new(config: Config) -> (Self, Task<Message>) {
         let bar = Self {
-            weather_group: WeatherGroup::new(config.widgets.menu_expand_ms),
+            weather_group: WeatherGroup::default(),
             battery_group: BatteryGroup::default(),
-            system_group: SystemGroup::new(config.widgets.menu_expand_ms),
-            panel_settings_group: PanelSettingsGroup::new(config.widgets.menu_expand_ms),
-            clock_group: ClockGroup::new(config.widgets.menu_expand_ms),
+            system_group: SystemGroup::default(),
+            panel_settings_group: PanelSettingsGroup::default(),
+            clock_group: ClockGroup::default(),
             journal_group: JournalGroup::default(),
-            internet_group: InternetGroup::new(config.widgets.menu_expand_ms),
+            internet_group: InternetGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
-            monitor_group: MonitorGroup::new(config.widgets.menu_expand_ms),
-            idle_timeouts_group: IdleTimeoutsGroup::new(config.widgets.menu_expand_ms),
-            media_group: MediaGroup::new(config.widgets.menu_expand_ms),
+            monitor_group: MonitorGroup::default(),
+            idle_timeouts_group: IdleTimeoutsGroup::default(),
+            media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
             power_profile_group: PowerProfileGroup::default(),
-            ai_group: AiGroup::new(config.widgets.menu_expand_ms, config.secrets.clone()),
-            tray_group: TrayGroup::new(config.widgets.menu_expand_ms),
+            ai_group: AiGroup::new(config.secrets.clone()),
+            tray_group: TrayGroup::default(),
             tray_menu: TrayMenuHost::default(),
-            window_group: WindowGroup::new(config.widgets.menu_expand_ms),
+            window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
@@ -548,6 +535,11 @@ impl Bar {
 
     pub fn any_menu_animating(&self) -> bool {
         self.menus().iter().any(|menu| menu.is_animating())
+            || self.audio_group.is_animating()
+            || self.monitor_group.is_animating()
+            || self.panel_settings_group.is_animating()
+            || self.idle_timeouts_group.is_animating()
+            || self.power_profile_group.is_animating()
     }
 
     fn dismiss_menus(&mut self) {

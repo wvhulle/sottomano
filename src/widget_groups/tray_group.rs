@@ -13,7 +13,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         activity_line::activity_line,
@@ -23,6 +23,7 @@ use crate::{
     },
 };
 
+#[derive(Default)]
 pub struct TrayGroup {
     items: Vec<TrayItem>,
     handle: Option<TrayHandle>,
@@ -42,28 +43,7 @@ pub enum TrayMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for TrayMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl TrayGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            items: Vec::new(),
-            handle: None,
-            menu: MenuGroup::new(menu_expand_ms),
-        }
-    }
-
     pub fn subscription() -> iced::Subscription<TrayMessage> {
         tray::subscription().map(TrayMessage::Update)
     }

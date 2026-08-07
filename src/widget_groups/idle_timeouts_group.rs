@@ -12,7 +12,7 @@ use crate::{
     state::{self, idle::Timeouts},
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
+        tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
         flat_button,
@@ -61,21 +61,8 @@ pub enum IdleTimeoutsMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for IdleTimeoutsMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
-impl IdleTimeoutsGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
+impl Default for IdleTimeoutsGroup {
+    fn default() -> Self {
         Self {
             lock: IdleTimer::new(
                 Solid::Lock.into(),
@@ -102,8 +89,21 @@ impl IdleTimeoutsGroup {
                 true,
             ),
             handle: None,
-            menu: MenuGroup::new(menu_expand_ms),
+            menu: MenuGroup::default(),
         }
+    }
+}
+
+impl IdleTimeoutsGroup {
+    pub fn is_animating(&self) -> bool {
+        [
+            &self.lock,
+            &self.screen_off,
+            &self.standby,
+            &self.power_down,
+        ]
+        .iter()
+        .any(|timer| timer.is_animating())
     }
 
     fn timer_mut(&mut self, kind: TimerKind) -> &mut IdleTimer {
@@ -228,9 +228,10 @@ impl IdleTimeoutsGroup {
         let reveal = self.menu.reveal();
         let group_gap = config.spacing.widget_spacing_px * 1.5;
         let controls = self.entries().map(|(kind, timer)| {
-            timer
-                .view(config, reveal)
-                .map(move |m| m.lifted(|m| IdleTimeoutsMessage::Timer(kind, m)))
+            timer.view(config, reveal).map(move |m| match m {
+                TimerMessage::Slider(ControlMessage::Tooltip(t)) => IdleTimeoutsMessage::Tooltip(t),
+                m => IdleTimeoutsMessage::Timer(kind, m),
+            })
         });
 
         let handle = button(

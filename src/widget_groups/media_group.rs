@@ -17,7 +17,7 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         flat_button,
@@ -28,6 +28,7 @@ use crate::{
 
 const MAX_TITLE: usize = 40;
 
+#[derive(Default)]
 pub struct MediaGroup {
     players: Vec<Media>,
     forced: Option<String>,
@@ -44,29 +45,7 @@ pub enum MediaMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for MediaMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl MediaGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            players: Vec::new(),
-            forced: None,
-            optimistic: None,
-            menu: MenuGroup::new(menu_expand_ms),
-        }
-    }
-
     pub fn subscription() -> Subscription<MediaMessage> {
         mpris::subscription().map(MediaMessage::Reading)
     }

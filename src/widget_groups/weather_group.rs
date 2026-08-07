@@ -11,7 +11,7 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
@@ -21,6 +21,7 @@ use crate::{
     },
 };
 
+#[derive(Default)]
 pub struct WeatherGroup {
     temp: SourceCell<Temperature>,
     rain: SourceCell<Rain>,
@@ -41,31 +42,7 @@ pub enum WeatherMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for WeatherMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl WeatherGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
-        Self {
-            temp: SourceCell::default(),
-            rain: SourceCell::default(),
-            birch: SourceCell::default(),
-            grass: SourceCell::default(),
-            location: SourceCell::default(),
-            menu: MenuGroup::new(menu_expand_ms),
-        }
-    }
-
     pub fn subscription() -> Subscription<WeatherMessage> {
         Subscription::batch([
             SourceCell::subscription().map(WeatherMessage::Temp),
@@ -125,7 +102,7 @@ impl WeatherGroup {
             .push(self.rain.get(), HoverTarget::WeatherRain)
             .push(self.birch.get(), HoverTarget::PollenBirch)
             .push(self.grass.get(), HoverTarget::PollenGrass)
-            .row(config)
+            .row(config, WeatherMessage::Tooltip)
             .unwrap_or_else(Row::new);
 
         Some(self.menu.view(

@@ -34,16 +34,18 @@ pub enum ClockMessage {
     Menu(MenuMessage),
 }
 
-impl ClockGroup {
-    pub fn new(menu_expand_ms: u64) -> Self {
+impl Default for ClockGroup {
+    fn default() -> Self {
         let now = Local::now();
         Self {
             time_text: now.format(TIME_FORMAT).to_string(),
             date_text: now.format(DATE_FORMAT).to_string(),
-            menu: MenuGroup::new(menu_expand_ms),
+            menu: MenuGroup::default(),
         }
     }
+}
 
+impl ClockGroup {
     pub fn update(&mut self, msg: ClockMessage) {
         match msg {
             ClockMessage::Tick(now) => {

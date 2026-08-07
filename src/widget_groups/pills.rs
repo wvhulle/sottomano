@@ -5,7 +5,7 @@ use crate::{
     data::source::BarWidget,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, hoverable},
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
 };
@@ -41,13 +41,17 @@ impl<'w> Pills<'w> {
         self
     }
 
-    pub fn row<'a, M: CarriesTooltip + 'a>(self, config: &Config) -> Option<Row<'a, M>> {
+    pub fn row<'a, M: 'a>(
+        self,
+        config: &Config,
+        wrap: impl Fn(TooltipMessage) -> M + Clone + 'a,
+    ) -> Option<Row<'a, M>> {
         let Self { entries, alpha } = self;
         let pills: Vec<Element<'a, M>> = entries
             .into_iter()
             .filter_map(|(widget, target)| {
                 let reading = source_reading(config, Some(widget), alpha)?;
-                Some(hoverable(reading, target, M::from_tooltip))
+                Some(hoverable(reading, target, wrap.clone()))
             })
             .collect();
         (!pills.is_empty()).then(|| {
@@ -57,12 +61,13 @@ impl<'w> Pills<'w> {
         })
     }
 
-    pub fn slot<'a, M: CarriesTooltip + 'a>(
+    pub fn slot<'a, M: 'a>(
         self,
         config: &Config,
         position: Position,
+        wrap: impl Fn(TooltipMessage) -> M + Clone + 'a,
     ) -> Option<Element<'a, M>> {
-        let row = self.row(config)?;
+        let row = self.row(config, wrap)?;
         Some(permanently_inactive_slot(row.into(), config, position))
     }
 }

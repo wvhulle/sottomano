@@ -18,7 +18,7 @@ use crate::{
     message_subscriptions::poll_arg,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
+        tooltip::{HoverTarget, TooltipMessage},
     },
     widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
@@ -50,21 +50,8 @@ pub enum AiMessage {
     Tooltip(TooltipMessage),
 }
 
-impl CarriesTooltip for AiMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
-}
-
 impl AiGroup {
-    pub fn new(menu_expand_ms: u64, secrets: SecretPaths) -> Self {
+    pub fn new(secrets: SecretPaths) -> Self {
         Self {
             openrouter: SourceCell::default(),
             claude_oauth: SourceCell::default(),
@@ -73,7 +60,7 @@ impl AiGroup {
             copilot_free: SourceCell::default(),
             copilot_cli: SourceCell::default(),
             secrets,
-            menu: MenuGroup::new(menu_expand_ms),
+            menu: MenuGroup::default(),
         }
     }
 
@@ -153,7 +140,7 @@ impl AiGroup {
             .push(self.copilot_free.get(), HoverTarget::AiCopilotFree)
             .push(self.copilot_cli.get(), HoverTarget::AiCopilotCli)
             .push(self.openrouter.get(), HoverTarget::AiOpenRouter)
-            .row(config);
+            .row(config, AiMessage::Tooltip);
 
         if !self.configured() && pills.is_none() {
             return None;

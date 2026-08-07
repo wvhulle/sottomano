@@ -14,7 +14,7 @@ use crate::{
     message_subscriptions::dbus,
     wayland_layers::{
         surface::Position,
-        tooltip::{CarriesTooltip, HoverTarget, TooltipMessage},
+        tooltip::{HoverTarget, TooltipMessage},
     },
     widget_groups::{pills::Pills, source_cell::SourceCell},
 };
@@ -34,19 +34,6 @@ pub enum NetInterfacesMessage {
     Wifi(Option<Wifi>),
     Mobile(Option<Mobile>),
     Tooltip(TooltipMessage),
-}
-
-impl CarriesTooltip for NetInterfacesMessage {
-    fn into_tooltip(self) -> Result<TooltipMessage, Self> {
-        match self {
-            Self::Tooltip(tooltip) => Ok(tooltip),
-            message => Err(message),
-        }
-    }
-
-    fn from_tooltip(tooltip: TooltipMessage) -> Self {
-        Self::Tooltip(tooltip)
-    }
 }
 
 impl NetInterfacesGroup {
@@ -89,6 +76,6 @@ impl NetInterfacesGroup {
             .push(self.ethernet.get(), HoverTarget::Ethernet)
             .push(self.wifi.get(), HoverTarget::Wifi)
             .push(self.mobile.get(), HoverTarget::Mobile)
-            .slot(config, position)
+            .slot(config, position, NetInterfacesMessage::Tooltip)
     }
 }
