@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     fs,
+    marker::PhantomData,
     time::{Duration, Instant},
 };
 
@@ -19,11 +20,36 @@ use crate::data::source::{
 
 const FLOOR: f64 = 10_000.0;
 
+pub trait Direction {
+    const LABEL: &'static str;
+    const ICON: Solid;
+    const CAP_BYTES_PER_SEC: f64;
+}
+
 #[derive(Debug, Clone)]
-pub struct Throughput<const UP: bool> {
+pub struct Upload;
+
+impl Direction for Upload {
+    const LABEL: &'static str = "Up";
+    const ICON: Solid = Solid::Upload;
+    const CAP_BYTES_PER_SEC: f64 = 12_500_000.0;
+}
+
+#[derive(Debug, Clone)]
+pub struct Download;
+
+impl Direction for Download {
+    const LABEL: &'static str = "Down";
+    const ICON: Solid = Solid::Download;
+    const CAP_BYTES_PER_SEC: f64 = 25_000_000.0;
+}
+
+#[derive(Debug, Clone)]
+pub struct Throughput<D: Direction> {
     interfaces: Vec<String>,
     rate: f64,
     connectivity: Connectivity,
+    direction: PhantomData<D>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,10 +88,6 @@ impl Connectivity {
     }
 }
 
-const fn cap<const UP: bool>() -> f64 {
-    if UP { 12_500_000.0 } else { 25_000_000.0 }
-}
-
 fn format_rate(bytes_per_sec: f64) -> String {
     const UNITS: [&str; 4] = ["B", "kB", "MB", "GB"];
     let mut value = bytes_per_sec;
@@ -81,7 +103,7 @@ fn format_rate(bytes_per_sec: f64) -> String {
     }
 }
 
-impl<const UP: bool> Throughput<UP> {
+impl<D: Direction> Throughput<D> {
     fn idle(&self) -> bool {
         self.rate < FLOOR
     }
@@ -98,20 +120,16 @@ impl<const UP: bool> Throughput<UP> {
         if self.interfaces.is_empty() || self.rate < FLOOR {
             return 0;
         }
-        let fraction = (self.rate / FLOOR).ln() / (cap::<UP>() / FLOOR).ln();
+        let fraction = (self.rate / FLOOR).ln() / (D::CAP_BYTES_PER_SEC / FLOOR).ln();
         #[allow(clippy::cast_possible_truncation)]
         let percent = (fraction * 100.0).round() as i64;
         percent.clamp(0, 100)
     }
 }
 
-impl<const UP: bool> BarWidget for Throughput<UP> {
+impl<D: Direction> BarWidget for Throughput<D> {
     fn icon(&self) -> Glyph {
-        if UP {
-            Solid::Upload.into()
-        } else {
-            Solid::Download.into()
-        }
+        D::ICON.into()
     }
 
     fn disabled(&self) -> bool {
@@ -136,20 +154,19 @@ impl<const UP: bool> BarWidget for Throughput<UP> {
         if self.interfaces.is_empty() {
             return TooltipBody::Table(vec![row("Connectivity", "none")]);
         }
-        let direction = if UP { "Up" } else { "Down" };
         TooltipBody::Table(vec![
-            row(direction, format_rate(self.rate)),
+            row(D::LABEL, format_rate(self.rate)),
             row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),
-            row("Capacity", format_rate(cap::<UP>())),
+            row("Capacity", format_rate(D::CAP_BYTES_PER_SEC)),
         ])
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Readings {
-    pub down: Throughput<false>,
-    pub up: Throughput<true>,
+    pub down: Throughput<Download>,
+    pub up: Throughput<Upload>,
 }
 
 pub fn subscription() -> Subscription<Readings> {
@@ -222,11 +239,13 @@ fn rate(previous: Option<&Sample>, current: &Sample, connectivity: Connectivity)
             interfaces: interfaces.clone(),
             rate: rates.rx,
             connectivity,
+            direction: PhantomData,
         },
         up: Throughput {
             interfaces,
             rate: rates.tx,
             connectivity,
+            direction: PhantomData,
         },
     }
 }

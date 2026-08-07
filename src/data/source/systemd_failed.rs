@@ -1,5 +1,6 @@
 use std::{
     cmp::Reverse,
+    marker::PhantomData,
     time::{Duration, SystemTime},
 };
 
@@ -9,14 +10,62 @@ use crate::data::source::{
 
 const HORIZON: Duration = Duration::from_secs(3600);
 
-#[derive(Debug, Clone)]
-pub struct Failed<const USER: bool> {
-    units: Vec<FailedUnitInfo>,
+pub trait JournalScope {
+    const PER_USER: bool;
+    const CLI_FLAG: Option<&'static str>;
+    const LOGGED_BY: &'static str;
+    const LOGGED_ABOUT: &'static str;
+    const ICON: Solid;
+
+    fn severity(recent: bool) -> Level;
 }
 
-impl<const USER: bool> Failed<USER> {
+#[derive(Debug, Clone)]
+pub struct User;
+
+impl JournalScope for User {
+    const PER_USER: bool = true;
+    const CLI_FLAG: Option<&'static str> = Some("--user");
+    const LOGGED_BY: &'static str = "_SYSTEMD_USER_UNIT";
+    const LOGGED_ABOUT: &'static str = "USER_UNIT";
+    const ICON: Solid = Solid::User;
+
+    fn severity(_recent: bool) -> Level {
+        Level::Warning
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct System;
+
+impl JournalScope for System {
+    const PER_USER: bool = false;
+    const CLI_FLAG: Option<&'static str> = None;
+    const LOGGED_BY: &'static str = "_SYSTEMD_UNIT";
+    const LOGGED_ABOUT: &'static str = "UNIT";
+    const ICON: Solid = Solid::Server;
+
+    fn severity(recent: bool) -> Level {
+        if recent {
+            Level::Critical
+        } else {
+            Level::Warning
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Failed<S: JournalScope> {
+    units: Vec<FailedUnitInfo>,
+    scope: PhantomData<S>,
+}
+
+impl<S: JournalScope> Failed<S> {
     pub fn from_units(units: Vec<FailedUnitInfo>) -> Option<Self> {
-        (!units.is_empty()).then_some(Self { units })
+        (!units.is_empty()).then_some(Self {
+            units,
+            scope: PhantomData,
+        })
     }
 
     fn recent(unit: &FailedUnitInfo) -> bool {
@@ -26,7 +75,7 @@ impl<const USER: bool> Failed<USER> {
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {
-        let scope = USER.then(|| String::from("--user"));
+        let scope = S::CLI_FLAG.map(String::from);
         if self.units.is_empty() {
             return scope
                 .into_iter()
@@ -55,36 +104,18 @@ impl<const USER: bool> Failed<USER> {
 
     fn matches_for(name: &str) -> [String; 4] {
         let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
-        let logged_by_unit = if USER {
-            "_SYSTEMD_USER_UNIT"
-        } else {
-            "_SYSTEMD_UNIT"
-        };
-        let logged_about_unit = if USER { "USER_UNIT" } else { "UNIT" };
         [
-            format!("{logged_by_unit}={name}"),
-            format!("{logged_about_unit}={name}"),
+            format!("{}={name}", S::LOGGED_BY),
+            format!("{}={name}", S::LOGGED_ABOUT),
             format!("SYSLOG_IDENTIFIER={stem}"),
             format!("SYSLOG_IDENTIFIER={stem}-start"),
         ]
     }
-
-    fn severity(recent: bool) -> Level {
-        if !USER && recent {
-            Level::Critical
-        } else {
-            Level::Warning
-        }
-    }
 }
 
-impl<const USER: bool> BarWidget for Failed<USER> {
+impl<S: JournalScope> BarWidget for Failed<S> {
     fn icon(&self) -> Glyph {
-        if USER {
-            Solid::User.into()
-        } else {
-            Solid::Server.into()
-        }
+        S::ICON.into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -94,7 +125,7 @@ impl<const USER: bool> BarWidget for Failed<USER> {
     }
 
     fn level(&self) -> Level {
-        Self::severity(!USER && self.units.iter().any(Self::recent))
+        S::severity(self.units.iter().any(Self::recent))
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -110,7 +141,7 @@ impl<const USER: bool> BarWidget for Failed<USER> {
                         unit.name,
                         describe_failure(&unit.result, unit.status)
                     ),
-                    level: Self::severity(Self::recent(unit)),
+                    level: S::severity(Self::recent(unit)),
                 })
                 .collect(),
         )
@@ -146,8 +177,9 @@ mod tests {
 
     #[test]
     fn system_scope_matches_the_unit_and_its_own_output() {
-        let failed = Failed::<false> {
+        let failed = Failed::<System> {
             units: vec![unit("a.service")],
+            scope: PhantomData,
         };
         assert_eq!(
             failed.follow_log_args(),
@@ -170,8 +202,9 @@ mod tests {
 
     #[test]
     fn every_failed_unit_is_or_ed_into_one_stream() {
-        let failed = Failed::<false> {
+        let failed = Failed::<System> {
             units: vec![unit("a.service"), unit("b.timer")],
+            scope: PhantomData,
         };
         let args = failed.follow_log_args();
         assert_eq!(args.iter().filter(|arg| *arg == "+").count(), 7);
@@ -184,8 +217,9 @@ mod tests {
 
     #[test]
     fn user_scope_matches_user_unit_fields() {
-        let failed = Failed::<true> {
+        let failed = Failed::<User> {
             units: vec![unit("a.service")],
+            scope: PhantomData,
         };
         assert_eq!(
             failed.follow_log_args(),
@@ -209,7 +243,10 @@ mod tests {
 
     #[test]
     fn without_units_falls_back_to_warnings() {
-        let failed = Failed::<false> { units: Vec::new() };
+        let failed = Failed::<System> {
+            units: Vec::new(),
+            scope: PhantomData,
+        };
         assert_eq!(
             failed.follow_log_args(),
             ["-x", "-b", "-f", "-p", "warning"]

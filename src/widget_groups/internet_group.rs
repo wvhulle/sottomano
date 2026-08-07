@@ -8,7 +8,7 @@ use crate::{
     data::source::{
         BarWidget, Tooltip,
         tailscale::{Tailscale, open_admin},
-        throughput::{self, Readings, Throughput},
+        throughput::{self, Download, Readings, Throughput, Upload},
         wireguard::{Wireguard, disconnect},
     },
     wayland_layers::{
@@ -24,8 +24,8 @@ use crate::{
 };
 
 pub struct InternetGroup {
-    down: SourceCell<Throughput<false>>,
-    up: SourceCell<Throughput<true>>,
+    down: SourceCell<Throughput<Download>>,
+    up: SourceCell<Throughput<Upload>>,
     wireguard: SourceCell<Wireguard>,
     tailscale: SourceCell<Tailscale>,
     pub(crate) menu: MenuGroup,
