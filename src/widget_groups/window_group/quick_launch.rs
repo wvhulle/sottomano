@@ -111,7 +111,6 @@ impl QuickLaunch {
             QuickLaunchMessage::Menu,
         ))
     }
-
 }
 
 fn icon_slot<'a>(

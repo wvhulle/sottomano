@@ -101,14 +101,23 @@ pub(crate) fn blocking<T: Default + Send + 'static>(
     Task::perform(off_thread(context, work), identity)
 }
 
-pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
+fn polled<T>(
+    name: &'static str,
+    every: Duration,
+    work: impl Fn() -> T + Send + Clone + 'static,
+) -> impl Stream<Item = T>
+where
+    T: Clone + PartialEq + Default + Send + 'static,
+{
     use iced::futures::StreamExt;
-    Subscription::run_with(S::NAME, |_| {
-        let mut timer = interval(S::INTERVAL);
-        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        let readings = IntervalStream::new(timer).then(|_| off_thread(S::NAME, S::poll));
-        emit_changes(readings)
-    })
+    let mut timer = interval(every);
+    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let readings = IntervalStream::new(timer).then(move |_| off_thread(name, work.clone()));
+    emit_changes(readings)
+}
+
+pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
+    Subscription::run_with(S::NAME, |_| polled(S::NAME, S::INTERVAL, S::poll))
 }
 
 pub(crate) fn emit_changes<T: Clone + PartialEq>(
@@ -127,17 +136,9 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
 }
 
 pub(crate) fn poll_arg<S: ApiSource>(key: Option<PathBuf>) -> Subscription<Option<S>> {
-    use iced::futures::StreamExt;
     Subscription::run_with((S::NAME, key), |(name, key)| {
-        let name = *name;
         let key = key.clone();
-        let mut timer = interval(S::INTERVAL);
-        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        let readings = IntervalStream::new(timer).then(move |_| {
-            let key = key.clone();
-            off_thread(name, move || S::poll(key))
-        });
-        emit_changes(readings)
+        polled(name, S::INTERVAL, move || S::poll(key.clone()))
     })
 }
 
@@ -147,11 +148,7 @@ pub(crate) fn poll_every<T: Clone + PartialEq + Default + Send + 'static>(
     poll: fn() -> T,
 ) -> Subscription<T> {
     Subscription::run_with((key, every, poll), |&(key, every, poll)| {
-        use iced::futures::StreamExt;
-        let mut timer = interval(every);
-        timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        let readings = IntervalStream::new(timer).then(move |_| off_thread(key, poll));
-        emit_changes(readings)
+        polled(key, every, poll)
     })
 }
 
