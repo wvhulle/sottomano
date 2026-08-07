@@ -11,7 +11,7 @@ use iced::{
     font::Style as FontStyle,
     task::Handle,
     time::every,
-    widget::{Row, image, mouse_area, rich_text, svg},
+    widget::{Row, button, image, rich_text, svg},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -30,6 +30,7 @@ use crate::{
     wayland_layers::surface::Position,
     widgets::{
         activity_line::activity_line,
+        flat_button,
         pager_slot::PagerSlot,
         text::fallback_spans,
         window_list_viewport::{Metrics, window_list_viewport},
@@ -253,7 +254,9 @@ fn window_button<'a>(
     let rule = app_rules::rule_for(&win.app_id);
     let content = button_content(config, icons, rule, win, alpha);
     let focus = focus_line(config, win, alpha);
-    mouse_area(PagerSlot::new(content, focus).view(position))
+    button(PagerSlot::new(content, focus).view(position))
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(WindowListMessage::Clicked(win.id))
         .into()
 }

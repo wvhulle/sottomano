@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Subscription, Task,
-    widget::{Row, mouse_area},
+    widget::{Row, button, mouse_area},
 };
 
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
+        flat_button,
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
@@ -108,11 +109,13 @@ impl InternetGroup {
     ) -> Option<Element<'a, InternetMessage>> {
         let down = self.down.get()?;
         let handle_reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)?;
-        let handle = mouse_area(hoverable(
+        let handle = button(hoverable(
             handle_reading,
             HoverTarget::InternetDown,
             InternetMessage::Tooltip,
         ))
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(InternetMessage::Menu(MenuMessage::Toggle))
         .into();
 
@@ -151,7 +154,9 @@ impl InternetGroup {
         {
             let hover = hoverable(reading, HoverTarget::Tailscale, InternetMessage::Tooltip);
             pills.push(
-                mouse_area(hover)
+                button(hover)
+                    .padding(0)
+                    .style(flat_button(config.palette.bar_foreground))
                     .on_press(InternetMessage::OpenTailscale)
                     .into(),
             );

@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Subscription,
-    widget::{Row, mouse_area},
+    widget::{Row, button},
 };
 
 use crate::{
@@ -22,6 +22,7 @@ use crate::{
     },
     widget_groups::source_cell::SourceCell,
     widgets::{
+        flat_button,
         icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
     },
@@ -164,7 +165,9 @@ impl AiGroup {
             return None;
         }
 
-        let handle = mouse_area(robot_handle(config))
+        let handle = button(robot_handle(config))
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
             .on_press(AiMessage::Menu(MenuMessage::Toggle))
             .into();
         let content = Row::with_children(pills)

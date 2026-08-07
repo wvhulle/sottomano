@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Subscription, Task,
-    widget::{Row, image, mouse_area, svg},
+    widget::{Row, button, image, svg},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -20,6 +20,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        flat_button,
         menu_group::{MenuGroup, MenuMessage},
         text::bar_text,
     },
@@ -157,7 +158,9 @@ impl MediaGroup {
             .map(|m| {
                 let alpha = reveal * if m.bus == current.bus { 1.0 } else { 0.4 };
                 let icon = source_icon(config, index, m, side, alpha);
-                mouse_area(icon)
+                button(icon)
+                    .padding(0)
+                    .style(flat_button(config.palette.bar_foreground))
                     .on_press(MediaMessage::Source(m.bus.clone()))
                     .into()
             })
@@ -204,14 +207,19 @@ impl MediaGroup {
         let alpha = if status == Status::Playing { 1.0 } else { 0.4 };
 
         let handle = handle(config, media, status, alpha);
-        let handle = mouse_area(hoverable(handle, HoverTarget::Media, MediaMessage::Tooltip))
+        let handle = button(hoverable(handle, HoverTarget::Media, MediaMessage::Tooltip))
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
             .on_press(MediaMessage::Menu(MenuMessage::Toggle))
             .into();
 
         let reveal = self.menu.reveal();
         let title = bar_text(&config.font, truncate(&media.label()))
             .color(config.palette.bar_foreground.scale_alpha(reveal));
-        let title = mouse_area(title).on_press(MediaMessage::Source(media.bus.clone()));
+        let title = button(title)
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(MediaMessage::Source(media.bus.clone()));
         let content = Row::with_children(
             [
                 Some(title.into()),
@@ -321,7 +329,9 @@ fn transport<'a>(
 ) -> Element<'a, MediaMessage> {
     let color = config.palette.bar_foreground.scale_alpha(reveal * 0.9);
     let button = |icon: FontAwesome, method: &'static str| {
-        mouse_area(icon.widget().size(config.font.icon_size_px).color(color))
+        button(icon.widget().size(config.font.icon_size_px).color(color))
+            .padding(0)
+            .style(flat_button(color))
             .on_press(MediaMessage::Transport(method))
             .into()
     };

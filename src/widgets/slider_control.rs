@@ -4,7 +4,7 @@ use iced::{
     Alignment, Element,
     alignment::Horizontal,
     mouse::ScrollDelta,
-    widget::{Row, mouse_area},
+    widget::{Row, button, mouse_area},
 };
 
 use crate::{
@@ -13,6 +13,7 @@ use crate::{
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
     widgets::{
+        flat_button,
         icon_gauge::source_reading,
         inline_slider::inline_slider,
         text::bar_text,
@@ -249,12 +250,14 @@ impl SliderControl {
 
     pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
         if self.open {
-            let glyph = mouse_area(
+            let glyph = button(
                 self.effective_icon()
                     .widget()
                     .size(config.font.icon_size_px)
                     .color(config.palette.bar_foreground),
             )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
             .on_press(ControlMessage::Press);
             let slider = inline_slider(
                 config,

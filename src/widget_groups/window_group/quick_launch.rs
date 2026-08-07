@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use iced::{
     Alignment, Element, Task,
-    widget::{Row, image, mouse_area, svg},
+    widget::{Row, button, hover, image, svg},
 };
 
 use crate::{
@@ -12,7 +12,10 @@ use crate::{
     },
     message_subscriptions::blocking,
     wayland_layers::surface::Position,
-    widgets::menu_group::{MenuGroup, MenuMessage},
+    widgets::{
+        flat_button,
+        menu_group::{MenuGroup, MenuMessage},
+    },
 };
 
 pub const MAX_ITEMS: usize = 4;
@@ -21,14 +24,12 @@ const RESTING_OPACITY: f32 = 0.65;
 pub struct QuickLaunch {
     ranked: HashMap<String, Vec<String>>,
     desktop_entries: Option<Arc<DesktopEntries>>,
-    hovered: Option<String>,
     pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
 pub enum QuickLaunchMessage {
     Menu(MenuMessage),
-    IconHover(Option<String>),
     Launch(String),
 }
 
@@ -37,7 +38,6 @@ impl QuickLaunch {
         Self {
             ranked: HashMap::new(),
             desktop_entries: None,
-            hovered: None,
             menu: MenuGroup::new(menu_expand_ms),
         }
     }
@@ -59,7 +59,6 @@ impl QuickLaunch {
             QuickLaunchMessage::Menu(m) => {
                 self.menu.update(m);
             }
-            QuickLaunchMessage::IconHover(app_id) => self.hovered = app_id,
             QuickLaunchMessage::Launch(app_id) => return self.launch(app_id),
         }
         Task::none()
@@ -83,12 +82,14 @@ impl QuickLaunch {
     ) -> Option<Element<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
-        let handle = mouse_area(
+        let handle = button(
             Solid::Rocket
                 .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(QuickLaunchMessage::Menu(MenuMessage::Toggle))
         .into();
 
@@ -96,7 +97,7 @@ impl QuickLaunch {
         let content = Row::with_children(
             app_ids
                 .iter()
-                .filter_map(|app_id| self.icon_slot(config, index, app_id, reveal)),
+                .filter_map(|app_id| icon_slot(config, index, app_id, reveal)),
         )
         .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
@@ -111,27 +112,25 @@ impl QuickLaunch {
         ))
     }
 
-    fn icon_slot<'a>(
-        &self,
-        config: &Config,
-        index: &DesktopIndex,
-        app_id: &str,
-        reveal: f32,
-    ) -> Option<Element<'a, QuickLaunchMessage>> {
-        let path = index.app_icon(app_id)?;
-        let side = config.font.icon_size_px;
-        let hovered = self.hovered.as_deref() == Some(app_id);
-        let opacity = reveal * if hovered { 1.0 } else { RESTING_OPACITY };
-        let icon = icon_image(path, side, opacity);
-        let app_id = app_id.to_string();
-        Some(
-            mouse_area(icon)
-                .on_press(QuickLaunchMessage::Launch(app_id.clone()))
-                .on_enter(QuickLaunchMessage::IconHover(Some(app_id)))
-                .on_exit(QuickLaunchMessage::IconHover(None))
-                .into(),
-        )
-    }
+}
+
+fn icon_slot<'a>(
+    config: &Config,
+    index: &DesktopIndex,
+    app_id: &str,
+    reveal: f32,
+) -> Option<Element<'a, QuickLaunchMessage>> {
+    let path = index.app_icon(app_id)?;
+    let side = config.font.icon_size_px;
+    let resting = icon_image(path, side, reveal * RESTING_OPACITY);
+    let bright = icon_image(path, side, reveal);
+    Some(
+        button(hover(resting, bright))
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(QuickLaunchMessage::Launch(app_id.to_string()))
+            .into(),
+    )
 }
 
 fn icon_image<'a>(path: &Path, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {

@@ -16,3 +16,13 @@ pub mod tracked;
 pub mod window_list_viewport;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
+
+use iced::{Color, Theme, widget::button};
+
+pub(crate) fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_, _| button::Style {
+        background: None,
+        text_color,
+        ..button::Style::default()
+    }
+}

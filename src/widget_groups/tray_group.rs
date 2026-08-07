@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Size,
-    widget::{Column, Row, mouse_area},
+    widget::{Column, Row, button, mouse_area},
     window::Id,
 };
 
@@ -17,6 +17,7 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
+        flat_button,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
     },
@@ -95,12 +96,14 @@ impl TrayGroup {
         }
         let reveal = self.menu.reveal();
 
-        let handle = mouse_area(
+        let handle = button(
             Solid::LayerGroup
                 .widget()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
         .on_press(TrayMessage::Menu(MenuMessage::Toggle))
         .into();
 
