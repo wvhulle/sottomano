@@ -10,6 +10,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     data::source::font_awesome::Solid,
     widgets::{
+        DISABLED_ALPHA,
         native_icon::{IconSource, native_icon},
         text::bar_text,
     },
@@ -99,7 +100,7 @@ fn entry<'a, Message: Clone + 'a>(
     let color = config
         .palette
         .bar_foreground
-        .scale_alpha(paint * if node.enabled { 1.0 } else { 0.4 });
+        .scale_alpha(paint * if node.enabled { 1.0 } else { DISABLED_ALPHA });
 
     let leading: Option<Element<'a, Message>> = node
         .icon

@@ -7,7 +7,7 @@ use crate::{
     config::resolved::ResolvedConfig,
     data::source::font_awesome::{FontAwesome, Regular, Solid},
     wayland_layers::surface::Position,
-    widgets::pager_slot::permanently_inactive_slot,
+    widgets::{DISABLED_ALPHA, pager_slot::permanently_inactive_slot},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -57,10 +57,8 @@ fn toggle<'a>(
     active: bool,
     message: NotificationGroupMessage,
 ) -> Element<'a, NotificationGroupMessage> {
-    let color = config
-        .palette
-        .bar_foreground
-        .scale_alpha(if active { 1.0 } else { 0.4 });
+    let alpha = if active { 1.0 } else { DISABLED_ALPHA };
+    let color = config.palette.bar_foreground.scale_alpha(alpha);
     mouse_area(icon.widget().size(config.font.icon_size_px).color(color))
         .on_press(message)
         .into()

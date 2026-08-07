@@ -14,3 +14,5 @@ pub mod text;
 pub mod toggle_control;
 pub mod tracked;
 pub mod window_list_viewport;
+
+pub const DISABLED_ALPHA: f32 = 0.4;
