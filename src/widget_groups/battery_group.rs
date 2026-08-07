@@ -1,7 +1,7 @@
 use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip,
         sysfs_sensors::{battery::Battery, power::PowerDraw},
@@ -53,7 +53,7 @@ impl BatteryGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, BatteryMessage>> {
         let readings = [

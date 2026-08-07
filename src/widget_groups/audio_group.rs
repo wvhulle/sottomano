@@ -3,7 +3,7 @@ use std::{env, ops::RangeInclusive, thread, time::Duration};
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         Tooltip, TooltipBody,
         audio::{self, AudioEvent, AudioState, Commands, Reading, Target},
@@ -187,7 +187,7 @@ impl AudioGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, AudioMessage>> {
         let source = self.source.as_ref().map(|_| {

@@ -18,7 +18,7 @@ use iced_layershell::reexport::{
 
 use crate::{
     app::Message,
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{RefreshInfo, Row, Tooltip, TooltipBody, level_color, niri::OutputGeometry},
     wayland_layers::surface::{Margin, Position, Surface, SurfaceSize},
     widgets::text::{TextStyle, bar_text},
@@ -141,7 +141,7 @@ impl TooltipHost {
         target: HoverTarget,
         anchor: Rectangle,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
         content: &Tooltip,
     ) -> Task<Message> {
         if self.shown.as_ref().is_some_and(|s| s.target == target) {
@@ -232,7 +232,7 @@ impl TooltipHost {
     }
 }
 
-pub fn panel_surface<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message> {
+pub fn panel_surface<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
     panel(tooltip, config)
 }
 
@@ -409,7 +409,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
 
 fn tooltip_grid<'a>(
     body: &TooltipBody,
-    config: &ResolvedConfig,
+    config: &Config,
     foreground: Color,
     dim: Color,
     now: SystemTime,
@@ -549,7 +549,7 @@ fn widened(column: Size, widest: Size) -> Size {
     Size::new(column.width.max(widest.width), column.height)
 }
 
-fn measure_panel(tooltip: &Tooltip, config: &ResolvedConfig) -> Size {
+fn measure_panel(tooltip: &Tooltip, config: &Config) -> Size {
     let base = TextStyle::of(&config.font);
     let now = SystemTime::now();
 
@@ -619,7 +619,7 @@ fn measure_panel(tooltip: &Tooltip, config: &ResolvedConfig) -> Size {
     body.expand(PANEL_PADDING)
 }
 
-fn panel<'a>(tooltip: &Tooltip, config: &ResolvedConfig) -> Element<'a, Message> {
+fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
     let foreground = config.palette.bar_foreground;
     let dim = Color {
         a: 0.7,
@@ -712,7 +712,7 @@ fn tooltip_settings(
     anchor: Rectangle,
     output_width: Option<i32>,
     size: SurfaceSize,
-    config: &ResolvedConfig,
+    config: &Config,
 ) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
     let left = panel_left(anchor.x, output_width, size.width);

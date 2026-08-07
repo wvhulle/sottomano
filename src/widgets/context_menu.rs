@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::font_awesome::Solid,
     widgets::{
         DISABLED_ALPHA,
@@ -43,7 +43,7 @@ pub enum MenuKind {
 }
 
 pub fn context_menu<'a, Message: Clone + 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     nodes: &[MenuNode],
     open: &HashSet<i32>,
     paint: f32,
@@ -60,7 +60,7 @@ pub fn context_menu<'a, Message: Clone + 'a>(
 }
 
 fn entry_rows<'a, Message: Clone + 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     node: &MenuNode,
     open: &HashSet<i32>,
     paint: f32,
@@ -90,7 +90,7 @@ fn entry_rows<'a, Message: Clone + 'a>(
 }
 
 fn entry<'a, Message: Clone + 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     node: &MenuNode,
     submenu_open: bool,
     paint: f32,
@@ -159,7 +159,7 @@ fn button_style(status: button::Status, text: Color, accent: Color, paint: f32) 
     }
 }
 
-fn divider<'a, Message: 'a>(config: &ResolvedConfig, paint: f32) -> Element<'a, Message> {
+fn divider<'a, Message: 'a>(config: &Config, paint: f32) -> Element<'a, Message> {
     let color = config
         .palette
         .bar_foreground

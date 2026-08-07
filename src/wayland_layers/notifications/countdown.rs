@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    config::disk::NotificationConfig,
+    config::NotificationConfig,
     data::notifications::model::{ExpireTimeout, Urgency},
 };
 

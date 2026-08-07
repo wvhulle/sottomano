@@ -3,7 +3,7 @@ use iced_layershell::reexport::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::niri::{HEdge, VEdge},
     wayland_layers::surface::{Margin, SurfaceSize},
 };
@@ -22,7 +22,7 @@ pub fn slot_placement(
     offset: f32,
     group_height: f32,
     output_height: Option<i32>,
-    config: &ResolvedConfig,
+    config: &Config,
 ) -> SlotPlacement {
     let side = config.notifications.edge_gap.round() as i32;
     let mut anchor = Anchor::empty();
@@ -71,7 +71,7 @@ pub fn slot_placement(
     }
 }
 
-fn edge_inset(offset: f32, config: &ResolvedConfig) -> i32 {
+fn edge_inset(offset: f32, config: &Config) -> i32 {
     (config.layout.outer_height_px + config.notifications.edge_gap + offset).round() as i32
 }
 

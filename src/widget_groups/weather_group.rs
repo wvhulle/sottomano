@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip,
         weather::{Location, Pollen, Rain, Temperature},
@@ -89,7 +89,7 @@ impl WeatherGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, WeatherMessage>> {
         let temp = self.temp.get()?;

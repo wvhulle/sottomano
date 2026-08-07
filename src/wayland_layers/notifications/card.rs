@@ -9,10 +9,7 @@ use iced::{
 
 use super::{Notification, NotificationMessage, markup};
 use crate::{
-    config::{
-        disk::NotificationConfig,
-        resolved::{ResolvedConfig, ResolvedFontConfig, ResolvedPaletteConfig},
-    },
+    config::{Config, NotificationConfig, Palette, font::FontConfig},
     data::{
         notifications::model::{NotifAction, NotifImage, NotificationData, Urgency},
         source::app_icon::DesktopEntries,
@@ -80,7 +77,7 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
     })
 }
 
-pub fn measure_height(data: &NotificationData, icons: &CardIcons, config: &ResolvedConfig) -> f32 {
+pub fn measure_height(data: &NotificationData, icons: &CardIcons, config: &Config) -> f32 {
     let font = &config.font;
     let notifications = &config.notifications;
     let base = TextStyle::of(font);
@@ -152,7 +149,7 @@ pub fn measure_height(data: &NotificationData, icons: &CardIcons, config: &Resol
 pub fn card<'a>(
     notif: &Notification,
     hovered: bool,
-    config: &ResolvedConfig,
+    config: &Config,
 ) -> Element<'a, NotificationMessage> {
     let id = notif.data.id;
     let mut body_row = Row::new()
@@ -190,7 +187,7 @@ struct CardChrome {
     subtext: Color,
 }
 
-fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> CardChrome {
+fn card_chrome(hovered: bool, urgency: Urgency, config: &Config) -> CardChrome {
     let palette = &config.palette;
     let accent = urgency_accent(urgency, palette);
     let base = Color {
@@ -211,7 +208,7 @@ fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> Card
     }
 }
 
-fn urgency_accent(urgency: Urgency, palette: &ResolvedPaletteConfig) -> Color {
+fn urgency_accent(urgency: Urgency, palette: &Palette) -> Color {
     match urgency {
         Urgency::Low => palette.inactive,
         Urgency::Normal => palette.focus,
@@ -222,7 +219,7 @@ fn urgency_accent(urgency: Urgency, palette: &ResolvedPaletteConfig) -> Color {
 fn card_column<'a>(
     notif: &Notification,
     chrome: CardChrome,
-    config: &ResolvedConfig,
+    config: &Config,
 ) -> Column<'a, NotificationMessage> {
     let data = &notif.data;
     let id = data.id;
@@ -346,7 +343,7 @@ fn icon_widget<'a>(icon: &CardIcon, size: f32) -> Element<'a, NotificationMessag
     }
 }
 
-fn action_tint(key: &str, palette: &ResolvedPaletteConfig) -> Color {
+fn action_tint(key: &str, palette: &Palette) -> Color {
     match key {
         "quit" | "deny" | "end" | "reject" => palette.urgent,
         "stop" | "cancel" | "later" | "snooze" => palette.warning,
@@ -358,7 +355,7 @@ fn action_button<'a>(
     label: String,
     message: NotificationMessage,
     tint: Color,
-    font: &ResolvedFontConfig,
+    font: &FontConfig,
 ) -> Element<'a, NotificationMessage> {
     button(bar_text(font, label).size(font.text_size_px).color(tint))
         .padding(BUTTON_PADDING)

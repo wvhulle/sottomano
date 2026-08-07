@@ -9,7 +9,7 @@ use quick_launch::{QuickLaunch, QuickLaunchMessage};
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
-    config::resolved::{ResolvedConfig, ResolvedFontConfig},
+    config::{Config, font::FontConfig},
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     wayland_layers::surface::Position,
 };
@@ -74,7 +74,7 @@ impl WindowGroup {
     pub fn refresh_window_list(
         &mut self,
         niri: &EventStreamState,
-        font: &ResolvedFontConfig,
+        font: &FontConfig,
     ) -> Task<WindowGroupMessage> {
         self.window_list
             .refresh(niri, font)
@@ -86,7 +86,7 @@ impl WindowGroup {
         niri: &niri::Snapshot,
         index: &'a DesktopIndex,
         output: &str,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, WindowGroupMessage>> {
         let quick_launch = self

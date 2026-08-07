@@ -4,7 +4,7 @@ use chrono::{DateTime, Local};
 use iced::{Alignment, Element, widget::Row};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{Tooltip, TooltipBody, font_awesome::FontAwesome, row},
     wayland_layers::tooltip::HoverTarget,
     widgets::{
@@ -121,7 +121,7 @@ impl IdleTimer {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, TimerMessage> {
+    pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, TimerMessage> {
         let slider = self.control.view(config, reveal).map(TimerMessage::Slider);
         let trigger = self.button.view(
             config,

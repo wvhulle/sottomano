@@ -17,7 +17,7 @@ use placement::{ToastPlacement, placement_for, resolve_window_id};
 
 use crate::{
     app::Message,
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::{
         notifications::model::{NotifHandle, NotificationData, Outbound, close_reason},
         sink::sound,
@@ -27,6 +27,7 @@ use crate::{
         },
     },
     message_subscriptions::niri_action,
+    state::NotificationState,
     wayland_layers::surface::{Margin, SurfaceSize},
 };
 
@@ -80,7 +81,8 @@ impl NotificationLayer {
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
         entries: Option<&DesktopEntries>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
         match message {
             NotificationMessage::Connected(handle) => {
@@ -88,7 +90,7 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Served(data) => {
-                if config.dnd {
+                if notif_state.dnd {
                     return Task::none();
                 }
                 let id = data.id;
@@ -110,8 +112,8 @@ impl NotificationLayer {
                     }
                     self.prune_hover();
                 }
-                if config.sound && !data.suppress_sound {
-                    tasks.push(sound::play(&data, config.sound_theme.as_deref()));
+                if notif_state.sound && !data.suppress_sound {
+                    tasks.push(sound::play(&data, notif_state.sound_theme.as_deref()));
                 }
                 let icons = card::resolve_icons(&data, entries);
                 let measured_height = card::measure_height(&data, &icons, config);
@@ -130,15 +132,29 @@ impl NotificationLayer {
                     measured_height,
                 });
                 self.sync_countdowns(now);
-                tasks.push(self.reconcile(placement, outputs, config));
+                tasks.push(self.reconcile(placement, outputs, config, notif_state));
                 Task::batch(tasks)
             }
             NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
                 Some(window) => Task::batch([
                     niri_action(move || niri::focus_window(window)),
-                    self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
+                    self.dismiss(
+                        id,
+                        close_reason::DISMISSED,
+                        placement,
+                        outputs,
+                        config,
+                        notif_state,
+                    ),
                 ]),
-                None => self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
+                None => self.dismiss(
+                    id,
+                    close_reason::DISMISSED,
+                    placement,
+                    outputs,
+                    config,
+                    notif_state,
+                ),
             },
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
@@ -149,19 +165,29 @@ impl NotificationLayer {
                 self.sync_countdowns(Instant::now());
                 Task::none()
             }
-            NotificationMessage::Dismiss(id) => {
-                self.dismiss(id, close_reason::DISMISSED, placement, outputs, config)
-            }
+            NotificationMessage::Dismiss(id) => self.dismiss(
+                id,
+                close_reason::DISMISSED,
+                placement,
+                outputs,
+                config,
+                notif_state,
+            ),
             NotificationMessage::ActionClicked { id, key } => {
-                self.activate_action(id, &key, placement, outputs, config)
+                self.activate_action(id, &key, placement, outputs, config, notif_state)
             }
-            NotificationMessage::CloseRequested(id) => {
-                self.dismiss(id, close_reason::CLOSED_BY_CALL, placement, outputs, config)
-            }
+            NotificationMessage::CloseRequested(id) => self.dismiss(
+                id,
+                close_reason::CLOSED_BY_CALL,
+                placement,
+                outputs,
+                config,
+                notif_state,
+            ),
             NotificationMessage::Resized { id, height } => {
-                self.adopt_measured_height(id, height, placement, outputs, config)
+                self.adopt_measured_height(id, height, placement, outputs, config, notif_state)
             }
-            NotificationMessage::Tick => self.expire(placement, outputs, config),
+            NotificationMessage::Tick => self.expire(placement, outputs, config, notif_state),
         }
     }
 
@@ -169,7 +195,8 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .live
@@ -186,7 +213,7 @@ impl NotificationLayer {
             }));
         }
         self.prune_hover();
-        tasks.push(self.reconcile(placement, outputs, config));
+        tasks.push(self.reconcile(placement, outputs, config, notif_state));
         Task::batch(tasks)
     }
 
@@ -194,7 +221,8 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
         let now = Instant::now();
         let expired: Vec<u32> = self
@@ -217,7 +245,7 @@ impl NotificationLayer {
                 })
             })
             .collect();
-        tasks.push(self.reconcile(placement, outputs, config));
+        tasks.push(self.reconcile(placement, outputs, config, notif_state));
         Task::batch(tasks)
     }
 
@@ -254,7 +282,8 @@ impl NotificationLayer {
         height: f32,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
         let Some(notif) = self.live.iter_mut().find(|n| n.data.id == id) else {
             return Task::none();
@@ -263,7 +292,7 @@ impl NotificationLayer {
             return Task::none();
         }
         notif.measured_height = height;
-        self.reconcile(placement, outputs, config)
+        self.reconcile(placement, outputs, config, notif_state)
     }
 
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
@@ -278,7 +307,8 @@ impl NotificationLayer {
         key: &str,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
         let survives_action_invocation =
             self.live.iter().any(|n| n.data.id == id && n.data.resident);
@@ -307,12 +337,19 @@ impl NotificationLayer {
         } else {
             Task::batch([
                 activation,
-                self.dismiss(id, close_reason::DISMISSED, placement, outputs, config),
+                self.dismiss(
+                    id,
+                    close_reason::DISMISSED,
+                    placement,
+                    outputs,
+                    config,
+                    notif_state,
+                ),
             ])
         }
     }
 
-    pub fn view(&self, id: Id, config: &ResolvedConfig) -> Option<Element<'_, Message>> {
+    pub fn view(&self, id: Id, config: &Config) -> Option<Element<'_, Message>> {
         let (&notif_id, _) = self.surfaces.iter().find(|(_, s)| s.id == id)?;
         let notif = self.live.iter().find(|n| n.data.id == notif_id)?;
         let hovered = self.hovered == Some(notif_id);
@@ -341,13 +378,14 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
-        if config.dnd {
+        if notif_state.dnd {
             self.live.clear();
             self.hovered = None;
         }
-        self.reconcile(placement, outputs, config)
+        self.reconcile(placement, outputs, config, notif_state)
     }
 
     fn dismiss(
@@ -356,7 +394,8 @@ impl NotificationLayer {
         reason: u32,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
         let existed = self.live.iter().any(|n| n.data.id == id);
         self.live.retain(|n| n.data.id != id);
@@ -366,7 +405,10 @@ impl NotificationLayer {
         } else {
             Task::none()
         };
-        Task::batch([closed, self.reconcile(placement, outputs, config)])
+        Task::batch([
+            closed,
+            self.reconcile(placement, outputs, config, notif_state),
+        ])
     }
 
     fn emit(&self, outbound: Outbound) -> Task<Message> {
@@ -386,9 +428,10 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Task<Message> {
-        let desired = self.desired_surfaces(placement, outputs, config);
+        let desired = self.desired_surfaces(placement, outputs, config, notif_state);
         let changes = self.plan_changes(&desired);
         self.apply_changes(changes)
     }
@@ -506,9 +549,10 @@ impl NotificationLayer {
         &self,
         placement: &Placement,
         outputs: &HashMap<String, OutputGeometry>,
-        config: &ResolvedConfig,
+        config: &Config,
+        notif_state: &NotificationState,
     ) -> Vec<DesiredSurface> {
-        if config.dnd {
+        if notif_state.dnd {
             return Vec::new();
         }
         let width = config.notifications.card_width.round() as u32;

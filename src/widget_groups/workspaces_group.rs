@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::niri,
     wayland_layers::surface::Position,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, text::bar_text},
@@ -18,7 +18,7 @@ pub enum WorkspacesMessage {
 pub fn view<'a>(
     niri: &niri::Snapshot,
     output: &str,
-    config: &ResolvedConfig,
+    config: &Config,
     position: Position,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let workspaces = niri.workspaces_for_output(output);
@@ -57,7 +57,7 @@ pub fn view<'a>(
 }
 
 fn window_ticks<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     niri: &niri::Snapshot,
     workspace: u64,
 ) -> Element<'a, WorkspacesMessage> {
@@ -75,10 +75,7 @@ fn window_ticks<'a>(
     Row::with_children(segments).spacing(1.0).into()
 }
 
-fn workspace_label<'a>(
-    config: &ResolvedConfig,
-    p: &niri::WsPill,
-) -> Element<'a, WorkspacesMessage> {
+fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
     let key = if p.idx == 10 {
         "0".to_string()
     } else {

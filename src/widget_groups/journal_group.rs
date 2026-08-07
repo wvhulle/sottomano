@@ -6,7 +6,7 @@ use iced::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip, journal, kernel_errors::KernelErrors, niri, systemd_failed::Failed,
     },
@@ -69,7 +69,7 @@ impl JournalGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, JournalMessage>> {
         let indicators: Vec<Element<'a, JournalMessage>> = [
@@ -126,7 +126,7 @@ fn failed_subscription<const USER: bool>(
 }
 
 fn indicator<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     widget: Option<&dyn BarWidget>,
     target: HoverTarget,
     journalctl_args: Option<Vec<String>>,

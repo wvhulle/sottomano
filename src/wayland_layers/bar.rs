@@ -13,7 +13,8 @@ use iced_layershell::reexport::{
 use crate::{
     app::{Bar, Message},
     blend,
-    config::resolved::ResolvedConfig,
+    config::Config,
+    state::ChromeState,
     wayland_layers::{
         backdrop_shadow,
         blur_caster::{self, Zone},
@@ -110,15 +111,15 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| container::Style {
-            background: (!bar.config.layout.disconnected_groups).then(|| {
+            background: (!bar.session.chrome.disconnected_groups).then(|| {
                 blend::darkened(
                     bar.config.palette.bar_background,
-                    bar.config.darken_chrome_factor,
+                    bar.session.chrome.darken_chrome_factor,
                 )
                 .into()
             }),
             border: iced::Border {
-                radius: bar.config.chrome_radius().into(),
+                radius: bar.session.chrome.radius(&bar.config.layout).into(),
                 ..Default::default()
             },
             text_color: Some(bar.config.palette.bar_foreground),
@@ -129,6 +130,7 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
 
 fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
+    let chrome = &bar.session.chrome;
     let start = zone(
         [
             slot(bar.weather_group.view(config, position), |m| match m {
@@ -166,7 +168,7 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
                 m => Message::Internet(m),
             }),
             slot(
-                bar.panel_settings_group.view(config, position),
+                bar.panel_settings_group.view(config, chrome, position),
                 |m| match m {
                     PanelSettingsMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::PanelSettings(m),
@@ -174,19 +176,26 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
             ),
         ],
         config,
+        chrome,
     );
-    let start = measured(start, config, window, Zone::TopStart);
+    let start = measured(start, chrome, window, Zone::TopStart);
     let center = zone(
         [
             slot(bar.clock_group.view(config, position), Message::Clock),
             slot(
-                notification_group::view(config, position, bar.notifications.is_active()),
+                notification_group::view(
+                    config,
+                    &bar.session.notifications,
+                    position,
+                    bar.notifications.is_active(),
+                ),
                 Message::NotificationGroup,
             ),
         ],
         config,
+        chrome,
     );
-    let center = measured(center, config, window, Zone::TopCenter);
+    let center = measured(center, chrome, window, Zone::TopCenter);
     let end = zone(
         [
             slot(bar.ai_group.view(config, position), |m| match m {
@@ -217,18 +226,19 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
             }),
         ],
         config,
+        chrome,
     );
-    let end = measured(end, config, window, Zone::TopEnd);
+    let end = measured(end, chrome, window, Zone::TopEnd);
     bar_row(start, center, end, config)
 }
 
 fn measured<'a>(
     content: Element<'a, Message>,
-    config: &ResolvedConfig,
+    chrome: &ChromeState,
     window: Id,
     zone: Zone,
 ) -> Element<'a, Message> {
-    if !config.layout.disconnected_groups {
+    if !chrome.disconnected_groups {
         return content;
     }
     bounds_probe(content, move |rects| Message::PillBounds {
@@ -240,9 +250,10 @@ fn measured<'a>(
 
 fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
-    config: &ResolvedConfig,
+    config: &'a Config,
+    chrome: &ChromeState,
 ) -> Element<'a, Message> {
-    let spacing = if config.layout.disconnected_groups {
+    let spacing = if chrome.disconnected_groups {
         config.layout.horizontal_widget_spacing_px
     } else {
         config.layout.horizontal_group_spacing_px
@@ -251,18 +262,22 @@ fn zone<'a>(
         groups
             .into_iter()
             .flatten()
-            .map(|group| pill(group, config)),
+            .map(|group| pill(group, config, chrome)),
     )
     .spacing(spacing)
     .align_y(Alignment::Center)
     .into()
 }
 
-fn pill<'a>(group: Element<'a, Message>, config: &ResolvedConfig) -> Element<'a, Message> {
-    if !config.layout.disconnected_groups {
+fn pill<'a>(
+    group: Element<'a, Message>,
+    config: &Config,
+    chrome: &ChromeState,
+) -> Element<'a, Message> {
+    if !chrome.disconnected_groups {
         return group;
     }
-    let background = blend::darkened(config.palette.bar_background, config.darken_chrome_factor);
+    let background = blend::darkened(config.palette.bar_background, chrome.darken_chrome_factor);
     let radius = config.layout.outer_height_px / 2.0;
     let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
     container(group)
@@ -294,6 +309,7 @@ fn bottom_row<'a>(
     position: Position,
 ) -> Element<'a, Message> {
     let config = &bar.config;
+    let chrome = &bar.session.chrome;
     let start = zone(
         [slot(
             workspaces_group::view(&bar.niri_snapshot, output, config, position),
@@ -303,8 +319,9 @@ fn bottom_row<'a>(
             },
         )],
         config,
+        chrome,
     );
-    let start = measured(start, config, window, Zone::BottomStart);
+    let start = measured(start, chrome, window, Zone::BottomStart);
     let middle = container(measured(
         Row::with_children(
             slot(
@@ -317,10 +334,10 @@ fn bottom_row<'a>(
                 ),
                 Message::WindowGroup,
             )
-            .map(|group| pill(group, config)),
+            .map(|group| pill(group, config, chrome)),
         )
         .into(),
-        config,
+        chrome,
         window,
         Zone::BottomMiddle,
     ))
@@ -331,10 +348,10 @@ fn bottom_row<'a>(
                 TrayMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Tray(m),
             })
-            .map(|group| pill(group, config)),
+            .map(|group| pill(group, config, chrome)),
         )
         .into(),
-        config,
+        chrome,
         window,
         Zone::BottomEnd,
     );
@@ -348,7 +365,7 @@ fn bar_row<'a>(
     start: Element<'a, Message>,
     center: Element<'a, Message>,
     end: Element<'a, Message>,
-    config: &ResolvedConfig,
+    config: &Config,
 ) -> Element<'a, Message> {
     row![
         start,

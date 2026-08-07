@@ -1,7 +1,7 @@
 use iced::{Element, Subscription, Task, widget::mouse_area};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{BarWidget, Source},
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -61,7 +61,7 @@ impl<S: Toggle + Send + 'static> ToggleControl<S> {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         target: HoverTarget,
         alpha: f32,
     ) -> Option<Element<'a, ToggleMessage<S>>> {

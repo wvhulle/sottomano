@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         app_icon::DesktopEntries, desktop_entries::DesktopIndex, font_awesome::Solid, niri,
     },
@@ -78,7 +78,7 @@ impl QuickLaunch {
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
@@ -113,7 +113,7 @@ impl QuickLaunch {
 
     fn icon_slot<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         index: &DesktopIndex,
         app_id: &str,
         reveal: f32,

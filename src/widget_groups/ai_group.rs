@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::{ResolvedConfig, SecretPaths},
+    config::{Config, SecretPaths},
     data::source::{
         BarWidget, Tooltip,
         ai::{
@@ -130,11 +130,7 @@ impl AiGroup {
         }
     }
 
-    pub fn view<'a>(
-        &self,
-        config: &ResolvedConfig,
-        position: Position,
-    ) -> Option<Element<'a, AiMessage>> {
+    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, AiMessage>> {
         let reveal = self.menu.reveal();
         let pills: Vec<Element<'a, AiMessage>> = [
             self.claude_oauth
@@ -194,7 +190,7 @@ fn tooltip_of<S: ApiSource>(cell: &SourceCell<S>) -> Option<Tooltip> {
     (!tooltip.is_empty()).then_some(tooltip)
 }
 
-fn robot_handle<'a, Message: 'a>(config: &ResolvedConfig) -> Element<'a, Message> {
+fn robot_handle<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
     Solid::Robot
         .widget()
         .size(config.font.icon_size_px)

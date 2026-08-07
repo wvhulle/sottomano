@@ -17,7 +17,7 @@ use iced_layershell::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let config = config::resolved::load();
+    let config = config::load();
 
     let mut settings = Settings {
         layer_settings: LayerShellSettings {

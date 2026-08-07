@@ -14,10 +14,10 @@ use iced::{
     },
 };
 
-use crate::config::resolved::ResolvedFontConfig;
+use crate::config::font::FontConfig;
 
 pub fn bar_text<'a>(
-    font: &ResolvedFontConfig,
+    font: &FontConfig,
     content: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     text(content)
@@ -33,7 +33,7 @@ pub struct TextStyle {
 }
 
 impl TextStyle {
-    pub fn of(font: &ResolvedFontConfig) -> Self {
+    pub fn of(font: &FontConfig) -> Self {
         Self {
             font: font.iced_font,
             size: font.text_size_px,
@@ -123,7 +123,7 @@ impl TextStyle {
 }
 
 pub fn fallback_spans<'a>(
-    font: &ResolvedFontConfig,
+    font: &FontConfig,
     content: &str,
     base: Font,
     color: Option<Color>,

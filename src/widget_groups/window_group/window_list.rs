@@ -16,7 +16,10 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    config::resolved::{ResolvedConfig, ResolvedFontConfig, fallback_font},
+    config::{
+        Config,
+        font::{FontConfig, fallback_font},
+    },
     data::source::{
         app_rules::{self, AppRule, IconCandidate, TitleParts},
         desktop_entries::DesktopIndex,
@@ -154,7 +157,7 @@ impl WindowList {
     pub fn refresh(
         &mut self,
         niri: &EventStreamState,
-        font: &ResolvedFontConfig,
+        font: &FontConfig,
     ) -> Task<WindowListMessage> {
         Task::batch([
             self.poll_favicons(niri),
@@ -174,7 +177,7 @@ impl WindowList {
     fn resolve_fallback_fonts(
         &mut self,
         niri: &EventStreamState,
-        font: &ResolvedFontConfig,
+        font: &FontConfig,
     ) -> Task<WindowListMessage> {
         let pending: Vec<char> = niri::all_windows(niri)
             .iter()
@@ -202,7 +205,7 @@ impl WindowList {
         niri: &niri::Snapshot,
         index: &'a DesktopIndex,
         output: &str,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, WindowListMessage>> {
         let workspace = niri.active_workspace_id(output)?;
@@ -241,7 +244,7 @@ struct Icons<'a> {
 }
 
 fn window_button<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     icons: Icons<'a>,
     win: &niri::WinEntry,
     position: Position,
@@ -256,7 +259,7 @@ fn window_button<'a>(
 }
 
 fn button_content<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
@@ -274,7 +277,7 @@ fn button_content<'a>(
 }
 
 fn icon_beside_title<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     icon: Option<Element<'a, WindowListMessage>>,
     title: Element<'a, WindowListMessage>,
 ) -> Element<'a, WindowListMessage> {
@@ -287,7 +290,7 @@ fn icon_beside_title<'a>(
 }
 
 fn focus_line<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     win: &niri::WinEntry,
     alpha: f32,
 ) -> Element<'a, WindowListMessage> {
@@ -314,7 +317,7 @@ fn label_for(win: &niri::WinEntry) -> &str {
 }
 
 fn title_element<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     parts: &TitleParts,
     fallbacks: &HashMap<char, Font>,
     lead_first: bool,
@@ -349,7 +352,7 @@ fn title_element<'a>(
 }
 
 fn window_icon<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,

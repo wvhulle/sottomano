@@ -4,13 +4,13 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{BarWidget, Glyph, level_color},
     widgets::text::bar_text,
 };
 
 pub fn source_reading<'a, Message: 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     widget: Option<&dyn BarWidget>,
     alpha: f32,
 ) -> Option<Element<'a, Message>> {
@@ -57,7 +57,7 @@ pub fn source_reading<'a, Message: 'a>(
 }
 
 fn badged<'a, Message: 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     reading: Element<'a, Message>,
     badge: Option<u32>,
     color: Color,

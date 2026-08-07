@@ -1,7 +1,7 @@
 use iced::{Alignment, Element, Subscription, widget::Row};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip,
         net_interfaces::{
@@ -69,7 +69,7 @@ impl NetInterfacesGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, NetInterfacesMessage>> {
         let indicators: Vec<Element<'a, NetInterfacesMessage>> = [
@@ -112,7 +112,7 @@ impl NetInterfacesGroup {
 }
 
 fn indicator<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     widget: Option<&dyn BarWidget>,
     target: HoverTarget,
 ) -> Option<Element<'a, NetInterfacesMessage>> {

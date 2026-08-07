@@ -5,7 +5,7 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         Tooltip, TooltipBody,
         desktop_entries::DesktopIndex,
@@ -138,7 +138,7 @@ impl MediaGroup {
 
     fn sources<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         index: &DesktopIndex,
         current: &Media,
         reveal: f32,
@@ -198,7 +198,7 @@ impl MediaGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         index: &DesktopIndex,
         position: Position,
     ) -> Option<Element<'a, MediaMessage>> {
@@ -239,7 +239,7 @@ impl MediaGroup {
 }
 
 fn handle<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     media: &Media,
     status: Status,
     alpha: f32,
@@ -264,7 +264,7 @@ fn handle<'a>(
 }
 
 fn source_icon<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     index: &DesktopIndex,
     media: &Media,
     side: f32,
@@ -317,7 +317,7 @@ fn player_icon(media: &Media) -> FontAwesome {
 }
 
 fn transport<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     media: &Media,
     status: Status,
     reveal: f32,

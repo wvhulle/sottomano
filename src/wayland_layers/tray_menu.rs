@@ -11,7 +11,7 @@ use iced_layershell::reexport::{
 
 use crate::{
     app::Message,
-    config::resolved::ResolvedConfig,
+    config::Config,
     wayland_layers::{
         surface::{Position, SurfaceSize},
         tooltip::{MenuAnchor, panel_left, tooltip_margin},
@@ -65,7 +65,7 @@ impl TrayMenuHost {
         menu_path: String,
         nodes: Vec<MenuNode>,
         place: &MenuAnchor,
-        config: &ResolvedConfig,
+        config: &Config,
     ) -> Task<Message> {
         let close = self.close();
         let surface = Id::unique();
@@ -116,7 +116,7 @@ impl TrayMenuHost {
         }
     }
 
-    pub fn resize(&mut self, surface: Id, size: Size, config: &ResolvedConfig) -> Task<Message> {
+    pub fn resize(&mut self, surface: Id, size: Size, config: &Config) -> Task<Message> {
         let Some(menu) = &mut self.shown else {
             return Task::none();
         };
@@ -144,17 +144,13 @@ impl TrayMenuHost {
         ])
     }
 
-    pub fn view<'a>(
-        &self,
-        surface: Id,
-        config: &'a ResolvedConfig,
-    ) -> Option<Element<'a, Message>> {
+    pub fn view<'a>(&self, surface: Id, config: &'a Config) -> Option<Element<'a, Message>> {
         let menu = self.shown.as_ref().filter(|menu| menu.surface == surface)?;
         Some(menu_surface(surface, menu, config))
     }
 }
 
-fn menu_settings(place: &MenuAnchor, config: &ResolvedConfig) -> NewLayerShellSettings {
+fn menu_settings(place: &MenuAnchor, config: &Config) -> NewLayerShellSettings {
     let bar = config.layout.outer_height_px as i32;
     let left = panel_left(place.anchor.x, place.output_width, MENU_PROVISIONAL.width);
     let anchor = match place.position {
@@ -174,11 +170,7 @@ fn menu_settings(place: &MenuAnchor, config: &ResolvedConfig) -> NewLayerShellSe
     }
 }
 
-fn menu_surface<'a>(
-    surface: Id,
-    menu: &OpenMenu,
-    config: &'a ResolvedConfig,
-) -> Element<'a, Message> {
+fn menu_surface<'a>(surface: Id, menu: &OpenMenu, config: &'a Config) -> Element<'a, Message> {
     let paint = if menu.settled { 1.0 } else { 0.0 };
     let body = context_menu(
         config,
