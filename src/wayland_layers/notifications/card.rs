@@ -28,6 +28,7 @@ const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const WIDEST_RELTIME: &str = "59 min ago";
 const URGENCY_TINT_ALPHA: f32 = 0.25;
+const SUBTEXT_ALPHA: f32 = 0.5;
 const RESTING_BORDER_ALPHA: f32 = 0.6;
 
 #[derive(Debug, Clone)]
@@ -86,6 +87,32 @@ fn over(fg: Color, bg: Color) -> Color {
         b: bg.b * (1.0 - fg.a) + fg.b * fg.a,
         a: 1.0,
     }
+}
+
+fn relative_luminance(color: Color) -> f32 {
+    let channel = |c: f32| {
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b)
+}
+
+fn contrast_ratio(one: Color, other: Color) -> f32 {
+    let (a, b) = (relative_luminance(one), relative_luminance(other));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+fn most_legible_on(background: Color, candidates: [Color; 2]) -> Color {
+    candidates
+        .into_iter()
+        .map(|candidate| over(candidate, background))
+        .max_by(|one, other| {
+            contrast_ratio(*one, background).total_cmp(&contrast_ratio(*other, background))
+        })
+        .unwrap_or(background)
 }
 
 pub fn measure_height(data: &NotificationData, icons: &CardIcons, config: &ResolvedConfig) -> f32 {
@@ -169,9 +196,9 @@ pub fn card<'a>(
     if let Some(icon) = icon_slot(&notif.icons, &config.notifications) {
         body_row = body_row.push(icon);
     }
-    body_row = body_row.push(card_column(notif, config));
-
     let chrome = card_chrome(hovered, notif.data.urgency, config);
+    body_row = body_row.push(card_column(notif, chrome, config));
+
     let panel = container(body_row)
         .width(Length::Fixed(config.notifications.card_width))
         .padding(PADDING_PX)
@@ -195,6 +222,7 @@ struct CardChrome {
     background: Color,
     border: Border,
     foreground: Color,
+    subtext: Color,
 }
 
 fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> CardChrome {
@@ -226,6 +254,16 @@ fn card_chrome(hovered: bool, urgency: Urgency, config: &ResolvedConfig) -> Card
             radius: f32::from(config.layout.corner_radius_px).into(),
         },
         foreground: palette.bar_foreground,
+        subtext: most_legible_on(
+            background,
+            [
+                palette.dim,
+                Color {
+                    a: SUBTEXT_ALPHA,
+                    ..palette.bar_foreground
+                },
+            ],
+        ),
     }
 }
 
@@ -239,6 +277,7 @@ fn urgency_tint(urgency: Urgency, palette: &ResolvedPaletteConfig) -> Color {
 
 fn card_column<'a>(
     notif: &Notification,
+    chrome: CardChrome,
     config: &ResolvedConfig,
 ) -> Column<'a, NotificationMessage> {
     let data = &notif.data;
@@ -246,8 +285,8 @@ fn card_column<'a>(
     let font = &config.font;
     let palette = &config.palette;
 
-    let foreground = palette.bar_foreground;
-    let dim = palette.dim;
+    let foreground = chrome.foreground;
+    let dim = chrome.subtext;
     let body_color = palette.inactive;
 
     let button_actions: Vec<&NotifAction> = data
@@ -399,4 +438,64 @@ fn action_button<'a>(
         })
         .on_press(message)
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BLACK: Color = Color::BLACK;
+    const WHITE: Color = Color::WHITE;
+
+    fn rgb(r: u8, g: u8, b: u8) -> Color {
+        Color::from_rgb8(r, g, b)
+    }
+
+    #[test]
+    fn black_on_white_is_maximum_contrast() {
+        assert!((contrast_ratio(BLACK, WHITE) - 21.0).abs() < 0.01);
+        assert!((contrast_ratio(WHITE, WHITE) - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn contrast_ratio_is_symmetric() {
+        let one = rgb(0xbd, 0xae, 0x93);
+        let other = rgb(0x3e, 0x12, 0x0d);
+        assert!((contrast_ratio(one, other) - contrast_ratio(other, one)).abs() < 0.001);
+    }
+
+    #[test]
+    fn subtext_rejects_a_dim_darker_than_the_card() {
+        let tinted_fill = rgb(0x3c, 0x1c, 0x1e);
+        let unusable_dim = rgb(0x3e, 0x4b, 0x59);
+        let derived = Color {
+            a: SUBTEXT_ALPHA,
+            ..rgb(0xe6, 0xe1, 0xcf)
+        };
+        let chosen = most_legible_on(tinted_fill, [unusable_dim, derived]);
+        assert!(contrast_ratio(chosen, tinted_fill) > contrast_ratio(unusable_dim, tinted_fill));
+        assert!(contrast_ratio(chosen, tinted_fill) > 3.0);
+    }
+
+    #[test]
+    fn subtext_keeps_a_legible_dim() {
+        let tinted_fill = rgb(0x3e, 0x12, 0x0d);
+        let legible_dim = Color { a: 0.5, ..WHITE };
+        let chosen = most_legible_on(tinted_fill, [legible_dim, legible_dim]);
+        assert_eq!(chosen, over(legible_dim, tinted_fill));
+    }
+
+    #[test]
+    fn urgency_tint_lightens_the_card_away_from_black() {
+        let fill = over(
+            Color {
+                a: URGENCY_TINT_ALPHA,
+                ..rgb(0xfb, 0x49, 0x34)
+            },
+            BLACK,
+        );
+        assert!(relative_luminance(fill) > relative_luminance(BLACK));
+        assert!(contrast_ratio(WHITE, fill) > 4.5);
+        assert!(contrast_ratio(rgb(0xbd, 0xae, 0x93), fill) > 4.5);
+    }
 }
