@@ -1,4 +1,4 @@
-use crate::state::{BoxError, open, text};
+use crate::state::{BoxError, Session, open, text};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_settings (
     key TEXT PRIMARY KEY,
@@ -13,23 +13,12 @@ const DARKEN_CHROME_FACTOR: &str = "darken_chrome_factor";
 const DND: &str = "dnd";
 const SOUND: &str = "sound";
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PanelSettings {
-    pub floating: Option<bool>,
-    pub float_offset_px: Option<f32>,
-    pub blur_background: Option<bool>,
-    pub disconnected_groups: Option<bool>,
-    pub darken_chrome_factor: Option<f32>,
-    pub dnd: bool,
-    pub sound: Option<bool>,
-}
-
-pub async fn load() -> PanelSettings {
+pub async fn load() -> Session {
     match try_load().await {
-        Ok(settings) => settings,
+        Ok(session) => session,
         Err(e) => {
             eprintln!("panel settings: load failed: {e}");
-            PanelSettings::default()
+            Session::default()
         }
     }
 }
@@ -83,25 +72,27 @@ async fn try_put(key: &str, value: &str) -> Result<(), BoxError> {
     Ok(())
 }
 
-async fn try_load() -> Result<PanelSettings, BoxError> {
+async fn try_load() -> Result<Session, BoxError> {
     let conn = open().await?;
     let mut rows = conn
         .query("SELECT key, value FROM panel_settings", ())
         .await?;
-    let mut settings = PanelSettings::default();
+    let mut session = Session::default();
     while let Some(row) = rows.next().await? {
         let key = text(&row, 0)?;
         let value = text(&row, 1)?;
         match key.as_str() {
-            FLOATING => settings.floating = Some(value != "0"),
-            FLOAT_OFFSET => settings.float_offset_px = value.parse().ok(),
-            BLUR_BACKGROUND => settings.blur_background = Some(value != "0"),
-            DISCONNECTED_GROUPS => settings.disconnected_groups = Some(value != "0"),
-            DARKEN_CHROME_FACTOR => settings.darken_chrome_factor = value.parse().ok(),
-            DND => settings.dnd = value != "0",
-            SOUND => settings.sound = Some(value != "0"),
+            FLOATING => session.chrome.floating = value != "0",
+            FLOAT_OFFSET => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
+            BLUR_BACKGROUND => session.chrome.blur_background = value != "0",
+            DISCONNECTED_GROUPS => session.chrome.disconnected_groups = value != "0",
+            DARKEN_CHROME_FACTOR => {
+                session.chrome.darken_chrome_factor = value.parse().unwrap_or_default();
+            }
+            DND => session.notifications.dnd = value != "0",
+            SOUND => session.notifications.sound = value != "0",
             _ => {}
         }
     }
-    Ok(settings)
+    Ok(session)
 }

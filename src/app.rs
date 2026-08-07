@@ -10,16 +10,19 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip, TooltipBody,
-        app_icon::{self, DesktopEntries},
-        desktop_entries::{self, DesktopIndex, ResolvedIcons},
-        launch_tracker::{Buckets, LaunchTracker},
-        niri,
-        tray::TrayCommand,
+    data::{
+        sink::sound,
+        source::{
+            Tooltip, TooltipBody,
+            app_icon::{self, DesktopEntries},
+            desktop_entries::{self, DesktopIndex, ResolvedIcons},
+            launch_tracker::{Buckets, LaunchTracker},
+            niri,
+            tray::TrayCommand,
+        },
     },
     message_subscriptions::{blocking, niri_action},
-    state::{self, Session, session_sound_theme},
+    state::{self, Session},
     wayland_layers::{
         backdrop_shadow,
         bar::{float_margin, layer_settings, view},
@@ -107,7 +110,7 @@ pub enum Message {
     Media(MediaMessage),
     Tray(TrayMessage),
     Idle(IdleEvent),
-    PanelLoaded(state::panel::PanelSettings),
+    PanelLoaded(Session),
     SoundThemeLoaded(Option<String>),
     Audio(AudioMessage),
     PowerProfile(PowerProfileMessage),
@@ -140,23 +143,23 @@ pub enum Message {
 impl Bar {
     pub fn new(config: Config) -> (Self, Task<Message>) {
         let bar = Self {
-            weather_group: WeatherGroup::new(config.layout.menu_expand_ms),
+            weather_group: WeatherGroup::new(config.widgets.menu_expand_ms),
             battery_group: BatteryGroup::default(),
-            system_group: SystemGroup::new(config.layout.menu_expand_ms),
-            panel_settings_group: PanelSettingsGroup::new(config.layout.menu_expand_ms),
-            clock_group: ClockGroup::new(config.layout.menu_expand_ms),
+            system_group: SystemGroup::new(config.widgets.menu_expand_ms),
+            panel_settings_group: PanelSettingsGroup::new(config.widgets.menu_expand_ms),
+            clock_group: ClockGroup::new(config.widgets.menu_expand_ms),
             journal_group: JournalGroup::default(),
-            internet_group: InternetGroup::new(config.layout.menu_expand_ms),
+            internet_group: InternetGroup::new(config.widgets.menu_expand_ms),
             net_interfaces_group: NetInterfacesGroup::default(),
-            monitor_group: MonitorGroup::new(config.layout.menu_expand_ms),
-            idle_timeouts_group: IdleTimeoutsGroup::new(config.layout.menu_expand_ms),
-            media_group: MediaGroup::new(config.layout.menu_expand_ms),
+            monitor_group: MonitorGroup::new(config.widgets.menu_expand_ms),
+            idle_timeouts_group: IdleTimeoutsGroup::new(config.widgets.menu_expand_ms),
+            media_group: MediaGroup::new(config.widgets.menu_expand_ms),
             audio_group: AudioGroup::default(),
             power_profile_group: PowerProfileGroup::default(),
-            ai_group: AiGroup::new(config.layout.menu_expand_ms, config.secrets.clone()),
-            tray_group: TrayGroup::new(config.layout.menu_expand_ms),
+            ai_group: AiGroup::new(config.widgets.menu_expand_ms, config.secrets.clone()),
+            tray_group: TrayGroup::new(config.widgets.menu_expand_ms),
             tray_menu: TrayMenuHost::default(),
-            window_group: WindowGroup::new(config.layout.menu_expand_ms),
+            window_group: WindowGroup::new(config.widgets.menu_expand_ms),
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
             niri_snapshot: niri::Snapshot::default(),
@@ -167,7 +170,7 @@ impl Bar {
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
-            session: Session::initial(&config.layout),
+            session: Session::default(),
             config,
         };
         let init = Task::batch([
@@ -177,7 +180,7 @@ impl Bar {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
             Task::perform(state::panel::load(), Message::PanelLoaded),
-            blocking("sound theme", session_sound_theme).map(Message::SoundThemeLoaded),
+            blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
         ]);
         (bar, init)
@@ -232,7 +235,7 @@ impl Bar {
             Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
             Message::Idle(IdleEvent::Connected(handle)) => self.connect_idle_notifier(handle),
             Message::SoundThemeLoaded(theme) => self.adopt_sound_theme(theme),
-            Message::PanelLoaded(settings) => self.apply_saved_panel_settings(&settings),
+            Message::PanelLoaded(session) => self.apply_saved_panel_settings(session),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::PowerProfile(msg) => self
                 .power_profile_group
@@ -303,7 +306,7 @@ impl Bar {
     }
 
     fn adopt_sound_theme(&mut self, theme: Option<String>) -> Task<Message> {
-        self.session.notifications.sound_theme = theme;
+        self.notifications.adopt_sound_theme(theme);
         Task::none()
     }
 
@@ -448,11 +451,8 @@ impl Bar {
         }
     }
 
-    fn apply_saved_panel_settings(
-        &mut self,
-        settings: &state::panel::PanelSettings,
-    ) -> Task<Message> {
-        self.session.absorb_saved(settings);
+    fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
+        self.session = session;
         self.panel_settings_group
             .sync_offset(self.session.chrome.float_offset_px);
         self.panel_settings_group
@@ -741,7 +741,7 @@ impl Bar {
     }
 
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.layout.outer_height_px as u32;
+        let height = self.config.chrome.outer_height_px as u32;
         let offset = self.session.chrome.margin_offset_px();
         let settings = layer_settings(output, position, height, float_margin(position, offset));
         let id = Id::unique();
@@ -760,7 +760,7 @@ impl Bar {
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.layout.outer_height_px as u32;
+        let height = self.config.chrome.outer_height_px as u32;
         let settings = backdrop_shadow::settings(output, position, height);
         let id = Id::unique();
         self.backdrops.insert(id);
@@ -772,7 +772,7 @@ impl Bar {
             .into_iter()
             .map(|position| self.open_bar(output, position))
             .collect();
-        if self.config.layout.shadow {
+        if self.config.chrome.shadow {
             opens.extend(
                 Position::ALL
                     .into_iter()

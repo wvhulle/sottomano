@@ -77,7 +77,7 @@ impl ClockGroup {
 
         let content = Row::new()
             .push(bar_text(&config.font, self.date_text.clone()))
-            .spacing(config.layout.horizontal_widget_spacing_px)
+            .spacing(config.spacing.widget_spacing_px)
             .align_y(Alignment::Center);
 
         let reveal = self.menu.reveal();

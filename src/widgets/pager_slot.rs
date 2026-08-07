@@ -46,7 +46,7 @@ pub fn permanently_inactive_slot<'a, Message: 'a>(
     let inactive_indicator = activity_line(
         config.palette.focus,
         0.0,
-        config.layout.focus_underline_thickness_px,
+        config.widgets.focus_underline_thickness_px,
     );
     PagerSlot::new(content, inactive_indicator).view(position)
 }

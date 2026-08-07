@@ -129,7 +129,7 @@ impl IdleTimer {
             self.timeout.is_some(),
             TimerMessage::Trigger,
         );
-        let pair_gap = config.layout.horizontal_widget_spacing_px * 0.25;
+        let pair_gap = config.spacing.widget_spacing_px * 0.25;
         Row::with_children([slider, trigger])
             .spacing(pair_gap)
             .align_y(Alignment::Center)

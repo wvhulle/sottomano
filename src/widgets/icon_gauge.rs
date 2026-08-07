@@ -39,13 +39,13 @@ pub fn source_reading<'a, Message: 'a>(
             icon,
             gauge(value.percent(), color, config.font.icon_size_px)
         ]
-        .spacing(config.layout.horizontal_widget_spacing_px)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center)
         .into(),
         None => match widget.label() {
             Some(label) if !label.is_empty() => {
                 row![icon, bar_text(&config.font, label).color(color)]
-                    .spacing(config.layout.horizontal_widget_spacing_px)
+                    .spacing(config.spacing.widget_spacing_px)
                     .align_y(Alignment::Center)
                     .into()
             }

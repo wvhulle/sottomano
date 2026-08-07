@@ -201,7 +201,7 @@ fn card_chrome(hovered: bool, urgency: Urgency, config: &Config) -> CardChrome {
         border: Border {
             color: if hovered { accent } else { rest },
             width: if hovered { 3.0 } else { 2.0 },
-            radius: f32::from(config.layout.corner_radius_px).into(),
+            radius: f32::from(config.chrome.corner_radius_px).into(),
         },
         foreground: palette.bar_foreground,
         subtext: readable(background, palette.dim),

@@ -109,7 +109,7 @@ impl TrayGroup {
             .enumerate()
             .map(|(index, item)| item_view(config, item, index, reveal));
         let content = Row::with_children(icons)
-            .spacing(config.layout.horizontal_widget_spacing_px)
+            .spacing(config.spacing.widget_spacing_px)
             .align_y(Alignment::Center);
 
         Some(self.menu.view(
@@ -165,7 +165,7 @@ fn item_view<'a>(
             activity_line(
                 config.palette.focus,
                 reveal,
-                config.layout.focus_underline_thickness_px,
+                config.widgets.focus_underline_thickness_px,
             ),
         ])
         .spacing(1.0)
