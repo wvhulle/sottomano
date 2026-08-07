@@ -1,8 +1,7 @@
 use iced::{Alignment, Element, Length, widget::Column};
 
 use crate::{
-    config::resolved::ResolvedConfig, wayland_layers::surface::Position,
-    widgets::activity_line::activity_line,
+    config::Config, wayland_layers::surface::Position, widgets::activity_line::activity_line,
 };
 
 pub struct PagerSlot<'a, Message> {
@@ -41,7 +40,7 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
 
 pub fn permanently_inactive_slot<'a, Message: 'a>(
     content: Element<'a, Message>,
-    config: &ResolvedConfig,
+    config: &Config,
     position: Position,
 ) -> Element<'a, Message> {
     let inactive_indicator = activity_line(

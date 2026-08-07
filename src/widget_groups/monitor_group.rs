@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip, TooltipBody,
         backlight::{self, Backlight},
@@ -235,7 +235,7 @@ impl MonitorGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, MonitorMessage>> {
         let mut children: Vec<Element<'a, MonitorMessage>> = Vec::new();
@@ -276,7 +276,7 @@ impl MonitorGroup {
         ))
     }
 
-    fn handle<'a>(config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
+    fn handle<'a>(config: &Config) -> Element<'a, MonitorMessage> {
         mouse_area(
             Solid::Lightbulb
                 .widget()
@@ -287,14 +287,14 @@ impl MonitorGroup {
         .into()
     }
 
-    fn dim_slider<'a>(&self, config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
+    fn dim_slider<'a>(&self, config: &Config) -> Element<'a, MonitorMessage> {
         self.dim.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
             m => MonitorMessage::Dim(m),
         })
     }
 
-    fn warmth_slider<'a>(&self, config: &ResolvedConfig) -> Element<'a, MonitorMessage> {
+    fn warmth_slider<'a>(&self, config: &Config) -> Element<'a, MonitorMessage> {
         self.warmth.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
             m => MonitorMessage::Warmth(m),
@@ -303,7 +303,7 @@ impl MonitorGroup {
 }
 
 fn backlight_slider<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     control: &SliderControl,
     serial: &str,
 ) -> Element<'a, MonitorMessage> {

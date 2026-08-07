@@ -7,7 +7,7 @@ use font_awesome::{Brands, FontAwesome, Solid};
 use iced::Color;
 use simple_icons::SimpleIcon;
 
-use crate::config::resolved::ResolvedConfig;
+use crate::config::Config;
 
 pub mod ai;
 pub mod app_icon;
@@ -165,7 +165,7 @@ impl Tooltip {
     }
 }
 
-pub fn level_color(config: &ResolvedConfig, level: Level) -> Color {
+pub fn level_color(config: &Config, level: Level) -> Color {
     match level {
         Level::Ok => config.palette.bar_foreground,
         Level::Warning => config.palette.warning,

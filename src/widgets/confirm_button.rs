@@ -1,6 +1,6 @@
 use iced::{Element, widget::mouse_area};
 
-use crate::{config::resolved::ResolvedConfig, data::source::font_awesome::Solid};
+use crate::{config::Config, data::source::font_awesome::Solid};
 
 pub enum Press {
     Fire,
@@ -36,7 +36,7 @@ impl ConfirmButton {
 
     pub fn view<'a, Message: 'a + Clone>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         alpha: f32,
         active: bool,
         on_press: Message,

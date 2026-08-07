@@ -9,7 +9,7 @@ use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
-    config::resolved::{ResolvedConfig, session_sound_theme},
+    config::Config,
     data::source::{
         Tooltip, TooltipBody,
         app_icon::{self, DesktopEntries},
@@ -19,7 +19,7 @@ use crate::{
         tray::TrayCommand,
     },
     message_subscriptions::{blocking, niri_action},
-    state,
+    state::{self, Session, session_sound_theme},
     wayland_layers::{
         backdrop_shadow,
         bar::{float_margin, layer_settings, view},
@@ -59,7 +59,8 @@ use crate::{
 };
 
 pub struct Bar {
-    pub(crate) config: ResolvedConfig,
+    pub(crate) config: Config,
+    pub(crate) session: Session,
     pub(crate) weather_group: WeatherGroup,
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
@@ -137,7 +138,7 @@ pub enum Message {
 }
 
 impl Bar {
-    pub fn new(config: ResolvedConfig) -> (Self, Task<Message>) {
+    pub fn new(config: Config) -> (Self, Task<Message>) {
         let bar = Self {
             weather_group: WeatherGroup::new(config.layout.menu_expand_ms),
             battery_group: BatteryGroup::default(),
@@ -166,6 +167,7 @@ impl Bar {
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
+            session: Session::initial(&config.layout),
             config,
         };
         let init = Task::batch([
@@ -254,9 +256,14 @@ impl Bar {
                 window,
                 zone,
                 rects,
-            } => self
-                .blur_casters
-                .pill_rects(window, zone, &rects, &self.config, &self.surfaces),
+            } => self.blur_casters.pill_rects(
+                window,
+                zone,
+                &rects,
+                &self.config,
+                &self.session.chrome,
+                &self.surfaces,
+            ),
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.close(),
             Message::Notification(msg) => self.update_notification(msg),
@@ -296,7 +303,7 @@ impl Bar {
     }
 
     fn adopt_sound_theme(&mut self, theme: Option<String>) -> Task<Message> {
-        self.config.sound_theme = theme;
+        self.session.notifications.sound_theme = theme;
         Task::none()
     }
 
@@ -328,14 +335,19 @@ impl Bar {
             &self.outputs,
             self.desktop_entries.get(),
             &self.config,
+            &self.session.notifications,
         )
     }
 
     fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputGeometry>) -> Task<Message> {
         self.outputs = outputs;
         let placement = niri::Placement::derive(&self.niri);
-        self.notifications
-            .on_niri_changed(&placement, &self.outputs, &self.config)
+        self.notifications.on_niri_changed(
+            &placement,
+            &self.outputs,
+            &self.config,
+            &self.session.notifications,
+        )
     }
 
     fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
@@ -367,17 +379,21 @@ impl Bar {
     fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
         match msg {
             NotificationGroupMessage::ToggleDoNotDisturb => {
-                self.config.dnd = !self.config.dnd;
+                self.session.notifications.dnd = !self.session.notifications.dnd;
                 let placement = niri::Placement::derive(&self.niri);
-                let applied = self
-                    .notifications
-                    .sync_dnd(&placement, &self.outputs, &self.config);
-                let save = Task::future(state::panel::save_dnd(self.config.dnd)).discard();
+                let applied = self.notifications.sync_dnd(
+                    &placement,
+                    &self.outputs,
+                    &self.config,
+                    &self.session.notifications,
+                );
+                let save =
+                    Task::future(state::panel::save_dnd(self.session.notifications.dnd)).discard();
                 Task::batch([applied, save])
             }
             NotificationGroupMessage::ToggleSound => {
-                self.config.sound = !self.config.sound;
-                Task::future(state::panel::save_sound(self.config.sound)).discard()
+                self.session.notifications.sound = !self.session.notifications.sound;
+                Task::future(state::panel::save_sound(self.session.notifications.sound)).discard()
             }
         }
     }
@@ -436,32 +452,15 @@ impl Bar {
         &mut self,
         settings: &state::panel::PanelSettings,
     ) -> Task<Message> {
-        if let Some(floating) = settings.floating {
-            self.config.layout.floating = floating;
-        }
-        if let Some(offset) = settings.float_offset_px {
-            self.config.float_offset_px = offset;
-        }
-        if let Some(disconnected) = settings.disconnected_groups {
-            self.config.layout.disconnected_groups = disconnected;
-        }
-        if let Some(blur) = settings.blur_background {
-            self.config.layout.blur_background = blur;
-        }
-        self.config.dnd = settings.dnd;
-        if let Some(sound) = settings.sound {
-            self.config.sound = sound;
-        }
-        if let Some(factor) = settings.darken_chrome_factor {
-            self.config.darken_chrome_factor = factor;
-        }
+        self.session.absorb_saved(settings);
         self.panel_settings_group
-            .sync_offset(self.config.float_offset_px);
+            .sync_offset(self.session.chrome.float_offset_px);
         self.panel_settings_group
-            .sync_darken(self.config.darken_chrome_factor * 100.0);
+            .sync_darken(self.session.chrome.darken_chrome_factor * 100.0);
         Task::batch([
             self.remargin_surfaces(),
-            self.blur_casters.rebuild(&self.config, &self.surfaces),
+            self.blur_casters
+                .rebuild(&self.config, &self.session.chrome, &self.surfaces),
         ])
     }
 
@@ -482,7 +481,7 @@ impl Bar {
             .or_else(|| self.weather_group.tooltip_for(target))
             .or_else(|| self.media_group.tooltip_for(target))
             .or_else(|| self.ai_group.tooltip_for(target))
-            .or_else(|| panel_settings_group::tooltip_for(target, &self.config))
+            .or_else(|| panel_settings_group::tooltip_for(target, &self.session.chrome))
             .unwrap_or_else(Tooltip::empty)
     }
 
@@ -611,10 +610,12 @@ impl Bar {
         }
         if self.notifications.is_active() {
             let placement = niri::Placement::derive(&self.niri);
-            tasks.push(
-                self.notifications
-                    .on_niri_changed(&placement, &self.outputs, &self.config),
-            );
+            tasks.push(self.notifications.on_niri_changed(
+                &placement,
+                &self.outputs,
+                &self.config,
+                &self.session.notifications,
+            ));
         }
         Task::batch(tasks)
     }
@@ -661,37 +662,41 @@ impl Bar {
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
         match msg {
             PanelSettingsMessage::ToggleFloating => {
-                self.config.layout.floating = !self.config.layout.floating;
-                let floating = self.config.layout.floating;
+                self.session.chrome.floating = !self.session.chrome.floating;
+                let floating = self.session.chrome.floating;
                 Task::batch([
                     self.remargin_surfaces(),
-                    self.blur_casters.reposition(&self.config, &self.surfaces),
+                    self.blur_casters
+                        .reposition(&self.session.chrome, &self.surfaces),
                     Task::future(state::panel::save_floating(floating)).discard(),
                 ])
             }
             PanelSettingsMessage::ToggleBlurBackground => {
-                self.config.layout.blur_background = !self.config.layout.blur_background;
-                let blur = self.config.layout.blur_background;
+                self.session.chrome.blur_background = !self.session.chrome.blur_background;
+                let blur = self.session.chrome.blur_background;
                 Task::batch([
-                    self.blur_casters.rebuild(&self.config, &self.surfaces),
+                    self.blur_casters
+                        .rebuild(&self.config, &self.session.chrome, &self.surfaces),
                     Task::future(state::panel::save_blur_background(blur)).discard(),
                 ])
             }
             PanelSettingsMessage::ToggleDisconnectedGroups => {
-                self.config.layout.disconnected_groups = !self.config.layout.disconnected_groups;
-                let disconnected = self.config.layout.disconnected_groups;
+                self.session.chrome.disconnected_groups = !self.session.chrome.disconnected_groups;
+                let disconnected = self.session.chrome.disconnected_groups;
                 Task::batch([
-                    self.blur_casters.rebuild(&self.config, &self.surfaces),
+                    self.blur_casters
+                        .rebuild(&self.config, &self.session.chrome, &self.surfaces),
                     Task::future(state::panel::save_disconnected_groups(disconnected)).discard(),
                 ])
             }
             PanelSettingsMessage::Offset(msg) => {
                 match self.panel_settings_group.update_offset(msg) {
                     SliderAction::Commit(offset) => {
-                        self.config.float_offset_px = offset;
+                        self.session.chrome.float_offset_px = offset;
                         Task::batch([
                             self.remargin_surfaces(),
-                            self.blur_casters.reposition(&self.config, &self.surfaces),
+                            self.blur_casters
+                                .reposition(&self.session.chrome, &self.surfaces),
                             Task::future(state::panel::save_float_offset(offset)).map(move |ok| {
                                 Message::PanelSettings(PanelSettingsMessage::Offset(
                                     ControlMessage::Confirmed { value: offset, ok },
@@ -705,9 +710,9 @@ impl Bar {
             PanelSettingsMessage::Darken(msg) => {
                 match self.panel_settings_group.update_darken(msg) {
                     SliderAction::Commit(percent) => {
-                        self.config.darken_chrome_factor = percent / 100.0;
+                        self.session.chrome.darken_chrome_factor = percent / 100.0;
                         Task::future(state::panel::save_darken_chrome_factor(
-                            self.config.darken_chrome_factor,
+                            self.session.chrome.darken_chrome_factor,
                         ))
                         .map(move |ok| {
                             Message::PanelSettings(PanelSettingsMessage::Darken(
@@ -726,11 +731,7 @@ impl Bar {
     }
 
     fn remargin_surfaces(&self) -> Task<Message> {
-        let offset = if self.config.layout.floating {
-            self.config.float_offset_px as i32
-        } else {
-            0
-        };
+        let offset = self.session.chrome.margin_offset_px();
         Task::batch(self.surfaces.iter().map(|(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
@@ -741,20 +742,19 @@ impl Bar {
 
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
         let height = self.config.layout.outer_height_px as u32;
-        let offset = if self.config.layout.floating {
-            self.config.float_offset_px as i32
-        } else {
-            0
-        };
+        let offset = self.session.chrome.margin_offset_px();
         let settings = layer_settings(output, position, height, float_margin(position, offset));
         let id = Id::unique();
         let surface = Surface {
             output: output.to_string(),
             position,
         };
-        let strip = self
-            .blur_casters
-            .open_strip_for_new_bar(id, &surface, &self.config);
+        let strip = self.blur_casters.open_strip_for_new_bar(
+            id,
+            &surface,
+            &self.config,
+            &self.session.chrome,
+        );
         self.surfaces.insert(id, surface);
         Task::batch([Task::done(Message::NewLayerShell { settings, id }), strip])
     }

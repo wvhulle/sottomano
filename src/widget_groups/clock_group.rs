@@ -10,7 +10,7 @@ use iced::{
 use tokio::time::sleep;
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     wayland_layers::surface::Position,
     widgets::{
         menu_group::{MenuGroup, MenuMessage},
@@ -69,11 +69,7 @@ impl ClockGroup {
         })
     }
 
-    pub fn view<'a>(
-        &self,
-        config: &ResolvedConfig,
-        position: Position,
-    ) -> Element<'a, ClockMessage> {
+    pub fn view<'a>(&self, config: &Config, position: Position) -> Element<'a, ClockMessage> {
         let handle: Element<'a, ClockMessage> =
             mouse_area(bar_text(&config.font, self.time_text.clone()))
                 .on_press(ClockMessage::Menu(MenuMessage::Toggle))

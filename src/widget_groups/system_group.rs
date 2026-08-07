@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip,
         disk::Disk,
@@ -22,7 +22,7 @@ use crate::{
 };
 
 fn hover_reading<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     widget: &dyn BarWidget,
     alpha: f32,
     target: HoverTarget,
@@ -94,7 +94,7 @@ impl SystemGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, SystemMessage>> {
         let handle = hover_reading(

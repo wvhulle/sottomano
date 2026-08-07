@@ -8,7 +8,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
@@ -247,7 +247,7 @@ impl SliderControl {
         }
     }
 
-    pub fn view<'a>(&self, config: &ResolvedConfig, reveal: f32) -> Element<'a, ControlMessage> {
+    pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
         if self.open {
             let glyph = mouse_area(
                 self.effective_icon()

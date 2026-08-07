@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{Tooltip, font_awesome::Solid},
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
@@ -208,7 +208,7 @@ impl IdleTimeoutsGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
         let reveal = self.menu.reveal();

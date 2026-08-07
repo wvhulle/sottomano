@@ -7,7 +7,8 @@ use iced_layershell::reexport::{
 
 use crate::{
     app::Message,
-    config::resolved::ResolvedConfig,
+    config::Config,
+    state::ChromeState,
     wayland_layers::{
         bar::float_margin,
         surface::{Margin, Position, Surface},
@@ -51,7 +52,8 @@ impl BlurCasters {
 
     pub fn rebuild(
         &mut self,
-        config: &ResolvedConfig,
+        config: &Config,
+        chrome: &ChromeState,
         bars: &BTreeMap<Id, Surface>,
     ) -> Task<Message> {
         let mut tasks: Vec<Task<Message>> = self
@@ -63,17 +65,17 @@ impl BlurCasters {
         self.pills.clear();
         self.rects
             .retain(|(window, _), _| bars.contains_key(window));
-        if config.layout.blur_background {
-            if config.layout.disconnected_groups {
+        if chrome.blur_background {
+            if chrome.disconnected_groups {
                 let rects = self.rects.clone();
                 for ((window, zone), list) in rects {
                     if let Some(surface) = bars.get(&window) {
-                        tasks.push(self.open_pills(window, zone, &list, surface, config));
+                        tasks.push(self.open_pills(window, zone, &list, surface, config, chrome));
                     }
                 }
             } else {
                 for (&window, surface) in bars {
-                    tasks.push(self.open_strip(window, surface, config));
+                    tasks.push(self.open_strip(window, surface, config, chrome));
                 }
             }
         }
@@ -84,12 +86,13 @@ impl BlurCasters {
         &mut self,
         bar: Id,
         surface: &Surface,
-        config: &ResolvedConfig,
+        config: &Config,
+        chrome: &ChromeState,
     ) -> Task<Message> {
-        if !config.layout.blur_background || config.layout.disconnected_groups {
+        if !chrome.blur_background || chrome.disconnected_groups {
             return Task::none();
         }
-        self.open_strip(bar, surface, config)
+        self.open_strip(bar, surface, config, chrome)
     }
 
     pub fn pill_rects(
@@ -97,11 +100,12 @@ impl BlurCasters {
         window: Id,
         zone: Zone,
         new: &[Rectangle],
-        config: &ResolvedConfig,
+        config: &Config,
+        chrome: &ChromeState,
         bars: &BTreeMap<Id, Surface>,
     ) -> Task<Message> {
         self.rects.insert((window, zone), new.to_vec());
-        if !(config.layout.blur_background && config.layout.disconnected_groups) {
+        if !(chrome.blur_background && chrome.disconnected_groups) {
             return Task::none();
         }
         let Some(surface) = bars.get(&window) else {
@@ -109,7 +113,7 @@ impl BlurCasters {
         };
         let position = surface.position;
         let output = surface.output.clone();
-        let float = active_float_margin(config, position);
+        let float = active_float_margin(chrome, position);
         let key = (window, zone);
         let mut current = self.pills.remove(&key).unwrap_or_default();
         let mut tasks = Vec::new();
@@ -137,7 +141,7 @@ impl BlurCasters {
                     self.ids.insert(id);
                     current.push((id, *rect));
                     tasks.push(Task::done(Message::NewLayerShell {
-                        settings: pill_settings(&output, position, *rect, config),
+                        settings: pill_settings(&output, position, *rect, config, chrome),
                         id,
                     }));
                 }
@@ -147,23 +151,19 @@ impl BlurCasters {
         Task::batch(tasks)
     }
 
-    pub fn reposition(
-        &self,
-        config: &ResolvedConfig,
-        bars: &BTreeMap<Id, Surface>,
-    ) -> Task<Message> {
+    pub fn reposition(&self, chrome: &ChromeState, bars: &BTreeMap<Id, Surface>) -> Task<Message> {
         let strips = self.strips.iter().filter_map(|(bar, &caster)| {
             let surface = bars.get(bar)?;
             Some(Task::done(Message::MarginChange {
                 id: caster,
-                margin: active_float_margin(config, surface.position).edges(),
+                margin: active_float_margin(chrome, surface.position).edges(),
             }))
         });
         let pills = self.pills.iter().flat_map(|((window, _), list)| {
             let surface = bars.get(window);
             list.iter().filter_map(move |&(caster, rect)| {
                 let surface = surface?;
-                let float = active_float_margin(config, surface.position);
+                let float = active_float_margin(chrome, surface.position);
                 Some(Task::done(Message::MarginChange {
                     id: caster,
                     margin: pill_margin(surface.position, float, rect).edges(),
@@ -201,12 +201,18 @@ impl BlurCasters {
         )
     }
 
-    fn open_strip(&mut self, bar: Id, surface: &Surface, config: &ResolvedConfig) -> Task<Message> {
+    fn open_strip(
+        &mut self,
+        bar: Id,
+        surface: &Surface,
+        config: &Config,
+        chrome: &ChromeState,
+    ) -> Task<Message> {
         let id = Id::unique();
         self.ids.insert(id);
         self.strips.insert(bar, id);
         Task::done(Message::NewLayerShell {
-            settings: strip_settings(&surface.output, surface.position, config),
+            settings: strip_settings(&surface.output, surface.position, config, chrome),
             id,
         })
     }
@@ -217,7 +223,8 @@ impl BlurCasters {
         zone: Zone,
         rects: &[Rectangle],
         surface: &Surface,
-        config: &ResolvedConfig,
+        config: &Config,
+        chrome: &ChromeState,
     ) -> Task<Message> {
         let casters: Vec<(Id, Rectangle)> =
             rects.iter().map(|&rect| (Id::unique(), rect)).collect();
@@ -226,7 +233,13 @@ impl BlurCasters {
             .map(|&(id, rect)| {
                 self.ids.insert(id);
                 Task::done(Message::NewLayerShell {
-                    settings: pill_settings(&surface.output, surface.position, rect, config),
+                    settings: pill_settings(
+                        &surface.output,
+                        surface.position,
+                        rect,
+                        config,
+                        chrome,
+                    ),
                     id,
                 })
             })
@@ -236,21 +249,16 @@ impl BlurCasters {
     }
 }
 
-fn active_float_margin(config: &ResolvedConfig, position: Position) -> Margin {
-    #[allow(clippy::cast_possible_truncation)]
-    let offset = if config.layout.floating {
-        config.float_offset_px as i32
-    } else {
-        0
-    };
-    float_margin(position, offset)
+fn active_float_margin(chrome: &ChromeState, position: Position) -> Margin {
+    float_margin(position, chrome.margin_offset_px())
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn strip_settings(
     output: &str,
     position: Position,
-    config: &ResolvedConfig,
+    config: &Config,
+    chrome: &ChromeState,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: Some((0, config.layout.outer_height_px as u32)),
@@ -259,7 +267,7 @@ fn strip_settings(
         layer: Layer::Bottom,
         keyboard_interactivity: KeyboardInteractivity::None,
         output_option: OutputOption::OutputName(output.to_string()),
-        margin: Some(active_float_margin(config, position).edges()),
+        margin: Some(active_float_margin(chrome, position).edges()),
         events_transparent: true,
         namespace: Some(strip_namespace().to_string()),
     }
@@ -269,9 +277,10 @@ fn pill_settings(
     output: &str,
     position: Position,
     rect: Rectangle,
-    config: &ResolvedConfig,
+    config: &Config,
+    chrome: &ChromeState,
 ) -> NewLayerShellSettings {
-    let float = active_float_margin(config, position);
+    let float = active_float_margin(chrome, position);
     let edge = match position {
         Position::Top => Anchor::Top,
         Position::Bottom => Anchor::Bottom,
@@ -309,7 +318,7 @@ fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn pill_size(rect: Rectangle, config: &ResolvedConfig) -> (u32, u32) {
+fn pill_size(rect: Rectangle, config: &Config) -> (u32, u32) {
     (
         rect.width.round().max(1.0) as u32,
         config.layout.outer_height_px as u32,

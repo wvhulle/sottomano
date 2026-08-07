@@ -7,7 +7,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{Level, level_color},
 };
 
@@ -18,7 +18,7 @@ const RAIL_WIDTH: f32 = 4.0;
 
 #[allow(clippy::too_many_arguments)]
 pub fn inline_slider<'a, Message: Clone + 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     range: RangeInclusive<f32>,
     value: f32,
     ghost: Option<f32>,
@@ -48,7 +48,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
 }
 
 fn interaction_slider<'a, Message: Clone + 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     range: RangeInclusive<f32>,
     value: f32,
     step: f32,

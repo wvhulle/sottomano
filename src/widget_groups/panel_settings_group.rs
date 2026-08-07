@@ -6,8 +6,9 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{Tooltip, TooltipBody, font_awesome::Solid, row},
+    state::ChromeState,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -22,22 +23,22 @@ use crate::{
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 const DARKEN_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
-pub fn tooltip_for(target: &HoverTarget, config: &ResolvedConfig) -> Option<Tooltip> {
+pub fn tooltip_for(target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip> {
     match target {
-        HoverTarget::Floating => Some(floating_tooltip(config)),
-        HoverTarget::FloatOffset => Some(offset_tooltip(config)),
-        HoverTarget::BlurBackground => Some(blur_tooltip(config)),
-        HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(config)),
-        HoverTarget::DarkenChrome => Some(darken_tooltip(config)),
+        HoverTarget::Floating => Some(floating_tooltip(chrome)),
+        HoverTarget::FloatOffset => Some(offset_tooltip(chrome)),
+        HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
+        HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
+        HoverTarget::DarkenChrome => Some(darken_tooltip(chrome)),
         _ => None,
     }
 }
 
-fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
+fn floating_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Floating",
-            if config.layout.floating {
+            if chrome.floating {
                 "on — rounded, inset from edges"
             } else {
                 "off — flush, square"
@@ -47,11 +48,11 @@ fn floating_tooltip(config: &ResolvedConfig) -> Tooltip {
     }
 }
 
-fn blur_tooltip(config: &ResolvedConfig) -> Tooltip {
+fn blur_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Blur",
-            if config.layout.blur_background {
+            if chrome.blur_background {
                 "on — frosted behind the chrome"
             } else {
                 "off"
@@ -61,11 +62,11 @@ fn blur_tooltip(config: &ResolvedConfig) -> Tooltip {
     }
 }
 
-fn disconnected_tooltip(config: &ResolvedConfig) -> Tooltip {
+fn disconnected_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Groups",
-            if config.layout.disconnected_groups {
+            if chrome.disconnected_groups {
                 "separate pills"
             } else {
                 "one bar"
@@ -76,13 +77,13 @@ fn disconnected_tooltip(config: &ResolvedConfig) -> Tooltip {
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn darken_tooltip(config: &ResolvedConfig) -> Tooltip {
+fn darken_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Darken",
             format!(
                 "{} % black tint over the chrome",
-                (config.darken_chrome_factor * 100.0).round() as i64
+                (chrome.darken_chrome_factor * 100.0).round() as i64
             ),
         )]),
         footer: None,
@@ -90,11 +91,11 @@ fn darken_tooltip(config: &ResolvedConfig) -> Tooltip {
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn offset_tooltip(config: &ResolvedConfig) -> Tooltip {
+fn offset_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip {
         body: TooltipBody::Table(vec![row(
             "Offset",
-            format!("{} px", config.float_offset_px.round() as i64),
+            format!("{} px", chrome.float_offset_px.round() as i64),
         )]),
         footer: None,
     }
@@ -172,7 +173,8 @@ impl PanelSettingsGroup {
     #[allow(clippy::unnecessary_wraps)]
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
+        chrome: &ChromeState,
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
@@ -185,11 +187,11 @@ impl PanelSettingsGroup {
         .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
         .into();
 
-        let floating = config.layout.floating;
+        let floating = chrome.floating;
         let disconnected_toggle = icon_toggle(
             config,
             Solid::Capsules,
-            config.layout.disconnected_groups,
+            chrome.disconnected_groups,
             PanelSettingsMessage::ToggleDisconnectedGroups,
             HoverTarget::DisconnectedGroups,
         );
@@ -203,7 +205,7 @@ impl PanelSettingsGroup {
         let blur_toggle = icon_toggle(
             config,
             Solid::Snowflake,
-            config.layout.blur_background,
+            chrome.blur_background,
             PanelSettingsMessage::ToggleBlurBackground,
             HoverTarget::BlurBackground,
         );
@@ -235,14 +237,14 @@ impl PanelSettingsGroup {
         ))
     }
 
-    fn offset_element<'a>(&self, config: &ResolvedConfig) -> Element<'a, PanelSettingsMessage> {
+    fn offset_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
         self.offset.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
             m => PanelSettingsMessage::Offset(m),
         })
     }
 
-    fn darken_element<'a>(&self, config: &ResolvedConfig) -> Element<'a, PanelSettingsMessage> {
+    fn darken_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
         self.darken.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
             m => PanelSettingsMessage::Darken(m),
@@ -251,7 +253,7 @@ impl PanelSettingsGroup {
 }
 
 fn icon_toggle<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     icon: Solid,
     active: bool,
     press: PanelSettingsMessage,

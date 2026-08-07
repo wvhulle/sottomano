@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::RangeInclusive};
 use iced::{Element, Subscription, Task};
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         Tooltip, TooltipBody,
         power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
@@ -173,7 +173,7 @@ impl PowerProfileGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, PowerProfileMessage>> {
         self.cell.get()?;

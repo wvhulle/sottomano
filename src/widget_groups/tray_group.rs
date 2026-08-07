@@ -5,7 +5,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         Tooltip, TooltipBody,
         font_awesome::Solid,
@@ -77,7 +77,7 @@ impl TrayGroup {
         }
     }
 
-    pub fn visible<'a>(&'a self, config: &ResolvedConfig) -> Vec<&'a TrayItem> {
+    pub fn visible<'a>(&'a self, config: &Config) -> Vec<&'a TrayItem> {
         self.items
             .iter()
             .filter(|item| !denied(config, item))
@@ -86,7 +86,7 @@ impl TrayGroup {
 
     pub fn view<'a>(
         &'a self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, TrayMessage>> {
         let visible = self.visible(config);
@@ -123,7 +123,7 @@ impl TrayGroup {
     }
 }
 
-fn denied(config: &ResolvedConfig, item: &TrayItem) -> bool {
+fn denied(config: &Config, item: &TrayItem) -> bool {
     let id = item.id.to_lowercase();
     config
         .tray_deny_ids
@@ -144,7 +144,7 @@ fn item_tooltip(item: &TrayItem) -> Tooltip {
 }
 
 fn item_view<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     item: &TrayItem,
     index: usize,
     reveal: f32,

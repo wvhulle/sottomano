@@ -1,5 +1,5 @@
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::{
         notifications::model::NotificationData,
         source::niri::{HEdge, Placement, VEdge},
@@ -30,7 +30,7 @@ pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Opti
 pub fn placement_for(
     data: &NotificationData,
     placement: &Placement,
-    config: &ResolvedConfig,
+    config: &Config,
 ) -> ToastPlacement {
     let id = config
         .notifications

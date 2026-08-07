@@ -4,7 +4,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::{
         BarWidget, Tooltip,
         tailscale::{Tailscale, open_admin},
@@ -106,7 +106,7 @@ impl InternetGroup {
 
     pub fn view<'a>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
     ) -> Option<Element<'a, InternetMessage>> {
         let down = self.down.get()?;

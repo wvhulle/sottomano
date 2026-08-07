@@ -4,8 +4,9 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     data::source::font_awesome::{FontAwesome, Regular, Solid},
+    state::NotificationState,
     wayland_layers::surface::Position,
     widgets::{DISABLED_ALPHA, pager_slot::permanently_inactive_slot},
 };
@@ -17,29 +18,30 @@ pub enum NotificationGroupMessage {
 }
 
 pub fn view<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
+    notif_state: &NotificationState,
     position: Position,
     any_pending: bool,
 ) -> Element<'a, NotificationGroupMessage> {
     let do_not_disturb = toggle(
         config,
-        match (config.dnd, any_pending) {
+        match (notif_state.dnd, any_pending) {
             (true, _) => Solid::CommentSlash.into(),
             (false, true) => Solid::Comment.into(),
             (false, false) => Regular::Comment.into(),
         },
-        !config.dnd,
+        !notif_state.dnd,
         NotificationGroupMessage::ToggleDoNotDisturb,
     );
     let sound = toggle(
         config,
-        match (config.sound, any_pending) {
+        match (notif_state.sound, any_pending) {
             (true, true) => Solid::Bell.into(),
             (true, false) => Regular::Bell.into(),
             (false, true) => Solid::BellSlash.into(),
             (false, false) => Regular::BellSlash.into(),
         },
-        config.sound,
+        notif_state.sound,
         NotificationGroupMessage::ToggleSound,
     );
 
@@ -52,7 +54,7 @@ pub fn view<'a>(
 }
 
 fn toggle<'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     icon: FontAwesome,
     active: bool,
     message: NotificationGroupMessage,

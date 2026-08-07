@@ -2,82 +2,117 @@ pub mod idle;
 pub mod launches;
 pub mod panel;
 pub mod power;
+pub mod store;
 
-use std::{env, error::Error, fs, ops::Deref, path::PathBuf};
+use std::process::Command;
 
-use tokio::sync::{Mutex, MutexGuard, OnceCell};
+use panel::PanelSettings;
+pub(crate) use store::{BoxError, integer, open, text};
 
-pub(crate) type BoxError = Box<dyn Error + Send + Sync>;
+use crate::config::layout::Layout;
 
-struct Store {
-    connection: turso::Connection,
-    _database: turso::Database,
+#[derive(Debug, Clone)]
+pub struct Session {
+    pub chrome: ChromeState,
+    pub notifications: NotificationState,
 }
 
-static STORE: OnceCell<Store> = OnceCell::const_new();
-static LOCK: Mutex<()> = Mutex::const_new(());
-
-pub(crate) struct Handle {
-    _guard: MutexGuard<'static, ()>,
-    connection: turso::Connection,
+#[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ChromeState {
+    pub floating: bool,
+    pub blur_background: bool,
+    pub disconnected_groups: bool,
+    pub float_offset_px: f32,
+    pub darken_chrome_factor: f32,
 }
 
-impl Deref for Handle {
-    type Target = turso::Connection;
+#[derive(Debug, Clone)]
+pub struct NotificationState {
+    pub dnd: bool,
+    pub sound: bool,
+    pub sound_theme: Option<String>,
+}
 
-    fn deref(&self) -> &turso::Connection {
-        &self.connection
+impl Session {
+    pub fn initial(layout: &Layout) -> Self {
+        Self {
+            chrome: ChromeState {
+                floating: layout.floating,
+                blur_background: layout.blur_background,
+                disconnected_groups: layout.disconnected_groups,
+                float_offset_px: 0.0,
+                darken_chrome_factor: 0.0,
+            },
+            notifications: NotificationState {
+                dnd: false,
+                sound: true,
+                sound_theme: None,
+            },
+        }
+    }
+
+    pub fn absorb_saved(&mut self, saved: &PanelSettings) {
+        self.chrome.absorb_saved(saved);
+        self.notifications.absorb_saved(saved);
     }
 }
 
-pub(crate) async fn open() -> Result<Handle, BoxError> {
-    let guard = LOCK.lock().await;
-    let store = STORE.get_or_try_init(build).await?;
-    Ok(Handle {
-        _guard: guard,
-        connection: store.connection.clone(),
-    })
-}
-
-async fn build() -> Result<Store, BoxError> {
-    let Some(path) = db_path() else {
-        return Err("no state directory".into());
-    };
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+impl ChromeState {
+    fn absorb_saved(&mut self, saved: &PanelSettings) {
+        if let Some(floating) = saved.floating {
+            self.floating = floating;
+        }
+        if let Some(offset) = saved.float_offset_px {
+            self.float_offset_px = offset;
+        }
+        if let Some(disconnected) = saved.disconnected_groups {
+            self.disconnected_groups = disconnected;
+        }
+        if let Some(blur) = saved.blur_background {
+            self.blur_background = blur;
+        }
+        if let Some(factor) = saved.darken_chrome_factor {
+            self.darken_chrome_factor = factor;
+        }
     }
-    let database = turso::Builder::new_local(&path.to_string_lossy())
-        .build()
-        .await?;
-    let connection = database.connect()?;
-    connection.execute(launches::CREATE_TABLE, ()).await?;
-    connection.execute(panel::CREATE_TABLE, ()).await?;
-    connection.execute(idle::CREATE_TABLE, ()).await?;
-    connection.execute(power::DROP_LEGACY_TABLE, ()).await?;
-    connection.execute(power::CREATE_TABLE, ()).await?;
-    Ok(Store {
-        connection,
-        _database: database,
-    })
+
+    pub fn radius(&self, layout: &Layout) -> f32 {
+        if self.floating {
+            f32::from(layout.corner_radius_px)
+        } else {
+            0.0
+        }
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn margin_offset_px(&self) -> i32 {
+        if self.floating {
+            self.float_offset_px as i32
+        } else {
+            0
+        }
+    }
 }
 
-fn db_path() -> Option<PathBuf> {
-    let state = env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
-    Some(state.join("vetrata/state.db"))
+impl NotificationState {
+    fn absorb_saved(&mut self, saved: &PanelSettings) {
+        self.dnd = saved.dnd;
+        if let Some(sound) = saved.sound {
+            self.sound = sound;
+        }
+    }
 }
 
-pub(crate) fn text(row: &turso::Row, index: usize) -> Result<String, BoxError> {
-    row.get_value(index)?
-        .as_text()
-        .map(ToString::to_string)
-        .ok_or_else(|| format!("column {index} is not text").into())
-}
-
-pub(crate) fn integer(row: &turso::Row, index: usize) -> Result<i64, BoxError> {
-    row.get_value(index)?
-        .as_integer()
-        .copied()
-        .ok_or_else(|| format!("column {index} is not an integer").into())
+pub(crate) fn session_sound_theme() -> Option<String> {
+    let output = Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.sound", "theme-name"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?;
+    let theme = value.trim().trim_matches('\'');
+    (!theme.is_empty()).then(|| theme.to_owned())
 }

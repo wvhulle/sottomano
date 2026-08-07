@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    config::resolved::ResolvedConfig,
+    config::Config,
     wayland_layers::surface::Position,
     widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
 };
@@ -59,7 +59,7 @@ impl MenuGroup {
 
     pub fn view<'a, Message: 'a + Clone, F>(
         &self,
-        config: &ResolvedConfig,
+        config: &Config,
         position: Position,
         reveal: f32,
         handle: Element<'a, Message>,
@@ -81,7 +81,7 @@ impl MenuGroup {
 }
 
 fn revealed_content<'a, Message: 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     reveal: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
@@ -90,7 +90,7 @@ fn revealed_content<'a, Message: 'a>(
 }
 
 fn edge_indicator<'a, Message: 'a>(
-    config: &ResolvedConfig,
+    config: &Config,
     hovered: bool,
     reveal: f32,
 ) -> Element<'a, Message> {
