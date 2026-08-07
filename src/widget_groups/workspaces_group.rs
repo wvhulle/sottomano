@@ -41,14 +41,18 @@ pub fn view<'a>(
         );
         let ticks = window_ticks(config, niri, p.id);
 
-        button(PagerSlot::new(label, focus).ticks(ticks).view(position))
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(WorkspacesMessage::Clicked {
-                id: p.id,
-                is_active: p.is_active,
-            })
-            .into()
+        button(
+            PagerSlot::new(label, focus)
+                .ticks(ticks)
+                .view(config, position),
+        )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
+        .on_press(WorkspacesMessage::Clicked {
+            id: p.id,
+            is_active: p.is_active,
+        })
+        .into()
     });
     Some(
         Row::with_children(slots)

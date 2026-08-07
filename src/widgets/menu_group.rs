@@ -76,7 +76,7 @@ impl MenuGroup {
         let inner = Row::with_children([handle, revealed_content(config, reveal, content)])
             .align_y(Alignment::Center);
         let slot = PagerSlot::new(inner.into(), edge_indicator(config, self.hovered, reveal))
-            .view(position);
+            .view(config, position);
         mouse_area(slot)
             .on_enter(to_message(MenuMessage::CursorEntered))
             .on_exit(to_message(MenuMessage::CursorExited))
