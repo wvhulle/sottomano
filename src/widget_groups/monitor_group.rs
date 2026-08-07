@@ -24,7 +24,7 @@ use crate::{
     widget_groups::source_cell::SourceCell,
     widgets::{
         menu_group::{MenuGroup, MenuMessage},
-        slider_control::{Action, ControlMessage, SliderControl},
+        slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
     },
 };
@@ -210,10 +210,7 @@ impl MonitorGroup {
         match target {
             HoverTarget::Backlight(serial) => {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
-                Some(Tooltip {
-                    body: backlight.tooltip(),
-                    footer: None,
-                })
+                Some(Tooltip::of(backlight.tooltip()))
             }
             HoverTarget::GammaDim => self.gamma.get().and_then(|gamma| {
                 self.gamma.tooltip_with(TooltipBody::Table(vec![row(
@@ -312,16 +309,6 @@ fn backlight_slider<'a>(
         ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
         m => MonitorMessage::Backlight(serial.clone(), m),
     })
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn percent_f(percent: i64) -> f32 {
-    percent as f32
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn as_percent(value: f32) -> i64 {
-    value.round() as i64
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

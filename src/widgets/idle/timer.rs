@@ -5,7 +5,7 @@ use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::Config,
-    data::source::{Tooltip, TooltipBody, font_awesome::FontAwesome, row},
+    data::source::{Tooltip, font_awesome::FontAwesome, row},
     wayland_layers::tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},
@@ -115,10 +115,7 @@ impl IdleTimer {
                 fire_time(timeout).format("%H:%M").to_string(),
             ),
         };
-        Tooltip {
-            body: TooltipBody::Table(vec![when, row("Via", self.action.mechanism())]),
-            footer: None,
-        }
+        Tooltip::table(vec![when, row("Via", self.action.mechanism())])
     }
 
     pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, TimerMessage> {

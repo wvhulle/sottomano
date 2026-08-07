@@ -11,6 +11,7 @@ use crate::{
     data::source::font_awesome::Solid,
     widgets::{
         DISABLED_ALPHA,
+        activity_line::activity_line,
         native_icon::{IconSource, native_icon},
         text::bar_text,
     },
@@ -164,14 +165,7 @@ fn divider<'a, Message: 'a>(config: &Config, paint: f32) -> Element<'a, Message>
         .palette
         .bar_foreground
         .scale_alpha(DIVIDER_ALPHA * paint);
-    let rule = container(Space::new())
-        .width(Length::Fill)
-        .height(Length::Fixed(1.0))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(color)),
-            ..Default::default()
-        });
-    container(rule)
+    container(activity_line(color, 1.0, 1.0))
         .width(Length::Fill)
         .padding([4.0, 0.0])
         .into()

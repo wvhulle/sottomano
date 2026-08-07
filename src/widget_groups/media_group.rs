@@ -7,7 +7,7 @@ use niri_ipc::state::EventStreamState;
 use crate::{
     config::Config,
     data::source::{
-        Tooltip, TooltipBody,
+        Tooltip,
         desktop_entries::DesktopIndex,
         font_awesome::{FontAwesome, Solid},
         mpris,
@@ -190,10 +190,7 @@ impl MediaGroup {
         }
         rows.push(row("Player", media.identity.clone()));
         rows.push(row("State", media.status.label()));
-        Some(Tooltip {
-            body: TooltipBody::Table(rows),
-            footer: None,
-        })
+        Some(Tooltip::table(rows))
     }
 
     pub fn view<'a>(

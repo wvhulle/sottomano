@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, Row, TooltipBody, Unit, Value as GaugeValue,
-    ai::{ApiSource, level_from_cost},
+    ai::{ApiSource, level_from_cost, level_from_remaining},
     command::{exists, output},
     row,
     simple_icons::SimpleIcon,
@@ -44,15 +44,7 @@ impl BarWidget for ClaudeOauth {
             ClaudeOauth::Error(_) => Level::Critical,
             ClaudeOauth::Usage {
                 session_remaining, ..
-            } => {
-                if *session_remaining < 10 {
-                    Level::Critical
-                } else if *session_remaining < 25 {
-                    Level::Warning
-                } else {
-                    Level::Ok
-                }
-            }
+            } => level_from_remaining(*session_remaining),
         }
     }
 

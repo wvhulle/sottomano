@@ -1,6 +1,6 @@
 use iced::{
-    Border, Color, Element, Length,
-    widget::{Space, container},
+    Color, Element,
+    widget::rule::{self, FillMode},
 };
 
 pub fn activity_line<'a, Message: 'a>(
@@ -8,19 +8,12 @@ pub fn activity_line<'a, Message: 'a>(
     opacity: f32,
     thickness: f32,
 ) -> Element<'a, Message> {
-    container(Space::new().width(Length::Fill))
-        .width(Length::Fill)
-        .height(thickness)
-        .style(move |_| container::Style {
-            background: Some(
-                Color {
-                    a: opacity,
-                    ..color
-                }
-                .into(),
-            ),
-            border: Border::default().rounded(thickness),
-            ..Default::default()
+    rule::horizontal(thickness)
+        .style(move |_| rule::Style {
+            color: color.scale_alpha(opacity),
+            radius: thickness.into(),
+            fill_mode: FillMode::Full,
+            snap: false,
         })
         .into()
 }

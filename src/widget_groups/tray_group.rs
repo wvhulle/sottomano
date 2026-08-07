@@ -137,10 +137,7 @@ fn item_tooltip(item: &TrayItem) -> Tooltip {
         Some(tip) => (item.name().to_string(), tip.body.clone()),
         None => (item.name().to_string(), String::new()),
     };
-    Tooltip {
-        body: TooltipBody::Text { title, body },
-        footer: None,
-    }
+    Tooltip::of(TooltipBody::Text { title, body })
 }
 
 fn item_view<'a>(

@@ -154,10 +154,15 @@ pub struct Tooltip {
 
 impl Tooltip {
     pub fn empty() -> Self {
-        Self {
-            body: TooltipBody::Table(Vec::new()),
-            footer: None,
-        }
+        Self::table(Vec::new())
+    }
+
+    pub fn of(body: TooltipBody) -> Self {
+        Self { body, footer: None }
+    }
+
+    pub fn table(rows: Vec<Row>) -> Self {
+        Self::of(TooltipBody::Table(rows))
     }
 
     pub fn is_empty(&self) -> bool {

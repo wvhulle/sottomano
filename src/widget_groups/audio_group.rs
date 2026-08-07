@@ -5,7 +5,7 @@ use iced::{Alignment, Element, Subscription, Task, widget::Row};
 use crate::{
     config::Config,
     data::source::{
-        Tooltip, TooltipBody,
+        Tooltip,
         audio::{self, AudioEvent, AudioState, Commands, Reading, Target},
         font_awesome::{FontAwesome, Solid},
         row,
@@ -17,7 +17,7 @@ use crate::{
     },
     widgets::{
         pager_slot::permanently_inactive_slot,
-        slider_control::{Action, ControlMessage, SliderControl},
+        slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
     },
 };
 
@@ -253,20 +253,7 @@ fn tooltip(reading: &Reading, input: bool) -> Tooltip {
     .into_iter()
     .flatten()
     .collect();
-    Tooltip {
-        body: TooltipBody::Table(rows),
-        footer: None,
-    }
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn percent_f(percent: i64) -> f32 {
-    percent as f32
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn as_percent(value: f32) -> i64 {
-    value.round() as i64
+    Tooltip::table(rows)
 }
 
 fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {

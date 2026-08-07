@@ -9,10 +9,7 @@ use crate::{
 
 impl<S: BarWidget> SourceCell<S> {
     pub fn live_tooltip(&self) -> Option<Tooltip> {
-        Some(Tooltip {
-            body: self.data.as_ref()?.tooltip(),
-            footer: None,
-        })
+        Some(Tooltip::of(self.data.as_ref()?.tooltip()))
     }
 }
 

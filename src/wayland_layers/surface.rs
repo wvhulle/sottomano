@@ -1,4 +1,6 @@
-use iced_layershell::reexport::Anchor;
+use iced_layershell::reexport::{
+    Anchor, KeyboardInteractivity, NewLayerShellSettings, OutputOption,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Margin {
@@ -35,12 +37,26 @@ pub enum Position {
 impl Position {
     pub(crate) const ALL: [Position; 2] = [Position::Top, Position::Bottom];
 
-    pub(crate) fn anchor(self) -> Anchor {
-        let edge = match self {
+    pub(crate) fn edge(self) -> Anchor {
+        match self {
             Position::Top => Anchor::Top,
             Position::Bottom => Anchor::Bottom,
-        };
-        edge | Anchor::Left | Anchor::Right
+        }
+    }
+
+    pub(crate) fn anchor(self) -> Anchor {
+        self.edge() | Anchor::Left | Anchor::Right
+    }
+}
+
+pub(crate) fn base_settings(output: Option<&str>, namespace: &str) -> NewLayerShellSettings {
+    NewLayerShellSettings {
+        keyboard_interactivity: KeyboardInteractivity::None,
+        output_option: output.map_or(OutputOption::Active, |name| {
+            OutputOption::OutputName(name.to_string())
+        }),
+        namespace: Some(namespace.to_string()),
+        ..Default::default()
     }
 }
 

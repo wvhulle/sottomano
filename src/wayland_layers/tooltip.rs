@@ -12,15 +12,13 @@ use iced::{
     widget::{Column, Row as RowWidget, container, row},
     window::Id,
 };
-use iced_layershell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
-};
+use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
 
 use crate::{
     app::Message,
     config::Config,
     data::source::{RefreshInfo, Row, Tooltip, TooltipBody, level_color, niri::OutputGeometry},
-    wayland_layers::surface::{Margin, Position, Surface, SurfaceSize},
+    wayland_layers::surface::{self, Margin, Position, Surface, SurfaceSize},
     widgets::text::{TextStyle, bar_text},
 };
 
@@ -716,20 +714,14 @@ fn tooltip_settings(
 ) -> NewLayerShellSettings {
     let bar = config.chrome.outer_height_px as i32;
     let left = panel_left(anchor.x, output_width, size.width);
-    let anchor = match position {
-        Position::Top => Anchor::Top | Anchor::Left,
-        Position::Bottom => Anchor::Bottom | Anchor::Left,
-    };
     NewLayerShellSettings {
         size: Some(size.dimensions()),
         exclusive_zone: Some(0),
-        anchor,
+        anchor: position.edge() | Anchor::Left,
         margin: Some(tooltip_margin(position, left, bar).edges()),
         layer: Layer::Overlay,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(output.to_string()),
         events_transparent: true,
-        namespace: Some("vetrata-tooltip".to_string()),
+        ..surface::base_settings(Some(output), "vetrata-tooltip")
     }
 }
 
