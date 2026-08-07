@@ -261,7 +261,7 @@ fn strip_settings(
     chrome: &ChromeState,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some((0, config.layout.outer_height_px as u32)),
+        size: Some((0, config.chrome.outer_height_px as u32)),
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Bottom,
@@ -321,6 +321,6 @@ fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
 fn pill_size(rect: Rectangle, config: &Config) -> (u32, u32) {
     (
         rect.width.round().max(1.0) as u32,
-        config.layout.outer_height_px as u32,
+        config.chrome.outer_height_px as u32,
     )
 }

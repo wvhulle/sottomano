@@ -129,7 +129,7 @@ impl TrayMenuHost {
         }
         menu.size = Some(requested);
         menu.settled = true;
-        let bar = config.layout.outer_height_px as i32;
+        let bar = config.chrome.outer_height_px as i32;
         let left = panel_left(menu.anchor.x, menu.output_width, requested.width);
         let margin = tooltip_margin(menu.position, left, bar);
         Task::batch([
@@ -151,7 +151,7 @@ impl TrayMenuHost {
 }
 
 fn menu_settings(place: &MenuAnchor, config: &Config) -> NewLayerShellSettings {
-    let bar = config.layout.outer_height_px as i32;
+    let bar = config.chrome.outer_height_px as i32;
     let left = panel_left(place.anchor.x, place.output_width, MENU_PROVISIONAL.width);
     let anchor = match place.position {
         Position::Top => Anchor::Top | Anchor::Left,
@@ -195,7 +195,7 @@ fn menu_surface<'a>(surface: Id, menu: &OpenMenu, config: &'a Config) -> Element
                     .bar_foreground
                     .scale_alpha(BORDER_ALPHA * paint),
                 width: 1.0,
-                radius: f32::from(config.layout.corner_radius_px).into(),
+                radius: f32::from(config.chrome.corner_radius_px).into(),
             },
             ..Default::default()
         });

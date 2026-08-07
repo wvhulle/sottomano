@@ -208,7 +208,7 @@ impl AudioGroup {
         }
         Some(permanently_inactive_slot(
             Row::with_children(widgets)
-                .spacing(config.layout.horizontal_widget_spacing_px)
+                .spacing(config.spacing.widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
             config,

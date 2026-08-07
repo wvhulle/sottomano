@@ -72,7 +72,7 @@ pub fn slot_placement(
 }
 
 fn edge_inset(offset: f32, config: &Config) -> i32 {
-    (config.layout.outer_height_px + config.notifications.edge_gap + offset).round() as i32
+    (config.chrome.outer_height_px + config.notifications.edge_gap + offset).round() as i32
 }
 
 pub fn toast_settings(

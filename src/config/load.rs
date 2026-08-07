@@ -7,16 +7,20 @@ use serde::Deserialize;
 use toml::de;
 
 use super::{
+    chrome::Chrome,
     font::{self, FontConfig, UserFont},
-    layout::Layout,
     notifications::NotificationConfig,
     palette::Palette,
+    spacing::Spacing,
+    widgets::Widgets,
 };
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub palette: Palette,
-    pub layout: Layout,
+    pub chrome: Chrome,
+    pub spacing: Spacing,
+    pub widgets: Widgets,
     pub font: FontConfig,
     pub notifications: NotificationConfig,
     pub tray_deny_ids: Vec<String>,
@@ -35,7 +39,9 @@ pub struct SecretPaths {
 #[serde(default)]
 struct UserConfig {
     palette: Palette,
-    layout: Layout,
+    chrome: Chrome,
+    spacing: Spacing,
+    widgets: Widgets,
     font: UserFont,
     notifications: NotificationConfig,
     tray: TrayToml,
@@ -46,7 +52,9 @@ impl Default for UserConfig {
     fn default() -> Self {
         Self {
             palette: Palette::default(),
-            layout: Layout::default(),
+            chrome: Chrome::default(),
+            spacing: Spacing::default(),
+            widgets: Widgets::default(),
             font: UserFont::default(),
             notifications: NotificationConfig::default(),
             tray: TrayToml::default(),
@@ -119,7 +127,9 @@ pub fn load() -> Config {
     };
     Config {
         palette: user.palette,
-        layout: user.layout,
+        chrome: user.chrome,
+        spacing: user.spacing,
+        widgets: user.widgets,
         font: font::resolve(&user.font),
         notifications: user.notifications,
         tray_deny_ids: user

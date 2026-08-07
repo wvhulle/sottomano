@@ -652,7 +652,7 @@ fn panel<'a>(tooltip: &Tooltip, config: &Config) -> Element<'a, Message> {
         a: 1.0,
         ..config.palette.bar_background
     };
-    let radius = f32::from(config.layout.corner_radius_px);
+    let radius = f32::from(config.chrome.corner_radius_px);
     container(body)
         .center(Length::Fill)
         .padding(PANEL_PADDING)
@@ -714,7 +714,7 @@ fn tooltip_settings(
     size: SurfaceSize,
     config: &Config,
 ) -> NewLayerShellSettings {
-    let bar = config.layout.outer_height_px as i32;
+    let bar = config.chrome.outer_height_px as i32;
     let left = panel_left(anchor.x, output_width, size.width);
     let anchor = match position {
         Position::Top => Anchor::Top | Anchor::Left,

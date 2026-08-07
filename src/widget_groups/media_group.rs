@@ -164,7 +164,7 @@ impl MediaGroup {
             .collect();
         Some(
             Row::with_children(icons)
-                .spacing(config.layout.horizontal_widget_spacing_px)
+                .spacing(config.spacing.widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
         )
@@ -224,7 +224,7 @@ impl MediaGroup {
             .into_iter()
             .flatten(),
         )
-        .spacing(config.layout.horizontal_widget_spacing_px)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
 
         Some(self.menu.view(
@@ -347,7 +347,7 @@ fn transport<'a>(
     .flatten()
     .collect();
     Row::with_children(buttons)
-        .spacing(config.layout.horizontal_widget_spacing_px)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center)
         .into()
 }

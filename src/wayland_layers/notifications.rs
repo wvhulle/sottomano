@@ -68,6 +68,7 @@ struct ToastSurface {
 #[derive(Default)]
 pub struct NotificationLayer {
     handle: Option<NotifHandle>,
+    sound_theme: Option<String>,
     live: Vec<Notification>,
     surfaces: HashMap<u32, ToastSurface>,
     next_seq: u64,
@@ -75,6 +76,10 @@ pub struct NotificationLayer {
 }
 
 impl NotificationLayer {
+    pub fn adopt_sound_theme(&mut self, theme: Option<String>) {
+        self.sound_theme = theme;
+    }
+
     pub fn update(
         &mut self,
         message: NotificationMessage,
@@ -90,50 +95,7 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Served(data) => {
-                if notif_state.dnd {
-                    return Task::none();
-                }
-                let id = data.id;
-                self.live.retain(|n| n.data.id != id);
-                let mut tasks = Vec::new();
-                if let Some(window) = data.window_id_hint {
-                    let dupes: Vec<u32> = self
-                        .live
-                        .iter()
-                        .filter(|n| n.data.window_id_hint == Some(window))
-                        .map(|n| n.data.id)
-                        .collect();
-                    for dup in dupes {
-                        self.live.retain(|n| n.data.id != dup);
-                        tasks.push(self.emit(Outbound::Closed {
-                            id: dup,
-                            reason: close_reason::DISMISSED,
-                        }));
-                    }
-                    self.prune_hover();
-                }
-                if notif_state.sound && !data.suppress_sound {
-                    tasks.push(sound::play(&data, notif_state.sound_theme.as_deref()));
-                }
-                let icons = card::resolve_icons(&data, entries);
-                let measured_height = card::measure_height(&data, &icons, config);
-                let seq = self.next_seq;
-                self.next_seq += 1;
-                let now = Instant::now();
-                let countdown =
-                    countdown::lifetime(data.expire_timeout, data.urgency, &config.notifications)
-                        .map(|remaining| Countdown::started(remaining, now));
-                self.live.push(Notification {
-                    data: *data,
-                    created_at: SystemTime::now(),
-                    countdown,
-                    seq,
-                    icons,
-                    measured_height,
-                });
-                self.sync_countdowns(now);
-                tasks.push(self.reconcile(placement, outputs, config, notif_state));
-                Task::batch(tasks)
+                self.serve(data, placement, outputs, entries, config, notif_state)
             }
             NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
                 Some(window) => Task::batch([
@@ -189,6 +151,61 @@ impl NotificationLayer {
             }
             NotificationMessage::Tick => self.expire(placement, outputs, config, notif_state),
         }
+    }
+
+    fn serve(
+        &mut self,
+        data: Box<NotificationData>,
+        placement: &Placement,
+        outputs: &HashMap<String, OutputGeometry>,
+        entries: Option<&DesktopEntries>,
+        config: &Config,
+        notif_state: &NotificationState,
+    ) -> Task<Message> {
+        if notif_state.dnd {
+            return Task::none();
+        }
+        let id = data.id;
+        self.live.retain(|n| n.data.id != id);
+        let mut tasks = Vec::new();
+        if let Some(window) = data.window_id_hint {
+            let dupes: Vec<u32> = self
+                .live
+                .iter()
+                .filter(|n| n.data.window_id_hint == Some(window))
+                .map(|n| n.data.id)
+                .collect();
+            for dup in dupes {
+                self.live.retain(|n| n.data.id != dup);
+                tasks.push(self.emit(Outbound::Closed {
+                    id: dup,
+                    reason: close_reason::DISMISSED,
+                }));
+            }
+            self.prune_hover();
+        }
+        if notif_state.sound && !data.suppress_sound {
+            tasks.push(sound::play(&data, self.sound_theme.as_deref()));
+        }
+        let icons = card::resolve_icons(&data, entries);
+        let measured_height = card::measure_height(&data, &icons, config);
+        let seq = self.next_seq;
+        self.next_seq += 1;
+        let now = Instant::now();
+        let countdown =
+            countdown::lifetime(data.expire_timeout, data.urgency, &config.notifications)
+                .map(|remaining| Countdown::started(remaining, now));
+        self.live.push(Notification {
+            data: *data,
+            created_at: SystemTime::now(),
+            countdown,
+            seq,
+            icons,
+            measured_height,
+        });
+        self.sync_countdowns(now);
+        tasks.push(self.reconcile(placement, outputs, config, notif_state));
+        Task::batch(tasks)
     }
 
     pub fn on_niri_changed(

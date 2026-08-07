@@ -224,7 +224,7 @@ impl WindowList {
             window_button(config, icons, win, position, alpha)
         });
         let row = Row::with_children(buttons)
-            .spacing(config.layout.horizontal_widget_spacing_px * 2.0)
+            .spacing(config.spacing.widget_spacing_px * 2.0)
             .align_y(Alignment::Center);
         Some(window_list_viewport(
             row,
@@ -284,7 +284,7 @@ fn icon_beside_title<'a>(
     Row::new()
         .extend(icon)
         .push(title)
-        .spacing(config.layout.horizontal_widget_spacing_px * 1.5)
+        .spacing(config.spacing.widget_spacing_px * 1.5)
         .align_y(Alignment::Center)
         .into()
 }
@@ -304,7 +304,7 @@ fn focus_line<'a>(
     activity_line(
         color,
         opacity * alpha,
-        config.layout.focus_underline_thickness_px,
+        config.widgets.focus_underline_thickness_px,
     )
 }
 

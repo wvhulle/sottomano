@@ -102,7 +102,7 @@ impl NetInterfacesGroup {
         }
         Some(permanently_inactive_slot(
             Row::with_children(indicators)
-                .spacing(config.layout.horizontal_widget_spacing_px)
+                .spacing(config.spacing.widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
             config,

@@ -125,7 +125,7 @@ impl WeatherGroup {
         });
 
         let content = Row::with_children(pills)
-            .spacing(config.layout.horizontal_widget_spacing_px)
+            .spacing(config.spacing.widget_spacing_px)
             .align_y(Alignment::Center);
 
         Some(self.menu.view(

@@ -119,7 +119,7 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
                 .into()
             }),
             border: iced::Border {
-                radius: bar.session.chrome.radius(&bar.config.layout).into(),
+                radius: bar.session.chrome.radius(&bar.config.chrome).into(),
                 ..Default::default()
             },
             text_color: Some(bar.config.palette.bar_foreground),
@@ -128,10 +128,9 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .into()
 }
 
-fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
+fn top_start(bar: &Bar, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
-    let chrome = &bar.session.chrome;
-    let start = zone(
+    zone(
         [
             slot(bar.weather_group.view(config, position), |m| match m {
                 WeatherMessage::Tooltip(t) => Message::Tooltip(t),
@@ -168,7 +167,8 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
                 m => Message::Internet(m),
             }),
             slot(
-                bar.panel_settings_group.view(config, chrome, position),
+                bar.panel_settings_group
+                    .view(config, &bar.session.chrome, position),
                 |m| match m {
                     PanelSettingsMessage::Tooltip(t) => Message::Tooltip(t),
                     m => Message::PanelSettings(m),
@@ -176,9 +176,14 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
             ),
         ],
         config,
-        chrome,
-    );
-    let start = measured(start, chrome, window, Zone::TopStart);
+        &bar.session.chrome,
+    )
+}
+
+fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
+    let config = &bar.config;
+    let chrome = &bar.session.chrome;
+    let start = measured(top_start(bar, position), chrome, window, Zone::TopStart);
     let center = zone(
         [
             slot(bar.clock_group.view(config, position), Message::Clock),
@@ -254,9 +259,9 @@ fn zone<'a>(
     chrome: &ChromeState,
 ) -> Element<'a, Message> {
     let spacing = if chrome.disconnected_groups {
-        config.layout.horizontal_widget_spacing_px
+        config.spacing.widget_spacing_px
     } else {
-        config.layout.horizontal_group_spacing_px
+        config.spacing.group_spacing_px
     };
     Row::with_children(
         groups
@@ -278,12 +283,12 @@ fn pill<'a>(
         return group;
     }
     let background = blend::darkened(config.palette.bar_background, chrome.darken_chrome_factor);
-    let radius = config.layout.outer_height_px / 2.0;
+    let radius = config.chrome.outer_height_px / 2.0;
     let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
     container(group)
-        .height(Length::Fixed(config.layout.outer_height_px))
+        .height(Length::Fixed(config.chrome.outer_height_px))
         .align_y(Vertical::Center)
-        .padding([0.0, curve_inset + config.layout.horizontal_group_padding_px])
+        .padding([0.0, curve_inset + config.spacing.group_padding_px])
         .style(move |_| container::Style {
             background: Some(background.into()),
             border: iced::Border {
@@ -357,7 +362,7 @@ fn bottom_row<'a>(
     );
     row![start, middle, end]
         .align_y(Alignment::Center)
-        .padding([0.0, config.layout.horizontal_group_padding_px])
+        .padding([0.0, config.spacing.group_padding_px])
         .into()
 }
 
@@ -375,6 +380,6 @@ fn bar_row<'a>(
         end,
     ]
     .align_y(Alignment::Center)
-    .padding([0.0, config.layout.horizontal_group_padding_px])
+    .padding([0.0, config.spacing.group_padding_px])
     .into()
 }

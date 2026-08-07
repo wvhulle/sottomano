@@ -98,7 +98,7 @@ impl QuickLaunch {
                 .iter()
                 .filter_map(|app_id| self.icon_slot(config, index, app_id, reveal)),
         )
-        .spacing(config.layout.horizontal_widget_spacing_px)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
 
         Some(self.menu.view(

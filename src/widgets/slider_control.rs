@@ -271,7 +271,7 @@ impl SliderControl {
                 .align_x(Horizontal::Center)
                 .color(config.palette.bar_foreground);
             return Row::with_children([glyph.into(), slider, readout.into()])
-                .spacing(config.layout.horizontal_widget_spacing_px)
+                .spacing(config.spacing.widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into();
         }

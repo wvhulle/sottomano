@@ -112,7 +112,7 @@ fn entry<'a, Message: Clone + 'a>(
         });
 
     let mut row = Row::new()
-        .spacing(config.layout.horizontal_widget_spacing_px)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Vertical::Center)
         .width(Length::Fill);
     if let Some(element) = leading {

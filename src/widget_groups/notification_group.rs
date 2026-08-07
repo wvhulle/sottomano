@@ -48,7 +48,7 @@ pub fn view<'a>(
     let toggles = Row::new()
         .push(do_not_disturb)
         .push(sound)
-        .spacing(config.layout.horizontal_widget_spacing_px)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
     permanently_inactive_slot(toggles.into(), config, position)
 }

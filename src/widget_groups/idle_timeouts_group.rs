@@ -212,7 +212,7 @@ impl IdleTimeoutsGroup {
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
         let reveal = self.menu.reveal();
-        let group_gap = config.layout.horizontal_widget_spacing_px * 1.5;
+        let group_gap = config.spacing.widget_spacing_px * 1.5;
         let controls = self.entries().map(|(kind, timer)| {
             timer.view(config, reveal).map(move |m| match m {
                 TimerMessage::Slider(ControlMessage::Tooltip(t)) => IdleTimeoutsMessage::Tooltip(t),

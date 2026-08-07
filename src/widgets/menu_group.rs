@@ -85,7 +85,7 @@ fn revealed_content<'a, Message: 'a>(
     reveal: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let gap = config.layout.horizontal_widget_spacing_px;
+    let gap = config.spacing.widget_spacing_px;
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }
 
@@ -98,6 +98,6 @@ fn edge_indicator<'a, Message: 'a>(
     activity_line(
         config.palette.focus,
         base + (1.0 - base) * reveal,
-        config.layout.focus_underline_thickness_px,
+        config.widgets.focus_underline_thickness_px,
     )
 }

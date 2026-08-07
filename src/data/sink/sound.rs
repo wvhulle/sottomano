@@ -48,6 +48,19 @@ impl Alert {
     }
 }
 
+pub(crate) fn session_theme() -> Option<String> {
+    let output = Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.sound", "theme-name"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?;
+    let theme = value.trim().trim_matches('\'');
+    (!theme.is_empty()).then(|| theme.to_owned())
+}
+
 pub fn play(data: &NotificationData, theme: Option<&str>) -> Task<Message> {
     let explicit = data.sound_file.clone();
     let alert = Alert::of(data);
