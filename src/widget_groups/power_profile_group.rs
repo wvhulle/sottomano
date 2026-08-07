@@ -9,7 +9,6 @@ use crate::{
         power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
         row,
     },
-    message_subscriptions::blocking,
     state::power,
     wayland_layers::{
         surface::Position,
@@ -136,11 +135,10 @@ impl PowerProfileGroup {
             PowerProfileMessage::Control(msg) => match self.control.update(msg) {
                 Action::Commit(value) => {
                     let profile = Profile::from_position(value);
-                    blocking("power profile set", move || power_profile::set(profile)).map(
-                        move |ok| {
-                            PowerProfileMessage::Control(ControlMessage::Confirmed { value, ok })
-                        },
-                    )
+                    ControlMessage::commit("power profile set", value, move || {
+                        power_profile::set(profile)
+                    })
+                    .map(PowerProfileMessage::Control)
                 }
                 Action::Opened | Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },

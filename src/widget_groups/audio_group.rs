@@ -151,20 +151,11 @@ impl AudioGroup {
         let Some(commands) = self.commands.clone() else {
             return Task::none();
         };
-        let percent = as_percent(value);
-        blocking("audio set volume", move || {
+        ControlMessage::commit("audio set volume", value, move || {
             slow_write_delay();
-            commands.set_volume(target, percent)
+            commands.set_volume(target, as_percent(value)).is_some()
         })
-        .map(move |resolved| {
-            AudioMessage::Control(
-                kind,
-                ControlMessage::Confirmed {
-                    value,
-                    ok: resolved.is_some(),
-                },
-            )
-        })
+        .map(move |m| AudioMessage::Control(kind, m))
     }
 
     fn nudge(&self, kind: ControlKind, target: Target, delta: f32) -> Task<AudioMessage> {

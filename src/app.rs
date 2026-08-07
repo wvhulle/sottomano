@@ -49,14 +49,11 @@ use crate::{
         system_group::{SystemGroup, SystemMessage},
         tray_group::{TrayGroup, TrayMessage},
         weather_group::{WeatherGroup, WeatherMessage},
-        window_group::{
-            self, WindowGroup, WindowGroupMessage,
-            quick_launch::{MAX_ITEMS, QuickLaunchMessage},
-        },
+        window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
     },
     widgets::{
         idle::{IdleEvent, IdleHandle},
-        menu_group::{MenuGroup, MenuMessage},
+        menu_group::MenuGroup,
         slider_control::{Action as SliderAction, ControlMessage},
     },
 };
@@ -554,33 +551,20 @@ impl Bar {
     }
 
     fn dismiss_menus(&mut self) {
-        self.panel_settings_group
-            .update(&PanelSettingsMessage::Menu(MenuMessage::Close));
-        self.system_group
-            .update(SystemMessage::Menu(MenuMessage::Close));
-        let _ = self
-            .window_group
-            .quick_launch
-            .update(QuickLaunchMessage::Menu(MenuMessage::Close));
-        let _ = self
-            .idle_timeouts_group
-            .update(IdleTimeoutsMessage::Menu(MenuMessage::Close));
-        let _ = self
-            .internet_group
-            .update(InternetMessage::Menu(MenuMessage::Close));
-        self.weather_group
-            .update(WeatherMessage::Menu(MenuMessage::Close));
-        let _ = self
-            .media_group
-            .update(MediaMessage::Menu(MenuMessage::Close), &self.niri);
-        let _ = self
-            .monitor_group
-            .update(MonitorMessage::Menu(MenuMessage::Close));
-        self.tray_group
-            .update(TrayMessage::Menu(MenuMessage::Close));
-        self.clock_group
-            .update(ClockMessage::Menu(MenuMessage::Close));
-        self.ai_group.update(AiMessage::Menu(MenuMessage::Close));
+        self.panel_settings_group.close_menu();
+        self.monitor_group.close_menu();
+        let _ = [
+            &mut self.clock_group.menu,
+            &mut self.weather_group.menu,
+            &mut self.system_group.menu,
+            &mut self.media_group.menu,
+            &mut self.idle_timeouts_group.menu,
+            &mut self.internet_group.menu,
+            &mut self.window_group.quick_launch.menu,
+            &mut self.tray_group.menu,
+            &mut self.ai_group.menu,
+        ]
+        .map(MenuGroup::close);
     }
 
     fn apply_niri_events(&mut self, events: Vec<niri_ipc::Event>) -> Task<Message> {

@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Task,
     alignment::Horizontal,
     mouse::ScrollDelta,
     widget::{Row, button, mouse_area},
@@ -10,6 +10,7 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
+    message_subscriptions::blocking,
     wayland_layers::tooltip::{CarriesTooltip, HoverTarget, TooltipMessage, hoverable},
     widget_groups::scroll::scroll_step,
     widgets::{
@@ -84,6 +85,16 @@ pub enum ControlMessage {
     Caption(Option<String>),
     Right,
     Tooltip(TooltipMessage),
+}
+
+impl ControlMessage {
+    pub fn commit(
+        label: &'static str,
+        value: f32,
+        write: impl FnOnce() -> bool + Send + 'static,
+    ) -> Task<ControlMessage> {
+        blocking(label, write).map(move |ok| ControlMessage::Confirmed { value, ok })
+    }
 }
 
 impl CarriesTooltip for ControlMessage {

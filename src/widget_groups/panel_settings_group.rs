@@ -135,12 +135,22 @@ impl PanelSettingsGroup {
         }
     }
 
+    fn close_sliders(&mut self) {
+        self.offset.close();
+        self.darken.close();
+    }
+
+    pub fn close_menu(&mut self) {
+        if self.menu.close() {
+            self.close_sliders();
+        }
+    }
+
     pub fn update(&mut self, msg: &PanelSettingsMessage) {
         match msg {
             PanelSettingsMessage::Menu(menu) => {
                 if self.menu.update(*menu) {
-                    self.offset.close();
-                    self.darken.close();
+                    self.close_sliders();
                 }
             }
             PanelSettingsMessage::ToggleFloating
