@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::data::source::command;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct UserFont {
     pub name: Option<String>,
     pub text_size_px: f32,

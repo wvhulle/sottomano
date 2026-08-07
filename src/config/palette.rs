@@ -2,7 +2,7 @@ use iced::Color;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default, rename_all = "snake_case")]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct Palette {
     #[serde(with = "css_color")]
     pub bar_background: Color,

@@ -13,7 +13,7 @@ pub fn activity_line<'a, Message: 'a>(
             color: color.scale_alpha(opacity),
             radius: thickness.into(),
             fill_mode: FillMode::Full,
-            snap: false,
+            snap: true,
         })
         .into()
 }

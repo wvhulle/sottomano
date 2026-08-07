@@ -36,7 +36,7 @@ impl Corner {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct NotificationConfig {
     pub point_at_source: bool,
     pub fallback_position: Corner,
