@@ -9,29 +9,93 @@ use iced::{
     mouse::Cursor,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Axis {
+    Horizontal,
+    Vertical,
+}
+
 pub fn reveal_x<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
 ) -> Element<'a, Message> {
-    Element::new(RevealX {
+    reveal(content, fraction, Axis::Horizontal)
+}
+
+pub fn reveal_y<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    fraction: f32,
+) -> Element<'a, Message> {
+    reveal(content, fraction, Axis::Vertical)
+}
+
+fn reveal<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    fraction: f32,
+    axis: Axis,
+) -> Element<'a, Message> {
+    Element::new(Reveal {
         content: content.into(),
         fraction: fraction.clamp(0.0, 1.0),
+        axis,
     })
 }
 
-struct RevealX<'a, Message> {
+struct Reveal<'a, Message> {
     content: Element<'a, Message>,
     fraction: f32,
+    axis: Axis,
 }
 
 pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
     match cursor.position() {
-        Some(position) if (visible.x..=visible.x + visible.width).contains(&position.x) => cursor,
+        Some(position) if visible.contains(position) => cursor,
         _ => Cursor::Unavailable,
     }
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Message> {
+impl<Message> Reveal<'_, Message> {
+    fn natural_limits(&self, limits: &Limits) -> Limits {
+        let max = limits.max();
+        match self.axis {
+            Axis::Horizontal => Limits::new(Size::ZERO, Size::new(f32::INFINITY, max.height)),
+            Axis::Vertical => Limits::new(Size::ZERO, Size::new(max.width, f32::INFINITY)),
+        }
+    }
+
+    fn revealed(&self, natural: Size) -> Size {
+        match self.axis {
+            Axis::Horizontal => Size::new(natural.width * self.fraction, natural.height),
+            Axis::Vertical => Size::new(natural.width, natural.height * self.fraction),
+        }
+    }
+
+    fn clip(&self, bounds: Rectangle, viewport: &Rectangle) -> Option<Rectangle> {
+        if self.fraction >= 1.0 {
+            return None;
+        }
+        Some(self.clipped_to(bounds, viewport))
+    }
+
+    fn clipped_to(&self, bounds: Rectangle, viewport: &Rectangle) -> Rectangle {
+        match self.axis {
+            Axis::Horizontal => Rectangle {
+                x: bounds.x,
+                width: bounds.width,
+                y: viewport.y,
+                height: viewport.height,
+            },
+            Axis::Vertical => Rectangle {
+                x: viewport.x,
+                width: viewport.width,
+                y: bounds.y,
+                height: bounds.height,
+            },
+        }
+    }
+}
+
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Message> {
     fn tag(&self) -> tree::Tag {
         self.content.as_widget().tag()
     }
@@ -53,16 +117,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let natural_limits = Limits::new(Size::ZERO, Size::new(f32::INFINITY, limits.max().height));
+        let natural_limits = self.natural_limits(limits);
         let child = self
             .content
             .as_widget_mut()
             .layout(tree, renderer, &natural_limits);
         let natural = child.size();
-        Node::with_children(
-            Size::new(natural.width * self.fraction, natural.height),
-            vec![child],
-        )
+        Node::with_children(self.revealed(natural), vec![child])
     }
 
     fn draw(
@@ -75,24 +136,16 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RevealX<'_, Messa
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let bounds = layout.bounds();
-        let clip = Rectangle {
-            x: bounds.x,
-            width: bounds.width,
-            y: viewport.y,
-            height: viewport.height,
+        let child = layout.children().next().unwrap();
+        let paint = |renderer: &mut iced::Renderer| {
+            self.content
+                .as_widget()
+                .draw(tree, renderer, theme, style, child, cursor, viewport);
         };
-        renderer.with_layer(clip, |renderer| {
-            self.content.as_widget().draw(
-                tree,
-                renderer,
-                theme,
-                style,
-                layout.children().next().unwrap(),
-                cursor,
-                viewport,
-            );
-        });
+        match self.clip(layout.bounds(), viewport) {
+            Some(clip) => renderer.with_layer(clip, paint),
+            None => paint(renderer),
+        }
     }
 
     fn operate(

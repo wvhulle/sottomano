@@ -39,7 +39,7 @@ use crate::{
 const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    let animation = if state.any_menu_animating() {
+    let animation = if state.any_menu_animating() || state.any_notification_animating() {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()

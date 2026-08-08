@@ -12,6 +12,7 @@ const DISCONNECTED_GROUPS: &str = "disconnected_groups";
 const DARKEN_CHROME_FACTOR: &str = "darken_chrome_factor";
 const DND: &str = "dnd";
 const SOUND: &str = "sound";
+const SPATIAL_LAYOUT: &str = "spatial_layout";
 
 pub async fn load() -> Session {
     match try_load().await {
@@ -49,6 +50,10 @@ pub async fn save_dnd(dnd: bool) {
 
 pub async fn save_sound(sound: bool) {
     put_flag(SOUND, sound).await;
+}
+
+pub async fn save_spatial_layout(spatial: bool) {
+    put_flag(SPATIAL_LAYOUT, spatial).await;
 }
 
 async fn put_flag(key: &str, flag: bool) -> bool {
@@ -99,6 +104,7 @@ async fn try_load() -> Result<Session, StoreError> {
             }
             DND => session.notifications.dnd = parse_flag(&value),
             SOUND => session.notifications.sound = parse_flag(&value),
+            SPATIAL_LAYOUT => session.notifications.spatial_layout = parse_flag(&value),
             _ => {}
         }
     }
