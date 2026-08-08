@@ -38,9 +38,10 @@ impl Corner {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct NotificationConfig {
-    pub point_at_source: bool,
     pub fallback_position: Corner,
     pub edge_gap: f32,
+    pub window_right_offset: f32,
+    pub window_top_offset: f32,
     pub card_width: f32,
     pub app_icon_size: f32,
     pub image_size: f32,
@@ -53,9 +54,10 @@ pub struct NotificationConfig {
 impl Default for NotificationConfig {
     fn default() -> Self {
         Self {
-            point_at_source: true,
             fallback_position: Corner::BottomRight,
-            edge_gap: 8.0,
+            edge_gap: 24.0,
+            window_right_offset: 12.0,
+            window_top_offset: 48.0,
             card_width: 380.0,
             app_icon_size: 40.0,
             image_size: 48.0,

@@ -13,8 +13,9 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum NotificationGroupMessage {
-    ToggleDoNotDisturb,
-    ToggleSound,
+    DoNotDisturb,
+    Sound,
+    SpatialLayout,
 }
 
 pub fn view<'a>(
@@ -31,7 +32,7 @@ pub fn view<'a>(
             (false, false) => Regular::Comment.into(),
         },
         !notif_state.dnd,
-        NotificationGroupMessage::ToggleDoNotDisturb,
+        NotificationGroupMessage::DoNotDisturb,
     );
     let sound = toggle(
         config,
@@ -42,12 +43,24 @@ pub fn view<'a>(
             (false, false) => Regular::BellSlash.into(),
         },
         notif_state.sound,
-        NotificationGroupMessage::ToggleSound,
+        NotificationGroupMessage::Sound,
+    );
+
+    let spatial_layout = toggle(
+        config,
+        if notif_state.spatial_layout {
+            Solid::AlignCenter.into()
+        } else {
+            Solid::AlignRight.into()
+        },
+        notif_state.spatial_layout,
+        NotificationGroupMessage::SpatialLayout,
     );
 
     let toggles = Row::new()
         .push(do_not_disturb)
         .push(sound)
+        .push(spatial_layout)
         .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
     permanently_inactive_slot(toggles.into(), config, position)

@@ -28,6 +28,7 @@ pub struct ChromeState {
 pub struct NotificationState {
     pub dnd: bool,
     pub sound: bool,
+    pub spatial_layout: bool,
 }
 
 impl Default for NotificationState {
@@ -35,6 +36,7 @@ impl Default for NotificationState {
         Self {
             dnd: false,
             sound: true,
+            spatial_layout: true,
         }
     }
 }

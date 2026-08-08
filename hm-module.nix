@@ -44,8 +44,8 @@ let
     bottom-left = r;
     bottom-right = r;
   };
-  cornerRadius = 1.0 * (cfg.settings.layout.corner_radius_px or 8);
-  pillRadius = 0.5 * (cfg.settings.layout.outer_height_px or 24.0);
+  cornerRadius = 1.0 * (cfg.settings.chrome.corner_radius_px or 8);
+  pillRadius = 0.5 * (cfg.settings.chrome.outer_height_px or 22.0);
   cardShadow = {
     enable = true;
     softness = 30;
@@ -92,8 +92,8 @@ let
     }
     {
       matches = [ { namespace = "^vetrata-notifications$"; } ];
-      geometry-corner-radius = uniformRadius cornerRadius;
-      shadow = cardShadow;
+      geometry-corner-radius = radius0;
+      shadow.enable = false;
     }
     {
       matches = [ { namespace = "^vetrata-tooltip$"; } ];
@@ -129,7 +129,7 @@ in
       example = lib.literalExpression ''
         {
           palette.bar_foreground = "#ffffff";
-          layout = {
+          chrome = {
             outer_height_px = 28.0;
             # Cast the gradient legibility shadow (opens the off-screen casters
             # and activates the niri layer-rules below).
@@ -140,16 +140,17 @@ in
       '';
       description = ''
         Contents of ~/.config/vetrata.toml, written verbatim. Maps to the
-        `[palette]`, `[layout]`, `[font]` and `[notifications]` tables in
-        vetrata (src/config/disk.rs). Every key has a default, so set only the
-        ones you override; leave this empty to keep the built-in gruvbox-dark
-        defaults. Set `layout.shadow = true` to enable the legibility shadow.
-        Set `layout.blur_background = true` to open transparent caster surfaces
-        behind the bar chrome under the `vetrata-blur` namespace, whose
-        layer-rule below asks niri to frost the wallpaper behind them;
-        `layout.disconnected_groups = true` draws each widget group as its own
-        pill (with one blur caster per pill) instead of one continuous bar
-        fill.
+        `[palette]`, `[chrome]`, `[spacing]`, `[widgets]`, `[font]`,
+        `[notifications]` and `[tray]` tables in vetrata. Every key has a
+        default, so set only the ones you override; leave this empty to keep
+        the built-in gruvbox-dark defaults. Unknown keys are a fatal startup
+        error, so stale `[layout]` sections from before the chrome/spacing/
+        widgets split must be migrated. Set `chrome.shadow = true` to enable
+        the legibility shadow. Floating, background blur and disconnected
+        pill groups are no longer config: they are runtime toggles in the
+        bar's panel-settings menu, persisted in the state database. The blur
+        and pill layer-rules below activate whenever those toggles open their
+        caster surfaces.
       '';
     };
 

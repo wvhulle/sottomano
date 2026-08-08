@@ -268,8 +268,8 @@ impl Bar {
             Message::PointerLeft => self.tooltip.close(),
             Message::Notification(msg) => self.update_notification(msg),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
-            Message::Redraw
-            | Message::TooltipTick
+            Message::Redraw => self.prune_notifications(),
+            Message::TooltipTick
             | Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
             | Message::AnchorChange { .. }
             | Message::SetInputRegion { .. }
@@ -332,22 +332,26 @@ impl Bar {
         self.notifications.update(
             msg,
             &placement,
-            &self.outputs,
             self.desktop_entries.get(),
             &self.config,
             &self.session.notifications,
         )
     }
 
+    fn prune_notifications(&mut self) -> Task<Message> {
+        if !self.notifications.is_active() {
+            return Task::none();
+        }
+        let placement = niri::Placement::derive(&self.niri);
+        self.notifications
+            .prune(&placement, &self.config, &self.session.notifications)
+    }
+
     fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputGeometry>) -> Task<Message> {
         self.outputs = outputs;
         let placement = niri::Placement::derive(&self.niri);
-        self.notifications.on_niri_changed(
-            &placement,
-            &self.outputs,
-            &self.config,
-            &self.session.notifications,
-        )
+        self.notifications
+            .on_niri_changed(&placement, &self.config, &self.session.notifications)
     }
 
     fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
@@ -378,12 +382,11 @@ impl Bar {
 
     fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
         match msg {
-            NotificationGroupMessage::ToggleDoNotDisturb => {
+            NotificationGroupMessage::DoNotDisturb => {
                 self.session.notifications.dnd = !self.session.notifications.dnd;
                 let placement = niri::Placement::derive(&self.niri);
                 let applied = self.notifications.sync_dnd(
                     &placement,
-                    &self.outputs,
                     &self.config,
                     &self.session.notifications,
                 );
@@ -391,9 +394,21 @@ impl Bar {
                     Task::future(state::panel::save_dnd(self.session.notifications.dnd)).discard();
                 Task::batch([applied, save])
             }
-            NotificationGroupMessage::ToggleSound => {
+            NotificationGroupMessage::Sound => {
                 self.session.notifications.sound = !self.session.notifications.sound;
                 Task::future(state::panel::save_sound(self.session.notifications.sound)).discard()
+            }
+            NotificationGroupMessage::SpatialLayout => {
+                let spatial = !self.session.notifications.spatial_layout;
+                self.session.notifications.spatial_layout = spatial;
+                let placement = niri::Placement::derive(&self.niri);
+                let applied = self.notifications.on_niri_changed(
+                    &placement,
+                    &self.config,
+                    &self.session.notifications,
+                );
+                let save = Task::future(state::panel::save_spatial_layout(spatial)).discard();
+                Task::batch([applied, save])
             }
         }
     }
@@ -480,6 +495,10 @@ impl Bar {
             .or_else(|| self.ai_group.tooltip_for(target))
             .or_else(|| panel_settings_group::tooltip_for(target, &self.session.chrome))
             .unwrap_or_else(Tooltip::empty)
+    }
+
+    pub fn any_notification_animating(&self) -> bool {
+        self.notifications.is_animating()
     }
 
     pub fn any_notification_expiring(&self) -> bool {
@@ -601,7 +620,6 @@ impl Bar {
             let placement = niri::Placement::derive(&self.niri);
             tasks.push(self.notifications.on_niri_changed(
                 &placement,
-                &self.outputs,
                 &self.config,
                 &self.session.notifications,
             ));

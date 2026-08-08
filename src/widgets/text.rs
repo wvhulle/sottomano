@@ -70,10 +70,6 @@ impl TextStyle {
         }
     }
 
-    pub fn size(self) -> f32 {
-        self.size
-    }
-
     pub fn line_height(self) -> f32 {
         LINE_HEIGHT.to_absolute(Pixels(self.size)).0
     }
@@ -82,30 +78,11 @@ impl TextStyle {
         self.measure_wrapped(content, f32::INFINITY)
     }
 
-    pub fn measure_wrapped(self, content: &str, width: f32) -> Size {
+    fn measure_wrapped(self, content: &str, width: f32) -> Size {
         if content.is_empty() {
             return Size::ZERO;
         }
         Paragraph::with_text(self.layout(content, width)).min_bounds()
-    }
-
-    pub fn measure_spans(self, spans: &[Span<'_>], width: f32) -> Size {
-        if spans.is_empty() {
-            return Size::ZERO;
-        }
-        let base = self.layout("", width);
-        Paragraph::with_spans(advanced_text::Text {
-            content: spans,
-            bounds: base.bounds,
-            size: base.size,
-            line_height: base.line_height,
-            font: base.font,
-            align_x: base.align_x,
-            align_y: base.align_y,
-            shaping: base.shaping,
-            wrapping: base.wrapping,
-        })
-        .min_bounds()
     }
 
     fn layout(self, content: &str, width: f32) -> advanced_text::Text<&str> {

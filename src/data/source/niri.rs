@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt, io::Error, thread};
 
-use niri_ipc::{Event, Request, Response, socket::Socket, state::EventStreamState};
+use iced::Rectangle;
+use niri_ipc::{Event, Request, Response, Window, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -187,6 +188,7 @@ pub struct Placement {
     focused_window: Option<u64>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
+    rects: HashMap<u64, Rectangle>,
     windows: Vec<WindowIdentity>,
 }
 
@@ -219,9 +221,15 @@ impl Placement {
         let mut column_by_window = HashMap::new();
         let mut focused_window = None;
         let mut windows = Vec::new();
+        let mut rects = HashMap::new();
         for w in state.windows.windows.values() {
             if let Some(ws) = w.workspace_id {
                 workspace_by_window.insert(w.id, ws);
+            }
+            if !state.overview.is_open
+                && let Some(rect) = viewed_rect(w, &output_by_workspace, &active_ws_by_output)
+            {
+                rects.insert(w.id, rect);
             }
             if let Some((col, _)) = w.layout.pos_in_scrolling_layout {
                 column_by_window.insert(w.id, col);
@@ -271,8 +279,13 @@ impl Placement {
             focused_window,
             output_by_workspace,
             edges,
+            rects,
             windows,
         }
+    }
+
+    pub fn window_rect(&self, id: u64) -> Option<Rectangle> {
+        self.rects.get(&id).copied()
     }
 
     pub fn window_edge(&self, id: u64) -> WindowEdge {
@@ -298,6 +311,27 @@ impl Placement {
     pub fn active_workspace_for_move(&self) -> Option<u64> {
         self.workspace_by_window.get(&self.focused_window?).copied()
     }
+}
+
+fn viewed_rect(
+    window: &Window,
+    output_by_workspace: &HashMap<u64, String>,
+    active_ws_by_output: &HashMap<String, u64>,
+) -> Option<Rectangle> {
+    let workspace = window.workspace_id?;
+    let output = output_by_workspace.get(&workspace)?;
+    if active_ws_by_output.get(output) != Some(&workspace) {
+        return None;
+    }
+    let (tile_x, tile_y) = window.layout.tile_pos_in_workspace_view?;
+    let (offset_x, offset_y) = window.layout.window_offset_in_tile;
+    let (width, height) = window.layout.window_size;
+    Some(Rectangle {
+        x: (tile_x + offset_x) as f32,
+        y: (tile_y + offset_y) as f32,
+        width: width as f32,
+        height: height as f32,
+    })
 }
 
 fn vertical_edge(window_ws_idx: Option<u8>, active_ws_idx: Option<u8>) -> VEdge {
@@ -427,7 +461,6 @@ pub fn spawn(command: &[String]) {
 #[derive(Debug, Clone, Copy)]
 pub struct OutputGeometry {
     pub width: i32,
-    pub height: i32,
 }
 
 pub fn output_geometry() -> HashMap<String, OutputGeometry> {
@@ -443,7 +476,6 @@ pub fn output_geometry() -> HashMap<String, OutputGeometry> {
                         name,
                         OutputGeometry {
                             width: logical.width.cast_signed(),
-                            height: logical.height.cast_signed(),
                         },
                     )
                 })

@@ -1,19 +1,21 @@
-pub mod card;
-pub mod countdown;
-pub mod markup;
-pub mod placement;
-pub mod stack;
+pub mod body_markup;
+pub mod expiry_countdown;
+pub mod output_surfaces;
+pub mod placement_policy;
+pub mod toast_anchor;
+pub mod toast_card;
+pub mod toast_field;
+pub mod toast_lifecycle;
 
-use std::{
-    cmp::Reverse,
-    collections::{HashMap, HashSet},
-    time::{Instant, SystemTime},
-};
+use std::{cmp::Reverse, collections::HashSet};
 
-use countdown::Countdown;
-use iced::{Element, Task, widget::Sensor, window::Id};
-use iced_layershell::reexport::Anchor;
-use placement::{ToastPlacement, placement_for, resolve_window_id};
+use expiry_countdown::Countdown;
+use iced::{Element, Task, time::Instant, window::Id};
+use iced_layershell::actions::ActionCallback;
+use output_surfaces::ToastSurfaces;
+use placement_policy::{placement_for, resolve_window_id};
+use toast_anchor::ToastSlot;
+pub use toast_lifecycle::{Notification, NotificationMessage};
 
 use crate::{
     app::Message,
@@ -21,48 +23,15 @@ use crate::{
     data::{
         notifications::model::{NotifHandle, NotificationData, Outbound, close_reason},
         sink::sound,
-        source::{
-            app_icon::DesktopEntries,
-            niri::{self, HEdge, OutputGeometry, Placement, VEdge},
-        },
+        source::{app_icon::DesktopEntries, niri, niri::Placement},
     },
     message_subscriptions::niri_action,
     state::NotificationState,
-    wayland_layers::surface::{Margin, SurfaceSize},
+    widgets::reveal::reveal_y,
 };
 
 fn is_window_action(key: &str) -> bool {
     matches!(key, "default" | "move" | "quit")
-}
-
-#[derive(Debug, Clone)]
-pub enum NotificationMessage {
-    Connected(NotifHandle),
-    Served(Box<NotificationData>),
-    CloseRequested(u32),
-    BodyClicked(u32),
-    HoverChanged { id: u32, hovered: bool },
-    Dismiss(u32),
-    ActionClicked { id: u32, key: String },
-    Resized { id: u32, height: f32 },
-    Tick,
-}
-
-pub struct Notification {
-    pub data: NotificationData,
-    pub created_at: SystemTime,
-    countdown: Option<Countdown>,
-    seq: u64,
-    pub icons: card::CardIcons,
-    measured_height: f32,
-}
-
-struct ToastSurface {
-    id: Id,
-    output: Option<String>,
-    anchor: Anchor,
-    margin: Margin,
-    size: SurfaceSize,
 }
 
 #[derive(Default)]
@@ -70,7 +39,7 @@ pub struct NotificationLayer {
     handle: Option<NotifHandle>,
     sound_theme: Option<String>,
     live: Vec<Notification>,
-    surfaces: HashMap<u32, ToastSurface>,
+    surfaces: ToastSurfaces,
     next_seq: u64,
     hovered: Option<u32>,
 }
@@ -84,7 +53,6 @@ impl NotificationLayer {
         &mut self,
         message: NotificationMessage,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         entries: Option<&DesktopEntries>,
         config: &Config,
         notif_state: &NotificationState,
@@ -95,28 +63,14 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Served(data) => {
-                self.serve(data, placement, outputs, entries, config, notif_state)
+                self.serve(data, placement, entries, config, notif_state)
             }
             NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
                 Some(window) => Task::batch([
                     niri_action(move || niri::focus_window(window)),
-                    self.dismiss(
-                        id,
-                        close_reason::DISMISSED,
-                        placement,
-                        outputs,
-                        config,
-                        notif_state,
-                    ),
+                    self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
                 ]),
-                None => self.dismiss(
-                    id,
-                    close_reason::DISMISSED,
-                    placement,
-                    outputs,
-                    config,
-                    notif_state,
-                ),
+                None => self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
             },
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
@@ -127,29 +81,33 @@ impl NotificationLayer {
                 self.sync_countdowns(Instant::now());
                 Task::none()
             }
-            NotificationMessage::Dismiss(id) => self.dismiss(
-                id,
-                close_reason::DISMISSED,
-                placement,
-                outputs,
-                config,
-                notif_state,
-            ),
+            NotificationMessage::Dismiss(id) => {
+                self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state)
+            }
             NotificationMessage::ActionClicked { id, key } => {
-                self.activate_action(id, &key, placement, outputs, config, notif_state)
+                self.activate_action(id, &key, placement, config, notif_state)
             }
             NotificationMessage::CloseRequested(id) => self.dismiss(
                 id,
                 close_reason::CLOSED_BY_CALL,
                 placement,
-                outputs,
                 config,
                 notif_state,
             ),
-            NotificationMessage::Resized { id, height } => {
-                self.adopt_measured_height(id, height, placement, outputs, config, notif_state)
-            }
-            NotificationMessage::Tick => self.expire(placement, outputs, config, notif_state),
+            NotificationMessage::Rects { window, rects } => Task::done(Message::SetInputRegion {
+                id: window,
+                callback: ActionCallback::new(move |region| {
+                    rects.iter().for_each(|rect| {
+                        region.add(
+                            rect.x as i32,
+                            rect.y as i32,
+                            rect.width as i32,
+                            rect.height as i32,
+                        );
+                    });
+                }),
+            }),
+            NotificationMessage::Tick => self.expire(placement, config, notif_state),
         }
     }
 
@@ -157,7 +115,6 @@ impl NotificationLayer {
         &mut self,
         data: Box<NotificationData>,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         entries: Option<&DesktopEntries>,
         config: &Config,
         notif_state: &NotificationState,
@@ -170,8 +127,7 @@ impl NotificationLayer {
         let mut tasks = Vec::new();
         if let Some(window) = data.window_id_hint {
             let dupes: Vec<u32> = self
-                .live
-                .iter()
+                .showing()
                 .filter(|n| n.data.window_id_hint == Some(window))
                 .map(|n| n.data.id)
                 .collect();
@@ -180,70 +136,77 @@ impl NotificationLayer {
         if notif_state.sound && !data.suppress_sound {
             tasks.push(sound::play(&data, self.sound_theme.as_deref()));
         }
-        let icons = card::resolve_icons(&data, entries);
-        let measured_height = card::measure_height(&data, &icons, config);
+        let icons = toast_card::resolve_icons(&data, entries);
         let seq = self.next_seq;
         self.next_seq += 1;
         let now = Instant::now();
         let countdown =
-            countdown::lifetime(data.expire_timeout, data.urgency, &config.notifications)
+            expiry_countdown::lifetime(data.expire_timeout, data.urgency, &config.notifications)
                 .map(|remaining| Countdown::started(remaining, now));
-        self.live.push(Notification {
-            data: *data,
-            created_at: SystemTime::now(),
-            countdown,
-            seq,
-            icons,
-            measured_height,
-        });
+        let place = placement_for(&data, placement, notif_state, config);
+        self.live.push(Notification::appearing(
+            *data, icons, countdown, seq, place, now,
+        ));
         self.sync_countdowns(now);
-        tasks.push(self.reconcile(placement, outputs, config, notif_state));
+        tasks.push(self.reconcile(placement, config, notif_state));
         Task::batch(tasks)
     }
 
     pub fn on_niri_changed(
         &mut self,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
-            .live
-            .iter()
+            .showing()
             .filter(|n| is_stale(&n.data, placement))
             .map(|n| n.data.id)
             .collect();
         let mut tasks = self.close_all(stale, close_reason::UNDEFINED);
-        tasks.push(self.reconcile(placement, outputs, config, notif_state));
+        tasks.push(self.reconcile(placement, config, notif_state));
         Task::batch(tasks)
+    }
+
+    pub fn prune(
+        &mut self,
+        placement: &Placement,
+        config: &Config,
+        notif_state: &NotificationState,
+    ) -> Task<Message> {
+        let now = Instant::now();
+        let before = self.live.len();
+        self.live.retain(|n| !n.has_faded(now));
+        if self.live.len() == before {
+            return Task::none();
+        }
+        self.reconcile(placement, config, notif_state)
     }
 
     fn expire(
         &mut self,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
         let now = Instant::now();
         let expired: Vec<u32> = self
-            .live
-            .iter()
+            .showing()
             .filter(|n| n.countdown.is_some_and(|c| c.has_elapsed(now)))
             .map(|n| n.data.id)
             .collect();
-        if expired.is_empty() {
-            return Task::none();
-        }
         let mut tasks = self.close_all(expired, close_reason::EXPIRED);
-        tasks.push(self.reconcile(placement, outputs, config, notif_state));
+        tasks.push(self.prune(placement, config, notif_state));
         Task::batch(tasks)
+    }
+
+    fn showing(&self) -> impl Iterator<Item = &Notification> {
+        self.live.iter().filter(|n| !n.is_withdrawing())
     }
 
     fn sync_countdowns(&mut self, now: Instant) {
         let hovered = self.hovered;
-        for notif in &mut self.live {
+        self.live.iter_mut().for_each(|notif| {
             let under_pointer = hovered == Some(notif.data.id);
             notif.countdown = notif.countdown.map(|countdown| {
                 if under_pointer {
@@ -252,7 +215,7 @@ impl NotificationLayer {
                     countdown.resumed(now)
                 }
             });
-        }
+        });
     }
 
     fn close_all(
@@ -260,11 +223,15 @@ impl NotificationLayer {
         candidates: impl IntoIterator<Item = u32>,
         reason: u32,
     ) -> Vec<Task<Message>> {
+        let now = Instant::now();
         let closing: Vec<u32> = candidates
             .into_iter()
-            .filter(|id| self.live.iter().any(|n| n.data.id == *id))
+            .filter(|id| self.showing().any(|n| n.data.id == *id))
             .collect();
-        self.live.retain(|n| !closing.contains(&n.data.id));
+        self.live
+            .iter_mut()
+            .filter(|n| closing.contains(&n.data.id))
+            .for_each(|n| n.withdraw(now));
         self.prune_hover();
         closing
             .into_iter()
@@ -273,10 +240,8 @@ impl NotificationLayer {
     }
 
     fn prune_hover(&mut self) {
-        let live = &self.live;
-        self.hovered = self
-            .hovered
-            .filter(|id| live.iter().any(|n| n.data.id == *id));
+        let hovered = self.hovered;
+        self.hovered = hovered.filter(|id| self.showing().any(|n| n.data.id == *id));
     }
 
     pub fn has_running_countdown(&self) -> bool {
@@ -285,27 +250,13 @@ impl NotificationLayer {
             .any(|n| n.countdown.is_some_and(Countdown::is_running))
     }
 
-    fn adopt_measured_height(
-        &mut self,
-        id: u32,
-        height: f32,
-        placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
-        config: &Config,
-        notif_state: &NotificationState,
-    ) -> Task<Message> {
-        let Some(notif) = self.live.iter_mut().find(|n| n.data.id == id) else {
-            return Task::none();
-        };
-        if stack::surface_height(height) == stack::surface_height(notif.measured_height) {
-            return Task::none();
-        }
-        notif.measured_height = height;
-        self.reconcile(placement, outputs, config, notif_state)
+    pub fn is_animating(&self) -> bool {
+        let now = Instant::now();
+        self.live.iter().any(|n| n.is_animating(now))
     }
 
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
-        let notif = self.live.iter().find(|n| n.data.id == id)?;
+        let notif = self.showing().find(|n| n.data.id == id)?;
         resolve_window_id(&notif.data, placement)
             .filter(|&w| placement.workspace_of_window(w).is_some())
     }
@@ -315,12 +266,10 @@ impl NotificationLayer {
         id: u32,
         key: &str,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
-        let survives_action_invocation =
-            self.live.iter().any(|n| n.data.id == id && n.data.resident);
+        let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
         let activation = match self
             .window_of(id, placement)
             .filter(|_| is_window_action(key))
@@ -346,37 +295,41 @@ impl NotificationLayer {
         } else {
             Task::batch([
                 activation,
-                self.dismiss(
-                    id,
-                    close_reason::DISMISSED,
-                    placement,
-                    outputs,
-                    config,
-                    notif_state,
-                ),
+                self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
             ])
         }
     }
 
-    pub fn view(&self, id: Id, config: &Config) -> Option<Element<'_, Message>> {
-        let (&notif_id, _) = self.surfaces.iter().find(|(_, s)| s.id == id)?;
-        let notif = self.live.iter().find(|n| n.data.id == notif_id)?;
-        let hovered = self.hovered == Some(notif_id);
-        Some(
-            Element::from(
-                Sensor::new(card::card(notif, hovered, config)).on_resize(move |size| {
-                    NotificationMessage::Resized {
-                        id: notif_id,
-                        height: size.height,
-                    }
-                }),
-            )
-            .map(Message::Notification),
-        )
+    pub fn view(&self, window: Id, config: &Config) -> Option<Element<'_, Message>> {
+        let output = self.surfaces.output_of(window)?;
+        let now = Instant::now();
+        let mut ordered: Vec<&Notification> = self
+            .live
+            .iter()
+            .filter(|n| n.place.output == *output)
+            .collect();
+        ordered.sort_by_key(|n| Reverse(n.seq));
+        let slots: Vec<ToastSlot<'_>> = ordered
+            .into_iter()
+            .map(|notif| {
+                let reveal = notif.reveal(now);
+                ToastSlot {
+                    id: notif.data.id,
+                    anchor: notif.place.anchor,
+                    card: reveal_y(
+                        toast_card::Card::new(notif, config)
+                            .hovered(self.hovered == Some(notif.data.id))
+                            .reveal(reveal),
+                        reveal,
+                    ),
+                }
+            })
+            .collect();
+        Some(toast_field::field(window, slots, &config.notifications).map(Message::Notification))
     }
 
-    pub fn forget(&mut self, id: Id) {
-        self.surfaces.retain(|_, s| s.id != id);
+    pub fn forget(&mut self, window: Id) {
+        self.surfaces.forget(window);
     }
 
     pub fn is_active(&self) -> bool {
@@ -386,7 +339,6 @@ impl NotificationLayer {
     pub fn sync_dnd(
         &mut self,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
@@ -394,7 +346,7 @@ impl NotificationLayer {
             self.live.clear();
             self.hovered = None;
         }
-        self.reconcile(placement, outputs, config, notif_state)
+        self.reconcile(placement, config, notif_state)
     }
 
     fn dismiss(
@@ -402,12 +354,11 @@ impl NotificationLayer {
         id: u32,
         reason: u32,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
         let mut tasks = self.close_all([id], reason);
-        tasks.push(self.reconcile(placement, outputs, config, notif_state));
+        tasks.push(self.reconcile(placement, config, notif_state));
         Task::batch(tasks)
     }
 
@@ -427,214 +378,22 @@ impl NotificationLayer {
     fn reconcile(
         &mut self,
         placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
-        let desired = self.desired_surfaces(placement, outputs, config, notif_state);
-        let changes = self.plan_changes(&desired);
-        self.apply_changes(changes)
-    }
-
-    fn plan_changes(&self, desired: &[DesiredSurface]) -> Vec<SurfaceChange> {
-        let desired_ids: HashSet<u32> = desired.iter().map(|wanted| wanted.id).collect();
-        let opens_and_adjusts =
-            desired
+        self.live.iter_mut().for_each(|notif| {
+            notif.place = placement_for(&notif.data, placement, notif_state, config);
+        });
+        let desired: HashSet<Option<String>> = if notif_state.dnd {
+            HashSet::new()
+        } else {
+            self.live
                 .iter()
-                .flat_map(|wanted| match self.surfaces.get(&wanted.id) {
-                    None => vec![SurfaceChange::Open(wanted.clone())],
-                    Some(existing) if existing.output != wanted.output => {
-                        vec![
-                            SurfaceChange::Close(wanted.id),
-                            SurfaceChange::Open(wanted.clone()),
-                        ]
-                    }
-                    Some(existing) => {
-                        let anchor = (existing.anchor != wanted.anchor).then_some(wanted.anchor);
-                        let margin = (existing.margin != wanted.margin).then_some(wanted.margin);
-                        let size = (existing.size != wanted.size).then_some(wanted.size);
-                        if anchor.is_none() && margin.is_none() && size.is_none() {
-                            vec![]
-                        } else {
-                            vec![SurfaceChange::Adjust {
-                                id: wanted.id,
-                                anchor,
-                                margin,
-                                size,
-                            }]
-                        }
-                    }
-                });
-        let closes = self
-            .surfaces
-            .keys()
-            .copied()
-            .filter(|id| !desired_ids.contains(id))
-            .map(SurfaceChange::Close);
-        opens_and_adjusts.chain(closes).collect()
+                .map(|notif| notif.place.output.clone())
+                .collect()
+        };
+        self.surfaces.reconcile(&desired)
     }
-
-    fn apply_changes(&mut self, changes: Vec<SurfaceChange>) -> Task<Message> {
-        Task::batch(
-            changes
-                .into_iter()
-                .map(|change| self.perform_change(change)),
-        )
-    }
-
-    fn perform_change(&mut self, change: SurfaceChange) -> Task<Message> {
-        match change {
-            SurfaceChange::Open(wanted) => {
-                let window = Id::unique();
-                let settings = stack::toast_settings(
-                    wanted.output.as_deref(),
-                    wanted.anchor,
-                    wanted.margin,
-                    wanted.size,
-                );
-                self.surfaces.insert(
-                    wanted.id,
-                    ToastSurface {
-                        id: window,
-                        output: wanted.output,
-                        anchor: wanted.anchor,
-                        margin: wanted.margin,
-                        size: wanted.size,
-                    },
-                );
-                Task::done(Message::NewLayerShell {
-                    settings,
-                    id: window,
-                })
-            }
-            SurfaceChange::Adjust {
-                id,
-                anchor,
-                margin,
-                size,
-            } => {
-                let Some(existing) = self.surfaces.get_mut(&id) else {
-                    return Task::none();
-                };
-                let window = existing.id;
-                let mut tasks = Vec::new();
-                if let Some(anchor) = anchor {
-                    existing.anchor = anchor;
-                    tasks.push(Task::done(Message::AnchorChange { id: window, anchor }));
-                }
-                if let Some(margin) = margin {
-                    existing.margin = margin;
-                    tasks.push(Task::done(Message::MarginChange {
-                        id: window,
-                        margin: margin.edges(),
-                    }));
-                }
-                if let Some(size) = size {
-                    existing.size = size;
-                    tasks.push(Task::done(Message::SizeChange {
-                        id: window,
-                        size: size.dimensions(),
-                    }));
-                }
-                Task::batch(tasks)
-            }
-            SurfaceChange::Close(id) => match self.surfaces.remove(&id) {
-                Some(existing) => Task::done(Message::RemoveWindow(existing.id)),
-                None => Task::none(),
-            },
-        }
-    }
-
-    fn desired_surfaces(
-        &self,
-        placement: &Placement,
-        outputs: &HashMap<String, OutputGeometry>,
-        config: &Config,
-        notif_state: &NotificationState,
-    ) -> Vec<DesiredSurface> {
-        if notif_state.dnd {
-            return Vec::new();
-        }
-        let width = config.notifications.card_width.round() as u32;
-        let mut order: Vec<&Notification> = self.live.iter().collect();
-        order.sort_by_key(|n| Reverse(n.seq));
-
-        let placed: Vec<(&Notification, ToastPlacement, f32)> = order
-            .iter()
-            .map(|notif| {
-                let place = placement_for(&notif.data, placement, config);
-                (*notif, place, notif.measured_height)
-            })
-            .collect();
-
-        let mut totals: HashMap<GroupKey, (f32, usize)> = HashMap::new();
-        for (_, place, height) in &placed {
-            let entry = totals.entry(group_key(place)).or_insert((0.0, 0));
-            entry.0 += height;
-            entry.1 += 1;
-        }
-
-        let mut offsets: HashMap<GroupKey, f32> = HashMap::new();
-        placed
-            .iter()
-            .map(|(notif, place, height)| {
-                let key = group_key(place);
-                let (sum, count) = totals[&key];
-                let group_height = sum + stack::STACK_SPACING * (count.saturating_sub(1)) as f32;
-                let offset = offsets.entry(key).or_insert(0.0);
-                let output_height = place
-                    .output
-                    .as_deref()
-                    .and_then(|output| outputs.get(output))
-                    .map(|geometry| geometry.height);
-                let stack::SlotPlacement { anchor, margin } = stack::slot_placement(
-                    place.vertical,
-                    place.horizontal,
-                    *offset,
-                    group_height,
-                    output_height,
-                    config,
-                );
-                *offset += height + stack::STACK_SPACING;
-                DesiredSurface {
-                    id: notif.data.id,
-                    output: place.output.clone(),
-                    anchor,
-                    margin,
-                    size: SurfaceSize {
-                        width,
-                        height: stack::surface_height(notif.measured_height),
-                    },
-                }
-            })
-            .collect()
-    }
-}
-
-type GroupKey = (Option<String>, VEdge, HEdge);
-
-fn group_key(place: &ToastPlacement) -> GroupKey {
-    (place.output.clone(), place.vertical, place.horizontal)
-}
-
-enum SurfaceChange {
-    Open(DesiredSurface),
-    Adjust {
-        id: u32,
-        anchor: Option<Anchor>,
-        margin: Option<Margin>,
-        size: Option<SurfaceSize>,
-    },
-    Close(u32),
-}
-
-#[derive(Clone)]
-struct DesiredSurface {
-    id: u32,
-    output: Option<String>,
-    anchor: Anchor,
-    margin: Margin,
-    size: SurfaceSize,
 }
 
 fn is_stale(data: &NotificationData, placement: &Placement) -> bool {

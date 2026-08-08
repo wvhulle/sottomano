@@ -1,16 +1,9 @@
+use super::toast_anchor::{ToastAnchor, ToastPlacement};
 use crate::{
     config::Config,
-    data::{
-        notifications::model::NotificationData,
-        source::niri::{HEdge, Placement, VEdge},
-    },
+    data::{notifications::model::NotificationData, source::niri::Placement},
+    state::NotificationState,
 };
-
-pub struct ToastPlacement {
-    pub output: Option<String>,
-    pub vertical: VEdge,
-    pub horizontal: HEdge,
-}
 
 pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Option<u64> {
     if let Some(hint) = data.window_id_hint {
@@ -30,11 +23,11 @@ pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Opti
 pub fn placement_for(
     data: &NotificationData,
     placement: &Placement,
+    notif_state: &NotificationState,
     config: &Config,
 ) -> ToastPlacement {
-    let id = config
-        .notifications
-        .point_at_source
+    let id = notif_state
+        .spatial_layout
         .then(|| resolve_window_id(data, placement))
         .flatten()
         .filter(|&id| placement.workspace_of_window(id).is_some());
@@ -43,27 +36,23 @@ pub fn placement_for(
         let edges = config.notifications.fallback_position.edges();
         return ToastPlacement {
             output: fallback_output(placement),
-            vertical: edges.vertical,
-            horizontal: edges.horizontal,
+            anchor: ToastAnchor::Edge {
+                vertical: edges.vertical,
+                horizontal: edges.horizontal,
+            },
         };
     };
 
     let edge = placement.window_edge(id);
     let output = edge.output.or_else(|| fallback_output(placement));
-
-    if placement.focused_window() == Some(id) {
-        ToastPlacement {
-            output,
-            vertical: VEdge::Center,
-            horizontal: HEdge::Center,
-        }
-    } else {
-        ToastPlacement {
-            output,
+    let anchor = match placement.window_rect(id) {
+        Some(bounds) => ToastAnchor::Window { id, bounds },
+        None => ToastAnchor::Edge {
             vertical: edge.vertical,
             horizontal: edge.horizontal,
-        }
-    }
+        },
+    };
+    ToastPlacement { output, anchor }
 }
 
 fn fallback_output(placement: &Placement) -> Option<String> {
