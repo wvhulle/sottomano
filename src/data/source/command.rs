@@ -4,7 +4,7 @@ use std::{
     process::Output,
 };
 
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -62,6 +62,20 @@ pub async fn output(program: &str, args: &[&str]) -> Result<Option<String>, Erro
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(Error::Spawn {
             program: program.to_owned(),
+            detail: error.to_string(),
+        }),
+    }
+}
+
+pub fn spawn(command: &[String]) -> Result<Option<Child>, Error> {
+    let Some((program, args)) = command.split_first() else {
+        return Ok(None);
+    };
+    match Command::new(program).args(args).spawn() {
+        Ok(child) => Ok(Some(child)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(Error::Spawn {
+            program: program.clone(),
             detail: error.to_string(),
         }),
     }

@@ -22,12 +22,13 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
     app::{Bar, Message},
+    config::locker::Locker,
     data::{
         notifications::{
             model::{NotifHandle, Outbound, ServerEvent},
             server,
         },
-        source::{ApiSource, Source, desktop_entries, niri},
+        source::{ApiSource, Source, desktop_entries, logind, niri},
     },
     wayland_layers::notifications::NotificationMessage,
     widget_groups::{
@@ -74,6 +75,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         MediaGroup::subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         idle::subscription().map(Message::Idle),
+        locker_subscription(state),
         AudioGroup::subscription().map(Message::Audio),
         PowerProfileGroup::subscription().map(Message::PowerProfile),
         state.ai_group.subscription().map(Message::Ai),
@@ -169,6 +171,16 @@ where
 
 pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {
     blocking("niri action", action).discard()
+}
+
+fn locker_subscription(state: &Bar) -> Subscription<Message> {
+    Subscription::run_with(
+        ("locker", state.config.locker.clone()),
+        |(_, locker): &(&str, Locker)| {
+            let locker = locker.clone();
+            channel(1, |_output: Sender<Message>| logind::run_locker(locker))
+        },
+    )
 }
 
 fn niri_subscription() -> Subscription<Message> {
