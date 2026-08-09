@@ -10,6 +10,7 @@ use toml::de;
 use super::{
     chrome::Chrome,
     font::{self, FontConfig, UserFont},
+    locker::Locker,
     notifications::NotificationConfig,
     palette::Palette,
     spacing::Spacing,
@@ -29,6 +30,7 @@ pub struct Config {
     pub tray_deny_ids: Vec<String>,
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_unit: String,
+    pub locker: Locker,
     pub secrets: SecretPaths,
 }
 
@@ -52,6 +54,7 @@ struct UserConfig {
     tray: TrayToml,
     terminal: Vec<String>,
     color_temperature_unit: String,
+    locker: Locker,
 }
 
 impl Default for UserConfig {
@@ -67,6 +70,7 @@ impl Default for UserConfig {
             tray: TrayToml::default(),
             terminal: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_unit: String::from("screen-temperature.service"),
+            locker: Locker::default(),
         }
     }
 }
@@ -156,6 +160,7 @@ pub fn load() -> Config {
             .collect(),
         terminal_command_prefix: user.terminal,
         color_temperature_unit: user.color_temperature_unit,
+        locker: user.locker,
         secrets: SecretPaths {
             openrouter_management: secret_path("VETRATA_OPENROUTER_KEY_FILE"),
             claude_code_oauth: secret_path("VETRATA_CLAUDE_CODE_OAUTH_FILE"),
