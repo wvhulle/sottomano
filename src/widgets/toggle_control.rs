@@ -29,13 +29,13 @@ impl<S> Default for ToggleControl<S> {
 }
 
 #[derive(Debug, Clone)]
-pub enum ToggleMessage<S> {
-    Reading(Option<S>),
+pub enum ToggleMessage<S: Toggle> {
+    Reading(Result<Option<S>, S::Error>),
     Press,
     Tooltip(TooltipMessage),
 }
 
-impl<S: Toggle + Send + 'static> ToggleControl<S> {
+impl<S: Toggle> ToggleControl<S> {
     pub fn subscription() -> Subscription<ToggleMessage<S>> {
         SourceCell::<S>::subscription().map(ToggleMessage::Reading)
     }
@@ -43,7 +43,7 @@ impl<S: Toggle + Send + 'static> ToggleControl<S> {
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {
         match message {
             ToggleMessage::Reading(reading) => {
-                self.cell.load(reading);
+                self.cell.receive(reading);
                 self.pending = None;
                 Task::none()
             }

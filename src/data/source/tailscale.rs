@@ -1,13 +1,35 @@
-use std::time::Duration;
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    time::Duration,
+};
 
 use serde_json::Value as Json;
 
 use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody,
-    command::{output, run},
-    font_awesome::Solid,
+    BarWidget, Glyph, Source, TooltipBody, command, command::blocking::run, font_awesome::Solid,
     row,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Command(command::Error),
+    Malformed,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Command(error) => write!(f, "{error}"),
+            Error::Malformed => write!(f, "unexpected status JSON"),
+        }
+    }
+}
+
+impl From<command::Error> for Error {
+    fn from(error: command::Error) -> Self {
+        Error::Command(error)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 struct Peer {
@@ -74,21 +96,25 @@ impl BarWidget for Tailscale {
 }
 
 impl Source for Tailscale {
+    type Error = Error;
+
     const NAME: &'static str = "tailscale";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    fn poll() -> Option<Self> {
-        let status: Json =
-            serde_json::from_str(&output("tailscale", &["status", "--json"])?).ok()?;
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        let Some(raw) = command::output("tailscale", &["status", "--json"]).await? else {
+            return Ok(None);
+        };
+        let status: Json = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
         let running = status.get("BackendState").and_then(Json::as_str) == Some("Running");
         if !running {
-            return Some(Tailscale {
+            return Ok(Some(Tailscale {
                 running: false,
                 self_name: String::new(),
                 self_ip: String::new(),
                 online: Vec::new(),
                 total_peers: 0,
-            });
+            }));
         }
         let self_node = status.get("Self");
         let self_name = self_node
@@ -111,13 +137,13 @@ impl Source for Tailscale {
                 ip: first_ip(peer),
             })
             .collect();
-        Some(Tailscale {
+        Ok(Some(Tailscale {
             running: true,
             self_name,
             self_ip,
             online,
             total_peers,
-        })
+        }))
     }
 }
 

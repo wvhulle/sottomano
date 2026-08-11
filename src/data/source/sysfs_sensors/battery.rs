@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use super::{energy_wh, first_power_supply, read_trimmed};
+use tokio::task::spawn_blocking;
+
+use super::{Error, energy_wh, first_power_supply, parse_field, read_field};
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
@@ -76,17 +78,25 @@ impl BarWidget for Battery {
 }
 
 impl Source for Battery {
+    type Error = Error;
+
     const NAME: &'static str = "battery";
     const INTERVAL: Duration = Duration::from_secs(30);
 
-    fn poll() -> Option<Self> {
-        let dir = first_power_supply("BAT")?;
-        let capacity = read_trimmed(dir.join("capacity"))?.parse().ok()?;
-        let status = ChargeStatus::parse(&read_trimmed(dir.join("status"))?);
-        Some(Battery {
-            capacity,
-            status,
-            energy_wh: energy_wh(&dir),
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_battery)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
+}
+
+fn read_battery() -> Result<Option<Battery>, Error> {
+    let Some(dir) = first_power_supply("BAT") else {
+        return Ok(None);
+    };
+    Ok(Some(Battery {
+        capacity: parse_field(&dir.join("capacity"))?,
+        status: ChargeStatus::parse(&read_field(&dir.join("status"))?),
+        energy_wh: energy_wh(&dir),
+    }))
 }

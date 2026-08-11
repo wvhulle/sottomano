@@ -1,22 +1,57 @@
-use std::{marker::PhantomData, time::Duration};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    marker::PhantomData,
+    time::Duration,
+};
 
 use serde_json::Value as Json;
-use situo_client::{Fix, LocateBlocking, Source as FixSource};
-use zbus::blocking::Connection as SessionBus;
+use situo_client::{Fix, Locate, Source as FixSource};
+use zbus::Connection as SessionBus;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value,
-    command::http_get,
     font_awesome::{FontAwesome, Solid},
-    row,
+    http, row,
 };
 
-fn located() -> Option<Fix> {
-    SessionBus::session()
-        .ok()?
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Bus(String),
+    Locate(String),
+    Fetch(http::Error),
+    Malformed,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Bus(detail) => write!(f, "session bus: {detail}"),
+            Error::Locate(detail) => write!(f, "geolocation: {detail}"),
+            Error::Fetch(error) => write!(f, "{error}"),
+            Error::Malformed => write!(f, "unexpected response shape"),
+        }
+    }
+}
+
+impl From<zbus::Error> for Error {
+    fn from(error: zbus::Error) -> Self {
+        Error::Bus(error.to_string())
+    }
+}
+
+impl From<http::Error> for Error {
+    fn from(error: http::Error) -> Self {
+        Error::Fetch(error)
+    }
+}
+
+async fn located() -> Result<Option<Fix>, Error> {
+    let fix = SessionBus::session()
+        .await?
         .locate()
-        .ok()
-        .filter(|fix| fix.valid)
+        .await
+        .map_err(|error| Error::Locate(error.to_string()))?;
+    Ok(Some(fix).filter(|fix| fix.valid))
 }
 
 struct Wmo {
@@ -103,34 +138,22 @@ impl BarWidget for Temperature {
 }
 
 impl Source for Temperature {
+    type Error = Error;
+
     const NAME: &'static str = "weather-temp";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    fn poll() -> Option<Self> {
-        let geo = located()?;
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        let Some(geo) = located().await? else {
+            return Ok(None);
+        };
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
             geo.latitude, geo.longitude
         );
-        let unavailable = Temperature {
-            icon: Solid::CloudSun.into(),
-            conditions: "Unknown",
-            temp: None,
-            feels: None,
-            temp_min: None,
-            temp_max: None,
-            humidity: None,
-            wind: None,
-        };
-        let Some(body) = http_get(&url, 10) else {
-            return Some(unavailable);
-        };
-        let Some(json) = serde_json::from_str::<Json>(&body).ok() else {
-            return Some(unavailable);
-        };
-        let Some(current) = json.get("current") else {
-            return Some(unavailable);
-        };
+        let body = http::get_text(&url, 10).await?;
+        let json: Json = serde_json::from_str(&body).map_err(|_| Error::Malformed)?;
+        let current = json.get("current").ok_or(Error::Malformed)?;
         let daily_first = |key: &str| {
             round_i(
                 json.get("daily")
@@ -142,7 +165,7 @@ impl Source for Temperature {
             .get("weather_code")
             .and_then(Json::as_i64)
             .unwrap_or(-1));
-        Some(Temperature {
+        Ok(Some(Temperature {
             icon: wmo.icon,
             conditions: wmo.description,
             temp: round_i(current.get("temperature_2m")),
@@ -151,7 +174,7 @@ impl Source for Temperature {
             temp_max: daily_first("temperature_2m_max"),
             humidity: round_i(current.get("relative_humidity_2m")),
             wind: round_i(current.get("wind_speed_10m")),
-        })
+        }))
     }
 }
 
@@ -185,23 +208,27 @@ impl BarWidget for Rain {
 }
 
 impl Source for Rain {
+    type Error = Error;
+
     const NAME: &'static str = "weather-rain";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    fn poll() -> Option<Self> {
-        let geo = located()?;
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        let Some(geo) = located().await? else {
+            return Ok(None);
+        };
         let url = format!(
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
             geo.latitude, geo.longitude
         );
-        let body = http_get(&url, 5)?;
+        let body = http::get_text(&url, 5).await?;
         let intensities: Vec<f64> = body
             .lines()
             .take(12)
             .filter_map(|line| line.split('|').next()?.trim().parse::<f64>().ok())
             .collect();
         if intensities.is_empty() || !intensities.iter().any(|v| *v > 77.0) {
-            return None;
+            return Ok(None);
         }
         let mm = buienradar_mm(intensities[0]);
         let icon = if mm < 0.5 {
@@ -213,7 +240,7 @@ impl Source for Rain {
         } else {
             Solid::CloudBolt.into()
         };
-        Some(Rain { icon, mm_per_h: mm })
+        Ok(Some(Rain { icon, mm_per_h: mm }))
     }
 }
 
@@ -302,21 +329,26 @@ impl<A: Allergen> BarWidget for Pollen<A> {
     }
 }
 
-impl<A: Allergen + Clone + PartialEq + Send + 'static> Source for Pollen<A> {
+impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<A> {
+    type Error = Error;
+
     const NAME: &'static str = A::SOURCE_NAME;
     const INTERVAL: Duration = Duration::from_mins(30);
 
-    fn poll() -> Option<Self> {
-        let geo = located()?;
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        let Some(geo) = located().await? else {
+            return Ok(None);
+        };
         let url = format!(
             "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
             geo.latitude, geo.longitude
         );
-        let body = http_get(&url, 10)?;
+        let body = http::get_text(&url, 10).await?;
         let current = serde_json::from_str::<Json>(&body)
-            .ok()?
+            .map_err(|_| Error::Malformed)?
             .get("current")
-            .cloned()?;
+            .cloned()
+            .ok_or(Error::Malformed)?;
         let all: Vec<(&'static str, f64)> = SPECIES
             .iter()
             .map(|(key, label)| {
@@ -328,13 +360,13 @@ impl<A: Allergen + Clone + PartialEq + Send + 'static> Source for Pollen<A> {
             .collect();
         let value = current.get(A::KEY).and_then(Json::as_f64).unwrap_or(0.0);
         if value <= 0.0 {
-            return None;
+            return Ok(None);
         }
-        Some(Pollen {
+        Ok(Some(Pollen {
             value,
             all,
             allergen: PhantomData,
-        })
+        }))
     }
 }
 
@@ -386,12 +418,12 @@ impl BarWidget for Location {
 }
 
 impl Source for Location {
+    type Error = Error;
+
     const NAME: &'static str = "geolocation";
     const INTERVAL: Duration = Duration::from_mins(30);
 
-    fn poll() -> Option<Self> {
-        Some(Location {
-            geo: located()?,
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        Ok(located().await?.map(|geo| Location { geo }))
     }
 }

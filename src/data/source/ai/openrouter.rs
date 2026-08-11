@@ -1,21 +1,47 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    path::PathBuf,
+    time::Duration,
+};
 
 use chrono::{Local, SecondsFormat, TimeZone, Utc};
 use serde_json::{Value, json};
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, TooltipBody,
-    ai::{ApiSource, http, level_from_cost, read_secret},
-    row,
+    ApiSource, BarWidget, Glyph, Level, TooltipBody,
+    ai::{level_from_cost, read_secret},
+    http, row,
     simple_icons::SimpleIcon,
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Secret,
+    Fetch(http::Error),
+    Api(String),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Secret => write!(f, "management key unreadable"),
+            Error::Fetch(error) => write!(f, "{error}"),
+            Error::Api(message) => write!(f, "{message}"),
+        }
+    }
+}
+
+impl From<http::Error> for Error {
+    fn from(error: http::Error) -> Self {
+        Error::Fetch(error)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenRouter {
-    error: Option<String>,
     spend: f64,
     models: Vec<(String, f64)>,
     credits: Option<Credits>,
@@ -33,25 +59,14 @@ impl BarWidget for OpenRouter {
     }
 
     fn label(&self) -> Option<String> {
-        Some(if self.error.is_some() {
-            "?".to_owned()
-        } else {
-            format!("{:.2}", self.spend)
-        })
+        Some(format!("{:.2}", self.spend))
     }
 
     fn level(&self) -> Level {
-        if self.error.is_some() {
-            Level::Critical
-        } else {
-            level_from_cost(self.spend)
-        }
+        level_from_cost(self.spend)
     }
 
     fn tooltip(&self) -> TooltipBody {
-        if let Some(error) = &self.error {
-            return TooltipBody::Table(vec![row("Error", error.clone())]);
-        }
         let mut rows = vec![row("Today", format!("${} USD", money(self.spend)))];
         if let Some(credits) = &self.credits {
             let remaining = credits.total - credits.used;
@@ -79,49 +94,34 @@ impl BarWidget for OpenRouter {
 }
 
 impl ApiSource for OpenRouter {
+    type Error = Error;
+
     const NAME: &'static str = "openrouter-usage";
     const INTERVAL: Duration = Duration::from_secs(20);
 
-    fn poll(key: Option<PathBuf>) -> Option<Self> {
-        let key = read_secret(&key?)?;
+    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        let key = read_secret(&key).ok_or(Error::Secret)?;
 
-        let (models, spend) = match spend_by_model(&key) {
-            Ok(models) => {
-                let spend = models.iter().map(|(_, cost)| cost).sum();
-                (models, spend)
-            }
-            Err(error) => return Some(Self::error(error)),
-        };
-        let credits = match credits(&key) {
-            Ok(credits) => credits,
-            Err(error) => return Some(Self::error(error)),
-        };
+        let models = spend_by_model(&key).await?;
+        let spend = models.iter().map(|(_, cost)| cost).sum();
+        let credits = credits(&key).await?;
 
         let overspent = credits.as_ref().is_some_and(|c| c.used > c.total);
         if spend == 0.0 && !overspent {
-            return None;
+            return Ok(None);
         }
-        Some(Self {
-            error: None,
+        Ok(Some(Self {
             spend,
             models,
             credits,
-        })
+        }))
     }
 }
 
-impl OpenRouter {
-    fn error(message: String) -> Self {
-        Self {
-            error: Some(message),
-            spend: 0.0,
-            models: Vec::new(),
-            credits: None,
-        }
-    }
-}
-
-fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, String> {
+async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
     let payload = json!({
         "metrics": ["total_usage"],
         "dimensions": ["model"],
@@ -130,11 +130,10 @@ fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, String> {
         "limit": 1000,
     });
     let auth = format!("Bearer {key}");
-    let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15)
-        .ok_or_else(|| "network error".to_owned())?;
+    let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15).await?;
     let body = resp.body.unwrap_or(Value::Null);
     if resp.status != 200 {
-        return Err(api_error(&body, resp.status));
+        return Err(Error::Api(api_error(&body, resp.status)));
     }
     let rows = body
         .get("data")
@@ -159,13 +158,12 @@ fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, String> {
     Ok(per_model)
 }
 
-fn credits(key: &str) -> Result<Option<Credits>, String> {
+async fn credits(key: &str) -> Result<Option<Credits>, Error> {
     let auth = format!("Bearer {key}");
-    let resp = http::get(CREDITS_URL, &[("Authorization", &auth)], 10)
-        .ok_or_else(|| "network error".to_owned())?;
+    let resp = http::get(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
     let body = resp.body.unwrap_or(Value::Null);
     if resp.status != 200 {
-        return Err(format!("HTTP {}", resp.status));
+        return Err(Error::Api(format!("HTTP {}", resp.status)));
     }
     let data = body.get("data");
     match (

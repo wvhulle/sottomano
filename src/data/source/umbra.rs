@@ -25,14 +25,15 @@ impl BarWidget for Umbra {
 }
 
 impl Source for Umbra {
+    type Error = command::Error;
+
     const NAME: &'static str = "umbra";
     const INTERVAL: Duration = Duration::from_secs(30);
 
-    fn poll() -> Option<Self> {
-        let mode = command::output("umbra", &["get"])?;
-        Some(Umbra {
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        Ok(command::output("umbra", &["get"]).await?.map(|mode| Umbra {
             dark: mode.trim() == "dark",
-        })
+        }))
     }
 }
 
@@ -42,6 +43,6 @@ impl Toggle for Umbra {
     }
 
     fn toggle() -> bool {
-        command::run("umbra", &["toggle"])
+        command::blocking::run("umbra", &["toggle"])
     }
 }

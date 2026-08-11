@@ -2,6 +2,7 @@ use std::{collections::HashSet, fs, time::Duration};
 
 use iced::Subscription;
 use serde::{Deserialize, Serialize};
+use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy, zvariant::Type};
 
 use crate::{
@@ -86,7 +87,11 @@ impl BarWidget for Backlight {
 const INTERVAL: Duration = Duration::from_secs(10);
 
 pub fn subscription() -> Subscription<Vec<Backlight>> {
-    poll_every("backlight", INTERVAL, poll_all)
+    poll_every("backlight", INTERVAL, polled_backlights)
+}
+
+async fn polled_backlights() -> Vec<Backlight> {
+    spawn_blocking(poll_all).await.unwrap_or_default()
 }
 
 pub fn poll_all() -> Vec<Backlight> {

@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{BarWidget, Glyph, level_color},
+    data::source::{BarWidget, Glyph, font_awesome::Solid, level_color},
     widgets::text::bar_text,
 };
 
@@ -33,6 +33,19 @@ pub fn source_reading<'a, Message: 'a>(
             .color(color)
             .into(),
     };
+
+    if widget.failed() {
+        let warning = Solid::TriangleExclamation
+            .widget()
+            .size(config.font.icon_size_px)
+            .color(color);
+        return Some(
+            row![icon, warning]
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into(),
+        );
+    }
 
     let reading = match widget.value() {
         Some(value) => row![

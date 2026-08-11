@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use super::{core_freqs, favg, fmax, fmin, ghz};
+use tokio::task::spawn_blocking;
+
+use super::{Error, core_freqs, favg, fmax, fmin, ghz};
 use crate::data::source::{BarWidget, Glyph, Source, TooltipBody, font_awesome::Solid, row};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -46,11 +48,19 @@ impl BarWidget for CpuClock {
 }
 
 impl Source for CpuClock {
+    type Error = Error;
+
     const NAME: &'static str = "cpu-clock";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    fn poll() -> Option<Self> {
-        let cores = core_freqs();
-        (!cores.is_empty()).then_some(CpuClock { cores })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_cpu_clock)
+            .await
+            .map_err(|_| Error::Panicked)
     }
+}
+
+fn read_cpu_clock() -> Option<CpuClock> {
+    let cores = core_freqs();
+    (!cores.is_empty()).then_some(CpuClock { cores })
 }

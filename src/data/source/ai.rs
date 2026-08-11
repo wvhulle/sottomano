@@ -1,22 +1,10 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{fs, path::Path};
 
-use crate::data::source::{BarWidget, Level};
+use crate::data::source::Level;
 
 pub mod claude;
 pub mod copilot;
-pub mod http;
 pub mod openrouter;
-
-pub trait ApiSource: BarWidget + Clone + PartialEq + Sized + Send + 'static {
-    const NAME: &'static str;
-    const INTERVAL: Duration;
-
-    fn poll(key: Option<PathBuf>) -> Option<Self>;
-}
 
 pub fn read_secret(path: &Path) -> Option<String> {
     let text = fs::read_to_string(path).ok()?;

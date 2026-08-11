@@ -1,4 +1,5 @@
 use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -7,15 +8,40 @@ use chrono::DateTime;
 use serde_json::Value;
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, TooltipBody, Unit, Value as GaugeValue,
-    ai::{ApiSource, level_from_cost, level_from_remaining, read_secret},
+    ApiSource, BarWidget, Glyph, Level, TooltipBody, Unit, Value as GaugeValue,
+    ai::{level_from_cost, level_from_remaining, read_secret},
     command::{exists, output},
-    row,
+    http, row,
     simple_icons::SimpleIcon,
 };
 
 const USER_URL: &str = "https://api.github.com/copilot_internal/user";
 const USER_AGENT: &str = "vetrata";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Secret,
+    Fetch(http::Error),
+    Api(u16),
+    Ccusage(String),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Secret => write!(f, "GitHub token unreadable"),
+            Error::Fetch(error) => write!(f, "{error}"),
+            Error::Api(status) => write!(f, "HTTP {status}"),
+            Error::Ccusage(detail) => write!(f, "ccusage: {detail}"),
+        }
+    }
+}
+
+impl From<http::Error> for Error {
+    fn from(error: http::Error) -> Self {
+        Error::Fetch(error)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
@@ -61,21 +87,33 @@ impl BarWidget for CopilotMetered {
 }
 
 impl ApiSource for CopilotMetered {
+    type Error = Error;
+
     const NAME: &'static str = "copilot-usage-metered";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    fn poll(key: Option<PathBuf>) -> Option<Self> {
-        let info = user_info(&key?)?;
+    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        let Some(info) = user_info(&key).await? else {
+            return Ok(None);
+        };
         if info
             .get("limited_user_quotas")
             .is_some_and(|v| !v.is_null())
             || info.get("token_based_billing").and_then(Value::as_bool) == Some(true)
         {
-            return None;
+            return Ok(None);
         }
-        let snapshots = info.get("quota_snapshots")?;
-        let chosen = metered(snapshots.get("premium_interactions"), "Premium requests")
-            .or_else(|| metered(snapshots.get("chat"), "Chat"))?;
+        let Some(snapshots) = info.get("quota_snapshots") else {
+            return Ok(None);
+        };
+        let Some(chosen) = metered(snapshots.get("premium_interactions"), "Premium requests")
+            .or_else(|| metered(snapshots.get("chat"), "Chat"))
+        else {
+            return Ok(None);
+        };
 
         let used = chosen.entitlement - chosen.remaining;
         let percent_remaining = chosen
@@ -88,9 +126,9 @@ impl ApiSource for CopilotMetered {
                 0
             });
         if percent_remaining >= 100 {
-            return None;
+            return Ok(None);
         }
-        Some(CopilotMetered {
+        Ok(Some(CopilotMetered {
             plan: string_field(&info, "copilot_plan")
                 .or_else(|| string_field(&info, "sku"))
                 .unwrap_or_else(|| "unknown".to_owned()),
@@ -100,7 +138,7 @@ impl ApiSource for CopilotMetered {
             remaining: chosen.remaining,
             percent_remaining,
             reset: quota_reset(chosen.snap, &info),
-        })
+        }))
     }
 }
 
@@ -146,18 +184,27 @@ impl BarWidget for CopilotFree {
 }
 
 impl ApiSource for CopilotFree {
+    type Error = Error;
+
     const NAME: &'static str = "copilot-usage-free";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    fn poll(key: Option<PathBuf>) -> Option<Self> {
-        let info = user_info(&key?)?;
-        let quotas = info.get("limited_user_quotas").filter(|v| !v.is_null())?;
+    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        let Some(info) = user_info(&key).await? else {
+            return Ok(None);
+        };
+        let Some(quotas) = info.get("limited_user_quotas").filter(|v| !v.is_null()) else {
+            return Ok(None);
+        };
         let reset = info
             .get("limited_user_reset_date")
             .and_then(Value::as_i64)
             .filter(|epoch| *epoch > 0)
             .and_then(format_epoch);
-        Some(CopilotFree {
+        Ok(Some(CopilotFree {
             plan: string_field(&info, "sku").unwrap_or_else(|| "free".to_owned()),
             chat: quotas.get("chat").and_then(Value::as_i64).unwrap_or(0),
             completions: quotas
@@ -165,7 +212,7 @@ impl ApiSource for CopilotFree {
                 .and_then(Value::as_i64)
                 .unwrap_or(0),
             reset,
-        })
+        }))
     }
 }
 
@@ -210,22 +257,31 @@ impl BarWidget for CopilotCcusage {
 }
 
 impl ApiSource for CopilotCcusage {
+    type Error = Error;
+
     const NAME: &'static str = "copilot-usage-ccusage";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    fn poll(_key: Option<PathBuf>) -> Option<Self> {
-        if !exists("ccusage") {
-            return None;
+    async fn poll(_key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
+        if !exists("ccusage").await {
+            return Ok(None);
         }
-        let raw = output("ccusage", &["copilot", "monthly", "--json"])?;
+        let Some(raw) = output("ccusage", &["copilot", "monthly", "--json"])
+            .await
+            .map_err(|error| Error::Ccusage(error.to_string()))?
+        else {
+            return Ok(None);
+        };
         let months = serde_json::from_str::<Value>(&raw)
-            .ok()?
+            .map_err(|error| Error::Ccusage(error.to_string()))?
             .get("monthly")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let entry = months.into_iter().next_back()?;
-        Some(CopilotCcusage {
+        let Some(entry) = months.into_iter().next_back() else {
+            return Ok(None);
+        };
+        Ok(Some(CopilotCcusage {
             month: string_field(&entry, "month").unwrap_or_default(),
             tokens: entry
                 .get("totalTokens")
@@ -246,7 +302,7 @@ impl ApiSource for CopilotCcusage {
                         .join(", ")
                 })
                 .unwrap_or_default(),
-        })
+        }))
     }
 }
 
@@ -283,10 +339,10 @@ fn quota_reset(snap: &Value, info: &Value) -> Option<String> {
         .find_map(|field| string_field(snap, field).or_else(|| string_field(info, field)))
 }
 
-fn user_info(key: &Path) -> Option<Value> {
-    let token = read_secret(key)?;
+async fn user_info(key: &Path) -> Result<Option<Value>, Error> {
+    let token = read_secret(key).ok_or(Error::Secret)?;
     let auth = format!("token {token}");
-    let resp = super::http::get(
+    let resp = http::get(
         USER_URL,
         &[
             ("Authorization", &auth),
@@ -294,8 +350,12 @@ fn user_info(key: &Path) -> Option<Value> {
             ("User-Agent", USER_AGENT),
         ],
         10,
-    )?;
-    (resp.status == 200).then_some(resp.body).flatten()
+    )
+    .await?;
+    if resp.status != 200 {
+        return Err(Error::Api(resp.status));
+    }
+    Ok(resp.body)
 }
 
 fn string_field(value: &Value, field: &str) -> Option<String> {

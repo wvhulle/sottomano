@@ -6,8 +6,8 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip,
-        tailscale::{Tailscale, open_admin},
+        BarWidget, Tooltip, command,
+        tailscale::{self, Tailscale, open_admin},
         throughput::{self, Download, Readings, Throughput, Upload},
         wireguard::{Wireguard, disconnect},
     },
@@ -35,8 +35,8 @@ pub struct InternetGroup {
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
     Throughput(Readings),
-    Wireguard(Option<Wireguard>),
-    Tailscale(Option<Tailscale>),
+    Wireguard(Result<Option<Wireguard>, command::Error>),
+    Tailscale(Result<Option<Tailscale>, tailscale::Error>),
     Menu(MenuMessage),
     Disconnect(String),
     OpenTailscale,
@@ -59,8 +59,8 @@ impl InternetGroup {
                 self.down.load(Some(readings.down));
                 self.up.load(Some(readings.up));
             }
-            InternetMessage::Wireguard(reading) => self.wireguard.load(reading),
-            InternetMessage::Tailscale(reading) => self.tailscale.load(reading),
+            InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
+            InternetMessage::Tailscale(reading) => self.tailscale.receive(reading),
             InternetMessage::Menu(m) => {
                 self.menu.update(m);
             }
