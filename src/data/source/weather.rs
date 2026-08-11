@@ -1,14 +1,23 @@
 use std::{marker::PhantomData, time::Duration};
 
 use serde_json::Value as Json;
+use situo_client::{Fix, LocateBlocking, Source as FixSource};
+use zbus::blocking::Connection as SessionBus;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value,
     command::http_get,
     font_awesome::{FontAwesome, Solid},
-    geolocation::Geo,
     row,
 };
+
+fn located() -> Option<Fix> {
+    SessionBus::session()
+        .ok()?
+        .locate()
+        .ok()
+        .filter(|fix| fix.valid)
+}
 
 struct Wmo {
     icon: FontAwesome,
@@ -98,10 +107,10 @@ impl Source for Temperature {
     const INTERVAL: Duration = Duration::from_secs(300);
 
     fn poll() -> Option<Self> {
-        let geo = Geo::resolve()?;
+        let geo = located()?;
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?{}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
-            geo.query()
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
+            geo.latitude, geo.longitude
         );
         let unavailable = Temperature {
             icon: Solid::CloudSun.into(),
@@ -180,7 +189,7 @@ impl Source for Rain {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     fn poll() -> Option<Self> {
-        let geo = Geo::resolve()?;
+        let geo = located()?;
         let url = format!(
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
             geo.latitude, geo.longitude
@@ -298,10 +307,10 @@ impl<A: Allergen + Clone + PartialEq + Send + 'static> Source for Pollen<A> {
     const INTERVAL: Duration = Duration::from_mins(30);
 
     fn poll() -> Option<Self> {
-        let geo = Geo::resolve()?;
+        let geo = located()?;
         let url = format!(
-            "https://air-quality-api.open-meteo.com/v1/air-quality?{}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
-            geo.query()
+            "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
+            geo.latitude, geo.longitude
         );
         let body = http_get(&url, 10)?;
         let current = serde_json::from_str::<Json>(&body)
@@ -331,12 +340,12 @@ impl<A: Allergen + Clone + PartialEq + Send + 'static> Source for Pollen<A> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {
-    geo: Geo,
+    geo: Fix,
 }
 
 impl BarWidget for Location {
     fn icon(&self) -> Glyph {
-        if self.geo.source == "manual" {
+        if self.geo.source == FixSource::Manual {
             Solid::LocationPinLock.into()
         } else {
             Solid::LocationDot.into()
@@ -356,12 +365,12 @@ impl BarWidget for Location {
         } else {
             format!("{:.2} km", self.geo.place_distance_km)
         };
-        let accuracy = if self.geo.accuracy_m.is_nan() {
+        let accuracy = if self.geo.accuracy.is_nan() {
             "—".to_string()
-        } else if self.geo.accuracy_m < 1000.0 {
-            format!("{:.0} m", self.geo.accuracy_m)
+        } else if self.geo.accuracy < 1000.0 {
+            format!("{:.0} m", self.geo.accuracy)
         } else {
-            format!("{:.1} km", self.geo.accuracy_m / 1000.0)
+            format!("{:.1} km", self.geo.accuracy / 1000.0)
         };
         TooltipBody::Table(vec![
             row("Place", dash(&self.geo.place_name)),
@@ -370,7 +379,7 @@ impl BarWidget for Location {
             row("Latitude", format!("{:.4}", self.geo.latitude)),
             row("Longitude", format!("{:.4}", self.geo.longitude)),
             row("Accuracy", accuracy),
-            row("Source", dash(&self.geo.source)),
+            row("Source", dash(self.geo.source.as_str())),
             row("Method", dash(&self.geo.description)),
         ])
     }
@@ -382,7 +391,7 @@ impl Source for Location {
 
     fn poll() -> Option<Self> {
         Some(Location {
-            geo: Geo::resolve()?,
+            geo: located()?,
         })
     }
 }

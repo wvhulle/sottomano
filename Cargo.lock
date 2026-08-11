@@ -5936,6 +5936,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
+name = "situo-client"
+version = "0.1.0"
+source = "git+https://codeberg.org/wvhulle/situo?branch=main#1f2ca2a4e14001c4f2c722efc79b9a55e04f821a"
+dependencies = [
+ "serde",
+ "zbus",
+]
+
+[[package]]
 name = "sketches-ddsketch"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7405,6 +7414,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "simpleicons-rs",
+ "situo-client",
  "system-tray",
  "systemd",
  "tokio",
