@@ -6,12 +6,11 @@ use iced::{
 use crate::{
     config::{Config, SecretPaths},
     data::source::{
-        Tooltip,
+        ApiSource, Tooltip,
         ai::{
-            ApiSource,
-            claude::{ClaudeCcusage, ClaudeOauth},
-            copilot::{CopilotCcusage, CopilotFree, CopilotMetered},
-            openrouter::OpenRouter,
+            claude::{self, ClaudeCcusage, ClaudeOauth},
+            copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
+            openrouter::{self, OpenRouter},
         },
         font_awesome::Solid,
     },
@@ -40,12 +39,12 @@ pub struct AiGroup {
 
 #[derive(Debug, Clone)]
 pub enum AiMessage {
-    OpenRouter(Option<OpenRouter>),
-    ClaudeOauth(Option<ClaudeOauth>),
-    ClaudeCcusage(Option<ClaudeCcusage>),
-    CopilotMetered(Option<CopilotMetered>),
-    CopilotFree(Option<CopilotFree>),
-    CopilotCli(Option<CopilotCcusage>),
+    OpenRouter(Result<Option<OpenRouter>, openrouter::Error>),
+    ClaudeOauth(Result<Option<ClaudeOauth>, claude::Error>),
+    ClaudeCcusage(Result<Option<ClaudeCcusage>, claude::Error>),
+    CopilotMetered(Result<Option<CopilotMetered>, copilot::Error>),
+    CopilotFree(Result<Option<CopilotFree>, copilot::Error>),
+    CopilotCli(Result<Option<CopilotCcusage>, copilot::Error>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
@@ -98,12 +97,12 @@ impl AiGroup {
 
     pub fn update(&mut self, message: AiMessage) {
         match message {
-            AiMessage::OpenRouter(reading) => self.openrouter.load(reading),
-            AiMessage::ClaudeOauth(reading) => self.claude_oauth.load(reading),
-            AiMessage::ClaudeCcusage(reading) => self.claude_ccusage.load(reading),
-            AiMessage::CopilotMetered(reading) => self.copilot_metered.load(reading),
-            AiMessage::CopilotFree(reading) => self.copilot_free.load(reading),
-            AiMessage::CopilotCli(reading) => self.copilot_cli.load(reading),
+            AiMessage::OpenRouter(reading) => self.openrouter.receive(reading),
+            AiMessage::ClaudeOauth(reading) => self.claude_oauth.receive(reading),
+            AiMessage::ClaudeCcusage(reading) => self.claude_ccusage.receive(reading),
+            AiMessage::CopilotMetered(reading) => self.copilot_metered.receive(reading),
+            AiMessage::CopilotFree(reading) => self.copilot_free.receive(reading),
+            AiMessage::CopilotCli(reading) => self.copilot_cli.receive(reading),
             AiMessage::Menu(menu) => {
                 self.menu.update(menu);
             }
@@ -134,12 +133,15 @@ impl AiGroup {
         let reveal = self.menu.reveal();
         let pills = Pills::new()
             .alpha(reveal)
-            .push(self.claude_oauth.get(), HoverTarget::AiClaudeOauth)
-            .push(self.claude_ccusage.get(), HoverTarget::AiClaudeCcusage)
-            .push(self.copilot_metered.get(), HoverTarget::AiCopilotMetered)
-            .push(self.copilot_free.get(), HoverTarget::AiCopilotFree)
-            .push(self.copilot_cli.get(), HoverTarget::AiCopilotCli)
-            .push(self.openrouter.get(), HoverTarget::AiOpenRouter)
+            .push(self.claude_oauth.display(), HoverTarget::AiClaudeOauth)
+            .push(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage)
+            .push(
+                self.copilot_metered.display(),
+                HoverTarget::AiCopilotMetered,
+            )
+            .push(self.copilot_free.display(), HoverTarget::AiCopilotFree)
+            .push(self.copilot_cli.display(), HoverTarget::AiCopilotCli)
+            .push(self.openrouter.display(), HoverTarget::AiOpenRouter)
             .row(config, AiMessage::Tooltip);
 
         if !self.configured() && pills.is_none() {
@@ -164,9 +166,8 @@ impl AiGroup {
 }
 
 fn tooltip_of<S: ApiSource>(cell: &SourceCell<S>) -> Option<Tooltip> {
-    let widget = cell.get()?;
     let tooltip = Tooltip {
-        body: widget.tooltip(),
+        body: cell.display()?.tooltip(),
         footer: cell.footer(S::INTERVAL),
     };
     (!tooltip.is_empty()).then_some(tooltip)

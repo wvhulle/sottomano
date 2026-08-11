@@ -34,7 +34,7 @@ impl<'w> Pills<'w> {
         self
     }
 
-    pub fn push<W: BarWidget>(mut self, widget: Option<&'w W>, target: HoverTarget) -> Self {
+    pub fn push(mut self, widget: Option<&'w dyn BarWidget>, target: HoverTarget) -> Self {
         if let Some(widget) = widget {
             self.entries.push((widget, target));
         }

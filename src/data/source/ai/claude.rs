@@ -1,5 +1,7 @@
 use std::{
-    env, fs,
+    env,
+    fmt::{Display, Formatter, Result as FmtResult},
+    fs,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -8,23 +10,51 @@ use chrono::{DateTime, Local, Utc};
 use serde_json::Value;
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, Row, TooltipBody, Unit, Value as GaugeValue,
-    ai::{ApiSource, level_from_cost, level_from_remaining},
+    ApiSource, BarWidget, Glyph, Level, Row, TooltipBody, Unit, Value as GaugeValue,
+    ai::{level_from_cost, level_from_remaining},
     command::{exists, output},
-    row,
+    http, row,
     simple_icons::SimpleIcon,
 };
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const BACKOFF: Duration = Duration::from_mins(15);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Credentials,
+    NoToken,
+    RateLimited,
+    Backoff,
+    Api(String),
+    Fetch(http::Error),
+    Ccusage(String),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Credentials => write!(f, "credentials file unreadable"),
+            Error::NoToken => write!(f, "no OAuth token in credentials"),
+            Error::RateLimited => write!(f, "rate limited"),
+            Error::Backoff => write!(f, "rate limited (backing off)"),
+            Error::Api(message) => write!(f, "{message}"),
+            Error::Fetch(error) => write!(f, "{error}"),
+            Error::Ccusage(detail) => write!(f, "ccusage: {detail}"),
+        }
+    }
+}
+
+impl From<http::Error> for Error {
+    fn from(error: http::Error) -> Self {
+        Error::Fetch(error)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum ClaudeOauth {
-    Error(String),
-    Usage {
-        session_remaining: i64,
-        tooltip: Vec<Row>,
-    },
+pub struct ClaudeOauth {
+    session_remaining: i64,
+    tooltip: Vec<Row>,
 }
 
 impl BarWidget for ClaudeOauth {
@@ -32,58 +62,44 @@ impl BarWidget for ClaudeOauth {
         SimpleIcon::Claude.into()
     }
 
-    fn label(&self) -> Option<String> {
-        match self {
-            ClaudeOauth::Error(_) => Some("!".to_owned()),
-            ClaudeOauth::Usage { .. } => None,
-        }
-    }
-
     fn level(&self) -> Level {
-        match self {
-            ClaudeOauth::Error(_) => Level::Critical,
-            ClaudeOauth::Usage {
-                session_remaining, ..
-            } => level_from_remaining(*session_remaining),
-        }
+        level_from_remaining(self.session_remaining)
     }
 
     fn value(&self) -> Option<GaugeValue> {
-        match self {
-            ClaudeOauth::Error(_) => None,
-            ClaudeOauth::Usage {
-                session_remaining, ..
-            } => Some(GaugeValue::Gauge {
-                percent: *session_remaining,
-                unit: Unit::Percent,
-            }),
-        }
+        Some(GaugeValue::Gauge {
+            percent: self.session_remaining,
+            unit: Unit::Percent,
+        })
     }
 
     fn tooltip(&self) -> TooltipBody {
-        match self {
-            ClaudeOauth::Error(message) => TooltipBody::Table(vec![row("OAuth", message.clone())]),
-            ClaudeOauth::Usage { tooltip, .. } => TooltipBody::Table(tooltip.clone()),
-        }
+        TooltipBody::Table(self.tooltip.clone())
     }
 }
 
 impl ApiSource for ClaudeOauth {
+    type Error = Error;
+
     const NAME: &'static str = "claude-usage-oauth";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    fn poll(key: Option<PathBuf>) -> Option<Self> {
-        let credentials = read_json(&key?)?;
+    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        let credentials = read_json(&key).ok_or(Error::Credentials)?;
         if backoff_active() {
-            return Some(ClaudeOauth::Error("Rate limited (backoff)".to_owned()));
+            return Err(Error::Backoff);
         }
         let token = credentials
             .get("claudeAiOauth")
             .and_then(|oauth| oauth.get("accessToken"))
-            .and_then(Value::as_str)?;
+            .and_then(Value::as_str)
+            .ok_or(Error::NoToken)?;
 
         let auth = format!("Bearer {token}");
-        let resp = super::http::get(
+        let resp = http::get(
             USAGE_URL,
             &[
                 ("Authorization", &auth),
@@ -91,10 +107,11 @@ impl ApiSource for ClaudeOauth {
                 ("User-Agent", "claude-code/1.0.45"),
             ],
             10,
-        )?;
+        )
+        .await?;
         if resp.status == 429 {
             arm_backoff();
-            return Some(ClaudeOauth::Error("Rate limited".to_owned()));
+            return Err(Error::RateLimited);
         }
         let body = resp.body.unwrap_or(Value::Null);
         if resp.status != 200 {
@@ -103,12 +120,14 @@ impl ApiSource for ClaudeOauth {
                 .and_then(|error| error.get("message"))
                 .and_then(Value::as_str)
                 .map_or_else(|| format!("HTTP {}", resp.status), ToOwned::to_owned);
-            return Some(ClaudeOauth::Error(message));
+            return Err(Error::Api(message));
         }
 
-        let session_used = utilization(&body, "five_hour")?;
+        let Some(session_used) = utilization(&body, "five_hour") else {
+            return Ok(None);
+        };
         if session_used <= 0 {
-            return None;
+            return Ok(None);
         }
         let weekly_used = utilization(&body, "seven_day").unwrap_or(0);
         let mut tooltip = vec![
@@ -127,10 +146,10 @@ impl ApiSource for ClaudeOauth {
         }
         push_extra(&body, &mut tooltip);
 
-        Some(ClaudeOauth::Usage {
+        Ok(Some(ClaudeOauth {
             session_remaining: 100 - session_used,
             tooltip,
-        })
+        }))
     }
 }
 
@@ -163,35 +182,45 @@ impl BarWidget for ClaudeCcusage {
 }
 
 impl ApiSource for ClaudeCcusage {
+    type Error = Error;
+
     const NAME: &'static str = "claude-usage-ccusage";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    fn poll(key: Option<PathBuf>) -> Option<Self> {
-        let credentials = read_json(&key?)?;
+    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
+        let Some(key) = key else {
+            return Ok(None);
+        };
+        let credentials = read_json(&key).ok_or(Error::Credentials)?;
         let has_oauth = credentials
             .get("claudeAiOauth")
             .and_then(|oauth| oauth.get("accessToken"))
             .and_then(Value::as_str)
             .is_some();
-        if has_oauth || !exists("ccusage") {
-            return None;
+        if has_oauth || !exists("ccusage").await {
+            return Ok(None);
         }
         let today = Local::now().format("%Y%m%d").to_string();
-        let raw = output("ccusage", &["daily", "--since", &today, "--json"])?;
+        let Some(raw) = output("ccusage", &["daily", "--since", &today, "--json"])
+            .await
+            .map_err(|error| Error::Ccusage(error.to_string()))?
+        else {
+            return Ok(None);
+        };
         let days = serde_json::from_str::<Value>(&raw)
-            .ok()?
+            .map_err(|error| Error::Ccusage(error.to_string()))?
             .get("daily")
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
         let Some(day) = days.into_iter().next() else {
-            return Some(ClaudeCcusage {
+            return Ok(Some(ClaudeCcusage {
                 cost: 0.0,
                 tokens: 0,
                 models: String::new(),
-            });
+            }));
         };
-        Some(ClaudeCcusage {
+        Ok(Some(ClaudeCcusage {
             cost: day.get("totalCost").and_then(Value::as_f64).unwrap_or(0.0),
             tokens: day.get("totalTokens").and_then(Value::as_u64).unwrap_or(0),
             models: day
@@ -205,7 +234,7 @@ impl ApiSource for ClaudeCcusage {
                         .join(", ")
                 })
                 .unwrap_or_default(),
-        })
+        }))
     }
 }
 

@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     data::source::{
         Tooltip,
-        sysfs_sensors::{battery::Battery, power::PowerDraw},
+        sysfs_sensors::{self, battery::Battery, power::PowerDraw},
     },
     wayland_layers::{
         surface::Position,
@@ -21,8 +21,8 @@ pub struct BatteryGroup {
 
 #[derive(Debug, Clone)]
 pub enum BatteryMessage {
-    Charge(Option<Battery>),
-    Draw(Option<PowerDraw>),
+    Charge(Result<Option<Battery>, sysfs_sensors::Error>),
+    Draw(Result<Option<PowerDraw>, sysfs_sensors::Error>),
     Tooltip(TooltipMessage),
 }
 
@@ -36,8 +36,8 @@ impl BatteryGroup {
 
     pub fn update(&mut self, msg: BatteryMessage) {
         match msg {
-            BatteryMessage::Charge(reading) => self.charge.load(reading),
-            BatteryMessage::Draw(reading) => self.draw.load(reading),
+            BatteryMessage::Charge(reading) => self.charge.receive(reading),
+            BatteryMessage::Draw(reading) => self.draw.receive(reading),
             BatteryMessage::Tooltip(_) => {}
         }
     }
@@ -56,8 +56,8 @@ impl BatteryGroup {
         position: Position,
     ) -> Option<Element<'a, BatteryMessage>> {
         Pills::new()
-            .push(self.charge.get(), HoverTarget::Battery)
-            .push(self.draw.get(), HoverTarget::PowerDraw)
+            .push(self.charge.display(), HoverTarget::Battery)
+            .push(self.draw.display(), HoverTarget::PowerDraw)
             .slot(config, position, BatteryMessage::Tooltip)
     }
 }

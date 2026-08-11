@@ -5,7 +5,7 @@ use iced::{Element, Subscription, Task};
 use crate::{
     config::Config,
     data::source::{
-        Tooltip, TooltipBody,
+        Tooltip, TooltipBody, bus,
         power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
         row,
     },
@@ -57,7 +57,7 @@ impl Default for PowerProfileGroup {
 
 #[derive(Debug, Clone)]
 pub enum PowerProfileMessage {
-    Reading(Option<PowerProfile>),
+    Reading(Result<Option<PowerProfile>, bus::Error>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
     Tooltip(TooltipMessage),
@@ -75,7 +75,7 @@ impl PowerProfileGroup {
     pub fn update(&mut self, msg: PowerProfileMessage) -> Task<PowerProfileMessage> {
         match msg {
             PowerProfileMessage::Reading(reading) => {
-                self.cell.load(reading);
+                self.cell.receive(reading);
                 let Some(PowerProfile {
                     active_profile,
                     draw_w,

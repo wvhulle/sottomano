@@ -72,10 +72,10 @@ impl NetInterfacesGroup {
         position: Position,
     ) -> Option<Element<'a, NetInterfacesMessage>> {
         Pills::new()
-            .push(self.bluetooth.get(), HoverTarget::Bluetooth)
-            .push(self.ethernet.get(), HoverTarget::Ethernet)
-            .push(self.wifi.get(), HoverTarget::Wifi)
-            .push(self.mobile.get(), HoverTarget::Mobile)
+            .push(self.bluetooth.display(), HoverTarget::Bluetooth)
+            .push(self.ethernet.display(), HoverTarget::Ethernet)
+            .push(self.wifi.display(), HoverTarget::Wifi)
+            .push(self.mobile.display(), HoverTarget::Mobile)
             .slot(config, position, NetInterfacesMessage::Tooltip)
     }
 }

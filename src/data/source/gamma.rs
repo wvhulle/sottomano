@@ -1,9 +1,10 @@
 use std::{ops::RangeInclusive, time::Duration};
 
+use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
+    BarWidget, Glyph, Source, TooltipBody, Unit, Value, bus, bus::Error, font_awesome::Solid, row,
 };
 
 #[proxy(
@@ -51,20 +52,33 @@ impl BarWidget for Gamma {
 }
 
 impl Source for Gamma {
+    type Error = Error;
+
     const NAME: &'static str = "gamma";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    fn poll() -> Option<Self> {
-        let connection = Connection::session().ok()?;
-        let proxy = GammaRelayProxyBlocking::new(&connection).ok()?;
-        let brightness = proxy.brightness().ok()?;
-        let temperature = proxy.temperature().ok()?;
-        #[allow(clippy::cast_possible_truncation)]
-        Some(Gamma {
-            brightness: (brightness * 100.0).round() as i64,
-            temperature,
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_gamma)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
+}
+
+fn read_gamma() -> Result<Option<Gamma>, Error> {
+    let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
+    let proxy = GammaRelayProxyBlocking::new(&connection)
+        .map_err(|error| Error::Connect(error.to_string()))?;
+    let Some(brightness) = bus::call(proxy.brightness())? else {
+        return Ok(None);
+    };
+    let Some(temperature) = bus::call(proxy.temperature())? else {
+        return Ok(None);
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(Some(Gamma {
+        brightness: (brightness * 100.0).round() as i64,
+        temperature,
+    }))
 }
 
 pub fn set_brightness(percent: i64) -> bool {

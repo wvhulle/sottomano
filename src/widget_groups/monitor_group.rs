@@ -10,6 +10,7 @@ use crate::{
     data::source::{
         BarWidget, Tooltip, TooltipBody,
         backlight::{self, Backlight},
+        bus,
         clight::Clight,
         font_awesome::Solid,
         gamma::{self, Gamma},
@@ -50,7 +51,7 @@ pub enum MonitorMessage {
     Menu(MenuMessage),
     Backlights(Vec<Backlight>),
     Backlight(String, ControlMessage),
-    Gamma(Option<Gamma>),
+    Gamma(Result<Option<Gamma>, bus::Error>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
     Clight(ToggleMessage<Clight>),
@@ -146,7 +147,7 @@ impl MonitorGroup {
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
             MonitorMessage::Gamma(reading) => {
-                self.gamma.load(reading);
+                self.gamma.receive(reading);
                 if let Some(gamma) = self.gamma.get() {
                     self.dim
                         .update(ControlMessage::Reading(percent_f(gamma.brightness)));

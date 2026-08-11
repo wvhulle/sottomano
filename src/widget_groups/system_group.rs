@@ -7,8 +7,8 @@ use crate::{
     config::Config,
     data::source::{
         BarWidget, Tooltip,
-        disk::Disk,
-        sysfs_sensors::{cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
+        disk::{self, Disk},
+        sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     wayland_layers::{
         surface::Position,
@@ -43,10 +43,10 @@ pub struct SystemGroup {
 
 #[derive(Debug, Clone)]
 pub enum SystemMessage {
-    Cpu(Option<CpuUsage>),
-    Memory(Option<Memory>),
-    Temperature(Option<Temperature>),
-    Disk(Option<Disk>),
+    Cpu(Result<Option<CpuUsage>, sysfs_sensors::Error>),
+    Memory(Result<Option<Memory>, sysfs_sensors::Error>),
+    Temperature(Result<Option<Temperature>, sysfs_sensors::Error>),
+    Disk(Result<Option<Disk>, disk::Error>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
@@ -63,10 +63,10 @@ impl SystemGroup {
 
     pub fn update(&mut self, msg: SystemMessage) {
         match msg {
-            SystemMessage::Cpu(reading) => self.cpu.load(reading),
-            SystemMessage::Memory(reading) => self.memory.load(reading),
-            SystemMessage::Temperature(reading) => self.temperature.load(reading),
-            SystemMessage::Disk(reading) => self.disk.load(reading),
+            SystemMessage::Cpu(reading) => self.cpu.receive(reading),
+            SystemMessage::Memory(reading) => self.memory.receive(reading),
+            SystemMessage::Temperature(reading) => self.temperature.receive(reading),
+            SystemMessage::Disk(reading) => self.disk.receive(reading),
             SystemMessage::Menu(m) => {
                 self.menu.update(m);
             }
@@ -104,9 +104,9 @@ impl SystemGroup {
         let reveal = self.menu.reveal();
         let content = Pills::new()
             .alpha(reveal)
-            .push(self.temperature.get(), HoverTarget::Temperature)
-            .push(self.memory.get(), HoverTarget::Memory)
-            .push(self.disk.get(), HoverTarget::Disk)
+            .push(self.temperature.display(), HoverTarget::Temperature)
+            .push(self.memory.display(), HoverTarget::Memory)
+            .push(self.disk.display(), HoverTarget::Disk)
             .row(config, SystemMessage::Tooltip)
             .unwrap_or_else(Row::new);
 

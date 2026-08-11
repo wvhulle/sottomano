@@ -1,4 +1,9 @@
-use std::{convert::identity, future::ready, path::PathBuf, time::Duration};
+use std::{
+    convert::identity,
+    future::{Future, ready},
+    path::PathBuf,
+    time::Duration,
+};
 
 use iced::{
     Subscription, Task,
@@ -23,7 +28,7 @@ use crate::{
             model::{NotifHandle, Outbound, ServerEvent},
             server,
         },
-        source::{Source, ai::ApiSource, desktop_entries, niri},
+        source::{ApiSource, Source, desktop_entries, niri},
     },
     wayland_layers::notifications::NotificationMessage,
     widget_groups::{
@@ -84,40 +89,38 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     ])
 }
 
-async fn off_thread<T: Default + Send + 'static>(
-    context: &'static str,
-    work: impl FnOnce() -> T + Send + 'static,
-) -> T {
-    spawn_blocking(work).await.unwrap_or_else(|e| {
-        eprintln!("{context}: task panicked: {e}");
-        T::default()
-    })
-}
-
 pub(crate) fn blocking<T: Default + Send + 'static>(
     context: &'static str,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Task<T> {
-    Task::perform(off_thread(context, work), identity)
+    Task::perform(
+        async move {
+            spawn_blocking(work).await.unwrap_or_else(|e| {
+                eprintln!("{context}: task panicked: {e}");
+                T::default()
+            })
+        },
+        identity,
+    )
 }
 
-fn polled<T>(
-    name: &'static str,
+fn polled<T, F>(
     every: Duration,
-    work: impl Fn() -> T + Send + Clone + 'static,
+    work: impl Fn() -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = T>
 where
-    T: Clone + PartialEq + Default + Send + 'static,
+    T: Clone + PartialEq + Send + 'static,
+    F: Future<Output = T> + Send,
 {
     use iced::futures::StreamExt;
     let mut timer = interval(every);
     timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    let readings = IntervalStream::new(timer).then(move |_| off_thread(name, work.clone()));
+    let readings = IntervalStream::new(timer).then(move |_| work());
     emit_changes(readings)
 }
 
-pub(crate) fn polling<S: Source + Send + 'static>() -> Subscription<Option<S>> {
-    Subscription::run_with(S::NAME, |_| polled(S::NAME, S::INTERVAL, S::poll))
+pub(crate) fn polling<S: Source>() -> Subscription<Result<Option<S>, S::Error>> {
+    Subscription::run_with(S::NAME, |_| polled(S::INTERVAL, S::poll))
 }
 
 pub(crate) fn emit_changes<T: Clone + PartialEq>(
@@ -135,21 +138,24 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub(crate) fn poll_arg<S: ApiSource>(key: Option<PathBuf>) -> Subscription<Option<S>> {
-    Subscription::run_with((S::NAME, key), |(name, key)| {
+pub(crate) fn poll_arg<S: ApiSource>(
+    key: Option<PathBuf>,
+) -> Subscription<Result<Option<S>, S::Error>> {
+    Subscription::run_with((S::NAME, key), |(_, key)| {
         let key = key.clone();
-        polled(name, S::INTERVAL, move || S::poll(key.clone()))
+        polled(S::INTERVAL, move || S::poll(key.clone()))
     })
 }
 
-pub(crate) fn poll_every<T: Clone + PartialEq + Default + Send + 'static>(
+pub(crate) fn poll_every<
+    T: Clone + PartialEq + Send + 'static,
+    F: Future<Output = T> + Send + 'static,
+>(
     key: &'static str,
     every: Duration,
-    poll: fn() -> T,
+    poll: fn() -> F,
 ) -> Subscription<T> {
-    Subscription::run_with((key, every, poll), |&(key, every, poll)| {
-        polled(key, every, poll)
-    })
+    Subscription::run_with((key, every, poll), |&(_, every, poll)| polled(every, poll))
 }
 
 pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<Option<S>>

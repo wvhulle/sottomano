@@ -1,28 +1,75 @@
-use std::process::Command;
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    io::ErrorKind,
+    process::Output,
+};
 
-pub fn output(program: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(program).args(args).output().ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+use tokio::process::Command;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Spawn { program: String, detail: String },
+    Failed { program: String, stderr: String },
 }
 
-pub fn run(program: &str, args: &[&str]) -> bool {
-    Command::new(program)
-        .args(args)
-        .status()
-        .is_ok_and(|status| status.success())
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Spawn { program, detail } => write!(f, "cannot run {program}: {detail}"),
+            Error::Failed { program, stderr } => write!(f, "{program} failed: {stderr}"),
+        }
+    }
 }
 
-pub fn exists(program: &str) -> bool {
-    output("sh", &["-c", &format!("command -v {program}")]).is_some()
+fn captured(program: &str, output: &Output) -> Result<String, Error> {
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(Error::Failed {
+        program: program.to_owned(),
+        stderr: stderr.trim().chars().take(200).collect(),
+    })
 }
 
-pub fn http_get(url: &str, timeout_secs: u32) -> Option<String> {
-    output(
-        "curl",
-        &["-s", "--max-time", &timeout_secs.to_string(), url],
+pub mod blocking {
+    use std::{io::ErrorKind, process::Command};
+
+    use super::{Error, captured};
+
+    pub fn output(program: &str, args: &[&str]) -> Result<Option<String>, Error> {
+        match Command::new(program).args(args).output() {
+            Ok(output) => captured(program, &output).map(Some),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(Error::Spawn {
+                program: program.to_owned(),
+                detail: error.to_string(),
+            }),
+        }
+    }
+
+    pub fn run(program: &str, args: &[&str]) -> bool {
+        Command::new(program)
+            .args(args)
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+}
+
+pub async fn output(program: &str, args: &[&str]) -> Result<Option<String>, Error> {
+    match Command::new(program).args(args).output().await {
+        Ok(output) => captured(program, &output).map(Some),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(Error::Spawn {
+            program: program.to_owned(),
+            detail: error.to_string(),
+        }),
+    }
+}
+
+pub async fn exists(program: &str) -> bool {
+    matches!(
+        output("sh", &["-c", &format!("command -v {program}")]).await,
+        Ok(Some(_))
     )
-    .filter(|body| !body.trim().is_empty())
 }

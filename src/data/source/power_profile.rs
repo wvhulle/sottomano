@@ -4,10 +4,12 @@ use adskalman::{
     KalmanFilterNoControl, ObservationModel, StateAndCovariance, TransitionModelLinearNoControl,
 };
 use nalgebra::{Matrix1, Matrix1x3, Matrix3, Matrix3x1, U1, U3, Vector1, Vector3};
+use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody,
+    BarWidget, Glyph, Source, TooltipBody, bus,
+    bus::Error,
     font_awesome::{FontAwesome, Solid},
     sysfs_sensors,
 };
@@ -97,10 +99,6 @@ fn daemon() -> Option<PowerProfilesProxyBlocking<'static>> {
     PowerProfilesProxyBlocking::new(&Connection::system().ok()?).ok()
 }
 
-pub fn active() -> Option<Profile> {
-    Profile::from_name(&daemon()?.active_profile().ok()?)
-}
-
 pub fn set(profile: Profile) -> bool {
     daemon().is_some_and(|daemon| daemon.set_active_profile(profile.name()).is_ok())
 }
@@ -152,21 +150,37 @@ impl BarWidget for PowerProfile {
 }
 
 impl Source for PowerProfile {
+    type Error = Error;
+
     const NAME: &'static str = "power-profile";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    fn poll() -> Option<Self> {
-        let active_profile = active()?;
-        let energy = sysfs_sensors::battery_energy();
-        Some(PowerProfile {
-            active_profile,
-            energy_j: energy.as_ref().and_then(|e| e.energy_j),
-            draw_w: energy.as_ref().and_then(|e| e.draw_w),
-            discharging: energy.as_ref().is_some_and(|e| e.discharging),
-            battery_id: energy.map(|e| e.serial).unwrap_or_default(),
-            conditions: Conditions::current(),
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_power_profile)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
+}
+
+fn read_power_profile() -> Result<Option<PowerProfile>, Error> {
+    let connection = Connection::system().map_err(|error| Error::Connect(error.to_string()))?;
+    let daemon = PowerProfilesProxyBlocking::new(&connection)
+        .map_err(|error| Error::Connect(error.to_string()))?;
+    let Some(name) = bus::call(daemon.active_profile())? else {
+        return Ok(None);
+    };
+    let Some(active_profile) = Profile::from_name(&name) else {
+        return Ok(None);
+    };
+    let energy = sysfs_sensors::battery_energy();
+    Ok(Some(PowerProfile {
+        active_profile,
+        energy_j: energy.as_ref().and_then(|e| e.energy_j),
+        draw_w: energy.as_ref().and_then(|e| e.draw_w),
+        discharging: energy.as_ref().is_some_and(|e| e.discharging),
+        battery_id: energy.map(|e| e.serial).unwrap_or_default(),
+        conditions: Conditions::current(),
+    }))
 }
 
 const Q_BASE: f64 = 0.25;

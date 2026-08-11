@@ -1,6 +1,8 @@
 use std::{path::Path, time::Duration};
 
-use super::{favg, fmax, fmin, list_dir, read_i64, read_trimmed};
+use tokio::task::spawn_blocking;
+
+use super::{Error, favg, fmax, fmin, list_dir, read_i64, read_trimmed};
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
@@ -64,13 +66,21 @@ impl BarWidget for Temperature {
 }
 
 impl Source for Temperature {
+    type Error = Error;
+
     const NAME: &'static str = "temperature";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    fn poll() -> Option<Self> {
-        let readings = cpu_temp_readings();
-        (!readings.is_empty()).then_some(Temperature { readings })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_temperature)
+            .await
+            .map_err(|_| Error::Panicked)
     }
+}
+
+fn read_temperature() -> Option<Temperature> {
+    let readings = cpu_temp_readings();
+    (!readings.is_empty()).then_some(Temperature { readings })
 }
 
 fn cpu_temp_readings() -> Vec<TempReading> {

@@ -3,9 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde_json::Value as Json;
 
 use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody,
-    command::{output, run},
-    font_awesome::Solid,
+    BarWidget, Glyph, Source, TooltipBody, command, command::blocking::run, font_awesome::Solid,
     row,
 };
 
@@ -140,23 +138,33 @@ impl BarWidget for Wireguard {
 }
 
 impl Source for Wireguard {
+    type Error = command::Error;
+
     const NAME: &'static str = "wireguard";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    fn poll() -> Option<Self> {
-        let interfaces = output("wg", &["show", "interfaces"])?;
-        let tunnels: Vec<Tunnel> = interfaces
-            .split_whitespace()
-            .filter_map(read_tunnel)
-            .collect();
-        (!tunnels.is_empty()).then_some(Wireguard { tunnels })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        let Some(interfaces) = command::output("wg", &["show", "interfaces"]).await? else {
+            return Ok(None);
+        };
+        let mut tunnels = Vec::new();
+        for iface in interfaces.split_whitespace() {
+            if let Some(tunnel) = read_tunnel(iface).await? {
+                tunnels.push(tunnel);
+            }
+        }
+        Ok((!tunnels.is_empty()).then_some(Wireguard { tunnels }))
     }
 }
 
-fn read_tunnel(iface: &str) -> Option<Tunnel> {
-    let dump = output("wg", &["show", iface, "dump"])?;
+async fn read_tunnel(iface: &str) -> Result<Option<Tunnel>, command::Error> {
+    let Some(dump) = command::output("wg", &["show", iface, "dump"]).await? else {
+        return Ok(None);
+    };
     let mut lines = dump.lines();
-    let interface = lines.next()?;
+    let Some(interface) = lines.next() else {
+        return Ok(None);
+    };
     let port: Option<u32> = interface
         .split('\t')
         .nth(2)
@@ -182,17 +190,20 @@ fn read_tunnel(iface: &str) -> Option<Tunnel> {
             }
         })
         .collect();
-    Some(Tunnel {
+    Ok(Some(Tunnel {
         name: iface.to_string(),
         server: port.is_some(),
-        ip: interface_ip(iface),
+        ip: interface_ip(iface).await,
         port,
         peers,
-    })
+    }))
 }
 
-fn interface_ip(iface: &str) -> String {
-    output("ip", &["-j", "-4", "addr", "show", iface])
+async fn interface_ip(iface: &str) -> String {
+    command::output("ip", &["-j", "-4", "addr", "show", iface])
+        .await
+        .ok()
+        .flatten()
         .and_then(|out| serde_json::from_str::<Json>(&out).ok())
         .and_then(|json| {
             let entry = json.as_array()?.first()?;

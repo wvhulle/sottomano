@@ -1,9 +1,12 @@
 use std::{env, fs, time::Duration};
 
+use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    data::source::{BarWidget, Glyph, Source, TooltipBody, backlight, font_awesome::Solid, row},
+    data::source::{
+        BarWidget, Glyph, Source, TooltipBody, backlight, bus, bus::Error, font_awesome::Solid, row,
+    },
     widgets::toggle_control::Toggle,
 };
 
@@ -55,12 +58,23 @@ impl BarWidget for Clight {
 }
 
 impl Source for Clight {
+    type Error = Error;
+
     const NAME: &'static str = "clight";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    fn poll() -> Option<Self> {
-        no_auto_calib().map(|no| Clight { auto: !no })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_auto_calib)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
+}
+
+fn read_auto_calib() -> Result<Option<Clight>, Error> {
+    let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
+    let proxy = ConfBacklightProxyBlocking::new(&connection)
+        .map_err(|error| Error::Connect(error.to_string()))?;
+    Ok(bus::call(proxy.no_auto_calib())?.map(|no| Clight { auto: !no }))
 }
 
 impl Toggle for Clight {

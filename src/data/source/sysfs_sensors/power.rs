@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use super::{battery::ChargeStatus, first_power_supply, read_trimmed};
+use tokio::task::spawn_blocking;
+
+use super::{Error, battery::ChargeStatus, first_power_supply, parse_field, read_trimmed};
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
@@ -54,17 +56,27 @@ impl BarWidget for PowerDraw {
 }
 
 impl Source for PowerDraw {
+    type Error = Error;
+
     const NAME: &'static str = "power-consumption";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    fn poll() -> Option<Self> {
-        let dir = first_power_supply("BAT")?;
-        let uw: f64 = read_trimmed(dir.join("power_now"))?.parse().ok()?;
-        let status = read_trimmed(dir.join("status"))
-            .map_or(ChargeStatus::Unknown, |s| ChargeStatus::parse(&s));
-        Some(PowerDraw {
-            watts: uw / 1_000_000.0,
-            status,
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_power_draw)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
+}
+
+fn read_power_draw() -> Result<Option<PowerDraw>, Error> {
+    let Some(dir) = first_power_supply("BAT") else {
+        return Ok(None);
+    };
+    let uw: f64 = parse_field(&dir.join("power_now"))?;
+    let status =
+        read_trimmed(dir.join("status")).map_or(ChargeStatus::Unknown, |s| ChargeStatus::parse(&s));
+    Ok(Some(PowerDraw {
+        watts: uw / 1_000_000.0,
+        status,
+    }))
 }

@@ -1,10 +1,14 @@
 use std::{fs, time::Duration};
 
+use tokio::task::spawn_blocking;
+
+use super::Error;
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
 const KIB_PER_GIB: f64 = 1_048_576.0;
+const MEMINFO: &str = "/proc/meminfo";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Memory {
@@ -54,23 +58,33 @@ impl BarWidget for Memory {
 }
 
 impl Source for Memory {
+    type Error = Error;
+
     const NAME: &'static str = "memory";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    fn poll() -> Option<Self> {
-        let info = fs::read_to_string("/proc/meminfo").ok()?;
-        let total_kb = meminfo_kb(&info, "MemTotal")?;
-        let available_kb = meminfo_kb(&info, "MemAvailable")?;
-        Some(Memory {
-            used_kb: total_kb - available_kb,
-            total_kb,
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_meminfo)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
 }
 
-fn meminfo_kb(info: &str, key: &str) -> Option<i64> {
-    info.lines().find_map(|line| {
-        let rest = line.strip_prefix(key)?.strip_prefix(':')?;
-        rest.split_whitespace().next()?.parse().ok()
-    })
+fn read_meminfo() -> Result<Option<Memory>, Error> {
+    let info = fs::read_to_string(MEMINFO).map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
+    let total_kb = meminfo_kb(&info, "MemTotal")?;
+    let available_kb = meminfo_kb(&info, "MemAvailable")?;
+    Ok(Some(Memory {
+        used_kb: total_kb - available_kb,
+        total_kb,
+    }))
+}
+
+fn meminfo_kb(info: &str, key: &str) -> Result<i64, Error> {
+    info.lines()
+        .find_map(|line| {
+            let rest = line.strip_prefix(key)?.strip_prefix(':')?;
+            rest.split_whitespace().next()?.parse().ok()
+        })
+        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field {key}")))
 }

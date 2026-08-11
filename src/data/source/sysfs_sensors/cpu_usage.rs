@@ -1,9 +1,13 @@
 use std::{fs, thread, time::Duration};
 
-use super::{core_ghz, favg, fmax, fmin, ghz};
+use tokio::task::spawn_blocking;
+
+use super::{Error, core_ghz, favg, fmax, fmin, ghz};
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
+
+const CPU_STAT: &str = "/proc/stat";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuUsage {
@@ -45,16 +49,24 @@ impl BarWidget for CpuUsage {
 }
 
 impl Source for CpuUsage {
+    type Error = Error;
+
     const NAME: &'static str = "cpu";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    fn poll() -> Option<Self> {
-        let percent = (cpu_busy_frac().unwrap_or(0.0) * 100.0).round() as i64;
-        Some(CpuUsage {
-            percent,
-            freqs_ghz: core_ghz(),
-        })
+    async fn poll() -> Result<Option<Self>, Self::Error> {
+        spawn_blocking(read_cpu_usage)
+            .await
+            .map_err(|_| Error::Panicked)?
     }
+}
+
+fn read_cpu_usage() -> Result<Option<CpuUsage>, Error> {
+    let busy = cpu_busy_frac().ok_or_else(|| Error::Unreadable(CPU_STAT.to_owned()))?;
+    Ok(Some(CpuUsage {
+        percent: (busy * 100.0).round() as i64,
+        freqs_ghz: core_ghz(),
+    }))
 }
 
 pub(crate) fn cpu_busy_frac() -> Option<f64> {
@@ -67,7 +79,7 @@ pub(crate) fn cpu_busy_frac() -> Option<f64> {
 }
 
 fn cpu_stat() -> Option<Vec<i64>> {
-    let content = fs::read_to_string("/proc/stat").ok()?;
+    let content = fs::read_to_string(CPU_STAT).ok()?;
     let first = content.lines().next()?;
     Some(
         first

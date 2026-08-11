@@ -1,5 +1,7 @@
 use std::{
-    fmt::{Display, Formatter, Result},
+    fmt::{self, Debug, Display, Formatter},
+    future::Future,
+    path::PathBuf,
     time::{Duration, SystemTime},
 };
 
@@ -14,6 +16,7 @@ pub mod app_icon;
 pub mod app_rules;
 pub mod audio;
 pub mod backlight;
+pub mod bus;
 pub mod clight;
 pub mod command;
 pub mod desktop_entries;
@@ -21,6 +24,7 @@ pub mod disk;
 pub mod favicons;
 pub mod font_awesome;
 pub mod gamma;
+pub mod http;
 pub mod icon_trim;
 pub mod journal;
 pub mod kernel_errors;
@@ -55,7 +59,7 @@ pub enum Unit {
 }
 
 impl Display for Unit {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Unit::Percent => "%",
             Unit::Watt => "W",
@@ -230,12 +234,28 @@ pub trait BarWidget {
         false
     }
 
+    fn failed(&self) -> bool {
+        false
+    }
+
     fn tooltip(&self) -> TooltipBody;
 }
 
-pub trait Source: BarWidget + Clone + PartialEq + Sized {
+pub trait Source: BarWidget + Clone + PartialEq + Sized + Send + 'static {
+    type Error: Clone + PartialEq + Debug + Display + Send + 'static;
+
     const NAME: &'static str;
     const INTERVAL: Duration;
 
-    fn poll() -> Option<Self>;
+    fn poll() -> impl Future<Output = Result<Option<Self>, Self::Error>> + Send;
+}
+
+pub trait ApiSource: BarWidget + Clone + PartialEq + Sized + Send + 'static {
+    type Error: Clone + PartialEq + Debug + Display + Send + 'static;
+
+    const NAME: &'static str;
+    const INTERVAL: Duration;
+
+    fn poll(key: Option<PathBuf>)
+    -> impl Future<Output = Result<Option<Self>, Self::Error>> + Send;
 }

@@ -1,7 +1,36 @@
 use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Error {
+    Unreadable(String),
+    Unparsable(String),
+    Panicked,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Unreadable(path) => write!(f, "cannot read {path}"),
+            Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
+            Error::Panicked => write!(f, "sensor read panicked"),
+        }
+    }
+}
+
+pub(super) fn read_field(path: &Path) -> Result<String, Error> {
+    read_trimmed(path).ok_or_else(|| Error::Unreadable(path.display().to_string()))
+}
+
+pub(super) fn parse_field<T: FromStr>(path: &Path) -> Result<T, Error> {
+    read_field(path)?
+        .parse()
+        .map_err(|_| Error::Unparsable(path.display().to_string()))
+}
 
 pub mod battery;
 #[allow(dead_code)]

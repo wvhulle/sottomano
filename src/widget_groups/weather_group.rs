@@ -6,8 +6,8 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip,
-        weather::{Birch, Grass, Location, Pollen, Rain, Temperature},
+        Tooltip,
+        weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
     },
     wayland_layers::{
         surface::Position,
@@ -33,11 +33,11 @@ pub struct WeatherGroup {
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Temp(Option<Temperature>),
-    Rain(Option<Rain>),
-    Birch(Option<Pollen<Birch>>),
-    Grass(Option<Pollen<Grass>>),
-    Location(Option<Location>),
+    Temp(Result<Option<Temperature>, weather::Error>),
+    Rain(Result<Option<Rain>, weather::Error>),
+    Birch(Result<Option<Pollen<Birch>>, weather::Error>),
+    Grass(Result<Option<Pollen<Grass>>, weather::Error>),
+    Location(Result<Option<Location>, weather::Error>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
@@ -55,11 +55,11 @@ impl WeatherGroup {
 
     pub fn update(&mut self, msg: WeatherMessage) {
         match msg {
-            WeatherMessage::Temp(reading) => self.temp.load(reading),
-            WeatherMessage::Rain(reading) => self.rain.load(reading),
-            WeatherMessage::Birch(reading) => self.birch.load(reading),
-            WeatherMessage::Grass(reading) => self.grass.load(reading),
-            WeatherMessage::Location(reading) => self.location.load(reading),
+            WeatherMessage::Temp(reading) => self.temp.receive(reading),
+            WeatherMessage::Rain(reading) => self.rain.receive(reading),
+            WeatherMessage::Birch(reading) => self.birch.receive(reading),
+            WeatherMessage::Grass(reading) => self.grass.receive(reading),
+            WeatherMessage::Location(reading) => self.location.receive(reading),
             WeatherMessage::Menu(m) => {
                 self.menu.update(m);
             }
@@ -83,8 +83,7 @@ impl WeatherGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, WeatherMessage>> {
-        let temp = self.temp.get()?;
-        let handle_reading = source_reading(config, Some(temp as &dyn BarWidget), 1.0)?;
+        let handle_reading = source_reading(config, self.temp.display(), 1.0)?;
         let handle = button(hoverable(
             handle_reading,
             HoverTarget::WeatherTemp,
@@ -98,10 +97,10 @@ impl WeatherGroup {
         let reveal = self.menu.reveal();
         let content = Pills::new()
             .alpha(reveal)
-            .push(self.location.get(), HoverTarget::Location)
-            .push(self.rain.get(), HoverTarget::WeatherRain)
-            .push(self.birch.get(), HoverTarget::PollenBirch)
-            .push(self.grass.get(), HoverTarget::PollenGrass)
+            .push(self.location.display(), HoverTarget::Location)
+            .push(self.rain.display(), HoverTarget::WeatherRain)
+            .push(self.birch.display(), HoverTarget::PollenBirch)
+            .push(self.grass.display(), HoverTarget::PollenGrass)
             .row(config, WeatherMessage::Tooltip)
             .unwrap_or_else(Row::new);
 
