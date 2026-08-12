@@ -175,7 +175,7 @@ fn tooltip_of<S: ApiSource>(cell: &SourceCell<S>) -> Option<Tooltip> {
 
 fn robot_handle<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
     Solid::Robot
-        .widget()
+        .glyph()
         .size(config.font.icon_size_px)
         .color(config.palette.bar_foreground)
         .into()

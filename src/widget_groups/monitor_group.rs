@@ -295,7 +295,7 @@ impl MonitorGroup {
     fn handle<'a>(config: &Config) -> Element<'a, MonitorMessage> {
         button(
             Solid::Lightbulb
-                .widget()
+                .glyph()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )

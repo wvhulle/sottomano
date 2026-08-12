@@ -3,7 +3,10 @@ use std::{
     collections::HashMap,
     fmt, io,
     rc::Rc,
-    sync::mpsc::{SyncSender, sync_channel},
+    sync::{
+        Arc,
+        mpsc::{SyncSender, sync_channel},
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -19,7 +22,7 @@ use pipewire::{
     device::{Device, DeviceChangeMask, DeviceInfoRef, DeviceListener},
     main_loop::MainLoop,
     metadata::{Metadata, MetadataListener},
-    node::{Node, NodeInfoRef, NodeListener},
+    node::{Node, NodeInfoRef, NodeListener, NodeState},
     proxy::ProxyT,
     registry::{GlobalObject, Registry},
     spa::{
@@ -48,10 +51,17 @@ pub struct Reading {
     pub device: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowAudio {
+    pub playing: bool,
+    pub muted: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioState {
     pub sink: Option<Reading>,
     pub source: Option<Reading>,
+    pub windows: Arc<HashMap<i32, WindowAudio>>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +74,7 @@ pub enum AudioEvent {
 pub enum Target {
     DefaultSink,
     DefaultSource,
+    AppStreams(i32),
 }
 
 #[derive(Clone)]
@@ -203,9 +214,17 @@ struct Route {
     levels: Levels,
 }
 
+#[derive(Debug)]
+struct AppStream {
+    pid: Option<i32>,
+    running: bool,
+    levels: Levels,
+}
+
 #[derive(Debug, Default)]
 struct Graph {
     nodes: HashMap<u32, AudioNode>,
+    streams: HashMap<u32, AppStream>,
     routes: HashMap<u32, HashMap<u32, Route>>,
     default_sink: Option<String>,
     default_source: Option<String>,
@@ -222,6 +241,19 @@ enum Event {
         placement: RoutePlacement,
     },
     NodeLevels {
+        id: u32,
+        update: LevelsUpdate,
+    },
+    StreamAdded {
+        id: u32,
+        stream: AppStream,
+    },
+    StreamInfo {
+        id: u32,
+        pid: Option<i32>,
+        running: bool,
+    },
+    StreamLevels {
         id: u32,
         update: LevelsUpdate,
     },
@@ -260,6 +292,22 @@ fn reduce(graph: &mut Graph, event: Event) {
                 node.levels.merge(update);
             }
         }
+        Event::StreamAdded { id, stream } => {
+            graph.streams.insert(id, stream);
+        }
+        Event::StreamInfo { id, pid, running } => {
+            if let Some(stream) = graph.streams.get_mut(&id) {
+                if pid.is_some() {
+                    stream.pid = pid;
+                }
+                stream.running = running;
+            }
+        }
+        Event::StreamLevels { id, update } => {
+            if let Some(stream) = graph.streams.get_mut(&id) {
+                stream.levels.merge(update);
+            }
+        }
         Event::RouteLevels { device, route } => {
             let entry = graph
                 .routes
@@ -279,6 +327,7 @@ fn reduce(graph: &mut Graph, event: Event) {
         },
         Event::Removed { id } => {
             graph.nodes.remove(&id);
+            graph.streams.remove(&id);
             graph.routes.remove(&id);
         }
     }
@@ -297,6 +346,7 @@ fn default_node_id(graph: &Graph, target: Target) -> Option<u32> {
     let name = match target {
         Target::DefaultSink => graph.default_sink.as_deref()?,
         Target::DefaultSource => graph.default_source.as_deref()?,
+        Target::AppStreams(_) => return None,
     };
     node_id_by_name(graph, name)
 }
@@ -326,7 +376,31 @@ fn snapshot(graph: &Graph) -> AudioState {
     AudioState {
         sink: reading(graph, graph.default_sink.as_deref()),
         source: reading(graph, graph.default_source.as_deref()),
+        windows: Arc::new(window_audio(graph)),
     }
+}
+
+fn window_audio(graph: &Graph) -> HashMap<i32, WindowAudio> {
+    let mut by_pid: HashMap<i32, WindowAudio> = HashMap::new();
+    for stream in graph.streams.values() {
+        let Some(pid) = stream.pid else { continue };
+        let entry = by_pid.entry(pid).or_insert(WindowAudio {
+            playing: false,
+            muted: true,
+        });
+        entry.playing |= stream.running;
+        entry.muted &= stream.levels.mute;
+    }
+    by_pid
+}
+
+fn stream_ids(graph: &Graph, pid: i32) -> Vec<u32> {
+    graph
+        .streams
+        .iter()
+        .filter(|(_, stream)| stream.pid == Some(pid))
+        .map(|(id, _)| *id)
+        .collect()
 }
 
 enum LevelChange {
@@ -423,11 +497,33 @@ fn route_destination(session: &Session, id: u32) -> Option<Destination<'_>> {
 }
 
 fn apply(session: &Session, target: Target, kind: CommandKind) -> Option<i64> {
+    if let Target::AppStreams(pid) = target {
+        return apply_to_streams(session, pid, kind);
+    }
     let id = default_node_id(&session.graph, target)?;
     let node = session.graph.nodes.get(&id)?;
     let resolved = resolve(effective_levels(&session.graph, node), kind)?;
     write(session, id, &resolved.change)?;
     Some(resolved.percent)
+}
+
+fn apply_to_streams(session: &Session, pid: i32, kind: CommandKind) -> Option<i64> {
+    let ids = stream_ids(&session.graph, pid);
+    let muted = !ids.is_empty() && ids.iter().all(|id| session.graph.streams[id].levels.mute);
+    ids.iter()
+        .filter_map(|id| {
+            let levels = &session.graph.streams.get(id)?.levels;
+            let resolved = match kind {
+                CommandKind::ToggleMute => Resolved {
+                    change: LevelChange::Mute(!muted),
+                    percent: levels.percent(),
+                },
+                _ => resolve(levels, kind)?,
+            };
+            write(session, *id, &resolved.change)?;
+            Some(resolved.percent)
+        })
+        .reduce(|_, percent| percent)
 }
 
 fn write(session: &Session, id: u32, change: &LevelChange) -> Option<()> {
@@ -569,9 +665,20 @@ fn track_node(
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
-    if node_direction(props).is_none() {
-        return;
+    if node_direction(props).is_some() {
+        track_device_node(registry, session, states, global, props);
+    } else if is_output_stream(props) {
+        track_stream_node(registry, session, states, global, props);
     }
+}
+
+fn track_device_node(
+    registry: &Registry,
+    session: &Shared,
+    states: &Publisher,
+    global: &GlobalObject<&DictRef>,
+    props: &DictRef,
+) {
     let Some(proxy) = bind::<Node>(registry, global, "node") else {
         return;
     };
@@ -588,6 +695,40 @@ fn track_node(
         Event::NodeAdded {
             id,
             node: node_from_props(props),
+        },
+    );
+    session.borrow_mut().proxies.nodes.insert(
+        id,
+        NodeProxy {
+            proxy,
+            _listener: listener,
+        },
+    );
+}
+
+fn track_stream_node(
+    registry: &Registry,
+    session: &Shared,
+    states: &Publisher,
+    global: &GlobalObject<&DictRef>,
+    props: &DictRef,
+) {
+    let Some(proxy) = bind::<Node>(registry, global, "stream") else {
+        return;
+    };
+    proxy.subscribe_params(&[ParamType::Props]);
+    let id = global.id;
+    let listener = proxy
+        .add_listener_local()
+        .info(on_stream_info(id, session, states))
+        .param(on_stream_param(id, session, states))
+        .register();
+    dispatch(
+        session,
+        states,
+        Event::StreamAdded {
+            id,
+            stream: stream_from_props(props),
         },
     );
     session.borrow_mut().proxies.nodes.insert(
@@ -676,6 +817,34 @@ fn on_node_param(
     }
 }
 
+fn on_stream_info(
+    id: u32,
+    session: &Shared,
+    states: &Publisher,
+) -> impl Fn(&NodeInfoRef) + 'static {
+    let session = session.clone();
+    let states = states.clone();
+    move |info| {
+        let pid = info.props().and_then(stream_pid);
+        let running = matches!(info.state(), NodeState::Running);
+        dispatch(&session, &states, Event::StreamInfo { id, pid, running });
+    }
+}
+
+fn on_stream_param(
+    id: u32,
+    session: &Shared,
+    states: &Publisher,
+) -> impl Fn(i32, ParamType, u32, u32, Option<&Pod>) + 'static {
+    let session = session.clone();
+    let states = states.clone();
+    move |_, _, _, _, param| {
+        if let Some(update) = param.and_then(parse_props) {
+            dispatch(&session, &states, Event::StreamLevels { id, update });
+        }
+    }
+}
+
 fn on_device_info(id: u32, session: &Shared) -> impl Fn(&DeviceInfoRef) + 'static {
     let session = session.clone();
     move |info| {
@@ -737,6 +906,22 @@ fn node_direction(props: &DictRef) -> Option<Direction> {
         "Audio/Sink" => Some(Direction::Output),
         "Audio/Source" => Some(Direction::Input),
         _ => None,
+    }
+}
+
+fn is_output_stream(props: &DictRef) -> bool {
+    props.get("media.class") == Some("Stream/Output/Audio")
+}
+
+fn stream_pid(props: &DictRef) -> Option<i32> {
+    props.get("application.process.id")?.parse().ok()
+}
+
+fn stream_from_props(props: &DictRef) -> AppStream {
+    AppStream {
+        pid: stream_pid(props),
+        running: false,
+        levels: Levels::default(),
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{env, ops::RangeInclusive, thread, time::Duration};
+use std::{collections::HashMap, env, ops::RangeInclusive, sync::Arc, thread, time::Duration};
 
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
@@ -6,7 +6,7 @@ use crate::{
     config::Config,
     data::source::{
         Tooltip,
-        audio::{self, AudioEvent, AudioState, Commands, Reading, Target},
+        audio::{self, AudioEvent, AudioState, Commands, Reading, Target, WindowAudio},
         font_awesome::{FontAwesome, Solid},
         row,
     },
@@ -42,6 +42,7 @@ impl ControlKind {
 pub struct AudioGroup {
     sink: Option<Reading>,
     source: Option<Reading>,
+    windows: Arc<HashMap<i32, WindowAudio>>,
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
@@ -52,6 +53,7 @@ impl Default for AudioGroup {
         Self {
             sink: None,
             source: None,
+            windows: Arc::default(),
             commands: None,
             sink_control: SliderControl::new(
                 RANGE,
@@ -83,6 +85,14 @@ impl AudioGroup {
     pub fn is_animating(&self) -> bool {
         self.sink_control.is_animating() || self.source_control.is_animating()
     }
+
+    pub fn window_audio(&self) -> &HashMap<i32, WindowAudio> {
+        &self.windows
+    }
+
+    pub fn toggle_window_mute(&self, pid: i32) -> Task<AudioMessage> {
+        self.mute(Target::AppStreams(pid))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +120,7 @@ impl AudioGroup {
             AudioMessage::State(state) => {
                 self.sink = state.sink;
                 self.source = state.source;
+                self.windows = state.windows;
                 feed(&mut self.sink_control, self.sink.as_ref());
                 feed(&mut self.source_control, self.source.as_ref());
                 Task::none()

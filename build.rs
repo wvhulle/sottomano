@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     env,
     fmt::Write,
     fs,
@@ -75,10 +75,31 @@ fn slugs_with_style(metadata: &serde_json::Value, style: &str) -> Vec<String> {
     slugs
 }
 
-fn face(slugs: &[String], enum_name: &str) -> (String, String, String) {
+fn code_points(metadata: &serde_json::Value) -> HashMap<String, char> {
+    metadata
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|icon| {
+            let label = icon["label"].as_str()?.to_owned();
+            let code = u32::from_str_radix(icon["unicode"].as_str()?, 16).ok()?;
+            Some((label, char::from_u32(code)?))
+        })
+        .collect()
+}
+
+struct Face {
+    variants: String,
+    name_arms: String,
+    slug_arms: String,
+    code_arms: String,
+}
+
+fn face(slugs: &[String], enum_name: &str, codes: &HashMap<String, char>) -> Face {
     let mut variants = String::new();
     let mut name_arms = String::new();
     let mut slug_arms = String::new();
+    let mut code_arms = String::new();
     let mut seen = HashSet::new();
     for slug in slugs {
         let ident = to_ident(slug);
@@ -97,8 +118,17 @@ fn face(slugs: &[String], enum_name: &str) -> (String, String, String) {
             "            {slug:?} => Some({enum_name}::{ident}),"
         )
         .unwrap();
+        let code = codes
+            .get(slug)
+            .unwrap_or_else(|| panic!("slug {slug:?} has no unicode code point"));
+        writeln!(code_arms, "            {enum_name}::{ident} => {code:?},").unwrap();
     }
-    (variants, name_arms, slug_arms)
+    Face {
+        variants,
+        name_arms,
+        slug_arms,
+        code_arms,
+    }
 }
 
 fn main() {
@@ -111,14 +141,39 @@ fn main() {
     let metadata: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&json_path).unwrap()).unwrap();
 
-    let (solid_variants, solid_names, solid_slugs) =
-        face(&slugs_with_style(&metadata, "solid"), "Solid");
-    let (regular_variants, regular_names, regular_slugs) =
-        face(&slugs_with_style(&metadata, "regular"), "Regular");
-    let (brand_variants, brand_names, brand_slugs) =
-        face(&slugs_with_style(&metadata, "brands"), "Brands");
+    let codes = code_points(&metadata);
+    let solid = face(&slugs_with_style(&metadata, "solid"), "Solid", &codes);
+    let regular = face(&slugs_with_style(&metadata, "regular"), "Regular", &codes);
+    let brands = face(&slugs_with_style(&metadata, "brands"), "Brands", &codes);
 
-    let code = format!(
+    fs::write(
+        Path::new(&env::var("OUT_DIR").unwrap()).join("icons.rs"),
+        generated(&solid, &regular, &brands),
+    )
+    .unwrap();
+}
+
+fn generated(solid: &Face, regular: &Face, brands: &Face) -> String {
+    let Face {
+        variants: solid_variants,
+        name_arms: solid_names,
+        slug_arms: solid_slugs,
+        code_arms: solid_codes,
+    } = solid;
+    let Face {
+        variants: regular_variants,
+        name_arms: regular_names,
+        slug_arms: regular_slugs,
+        code_arms: regular_codes,
+    } = regular;
+    let Face {
+        variants: brand_variants,
+        name_arms: brand_names,
+        slug_arms: brand_slugs,
+        code_arms: brand_codes,
+    } = brands;
+
+    format!(
         r"#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Solid {{
@@ -141,6 +196,12 @@ impl Solid {{
 {solid_names}        }}
     }}
 
+    #[allow(clippy::too_many_lines, dead_code)]
+    pub const fn code(self) -> char {{
+        match self {{
+{solid_codes}        }}
+    }}
+
     #[allow(clippy::too_many_lines)]
     pub fn from_slug(slug: &str) -> Option<Solid> {{
         match slug {{
@@ -158,6 +219,12 @@ impl Regular {{
     }}
 
     #[allow(clippy::too_many_lines)]
+    pub const fn code(self) -> char {{
+        match self {{
+{regular_codes}        }}
+    }}
+
+    #[allow(clippy::too_many_lines)]
     pub fn from_slug(slug: &str) -> Option<Regular> {{
         match slug {{
 {regular_slugs}            _ => None,
@@ -166,7 +233,13 @@ impl Regular {{
 }}
 
 impl Brands {{
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, dead_code)]
+    pub const fn code(self) -> char {{
+        match self {{
+{brand_codes}        }}
+    }}
+
+    #[allow(clippy::too_many_lines, dead_code)]
     pub const fn name(self) -> &'static str {{
         match self {{
 {brand_names}        }}
@@ -180,11 +253,5 @@ impl Brands {{
     }}
 }}
 ",
-    );
-
-    fs::write(
-        Path::new(&env::var("OUT_DIR").unwrap()).join("icons.rs"),
-        code,
     )
-    .unwrap();
 }

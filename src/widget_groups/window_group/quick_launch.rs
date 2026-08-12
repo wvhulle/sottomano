@@ -77,7 +77,7 @@ impl QuickLaunch {
 
         let handle = button(
             Solid::Rocket
-                .widget()
+                .glyph()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )

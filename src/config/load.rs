@@ -14,6 +14,7 @@ use super::{
     palette::Palette,
     spacing::Spacing,
     widgets::Widgets,
+    window_list::WindowListConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -22,6 +23,7 @@ pub struct Config {
     pub chrome: Chrome,
     pub spacing: Spacing,
     pub widgets: Widgets,
+    pub window_list: WindowListConfig,
     pub font: FontConfig,
     pub notifications: NotificationConfig,
     pub tray_deny_ids: Vec<String>,
@@ -43,6 +45,7 @@ struct UserConfig {
     chrome: Chrome,
     spacing: Spacing,
     widgets: Widgets,
+    window_list: WindowListConfig,
     font: UserFont,
     notifications: NotificationConfig,
     tray: TrayToml,
@@ -56,6 +59,7 @@ impl Default for UserConfig {
             chrome: Chrome::default(),
             spacing: Spacing::default(),
             widgets: Widgets::default(),
+            window_list: WindowListConfig::default(),
             font: UserFont::default(),
             notifications: NotificationConfig::default(),
             tray: TrayToml::default(),
@@ -138,6 +142,7 @@ pub fn load() -> Config {
         chrome: user.chrome,
         spacing: user.spacing,
         widgets: user.widgets,
+        window_list: user.window_list,
         font: font::resolve(&user.font),
         notifications: user.notifications,
         tray_deny_ids: user

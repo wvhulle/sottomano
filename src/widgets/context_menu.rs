@@ -109,7 +109,7 @@ fn entry<'a, Message: Clone + 'a>(
         .map(|source| native_icon(source, icon_size, 1.0))
         .or_else(|| {
             matches!(node.kind, MenuKind::Toggle(true))
-                .then(|| Solid::Check.widget().size(icon_size).color(color).into())
+                .then(|| Solid::Check.glyph().size(icon_size).color(color).into())
         });
 
     let mut row = Row::new()
@@ -126,12 +126,9 @@ fn entry<'a, Message: Clone + 'a>(
         } else {
             Solid::ChevronRight
         };
-        row = row.push(Space::new().width(Length::Fill)).push(
-            chevron
-                .widget()
-                .size(icon_size * CHEVRON_SCALE)
-                .color(color),
-        );
+        row = row
+            .push(Space::new().width(Length::Fill))
+            .push(chevron.glyph().size(icon_size * CHEVRON_SCALE).color(color));
     }
 
     let accent = config.palette.focus;
