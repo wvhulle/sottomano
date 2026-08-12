@@ -236,7 +236,7 @@ impl IdleTimeoutsGroup {
 
         let handle = button(
             Solid::Stopwatch
-                .widget()
+                .glyph()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )

@@ -254,7 +254,7 @@ fn handle<'a>(
     } else {
         Solid::Play
     };
-    icon.widget()
+    icon.glyph()
         .size(side)
         .color(config.palette.bar_foreground.scale_alpha(alpha))
         .into()
@@ -286,7 +286,7 @@ fn source_icon<'a>(
         };
     }
     player_icon(media)
-        .widget()
+        .glyph()
         .size(side)
         .color(config.palette.bar_foreground.scale_alpha(alpha))
         .into()
@@ -321,7 +321,7 @@ fn transport<'a>(
 ) -> Element<'a, MediaMessage> {
     let color = config.palette.bar_foreground.scale_alpha(reveal * 0.9);
     let button = |icon: FontAwesome, method: &'static str| {
-        button(icon.widget().size(config.font.icon_size_px).color(color))
+        button(icon.glyph().size(config.font.icon_size_px).color(color))
             .padding(0)
             .style(flat_button(color))
             .on_press(MediaMessage::Transport(method))

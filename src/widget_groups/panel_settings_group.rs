@@ -181,7 +181,7 @@ impl PanelSettingsGroup {
         let foreground = config.palette.bar_foreground;
         let handle: Element<'a, PanelSettingsMessage> = button(
             Solid::Sliders
-                .widget()
+                .glyph()
                 .size(config.font.icon_size_px)
                 .color(foreground),
         )
@@ -264,7 +264,7 @@ fn icon_toggle<'a>(
 ) -> Element<'a, PanelSettingsMessage> {
     let alpha = if active { 1.0 } else { DISABLED_ALPHA };
     let color = config.palette.bar_foreground.scale_alpha(alpha);
-    let widget = icon.widget().size(config.font.icon_size_px).color(color);
+    let widget = icon.glyph().size(config.font.icon_size_px).color(color);
     hoverable(
         button(widget)
             .padding(0)

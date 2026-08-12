@@ -333,6 +333,7 @@ fn bottom_row<'a>(
                 bar.window_group.view(
                     &bar.niri_snapshot,
                     &bar.desktop_entries,
+                    bar.audio_group.window_audio(),
                     output,
                     config,
                     position,

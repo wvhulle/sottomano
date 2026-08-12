@@ -28,7 +28,7 @@ pub fn source_reading<'a, Message: 'a>(
             .style(move |_, _| svg::Style { color: Some(color) })
             .into(),
         Glyph::FontAwesome(icon) => icon
-            .widget()
+            .glyph()
             .size(config.font.icon_size_px)
             .color(color)
             .into(),
@@ -36,7 +36,7 @@ pub fn source_reading<'a, Message: 'a>(
 
     if widget.failed() {
         let warning = Solid::TriangleExclamation
-            .widget()
+            .glyph()
             .size(config.font.icon_size_px)
             .color(color);
         return Some(

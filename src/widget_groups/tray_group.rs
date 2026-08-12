@@ -91,7 +91,7 @@ impl TrayGroup {
 
         let handle = button(
             Solid::LayerGroup
-                .widget()
+                .glyph()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),
         )
@@ -146,7 +146,7 @@ fn item_view<'a>(
     let glyph: Element<'a, TrayMessage> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
         None => Solid::Question
-            .widget()
+            .glyph()
             .size(side)
             .color(config.palette.bar_foreground.scale_alpha(reveal))
             .into(),

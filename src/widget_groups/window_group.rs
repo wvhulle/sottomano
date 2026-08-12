@@ -10,7 +10,9 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::{Config, font::FontConfig},
-    data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
+    data::source::{
+        app_icon::DesktopEntries, audio::WindowAudio, desktop_entries::DesktopIndex, niri,
+    },
     wayland_layers::surface::Position,
 };
 
@@ -30,6 +32,7 @@ pub enum Action {
     None,
     Run(Task<WindowGroupMessage>),
     FocusWindow(u64),
+    ToggleWindowAudio(i32),
     RefreshWindowList,
 }
 
@@ -48,6 +51,7 @@ impl WindowGroup {
             WindowGroupMessage::WindowList(m) => match self.window_list.update(m) {
                 window_list::Action::None => Action::None,
                 window_list::Action::FocusWindow(window) => Action::FocusWindow(window),
+                window_list::Action::ToggleAudio(pid) => Action::ToggleWindowAudio(pid),
                 window_list::Action::RefreshIcons => Action::RefreshWindowList,
             },
         }
@@ -79,6 +83,7 @@ impl WindowGroup {
         &'a self,
         niri: &niri::Snapshot,
         index: &'a DesktopIndex,
+        audio: &HashMap<i32, WindowAudio>,
         output: &str,
         config: &Config,
         position: Position,
@@ -89,7 +94,7 @@ impl WindowGroup {
             .map(|e| e.map(WindowGroupMessage::QuickLaunch));
         let window_list = self
             .window_list
-            .view(niri, index, output, config, position)
+            .view(niri, index, audio, output, config, position)
             .map(|e| e.map(WindowGroupMessage::WindowList));
         if quick_launch.is_none() && window_list.is_none() {
             return None;

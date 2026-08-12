@@ -8,6 +8,7 @@ pub mod inline_slider;
 pub mod menu_group;
 pub mod native_icon;
 pub mod pager_slot;
+pub mod progress_line;
 pub mod reveal;
 pub mod slider_control;
 pub mod text;

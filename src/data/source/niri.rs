@@ -164,6 +164,7 @@ pub struct WinEntry {
     pub id: u64,
     pub title: String,
     pub app_id: String,
+    pub pid: Option<i32>,
     pub is_focused: bool,
     pub is_urgent: bool,
 }
@@ -177,6 +178,7 @@ fn win_entry(w: &niri_ipc::Window) -> WinEntry {
         id: w.id,
         title: w.title.clone().unwrap_or_default(),
         app_id: w.app_id.clone().unwrap_or_default(),
+        pid: w.pid,
         is_focused: w.is_focused,
         is_urgent: w.is_urgent,
     }

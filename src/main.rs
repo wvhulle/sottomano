@@ -18,6 +18,7 @@ use iced_layershell::{
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config = config::load();
+    data::source::font_awesome::load_fonts();
 
     let mut settings = Settings {
         layer_settings: LayerShellSettings {

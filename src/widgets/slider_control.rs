@@ -275,7 +275,7 @@ impl SliderControl {
         if expand > 0.0 {
             let glyph = button(
                 self.effective_icon()
-                    .widget()
+                    .glyph()
                     .size(config.font.icon_size_px)
                     .color(config.palette.bar_foreground),
             )

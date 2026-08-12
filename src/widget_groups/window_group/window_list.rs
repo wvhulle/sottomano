@@ -7,11 +7,13 @@ use std::{
 };
 
 use iced::{
-    Alignment, Element, Font, Subscription, Task,
+    Alignment, Element, Font, Length, Subscription, Task,
+    alignment::{Horizontal, Vertical},
+    border::Radius,
     font::Style as FontStyle,
     task::Handle,
     time::every,
-    widget::{Row, button, image, rich_text, svg},
+    widget::{Row, button, container, image, mouse_area, rich_text, stack, svg, text},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -22,8 +24,12 @@ use crate::{
     },
     data::source::{
         app_rules::{self, AppRule, IconCandidate, TitleParts},
+        audio::WindowAudio,
         desktop_entries::DesktopIndex,
         favicons::{self, FaviconKind, RawFavicon},
+        font_awesome::Solid,
+        job_view::{self, Jobs},
+        launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
     },
     message_subscriptions::blocking,
@@ -32,6 +38,7 @@ use crate::{
         activity_line::activity_line,
         flat_button,
         pager_slot::PagerSlot,
+        progress_line::progress_line,
         text::fallback_spans,
         window_list_viewport::{Metrics, window_list_viewport},
     },
@@ -95,6 +102,8 @@ struct Resolves {
 pub struct WindowList {
     favicons: HashMap<String, Favicon>,
     fallback_fonts: HashMap<char, Font>,
+    launcher: LauncherEntries,
+    jobs: Jobs,
     scroll: f32,
     metrics: Metrics,
     resolves: Resolves,
@@ -103,8 +112,11 @@ pub struct WindowList {
 #[derive(Debug, Clone)]
 pub enum WindowListMessage {
     Clicked(u64),
+    ToggleAudio(i32),
     FaviconsLoaded(HashMap<String, RawFavicon>),
     FallbackFontsResolved(HashMap<char, Font>),
+    LauncherEntriesChanged(LauncherEntries),
+    JobsChanged(Jobs),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -113,17 +125,31 @@ pub enum WindowListMessage {
 pub enum Action {
     None,
     FocusWindow(u64),
+    ToggleAudio(i32),
     RefreshIcons,
 }
 
 impl WindowList {
     pub fn subscription() -> Subscription<WindowListMessage> {
-        every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed)
+        Subscription::batch([
+            every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
+            launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
+            job_view::subscription().map(WindowListMessage::JobsChanged),
+        ])
     }
 
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
         match msg {
             WindowListMessage::Clicked(window) => Action::FocusWindow(window),
+            WindowListMessage::ToggleAudio(pid) => Action::ToggleAudio(pid),
+            WindowListMessage::LauncherEntriesChanged(entries) => {
+                self.launcher = entries;
+                Action::None
+            }
+            WindowListMessage::JobsChanged(jobs) => {
+                self.jobs = jobs;
+                Action::None
+            }
             WindowListMessage::FaviconsLoaded(raw) => {
                 let previous = take(&mut self.favicons);
                 self.favicons = raw
@@ -205,6 +231,7 @@ impl WindowList {
         &'a self,
         niri: &niri::Snapshot,
         index: &'a DesktopIndex,
+        audio: &HashMap<i32, WindowAudio>,
         output: &str,
         config: &Config,
         position: Position,
@@ -222,7 +249,16 @@ impl WindowList {
         let focused_index = windows.iter().position(|win| win.is_focused);
         let buttons = windows.iter().enumerate().map(|(i, win)| {
             let alpha = self.metrics.item_alpha(self.scroll, i);
-            window_button(config, icons, win, position, alpha)
+            let extras = Extras {
+                audio: config
+                    .window_list
+                    .audio_indicator
+                    .then(|| win.pid.and_then(|pid| audio.get(&pid)).copied())
+                    .flatten(),
+                launcher: self.launcher.get(&win.app_id),
+                job: self.jobs.get(&win.app_id),
+            };
+            window_button(config, icons, win, extras, position, alpha)
         });
         let row = Row::with_children(buttons)
             .spacing(config.spacing.widget_spacing_px * 2.0)
@@ -244,20 +280,61 @@ struct Icons<'a> {
     fallbacks: &'a HashMap<char, Font>,
 }
 
+#[derive(Clone, Copy, Default)]
+struct Extras<'a> {
+    audio: Option<WindowAudio>,
+    launcher: Option<&'a LauncherEntry>,
+    job: Option<u8>,
+}
+
+impl Extras<'_> {
+    fn progress(&self, config: &Config) -> Option<f32> {
+        if !config.window_list.progress {
+            return None;
+        }
+        self.job
+            .map(|percent| f32::from(percent) / 100.0)
+            .or_else(|| self.launcher?.progress)
+    }
+
+    fn count(&self, config: &Config) -> Option<i64> {
+        config
+            .window_list
+            .count_badge
+            .then(|| self.launcher?.count)
+            .flatten()
+    }
+
+    fn is_urgent(&self) -> bool {
+        self.launcher.is_some_and(|entry| entry.urgent)
+    }
+}
+
 fn window_button<'a>(
     config: &Config,
     icons: Icons<'a>,
     win: &niri::WinEntry,
+    extras: Extras<'_>,
     position: Position,
     alpha: f32,
 ) -> Element<'a, WindowListMessage> {
     let rule = app_rules::rule_for(&win.app_id);
-    let content = button_content(config, icons, rule, win, alpha);
-    let focus = focus_line(config, win, alpha);
-    button(PagerSlot::new(content, focus).view(config, position))
+    let content = button_content(config, icons, rule, win, extras, alpha);
+    let indicator = indicator_line(config, win, extras, alpha);
+    let slot = PagerSlot::new(content, indicator);
+    let slot = match progress_ticks(config, extras, alpha) {
+        Some(ticks) => slot.ticks(ticks),
+        None => slot,
+    };
+    let pressable = button(slot.view(config, position))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
-        .on_press(WindowListMessage::Clicked(win.id))
+        .on_press(WindowListMessage::Clicked(win.id));
+    let Some(pid) = win.pid.filter(|_| extras.audio.is_some()) else {
+        return pressable.into();
+    };
+    mouse_area(pressable)
+        .on_middle_press(WindowListMessage::ToggleAudio(pid))
         .into()
 }
 
@@ -266,9 +343,10 @@ fn button_content<'a>(
     icons: Icons<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
+    extras: Extras<'_>,
     alpha: f32,
 ) -> Element<'a, WindowListMessage> {
-    let icon = window_icon(config, icons, rule, win, alpha);
+    let icon = window_icon(config, icons, rule, win, extras, alpha);
     let parts = rule.rewrite(label_for(win));
     let title = match rule {
         AppRule::Terminal => title_element(config, &parts, icons.fallbacks, false, alpha),
@@ -276,28 +354,44 @@ fn button_content<'a>(
             title_element(config, &parts, icons.fallbacks, true, alpha)
         }
     };
-    icon_beside_title(config, icon, title)
-}
-
-fn icon_beside_title<'a>(
-    config: &Config,
-    icon: Option<Element<'a, WindowListMessage>>,
-    title: Element<'a, WindowListMessage>,
-) -> Element<'a, WindowListMessage> {
     Row::new()
         .extend(icon)
         .push(title)
+        .extend(audio_glyph(config, extras, alpha))
         .spacing(config.spacing.widget_spacing_px * 1.5)
         .align_y(Alignment::Center)
         .into()
 }
 
-fn focus_line<'a>(
+fn audio_glyph<'a>(
+    config: &Config,
+    extras: Extras<'_>,
+    alpha: f32,
+) -> Option<Element<'a, WindowListMessage>> {
+    let audio = extras.audio?;
+    if !audio.playing && !audio.muted {
+        return None;
+    }
+    let (icon, color) = if audio.muted {
+        (Solid::VolumeXmark, config.palette.inactive)
+    } else {
+        (Solid::VolumeHigh, config.palette.bar_foreground)
+    };
+    Some(
+        icon.glyph()
+            .size(config.font.icon_size_px)
+            .color(color.scale_alpha(alpha))
+            .into(),
+    )
+}
+
+fn indicator_line<'a>(
     config: &Config,
     win: &niri::WinEntry,
+    extras: Extras<'_>,
     alpha: f32,
 ) -> Element<'a, WindowListMessage> {
-    let (color, opacity) = if win.is_urgent {
+    let (color, opacity) = if win.is_urgent || extras.is_urgent() {
         (config.palette.urgent, 1.0)
     } else if win.is_focused {
         (config.palette.focus, 1.0)
@@ -308,6 +402,56 @@ fn focus_line<'a>(
         color,
         opacity * alpha,
         config.widgets.focus_underline_thickness_px,
+    )
+}
+
+fn progress_ticks<'a>(
+    config: &Config,
+    extras: Extras<'_>,
+    alpha: f32,
+) -> Option<Element<'a, WindowListMessage>> {
+    let fraction = extras.progress(config)?;
+    Some(progress_line(
+        config.palette.warning.scale_alpha(alpha),
+        config.palette.dim.scale_alpha(alpha),
+        fraction,
+        config.widgets.window_segment_thickness_px,
+    ))
+}
+
+fn count_badge<'a>(
+    config: &Config,
+    count: i64,
+    alpha: f32,
+) -> Option<Element<'a, WindowListMessage>> {
+    if count <= 0 {
+        return None;
+    }
+    let label = if count > 99 {
+        "99+".to_owned()
+    } else {
+        count.to_string()
+    };
+    let background = config.palette.urgent.scale_alpha(alpha);
+    let foreground = config.palette.bar_background.scale_alpha(alpha);
+    let size = config.font.text_size_px;
+    let badge = container(text(label).size(size).color(foreground))
+        .padding([0.0, config.spacing.widget_spacing_px])
+        .style(move |_| container::Style {
+            background: Some(background.into()),
+            border: iced::Border {
+                radius: Radius::new(size),
+                ..iced::Border::default()
+            },
+            ..container::Style::default()
+        });
+    Some(
+        container(badge)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Horizontal::Right)
+            .align_y(Vertical::Top)
+            .into(),
     )
 }
 
@@ -355,6 +499,24 @@ fn title_element<'a>(
 }
 
 fn window_icon<'a>(
+    config: &Config,
+    icons: Icons<'a>,
+    rule: AppRule,
+    win: &niri::WinEntry,
+    extras: Extras<'_>,
+    alpha: f32,
+) -> Option<Element<'a, WindowListMessage>> {
+    let icon = resolved_icon(config, icons, rule, win, alpha)?;
+    let badge = extras
+        .count(config)
+        .and_then(|count| count_badge(config, count, alpha));
+    Some(match badge {
+        Some(badge) => stack([icon, badge]).into(),
+        None => icon,
+    })
+}
+
+fn resolved_icon<'a>(
     config: &Config,
     icons: Icons<'a>,
     rule: AppRule,

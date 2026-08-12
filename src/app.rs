@@ -360,6 +360,9 @@ impl Bar {
             window_group::Action::FocusWindow(window) => {
                 niri_action(move || niri::focus_window(window))
             }
+            window_group::Action::ToggleWindowAudio(pid) => {
+                self.audio_group.toggle_window_mute(pid).map(Message::Audio)
+            }
             window_group::Action::RefreshWindowList => Task::batch([
                 self.window_group
                     .refresh_window_list(&self.niri, &self.config.font)
