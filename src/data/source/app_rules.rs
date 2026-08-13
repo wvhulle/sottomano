@@ -152,35 +152,200 @@ const CMD_ICONS: &[(&str, &str)] = &[
     ("hx", "helix"),
     ("helix", "helix"),
     ("emacs", "emacs"),
+    ("nano", "text-editor"),
+    ("micro", "text-editor"),
+    ("code", "visual-studio-code"),
+    ("codium", "visual-studio-code"),
+    ("zed", "text-editor"),
+    ("git", "git"),
     ("jj", "gitg"),
+    ("jjj", "gitg"),
+    ("jjui", "gitg"),
     ("lazygit", "git-cola"),
+    ("lg", "git-cola"),
+    ("gitui", "git-cola"),
     ("tig", "git-cola"),
+    ("convco", "git"),
+    ("onefetch", "git"),
+    ("rad", "git"),
+    ("pre-commit", "git"),
     ("gh", "github-desktop"),
+    ("glab", "github-desktop"),
+    ("fj", "github-desktop"),
     ("claude", "claude"),
+    ("opencode", "copilot"),
+    ("aider", "copilot"),
     ("ollama", "ollama"),
-    ("htop", "htop"),
-    ("btop", "btop"),
-    ("btm", "btop"),
-    ("k9s", "kubernetes"),
-    ("docker", "docker"),
-    ("podman", "podman"),
-    ("cargo", "rust"),
+    ("cargo", "applications-development"),
+    ("rustc", "applications-development"),
+    ("rustup", "applications-development"),
+    ("rust-analyzer", "applications-development"),
+    ("bacon", "applications-development"),
+    ("clippy", "applications-development"),
     ("nix", "nix-snowflake"),
     ("nh", "nix-snowflake"),
+    ("nom", "nix-snowflake"),
+    ("nix-shell", "nix-snowflake"),
+    ("nix-build", "nix-snowflake"),
+    ("nix-store", "nix-snowflake"),
+    ("nix-tree", "nix-snowflake"),
+    ("nix-locate", "nix-snowflake"),
+    ("nix-prefetch-github", "nix-snowflake"),
+    ("nixos-rebuild", "nix-snowflake"),
+    ("home-manager", "nix-snowflake"),
+    ("home-switch", "nix-snowflake"),
+    ("system-switch", "nix-snowflake"),
+    ("statix", "nix-snowflake"),
+    ("deadnix", "nix-snowflake"),
+    ("nixfmt", "nix-snowflake"),
+    ("agenix", "nix-snowflake"),
+    ("python", "python"),
+    ("python3", "python"),
+    ("ipython", "python"),
+    ("uv", "python"),
+    ("pip", "python"),
+    ("pipx", "python"),
+    ("ruff", "python"),
+    ("node", "applications-development"),
+    ("npm", "applications-development"),
+    ("npx", "applications-development"),
+    ("pnpm", "applications-development"),
+    ("yarn", "applications-development"),
+    ("bun", "applications-development"),
+    ("deno", "applications-development"),
+    ("go", "applications-development"),
+    ("make", "applications-development"),
+    ("cmake", "applications-development"),
+    ("ninja", "applications-development"),
+    ("conan", "package-x-generic"),
+    ("typst", "latex"),
+    ("tectonic", "latex"),
+    ("latexmk", "latex"),
+    ("pdflatex", "latex"),
+    ("tree-sitter", "applications-development"),
+    ("treefmt", "applications-development"),
+    ("tokei", "applications-development"),
+    ("docker", "docker"),
+    ("docker-compose", "docker"),
+    ("lazydocker", "docker"),
+    ("podman", "ui-container-podman-symbolic"),
+    ("k9s", "container-terminal-symbolic"),
+    ("kubectl", "container-terminal-symbolic"),
+    ("helm", "container-terminal-symbolic"),
+    ("sudo", "security-high"),
+    ("doas", "security-high"),
+    ("systemctl", "applications-system"),
+    ("systemd-analyze", "applications-system"),
+    ("loginctl", "applications-system"),
+    ("journalctl", "logviewer"),
+    ("dmesg", "logviewer"),
+    ("reboot", "system-reboot"),
+    ("poweroff", "system-shutdown"),
+    ("shutdown", "system-shutdown"),
+    ("nmcli", "network-manager"),
+    ("nmtui", "network-manager"),
+    ("mmcli", "modem"),
+    ("bluetoothctl", "preferences-system-bluetooth"),
+    ("powerprofilesctl", "preferences-system-power"),
+    ("brightnessctl", "display-brightness"),
+    ("solar-brightness", "display-brightness"),
+    ("darkman", "display-brightness"),
+    ("niri", "preferences-desktop-display"),
+    ("playerctl", "multimedia-player"),
+    ("spotify_player", "multimedia-player"),
+    ("ncmpcpp", "multimedia-player"),
+    ("mpv", "multimedia-player"),
+    ("pactl", "audio-volume-high"),
+    ("wpctl", "audio-volume-high"),
+    ("alsamixer", "audio-volume-high"),
+    ("pavucontrol", "audio-volume-high"),
+    ("tailscale", "network-vpn"),
+    ("wg", "network-vpn"),
+    ("wg-quick", "network-vpn"),
+    ("ssh", "gnome-fs-ssh"),
+    ("scp", "gnome-fs-ssh"),
+    ("sftp", "gnome-fs-ssh"),
+    ("rsync", "gnome-fs-ssh"),
+    ("ssh-add", "gnome-fs-ssh"),
+    ("ssh-keygen", "gnome-fs-ssh"),
+    ("curl", "applications-internet"),
+    ("wget", "applications-internet"),
+    ("xh", "applications-internet"),
+    ("xdg-open", "web-browser"),
+    ("ping", "network-wired"),
+    ("traceroute", "network-wired"),
+    ("dig", "network-wired"),
+    ("gpg", "gnupg"),
+    ("pass", "password-manager"),
+    ("notify-send", "dialog-information"),
+    ("watch", "clock"),
+    ("man", "system-help"),
+    ("tldr", "system-help"),
+    ("jira", "applications-office"),
+    ("jiratui", "applications-office"),
+    ("htop", "htop"),
+    ("top", "htop"),
+    ("btop", "btop"),
+    ("btm", "btop"),
+    ("bpytop", "btop"),
+    ("ps", "utilities-system-monitor"),
+    ("dust", "disk-usage-analyzer"),
+    ("ncdu", "disk-usage-analyzer"),
+    ("du", "disk-usage-analyzer"),
+    ("df", "disk-usage-analyzer"),
+    ("duf", "disk-usage-analyzer"),
+    ("lsblk", "drive-harddisk"),
+    ("fdisk", "drive-harddisk"),
+    ("gparted", "drive-harddisk"),
     ("ranger", "system-file-manager"),
     ("yazi", "system-file-manager"),
     ("lf", "system-file-manager"),
+    ("nnn", "system-file-manager"),
+    ("broot", "system-file-manager"),
+    ("tree", "system-file-manager"),
+    ("eza", "system-file-manager"),
+    ("lsd", "system-file-manager"),
+    ("tar", "utilities-file-archiver"),
+    ("zip", "utilities-file-archiver"),
+    ("unzip", "utilities-file-archiver"),
+    ("7z", "utilities-file-archiver"),
+    ("rg", "edit-find"),
+    ("grep", "edit-find"),
+    ("fd", "edit-find"),
+    ("find", "edit-find"),
+    ("ast-grep", "edit-find"),
+    ("sg", "edit-find"),
+    ("scooter", "edit-find"),
+    ("fzf", "edit-find"),
+    ("zellij", "utilities-terminal"),
+    ("tmux", "utilities-terminal"),
+    ("screen", "utilities-terminal"),
+    ("steam", "steam"),
+    ("spotify", "spotify"),
+];
+
+const SCRIPT_ICONS: &[(&str, &str)] = &[
+    (".nu", "system-run"),
+    (".sh", "system-run"),
+    (".py", "python"),
 ];
 
 fn terminal_icon(win: &WinEntry) -> Option<String> {
     if is_claude_session(&win.title) {
         return Some("claude".to_string());
     }
-    let main = AppRule::Terminal.rewrite(&win.title).main;
-    let word = main.split_whitespace().next()?;
+    command_icon(&AppRule::Terminal.rewrite(&win.title).main)
+}
+
+fn command_icon(command: &str) -> Option<String> {
     CMD_ICONS
         .iter()
-        .find(|(cmd, _)| *cmd == word)
+        .find(|(cmd, _)| *cmd == command)
+        .or_else(|| {
+            SCRIPT_ICONS
+                .iter()
+                .find(|(extension, _)| command.ends_with(*extension))
+        })
         .map(|(_, icon)| (*icon).to_string())
 }
 
@@ -224,6 +389,51 @@ mod tests {
             Some("Odin-rs · GitHub".to_string())
         );
         assert_eq!(AppRule::Firefox.favicon_key("some plain title"), None);
+    }
+
+    fn kitty_window(title: &str) -> WinEntry {
+        WinEntry {
+            id: 1,
+            title: title.to_string(),
+            app_id: "kitty".to_string(),
+            pid: None,
+            is_focused: false,
+            is_urgent: false,
+        }
+    }
+
+    #[test]
+    fn terminal_icon_matches_the_command_word() {
+        assert_eq!(
+            terminal_icon(&kitty_window("nixos-config — nixos-rebuild")),
+            Some("nix-snowflake".to_string())
+        );
+        assert_eq!(
+            terminal_icon(&kitty_window("vetrata — cargo")),
+            Some("applications-development".to_string())
+        );
+        assert_eq!(
+            terminal_icon(&kitty_window("nixos-config — sudo")),
+            Some("security-high".to_string())
+        );
+        assert_eq!(terminal_icon(&kitty_window("vetrata — unknown-tool")), None);
+    }
+
+    #[test]
+    fn terminal_icon_matches_script_extensions() {
+        assert_eq!(
+            terminal_icon(&kitty_window("nixos-config — ./scripts/check.nu")),
+            Some("system-run".to_string())
+        );
+    }
+
+    #[test]
+    fn command_icons_have_unique_keys() {
+        let mut commands: Vec<&str> = CMD_ICONS.iter().map(|(cmd, _)| *cmd).collect();
+        commands.sort_unstable();
+        let count = commands.len();
+        commands.dedup();
+        assert_eq!(commands.len(), count);
     }
 
     #[test]
