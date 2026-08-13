@@ -353,10 +353,10 @@ async fn serve(output: &mut Sender<Jobs>) -> zbus::Result<()> {
                 tracker: tracker.clone(),
             },
         )?
-        .name(SERVER_NAME)?
         .build()
         .await?;
 
+    claim(&connection, SERVER_NAME).await?;
     claim(&connection, KUISERVER_NAME).await?;
 
     while updates.changed().await.is_ok() {
@@ -370,10 +370,15 @@ async fn serve(output: &mut Sender<Jobs>) -> zbus::Result<()> {
 
 async fn claim(connection: &Connection, name: &str) -> zbus::Result<()> {
     let reply = connection
-        .request_name_with_flags(name, RequestNameFlags::AllowReplacement.into())
+        .request_name_with_flags(
+            name,
+            RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement,
+        )
         .await?;
-    if matches!(reply, RequestNameReply::InQueue | RequestNameReply::Exists) {
-        eprintln!("job view: another service already owns {name}");
+    match reply {
+        RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => Ok(()),
+        RequestNameReply::InQueue | RequestNameReply::Exists => Err(zbus::Error::Failure(format!(
+            "{name} is owned by another service that disallowed replacement"
+        ))),
     }
-    Ok(())
 }
