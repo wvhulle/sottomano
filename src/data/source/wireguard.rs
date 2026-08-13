@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use bytesize::ByteSize;
 use serde_json::Value as Json;
 
 use crate::data::source::{
@@ -98,27 +99,15 @@ impl BarWidget for Tunnel {
                 ));
                 rows.push(row(
                     "transfer",
-                    format!("↓{} ↑{}", human_bytes(peer.rx), human_bytes(peer.tx)),
+                    format!(
+                        "↓{} ↑{}",
+                        ByteSize::b(peer.rx).display().iec(),
+                        ByteSize::b(peer.tx).display().iec()
+                    ),
                 ));
             }
         }
         TooltipBody::Table(rows)
-    }
-}
-
-fn human_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "kB", "MB", "GB", "TB"];
-    #[allow(clippy::cast_precision_loss)]
-    let mut value = bytes as f64;
-    let mut unit = 0;
-    while value >= 1000.0 && unit < UNITS.len() - 1 {
-        value /= 1000.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{value:.0} {}", UNITS[unit])
-    } else {
-        format!("{value:.1} {}", UNITS[unit])
     }
 }
 

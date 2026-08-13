@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use bytesize::ByteSize;
 use iced::{
     Subscription,
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
@@ -88,19 +89,10 @@ impl Connectivity {
     }
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn format_rate(bytes_per_sec: f64) -> String {
-    const UNITS: [&str; 4] = ["B", "kB", "MB", "GB"];
-    let mut value = bytes_per_sec;
-    let mut unit = 0;
-    while value >= 1000.0 && unit < UNITS.len() - 1 {
-        value /= 1000.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{value:.0} {}/s", UNITS[unit])
-    } else {
-        format!("{value:.1} {}/s", UNITS[unit])
-    }
+    let bytes = bytes_per_sec.max(0.0) as u64;
+    format!("{}/s", ByteSize::b(bytes).display().iec())
 }
 
 impl<D: Direction> Throughput<D> {

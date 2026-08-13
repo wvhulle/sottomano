@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use bytesize::ByteSize;
 use tokio::task::spawn_blocking;
 
 use super::{BarWidget, Level, Source, TooltipBody, Unit, Value, row};
@@ -24,7 +25,6 @@ impl Display for Error {
     }
 }
 
-const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 const FREE_WARN_BYTES: u64 = 100_000_000_000;
 const FREE_CRITICAL_BYTES: u64 = 2_000_000_000;
 
@@ -70,8 +70,14 @@ impl BarWidget for Disk {
         TooltipBody::Table(vec![
             row("Mount", "/"),
             row("Used", format!("{}%", self.used_pct())),
-            row("Free", format!("{:.1} GiB", self.free_bytes as f64 / GIB)),
-            row("Total", format!("{:.1} GiB", self.total_bytes as f64 / GIB)),
+            row(
+                "Free",
+                ByteSize::b(self.free_bytes).display().iec().to_string(),
+            ),
+            row(
+                "Total",
+                ByteSize::b(self.total_bytes).display().iec().to_string(),
+            ),
         ])
     }
 }

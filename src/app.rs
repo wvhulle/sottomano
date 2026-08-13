@@ -49,7 +49,9 @@ use crate::{
         system_group::{SystemGroup, SystemMessage},
         tray_group::{TrayGroup, TrayMessage},
         weather_group::{WeatherGroup, WeatherMessage},
-        window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
+        window_group::{
+            self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS, window_tooltip,
+        },
     },
     widgets::{
         idle::{IdleEvent, IdleHandle},
@@ -482,6 +484,9 @@ impl Bar {
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
         if let HoverTarget::Tray(tooltip) = target {
             return (**tooltip).clone();
+        }
+        if let HoverTarget::Window(window) = target {
+            return window_tooltip::tooltip(&self.niri, *window).unwrap_or_else(Tooltip::empty);
         }
         self.system_group
             .tooltip_for(target)

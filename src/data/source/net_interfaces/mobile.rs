@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bytesize::ByteSize;
 use iced::futures::Stream;
 use zbus::{
     fdo::ManagedObjects,
@@ -98,28 +99,13 @@ impl BarWidget for Mobile {
         }
         let mut stats = Vec::new();
         if let Some(rx) = self.rx {
-            stats.push(row("RX", humanize_bytes(rx)));
+            stats.push(row("RX", ByteSize::b(rx).display().iec().to_string()));
         }
         if let Some(tx) = self.tx {
-            stats.push(row("TX", humanize_bytes(tx)));
+            stats.push(row("TX", ByteSize::b(tx).display().iec().to_string()));
         }
         group(&mut rows, stats);
         TooltipBody::Table(rows)
-    }
-}
-
-fn humanize_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
-    let mut value = bytes as f64;
-    let mut unit = 0;
-    while value >= 1000.0 && unit < UNITS.len() - 1 {
-        value /= 1000.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{bytes} B")
-    } else {
-        format!("{value:.1} {}", UNITS[unit])
     }
 }
 

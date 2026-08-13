@@ -33,7 +33,10 @@ use crate::{
         niri,
     },
     message_subscriptions::blocking,
-    wayland_layers::surface::Position,
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widgets::{
         activity_line::activity_line,
         flat_button,
@@ -117,6 +120,7 @@ pub enum WindowListMessage {
     FallbackFontsResolved(HashMap<char, Font>),
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
+    Tooltip(TooltipMessage),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -150,6 +154,7 @@ impl WindowList {
                 self.jobs = jobs;
                 Action::None
             }
+            WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::FaviconsLoaded(raw) => {
                 let previous = take(&mut self.favicons);
                 self.favicons = raw
@@ -330,10 +335,15 @@ fn window_button<'a>(
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
         .on_press(WindowListMessage::Clicked(win.id));
+    let hover = hoverable(
+        pressable.into(),
+        HoverTarget::Window(win.id),
+        WindowListMessage::Tooltip,
+    );
     let Some(pid) = win.pid.filter(|_| extras.audio.is_some()) else {
-        return pressable.into();
+        return hover;
     };
-    mouse_area(pressable)
+    mouse_area(hover)
         .on_middle_press(WindowListMessage::ToggleAudio(pid))
         .into()
 }

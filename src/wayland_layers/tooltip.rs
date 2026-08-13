@@ -71,6 +71,7 @@ pub enum HoverTarget {
     AiCopilotFree,
     AiCopilotCli,
     Tray(Box<Tooltip>),
+    Window(u64),
 }
 
 const GAP_PX: i32 = 6;
@@ -415,11 +416,11 @@ fn tooltip_grid<'a>(
     match body {
         TooltipBody::Table(rows) => {
             let text_column = |cells: Vec<String>, color: Color| {
-                Column::with_children(
-                    cells
-                        .into_iter()
-                        .map(|cell| bar_text(&config.font, cell).color(color).into()),
-                )
+                Column::with_children(cells.into_iter().map(|cell| {
+                    container(bar_text(&config.font, cell).color(color))
+                        .max_width(config.widgets.tooltip_value_width_px)
+                        .into()
+                }))
                 .spacing(ROW_SPACING_PX)
             };
             let mut columns = vec![
@@ -509,12 +510,20 @@ fn surface_size(size: Size) -> SurfaceSize {
 }
 
 fn column<'a>(lines: impl Iterator<Item = &'a str>, style: TextStyle) -> Size {
+    capped_column(lines, style, f32::INFINITY)
+}
+
+fn capped_column<'a>(
+    lines: impl Iterator<Item = &'a str>,
+    style: TextStyle,
+    max_width: f32,
+) -> Size {
     let measured: Vec<Size> = lines
         .map(|line| {
             if line.is_empty() {
                 Size::new(0.0, style.line_height())
             } else {
-                style.measure(line)
+                style.measure_wrapped(line, max_width)
             }
         })
         .collect();
@@ -553,21 +562,23 @@ fn measure_panel(tooltip: &Tooltip, config: &Config) -> Size {
 
     let grid = match &tooltip.body {
         TooltipBody::Table(rows) => {
+            let cap = config.widgets.tooltip_value_width_px;
             let mut size = beside(
-                column(rows.iter().map(|entry| entry.key.as_str()), base),
-                column(rows.iter().map(|entry| entry.value.as_str()), base),
+                capped_column(rows.iter().map(|entry| entry.key.as_str()), base, cap),
+                capped_column(rows.iter().map(|entry| entry.value.as_str()), base, cap),
             );
             if rows.iter().any(|entry| entry.second.is_some()) {
                 size = beside(
                     size,
                     beside(
-                        column(
+                        capped_column(
                             rows.iter().map(|entry| {
                                 entry.second.as_ref().map_or("", |(key, _)| key.as_str())
                             }),
                             base,
+                            cap,
                         ),
-                        column(
+                        capped_column(
                             rows.iter().map(|entry| {
                                 entry
                                     .second
@@ -575,6 +586,7 @@ fn measure_panel(tooltip: &Tooltip, config: &Config) -> Size {
                                     .map_or("", |(_, value)| value.as_str())
                             }),
                             base,
+                            cap,
                         ),
                     ),
                 );

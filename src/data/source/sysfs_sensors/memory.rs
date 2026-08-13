@@ -1,5 +1,6 @@
 use std::{fs, time::Duration};
 
+use bytesize::ByteSize;
 use tokio::task::spawn_blocking;
 
 use super::Error;
@@ -7,7 +8,6 @@ use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
-const KIB_PER_GIB: f64 = 1_048_576.0;
 const MEMINFO: &str = "/proc/meminfo";
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,11 +47,17 @@ impl BarWidget for Memory {
             row("Memory", format!("{}%", self.percent())),
             row(
                 "Used",
-                format!("{:.1} GiB", self.used_kb as f64 / KIB_PER_GIB),
+                ByteSize::kib(self.used_kb.unsigned_abs())
+                    .display()
+                    .iec()
+                    .to_string(),
             ),
             row(
                 "Total",
-                format!("{:.1} GiB", self.total_kb as f64 / KIB_PER_GIB),
+                ByteSize::kib(self.total_kb.unsigned_abs())
+                    .display()
+                    .iec()
+                    .to_string(),
             ),
         ])
     }

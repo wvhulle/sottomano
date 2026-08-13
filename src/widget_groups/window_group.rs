@@ -1,5 +1,6 @@
 pub mod quick_launch;
 pub mod window_list;
+pub mod window_tooltip;
 
 use std::{collections::HashMap, sync::Arc};
 
