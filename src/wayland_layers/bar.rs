@@ -37,6 +37,7 @@ use crate::{
         system_group::SystemMessage,
         tray_group::TrayMessage,
         weather_group::WeatherMessage,
+        window_group::{WindowGroupMessage, window_list::WindowListMessage},
         workspaces_group::{self, WorkspacesMessage},
     },
     widgets::bounds_probe::bounds_probe,
@@ -338,7 +339,12 @@ fn bottom_row<'a>(
                     config,
                     position,
                 ),
-                Message::WindowGroup,
+                |m| match m {
+                    WindowGroupMessage::WindowList(WindowListMessage::Tooltip(t)) => {
+                        Message::Tooltip(t)
+                    }
+                    m => Message::WindowGroup(m),
+                },
             )
             .map(|group| pill(group, config, chrome)),
         )

@@ -78,7 +78,7 @@ impl TextStyle {
         self.measure_wrapped(content, f32::INFINITY)
     }
 
-    fn measure_wrapped(self, content: &str, width: f32) -> Size {
+    pub fn measure_wrapped(self, content: &str, width: f32) -> Size {
         if content.is_empty() {
             return Size::ZERO;
         }
