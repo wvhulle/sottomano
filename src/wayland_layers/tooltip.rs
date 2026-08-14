@@ -48,6 +48,7 @@ pub enum HoverTarget {
     Backlight(String),
     GammaDim,
     ColorTemperature,
+    AutoColorTemperature,
     ClightAuto,
     DarkMode,
     IdleLockUser,

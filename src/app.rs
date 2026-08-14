@@ -37,6 +37,7 @@ use crate::{
         audio_group::{AudioGroup, AudioMessage},
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
+        color_temperature_group::{ColorTemperatureGroup, ColorTemperatureMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
@@ -72,6 +73,7 @@ pub struct Bar {
     pub(crate) internet_group: InternetGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) monitor_group: MonitorGroup,
+    pub(crate) color_temperature_group: ColorTemperatureGroup,
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
@@ -105,6 +107,7 @@ pub enum Message {
     Internet(InternetMessage),
     NetInterfaces(NetInterfacesMessage),
     Monitor(MonitorMessage),
+    ColorTemperature(ColorTemperatureMessage),
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
@@ -151,6 +154,9 @@ impl Bar {
             internet_group: InternetGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
             monitor_group: MonitorGroup::default(),
+            color_temperature_group: ColorTemperatureGroup::new(
+                config.color_temperature_unit.clone(),
+            ),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
@@ -229,6 +235,7 @@ impl Bar {
             }
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
+            Message::ColorTemperature(msg) => self.update_color_temperature(msg),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
@@ -240,10 +247,7 @@ impl Bar {
                 .power_profile_group
                 .update(msg)
                 .map(Message::PowerProfile),
-            Message::Ai(msg) => {
-                self.ai_group.update(msg);
-                Task::none()
-            }
+            Message::Ai(msg) => self.update_ai(msg),
             Message::DismissPressed => {
                 self.dismiss_menus();
                 self.tray_menu.close()
@@ -496,6 +500,7 @@ impl Bar {
             .or_else(|| self.audio_group.tooltip_for(target))
             .or_else(|| self.power_profile_group.tooltip_for(target))
             .or_else(|| self.monitor_group.tooltip_for(target))
+            .or_else(|| self.color_temperature_group.tooltip_for(target))
             .or_else(|| self.idle_timeouts_group.tooltip_for(target))
             .or_else(|| self.internet_group.tooltip_for(target))
             .or_else(|| self.weather_group.tooltip_for(target))
@@ -544,10 +549,22 @@ impl Bar {
         ])
     }
 
-    fn menus(&self) -> [&MenuGroup; 11] {
+    fn update_ai(&mut self, msg: AiMessage) -> Task<Message> {
+        self.ai_group.update(msg);
+        Task::none()
+    }
+
+    fn update_color_temperature(&mut self, msg: ColorTemperatureMessage) -> Task<Message> {
+        self.color_temperature_group
+            .update(msg)
+            .map(Message::ColorTemperature)
+    }
+
+    fn menus(&self) -> [&MenuGroup; 12] {
         [
             &self.clock_group.menu,
             &self.monitor_group.menu,
+            &self.color_temperature_group.menu,
             &self.weather_group.menu,
             &self.system_group.menu,
             &self.media_group.menu,
@@ -564,6 +581,7 @@ impl Bar {
         self.menus().iter().any(|menu| menu.is_animating())
             || self.audio_group.is_animating()
             || self.monitor_group.is_animating()
+            || self.color_temperature_group.is_animating()
             || self.panel_settings_group.is_animating()
             || self.idle_timeouts_group.is_animating()
             || self.power_profile_group.is_animating()
@@ -572,6 +590,7 @@ impl Bar {
     fn dismiss_menus(&mut self) {
         self.panel_settings_group.close_menu();
         self.monitor_group.close_menu();
+        self.color_temperature_group.close_menu();
         let _ = [
             &mut self.clock_group.menu,
             &mut self.weather_group.menu,

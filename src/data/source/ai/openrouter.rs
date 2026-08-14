@@ -95,6 +95,7 @@ impl BarWidget for OpenRouter {
 
 impl ApiSource for OpenRouter {
     type Error = Error;
+    type Key = Option<PathBuf>;
 
     const NAME: &'static str = "openrouter-usage";
     const INTERVAL: Duration = Duration::from_secs(20);

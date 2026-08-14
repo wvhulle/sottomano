@@ -1,7 +1,7 @@
 use std::{
     fmt::{self, Debug, Display, Formatter},
     future::Future,
-    path::PathBuf,
+    hash::Hash,
     time::{Duration, SystemTime},
 };
 
@@ -37,6 +37,7 @@ pub mod net_interfaces;
 pub mod niri;
 pub mod power_profile;
 pub mod process;
+pub mod screen_temperature;
 pub mod simple_icons;
 pub mod sysfs_sensors;
 pub mod systemd_failed;
@@ -255,10 +256,10 @@ pub trait Source: BarWidget + Clone + PartialEq + Sized + Send + 'static {
 
 pub trait ApiSource: BarWidget + Clone + PartialEq + Sized + Send + 'static {
     type Error: Clone + PartialEq + Debug + Display + Send + 'static;
+    type Key: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
     const INTERVAL: Duration;
 
-    fn poll(key: Option<PathBuf>)
-    -> impl Future<Output = Result<Option<Self>, Self::Error>> + Send;
+    fn poll(key: Self::Key) -> impl Future<Output = Result<Option<Self>, Self::Error>> + Send;
 }

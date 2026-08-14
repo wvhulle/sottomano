@@ -1,7 +1,6 @@
 use std::{
     convert::identity,
     future::{Future, ready},
-    path::PathBuf,
     time::Duration,
 };
 
@@ -68,6 +67,10 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         InternetGroup::subscription().map(Message::Internet),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
         MonitorGroup::subscription().map(Message::Monitor),
+        state
+            .color_temperature_group
+            .subscription()
+            .map(Message::ColorTemperature),
         MediaGroup::subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         idle::subscription().map(Message::Idle),
@@ -138,9 +141,7 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub(crate) fn poll_arg<S: ApiSource>(
-    key: Option<PathBuf>,
-) -> Subscription<Result<Option<S>, S::Error>> {
+pub(crate) fn poll_arg<S: ApiSource>(key: S::Key) -> Subscription<Result<Option<S>, S::Error>> {
     Subscription::run_with((S::NAME, key), |(_, key)| {
         let key = key.clone();
         polled(S::INTERVAL, move || S::poll(key.clone()))

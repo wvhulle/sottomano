@@ -25,6 +25,7 @@ use crate::{
         ai_group::AiMessage,
         audio_group::AudioMessage,
         battery_group::BatteryMessage,
+        color_temperature_group::ColorTemperatureMessage,
         idle_timeouts_group::IdleTimeoutsMessage,
         internet_group::InternetMessage,
         journal_group::JournalMessage,
@@ -212,6 +213,13 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
                 MonitorMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Monitor(m),
             }),
+            slot(
+                bar.color_temperature_group.view(config, position),
+                |m| match m {
+                    ColorTemperatureMessage::Tooltip(t) => Message::Tooltip(t),
+                    m => Message::ColorTemperature(m),
+                },
+            ),
             slot(
                 bar.idle_timeouts_group.view(config, position),
                 |m| match m {

@@ -8,20 +8,16 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip, TooltipBody,
+        BarWidget, Tooltip,
         backlight::{self, Backlight},
-        bus,
         clight::Clight,
         font_awesome::Solid,
-        gamma::{self, Gamma},
-        row,
         umbra::Umbra,
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::source_cell::SourceCell,
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
@@ -32,15 +28,11 @@ use crate::{
 
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 5.0;
-const WARMTH_RANGE: RangeInclusive<f32> = 3000.0..=6500.0;
-const WARMTH_STEP: f32 = 100.0;
 
+#[derive(Default)]
 pub struct MonitorGroup {
     backlights: Vec<Backlight>,
     sliders: BTreeMap<String, SliderControl>,
-    gamma: SourceCell<Gamma>,
-    dim: SliderControl,
-    warmth: SliderControl,
     clight: ToggleControl<Clight>,
     umbra: ToggleControl<Umbra>,
     pub(crate) menu: MenuGroup,
@@ -51,64 +43,26 @@ pub enum MonitorMessage {
     Menu(MenuMessage),
     Backlights(Vec<Backlight>),
     Backlight(String, ControlMessage),
-    Gamma(Result<Option<Gamma>, bus::Error>),
-    Dim(ControlMessage),
-    Warmth(ControlMessage),
     Clight(ToggleMessage<Clight>),
     Umbra(ToggleMessage<Umbra>),
     Tooltip(TooltipMessage),
-}
-
-impl Default for MonitorGroup {
-    fn default() -> Self {
-        Self {
-            backlights: Vec::new(),
-            sliders: BTreeMap::new(),
-            gamma: SourceCell::default(),
-            dim: SliderControl::new(
-                PERCENT,
-                HoverTarget::GammaDim,
-                Solid::CircleHalfStroke.into(),
-            )
-            .scroll_step(STEP)
-            .readout(|value| format!("{}%", as_percent(value))),
-            warmth: SliderControl::new(
-                WARMTH_RANGE,
-                HoverTarget::ColorTemperature,
-                Solid::TemperatureHalf.into(),
-            )
-            .scroll_step(WARMTH_STEP)
-            .slider_step(WARMTH_STEP)
-            .readout_width(52.0)
-            .readout(|value| format!("{}K", as_kelvin(value)))
-            .label(|value| format!("{}K", as_kelvin(value))),
-            clight: ToggleControl::default(),
-            umbra: ToggleControl::default(),
-            menu: MenuGroup::default(),
-        }
-    }
 }
 
 impl MonitorGroup {
     pub fn subscription() -> Subscription<MonitorMessage> {
         Subscription::batch([
             backlight::subscription().map(MonitorMessage::Backlights),
-            SourceCell::<Gamma>::subscription().map(MonitorMessage::Gamma),
-            ToggleControl::<Clight>::subscription().map(MonitorMessage::Clight),
-            ToggleControl::<Umbra>::subscription().map(MonitorMessage::Umbra),
+            ToggleControl::<Clight>::subscription(()).map(MonitorMessage::Clight),
+            ToggleControl::<Umbra>::subscription(()).map(MonitorMessage::Umbra),
         ])
     }
 
     pub fn is_animating(&self) -> bool {
-        self.dim.is_animating()
-            || self.warmth.is_animating()
-            || self.sliders.values().any(SliderControl::is_animating)
+        self.sliders.values().any(SliderControl::is_animating)
     }
 
     fn close_controls(&mut self) {
         self.close_backlight_sliders(None);
-        self.dim.close();
-        self.warmth.close();
     }
 
     pub fn close_menu(&mut self) {
@@ -146,42 +100,6 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
-            MonitorMessage::Gamma(reading) => {
-                self.gamma.receive(reading);
-                if let Some(gamma) = self.gamma.get() {
-                    self.dim
-                        .update(ControlMessage::Reading(percent_f(gamma.brightness)));
-                    self.warmth
-                        .update(ControlMessage::Reading(f32::from(gamma.temperature)));
-                }
-                Task::none()
-            }
-            MonitorMessage::Dim(m) => match self.dim.update(m) {
-                Action::Opened => {
-                    self.close_backlight_sliders(None);
-                    self.warmth.close();
-                    Task::none()
-                }
-                Action::Commit(value) => ControlMessage::commit("gamma dim", value, move || {
-                    gamma::set_brightness(as_percent(value))
-                })
-                .map(MonitorMessage::Dim),
-                Action::None | Action::Right | Action::Adjust(_) => Task::none(),
-            },
-            MonitorMessage::Warmth(m) => match self.warmth.update(m) {
-                Action::Opened => {
-                    self.close_backlight_sliders(None);
-                    self.dim.close();
-                    Task::none()
-                }
-                Action::Commit(value) => {
-                    ControlMessage::commit("gamma temperature", value, move || {
-                        gamma::set_temperature(as_kelvin(value))
-                    })
-                    .map(MonitorMessage::Warmth)
-                }
-                Action::None | Action::Right | Action::Adjust(_) => Task::none(),
-            },
             MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
             MonitorMessage::Umbra(m) => self.umbra.update(m).map(MonitorMessage::Umbra),
             MonitorMessage::Tooltip(_) => Task::none(),
@@ -196,8 +114,6 @@ impl MonitorGroup {
         match action {
             Action::Opened => {
                 self.close_backlight_sliders(Some(&serial));
-                self.dim.close();
-                self.warmth.close();
                 Task::none()
             }
             Action::Commit(value) => {
@@ -225,20 +141,8 @@ impl MonitorGroup {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
                 Some(Tooltip::of(backlight.tooltip()))
             }
-            HoverTarget::GammaDim => self.gamma.get().and_then(|gamma| {
-                self.gamma.tooltip_with(TooltipBody::Table(vec![row(
-                    "Dim",
-                    format!("{}%", gamma.brightness),
-                )]))
-            }),
-            HoverTarget::ColorTemperature => self.gamma.get().and_then(|gamma| {
-                self.gamma.tooltip_with(TooltipBody::Table(vec![row(
-                    "Temperature",
-                    format!("{} K", gamma.temperature),
-                )]))
-            }),
-            HoverTarget::ClightAuto => self.clight.cell().tooltip(),
-            HoverTarget::DarkMode => self.umbra.cell().tooltip(),
+            HoverTarget::ClightAuto => self.clight.tooltip(),
+            HoverTarget::DarkMode => self.umbra.tooltip(),
             _ => None,
         }
     }
@@ -254,11 +158,6 @@ impl MonitorGroup {
             if let Some(control) = self.sliders.get(&backlight.serial) {
                 children.push(backlight_slider(config, control, &backlight.serial));
             }
-        }
-
-        if self.gamma.get().is_some() {
-            children.push(self.dim_slider(config));
-            children.push(self.warmth_slider(config));
         }
 
         if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
@@ -305,19 +204,6 @@ impl MonitorGroup {
         .into()
     }
 
-    fn dim_slider<'a>(&self, config: &Config) -> Element<'a, MonitorMessage> {
-        self.dim.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-            m => MonitorMessage::Dim(m),
-        })
-    }
-
-    fn warmth_slider<'a>(&self, config: &Config) -> Element<'a, MonitorMessage> {
-        self.warmth.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-            m => MonitorMessage::Warmth(m),
-        })
-    }
 }
 
 fn backlight_slider<'a>(
@@ -330,9 +216,4 @@ fn backlight_slider<'a>(
         ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
         m => MonitorMessage::Backlight(serial.clone(), m),
     })
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn as_kelvin(value: f32) -> u16 {
-    value.round() as u16
 }

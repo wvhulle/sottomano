@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    data::source::{BarWidget, Glyph, Source, TooltipBody, command, font_awesome::Solid, row},
+    data::source::{ApiSource, BarWidget, Glyph, TooltipBody, command, font_awesome::Solid, row},
     widgets::toggle_control::Toggle,
 };
 
@@ -24,13 +24,14 @@ impl BarWidget for Umbra {
     }
 }
 
-impl Source for Umbra {
+impl ApiSource for Umbra {
     type Error = command::Error;
+    type Key = ();
 
     const NAME: &'static str = "umbra";
     const INTERVAL: Duration = Duration::from_secs(30);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn poll((): ()) -> Result<Option<Self>, Self::Error> {
         Ok(command::output("umbra", &["get"]).await?.map(|mode| Umbra {
             dark: mode.trim() == "dark",
         }))
@@ -42,7 +43,7 @@ impl Toggle for Umbra {
         Umbra { dark: !self.dark }
     }
 
-    fn toggle() -> bool {
+    fn toggle(&self) -> bool {
         command::blocking::run("umbra", &["toggle"])
     }
 }
