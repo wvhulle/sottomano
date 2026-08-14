@@ -5,7 +5,8 @@ use zbus::{blocking::Connection, proxy};
 
 use crate::{
     data::source::{
-        BarWidget, Glyph, Source, TooltipBody, backlight, bus, bus::Error, font_awesome::Solid, row,
+        ApiSource, BarWidget, Glyph, TooltipBody, backlight, bus, bus::Error, font_awesome::Solid,
+        row,
     },
     widgets::toggle_control::Toggle,
 };
@@ -57,13 +58,14 @@ impl BarWidget for Clight {
     }
 }
 
-impl Source for Clight {
+impl ApiSource for Clight {
     type Error = Error;
+    type Key = ();
 
     const NAME: &'static str = "clight";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn poll((): ()) -> Result<Option<Self>, Self::Error> {
         spawn_blocking(read_auto_calib)
             .await
             .map_err(|_| Error::Panicked)?
@@ -82,7 +84,7 @@ impl Toggle for Clight {
         Clight { auto: !self.auto }
     }
 
-    fn toggle() -> bool {
+    fn toggle(&self) -> bool {
         flip()
     }
 }

@@ -2,28 +2,26 @@ use iced::{Element, Subscription, Task, widget::button};
 
 use crate::{
     config::Config,
-    data::source::{BarWidget, Source},
-    message_subscriptions::blocking,
+    data::source::{ApiSource, BarWidget, Tooltip},
+    message_subscriptions::{blocking, poll_arg},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
     widgets::{flat_button, icon_gauge::source_reading},
 };
 
-pub trait Toggle: Source + Clone {
+pub trait Toggle: ApiSource {
     fn toggled(&self) -> Self;
-    fn toggle() -> bool;
+    fn toggle(&self) -> bool;
 }
 
 pub struct ToggleControl<S> {
     cell: SourceCell<S>,
-    pending: Option<S>,
 }
 
 impl<S> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
             cell: SourceCell::default(),
-            pending: None,
         }
     }
 }
@@ -36,27 +34,37 @@ pub enum ToggleMessage<S: Toggle> {
 }
 
 impl<S: Toggle> ToggleControl<S> {
-    pub fn subscription() -> Subscription<ToggleMessage<S>> {
-        SourceCell::<S>::subscription().map(ToggleMessage::Reading)
+    pub fn subscription(key: S::Key) -> Subscription<ToggleMessage<S>> {
+        poll_arg::<S>(key).map(ToggleMessage::Reading)
     }
 
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {
         match message {
             ToggleMessage::Reading(reading) => {
                 self.cell.receive(reading);
-                self.pending = None;
                 Task::none()
             }
-            ToggleMessage::Press => {
-                self.pending = self.cell.get().map(S::toggled);
-                blocking(S::NAME, S::toggle).discard()
-            }
+            ToggleMessage::Press => match self.cell.get().cloned() {
+                Some(current) => {
+                    self.assume(current.toggled());
+                    blocking(S::NAME, move || current.toggle()).discard()
+                }
+                None => Task::none(),
+            },
             ToggleMessage::Tooltip(_) => Task::none(),
         }
     }
 
-    pub fn cell(&self) -> &SourceCell<S> {
-        &self.cell
+    pub fn assume(&mut self, value: S) {
+        self.cell.load(Some(value));
+    }
+
+    pub fn tooltip(&self) -> Option<Tooltip> {
+        let tooltip = Tooltip {
+            body: self.cell.display()?.tooltip(),
+            footer: self.cell.footer(S::INTERVAL),
+        };
+        (!tooltip.is_empty()).then_some(tooltip)
     }
 
     pub fn view<'a>(
@@ -65,7 +73,7 @@ impl<S: Toggle> ToggleControl<S> {
         target: HoverTarget,
         alpha: f32,
     ) -> Option<Element<'a, ToggleMessage<S>>> {
-        let display = self.pending.as_ref().or_else(|| self.cell.get())?;
+        let display = self.cell.get()?;
         let reading = source_reading(config, Some(display as &dyn BarWidget), alpha)?;
         let hover = hoverable(reading, target, ToggleMessage::Tooltip);
         Some(

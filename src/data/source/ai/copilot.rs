@@ -88,6 +88,7 @@ impl BarWidget for CopilotMetered {
 
 impl ApiSource for CopilotMetered {
     type Error = Error;
+    type Key = Option<PathBuf>;
 
     const NAME: &'static str = "copilot-usage-metered";
     const INTERVAL: Duration = Duration::from_secs(60);
@@ -185,6 +186,7 @@ impl BarWidget for CopilotFree {
 
 impl ApiSource for CopilotFree {
     type Error = Error;
+    type Key = Option<PathBuf>;
 
     const NAME: &'static str = "copilot-usage-free";
     const INTERVAL: Duration = Duration::from_secs(60);
@@ -258,6 +260,7 @@ impl BarWidget for CopilotCcusage {
 
 impl ApiSource for CopilotCcusage {
     type Error = Error;
+    type Key = Option<PathBuf>;
 
     const NAME: &'static str = "copilot-usage-ccusage";
     const INTERVAL: Duration = Duration::from_secs(60);

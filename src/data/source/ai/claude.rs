@@ -80,6 +80,7 @@ impl BarWidget for ClaudeOauth {
 
 impl ApiSource for ClaudeOauth {
     type Error = Error;
+    type Key = Option<PathBuf>;
 
     const NAME: &'static str = "claude-usage-oauth";
     const INTERVAL: Duration = Duration::from_secs(300);
@@ -183,6 +184,7 @@ impl BarWidget for ClaudeCcusage {
 
 impl ApiSource for ClaudeCcusage {
     type Error = Error;
+    type Key = Option<PathBuf>;
 
     const NAME: &'static str = "claude-usage-ccusage";
     const INTERVAL: Duration = Duration::from_secs(300);

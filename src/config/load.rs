@@ -28,6 +28,7 @@ pub struct Config {
     pub notifications: NotificationConfig,
     pub tray_deny_ids: Vec<String>,
     pub terminal_command_prefix: Vec<String>,
+    pub color_temperature_unit: String,
     pub secrets: SecretPaths,
 }
 
@@ -50,6 +51,7 @@ struct UserConfig {
     notifications: NotificationConfig,
     tray: TrayToml,
     terminal: Vec<String>,
+    color_temperature_unit: String,
 }
 
 impl Default for UserConfig {
@@ -64,6 +66,7 @@ impl Default for UserConfig {
             notifications: NotificationConfig::default(),
             tray: TrayToml::default(),
             terminal: ["kitty", "-e"].map(String::from).to_vec(),
+            color_temperature_unit: String::from("screen-temperature.service"),
         }
     }
 }
@@ -152,6 +155,7 @@ pub fn load() -> Config {
             .map(|id| id.to_lowercase())
             .collect(),
         terminal_command_prefix: user.terminal,
+        color_temperature_unit: user.color_temperature_unit,
         secrets: SecretPaths {
             openrouter_management: secret_path("VETRATA_OPENROUTER_KEY_FILE"),
             claude_code_oauth: secret_path("VETRATA_CLAUDE_CODE_OAUTH_FILE"),
