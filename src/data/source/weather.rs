@@ -9,9 +9,11 @@ use situo_client::{Fix, Locate, Source as FixSource};
 use zbus::Connection as SessionBus;
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value,
+    BarWidget, Glyph, Level, Row, Source, TooltipBody, Unit, Value,
     font_awesome::{FontAwesome, Solid},
-    http, row,
+    http,
+    net_interfaces::group,
+    row,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,21 +83,39 @@ fn wmo(code: i64) -> Wmo {
     Wmo { icon, description }
 }
 
-fn round_i(json: Option<&Json>) -> Option<i64> {
-    #[allow(clippy::cast_possible_truncation)]
-    json.and_then(Json::as_f64).map(|v| v.round() as i64)
+fn number(json: Option<&Json>) -> Option<f64> {
+    json.and_then(Json::as_f64)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     icon: FontAwesome,
     conditions: &'static str,
-    temp: Option<i64>,
-    feels: Option<i64>,
-    temp_min: Option<i64>,
-    temp_max: Option<i64>,
-    humidity: Option<i64>,
-    wind: Option<i64>,
+    temp: f64,
+    feels: f64,
+    temp_min: f64,
+    temp_max: f64,
+    humidity: f64,
+    wind: f64,
+}
+
+impl Temperature {
+    fn temperature_rows(&self) -> Vec<Row> {
+        vec![
+            row("Now", format!("{}°C (feels {}°C)", self.temp, self.feels)),
+            row(
+                "Today",
+                format!("{}°C – {}°C", self.temp_min, self.temp_max),
+            ),
+        ]
+    }
+
+    fn air_rows(&self) -> Vec<Row> {
+        vec![
+            row("Humidity", format!("{}%", self.humidity)),
+            row("Wind", format!("{} km/h", self.wind)),
+        ]
+    }
 }
 
 impl BarWidget for Temperature {
@@ -104,35 +124,13 @@ impl BarWidget for Temperature {
     }
 
     fn label(&self) -> Option<String> {
-        Some(
-            self.temp
-                .map_or_else(|| "--°".to_string(), |t| format!("{t}°")),
-        )
+        Some(format!("{}°", self.temp))
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let Some(temp) = self.temp else {
-            return TooltipBody::Table(vec![row("Weather", "unavailable")]);
-        };
-        let mut rows = vec![
-            row("Conditions", self.conditions),
-            row("Temperature", format!("{temp}°C")),
-        ];
-        if let Some(feels) = self.feels {
-            rows.push(row("Feels like", format!("{feels}°C")));
-        }
-        if let Some(min) = self.temp_min {
-            rows.push(row("Min today", format!("{min}°C")));
-        }
-        if let Some(max) = self.temp_max {
-            rows.push(row("Max today", format!("{max}°C")));
-        }
-        if let Some(humidity) = self.humidity {
-            rows.push(row("Humidity", format!("{humidity}%")));
-        }
-        if let Some(wind) = self.wind {
-            rows.push(row("Wind", format!("{wind} km/h")));
-        }
+        let mut rows = vec![row("Conditions", self.conditions)];
+        group(&mut rows, self.temperature_rows());
+        group(&mut rows, self.air_rows());
         TooltipBody::Table(rows)
     }
 }
@@ -155,7 +153,7 @@ impl Source for Temperature {
         let json: Json = serde_json::from_str(&body).map_err(|_| Error::Malformed)?;
         let current = json.get("current").ok_or(Error::Malformed)?;
         let daily_first = |key: &str| {
-            round_i(
+            number(
                 json.get("daily")
                     .and_then(|daily| daily.get(key))
                     .and_then(|values| values.get(0)),
@@ -168,12 +166,12 @@ impl Source for Temperature {
         Ok(Some(Temperature {
             icon: wmo.icon,
             conditions: wmo.description,
-            temp: round_i(current.get("temperature_2m")),
-            feels: round_i(current.get("apparent_temperature")),
-            temp_min: daily_first("temperature_2m_min"),
-            temp_max: daily_first("temperature_2m_max"),
-            humidity: round_i(current.get("relative_humidity_2m")),
-            wind: round_i(current.get("wind_speed_10m")),
+            temp: number(current.get("temperature_2m")).ok_or(Error::Malformed)?,
+            feels: number(current.get("apparent_temperature")).ok_or(Error::Malformed)?,
+            temp_min: daily_first("temperature_2m_min").ok_or(Error::Malformed)?,
+            temp_max: daily_first("temperature_2m_max").ok_or(Error::Malformed)?,
+            humidity: number(current.get("relative_humidity_2m")).ok_or(Error::Malformed)?,
+            wind: number(current.get("wind_speed_10m")).ok_or(Error::Malformed)?,
         }))
     }
 }

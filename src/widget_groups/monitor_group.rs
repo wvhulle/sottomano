@@ -203,7 +203,6 @@ impl MonitorGroup {
         .on_press(MonitorMessage::Menu(MenuMessage::Toggle))
         .into()
     }
-
 }
 
 fn backlight_slider<'a>(
