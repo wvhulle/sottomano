@@ -7,6 +7,7 @@ pub mod idle;
 pub mod inline_slider;
 pub mod menu_group;
 pub mod native_icon;
+pub mod overlay_shadow;
 pub mod pager_slot;
 pub mod progress_line;
 pub mod reveal;

@@ -29,7 +29,7 @@ use crate::{
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
-        tooltip::{HoverTarget, TooltipHost, TooltipMessage, panel_surface},
+        tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
         tray_menu::TrayMenuHost,
     },
     widget_groups::{
@@ -131,6 +131,7 @@ pub enum Message {
     WindowClosed(Id),
     PointerLeft,
     TooltipTick,
+    TooltipHideElapsed,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
     OutputsResolved(HashMap<String, niri::OutputGeometry>),
@@ -271,7 +272,8 @@ impl Bar {
                 &self.surfaces,
             ),
             Message::Tooltip(msg) => self.update_tooltip(msg),
-            Message::PointerLeft => self.tooltip.close(),
+            Message::PointerLeft => self.dismiss_tooltip(),
+            Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
             Message::Notification(msg) => self.update_notification(msg),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => self.prune_notifications(),
@@ -450,6 +452,7 @@ impl Bar {
     }
 
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
+        let departing = self.tooltip_departure();
         let TooltipMessage::Enter {
             surface,
             target,
@@ -460,16 +463,33 @@ impl Bar {
         };
         let content = self.tooltip_for(&target);
         match self.surfaces.get(&surface) {
-            Some(parent) if !content.is_empty() => self.tooltip.open(
-                parent,
-                target,
-                anchor,
-                &self.outputs,
-                &self.config,
-                &content,
-            ),
+            Some(parent) if !content.is_empty() => {
+                let parent = parent.clone();
+                self.tooltip
+                    .open(&parent, target, anchor, &self.outputs, departing)
+            }
             _ => Task::none(),
         }
+    }
+
+    fn tooltip_departure(&self) -> Option<Departed> {
+        let content = self
+            .tooltip
+            .target()
+            .map(|target| self.tooltip_for(target))?;
+        self.tooltip.departure(content)
+    }
+
+    fn dismiss_tooltip(&mut self) -> Task<Message> {
+        let departing = self.tooltip_departure();
+        self.tooltip.dismiss(departing);
+        Task::none()
+    }
+
+    fn leave_tooltip_after_grace(&mut self) -> Task<Message> {
+        let departing = self.tooltip_departure();
+        self.tooltip.leave_elapsed(departing);
+        Task::none()
     }
 
     fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
@@ -543,7 +563,7 @@ impl Bar {
             return Task::none();
         };
         Task::batch([
-            self.tooltip.close(),
+            self.dismiss_tooltip(),
             self.tray_menu
                 .open(address, menu_path, nodes, &place, &self.config),
         ])
@@ -817,8 +837,11 @@ impl Bar {
     }
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
-        if let Some(target) = self.tooltip.target_for(window) {
-            return panel_surface(&self.tooltip_for(target), &self.config);
+        if let Some(element) = self
+            .tooltip
+            .view(window, &self.config, |target| self.tooltip_for(target))
+        {
+            return element;
         }
         if let Some(element) = self.tray_menu.view(window, &self.config) {
             return element;
