@@ -11,8 +11,8 @@ use crate::{
     app::Message,
     config::Config,
     wayland_layers::{
-        surface::{self, Position, SurfaceSize},
-        tooltip::{MenuAnchor, panel_left, tooltip_margin},
+        surface::{self, Margin, Position, SurfaceSize},
+        tooltip::MenuAnchor,
     },
     widget_groups::tray_group::TrayMessage,
     widgets::context_menu::{MenuNode, context_menu},
@@ -22,6 +22,7 @@ const MENU_PROVISIONAL: SurfaceSize = SurfaceSize {
     width: 420,
     height: 800,
 };
+const MENU_GAP_PX: i32 = 6;
 const MENU_WIDTH: f32 = 250.0;
 const MENU_PADDING: f32 = 6.0;
 const BORDER_ALPHA: f32 = 0.25;
@@ -129,7 +130,7 @@ impl TrayMenuHost {
         menu.settled = true;
         let bar = config.chrome.outer_height_px as i32;
         let left = panel_left(menu.anchor.x, menu.output_width, requested.width);
-        let margin = tooltip_margin(menu.position, left, bar);
+        let margin = menu_margin(menu.position, left, bar);
         Task::batch([
             Task::done(Message::MarginChange {
                 id: surface,
@@ -148,6 +149,32 @@ impl TrayMenuHost {
     }
 }
 
+fn panel_left(anchor_x: f32, output_width: Option<i32>, panel_width: u32) -> i32 {
+    let left = anchor_x as i32;
+    let left = match output_width {
+        Some(width) => left.min(width - panel_width.cast_signed()),
+        None => left,
+    };
+    left.max(0)
+}
+
+fn menu_margin(position: Position, left: i32, bar: i32) -> Margin {
+    match position {
+        Position::Top => Margin {
+            top: bar + MENU_GAP_PX,
+            right: 0,
+            bottom: 0,
+            left,
+        },
+        Position::Bottom => Margin {
+            top: 0,
+            right: 0,
+            bottom: bar + MENU_GAP_PX,
+            left,
+        },
+    }
+}
+
 fn menu_settings(place: &MenuAnchor, config: &Config) -> NewLayerShellSettings {
     let bar = config.chrome.outer_height_px as i32;
     let left = panel_left(place.anchor.x, place.output_width, MENU_PROVISIONAL.width);
@@ -155,7 +182,7 @@ fn menu_settings(place: &MenuAnchor, config: &Config) -> NewLayerShellSettings {
         size: Some(MENU_PROVISIONAL.dimensions()),
         exclusive_zone: Some(0),
         anchor: place.position.edge() | Anchor::Left,
-        margin: Some(tooltip_margin(place.position, left, bar).edges()),
+        margin: Some(menu_margin(place.position, left, bar).edges()),
         layer: Layer::Overlay,
         ..surface::base_settings(Some(&place.output), "vetrata-tray-menu")
     }

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
-    Alignment, Border, Color, Element, Font, Length, Shadow, Vector,
+    Alignment, Border, Color, Element, Font, Length, Shadow,
     font::Weight,
     theme::palette::{mix, readable},
     widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
@@ -15,7 +15,10 @@ use crate::{
         source::app_icon::DesktopEntries,
     },
     wayland_layers::tooltip::relative,
-    widgets::text::{LINE_HEIGHT, bar_text},
+    widgets::{
+        overlay_shadow::overlay_shadow,
+        text::{LINE_HEIGHT, bar_text},
+    },
 };
 
 const PADDING_PX: f32 = 10.0;
@@ -26,9 +29,6 @@ const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const URGENCY_TINT_AMOUNT: f32 = 0.06;
 const RESTING_BORDER_TINT_AMOUNT: f32 = 0.6;
-const SHADOW_ALPHA: f32 = 0.44;
-const SHADOW_OFFSET_PX: f32 = 4.0;
-const SHADOW_BLUR_PX: f32 = 30.0;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -171,14 +171,7 @@ impl Card<'_> {
             },
             foreground: fade(palette.bar_foreground),
             subtext: fade(readable(background, palette.dim)),
-            shadow: Shadow {
-                color: Color {
-                    a: SHADOW_ALPHA * self.reveal,
-                    ..Color::BLACK
-                },
-                offset: Vector::new(0.0, SHADOW_OFFSET_PX),
-                blur_radius: SHADOW_BLUR_PX,
-            },
+            shadow: overlay_shadow(self.reveal),
         }
     }
 }

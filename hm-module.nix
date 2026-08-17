@@ -95,11 +95,12 @@ let
       geometry-corner-radius = radius0;
       shadow.enable = false;
     }
-    {
-      matches = [ { namespace = "^vetrata-tooltip$"; } ];
-      geometry-corner-radius = uniformRadius cornerRadius;
-      shadow = cardShadow;
-    }
+    # Disabled because tooltips now have their own shadows
+    # {
+    #   matches = [ { namespace = "^vetrata-tooltip$"; } ];
+    #   geometry-corner-radius = uniformRadius cornerRadius;
+    #   shadow = cardShadow;
+    # }
   ];
 in
 {
@@ -139,18 +140,7 @@ in
         }
       '';
       description = ''
-        Contents of ~/.config/vetrata.toml, written verbatim. Maps to the
-        `[palette]`, `[chrome]`, `[spacing]`, `[widgets]`, `[font]`,
-        `[notifications]` and `[tray]` tables in vetrata. Every key has a
-        default, so set only the ones you override; leave this empty to keep
-        the built-in gruvbox-dark defaults. Unknown keys are a fatal startup
-        error, so stale `[layout]` sections from before the chrome/spacing/
-        widgets split must be migrated. Set `chrome.shadow = true` to enable
-        the legibility shadow. Floating, background blur and disconnected
-        pill groups are no longer config: they are runtime toggles in the
-        bar's panel-settings menu, persisted in the state database. The blur
-        and pill layer-rules below activate whenever those toggles open their
-        caster surfaces.
+        Contents of ~/.config/vetrata.toml, written verbatim.
       '';
     };
 
