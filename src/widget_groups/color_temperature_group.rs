@@ -186,7 +186,10 @@ impl ColorTemperatureGroup {
             children.push(self.warmth_slider(config));
         }
 
-        if let Some(auto) = self.auto.view(config, HoverTarget::AutoColorTemperature, 1.0) {
+        if let Some(auto) = self
+            .auto
+            .view(config, HoverTarget::AutoColorTemperature, 1.0)
+        {
             children.push(auto.map(|m| match m {
                 ToggleMessage::Tooltip(t) => ColorTemperatureMessage::Tooltip(t),
                 m => ColorTemperatureMessage::Auto(m),
