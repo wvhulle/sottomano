@@ -21,7 +21,7 @@ pub enum HoverTarget {
     Disk,
     Battery,
     PowerDraw,
-    Floating,
+    CornerRadius,
     FloatOffset,
     BlurBackground,
     DisconnectedGroups,

@@ -55,7 +55,7 @@ pub fn morphing_tooltip<'a>(
             a: 1.0,
             ..config.palette.bar_background
         },
-        radius: f32::from(config.chrome.corner_radius_px),
+        radius: f32::from(config.chrome.popup_radius_px),
     })
 }
 

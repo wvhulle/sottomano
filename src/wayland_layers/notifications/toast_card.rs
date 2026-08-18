@@ -167,7 +167,7 @@ impl Card<'_> {
             border: Border {
                 color: fade(if self.hovered { accent } else { rest }),
                 width: if self.hovered { 3.0 } else { 2.0 },
-                radius: f32::from(self.config.chrome.corner_radius_px).into(),
+                radius: f32::from(self.config.chrome.popup_radius_px).into(),
             },
             foreground: fade(palette.bar_foreground),
             subtext: fade(readable(background, palette.dim)),

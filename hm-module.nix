@@ -44,8 +44,8 @@ let
     bottom-left = r;
     bottom-right = r;
   };
-  cornerRadius = 1.0 * (cfg.settings.chrome.corner_radius_px or 8);
-  pillRadius = 0.5 * (cfg.settings.chrome.outer_height_px or 22.0);
+  cornerRadius = 1.0 * cfg.blurCornerRadius;
+  pillRadius = cornerRadius;
   cardShadow = {
     enable = true;
     softness = 30;
@@ -121,6 +121,29 @@ in
         Whether to create a systemd user service that starts vetrata with
         graphical-session.target. Disable to spawn vetrata from a
         compositor-specific hook instead.
+      '';
+    };
+
+    blurCornerRadius = lib.mkOption {
+      type = lib.types.int;
+      default = 8;
+      description = ''
+        Corner radius of the niri layer rules for the vetrata-blur and
+        vetrata-blur-pill surfaces. The bar and its pills share one corner
+        radius, which is a runtime panel setting adjusted from the settings
+        menu, so the compositor cannot follow it; set this to the radius you
+        usually run the bar at.
+
+        Having vetrata push its live radius over ext-background-effect-v1
+        instead would look worse, not better. That protocol's set_blur_region
+        takes a wl_region, so a rounded shape is a staircase of integer
+        rectangles, and niri applies it by filtering damage rects snapped to
+        whole physical pixels rather than through a shader — the corners come
+        out jagged. Supplying a client region also makes niri pass
+        clip_to_geometry false for layer surfaces, which drops the clip that
+        carries geometry-corner-radius, so the antialiased rounding in
+        rounding_alpha.frag is skipped entirely. The layer rule is the only
+        path to smooth blur corners. Verified against niri 26.04.
       '';
     };
 

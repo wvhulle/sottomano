@@ -495,6 +495,8 @@ impl Bar {
     fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
         self.session = session;
         self.panel_settings_group
+            .sync_radius(self.session.chrome.corner_radius_px);
+        self.panel_settings_group
             .sync_offset(self.session.chrome.float_offset_px);
         self.panel_settings_group
             .sync_darken(self.session.chrome.darken_chrome_factor * 100.0);
@@ -715,16 +717,6 @@ impl Bar {
 
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
         match msg {
-            PanelSettingsMessage::ToggleFloating => {
-                self.session.chrome.floating = !self.session.chrome.floating;
-                let floating = self.session.chrome.floating;
-                Task::batch([
-                    self.remargin_surfaces(),
-                    self.blur_casters
-                        .reposition(&self.session.chrome, &self.surfaces),
-                    Task::future(state::panel::save_floating(floating)).discard(),
-                ])
-            }
             PanelSettingsMessage::ToggleBlurBackground => {
                 self.session.chrome.blur_background = !self.session.chrome.blur_background;
                 let blur = self.session.chrome.blur_background;
@@ -742,6 +734,19 @@ impl Bar {
                         .rebuild(&self.config, &self.session.chrome, &self.surfaces),
                     Task::future(state::panel::save_disconnected_groups(disconnected)).discard(),
                 ])
+            }
+            PanelSettingsMessage::Radius(msg) => {
+                match self.panel_settings_group.update_radius(msg) {
+                    SliderAction::Commit(radius) => {
+                        self.session.chrome.corner_radius_px = radius;
+                        Task::future(state::panel::save_corner_radius(radius)).map(move |ok| {
+                            Message::PanelSettings(PanelSettingsMessage::Radius(
+                                ControlMessage::Confirmed { value: radius, ok },
+                            ))
+                        })
+                    }
+                    _ => Task::none(),
+                }
             }
             PanelSettingsMessage::Offset(msg) => {
                 match self.panel_settings_group.update_offset(msg) {
