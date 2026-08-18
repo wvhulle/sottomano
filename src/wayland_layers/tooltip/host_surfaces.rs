@@ -114,7 +114,11 @@ impl TooltipHost {
         let Some(output) = self.output_of(surface) else {
             return;
         };
-        self.surfaces.remove(&output);
+        self.forget_output(&output);
+    }
+
+    pub fn forget_output(&mut self, output: &str) {
+        self.surfaces.remove(output);
         if self
             .transition
             .placement()
