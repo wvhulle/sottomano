@@ -5,7 +5,7 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_settings
     value TEXT NOT NULL
 )";
 
-const FLOATING: &str = "floating";
+const CORNER_RADIUS: &str = "corner_radius_px";
 const FLOAT_OFFSET: &str = "float_offset_px";
 const BLUR_BACKGROUND: &str = "blur_background";
 const DISCONNECTED_GROUPS: &str = "disconnected_groups";
@@ -17,15 +17,12 @@ const SPATIAL_LAYOUT: &str = "spatial_layout";
 pub async fn load() -> Session {
     match try_load().await {
         Ok(session) => session,
-        Err(e) => {
-            eprintln!("panel settings: load failed: {e}");
-            Session::default()
-        }
+        Err(e) => panic!("panel settings: load failed: {e}"),
     }
 }
 
-pub async fn save_floating(floating: bool) {
-    put_flag(FLOATING, floating).await;
+pub async fn save_corner_radius(radius: f32) -> bool {
+    put(CORNER_RADIUS, &radius.to_string()).await
 }
 
 pub async fn save_float_offset(offset: f32) -> bool {
@@ -95,7 +92,7 @@ async fn try_load() -> Result<Session, StoreError> {
         let key = text(&row, 0)?;
         let value = text(&row, 1)?;
         match key.as_str() {
-            FLOATING => session.chrome.floating = parse_flag(&value),
+            CORNER_RADIUS => session.chrome.corner_radius_px = value.parse().unwrap_or_default(),
             FLOAT_OFFSET => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
             BLUR_BACKGROUND => session.chrome.blur_background = parse_flag(&value),
             DISCONNECTED_GROUPS => session.chrome.disconnected_groups = parse_flag(&value),
@@ -105,7 +102,7 @@ async fn try_load() -> Result<Session, StoreError> {
             DND => session.notifications.dnd = parse_flag(&value),
             SOUND => session.notifications.sound = parse_flag(&value),
             SPATIAL_LAYOUT => session.notifications.spatial_layout = parse_flag(&value),
-            _ => {}
+            _ => return Err(StoreError::UnknownSetting(key)),
         }
     }
     Ok(session)

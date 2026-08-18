@@ -10,6 +10,7 @@ pub(crate) enum StoreError {
     CreateDirectory(io::Error),
     Database(turso::Error),
     Column(ColumnError),
+    UnknownSetting(String),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -43,6 +44,7 @@ impl fmt::Display for StoreError {
             Self::CreateDirectory(e) => write!(f, "creating state directory failed: {e}"),
             Self::Database(e) => write!(f, "database error: {e}"),
             Self::Column(e) => write!(f, "{e}"),
+            Self::UnknownSetting(key) => write!(f, "unknown setting {key}"),
         }
     }
 }

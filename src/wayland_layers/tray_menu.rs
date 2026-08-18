@@ -213,7 +213,7 @@ fn menu_surface<'a>(surface: Id, menu: &OpenMenu, config: &'a Config) -> Element
                     .bar_foreground
                     .scale_alpha(BORDER_ALPHA * paint),
                 width: 1.0,
-                radius: f32::from(config.chrome.corner_radius_px).into(),
+                radius: f32::from(config.chrome.popup_radius_px).into(),
             },
             ..Default::default()
         });

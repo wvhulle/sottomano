@@ -121,7 +121,7 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
                 .into()
             }),
             border: iced::Border {
-                radius: bar.session.chrome.radius(&bar.config.chrome).into(),
+                radius: bar.session.chrome.radius().into(),
                 ..Default::default()
             },
             text_color: Some(bar.config.palette.bar_foreground),
@@ -292,7 +292,7 @@ fn pill<'a>(
         return group;
     }
     let background = blend::darkened(config.palette.bar_background, chrome.darken_chrome_factor);
-    let radius = config.chrome.outer_height_px / 2.0;
+    let radius = chrome.radius();
     let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
     container(group)
         .height(Length::Fixed(config.chrome.outer_height_px))

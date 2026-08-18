@@ -21,11 +21,12 @@ use crate::{
 };
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
+const RADIUS_RANGE: RangeInclusive<f32> = 0.0..=16.0;
 const DARKEN_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
 pub fn tooltip_for(target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip> {
     match target {
-        HoverTarget::Floating => Some(floating_tooltip(chrome)),
+        HoverTarget::CornerRadius => Some(radius_tooltip(chrome)),
         HoverTarget::FloatOffset => Some(offset_tooltip(chrome)),
         HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
         HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
@@ -34,14 +35,11 @@ pub fn tooltip_for(target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip
     }
 }
 
-fn floating_tooltip(chrome: &ChromeState) -> Tooltip {
+#[allow(clippy::cast_possible_truncation)]
+fn radius_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip::table(vec![row(
-        "Floating",
-        if chrome.floating {
-            "on — rounded, inset from edges"
-        } else {
-            "off — flush, square"
-        },
+        "Corners",
+        format!("{} px radius", chrome.corner_radius_px.round() as i64),
     )])
 }
 
@@ -88,6 +86,7 @@ fn offset_tooltip(chrome: &ChromeState) -> Tooltip {
 
 pub struct PanelSettingsGroup {
     pub(crate) menu: MenuGroup,
+    radius: SliderControl,
     offset: SliderControl,
     darken: SliderControl,
 }
@@ -95,9 +94,9 @@ pub struct PanelSettingsGroup {
 #[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
     Menu(MenuMessage),
-    ToggleFloating,
     ToggleBlurBackground,
     ToggleDisconnectedGroups,
+    Radius(ControlMessage),
     Offset(ControlMessage),
     Darken(ControlMessage),
     Tooltip(TooltipMessage),
@@ -107,6 +106,14 @@ impl Default for PanelSettingsGroup {
     fn default() -> Self {
         Self {
             menu: MenuGroup::default(),
+            radius: SliderControl::new(
+                RADIUS_RANGE,
+                HoverTarget::CornerRadius,
+                Solid::BorderTopLeft.into(),
+            )
+            .icon_only()
+            .readout_width(44.0)
+            .readout(|value| format!("{} px", value.round())),
             offset: SliderControl::new(
                 OFFSET_RANGE,
                 HoverTarget::FloatOffset,
@@ -125,10 +132,11 @@ impl Default for PanelSettingsGroup {
 
 impl PanelSettingsGroup {
     pub fn is_animating(&self) -> bool {
-        self.offset.is_animating() || self.darken.is_animating()
+        self.radius.is_animating() || self.offset.is_animating() || self.darken.is_animating()
     }
 
     fn close_sliders(&mut self) {
+        self.radius.close();
         self.offset.close();
         self.darken.close();
     }
@@ -146,13 +154,21 @@ impl PanelSettingsGroup {
                     self.close_sliders();
                 }
             }
-            PanelSettingsMessage::ToggleFloating
-            | PanelSettingsMessage::ToggleBlurBackground
+            PanelSettingsMessage::ToggleBlurBackground
             | PanelSettingsMessage::ToggleDisconnectedGroups
+            | PanelSettingsMessage::Radius(_)
             | PanelSettingsMessage::Offset(_)
             | PanelSettingsMessage::Darken(_)
             | PanelSettingsMessage::Tooltip(_) => {}
         }
+    }
+
+    pub fn update_radius(&mut self, msg: ControlMessage) -> Action {
+        self.radius.update(msg)
+    }
+
+    pub fn sync_radius(&mut self, value: f32) {
+        self.radius.update(ControlMessage::Reading(value));
     }
 
     pub fn update_offset(&mut self, msg: ControlMessage) -> Action {
@@ -190,20 +206,12 @@ impl PanelSettingsGroup {
         .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
         .into();
 
-        let floating = chrome.floating;
         let disconnected_toggle = icon_toggle(
             config,
             Solid::Capsules,
             chrome.disconnected_groups,
             PanelSettingsMessage::ToggleDisconnectedGroups,
             HoverTarget::DisconnectedGroups,
-        );
-        let floating_toggle = icon_toggle(
-            config,
-            Solid::Compress,
-            floating,
-            PanelSettingsMessage::ToggleFloating,
-            HoverTarget::Floating,
         );
         let blur_toggle = icon_toggle(
             config,
@@ -213,21 +221,14 @@ impl PanelSettingsGroup {
             HoverTarget::BlurBackground,
         );
 
-        let offset = floating.then(|| self.offset_element(config));
-        let darken = self.darken_element(config);
-
         let reveal = self.menu.reveal();
-        let content = Row::with_children(
-            [
-                Some(disconnected_toggle),
-                Some(floating_toggle),
-                Some(blur_toggle),
-                Some(darken),
-                offset,
-            ]
-            .into_iter()
-            .flatten(),
-        )
+        let content = Row::with_children([
+            disconnected_toggle,
+            blur_toggle,
+            slider_element(&self.darken, config, PanelSettingsMessage::Darken),
+            slider_element(&self.radius, config, PanelSettingsMessage::Radius),
+            slider_element(&self.offset, config, PanelSettingsMessage::Offset),
+        ])
         .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
         Some(self.menu.view(
@@ -239,20 +240,17 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::Menu,
         ))
     }
+}
 
-    fn offset_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
-        self.offset.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
-            m => PanelSettingsMessage::Offset(m),
-        })
-    }
-
-    fn darken_element<'a>(&self, config: &Config) -> Element<'a, PanelSettingsMessage> {
-        self.darken.view(config, 1.0).map(|m| match m {
-            ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
-            m => PanelSettingsMessage::Darken(m),
-        })
-    }
+fn slider_element<'a>(
+    slider: &SliderControl,
+    config: &Config,
+    wrap: fn(ControlMessage) -> PanelSettingsMessage,
+) -> Element<'a, PanelSettingsMessage> {
+    slider.view(config, 1.0).map(move |m| match m {
+        ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
+        m => wrap(m),
+    })
 }
 
 fn icon_toggle<'a>(
