@@ -198,9 +198,7 @@ impl Bar {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::OutputEvent(LayerShellOutputEvent::Connected { name }) => {
-                Task::batch([self.open_bars(&name), query_outputs()])
-            }
+            Message::OutputEvent(event) => self.apply_output_event(event),
             Message::WindowGroup(msg) => self.update_window_group(msg),
             Message::TrackerLoaded(buckets) => self.load_launch_tracker(buckets),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
@@ -278,7 +276,6 @@ impl Bar {
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => self.prune_notifications(),
             Message::TooltipTick
-            | Message::OutputEvent(LayerShellOutputEvent::Disconnected { .. })
             | Message::AnchorChange { .. }
             | Message::SetInputRegion { .. }
             | Message::AnchorSizeChange { .. }
@@ -324,6 +321,26 @@ impl Bar {
         self.desktop_entries.set(entries.clone());
         self.window_group.set_desktop_entries(entries);
         self.refresh_quick_launch()
+    }
+
+    fn apply_output_event(&mut self, event: LayerShellOutputEvent) -> Task<Message> {
+        match event {
+            LayerShellOutputEvent::Connected { name } => {
+                Task::batch([self.open_bars(&name), query_outputs()])
+            }
+            LayerShellOutputEvent::Disconnected { name } => self.forget_output(&name),
+        }
+    }
+
+    fn forget_output(&mut self, output: &str) -> Task<Message> {
+        let stranded: Vec<Id> = self
+            .surfaces
+            .iter()
+            .filter(|(_, surface)| surface.output == output)
+            .map(|(&id, _)| id)
+            .collect();
+        self.tooltip.forget_output(output);
+        Task::batch(stranded.into_iter().map(|id| self.forget_window(id)))
     }
 
     fn forget_window(&mut self, window: Id) -> Task<Message> {
