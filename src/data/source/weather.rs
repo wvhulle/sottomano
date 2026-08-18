@@ -180,6 +180,13 @@ impl Source for Temperature {
 pub struct Rain {
     icon: FontAwesome,
     mm_per_h: f64,
+    peak: Downpour,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Downpour {
+    mm_per_h: f64,
+    at: String,
 }
 
 fn buienradar_mm(value: f64) -> f64 {
@@ -190,18 +197,32 @@ fn buienradar_mm(value: f64) -> f64 {
     }
 }
 
+fn downpour(line: &str) -> Option<Downpour> {
+    let (intensity, at) = line.split_once('|')?;
+    Some(Downpour {
+        mm_per_h: buienradar_mm(intensity.trim().parse().ok()?),
+        at: at.trim().to_string(),
+    })
+}
+
 impl BarWidget for Rain {
     fn icon(&self) -> Glyph {
         self.icon.into()
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let value = if self.mm_per_h <= 0.0 {
+        let now = if self.mm_per_h <= 0.0 {
             "none right now".to_string()
         } else {
             format!("{:.1} mm/h", self.mm_per_h)
         };
-        TooltipBody::Table(vec![row("Rain", value)])
+        TooltipBody::Table(vec![
+            row("Rain", now),
+            row(
+                "Peak",
+                format!("{:.1} mm/h at {}", self.peak.mm_per_h, self.peak.at),
+            ),
+        ])
     }
 }
 
@@ -220,25 +241,29 @@ impl Source for Rain {
             geo.latitude, geo.longitude
         );
         let body = http::get_text(&url, 5).await?;
-        let intensities: Vec<f64> = body
-            .lines()
-            .take(12)
-            .filter_map(|line| line.split('|').next()?.trim().parse::<f64>().ok())
-            .collect();
-        if intensities.is_empty() || !intensities.iter().any(|v| *v > 77.0) {
+        let forecast: Vec<Downpour> = body.lines().filter_map(downpour).collect();
+        let Some(peak) = forecast
+            .iter()
+            .max_by(|earlier, later| earlier.mm_per_h.total_cmp(&later.mm_per_h))
+            .filter(|peak| peak.mm_per_h > 0.0)
+            .cloned()
+        else {
             return Ok(None);
-        }
-        let mm = buienradar_mm(intensities[0]);
-        let icon = if mm < 0.5 {
+        };
+        let icon = if peak.mm_per_h < 0.5 {
             Solid::Droplet.into()
-        } else if mm < 2.5 {
+        } else if peak.mm_per_h < 2.5 {
             Solid::CloudRain.into()
-        } else if mm < 7.5 {
+        } else if peak.mm_per_h < 7.5 {
             Solid::CloudShowersHeavy.into()
         } else {
             Solid::CloudBolt.into()
         };
-        Ok(Some(Rain { icon, mm_per_h: mm }))
+        Ok(Some(Rain {
+            icon,
+            mm_per_h: forecast.first().map_or(0.0, |now| now.mm_per_h),
+            peak,
+        }))
     }
 }
 
