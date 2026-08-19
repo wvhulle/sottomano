@@ -7,7 +7,7 @@ use tokio::time::sleep;
 use crate::{
     app::Message,
     config::Config,
-    data::source::{Tooltip, niri::OutputGeometry},
+    data::source::{Tooltip, niri::OutputInfo},
     wayland_layers::{
         surface::{self, Position, Surface},
         tooltip::{
@@ -48,7 +48,7 @@ impl TooltipHost {
         parent: &Surface,
         target: HoverTarget,
         anchor: Rectangle,
-        outputs: &HashMap<String, OutputGeometry>,
+        outputs: &HashMap<String, OutputInfo>,
         departing: Option<Departed>,
     ) -> Task<Message> {
         self.transition.cancel_leave();
@@ -67,7 +67,7 @@ impl TooltipHost {
                     position: parent.position,
                     output: parent.output.clone(),
                 },
-                output_width: outputs.get(&parent.output).map(|geometry| geometry.width),
+                output_width: outputs.get(&parent.output).map(|info| info.width),
             },
             departing,
         );

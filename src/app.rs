@@ -53,6 +53,7 @@ use crate::{
         window_group::{
             self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS, window_tooltip,
         },
+        workspaces_group::workspace_tooltip,
     },
     widgets::{
         idle::{IdleEvent, IdleHandle},
@@ -85,7 +86,7 @@ pub struct Bar {
     pub(crate) launch_tracker: LaunchTracker,
     pub(crate) niri: EventStreamState,
     pub(crate) niri_snapshot: niri::Snapshot,
-    pub(crate) outputs: HashMap<String, niri::OutputGeometry>,
+    pub(crate) outputs: HashMap<String, niri::OutputInfo>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: HashSet<Id>,
     pub(crate) blur_casters: BlurCasters,
@@ -134,7 +135,7 @@ pub enum Message {
     TooltipHideElapsed,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
-    OutputsResolved(HashMap<String, niri::OutputGeometry>),
+    OutputsResolved(HashMap<String, niri::OutputInfo>),
     ReloadDesktopEntries,
     PillBounds {
         window: Id,
@@ -328,7 +329,9 @@ impl Bar {
             LayerShellOutputEvent::Connected { name } => {
                 Task::batch([self.open_bars(&name), query_outputs()])
             }
-            LayerShellOutputEvent::Disconnected { name } => self.forget_output(&name),
+            LayerShellOutputEvent::Disconnected { name } => {
+                Task::batch([self.forget_output(&name), query_outputs()])
+            }
         }
     }
 
@@ -372,7 +375,7 @@ impl Bar {
             .prune(&placement, &self.config, &self.session.notifications)
     }
 
-    fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputGeometry>) -> Task<Message> {
+    fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputInfo>) -> Task<Message> {
         self.outputs = outputs;
         let placement = niri::Placement::derive(&self.niri);
         self.notifications
@@ -530,6 +533,10 @@ impl Bar {
         }
         if let HoverTarget::Window(window) = target {
             return window_tooltip::tooltip(&self.niri, *window).unwrap_or_else(Tooltip::empty);
+        }
+        if let HoverTarget::Workspace(workspace) = target {
+            return workspace_tooltip::tooltip(&self.niri_snapshot, &self.outputs, *workspace)
+                .unwrap_or_else(Tooltip::empty);
         }
         self.system_group
             .tooltip_for(target)
@@ -883,5 +890,5 @@ impl Bar {
 }
 
 fn query_outputs() -> Task<Message> {
-    blocking("niri outputs", niri::output_geometry).map(Message::OutputsResolved)
+    blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
 }

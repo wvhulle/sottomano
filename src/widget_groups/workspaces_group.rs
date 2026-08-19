@@ -1,3 +1,5 @@
+pub mod workspace_tooltip;
+
 use iced::{
     Alignment, Element,
     widget::{Row, button, row},
@@ -6,13 +8,17 @@ use iced::{
 use crate::{
     config::Config,
     data::source::niri,
-    wayland_layers::surface::Position,
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    },
     widgets::{activity_line::activity_line, flat_button, pager_slot::PagerSlot, text::bar_text},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum WorkspacesMessage {
     Clicked { id: u64, is_active: bool },
+    Tooltip(TooltipMessage),
 }
 
 pub fn view<'a>(
@@ -41,7 +47,7 @@ pub fn view<'a>(
         );
         let ticks = window_ticks(config, niri, p.id);
 
-        button(
+        let pressable = button(
             PagerSlot::new(label, focus)
                 .ticks(ticks)
                 .view(config, position),
@@ -51,8 +57,12 @@ pub fn view<'a>(
         .on_press(WorkspacesMessage::Clicked {
             id: p.id,
             is_active: p.is_active,
-        })
-        .into()
+        });
+        hoverable(
+            pressable.into(),
+            HoverTarget::Workspace(p.id),
+            WorkspacesMessage::Tooltip,
+        )
     });
     Some(
         Row::with_children(slots)
