@@ -64,6 +64,7 @@ pub enum HoverTarget {
     AiCopilotCli,
     Tray(Box<Tooltip>),
     Window(u64),
+    Workspace(u64),
 }
 
 #[derive(Debug, Clone)]

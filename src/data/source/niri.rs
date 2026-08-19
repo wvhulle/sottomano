@@ -30,6 +30,7 @@ pub struct WsPill {
     pub id: u64,
     pub idx: u8,
     pub name: Option<String>,
+    pub output: String,
     pub is_active: bool,
     pub is_urgent: bool,
 }
@@ -54,6 +55,7 @@ impl Snapshot {
                 id: w.id,
                 idx: w.idx,
                 name: w.name.clone(),
+                output: output.clone(),
                 is_active: w.is_active,
                 is_urgent: w.is_urgent,
             });
@@ -92,6 +94,13 @@ impl Snapshot {
 
     pub fn workspaces_for_output(&self, output: &str) -> &[WsPill] {
         self.workspaces.get(output).map_or(&[], Vec::as_slice)
+    }
+
+    pub fn workspace(&self, id: u64) -> Option<&WsPill> {
+        self.workspaces
+            .values()
+            .flatten()
+            .find(|pill| pill.id == id)
     }
 
     pub fn windows_on_workspace(&self, workspace: u64) -> &[WinEntry] {
@@ -460,12 +469,13 @@ pub fn spawn(command: &[String]) {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct OutputGeometry {
+#[derive(Debug, Clone)]
+pub struct OutputInfo {
     pub width: i32,
+    pub monitor: String,
 }
 
-pub fn output_geometry() -> HashMap<String, OutputGeometry> {
+pub fn output_info() -> HashMap<String, OutputInfo> {
     let Ok(reply) = Socket::connect().and_then(|mut socket| socket.send(Request::Outputs)) else {
         return HashMap::new();
     };
@@ -473,14 +483,14 @@ pub fn output_geometry() -> HashMap<String, OutputGeometry> {
         Ok(Response::Outputs(outputs)) => outputs
             .into_iter()
             .filter_map(|(name, output)| {
-                output.logical.map(|logical| {
-                    (
-                        name,
-                        OutputGeometry {
-                            width: logical.width.cast_signed(),
-                        },
-                    )
-                })
+                let logical = output.logical?;
+                Some((
+                    name,
+                    OutputInfo {
+                        width: logical.width.cast_signed(),
+                        monitor: output.model,
+                    },
+                ))
             })
             .collect(),
         _ => HashMap::new(),

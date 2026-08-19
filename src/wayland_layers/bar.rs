@@ -327,9 +327,11 @@ fn bottom_row<'a>(
     let start = zone(
         [slot(
             workspaces_group::view(&bar.niri_snapshot, output, config, position),
-            |WorkspacesMessage::Clicked { id, is_active }| Message::WorkspaceClicked {
-                id,
-                is_active,
+            |m| match m {
+                WorkspacesMessage::Clicked { id, is_active } => {
+                    Message::WorkspaceClicked { id, is_active }
+                }
+                WorkspacesMessage::Tooltip(t) => Message::Tooltip(t),
             },
         )],
         config,
