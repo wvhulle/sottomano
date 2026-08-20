@@ -30,7 +30,6 @@ pub struct WsPill {
     pub id: u64,
     pub idx: u8,
     pub name: Option<String>,
-    pub output: String,
     pub is_active: bool,
     pub is_urgent: bool,
 }
@@ -55,7 +54,6 @@ impl Snapshot {
                 id: w.id,
                 idx: w.idx,
                 name: w.name.clone(),
-                output: output.clone(),
                 is_active: w.is_active,
                 is_urgent: w.is_urgent,
             });
@@ -472,7 +470,44 @@ pub fn spawn(command: &[String]) {
 #[derive(Debug, Clone)]
 pub struct OutputInfo {
     pub width: i32,
-    pub monitor: String,
+    pub make: String,
+    pub model: String,
+    pub mode: Option<OutputMode>,
+    pub scale: f64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OutputMode {
+    pub width: u16,
+    pub height: u16,
+    pub refresh_hz: f64,
+}
+
+fn describes_a_product(edid_field: &str) -> bool {
+    let trimmed = edid_field.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("unknown") {
+        return false;
+    }
+    !trimmed
+        .strip_prefix("0x")
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+fn product_field(edid_field: String) -> String {
+    if describes_a_product(&edid_field) {
+        edid_field
+    } else {
+        String::new()
+    }
+}
+
+fn current_mode(output: &niri_ipc::Output) -> Option<OutputMode> {
+    let mode = output.modes.get(output.current_mode?)?;
+    Some(OutputMode {
+        width: mode.width,
+        height: mode.height,
+        refresh_hz: f64::from(mode.refresh_rate) / 1000.0,
+    })
 }
 
 pub fn output_info() -> HashMap<String, OutputInfo> {
@@ -484,11 +519,15 @@ pub fn output_info() -> HashMap<String, OutputInfo> {
             .into_iter()
             .filter_map(|(name, output)| {
                 let logical = output.logical?;
+                let mode = current_mode(&output);
                 Some((
                     name,
                     OutputInfo {
                         width: logical.width.cast_signed(),
-                        monitor: output.model,
+                        make: product_field(output.make),
+                        model: product_field(output.model),
+                        mode,
+                        scale: logical.scale,
                     },
                 ))
             })
@@ -501,4 +540,25 @@ fn send_action(action: niri_ipc::Action) -> Result<(), ActionError> {
     let reply = Socket::connect()?.send(Request::Action(action))?;
     reply.map_err(ActionError::Rejected)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::describes_a_product;
+
+    #[test]
+    fn edid_product_codes_are_not_product_names() {
+        assert!(!describes_a_product("0x07BE"));
+        assert!(!describes_a_product("0x0000ffa1"));
+        assert!(!describes_a_product(""));
+        assert!(!describes_a_product("   "));
+        assert!(!describes_a_product("Unknown"));
+    }
+
+    #[test]
+    fn real_edid_strings_are_product_names() {
+        assert!(describes_a_product("LG Display"));
+        assert!(describes_a_product("U2720Q"));
+        assert!(describes_a_product("0xSomething"));
+    }
 }

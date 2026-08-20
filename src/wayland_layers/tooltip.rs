@@ -65,6 +65,7 @@ pub enum HoverTarget {
     Tray(Box<Tooltip>),
     Window(u64),
     Workspace(u64),
+    Output(String),
 }
 
 #[derive(Debug, Clone)]

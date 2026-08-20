@@ -15,10 +15,10 @@ const SOUND: &str = "sound";
 const SPATIAL_LAYOUT: &str = "spatial_layout";
 
 pub async fn load() -> Session {
-    match try_load().await {
-        Ok(session) => session,
-        Err(e) => panic!("panel settings: load failed: {e}"),
-    }
+    try_load().await.unwrap_or_else(|e| {
+        eprintln!("panel settings: load failed: {e}");
+        Session::default()
+    })
 }
 
 pub async fn save_corner_radius(radius: f32) -> bool {
