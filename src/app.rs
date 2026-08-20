@@ -45,6 +45,7 @@ use crate::{
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         notification_group::NotificationGroupMessage,
+        output_group,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         power_profile_group::{PowerProfileGroup, PowerProfileMessage},
         system_group::{SystemGroup, SystemMessage},
@@ -535,8 +536,11 @@ impl Bar {
             return window_tooltip::tooltip(&self.niri, *window).unwrap_or_else(Tooltip::empty);
         }
         if let HoverTarget::Workspace(workspace) = target {
-            return workspace_tooltip::tooltip(&self.niri_snapshot, &self.outputs, *workspace)
+            return workspace_tooltip::tooltip(&self.niri_snapshot, *workspace)
                 .unwrap_or_else(Tooltip::empty);
+        }
+        if let HoverTarget::Output(output) = target {
+            return output_group::tooltip(&self.outputs, output);
         }
         self.system_group
             .tooltip_for(target)

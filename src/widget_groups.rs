@@ -10,6 +10,7 @@ pub mod media_group;
 pub mod monitor_group;
 pub mod net_interfaces_group;
 pub mod notification_group;
+pub mod output_group;
 pub mod panel_settings_group;
 pub mod pills;
 pub mod power_profile_group;

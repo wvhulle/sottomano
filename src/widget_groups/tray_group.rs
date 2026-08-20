@@ -90,7 +90,7 @@ impl TrayGroup {
         let reveal = self.menu.reveal();
 
         let handle = button(
-            Solid::LayerGroup
+            Solid::EllipsisVertical
                 .glyph()
                 .size(config.font.icon_size_px)
                 .color(config.palette.bar_foreground),

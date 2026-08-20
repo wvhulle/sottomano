@@ -39,6 +39,7 @@ use crate::{
         tray_group::TrayMessage,
         weather_group::WeatherMessage,
         window_group::{WindowGroupMessage, window_list::WindowListMessage},
+        output_group::{self, OutputMessage},
         workspaces_group::{self, WorkspacesMessage},
     },
     widgets::bounds_probe::bounds_probe,
@@ -316,6 +317,29 @@ fn slot<'a, M: 'a>(
     element.into().map(|e| e.map(wrap))
 }
 
+fn places<'a>(
+    bar: &'a Bar,
+    output: &'a str,
+    config: &'a Config,
+    position: Position,
+) -> Element<'a, Message> {
+    let display = output_group::view(output, config, position).map(|m| match m {
+        OutputMessage::Tooltip(t) => Message::Tooltip(t),
+    });
+    let workspaces = workspaces_group::view(&bar.niri_snapshot, output, config, position).map(|e| {
+        e.map(|m| match m {
+            WorkspacesMessage::Clicked { id, is_active } => {
+                Message::WorkspaceClicked { id, is_active }
+            }
+            WorkspacesMessage::Tooltip(t) => Message::Tooltip(t),
+        })
+    });
+    Row::with_children([Some(display), workspaces].into_iter().flatten())
+        .spacing(config.spacing.widget_spacing_px)
+        .align_y(Alignment::Center)
+        .into()
+}
+
 fn bottom_row<'a>(
     bar: &'a Bar,
     window: Id,
@@ -324,19 +348,7 @@ fn bottom_row<'a>(
 ) -> Element<'a, Message> {
     let config = &bar.config;
     let chrome = &bar.session.chrome;
-    let start = zone(
-        [slot(
-            workspaces_group::view(&bar.niri_snapshot, output, config, position),
-            |m| match m {
-                WorkspacesMessage::Clicked { id, is_active } => {
-                    Message::WorkspaceClicked { id, is_active }
-                }
-                WorkspacesMessage::Tooltip(t) => Message::Tooltip(t),
-            },
-        )],
-        config,
-        chrome,
-    );
+    let start = zone([Some(places(bar, output, config, position))], config, chrome);
     let start = measured(start, chrome, window, Zone::BottomStart);
     let middle = container(measured(
         Row::with_children(

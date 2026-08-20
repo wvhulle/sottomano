@@ -102,6 +102,8 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
     Some(image::Handle::from_rgba(width, height, bytes))
 }
 
+const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
+
 fn from_theme_path(theme_path: &str, name: &str) -> Option<PathBuf> {
     ["svg", "png"].into_iter().find_map(|ext| {
         let path = Path::new(theme_path).join(format!("{name}.{ext}"));
@@ -118,10 +120,14 @@ fn resolve_visual(
     if let Some(handle) = icon_pixmap.and_then(best_pixmap) {
         return Some(IconSource::Pixmap(handle));
     }
-    let name = icon_name.filter(|n| !n.is_empty())?;
-    icon_theme_path
-        .and_then(|dir| from_theme_path(dir, name))
-        .or_else(|| entries.theme_icon(name))
+    icon_name
+        .filter(|n| !n.is_empty())
+        .and_then(|name| {
+            icon_theme_path
+                .and_then(|dir| from_theme_path(dir, name))
+                .or_else(|| entries.theme_icon(name))
+        })
+        .or_else(|| entries.theme_icon(UNIDENTIFIED_APP_ICON))
         .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
 }
 
