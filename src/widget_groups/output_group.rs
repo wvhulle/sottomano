@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use iced::Element;
+use iced::{Element, widget::button};
 
 use crate::{
     config::Config,
@@ -14,11 +14,12 @@ use crate::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widgets::pager_slot::permanently_inactive_slot,
+    widgets::{flat_button, pager_slot::permanently_inactive_slot},
 };
 
 #[derive(Debug, Clone)]
 pub enum OutputMessage {
+    Clicked,
     Tooltip(TooltipMessage),
 }
 
@@ -27,8 +28,12 @@ pub fn view<'a>(output: &str, config: &Config, position: Position) -> Element<'a
         .glyph()
         .size(config.font.icon_size_px)
         .color(config.palette.bar_foreground);
+    let pressable = button(permanently_inactive_slot(glyph.into(), config, position))
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
+        .on_press(OutputMessage::Clicked);
     hoverable(
-        permanently_inactive_slot(glyph.into(), config, position),
+        pressable.into(),
         HoverTarget::Output(output.to_owned()),
         OutputMessage::Tooltip,
     )

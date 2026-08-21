@@ -324,6 +324,7 @@ fn places<'a>(
     position: Position,
 ) -> Element<'a, Message> {
     let display = output_group::view(output, config, position).map(|m| match m {
+        OutputMessage::Clicked => Message::OverviewToggled,
         OutputMessage::Tooltip(t) => Message::Tooltip(t),
     });
     let workspaces = workspaces_group::view(&bar.niri_snapshot, output, config, position).map(|e| {
