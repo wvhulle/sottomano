@@ -128,6 +128,7 @@ pub enum Message {
         id: u64,
         is_active: bool,
     },
+    OverviewToggled,
     Niri(Vec<niri_ipc::Event>),
     Redraw,
     WindowClosed(Id),
@@ -255,7 +256,8 @@ impl Bar {
             }
             Message::WorkspaceClicked {
                 is_active: true, ..
-            } => niri_action(niri::toggle_overview),
+            }
+            | Message::OverviewToggled => niri_action(niri::toggle_overview),
             Message::WorkspaceClicked { id, .. } => niri_action(move || niri::focus_workspace(id)),
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => self.forget_window(window),
