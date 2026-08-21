@@ -55,7 +55,7 @@ let
   gradientShadow = sign: {
     enable = true;
     softness = 27;
-    spread = 24;
+    spread = 28;
     color = "#00000060";
     offset = {
       x = 0;

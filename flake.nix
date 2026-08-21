@@ -35,14 +35,7 @@
       };
 
       craneLib = (crane.mkLib pkgs).overrideToolchain (
-        pkgs.rust-bin.nightly.latest.default.override {
-          extensions = [
-            "rust-src"
-            "rustfmt"
-            "clippy"
-            "rust-analyzer"
-          ];
-        }
+        p: p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml
       );
 
       src = craneLib.cleanCargoSource ./.;
@@ -116,6 +109,7 @@
       packages.${system} = {
         default = vetrata;
         vetrata = vetrata;
+        deps = cargoArtifacts;
       };
 
       homeModules.default = {
