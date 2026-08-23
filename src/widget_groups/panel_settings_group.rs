@@ -1,14 +1,15 @@
-use std::ops::RangeInclusive;
+use std::{future::Future, ops::RangeInclusive};
 
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Task,
     widget::{Row, button},
 };
 
 use crate::{
+    app::Message,
     config::Config,
     data::source::{Tooltip, font_awesome::Solid, row},
-    state::ChromeState,
+    state::{self, ChromeState},
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -16,13 +17,29 @@ use crate::{
     widgets::{
         DISABLED_ALPHA, flat_button,
         menu_group::{MenuGroup, MenuMessage},
-        slider_control::{Action, ControlMessage, SliderControl},
+        slider_control::{Action as SliderAction, ControlMessage, SliderControl},
     },
 };
+
+pub enum Action {
+    None,
+    Run(Task<Message>),
+    RebuildBlur(Task<Message>),
+    Reflow(Task<Message>),
+}
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 const RADIUS_RANGE: RangeInclusive<f32> = 0.0..=16.0;
 const DARKEN_RANGE: RangeInclusive<f32> = 0.0..=100.0;
+
+fn confirmed(
+    value: f32,
+    save: impl Future<Output = bool> + Send + 'static,
+    wrap: fn(ControlMessage) -> PanelSettingsMessage,
+) -> Task<Message> {
+    Task::future(save)
+        .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Confirmed { value, ok })))
+}
 
 pub fn tooltip_for(target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip> {
     match target {
@@ -147,44 +164,74 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn update(&mut self, msg: &PanelSettingsMessage) {
+    pub fn update(&mut self, msg: PanelSettingsMessage, chrome: &mut ChromeState) -> Action {
         match msg {
             PanelSettingsMessage::Menu(menu) => {
-                if self.menu.update(*menu) {
+                if self.menu.update(menu) {
                     self.close_sliders();
                 }
+                Action::None
             }
-            PanelSettingsMessage::ToggleBlurBackground
-            | PanelSettingsMessage::ToggleDisconnectedGroups
-            | PanelSettingsMessage::Radius(_)
-            | PanelSettingsMessage::Offset(_)
-            | PanelSettingsMessage::Darken(_)
-            | PanelSettingsMessage::Tooltip(_) => {}
+            PanelSettingsMessage::ToggleBlurBackground => {
+                chrome.blur_background = !chrome.blur_background;
+                Action::RebuildBlur(
+                    Task::future(state::panel::save_blur_background(chrome.blur_background))
+                        .discard(),
+                )
+            }
+            PanelSettingsMessage::ToggleDisconnectedGroups => {
+                chrome.disconnected_groups = !chrome.disconnected_groups;
+                Action::RebuildBlur(
+                    Task::future(state::panel::save_disconnected_groups(
+                        chrome.disconnected_groups,
+                    ))
+                    .discard(),
+                )
+            }
+            PanelSettingsMessage::Radius(msg) => match self.radius.update(msg) {
+                SliderAction::Commit(radius) => {
+                    chrome.corner_radius_px = radius;
+                    Action::Run(confirmed(
+                        radius,
+                        state::panel::save_corner_radius(radius),
+                        PanelSettingsMessage::Radius,
+                    ))
+                }
+                _ => Action::None,
+            },
+            PanelSettingsMessage::Offset(msg) => match self.offset.update(msg) {
+                SliderAction::Commit(offset) => {
+                    chrome.float_offset_px = offset;
+                    Action::Reflow(confirmed(
+                        offset,
+                        state::panel::save_float_offset(offset),
+                        PanelSettingsMessage::Offset,
+                    ))
+                }
+                _ => Action::None,
+            },
+            PanelSettingsMessage::Darken(msg) => match self.darken.update(msg) {
+                SliderAction::Commit(percent) => {
+                    chrome.darken_chrome_factor = percent / 100.0;
+                    Action::Run(confirmed(
+                        percent,
+                        state::panel::save_darken_chrome_factor(chrome.darken_chrome_factor),
+                        PanelSettingsMessage::Darken,
+                    ))
+                }
+                _ => Action::None,
+            },
+            PanelSettingsMessage::Tooltip(_) => Action::None,
         }
     }
 
-    pub fn update_radius(&mut self, msg: ControlMessage) -> Action {
-        self.radius.update(msg)
-    }
-
-    pub fn sync_radius(&mut self, value: f32) {
-        self.radius.update(ControlMessage::Reading(value));
-    }
-
-    pub fn update_offset(&mut self, msg: ControlMessage) -> Action {
-        self.offset.update(msg)
-    }
-
-    pub fn sync_offset(&mut self, value: f32) {
-        self.offset.update(ControlMessage::Reading(value));
-    }
-
-    pub fn update_darken(&mut self, msg: ControlMessage) -> Action {
-        self.darken.update(msg)
-    }
-
-    pub fn sync_darken(&mut self, value: f32) {
-        self.darken.update(ControlMessage::Reading(value));
+    pub fn adopt(&mut self, chrome: &ChromeState) {
+        self.radius
+            .update(ControlMessage::Reading(chrome.corner_radius_px));
+        self.offset
+            .update(ControlMessage::Reading(chrome.float_offset_px));
+        self.darken
+            .update(ControlMessage::Reading(chrome.darken_chrome_factor * 100.0));
     }
 
     #[allow(clippy::unnecessary_wraps)]

@@ -1,5 +1,5 @@
 use iced::{
-    Element, Subscription,
+    Element, Subscription, Task,
     widget::{Row, button},
 };
 
@@ -61,7 +61,7 @@ impl SystemGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: SystemMessage) {
+    pub fn update(&mut self, msg: SystemMessage) -> Task<SystemMessage> {
         match msg {
             SystemMessage::Cpu(reading) => self.cpu.receive(reading),
             SystemMessage::Memory(reading) => self.memory.receive(reading),
@@ -72,6 +72,7 @@ impl SystemGroup {
             }
             SystemMessage::Tooltip(_) => {}
         }
+        Task::none()
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {

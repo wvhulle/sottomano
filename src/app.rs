@@ -57,7 +57,6 @@ use crate::{
     widgets::{
         idle::{IdleEvent, IdleHandle},
         menu_group::MenuGroup,
-        slider_control::{Action as SliderAction, ControlMessage},
     },
 };
 
@@ -208,29 +207,17 @@ impl Bar {
                 self.desktop_entries.merge(resolved);
                 Task::none()
             }
-            Message::Weather(msg) => {
-                self.weather_group.update(msg);
-                Task::none()
-            }
-            Message::Battery(msg) => {
-                self.battery_group.update(msg);
-                Task::none()
-            }
-            Message::System(msg) => {
-                self.system_group.update(msg);
-                Task::none()
-            }
+            Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
+            Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
+            Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
-            Message::Clock(msg) => {
-                self.clock_group.update(msg);
-                Task::none()
-            }
+            Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
-            Message::NetInterfaces(msg) => {
-                self.net_interfaces_group.update(msg);
-                Task::none()
-            }
+            Message::NetInterfaces(msg) => self
+                .net_interfaces_group
+                .update(msg)
+                .map(Message::NetInterfaces),
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
             Message::ColorTemperature(msg) => self.update_color_temperature(msg),
@@ -245,7 +232,7 @@ impl Bar {
                 .power_profile_group
                 .update(msg)
                 .map(Message::PowerProfile),
-            Message::Ai(msg) => self.update_ai(msg),
+            Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
             Message::DismissPressed => {
                 self.dismiss_menus();
                 self.tray_group.close_menu()
@@ -411,36 +398,13 @@ impl Bar {
     }
 
     fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match msg {
-            NotificationGroupMessage::DoNotDisturb => {
-                self.session.notifications.dnd = !self.session.notifications.dnd;
-                let placement = niri::Placement::derive(&self.niri);
-                let applied = self.notifications.sync_dnd(
-                    &placement,
-                    &self.config,
-                    &self.session.notifications,
-                );
-                let save =
-                    Task::future(state::panel::save_dnd(self.session.notifications.dnd)).discard();
-                Task::batch([applied, save])
-            }
-            NotificationGroupMessage::Sound => {
-                self.session.notifications.sound = !self.session.notifications.sound;
-                Task::future(state::panel::save_sound(self.session.notifications.sound)).discard()
-            }
-            NotificationGroupMessage::SpatialLayout => {
-                let spatial = !self.session.notifications.spatial_layout;
-                self.session.notifications.spatial_layout = spatial;
-                let placement = niri::Placement::derive(&self.niri);
-                let applied = self.notifications.on_niri_changed(
-                    &placement,
-                    &self.config,
-                    &self.session.notifications,
-                );
-                let save = Task::future(state::panel::save_spatial_layout(spatial)).discard();
-                Task::batch([applied, save])
-            }
-        }
+        let placement = niri::Placement::derive(&self.niri);
+        self.notifications.toggle(
+            msg,
+            &mut self.session.notifications,
+            &placement,
+            &self.config,
+        )
     }
 
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
@@ -510,17 +474,8 @@ impl Bar {
 
     fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
         self.session = session;
-        self.panel_settings_group
-            .sync_radius(self.session.chrome.corner_radius_px);
-        self.panel_settings_group
-            .sync_offset(self.session.chrome.float_offset_px);
-        self.panel_settings_group
-            .sync_darken(self.session.chrome.darken_chrome_factor * 100.0);
-        Task::batch([
-            self.remargin_surfaces(),
-            self.blur_casters
-                .rebuild(&self.config, &self.session.chrome, &self.surfaces),
-        ])
+        self.panel_settings_group.adopt(&self.session.chrome);
+        Task::batch([self.remargin_surfaces(), self.rebuild_blur()])
     }
 
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
@@ -568,11 +523,6 @@ impl Bar {
             let tooltip = self.tooltip_for(target);
             tooltip.footer.is_some() || matches!(tooltip.body, TooltipBody::Log(_))
         })
-    }
-
-    fn update_ai(&mut self, msg: AiMessage) -> Task<Message> {
-        self.ai_group.update(msg);
-        Task::none()
     }
 
     fn update_color_temperature(&mut self, msg: ColorTemperatureMessage) -> Task<Message> {
@@ -715,77 +665,27 @@ impl Bar {
     }
 
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
-        match msg {
-            PanelSettingsMessage::ToggleBlurBackground => {
-                self.session.chrome.blur_background = !self.session.chrome.blur_background;
-                let blur = self.session.chrome.blur_background;
-                Task::batch([
-                    self.blur_casters
-                        .rebuild(&self.config, &self.session.chrome, &self.surfaces),
-                    Task::future(state::panel::save_blur_background(blur)).discard(),
-                ])
+        match self
+            .panel_settings_group
+            .update(msg, &mut self.session.chrome)
+        {
+            panel_settings_group::Action::None => Task::none(),
+            panel_settings_group::Action::Run(task) => task,
+            panel_settings_group::Action::RebuildBlur(task) => {
+                Task::batch([self.rebuild_blur(), task])
             }
-            PanelSettingsMessage::ToggleDisconnectedGroups => {
-                self.session.chrome.disconnected_groups = !self.session.chrome.disconnected_groups;
-                let disconnected = self.session.chrome.disconnected_groups;
-                Task::batch([
-                    self.blur_casters
-                        .rebuild(&self.config, &self.session.chrome, &self.surfaces),
-                    Task::future(state::panel::save_disconnected_groups(disconnected)).discard(),
-                ])
-            }
-            PanelSettingsMessage::Radius(msg) => {
-                match self.panel_settings_group.update_radius(msg) {
-                    SliderAction::Commit(radius) => {
-                        self.session.chrome.corner_radius_px = radius;
-                        Task::future(state::panel::save_corner_radius(radius)).map(move |ok| {
-                            Message::PanelSettings(PanelSettingsMessage::Radius(
-                                ControlMessage::Confirmed { value: radius, ok },
-                            ))
-                        })
-                    }
-                    _ => Task::none(),
-                }
-            }
-            PanelSettingsMessage::Offset(msg) => {
-                match self.panel_settings_group.update_offset(msg) {
-                    SliderAction::Commit(offset) => {
-                        self.session.chrome.float_offset_px = offset;
-                        Task::batch([
-                            self.remargin_surfaces(),
-                            self.blur_casters
-                                .reposition(&self.session.chrome, &self.surfaces),
-                            Task::future(state::panel::save_float_offset(offset)).map(move |ok| {
-                                Message::PanelSettings(PanelSettingsMessage::Offset(
-                                    ControlMessage::Confirmed { value: offset, ok },
-                                ))
-                            }),
-                        ])
-                    }
-                    _ => Task::none(),
-                }
-            }
-            PanelSettingsMessage::Darken(msg) => {
-                match self.panel_settings_group.update_darken(msg) {
-                    SliderAction::Commit(percent) => {
-                        self.session.chrome.darken_chrome_factor = percent / 100.0;
-                        Task::future(state::panel::save_darken_chrome_factor(
-                            self.session.chrome.darken_chrome_factor,
-                        ))
-                        .map(move |ok| {
-                            Message::PanelSettings(PanelSettingsMessage::Darken(
-                                ControlMessage::Confirmed { value: percent, ok },
-                            ))
-                        })
-                    }
-                    _ => Task::none(),
-                }
-            }
-            msg => {
-                self.panel_settings_group.update(&msg);
-                Task::none()
-            }
+            panel_settings_group::Action::Reflow(task) => Task::batch([
+                self.remargin_surfaces(),
+                self.blur_casters
+                    .reposition(&self.session.chrome, &self.surfaces),
+                task,
+            ]),
         }
+    }
+
+    fn rebuild_blur(&mut self) -> Task<Message> {
+        self.blur_casters
+            .rebuild(&self.config, &self.session.chrome, &self.surfaces)
     }
 
     fn remargin_surfaces(&self) -> Task<Message> {

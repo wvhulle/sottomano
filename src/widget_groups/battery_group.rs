@@ -1,4 +1,4 @@
-use iced::{Element, Subscription};
+use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
@@ -34,12 +34,13 @@ impl BatteryGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: BatteryMessage) {
+    pub fn update(&mut self, msg: BatteryMessage) -> Task<BatteryMessage> {
         match msg {
             BatteryMessage::Charge(reading) => self.charge.receive(reading),
             BatteryMessage::Draw(reading) => self.draw.receive(reading),
             BatteryMessage::Tooltip(_) => {}
         }
+        Task::none()
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
