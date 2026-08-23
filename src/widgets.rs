@@ -2,6 +2,7 @@ pub mod activity_line;
 pub mod bounds_probe;
 pub mod confirm_button;
 pub mod context_menu;
+pub mod focus_indicator;
 pub mod icon_gauge;
 pub mod idle;
 pub mod inline_slider;

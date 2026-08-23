@@ -73,9 +73,8 @@ fn geometry_rows(info: &OutputInfo) -> Vec<Row> {
 
 #[cfg(test)]
 mod tests {
-    use crate::data::source::TooltipBody;
-
     use super::*;
+    use crate::data::source::TooltipBody;
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(

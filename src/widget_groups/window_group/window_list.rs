@@ -40,6 +40,7 @@ use crate::{
     widgets::{
         activity_line::activity_line,
         flat_button,
+        focus_indicator::focus_indicator,
         pager_slot::PagerSlot,
         progress_line::progress_line,
         text::fallback_spans,
@@ -268,8 +269,13 @@ impl WindowList {
         let row = Row::with_children(buttons)
             .spacing(config.spacing.widget_spacing_px * 2.0)
             .align_y(Alignment::Center);
+        let focus_alpha = focused_index.map_or(1.0, |i| self.metrics.item_alpha(self.scroll, i));
+        let indicated = focus_indicator(row, focused_index)
+            .color(config.palette.focus.scale_alpha(focus_alpha))
+            .thickness(config.widgets.focus_underline_thickness_px)
+            .edge(position);
         Some(window_list_viewport(
-            row,
+            indicated,
             self.scroll,
             focused_index,
             WindowListMessage::Scrolled,
@@ -401,15 +407,13 @@ fn indicator_line<'a>(
     extras: Extras<'_>,
     alpha: f32,
 ) -> Element<'a, WindowListMessage> {
-    let (color, opacity) = if win.is_urgent || extras.is_urgent() {
-        (config.palette.urgent, 1.0)
-    } else if win.is_focused {
-        (config.palette.focus, 1.0)
+    let opacity = if win.is_urgent || extras.is_urgent() {
+        1.0
     } else {
-        (config.palette.focus, 0.0)
+        0.0
     };
     activity_line(
-        color,
+        config.palette.urgent,
         opacity * alpha,
         config.widgets.focus_underline_thickness_px,
     )
