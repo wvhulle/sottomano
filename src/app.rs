@@ -18,7 +18,6 @@ use crate::{
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             launch_tracker::{Buckets, LaunchTracker},
             niri,
-            tray::TrayCommand,
         },
     },
     message_subscriptions::{blocking, niri_action},
@@ -30,7 +29,6 @@ use crate::{
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
-        tray_menu::TrayMenuHost,
     },
     widget_groups::{
         ai_group::{AiGroup, AiMessage},
@@ -49,7 +47,7 @@ use crate::{
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         power_profile_group::{PowerProfileGroup, PowerProfileMessage},
         system_group::{SystemGroup, SystemMessage},
-        tray_group::{TrayGroup, TrayMessage},
+        tray_group::{self, TrayGroup, TrayMessage},
         weather_group::{WeatherGroup, WeatherMessage},
         window_group::{
             self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS, window_tooltip,
@@ -82,7 +80,6 @@ pub struct Bar {
     pub(crate) power_profile_group: PowerProfileGroup,
     pub(crate) ai_group: AiGroup,
     pub(crate) tray_group: TrayGroup,
-    pub(crate) tray_menu: TrayMenuHost,
     pub(crate) window_group: WindowGroup,
     pub(crate) launch_tracker: LaunchTracker,
     pub(crate) niri: EventStreamState,
@@ -167,7 +164,6 @@ impl Bar {
             power_profile_group: PowerProfileGroup::default(),
             ai_group: AiGroup::new(config.secrets.clone()),
             tray_group: TrayGroup::default(),
-            tray_menu: TrayMenuHost::default(),
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
@@ -252,7 +248,7 @@ impl Bar {
             Message::Ai(msg) => self.update_ai(msg),
             Message::DismissPressed => {
                 self.dismiss_menus();
-                self.tray_menu.close()
+                self.tray_group.close_menu()
             }
             Message::WorkspaceClicked {
                 is_active: true, ..
@@ -353,7 +349,7 @@ impl Bar {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
-        self.tray_menu.forget(window);
+        self.tray_group.forget(window);
         self.notifications.forget(window);
         self.blur_casters.forget(window)
     }
@@ -448,30 +444,27 @@ impl Bar {
     }
 
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
-        match msg {
-            TrayMessage::OpenMenu(index) => self.open_tray_menu(index),
-            TrayMessage::MenuItemClicked(id) => {
-                if let Some((address, menu_path)) = self.tray_menu.target() {
-                    self.tray_group.command(TrayCommand::MenuClick {
-                        address,
-                        menu_path,
-                        id,
-                    });
-                }
-                self.tray_menu.close()
-            }
-            TrayMessage::ToggleSubmenu(id) => {
-                self.tray_menu.toggle_submenu(id);
-                Task::none()
-            }
-            TrayMessage::MenuResized { surface, size } => {
-                self.tray_menu.resize(surface, size, &self.config)
-            }
-            msg => {
-                self.tray_group.update(msg);
-                Task::none()
-            }
+        let anchor = self.tooltip.menu_anchor();
+        match self.tray_group.update(msg, &self.config, anchor) {
+            tray_group::Action::None => Task::none(),
+            tray_group::Action::Run(task) => task,
+            tray_group::Action::MenuOpened(task) => Task::batch([self.dismiss_tooltip(), task]),
+            tray_group::Action::FocusWindow {
+                window_app_id,
+                item_id,
+            } => self.focus_tray_window(&window_app_id, &item_id),
+            tray_group::Action::Tooltip(message) => self.update_tooltip(message),
         }
+    }
+
+    fn focus_tray_window(&self, window_app_id: &str, item_id: &str) -> Task<Message> {
+        let candidates = [String::from(window_app_id)];
+        let Some(window) = niri::Placement::derive(&self.niri).window_by_source(&candidates, None)
+        else {
+            eprintln!("tray: {item_id}: no window with app_id {window_app_id}");
+            return Task::none();
+        };
+        niri_action(move || niri::focus_window(window))
     }
 
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
@@ -577,30 +570,6 @@ impl Bar {
         })
     }
 
-    fn open_tray_menu(&mut self, index: usize) -> Task<Message> {
-        let (address, menu_path, nodes) = {
-            let visible = self.tray_group.visible(&self.config);
-            let Some(item) = visible.get(index) else {
-                return Task::none();
-            };
-            match (&item.menu_path, item.menu.is_empty()) {
-                (Some(path), false) => (item.address.clone(), path.clone(), item.menu.clone()),
-                _ => return Task::none(),
-            }
-        };
-        if self.tray_menu.is_open_for(&address) {
-            return self.tray_menu.close();
-        }
-        let Some(place) = self.tooltip.menu_anchor() else {
-            return Task::none();
-        };
-        Task::batch([
-            self.dismiss_tooltip(),
-            self.tray_menu
-                .open(address, menu_path, nodes, &place, &self.config),
-        ])
-    }
-
     fn update_ai(&mut self, msg: AiMessage) -> Task<Message> {
         self.ai_group.update(msg);
         Task::none()
@@ -683,7 +652,7 @@ impl Bar {
         self.niri_snapshot = niri::Snapshot::derive(&self.niri);
         if focus_change {
             self.dismiss_menus();
-            tasks.push(self.tray_menu.close());
+            tasks.push(self.tray_group.close_menu());
         }
         if window_change {
             tasks.push(
@@ -878,7 +847,7 @@ impl Bar {
         {
             return element;
         }
-        if let Some(element) = self.tray_menu.view(window, &self.config) {
+        if let Some(element) = self.tray_group.menu_view(window, &self.config) {
             return element;
         }
         if let Some(element) = self.notifications.view(window, &self.config) {

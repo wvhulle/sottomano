@@ -22,9 +22,6 @@ cargo r
 
 This compiles a quick debug build and runs the two panels.
 
-## Configuration
-
-See the source code at `src/config/disk.rs`. Will not document this here.
 
 ## History
 

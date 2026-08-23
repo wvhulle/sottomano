@@ -14,6 +14,7 @@ use super::{
     notifications::NotificationConfig,
     palette::Palette,
     spacing::Spacing,
+    tray::TrayConfig,
     widgets::Widgets,
     window_list::WindowListConfig,
 };
@@ -27,7 +28,7 @@ pub struct Config {
     pub window_list: WindowListConfig,
     pub font: FontConfig,
     pub notifications: NotificationConfig,
-    pub tray_deny_ids: Vec<String>,
+    pub tray: TrayConfig,
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_unit: String,
     pub locker: Locker,
@@ -51,7 +52,7 @@ struct UserConfig {
     window_list: WindowListConfig,
     font: UserFont,
     notifications: NotificationConfig,
-    tray: TrayToml,
+    tray: TrayConfig,
     terminal: Vec<String>,
     color_temperature_unit: String,
     locker: Locker,
@@ -67,26 +68,10 @@ impl Default for UserConfig {
             window_list: WindowListConfig::default(),
             font: UserFont::default(),
             notifications: NotificationConfig::default(),
-            tray: TrayToml::default(),
+            tray: TrayConfig::default(),
             terminal: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_unit: String::from("screen-temperature.service"),
             locker: Locker::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct TrayToml {
-    deny_ids: Vec<String>,
-}
-
-impl Default for TrayToml {
-    fn default() -> Self {
-        Self {
-            deny_ids: ["nm-applet", "blueman", "spotify"]
-                .map(String::from)
-                .to_vec(),
         }
     }
 }
@@ -152,12 +137,7 @@ pub fn load() -> Config {
         window_list: user.window_list,
         font: font::resolve(&user.font),
         notifications: user.notifications,
-        tray_deny_ids: user
-            .tray
-            .deny_ids
-            .iter()
-            .map(|id| id.to_lowercase())
-            .collect(),
+        tray: user.tray,
         terminal_command_prefix: user.terminal,
         color_temperature_unit: user.color_temperature_unit,
         locker: user.locker,
