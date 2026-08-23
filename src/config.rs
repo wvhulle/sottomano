@@ -5,6 +5,7 @@ pub mod locker;
 pub mod notifications;
 pub mod palette;
 pub mod spacing;
+pub mod tray;
 pub mod widgets;
 pub mod window_list;
 
