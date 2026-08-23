@@ -305,12 +305,16 @@ impl SliderControl {
             let revealed = Row::with_children([slider, readout.into()])
                 .spacing(gap)
                 .align_y(Alignment::Center);
-            return Row::with_children([
+            let opened = Row::with_children([
                 glyph.into(),
                 reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
             ])
-            .align_y(Alignment::Center)
-            .into();
+            .align_y(Alignment::Center);
+            let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
+            if self.right_click {
+                area = area.on_right_press(ControlMessage::Right);
+            }
+            return area.into();
         }
 
         let reading = source_reading(config, Some(self as &dyn BarWidget), reveal)

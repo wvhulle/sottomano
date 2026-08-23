@@ -54,6 +54,15 @@ pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
     }
 }
 
+fn cursor_unless_hidden(cursor: Cursor, visible: Rectangle, content: Rectangle) -> Cursor {
+    match cursor.position() {
+        Some(position) if content.contains(position) && !visible.contains(position) => {
+            Cursor::Unavailable
+        }
+        _ => cursor,
+    }
+}
+
 impl<Message> Reveal<'_, Message> {
     fn natural_limits(&self, limits: &Limits) -> Limits {
         let max = limits.max();
@@ -174,11 +183,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        let content = layout.children().next().unwrap();
         self.content.as_widget_mut().update(
             tree,
             event,
-            layout.children().next().unwrap(),
-            clip_cursor(cursor, layout.bounds()),
+            content,
+            cursor_unless_hidden(cursor, layout.bounds(), content.bounds()),
             renderer,
             clipboard,
             shell,
