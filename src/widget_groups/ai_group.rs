@@ -1,5 +1,5 @@
 use iced::{
-    Element, Subscription,
+    Element, Subscription, Task,
     widget::{Row, button},
 };
 
@@ -95,7 +95,7 @@ impl AiGroup {
         Subscription::batch(subscriptions)
     }
 
-    pub fn update(&mut self, message: AiMessage) {
+    pub fn update(&mut self, message: AiMessage) -> Task<AiMessage> {
         match message {
             AiMessage::OpenRouter(reading) => self.openrouter.receive(reading),
             AiMessage::ClaudeOauth(reading) => self.claude_oauth.receive(reading),
@@ -108,6 +108,7 @@ impl AiGroup {
             }
             AiMessage::Tooltip(_) => {}
         }
+        Task::none()
     }
 
     fn configured(&self) -> bool {

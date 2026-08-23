@@ -1,5 +1,5 @@
 use iced::{
-    Element, Subscription,
+    Element, Subscription, Task,
     widget::{Row, button},
 };
 
@@ -53,7 +53,7 @@ impl WeatherGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: WeatherMessage) {
+    pub fn update(&mut self, msg: WeatherMessage) -> Task<WeatherMessage> {
         match msg {
             WeatherMessage::Temp(reading) => self.temp.receive(reading),
             WeatherMessage::Rain(reading) => self.rain.receive(reading),
@@ -65,6 +65,7 @@ impl WeatherGroup {
             }
             WeatherMessage::Tooltip(_) => {}
         }
+        Task::none()
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {

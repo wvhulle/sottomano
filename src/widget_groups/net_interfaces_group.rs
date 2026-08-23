@@ -1,4 +1,4 @@
-use iced::{Element, Subscription};
+use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
@@ -46,7 +46,7 @@ impl NetInterfacesGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: NetInterfacesMessage) {
+    pub fn update(&mut self, msg: NetInterfacesMessage) -> Task<NetInterfacesMessage> {
         match msg {
             NetInterfacesMessage::Bluetooth(reading) => self.bluetooth.load(reading),
             NetInterfacesMessage::Ethernet(reading) => self.ethernet.load(reading),
@@ -54,6 +54,7 @@ impl NetInterfacesGroup {
             NetInterfacesMessage::Mobile(reading) => self.mobile.load(reading),
             NetInterfacesMessage::Tooltip(_) => {}
         }
+        Task::none()
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {

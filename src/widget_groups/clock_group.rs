@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Local};
 use iced::{
-    Alignment, Element, Subscription,
+    Alignment, Element, Subscription, Task,
     futures::channel::mpsc::Sender,
     stream,
     widget::{Row, button},
@@ -46,7 +46,7 @@ impl Default for ClockGroup {
 }
 
 impl ClockGroup {
-    pub fn update(&mut self, msg: ClockMessage) {
+    pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
         match msg {
             ClockMessage::Tick(now) => {
                 self.time_text = now.format(TIME_FORMAT).to_string();
@@ -56,6 +56,7 @@ impl ClockGroup {
                 self.menu.update(m);
             }
         }
+        Task::none()
     }
 
     pub fn subscription() -> Subscription<ClockMessage> {
