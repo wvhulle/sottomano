@@ -33,13 +33,13 @@ use crate::{
         monitor_group::MonitorMessage,
         net_interfaces_group::NetInterfacesMessage,
         notification_group,
+        output_group::{self, OutputMessage},
         panel_settings_group::PanelSettingsMessage,
         power_profile_group::PowerProfileMessage,
         system_group::SystemMessage,
         tray_group::TrayMessage,
         weather_group::WeatherMessage,
         window_group::{WindowGroupMessage, window_list::WindowListMessage},
-        output_group::{self, OutputMessage},
         workspaces_group::{self, WorkspacesMessage},
     },
     widgets::bounds_probe::bounds_probe,
@@ -327,14 +327,15 @@ fn places<'a>(
         OutputMessage::Clicked => Message::OverviewToggled,
         OutputMessage::Tooltip(t) => Message::Tooltip(t),
     });
-    let workspaces = workspaces_group::view(&bar.niri_snapshot, output, config, position).map(|e| {
-        e.map(|m| match m {
-            WorkspacesMessage::Clicked { id, is_active } => {
-                Message::WorkspaceClicked { id, is_active }
-            }
-            WorkspacesMessage::Tooltip(t) => Message::Tooltip(t),
-        })
-    });
+    let workspaces =
+        workspaces_group::view(&bar.niri_snapshot, output, config, position).map(|e| {
+            e.map(|m| match m {
+                WorkspacesMessage::Clicked { id, is_active } => {
+                    Message::WorkspaceClicked { id, is_active }
+                }
+                WorkspacesMessage::Tooltip(t) => Message::Tooltip(t),
+            })
+        });
     Row::with_children([Some(display), workspaces].into_iter().flatten())
         .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center)
@@ -349,7 +350,11 @@ fn bottom_row<'a>(
 ) -> Element<'a, Message> {
     let config = &bar.config;
     let chrome = &bar.session.chrome;
-    let start = zone([Some(places(bar, output, config, position))], config, chrome);
+    let start = zone(
+        [Some(places(bar, output, config, position))],
+        config,
+        chrome,
+    );
     let start = measured(start, chrome, window, Zone::BottomStart);
     let middle = container(measured(
         Row::with_children(

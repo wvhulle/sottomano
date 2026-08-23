@@ -12,7 +12,10 @@ use crate::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widgets::{activity_line::activity_line, flat_button, pager_slot::PagerSlot, text::bar_text},
+    widgets::{
+        activity_line::activity_line, flat_button, focus_indicator::focus_indicator,
+        pager_slot::PagerSlot, text::bar_text,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -31,17 +34,12 @@ pub fn view<'a>(
     if workspaces.is_empty() {
         return None;
     }
+    let active = workspaces.iter().position(|p| p.is_active);
     let slots = workspaces.iter().map(|p| {
         let label = workspace_label(config, p);
-        let (focus_color, focus_opacity) = if p.is_urgent {
-            (config.palette.urgent, 1.0)
-        } else if p.is_active {
-            (config.palette.focus, 1.0)
-        } else {
-            (config.palette.focus, 0.0)
-        };
+        let focus_opacity = if p.is_urgent { 1.0 } else { 0.0 };
         let focus = activity_line(
-            focus_color,
+            config.palette.urgent,
             focus_opacity,
             config.widgets.focus_underline_thickness_px,
         );
@@ -64,10 +62,22 @@ pub fn view<'a>(
             WorkspacesMessage::Tooltip,
         )
     });
+    let row = Row::with_children(slots)
+        .spacing(config.spacing.widget_spacing_px * 1.5)
+        .align_y(Alignment::Center);
+    let active_is_urgent = active
+        .and_then(|i| workspaces.get(i))
+        .is_some_and(|p| p.is_urgent);
+    let color = if active_is_urgent {
+        config.palette.urgent
+    } else {
+        config.palette.focus
+    };
     Some(
-        Row::with_children(slots)
-            .spacing(config.spacing.widget_spacing_px * 1.5)
-            .align_y(Alignment::Center)
+        focus_indicator(row, active)
+            .color(color)
+            .thickness(config.widgets.focus_underline_thickness_px)
+            .edge(position)
             .into(),
     )
 }
