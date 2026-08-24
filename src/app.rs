@@ -408,7 +408,9 @@ impl Bar {
     }
 
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
-        let anchor = self.tooltip.menu_anchor();
+        let anchor = self
+            .tooltip
+            .menu_anchor(self.session.chrome.margin_offset_px());
         match self.tray_group.update(msg, &self.config, anchor) {
             tray_group::Action::None => Task::none(),
             tray_group::Action::Run(task) => task,
@@ -442,20 +444,11 @@ impl Bar {
             return self.tooltip.update(msg);
         };
         let content = self.tooltip_for(&target);
-        match self.surfaces.get(&surface) {
-            Some(parent) if !content.is_empty() => {
-                let parent = parent.clone();
-                self.tooltip.open(
-                    &parent,
-                    target,
-                    anchor,
-                    &self.outputs,
-                    departing,
-                    self.session.chrome.margin_offset_px(),
-                )
-            }
-            _ => Task::none(),
+        if let Some(parent) = self.surfaces.get(&surface).filter(|_| !content.is_empty()) {
+            let parent = parent.clone();
+            self.tooltip.open(&parent, target, anchor, departing);
         }
+        Task::none()
     }
 
     fn tooltip_departure(&self) -> Option<Departed> {
@@ -739,10 +732,12 @@ impl Bar {
     }
 
     fn open_bars(&mut self, output: &str) -> Task<Message> {
+        let offset = self.session.chrome.margin_offset_px();
         let mut opens: Vec<Task<Message>> = Position::ALL
             .into_iter()
             .map(|position| self.open_bar(output, position))
             .collect();
+        opens.push(self.tooltip.open_surface(output, offset));
         if self.config.chrome.shadow {
             opens.extend(
                 Position::ALL

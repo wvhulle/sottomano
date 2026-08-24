@@ -80,7 +80,6 @@ mod tests {
         HashMap::from([(
             "eDP-1".to_owned(),
             OutputInfo {
-                width: 1600,
                 make: "LG Display".to_owned(),
                 model: String::new(),
                 mode: Some(OutputMode {

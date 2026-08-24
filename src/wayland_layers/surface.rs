@@ -26,18 +26,6 @@ impl Margin {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SurfaceSize {
-    pub width: u32,
-    pub height: u32,
-}
-
-impl SurfaceSize {
-    pub fn dimensions(self) -> (u32, u32) {
-        (self.width, self.height)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Position {
     Top,
     Bottom,

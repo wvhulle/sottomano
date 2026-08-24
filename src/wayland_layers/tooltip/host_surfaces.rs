@@ -7,27 +7,20 @@ use tokio::time::sleep;
 use crate::{
     app::Message,
     config::Config,
-    data::source::{Tooltip, niri::OutputInfo},
+    data::source::Tooltip,
     wayland_layers::{
-        surface::{self, Margin, Position, Surface},
+        surface::{self, Margin, Surface},
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::render,
             tooltip_placement::{Rendering, morphing_tooltip},
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
+        tray_menu::MenuAnchor,
     },
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
-
-#[derive(Debug, Clone)]
-pub struct MenuAnchor {
-    pub anchor: Rectangle,
-    pub output: String,
-    pub output_width: Option<i32>,
-    pub position: Position,
-}
 
 #[derive(Default)]
 pub struct TooltipHost {
@@ -48,17 +41,15 @@ impl TooltipHost {
         parent: &Surface,
         target: HoverTarget,
         anchor: Rectangle,
-        outputs: &HashMap<String, OutputInfo>,
         departing: Option<Departed>,
-        float_offset: i32,
-    ) -> Task<Message> {
+    ) {
         self.transition.cancel_leave();
         if self
             .transition
             .current()
             .is_some_and(|current| current.target == target)
         {
-            return Task::none();
+            return;
         }
         self.transition.show(
             Occupant {
@@ -68,11 +59,9 @@ impl TooltipHost {
                     position: parent.position,
                     output: parent.output.clone(),
                 },
-                output_width: outputs.get(&parent.output).map(|info| info.width),
             },
             departing,
         );
-        self.ensure_surface(&parent.output, float_offset)
     }
 
     fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
@@ -99,7 +88,7 @@ impl TooltipHost {
         }
     }
 
-    fn ensure_surface(&mut self, output: &str, float_offset: i32) -> Task<Message> {
+    pub fn open_surface(&mut self, output: &str, float_offset: i32) -> Task<Message> {
         if self.surfaces.contains_key(output) {
             return Task::none();
         }
@@ -157,12 +146,12 @@ impl TooltipHost {
         self.transition.is_morphing()
     }
 
-    pub fn menu_anchor(&self) -> Option<MenuAnchor> {
+    pub fn menu_anchor(&self, float_offset: i32) -> Option<MenuAnchor> {
         let current = self.transition.current()?;
         matches!(current.target, HoverTarget::Tray(_)).then(|| MenuAnchor {
             anchor: current.placement.anchor,
             output: current.placement.output.clone(),
-            output_width: current.output_width,
+            float_offset,
             position: current.placement.position,
         })
     }

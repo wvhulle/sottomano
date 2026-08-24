@@ -8,7 +8,7 @@ use iced::{Rectangle, window::Id};
 
 use crate::data::source::Tooltip;
 pub use crate::wayland_layers::tooltip::{
-    host_surfaces::{MenuAnchor, TooltipHost},
+    host_surfaces::TooltipHost,
     hover_area::{hoverable, on_surface},
     tooltip_content::relative,
 };

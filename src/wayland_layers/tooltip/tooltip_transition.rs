@@ -19,7 +19,6 @@ pub struct Placement {
 pub struct Occupant {
     pub target: HoverTarget,
     pub placement: Placement,
-    pub output_width: Option<i32>,
 }
 
 pub struct Departed {
