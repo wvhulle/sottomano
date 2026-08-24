@@ -63,7 +63,7 @@ pub fn view<'a>(
         )
     });
     let row = Row::with_children(slots)
-        .spacing(config.spacing.widget_spacing_px * 1.5)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
     let active_is_urgent = active
         .and_then(|i| workspaces.get(i))

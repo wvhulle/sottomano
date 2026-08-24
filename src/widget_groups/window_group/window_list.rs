@@ -267,7 +267,7 @@ impl WindowList {
             window_button(config, icons, win, extras, position, alpha)
         });
         let row = Row::with_children(buttons)
-            .spacing(config.spacing.widget_spacing_px * 2.0)
+            .spacing(config.spacing.group_spacing_px)
             .align_y(Alignment::Center);
         let focus_alpha = focused_index.map_or(1.0, |i| self.metrics.item_alpha(self.scroll, i));
         let indicated = focus_indicator(row, focused_index)
@@ -374,7 +374,7 @@ fn button_content<'a>(
         .extend(icon)
         .push(title)
         .extend(audio_glyph(config, extras, alpha))
-        .spacing(config.spacing.widget_spacing_px * 1.5)
+        .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center)
         .into()
 }

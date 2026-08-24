@@ -9,7 +9,7 @@ use crate::{
     config::Config,
     data::source::{Tooltip, niri::OutputInfo},
     wayland_layers::{
-        surface::{self, Position, Surface},
+        surface::{self, Margin, Position, Surface},
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::render,
@@ -50,6 +50,7 @@ impl TooltipHost {
         anchor: Rectangle,
         outputs: &HashMap<String, OutputInfo>,
         departing: Option<Departed>,
+        float_offset: i32,
     ) -> Task<Message> {
         self.transition.cancel_leave();
         if self
@@ -71,7 +72,7 @@ impl TooltipHost {
             },
             departing,
         );
-        self.ensure_surface(&parent.output)
+        self.ensure_surface(&parent.output, float_offset)
     }
 
     fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
@@ -98,16 +99,20 @@ impl TooltipHost {
         }
     }
 
-    fn ensure_surface(&mut self, output: &str) -> Task<Message> {
+    fn ensure_surface(&mut self, output: &str, float_offset: i32) -> Task<Message> {
         if self.surfaces.contains_key(output) {
             return Task::none();
         }
         let id = Id::unique();
         self.surfaces.insert(output.to_string(), id);
         Task::done(Message::NewLayerShell {
-            settings: tooltip_settings(output),
+            settings: tooltip_settings(output, float_offset),
             id,
         })
+    }
+
+    pub fn surfaces(&self) -> impl Iterator<Item = Id> {
+        self.surfaces.values().copied()
     }
 
     pub fn forget(&mut self, surface: Id) {
@@ -210,11 +215,12 @@ impl TooltipHost {
     }
 }
 
-fn tooltip_settings(output: &str) -> NewLayerShellSettings {
+fn tooltip_settings(output: &str, float_offset: i32) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: Some((0, 0)),
-        exclusive_zone: Some(0),
+        exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+        margin: Some(Margin::uniform(float_offset).edges()),
         layer: Layer::Overlay,
         events_transparent: true,
         ..surface::base_settings(Some(output), "vetrata-tooltip")
