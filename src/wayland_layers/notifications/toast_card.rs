@@ -152,11 +152,7 @@ impl Card<'_> {
     fn chrome(&self) -> CardChrome {
         let palette = &self.config.palette;
         let accent = urgency_accent(self.notif.data.urgency, palette);
-        let base = Color {
-            a: 1.0,
-            ..palette.bar_background
-        };
-        let background = mix(base, accent, URGENCY_TINT_AMOUNT);
+        let background = mix(palette.popup_background(), accent, URGENCY_TINT_AMOUNT);
         let rest = mix(background, accent, RESTING_BORDER_TINT_AMOUNT);
         let fade = |color: Color| Color {
             a: color.a * self.reveal,

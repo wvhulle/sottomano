@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Element, Size, Task,
+    Alignment, Element, Task,
     widget::{Column, Row, button, mouse_area},
     window::Id,
 };
@@ -14,8 +14,8 @@ use crate::{
     },
     wayland_layers::{
         surface::Position,
-        tooltip::{HoverTarget, MenuAnchor, TooltipMessage, hoverable},
-        tray_menu::TrayMenuHost,
+        tooltip::{HoverTarget, TooltipMessage, hoverable},
+        tray_menu::{MenuAnchor, TrayMenuHost},
     },
     widgets::{
         activity_line::activity_line,
@@ -53,10 +53,6 @@ pub enum TrayMessage {
     },
     MenuItemClicked(i32),
     ToggleSubmenu(i32),
-    MenuResized {
-        surface: Id,
-        size: Size,
-    },
     Tooltip(TooltipMessage),
 }
 
@@ -125,9 +121,6 @@ impl TrayGroup {
                 self.menu_host.toggle_submenu(id);
                 Action::None
             }
-            TrayMessage::MenuResized { surface, size } => {
-                Action::Run(self.menu_host.resize(surface, size, config))
-            }
             TrayMessage::Tooltip(message) => Action::Tooltip(message),
         }
     }
@@ -147,7 +140,6 @@ impl TrayGroup {
             target.menu_path,
             target.nodes,
             &place,
-            config,
         ))
     }
 

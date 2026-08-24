@@ -20,6 +20,15 @@ pub struct Palette {
     pub dim: Color,
 }
 
+impl Palette {
+    pub fn popup_background(&self) -> Color {
+        Color {
+            a: 1.0,
+            ..self.bar_background
+        }
+    }
+}
+
 impl Default for Palette {
     fn default() -> Self {
         Self {

@@ -469,7 +469,6 @@ pub fn spawn(command: &[String]) {
 
 #[derive(Debug, Clone)]
 pub struct OutputInfo {
-    pub width: i32,
     pub make: String,
     pub model: String,
     pub mode: Option<OutputMode>,
@@ -523,7 +522,6 @@ pub fn output_info() -> HashMap<String, OutputInfo> {
                 Some((
                     name,
                     OutputInfo {
-                        width: logical.width.cast_signed(),
                         make: product_field(output.make),
                         model: product_field(output.model),
                         mode,

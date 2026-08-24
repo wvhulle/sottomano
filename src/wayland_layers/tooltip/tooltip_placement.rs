@@ -14,8 +14,6 @@ use crate::{
     widgets::overlay_shadow::overlay_shadow,
 };
 
-const BAR_GAP: f32 = 6.0;
-
 pub struct Rendering<'a> {
     element: Element<'a, Message>,
     incoming: bool,
@@ -48,14 +46,11 @@ pub fn morphing_tooltip<'a>(
     Element::new(MorphingTooltip {
         renderings,
         anchor,
-        bar_extent: config.chrome.outer_height_px,
+        edge_inset: config.chrome.outer_height_px + config.chrome.popup_gap_px,
         position,
         progress: progress.clamp(0.0, 1.0),
         seq,
-        background: Color {
-            a: 1.0,
-            ..config.palette.bar_background
-        },
+        background: config.palette.popup_background(),
         radius: f32::from(config.chrome.popup_radius_px),
     })
 }
@@ -63,7 +58,7 @@ pub fn morphing_tooltip<'a>(
 struct MorphingTooltip<'a> {
     renderings: Vec<Rendering<'a>>,
     anchor: Rectangle,
-    bar_extent: f32,
+    edge_inset: f32,
     position: Position,
     progress: f32,
     seq: u64,
@@ -83,12 +78,12 @@ fn resting(
     size: Size,
     surface: Size,
     position: Position,
-    bar_extent: f32,
+    edge_inset: f32,
 ) -> Rectangle {
     let x = anchor.x.clamp(0.0, (surface.width - size.width).max(0.0));
     let y = match position {
-        Position::Top => bar_extent + BAR_GAP,
-        Position::Bottom => surface.height - bar_extent - size.height - BAR_GAP,
+        Position::Top => edge_inset,
+        Position::Bottom => surface.height - edge_inset - size.height,
     };
     Rectangle {
         x,
@@ -102,11 +97,11 @@ fn pinned_to_anchor(
     anchor: Rectangle,
     surface: Size,
     position: Position,
-    bar_extent: f32,
+    edge_inset: f32,
 ) -> Rectangle {
     let y = match position {
-        Position::Top => bar_extent + BAR_GAP,
-        Position::Bottom => surface.height - bar_extent - BAR_GAP,
+        Position::Top => edge_inset,
+        Position::Bottom => surface.height - edge_inset,
     };
     Rectangle {
         x: anchor.center_x(),
@@ -221,7 +216,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
             .map(|(_, node)| node.size());
-        let at_anchor = pinned_to_anchor(self.anchor, surface, self.position, self.bar_extent);
+        let at_anchor = pinned_to_anchor(self.anchor, surface, self.position, self.edge_inset);
 
         let state: &mut MorphState = tree.state.downcast_mut();
         if state.seq != self.seq {
@@ -233,7 +228,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
             };
         }
         let target = arriving.map_or(at_anchor, |size| {
-            resting(self.anchor, size, surface, self.position, self.bar_extent)
+            resting(self.anchor, size, surface, self.position, self.edge_inset)
         });
         state.current = lerp(state.from, target, self.progress);
         let origin = state.current.position();
