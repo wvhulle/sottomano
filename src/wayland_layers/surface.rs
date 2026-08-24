@@ -11,6 +11,15 @@ pub struct Margin {
 }
 
 impl Margin {
+    pub fn uniform(px: i32) -> Self {
+        Self {
+            top: px,
+            right: px,
+            bottom: px,
+            left: px,
+        }
+    }
+
     pub fn edges(self) -> (i32, i32, i32, i32) {
         (self.top, self.right, self.bottom, self.left)
     }

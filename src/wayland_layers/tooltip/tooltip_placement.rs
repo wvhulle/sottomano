@@ -48,6 +48,7 @@ pub fn morphing_tooltip<'a>(
     Element::new(MorphingTooltip {
         renderings,
         anchor,
+        bar_extent: config.chrome.outer_height_px,
         position,
         progress: progress.clamp(0.0, 1.0),
         seq,
@@ -62,6 +63,7 @@ pub fn morphing_tooltip<'a>(
 struct MorphingTooltip<'a> {
     renderings: Vec<Rendering<'a>>,
     anchor: Rectangle,
+    bar_extent: f32,
     position: Position,
     progress: f32,
     seq: u64,
@@ -76,11 +78,17 @@ struct MorphState {
     current: Rectangle,
 }
 
-fn resting(anchor: Rectangle, size: Size, surface: Size, position: Position) -> Rectangle {
+fn resting(
+    anchor: Rectangle,
+    size: Size,
+    surface: Size,
+    position: Position,
+    bar_extent: f32,
+) -> Rectangle {
     let x = anchor.x.clamp(0.0, (surface.width - size.width).max(0.0));
     let y = match position {
-        Position::Top => BAR_GAP,
-        Position::Bottom => surface.height - size.height - BAR_GAP,
+        Position::Top => bar_extent + BAR_GAP,
+        Position::Bottom => surface.height - bar_extent - size.height - BAR_GAP,
     };
     Rectangle {
         x,
@@ -90,10 +98,15 @@ fn resting(anchor: Rectangle, size: Size, surface: Size, position: Position) -> 
     }
 }
 
-fn pinned_to_anchor(anchor: Rectangle, surface: Size, position: Position) -> Rectangle {
+fn pinned_to_anchor(
+    anchor: Rectangle,
+    surface: Size,
+    position: Position,
+    bar_extent: f32,
+) -> Rectangle {
     let y = match position {
-        Position::Top => BAR_GAP,
-        Position::Bottom => surface.height - BAR_GAP,
+        Position::Top => bar_extent + BAR_GAP,
+        Position::Bottom => surface.height - bar_extent - BAR_GAP,
     };
     Rectangle {
         x: anchor.center_x(),
@@ -208,7 +221,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
             .map(|(_, node)| node.size());
-        let at_anchor = pinned_to_anchor(self.anchor, surface, self.position);
+        let at_anchor = pinned_to_anchor(self.anchor, surface, self.position, self.bar_extent);
 
         let state: &mut MorphState = tree.state.downcast_mut();
         if state.seq != self.seq {
@@ -220,7 +233,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
             };
         }
         let target = arriving.map_or(at_anchor, |size| {
-            resting(self.anchor, size, surface, self.position)
+            resting(self.anchor, size, surface, self.position, self.bar_extent)
         });
         state.current = lerp(state.from, target, self.progress);
         let origin = state.current.position();

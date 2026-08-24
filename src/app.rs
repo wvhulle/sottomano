@@ -27,7 +27,7 @@ use crate::{
         bar::{float_margin, layer_settings, view},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
-        surface::{Position, Surface},
+        surface::{Margin, Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
     },
     widget_groups::{
@@ -445,8 +445,14 @@ impl Bar {
         match self.surfaces.get(&surface) {
             Some(parent) if !content.is_empty() => {
                 let parent = parent.clone();
-                self.tooltip
-                    .open(&parent, target, anchor, &self.outputs, departing)
+                self.tooltip.open(
+                    &parent,
+                    target,
+                    anchor,
+                    &self.outputs,
+                    departing,
+                    self.session.chrome.margin_offset_px(),
+                )
             }
             _ => Task::none(),
         }
@@ -690,12 +696,19 @@ impl Bar {
 
     fn remargin_surfaces(&self) -> Task<Message> {
         let offset = self.session.chrome.margin_offset_px();
-        Task::batch(self.surfaces.iter().map(|(&id, surface)| {
+        let bars = self.surfaces.iter().map(move |(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
                 margin: float_margin(surface.position, offset).edges(),
             })
-        }))
+        });
+        let tooltips = self.tooltip.surfaces().map(move |id| {
+            Task::done(Message::MarginChange {
+                id,
+                margin: Margin::uniform(offset).edges(),
+            })
+        });
+        Task::batch(bars.chain(tooltips))
     }
 
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {

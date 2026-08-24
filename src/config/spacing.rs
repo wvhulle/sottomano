@@ -14,7 +14,7 @@ impl Default for Spacing {
         Self {
             group_padding_px: 5.0,
             widget_spacing_px: 5.0,
-            group_spacing_px: 16.0,
+            group_spacing_px: 12.0,
         }
     }
 }
