@@ -19,7 +19,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::source_cell::SourceCell,
-    widgets::{flat_button, icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
+    widgets::{flat_button, pager_slot::permanently_inactive_slot, source_reading::source_reading},
 };
 
 #[derive(Default)]

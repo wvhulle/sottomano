@@ -16,8 +16,8 @@ use crate::{
     widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
-        icon_gauge::source_reading,
         menu_group::{MenuGroup, MenuMessage},
+        source_reading::source_reading,
     },
 };
 

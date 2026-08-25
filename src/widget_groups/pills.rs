@@ -7,7 +7,7 @@ use crate::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widgets::{icon_gauge::source_reading, pager_slot::permanently_inactive_slot},
+    widgets::{pager_slot::permanently_inactive_slot, source_reading::source_reading},
 };
 
 pub struct Pills<'w> {

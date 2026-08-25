@@ -41,6 +41,11 @@ use pipewire::{
     types::ObjectType,
 };
 use tokio::sync::watch;
+use tokio_stream::{StreamExt as _, wrappers::WatchStream};
+
+mod meter;
+
+pub use meter::Peaks;
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 
@@ -68,6 +73,7 @@ pub struct AudioState {
 pub enum AudioEvent {
     Connected(Commands),
     State(AudioState),
+    Peaks(Peaks),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -118,11 +124,12 @@ impl Commands {
 pub fn subscription() -> Subscription<AudioEvent> {
     Subscription::run_with("audio", |_| {
         channel(16, move |mut output: Sender<AudioEvent>| async move {
-            let (states, mut updates) = watch::channel(AudioState::default());
+            let (states, updates) = watch::channel(AudioState::default());
+            let (peaks, peak_updates) = watch::channel(Peaks::default());
             let (commands, requests) = command_channel::<Command>();
             if let Err(e) = thread::Builder::new()
                 .name("pipewire-audio".to_owned())
-                .spawn(move || run(&states, requests))
+                .spawn(move || run(&states, &peaks, requests))
             {
                 eprintln!("audio: pipewire thread spawn failed: {e}");
                 return;
@@ -131,9 +138,11 @@ pub fn subscription() -> Subscription<AudioEvent> {
             if output.send(connected).await.is_err() {
                 return;
             }
-            while updates.changed().await.is_ok() {
-                let state = updates.borrow_and_update().clone();
-                if output.send(AudioEvent::State(state)).await.is_err() {
+            let mut events = WatchStream::from_changes(updates)
+                .map(AudioEvent::State)
+                .merge(WatchStream::from_changes(peak_updates).map(AudioEvent::Peaks));
+            while let Some(event) = events.next().await {
+                if output.send(event).await.is_err() {
                     break;
                 }
             }
@@ -575,20 +584,30 @@ fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &Graph) {
     }
 }
 
-fn run(states: &watch::Sender<AudioState>, commands: CommandReceiver<Command>) {
+fn run(
+    states: &watch::Sender<AudioState>,
+    peaks: &watch::Sender<Peaks>,
+    commands: CommandReceiver<Command>,
+) {
     pipewire::init();
     let states = Rc::new(states.clone());
-    if let Err(e) = serve(&states, commands) {
+    if let Err(e) = serve(&states, peaks, commands) {
         eprintln!("audio: pipewire connect failed: {e}");
     }
     states.send_replace(AudioState::default());
+    peaks.send_replace(Peaks::default());
 }
 
-fn serve(states: &Publisher, commands: CommandReceiver<Command>) -> Result<(), pipewire::Error> {
+fn serve(
+    states: &Publisher,
+    peaks: &watch::Sender<Peaks>,
+    commands: CommandReceiver<Command>,
+) -> Result<(), pipewire::Error> {
     let main_loop = MainLoop::new(None)?;
     let context = Context::new(&main_loop)?;
     let core = context.connect(None)?;
     let registry = Rc::new(core.get_registry()?);
+    let _meters = meter::attach(&core, peaks);
     let session = Shared::default();
 
     let _attached = commands.attach(main_loop.loop_(), {
