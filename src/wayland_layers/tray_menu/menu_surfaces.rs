@@ -100,17 +100,11 @@ impl TrayMenuHost {
 }
 
 fn menu_settings(place: &MenuAnchor) -> NewLayerShellSettings {
-    let margin = Margin {
-        top: 0,
-        right: place.float_offset,
-        bottom: 0,
-        left: place.float_offset,
-    };
     NewLayerShellSettings {
         size: Some((0, 0)),
-        exclusive_zone: Some(0),
+        exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
-        margin: Some(margin.edges()),
+        margin: Some(Margin::uniform(place.float_offset).edges()),
         layer: Layer::Overlay,
         ..surface::base_settings(Some(&place.output), "vetrata-tray-menu")
     }
