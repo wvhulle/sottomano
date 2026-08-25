@@ -1,19 +1,15 @@
-use iced::{
-    Background, Border, Element, Length,
-    widget::{Space, container, mouse_area, stack},
-};
+use iced::{Background, Border, Element, Length, widget::container};
+use iced_layershell::actions::ActionCallback;
 
 use crate::{
     app::Message,
     config::Config,
     wayland_layers::tray_menu::{menu_placement::anchored_menu, menu_surfaces::OpenMenu},
     widget_groups::tray_group::TrayMessage,
-    widgets::context_menu::context_menu,
+    widgets::{context_menu::context_menu, overlay_shadow::overlay_shadow},
 };
 
 const MENU_WIDTH: f32 = 250.0;
-const MENU_PADDING: f32 = 6.0;
-const BORDER_ALPHA: f32 = 0.25;
 
 pub fn menu_content<'a>(open_menu: &OpenMenu, config: &'a Config) -> Element<'a, Message> {
     let entries = context_menu(
@@ -24,32 +20,34 @@ pub fn menu_content<'a>(open_menu: &OpenMenu, config: &'a Config) -> Element<'a,
         &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
     );
     let background = config.palette.popup_background();
+    let radius = f32::from(config.chrome.popup_radius_px);
     let menu = container(entries)
         .width(Length::Fixed(MENU_WIDTH))
-        .padding([MENU_PADDING, 0.0])
         .style(move |_| container::Style {
             background: Some(Background::Color(background)),
             border: Border {
-                color: config.palette.bar_foreground.scale_alpha(BORDER_ALPHA),
-                width: 1.0,
-                radius: f32::from(config.chrome.popup_radius_px).into(),
+                radius: radius.into(),
+                ..Default::default()
             },
+            shadow: overlay_shadow(1.0),
             ..Default::default()
         });
-    let dismiss = mouse_area(
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fill),
+    let surface = open_menu.surface;
+    anchored_menu(
+        menu,
+        open_menu.anchor_x,
+        open_menu.position,
+        config.chrome.outer_height_px + config.chrome.popup_gap_px,
+        move |bounds| Message::SetInputRegion {
+            id: surface,
+            callback: ActionCallback::new(move |region| {
+                region.add(
+                    bounds.x as i32,
+                    bounds.y as i32,
+                    bounds.width as i32,
+                    bounds.height as i32,
+                );
+            }),
+        },
     )
-    .on_press(Message::DismissPressed);
-    stack![
-        dismiss,
-        anchored_menu(
-            menu,
-            open_menu.anchor_x,
-            open_menu.position,
-            config.chrome.popup_gap_px
-        ),
-    ]
-    .into()
 }

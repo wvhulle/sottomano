@@ -18,7 +18,6 @@ use crate::{
 };
 
 const ROW_SPACING: f32 = 1.0;
-const ROW_RADIUS: f32 = 5.0;
 const ROW_PADDING: [f32; 2] = [5.0, 8.0];
 const SUBMENU_INDENT: f32 = 16.0;
 const DIVIDER_ALPHA: f32 = 0.3;
@@ -128,11 +127,12 @@ fn entry<'a, Message: Clone + 'a>(
             .push(chevron.glyph().size(icon_size * CHEVRON_SCALE).color(color));
     }
 
+    let radius = f32::from(config.chrome.popup_radius_px);
     let accent = config.palette.focus;
     let styled = button(row)
         .width(Length::Fill)
         .padding(ROW_PADDING)
-        .style(move |_theme, status| button_style(status, color, accent));
+        .style(move |_theme, status| button_style(status, color, accent, radius));
     if node.enabled {
         styled.on_press(message).into()
     } else {
@@ -140,14 +140,14 @@ fn entry<'a, Message: Clone + 'a>(
     }
 }
 
-fn button_style(status: button::Status, text: Color, accent: Color) -> button::Style {
+fn button_style(status: button::Status, text: Color, accent: Color, radius: f32) -> button::Style {
     let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
         .then(|| Background::Color(accent.scale_alpha(HOVER_ALPHA)));
     button::Style {
         background,
         text_color: text,
         border: Border {
-            radius: ROW_RADIUS.into(),
+            radius: radius.into(),
             ..Default::default()
         },
         ..Default::default()

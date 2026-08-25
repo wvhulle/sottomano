@@ -6,9 +6,10 @@ use iced::{
         Clipboard, Layout, Shell, Widget,
         layout::{Limits, Node},
         mouse, overlay, renderer,
-        widget::{Operation, Tree},
+        widget::{Operation, Tree, tree},
     },
     mouse::Cursor,
+    window,
 };
 
 use crate::{app::Message, wayland_layers::surface::Position};
@@ -17,13 +18,15 @@ pub fn anchored_menu<'a>(
     content: impl Into<Element<'a, Message>>,
     anchor_left: f32,
     position: Position,
-    edge_gap: f32,
+    edge_inset: f32,
+    on_bounds: impl Fn(Rectangle) -> Message + 'a,
 ) -> Element<'a, Message> {
     Element::new(AnchoredMenu {
         content: content.into(),
         anchor_left,
         position,
-        edge_gap,
+        edge_inset,
+        on_bounds: Box::new(on_bounds),
     })
 }
 
@@ -31,14 +34,18 @@ struct AnchoredMenu<'a> {
     content: Element<'a, Message>,
     anchor_left: f32,
     position: Position,
-    edge_gap: f32,
+    edge_inset: f32,
+    on_bounds: Box<dyn Fn(Rectangle) -> Message + 'a>,
 }
+
+#[derive(Default)]
+struct Published(Option<Rectangle>);
 
 impl AnchoredMenu<'_> {
     fn origin(&self, size: Size, surface: Size) -> Vector {
         let desired_y = match self.position {
-            Position::Top => self.edge_gap,
-            Position::Bottom => surface.height - size.height - self.edge_gap,
+            Position::Top => self.edge_inset,
+            Position::Bottom => surface.height - size.height - self.edge_inset,
         };
         Vector::new(
             self.anchor_left
@@ -49,6 +56,14 @@ impl AnchoredMenu<'_> {
 }
 
 impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredMenu<'_> {
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<Published>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(Published::default())
+    }
+
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
@@ -129,6 +144,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredMenu<'_> {
             shell,
             viewport,
         );
+        if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
+            return;
+        }
+        let bounds = layout.children().next().unwrap().bounds();
+        let published = tree.state.downcast_mut::<Published>();
+        if published.0 != Some(bounds) {
+            published.0 = Some(bounds);
+            shell.publish((self.on_bounds)(bounds));
+        }
     }
 
     fn mouse_interaction(
