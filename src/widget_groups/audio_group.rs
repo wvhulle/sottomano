@@ -6,7 +6,7 @@ use crate::{
     config::Config,
     data::source::{
         Tooltip,
-        audio::{self, AudioEvent, AudioState, Commands, Reading, Target, WindowAudio},
+        audio::{self, AudioEvent, AudioState, Commands, Peaks, Reading, Target, WindowAudio},
         font_awesome::{FontAwesome, Solid},
         row,
     },
@@ -99,6 +99,7 @@ impl AudioGroup {
 pub enum AudioMessage {
     Connected(Commands),
     State(AudioState),
+    Peaks(Peaks),
     Control(ControlKind, ControlMessage),
     Tooltip(TooltipMessage),
 }
@@ -108,6 +109,7 @@ impl AudioGroup {
         audio::subscription().map(|event| match event {
             AudioEvent::Connected(commands) => AudioMessage::Connected(commands),
             AudioEvent::State(state) => AudioMessage::State(state),
+            AudioEvent::Peaks(peaks) => AudioMessage::Peaks(peaks),
         })
     }
 
@@ -115,6 +117,7 @@ impl AudioGroup {
         match msg {
             AudioMessage::Connected(commands) => {
                 self.commands = Some(commands);
+                self.meter(Peaks::default());
                 Task::none()
             }
             AudioMessage::State(state) => {
@@ -125,9 +128,20 @@ impl AudioGroup {
                 feed(&mut self.source_control, self.source.as_ref());
                 Task::none()
             }
+            AudioMessage::Peaks(peaks) => {
+                self.meter(peaks);
+                Task::none()
+            }
             AudioMessage::Control(kind, m) => self.update_control(kind, m),
             AudioMessage::Tooltip(_) => Task::none(),
         }
+    }
+
+    fn meter(&mut self, peaks: Peaks) {
+        self.sink_control
+            .update(ControlMessage::Level(peaks.output));
+        self.source_control
+            .update(ControlMessage::Level(peaks.input));
     }
 
     fn update_control(&mut self, kind: ControlKind, m: ControlMessage) -> Task<AudioMessage> {

@@ -234,6 +234,10 @@ pub trait BarWidget {
         None
     }
 
+    fn live_fraction(&self) -> f32 {
+        1.0
+    }
+
     fn disabled(&self) -> bool {
         false
     }

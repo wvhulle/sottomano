@@ -6,7 +6,7 @@ use crate::{
     message_subscriptions::{blocking, poll_arg},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widget_groups::source_cell::SourceCell,
-    widgets::{flat_button, icon_gauge::source_reading},
+    widgets::{flat_button, source_reading::source_reading},
 };
 
 pub trait Toggle: ApiSource {

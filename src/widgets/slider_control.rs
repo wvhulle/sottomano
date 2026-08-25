@@ -17,9 +17,9 @@ use crate::{
     widget_groups::scroll::scroll_step,
     widgets::{
         flat_button,
-        icon_gauge::source_reading,
         inline_slider::inline_slider,
         reveal::reveal_x,
+        source_reading::source_reading,
         text::bar_text,
         tracked::{Nudge, Tracked, Write},
     },
@@ -33,6 +33,7 @@ pub struct SliderControl {
     accum: f32,
     value: Tracked,
     disabled: bool,
+    live: f32,
     caption: Option<String>,
     range: RangeInclusive<f32>,
     scroll_step: f32,
@@ -86,6 +87,7 @@ pub enum ControlMessage {
     Confirmed { value: f32, ok: bool },
     Adjusted(Option<f32>),
     Reading(f32),
+    Level(f32),
     Disabled(bool),
     Caption(Option<String>),
     Right,
@@ -119,6 +121,7 @@ impl SliderControl {
             accum: 0.0,
             value: Tracked::default(),
             disabled: false,
+            live: 1.0,
             caption: None,
             range,
             scroll_step: 1.0,
@@ -257,6 +260,10 @@ impl SliderControl {
                 self.value.sync(reading);
                 Action::None
             }
+            ControlMessage::Level(level) => {
+                self.live = level;
+                Action::None
+            }
             ControlMessage::Disabled(disabled) => {
                 self.disabled = disabled;
                 Action::None
@@ -351,6 +358,10 @@ impl BarWidget for SliderControl {
             percent: self.current().round() as i64,
             unit: Unit::Percent,
         })
+    }
+
+    fn live_fraction(&self) -> f32 {
+        self.live
     }
 
     fn disabled(&self) -> bool {

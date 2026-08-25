@@ -1,12 +1,12 @@
 use iced::{
-    Alignment, Border, Color, Element,
-    widget::{Row, progress_bar, row, svg, text},
+    Alignment, Color, Element,
+    widget::{Row, row, svg, text},
 };
 
 use crate::{
     config::Config,
     data::source::{BarWidget, Glyph, font_awesome::Solid, level_color},
-    widgets::text::bar_text,
+    widgets::{gauge::Gauge, text::bar_text},
 };
 
 pub fn source_reading<'a, Message: 'a>(
@@ -50,7 +50,8 @@ pub fn source_reading<'a, Message: 'a>(
     let reading = match widget.value() {
         Some(value) => row![
             icon,
-            gauge(value.percent(), color, config.font.icon_size_px)
+            Gauge::new(value.percent(), color, config.font.icon_size_px)
+                .live(widget.live_fraction())
         ]
         .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center)
@@ -88,17 +89,4 @@ fn badged<'a, Message: 'a>(
         }
         _ => reading,
     }
-}
-
-fn gauge<'a, Message: 'a>(percent: i64, color: Color, height: f32) -> Element<'a, Message> {
-    progress_bar(0.0..=100.0, percent as f32)
-        .vertical()
-        .girth(3.0)
-        .length(height)
-        .style(move |_| progress_bar::Style {
-            background: color.scale_alpha(0.27).into(),
-            bar: color.into(),
-            border: Border::default().rounded(1.0),
-        })
-        .into()
 }
