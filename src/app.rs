@@ -54,10 +54,7 @@ use crate::{
         },
         workspaces_group::workspace_tooltip,
     },
-    widgets::{
-        idle::{IdleEvent, IdleHandle},
-        menu_group::MenuGroup,
-    },
+    widgets::menu_group::MenuGroup,
 };
 
 pub struct Bar {
@@ -109,7 +106,6 @@ pub enum Message {
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
-    Idle(IdleEvent),
     PanelLoaded(Session),
     SoundThemeLoaded(Option<String>),
     Audio(AudioMessage),
@@ -224,7 +220,6 @@ impl Bar {
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
-            Message::Idle(IdleEvent::Connected(handle)) => self.connect_idle_notifier(handle),
             Message::SoundThemeLoaded(theme) => self.adopt_sound_theme(theme),
             Message::PanelLoaded(session) => self.apply_saved_panel_settings(session),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
@@ -285,12 +280,6 @@ impl Bar {
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
         self.idle_timeouts_group
             .update(msg)
-            .map(Message::IdleTimeouts)
-    }
-
-    fn connect_idle_notifier(&mut self, handle: IdleHandle) -> Task<Message> {
-        self.idle_timeouts_group
-            .connected(handle)
             .map(Message::IdleTimeouts)
     }
 

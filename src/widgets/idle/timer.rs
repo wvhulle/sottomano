@@ -9,7 +9,9 @@ use crate::{
     wayland_layers::tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},
-        idle::{Arm, IdleAction, MAX_POSITION, from_position, label_at, label_for, position},
+        idle::{
+            IdleAction, IdleTrigger, MAX_POSITION, from_position, label_at, label_for, position,
+        },
         slider_control::{Action, ControlMessage, SliderControl},
     },
 };
@@ -65,9 +67,9 @@ impl IdleTimer {
         self.control.is_animating()
     }
 
-    pub fn arm(&self) -> Option<Arm> {
-        self.timeout.map(|timeout| Arm {
-            timeout,
+    pub fn trigger(&self) -> Option<IdleTrigger> {
+        self.timeout.map(|after| IdleTrigger {
+            after,
             action: self.action,
         })
     }

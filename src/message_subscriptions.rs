@@ -38,7 +38,7 @@ use crate::{
         power_profile_group::PowerProfileGroup, system_group::SystemGroup, tray_group::TrayGroup,
         weather_group::WeatherGroup, window_group::WindowGroup,
     },
-    widgets::idle,
+    widgets::idle::{self, IdleTrigger},
 };
 
 const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
@@ -77,7 +77,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
             .map(Message::ColorTemperature),
         MediaGroup::subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
-        idle::subscription().map(Message::Idle),
+        idle_subscription(state),
         locker_subscription(state),
         AudioGroup::subscription().map(Message::Audio),
         PowerProfileGroup::subscription().map(Message::PowerProfile),
@@ -182,6 +182,18 @@ fn locker_subscription(state: &Bar) -> Subscription<Message> {
         |(_, locker): &(&str, Locker)| {
             let locker = locker.clone();
             channel(1, |_output: Sender<Message>| logind::run_locker(locker))
+        },
+    )
+}
+
+fn idle_subscription(state: &Bar) -> Subscription<Message> {
+    Subscription::run_with(
+        ("idle", state.idle_timeouts_group.triggers()),
+        |(_, triggers): &(&str, Vec<IdleTrigger>)| {
+            let triggers = triggers.clone();
+            channel(1, |_output: Sender<Message>| {
+                idle::perform_when_idle(triggers)
+            })
         },
     )
 }
