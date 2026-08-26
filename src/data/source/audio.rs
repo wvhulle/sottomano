@@ -40,7 +40,7 @@ use pipewire::{
     },
     types::ObjectType,
 };
-use tokio::sync::watch;
+use tokio::{sync::watch, time::sleep};
 use tokio_stream::{StreamExt as _, wrappers::WatchStream};
 
 mod meter;
@@ -48,6 +48,7 @@ mod meter;
 pub use meter::Peaks;
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
+const PIPEWIRE_RETRY_DELAY: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
@@ -124,30 +125,37 @@ impl Commands {
 pub fn subscription() -> Subscription<AudioEvent> {
     Subscription::run_with("audio", |_| {
         channel(16, move |mut output: Sender<AudioEvent>| async move {
-            let (states, updates) = watch::channel(AudioState::default());
-            let (peaks, peak_updates) = watch::channel(Peaks::default());
-            let (commands, requests) = command_channel::<Command>();
-            if let Err(e) = thread::Builder::new()
-                .name("pipewire-audio".to_owned())
-                .spawn(move || run(&states, &peaks, requests))
-            {
-                eprintln!("audio: pipewire thread spawn failed: {e}");
-                return;
-            }
-            let connected = AudioEvent::Connected(Commands { sender: commands });
-            if output.send(connected).await.is_err() {
-                return;
-            }
-            let mut events = WatchStream::from_changes(updates)
-                .map(AudioEvent::State)
-                .merge(WatchStream::from_changes(peak_updates).map(AudioEvent::Peaks));
-            while let Some(event) = events.next().await {
-                if output.send(event).await.is_err() {
-                    break;
-                }
+            loop {
+                serve_until_pipewire_stops(&mut output).await;
+                sleep(PIPEWIRE_RETRY_DELAY).await;
             }
         })
     })
+}
+
+async fn serve_until_pipewire_stops(output: &mut Sender<AudioEvent>) {
+    let (states, updates) = watch::channel(AudioState::default());
+    let (peaks, peak_updates) = watch::channel(Peaks::default());
+    let (commands, requests) = command_channel::<Command>();
+    if let Err(e) = thread::Builder::new()
+        .name("pipewire-audio".to_owned())
+        .spawn(move || run(&states, &peaks, requests))
+    {
+        eprintln!("audio: pipewire thread spawn failed: {e}");
+        return;
+    }
+    let connected = AudioEvent::Connected(Commands { sender: commands });
+    if output.send(connected).await.is_err() {
+        return;
+    }
+    let mut events = WatchStream::from_changes(updates)
+        .map(AudioEvent::State)
+        .merge(WatchStream::from_changes(peak_updates).map(AudioEvent::Peaks));
+    while let Some(event) = events.next().await {
+        if output.send(event).await.is_err() {
+            return;
+        }
+    }
 }
 
 struct Command {
