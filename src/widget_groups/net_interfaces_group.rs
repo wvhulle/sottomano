@@ -2,21 +2,24 @@ use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip,
-        net_interfaces::{
-            bluetooth::{self, Bluetooth},
-            ethernet::{self, Ethernet},
-            mobile::{self, Mobile},
-            wifi::{self, Wifi},
+    data::{
+        source::{
+            Tooltip,
+            net_interfaces::{
+                bluetooth::{self, Bluetooth},
+                ethernet::{self, Ethernet},
+                mobile::{self, Mobile},
+                wifi::{self, Wifi},
+            },
         },
+        source_cell::SourceCell,
     },
     message_subscriptions::dbus,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::{pills::Pills, source_cell::SourceCell},
+    widgets::reading_row::{Reading, ReadingRow},
 };
 
 #[derive(Default)]
@@ -72,11 +75,14 @@ impl NetInterfacesGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, NetInterfacesMessage>> {
-        Pills::new()
-            .push(self.bluetooth.display(), HoverTarget::Bluetooth)
-            .push(self.ethernet.display(), HoverTarget::Ethernet)
-            .push(self.wifi.display(), HoverTarget::Wifi)
-            .push(self.mobile.display(), HoverTarget::Mobile)
+        ReadingRow::new()
+            .push(Reading::new(
+                self.bluetooth.display(),
+                HoverTarget::Bluetooth,
+            ))
+            .push(Reading::new(self.ethernet.display(), HoverTarget::Ethernet))
+            .push(Reading::new(self.wifi.display(), HoverTarget::Wifi))
+            .push(Reading::new(self.mobile.display(), HoverTarget::Mobile))
             .slot(config, position, NetInterfacesMessage::Tooltip)
     }
 }

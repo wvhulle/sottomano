@@ -5,18 +5,21 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip,
-        weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
+    data::{
+        source::{
+            Tooltip,
+            weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
+        },
+        source_cell::SourceCell,
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
+        reading_row::{Reading, ReadingRow},
         source_reading::source_reading,
     },
 };
@@ -96,12 +99,12 @@ impl WeatherGroup {
         .into();
 
         let reveal = self.menu.reveal();
-        let content = Pills::new()
+        let content = ReadingRow::new()
             .opacity(reveal)
-            .push(self.location.display(), HoverTarget::Location)
-            .push(self.rain.display(), HoverTarget::WeatherRain)
-            .push(self.birch.display(), HoverTarget::PollenBirch)
-            .push(self.grass.display(), HoverTarget::PollenGrass)
+            .push(Reading::new(self.location.display(), HoverTarget::Location))
+            .push(Reading::new(self.rain.display(), HoverTarget::WeatherRain))
+            .push(Reading::new(self.birch.display(), HoverTarget::PollenBirch))
+            .push(Reading::new(self.grass.display(), HoverTarget::PollenGrass))
             .row(config, WeatherMessage::Tooltip)
             .unwrap_or_else(Row::new);
 

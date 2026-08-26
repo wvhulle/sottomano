@@ -7,18 +7,20 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     config::Config,
-    data::source::{
-        BarWidget, Tooltip, journal,
-        kernel_errors::KernelErrors,
-        niri,
-        systemd_failed::{Failed, JournalScope, System, User},
+    data::{
+        source::{
+            BarWidget, Tooltip, journal,
+            kernel_errors::KernelErrors,
+            niri,
+            systemd_failed::{Failed, JournalScope, System, User},
+        },
+        source_cell::SourceCell,
     },
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widget_groups::source_cell::SourceCell,
     widgets::{flat_button, pager_slot::permanently_inactive_slot, source_reading::source_reading},
 };
 

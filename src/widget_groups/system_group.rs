@@ -5,19 +5,22 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{
-        BarWidget, Tooltip,
-        disk::{self, Disk},
-        sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
+    data::{
+        source::{
+            BarWidget, Tooltip,
+            disk::{self, Disk},
+            sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
+        },
+        source_cell::SourceCell,
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
+        reading_row::{Reading, ReadingRow},
         source_reading::source_reading,
     },
 };
@@ -103,11 +106,14 @@ impl SystemGroup {
             .into();
 
         let reveal = self.menu.reveal();
-        let content = Pills::new()
+        let content = ReadingRow::new()
             .opacity(reveal)
-            .push(self.temperature.display(), HoverTarget::Temperature)
-            .push(self.memory.display(), HoverTarget::Memory)
-            .push(self.disk.display(), HoverTarget::Disk)
+            .push(Reading::new(
+                self.temperature.display(),
+                HoverTarget::Temperature,
+            ))
+            .push(Reading::new(self.memory.display(), HoverTarget::Memory))
+            .push(Reading::new(self.disk.display(), HoverTarget::Disk))
             .row(config, SystemMessage::Tooltip)
             .unwrap_or_else(Row::new);
 

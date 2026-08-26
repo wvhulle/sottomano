@@ -14,7 +14,6 @@ use crate::{
     data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
-    widget_groups::scroll::scroll_step,
     widgets::{
         flat_button,
         inline_slider::inline_slider,
@@ -26,6 +25,31 @@ use crate::{
 };
 
 const EXPAND: Duration = Duration::from_millis(90);
+const PIXELS_PER_SCROLL_STEP: f32 = 40.0;
+
+fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
+    match delta {
+        ScrollDelta::Lines { y, .. } => {
+            if y > 0.0 {
+                Some(1)
+            } else if y < 0.0 {
+                Some(-1)
+            } else {
+                None
+            }
+        }
+        ScrollDelta::Pixels { y, .. } => {
+            *accum += y;
+            if accum.abs() >= PIXELS_PER_SCROLL_STEP {
+                let step = if *accum > 0.0 { 1 } else { -1 };
+                *accum = 0.0;
+                Some(step)
+            } else {
+                None
+            }
+        }
+    }
+}
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct SliderControl {
@@ -240,7 +264,7 @@ impl SliderControl {
                 }
             }
             ControlMessage::Scroll(delta) => {
-                let Some(step) = scroll_step(&mut self.accum, delta) else {
+                let Some(step) = scroll_direction(&mut self.accum, delta) else {
                     return Action::None;
                 };
                 #[allow(clippy::cast_precision_loss)]

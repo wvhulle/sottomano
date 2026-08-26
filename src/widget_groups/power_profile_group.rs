@@ -4,17 +4,19 @@ use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip, TooltipBody, bus,
-        power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
-        row,
+    data::{
+        source::{
+            Tooltip, TooltipBody, bus,
+            power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
+            row,
+        },
+        source_cell::SourceCell,
     },
     state::power,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::source_cell::SourceCell,
     widgets::{
         pager_slot::permanently_inactive_slot,
         slider_control::{Action, ControlMessage, SliderControl},

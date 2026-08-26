@@ -5,24 +5,27 @@ use iced::{
 
 use crate::{
     config::{Config, SecretPaths},
-    data::source::{
-        ApiSource, Tooltip,
-        ai::{
-            claude::{self, ClaudeCcusage, ClaudeOauth},
-            copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
-            openrouter::{self, OpenRouter},
+    data::{
+        source::{
+            ApiSource, Tooltip,
+            ai::{
+                claude::{self, ClaudeCcusage, ClaudeOauth},
+                copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
+                openrouter::{self, OpenRouter},
+            },
+            font_awesome::Solid,
         },
-        font_awesome::Solid,
+        source_cell::SourceCell,
     },
     message_subscriptions::poll_arg,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::{pills::Pills, source_cell::SourceCell},
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
+        reading_row::{Reading, ReadingRow},
     },
 };
 
@@ -132,20 +135,35 @@ impl AiGroup {
 
     pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, AiMessage>> {
         let reveal = self.menu.reveal();
-        let pills = Pills::new()
+        let readings = ReadingRow::new()
             .opacity(reveal)
-            .push(self.claude_oauth.display(), HoverTarget::AiClaudeOauth)
-            .push(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage)
-            .push(
+            .push(Reading::new(
+                self.claude_oauth.display(),
+                HoverTarget::AiClaudeOauth,
+            ))
+            .push(Reading::new(
+                self.claude_ccusage.display(),
+                HoverTarget::AiClaudeCcusage,
+            ))
+            .push(Reading::new(
                 self.copilot_metered.display(),
                 HoverTarget::AiCopilotMetered,
-            )
-            .push(self.copilot_free.display(), HoverTarget::AiCopilotFree)
-            .push(self.copilot_cli.display(), HoverTarget::AiCopilotCli)
-            .push(self.openrouter.display(), HoverTarget::AiOpenRouter)
+            ))
+            .push(Reading::new(
+                self.copilot_free.display(),
+                HoverTarget::AiCopilotFree,
+            ))
+            .push(Reading::new(
+                self.copilot_cli.display(),
+                HoverTarget::AiCopilotCli,
+            ))
+            .push(Reading::new(
+                self.openrouter.display(),
+                HoverTarget::AiOpenRouter,
+            ))
             .row(config, AiMessage::Tooltip);
 
-        if !self.configured() && pills.is_none() {
+        if !self.configured() && readings.is_none() {
             return None;
         }
 
@@ -154,7 +172,7 @@ impl AiGroup {
             .style(flat_button(config.palette.bar_foreground))
             .on_press(AiMessage::Menu(MenuMessage::Toggle))
             .into();
-        let content = pills.unwrap_or_else(Row::new);
+        let content = readings.unwrap_or_else(Row::new);
         Some(self.menu.view(
             config,
             position,
