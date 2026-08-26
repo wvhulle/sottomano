@@ -1,26 +1,29 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     marker::PhantomData,
+    sync::Arc,
     time::Duration,
 };
 
-use serde_json::Value as Json;
+use serde::Deserialize;
 use situo_client::{Fix, Locate, Source as FixSource};
 use zbus::Connection as SessionBus;
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, Row, Source, TooltipBody, Unit, Value,
+    BarWidget, Glyph, Level, Occasional, Row, Source, TooltipBody, Unit, Value,
     font_awesome::{FontAwesome, Solid},
     http,
     net_interfaces::group,
     row,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Error {
     Bus(String),
     Locate(String),
+    NoFix,
     Fetch(http::Error),
+    Decode(Arc<serde_json::Error>),
     Malformed,
 }
 
@@ -29,7 +32,9 @@ impl Display for Error {
         match self {
             Error::Bus(detail) => write!(f, "session bus: {detail}"),
             Error::Locate(detail) => write!(f, "geolocation: {detail}"),
+            Error::NoFix => write!(f, "no location fix"),
             Error::Fetch(error) => write!(f, "{error}"),
+            Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Malformed => write!(f, "unexpected response shape"),
         }
     }
@@ -47,13 +52,82 @@ impl From<http::Error> for Error {
     }
 }
 
-async fn located() -> Result<Option<Fix>, Error> {
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Error::Decode(Arc::new(error))
+    }
+}
+
+#[derive(Deserialize)]
+struct Forecast {
+    current: CurrentWeather,
+    daily: DailyWeather,
+}
+
+#[derive(Deserialize)]
+struct CurrentWeather {
+    temperature_2m: f64,
+    apparent_temperature: f64,
+    relative_humidity_2m: f64,
+    wind_speed_10m: f64,
+    weather_code: i64,
+}
+
+#[derive(Deserialize)]
+struct DailyWeather {
+    temperature_2m_max: Vec<f64>,
+    temperature_2m_min: Vec<f64>,
+}
+
+#[derive(Deserialize)]
+struct AirQuality {
+    current: PollenReadings,
+}
+
+#[derive(Deserialize)]
+pub struct PollenReadings {
+    #[serde(rename = "alder_pollen")]
+    alder: f64,
+    #[serde(rename = "birch_pollen")]
+    birch: f64,
+    #[serde(rename = "grass_pollen")]
+    grass: f64,
+    #[serde(rename = "mugwort_pollen")]
+    mugwort: f64,
+    #[serde(rename = "olive_pollen")]
+    olive: f64,
+    #[serde(rename = "ragweed_pollen")]
+    ragweed: f64,
+}
+
+impl PollenReadings {
+    fn all(&self) -> Vec<(&'static str, f64)> {
+        vec![
+            ("Alder", self.alder),
+            ("Birch", self.birch),
+            ("Grass", self.grass),
+            ("Mugwort", self.mugwort),
+            ("Olive", self.olive),
+            ("Ragweed", self.ragweed),
+        ]
+    }
+}
+
+fn today(values: &[f64]) -> Result<f64, Error> {
+    values.first().copied().ok_or(Error::Malformed)
+}
+
+async fn located() -> Result<Fix, Error> {
     let fix = SessionBus::session()
         .await?
         .locate()
         .await
         .map_err(|error| Error::Locate(error.to_string()))?;
-    Ok(Some(fix).filter(|fix| fix.valid))
+    if fix.valid {
+        Ok(fix)
+    } else {
+        Err(Error::NoFix)
+    }
 }
 
 struct Wmo {
@@ -81,10 +155,6 @@ fn wmo(code: i64) -> Wmo {
         _ => (Solid::CloudSun.into(), "Unknown"),
     };
     Wmo { icon, description }
-}
-
-fn number(json: Option<&Json>) -> Option<f64> {
-    json.and_then(Json::as_f64)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -138,41 +208,29 @@ impl BarWidget for Temperature {
 impl Source for Temperature {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "weather-temp";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
-        let Some(geo) = located().await? else {
-            return Ok(None);
-        };
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        let geo = located().await?;
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
             geo.latitude, geo.longitude
         );
-        let body = http::get_text(&url, 10).await?;
-        let json: Json = serde_json::from_str(&body).map_err(|_| Error::Malformed)?;
-        let current = json.get("current").ok_or(Error::Malformed)?;
-        let daily_first = |key: &str| {
-            number(
-                json.get("daily")
-                    .and_then(|daily| daily.get(key))
-                    .and_then(|values| values.get(0)),
-            )
-        };
-        let wmo = wmo(current
-            .get("weather_code")
-            .and_then(Json::as_i64)
-            .unwrap_or(-1));
-        Ok(Some(Temperature {
+        let forecast: Forecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let wmo = wmo(forecast.current.weather_code);
+        Ok(Temperature {
             icon: wmo.icon,
             conditions: wmo.description,
-            temp: number(current.get("temperature_2m")).ok_or(Error::Malformed)?,
-            feels: number(current.get("apparent_temperature")).ok_or(Error::Malformed)?,
-            temp_min: daily_first("temperature_2m_min").ok_or(Error::Malformed)?,
-            temp_max: daily_first("temperature_2m_max").ok_or(Error::Malformed)?,
-            humidity: number(current.get("relative_humidity_2m")).ok_or(Error::Malformed)?,
-            wind: number(current.get("wind_speed_10m")).ok_or(Error::Malformed)?,
-        }))
+            temp: forecast.current.temperature_2m,
+            feels: forecast.current.apparent_temperature,
+            temp_min: today(&forecast.daily.temperature_2m_min)?,
+            temp_max: today(&forecast.daily.temperature_2m_max)?,
+            humidity: forecast.current.relative_humidity_2m,
+            wind: forecast.current.wind_speed_10m,
+        })
     }
 }
 
@@ -229,27 +287,24 @@ impl BarWidget for Rain {
 impl Source for Rain {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "weather-rain";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
-        let Some(geo) = located().await? else {
-            return Ok(None);
-        };
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        let geo = located().await?;
         let url = format!(
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
             geo.latitude, geo.longitude
         );
         let body = http::get_text(&url, 5).await?;
         let forecast: Vec<Downpour> = body.lines().filter_map(downpour).collect();
-        let Some(peak) = forecast
+        let peak = forecast
             .iter()
             .max_by(|earlier, later| earlier.mm_per_h.total_cmp(&later.mm_per_h))
-            .filter(|peak| peak.mm_per_h > 0.0)
             .cloned()
-        else {
-            return Ok(None);
-        };
+            .ok_or(Error::Malformed)?;
         let icon = if peak.mm_per_h < 0.5 {
             Solid::Droplet.into()
         } else if peak.mm_per_h < 2.5 {
@@ -259,28 +314,26 @@ impl Source for Rain {
         } else {
             Solid::CloudBolt.into()
         };
-        Ok(Some(Rain {
+        Ok(Rain {
             icon,
             mm_per_h: forecast.first().map_or(0.0, |now| now.mm_per_h),
             peak,
-        }))
+        })
     }
 }
 
-const SPECIES: [(&str, &str); 6] = [
-    ("alder_pollen", "Alder"),
-    ("birch_pollen", "Birch"),
-    ("grass_pollen", "Grass"),
-    ("mugwort_pollen", "Mugwort"),
-    ("olive_pollen", "Olive"),
-    ("ragweed_pollen", "Ragweed"),
-];
+impl Occasional for Rain {
+    fn present(&self) -> bool {
+        self.peak.mm_per_h > 0.0
+    }
+}
 
 pub trait Allergen {
     const SOURCE_NAME: &'static str;
-    const KEY: &'static str;
     const ICON: Solid;
     const THRESHOLDS: [f64; 3];
+
+    fn concentration(readings: &PollenReadings) -> f64;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -288,9 +341,12 @@ pub struct Grass;
 
 impl Allergen for Grass {
     const SOURCE_NAME: &'static str = "pollen-grass";
-    const KEY: &'static str = "grass_pollen";
     const ICON: Solid = Solid::Seedling;
     const THRESHOLDS: [f64; 3] = [20.0, 50.0, 80.0];
+
+    fn concentration(readings: &PollenReadings) -> f64 {
+        readings.grass
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -298,9 +354,12 @@ pub struct Birch;
 
 impl Allergen for Birch {
     const SOURCE_NAME: &'static str = "pollen-birch";
-    const KEY: &'static str = "birch_pollen";
     const ICON: Solid = Solid::Tree;
     const THRESHOLDS: [f64; 3] = [10.0, 45.0, 100.0];
+
+    fn concentration(readings: &PollenReadings) -> f64 {
+        readings.birch
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -355,41 +414,29 @@ impl<A: Allergen> BarWidget for Pollen<A> {
 impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<A> {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = A::SOURCE_NAME;
     const INTERVAL: Duration = Duration::from_mins(30);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
-        let Some(geo) = located().await? else {
-            return Ok(None);
-        };
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        let geo = located().await?;
         let url = format!(
             "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
             geo.latitude, geo.longitude
         );
-        let body = http::get_text(&url, 10).await?;
-        let current = serde_json::from_str::<Json>(&body)
-            .map_err(|_| Error::Malformed)?
-            .get("current")
-            .cloned()
-            .ok_or(Error::Malformed)?;
-        let all: Vec<(&'static str, f64)> = SPECIES
-            .iter()
-            .map(|(key, label)| {
-                (
-                    *label,
-                    current.get(*key).and_then(Json::as_f64).unwrap_or(0.0),
-                )
-            })
-            .collect();
-        let value = current.get(A::KEY).and_then(Json::as_f64).unwrap_or(0.0);
-        if value <= 0.0 {
-            return Ok(None);
-        }
-        Ok(Some(Pollen {
-            value,
-            all,
+        let air: AirQuality = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        Ok(Pollen {
+            value: A::concentration(&air.current),
+            all: air.current.all(),
             allergen: PhantomData,
-        }))
+        })
+    }
+}
+
+impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Occasional for Pollen<A> {
+    fn present(&self) -> bool {
+        self.value > 0.0
     }
 }
 
@@ -443,10 +490,85 @@ impl BarWidget for Location {
 impl Source for Location {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "geolocation";
     const INTERVAL: Duration = Duration::from_mins(30);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
-        Ok(located().await?.map(|geo| Location { geo }))
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        Ok(Location {
+            geo: located().await?,
+        })
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FORECAST: &str = r#"{
+        "current": {
+            "time": "2026-08-27T10:30", "interval": 900,
+            "temperature_2m": 20.4, "weather_code": 3,
+            "relative_humidity_2m": 75, "wind_speed_10m": 15.5,
+            "apparent_temperature": 20.2
+        },
+        "daily": {
+            "time": ["2026-08-27"],
+            "temperature_2m_max": [28.4], "temperature_2m_min": [18.5]
+        }
+    }"#;
+
+    const AIR_QUALITY: &str = r#"{
+        "current": {
+            "time": "2026-08-27T10:00", "interval": 3600,
+            "alder_pollen": 0.0, "birch_pollen": 0.0, "grass_pollen": 0.3,
+            "mugwort_pollen": 0.7, "olive_pollen": 0.0, "ragweed_pollen": 0.7
+        }
+    }"#;
+
+    #[test]
+    fn forecast_decodes_integer_humidity_and_weather_code() {
+        let forecast: Forecast = serde_json::from_str(FORECAST).unwrap();
+        assert!((forecast.current.relative_humidity_2m - 75.0).abs() < f64::EPSILON);
+        assert_eq!(forecast.current.weather_code, 3);
+        assert!((today(&forecast.daily.temperature_2m_max).unwrap() - 28.4).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn empty_daily_series_is_malformed() {
+        assert!(today(&[]).is_err());
+    }
+
+    #[test]
+    fn allergens_select_their_own_species() {
+        let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
+        assert!((Grass::concentration(&air.current) - 0.3).abs() < f64::EPSILON);
+        assert!((Birch::concentration(&air.current) - 0.0).abs() < f64::EPSILON);
+        assert_eq!(air.current.all().len(), 6);
+    }
+
+    #[test]
+    fn pollen_below_threshold_is_not_present() {
+        let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
+        let birch: Pollen<Birch> = Pollen {
+            value: Birch::concentration(&air.current),
+            all: air.current.all(),
+            allergen: PhantomData,
+        };
+        assert!(!birch.present());
+    }
+
+    #[test]
+    fn rain_peak_drives_presence() {
+        let dry = Rain {
+            icon: Solid::Droplet.into(),
+            mm_per_h: 0.0,
+            peak: Downpour {
+                mm_per_h: 0.0,
+                at: "09:15".to_owned(),
+            },
+        };
+        assert!(!dry.present());
+        assert!(downpour("087|09:10").is_some());
     }
 }

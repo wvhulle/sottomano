@@ -85,27 +85,29 @@ impl BarWidget for Disk {
 impl Source for Disk {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "disk";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_root_statvfs)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_root_statvfs() -> Result<Option<Disk>, Error> {
+fn read_root_statvfs() -> Result<Disk, Error> {
     let mut stat = unsafe { zeroed::<libc::statvfs>() };
     let rc = unsafe { libc::statvfs(c"/".as_ptr(), &raw mut stat) };
     if rc != 0 {
         return Err(Error::Statvfs(errno()));
     }
     let frsize = stat.f_frsize as u64;
-    Ok(Some(Disk {
+    Ok(Disk {
         total_bytes: stat.f_blocks as u64 * frsize,
         free_bytes: stat.f_bavail as u64 * frsize,
-    }))
+    })
 }
 
 fn errno() -> i32 {

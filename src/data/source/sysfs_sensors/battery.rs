@@ -1,8 +1,11 @@
-use std::time::Duration;
+use std::{
+    future::{Future, ready},
+    time::Duration,
+};
 
 use tokio::task::spawn_blocking;
 
-use super::{Error, energy_wh, first_power_supply, parse_field, read_field};
+use super::{Error, POWER_SUPPLY, energy_wh, first_power_supply, parse_field, read_field};
 use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
@@ -80,23 +83,28 @@ impl BarWidget for Battery {
 impl Source for Battery {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "battery";
     const INTERVAL: Duration = Duration::from_secs(30);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    fn available(_key: &()) -> impl Future<Output = bool> + Send {
+        ready(first_power_supply("BAT").is_some())
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_battery)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_battery() -> Result<Option<Battery>, Error> {
-    let Some(dir) = first_power_supply("BAT") else {
-        return Ok(None);
-    };
-    Ok(Some(Battery {
+fn read_battery() -> Result<Battery, Error> {
+    let dir =
+        first_power_supply("BAT").ok_or_else(|| Error::Unreadable(POWER_SUPPLY.to_owned()))?;
+    Ok(Battery {
         capacity: parse_field(&dir.join("capacity"))?,
         status: ChargeStatus::parse(&read_field(&dir.join("status"))?),
         energy_wh: energy_wh(&dir),
-    }))
+    })
 }

@@ -8,15 +8,16 @@ use iced::{
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
-            Tooltip, TooltipBody, bus,
+            Source, Tooltip, TooltipBody, bus,
             font_awesome::Solid,
             gamma::{self, Gamma},
             row,
             screen_temperature::{self, SunFollow},
         },
-        source_cell::SourceCell,
     },
+    message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
@@ -36,17 +37,19 @@ const WARMTH_STEP: f32 = 100.0;
 
 pub struct ColorTemperatureGroup {
     unit: String,
-    gamma: SourceCell<Gamma>,
+    gamma: LastPoll<Gamma>,
     dim: SliderControl,
     warmth: SliderControl,
     auto: ToggleControl<SunFollow>,
+    relay: bool,
     pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
 pub enum ColorTemperatureMessage {
     Menu(MenuMessage),
-    Gamma(Result<Option<Gamma>, bus::Error>),
+    Relay(bool),
+    Gamma(Result<Gamma, bus::Error>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
     Auto(ToggleMessage<SunFollow>),
@@ -57,7 +60,7 @@ impl ColorTemperatureGroup {
     pub fn new(unit: String) -> Self {
         Self {
             unit,
-            gamma: SourceCell::default(),
+            gamma: LastPoll::default(),
             dim: SliderControl::new(
                 PERCENT,
                 HoverTarget::GammaDim,
@@ -76,14 +79,28 @@ impl ColorTemperatureGroup {
             .readout(|value| format!("{}K", as_kelvin(value)))
             .label(|value| format!("{}K", as_kelvin(value))),
             auto: ToggleControl::default(),
+            relay: false,
             menu: MenuGroup::default(),
         }
     }
 
+    pub fn probe(&self) -> Task<ColorTemperatureMessage> {
+        Task::batch([
+            Task::future(async { ColorTemperatureMessage::Relay(Gamma::available(&()).await) }),
+            ToggleControl::<SunFollow>::probe(self.unit.clone()).map(ColorTemperatureMessage::Auto),
+        ])
+    }
+
     pub fn subscription(&self) -> Subscription<ColorTemperatureMessage> {
+        let gamma = if self.relay {
+            polling::<Gamma>(()).map(ColorTemperatureMessage::Gamma)
+        } else {
+            Subscription::none()
+        };
         Subscription::batch([
-            SourceCell::<Gamma>::subscription().map(ColorTemperatureMessage::Gamma),
-            ToggleControl::<SunFollow>::subscription(self.unit.clone())
+            gamma,
+            self.auto
+                .subscription(self.unit.clone())
                 .map(ColorTemperatureMessage::Auto),
         ])
     }
@@ -105,6 +122,10 @@ impl ColorTemperatureGroup {
 
     pub fn update(&mut self, msg: ColorTemperatureMessage) -> Task<ColorTemperatureMessage> {
         match msg {
+            ColorTemperatureMessage::Relay(relay) => {
+                self.relay = relay;
+                Task::none()
+            }
             ColorTemperatureMessage::Menu(m) => {
                 if self.menu.update(m) {
                     self.close_controls();

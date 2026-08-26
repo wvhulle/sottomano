@@ -3,12 +3,13 @@ use iced::{Element, Subscription, Task};
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
-            Tooltip,
+            Source, Tooltip,
             sysfs_sensors::{self, battery::Battery, power::PowerDraw},
         },
-        source_cell::SourceCell,
     },
+    message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
@@ -18,27 +19,37 @@ use crate::{
 
 #[derive(Default)]
 pub struct BatteryGroup {
-    charge: SourceCell<Battery>,
-    draw: SourceCell<PowerDraw>,
+    charge: LastPoll<Battery>,
+    draw: LastPoll<PowerDraw>,
+    installed: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum BatteryMessage {
-    Charge(Result<Option<Battery>, sysfs_sensors::Error>),
-    Draw(Result<Option<PowerDraw>, sysfs_sensors::Error>),
+    Installed(bool),
+    Charge(Result<Battery, sysfs_sensors::Error>),
+    Draw(Result<PowerDraw, sysfs_sensors::Error>),
     Tooltip(TooltipMessage),
 }
 
 impl BatteryGroup {
-    pub fn subscription() -> Subscription<BatteryMessage> {
+    pub fn probe() -> Task<BatteryMessage> {
+        Task::future(async { BatteryMessage::Installed(Battery::available(&()).await) })
+    }
+
+    pub fn subscription(&self) -> Subscription<BatteryMessage> {
+        if !self.installed {
+            return Subscription::none();
+        }
         Subscription::batch([
-            SourceCell::subscription().map(BatteryMessage::Charge),
-            SourceCell::subscription().map(BatteryMessage::Draw),
+            polling::<Battery>(()).map(BatteryMessage::Charge),
+            polling::<PowerDraw>(()).map(BatteryMessage::Draw),
         ])
     }
 
     pub fn update(&mut self, msg: BatteryMessage) -> Task<BatteryMessage> {
         match msg {
+            BatteryMessage::Installed(installed) => self.installed = installed,
             BatteryMessage::Charge(reading) => self.charge.receive(reading),
             BatteryMessage::Draw(reading) => self.draw.receive(reading),
             BatteryMessage::Tooltip(_) => {}

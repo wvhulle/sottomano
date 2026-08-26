@@ -5,8 +5,7 @@ use zbus::{blocking::Connection, proxy};
 
 use crate::{
     data::source::{
-        ApiSource, BarWidget, Glyph, TooltipBody, backlight, bus, bus::Error, font_awesome::Solid,
-        row,
+        BarWidget, Glyph, Source, TooltipBody, backlight, bus, bus::Error, font_awesome::Solid, row,
     },
     widgets::toggle_control::Toggle,
 };
@@ -58,25 +57,33 @@ impl BarWidget for Clight {
     }
 }
 
-impl ApiSource for Clight {
+impl Source for Clight {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "clight";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn poll((): ()) -> Result<Option<Self>, Self::Error> {
+    async fn available((): &()) -> bool {
+        spawn_blocking(read_auto_calib)
+            .await
+            .is_ok_and(|reading| reading.is_ok())
+    }
+
+    async fn poll((): ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_auto_calib)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_auto_calib() -> Result<Option<Clight>, Error> {
+fn read_auto_calib() -> Result<Clight, Error> {
     let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
     let proxy = ConfBacklightProxyBlocking::new(&connection)
         .map_err(|error| Error::Connect(error.to_string()))?;
-    Ok(bus::call(proxy.no_auto_calib())?.map(|no| Clight { auto: !no }))
+    Ok(Clight {
+        auto: !bus::require(proxy.no_auto_calib())?,
+    })
 }
 
 impl Toggle for Clight {

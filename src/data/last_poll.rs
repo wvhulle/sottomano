@@ -1,16 +1,8 @@
-use std::{
-    fmt::Display,
-    time::{Duration, SystemTime},
-};
+use std::{fmt::Display, time::SystemTime};
 
-use iced::Subscription;
-
-use crate::{
-    data::source::{
-        BarWidget, Glyph, Level, RefreshInfo, Source, Tooltip, TooltipBody, font_awesome::Solid,
-        row,
-    },
-    message_subscriptions::polling,
+use crate::data::source::{
+    BarWidget, Glyph, Level, Occasional, RefreshInfo, Source, Tooltip, TooltipBody,
+    font_awesome::Solid, row,
 };
 
 pub struct FailedReading {
@@ -37,27 +29,13 @@ impl BarWidget for FailedReading {
     }
 }
 
-impl<S: BarWidget> SourceCell<S> {
-    pub fn live_tooltip(&self) -> Option<Tooltip> {
-        Some(Tooltip::of(self.data.as_ref()?.tooltip()))
-    }
-
-    pub fn display(&self) -> Option<&dyn BarWidget> {
-        match (self.data.as_ref(), self.failure.as_ref()) {
-            (Some(data), _) => Some(data),
-            (None, Some(failure)) => Some(failure),
-            (None, None) => None,
-        }
-    }
-}
-
-pub struct SourceCell<S> {
+pub struct LastPoll<S> {
     data: Option<S>,
     failure: Option<FailedReading>,
     last_refreshed: Option<SystemTime>,
 }
 
-impl<S> Default for SourceCell<S> {
+impl<S> Default for LastPoll<S> {
     fn default() -> Self {
         Self {
             data: None,
@@ -67,7 +45,7 @@ impl<S> Default for SourceCell<S> {
     }
 }
 
-impl<S> SourceCell<S> {
+impl<S> LastPoll<S> {
     pub fn load(&mut self, data: Option<S>) {
         self.data = data;
         self.failure = None;
@@ -77,19 +55,26 @@ impl<S> SourceCell<S> {
     pub fn get(&self) -> Option<&S> {
         self.data.as_ref()
     }
-
-    pub fn footer(&self, every: Duration) -> Option<RefreshInfo> {
-        self.data.as_ref()?;
-        self.last_refreshed.map(|last| RefreshInfo { every, last })
-    }
 }
 
-impl<S: BarWidget> SourceCell<S> {
-    pub fn receive<E: Display>(&mut self, reading: Result<Option<S>, E>) {
+impl<S: BarWidget> LastPoll<S> {
+    pub fn display(&self) -> Option<&dyn BarWidget> {
+        match (self.data.as_ref(), self.failure.as_ref()) {
+            (Some(data), _) => Some(data),
+            (None, Some(failure)) => Some(failure),
+            (None, None) => None,
+        }
+    }
+
+    pub fn live_tooltip(&self) -> Option<Tooltip> {
+        Some(Tooltip::of(self.data.as_ref()?.tooltip()))
+    }
+
+    pub fn receive<E: Display>(&mut self, reading: Result<S, E>) {
         self.last_refreshed = Some(SystemTime::now());
         match reading {
             Ok(data) => {
-                self.data = data;
+                self.data = Some(data);
                 self.failure = None;
             }
             Err(failure) => {
@@ -108,23 +93,33 @@ impl<S: BarWidget> SourceCell<S> {
     }
 }
 
-impl<S: Source> SourceCell<S> {
-    pub fn subscription() -> Subscription<Result<Option<S>, S::Error>> {
-        polling::<S>()
+impl<S: Occasional> LastPoll<S> {
+    pub fn present(&self) -> Option<&dyn BarWidget> {
+        match (
+            self.data.as_ref().filter(|data| data.present()),
+            self.failure.as_ref(),
+        ) {
+            (Some(data), _) => Some(data),
+            (None, Some(failure)) => Some(failure),
+            (None, None) => None,
+        }
     }
+}
 
+impl<S: Source> LastPoll<S> {
     pub fn tooltip(&self) -> Option<Tooltip> {
         self.tooltip_with(self.display()?.tooltip())
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
         self.display()?;
-        Some(Tooltip {
+        let tooltip = Tooltip {
             body,
             footer: self.last_refreshed.map(|last| RefreshInfo {
                 every: S::INTERVAL,
                 last,
             }),
-        })
+        };
+        (!tooltip.is_empty()).then_some(tooltip)
     }
 }

@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 pub enum Error {
     Connect(String),
     Call(String),
+    Absent,
     Panicked,
 }
 
@@ -12,6 +13,7 @@ impl Display for Error {
         match self {
             Error::Connect(detail) => write!(f, "session bus: {detail}"),
             Error::Call(detail) => write!(f, "{detail}"),
+            Error::Absent => write!(f, "service not running"),
             Error::Panicked => write!(f, "bus call panicked"),
         }
     }
@@ -35,4 +37,8 @@ pub fn call<T>(result: zbus::Result<T>) -> Result<Option<T>, Error> {
         Err(error) if service_absent(&error) => Ok(None),
         Err(error) => Err(Error::Call(error.to_string())),
     }
+}
+
+pub fn require<T>(result: zbus::Result<T>) -> Result<T, Error> {
+    call(result)?.ok_or(Error::Absent)
 }

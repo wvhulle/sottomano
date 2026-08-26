@@ -3,45 +3,59 @@ use iced::{Element, Subscription, Task, widget::button};
 use crate::{
     config::Config,
     data::{
-        source::{ApiSource, BarWidget, Tooltip},
-        source_cell::SourceCell,
+        last_poll::LastPoll,
+        source::{BarWidget, Source, Tooltip},
     },
-    message_subscriptions::{blocking, poll_arg},
+    message_subscriptions::{blocking, polling},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{flat_button, source_reading::source_reading},
 };
 
-pub trait Toggle: ApiSource {
+pub trait Toggle: Source {
     fn toggled(&self) -> Self;
     fn toggle(&self) -> bool;
 }
 
 pub struct ToggleControl<S> {
-    cell: SourceCell<S>,
+    cell: LastPoll<S>,
+    available: bool,
 }
 
 impl<S> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
-            cell: SourceCell::default(),
+            cell: LastPoll::default(),
+            available: false,
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum ToggleMessage<S: Toggle> {
-    Reading(Result<Option<S>, S::Error>),
+    Available(bool),
+    Reading(Result<S, S::Error>),
     Press,
     Tooltip(TooltipMessage),
 }
 
 impl<S: Toggle> ToggleControl<S> {
-    pub fn subscription(key: S::Key) -> Subscription<ToggleMessage<S>> {
-        poll_arg::<S>(key).map(ToggleMessage::Reading)
+    pub fn probe(key: S::Key) -> Task<ToggleMessage<S>> {
+        Task::future(async move { ToggleMessage::Available(S::available(&key).await) })
+    }
+
+    pub fn subscription(&self, key: S::Key) -> Subscription<ToggleMessage<S>> {
+        if !self.available {
+            return Subscription::none();
+        }
+        polling::<S>(key).map(ToggleMessage::Reading)
     }
 
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {
         match message {
+            ToggleMessage::Available(available) => {
+                self.available = available;
+                Task::none()
+            }
             ToggleMessage::Reading(reading) => {
                 self.cell.receive(reading);
                 Task::none()
@@ -62,11 +76,7 @@ impl<S: Toggle> ToggleControl<S> {
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {
-        let tooltip = Tooltip {
-            body: self.cell.display()?.tooltip(),
-            footer: self.cell.footer(S::INTERVAL),
-        };
-        (!tooltip.is_empty()).then_some(tooltip)
+        self.cell.tooltip()
     }
 
     pub fn view<'a>(

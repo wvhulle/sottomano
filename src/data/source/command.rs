@@ -81,6 +81,13 @@ pub fn spawn(command: &[String]) -> Result<Option<Child>, Error> {
     }
 }
 
+pub async fn require(program: &str, args: &[&str]) -> Result<String, Error> {
+    output(program, args).await?.ok_or_else(|| Error::Spawn {
+        program: program.to_owned(),
+        detail: "not installed".to_owned(),
+    })
+}
+
 pub async fn exists(program: &str) -> bool {
     matches!(
         output("sh", &["-c", &format!("command -v {program}")]).await,

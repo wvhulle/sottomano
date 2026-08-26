@@ -6,14 +6,15 @@ use iced::{
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
-            BarWidget, Tooltip, command,
+            BarWidget, Source, Tooltip, command,
             tailscale::{self, Tailscale, open_admin},
             throughput::{self, Download, Readings, Throughput, Upload},
             wireguard::{Wireguard, disconnect},
         },
-        source_cell::SourceCell,
     },
+    message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -28,18 +29,26 @@ use crate::{
 
 #[derive(Default)]
 pub struct InternetGroup {
-    down: SourceCell<Throughput<Download>>,
-    up: SourceCell<Throughput<Upload>>,
-    wireguard: SourceCell<Wireguard>,
-    tailscale: SourceCell<Tailscale>,
+    down: LastPoll<Throughput<Download>>,
+    up: LastPoll<Throughput<Upload>>,
+    wireguard: LastPoll<Wireguard>,
+    tailscale: LastPoll<Tailscale>,
+    installed: Installed,
     pub(crate) menu: MenuGroup,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Installed {
+    wireguard: bool,
+    tailscale: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
+    Installed(Installed),
     Throughput(Readings),
-    Wireguard(Result<Option<Wireguard>, command::Error>),
-    Tailscale(Result<Option<Tailscale>, tailscale::Error>),
+    Wireguard(Result<Wireguard, command::Error>),
+    Tailscale(Result<Tailscale, tailscale::Error>),
     Menu(MenuMessage),
     Disconnect(String),
     OpenTailscale,
@@ -47,17 +56,37 @@ pub enum InternetMessage {
 }
 
 impl InternetGroup {
-    pub fn subscription() -> Subscription<InternetMessage> {
+    pub fn probe() -> Task<InternetMessage> {
+        Task::future(async {
+            InternetMessage::Installed(Installed {
+                wireguard: Wireguard::available(&()).await,
+                tailscale: Tailscale::available(&()).await,
+            })
+        })
+    }
+
+    pub fn subscription(&self) -> Subscription<InternetMessage> {
+        let wireguard = if self.installed.wireguard {
+            polling::<Wireguard>(()).map(InternetMessage::Wireguard)
+        } else {
+            Subscription::none()
+        };
+        let tailscale = if self.installed.tailscale {
+            polling::<Tailscale>(()).map(InternetMessage::Tailscale)
+        } else {
+            Subscription::none()
+        };
         Subscription::batch([
             throughput::subscription().map(InternetMessage::Throughput),
-            SourceCell::subscription().map(InternetMessage::Wireguard),
-            SourceCell::subscription().map(InternetMessage::Tailscale),
+            wireguard,
+            tailscale,
         ])
     }
 
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
         use crate::message_subscriptions::blocking;
         match msg {
+            InternetMessage::Installed(installed) => self.installed = installed,
             InternetMessage::Throughput(readings) => {
                 self.down.load(Some(readings.down));
                 self.up.load(Some(readings.up));

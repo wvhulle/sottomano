@@ -152,35 +152,40 @@ impl BarWidget for PowerProfile {
 impl Source for PowerProfile {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "power-profile";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn available(_key: &()) -> bool {
+        spawn_blocking(read_power_profile)
+            .await
+            .is_ok_and(|reading| reading.is_ok())
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_power_profile)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_power_profile() -> Result<Option<PowerProfile>, Error> {
+fn read_power_profile() -> Result<PowerProfile, Error> {
     let connection = Connection::system().map_err(|error| Error::Connect(error.to_string()))?;
     let daemon = PowerProfilesProxyBlocking::new(&connection)
         .map_err(|error| Error::Connect(error.to_string()))?;
-    let Some(name) = bus::call(daemon.active_profile())? else {
-        return Ok(None);
-    };
-    let Some(active_profile) = Profile::from_name(&name) else {
-        return Ok(None);
-    };
+    let name = bus::require(daemon.active_profile())?;
+    let active_profile =
+        Profile::from_name(&name).ok_or_else(|| Error::Call(format!("unknown profile {name}")))?;
     let energy = sysfs_sensors::battery_energy();
-    Ok(Some(PowerProfile {
+    Ok(PowerProfile {
         active_profile,
         energy_j: energy.as_ref().and_then(|e| e.energy_j),
         draw_w: energy.as_ref().and_then(|e| e.draw_w),
         discharging: energy.as_ref().is_some_and(|e| e.discharging),
         battery_id: energy.map(|e| e.serial).unwrap_or_default(),
         conditions: Conditions::current(),
-    }))
+    })
 }
 
 const Q_BASE: f64 = 0.25;

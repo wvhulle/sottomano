@@ -6,8 +6,9 @@ use iced::{
 use crate::{
     config::{Config, SecretPaths},
     data::{
+        last_poll::LastPoll,
         source::{
-            ApiSource, Tooltip,
+            Source, Tooltip,
             ai::{
                 claude::{self, ClaudeCcusage, ClaudeOauth},
                 copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
@@ -15,9 +16,8 @@ use crate::{
             },
             font_awesome::Solid,
         },
-        source_cell::SourceCell,
     },
-    message_subscriptions::poll_arg,
+    message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
@@ -30,24 +30,39 @@ use crate::{
 };
 
 pub struct AiGroup {
-    openrouter: SourceCell<OpenRouter>,
-    claude_oauth: SourceCell<ClaudeOauth>,
-    claude_ccusage: SourceCell<ClaudeCcusage>,
-    copilot_metered: SourceCell<CopilotMetered>,
-    copilot_free: SourceCell<CopilotFree>,
-    copilot_cli: SourceCell<CopilotCcusage>,
+    openrouter: LastPoll<OpenRouter>,
+    claude_oauth: LastPoll<ClaudeOauth>,
+    claude_ccusage: LastPoll<ClaudeCcusage>,
+    copilot_metered: LastPoll<CopilotMetered>,
+    copilot_free: LastPoll<CopilotFree>,
+    copilot_cli: LastPoll<CopilotCcusage>,
     secrets: SecretPaths,
+    available: Available,
     pub(crate) menu: MenuGroup,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Available {
+    claude_ccusage: bool,
+    copilot: CopilotAvailable,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CopilotAvailable {
+    metered: bool,
+    free: bool,
+    cli: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum AiMessage {
-    OpenRouter(Result<Option<OpenRouter>, openrouter::Error>),
-    ClaudeOauth(Result<Option<ClaudeOauth>, claude::Error>),
-    ClaudeCcusage(Result<Option<ClaudeCcusage>, claude::Error>),
-    CopilotMetered(Result<Option<CopilotMetered>, copilot::Error>),
-    CopilotFree(Result<Option<CopilotFree>, copilot::Error>),
-    CopilotCli(Result<Option<CopilotCcusage>, copilot::Error>),
+    Available(Available),
+    OpenRouter(Result<OpenRouter, openrouter::Error>),
+    ClaudeOauth(Result<ClaudeOauth, claude::Error>),
+    ClaudeCcusage(Result<ClaudeCcusage, claude::Error>),
+    CopilotMetered(Result<CopilotMetered, copilot::Error>),
+    CopilotFree(Result<CopilotFree, copilot::Error>),
+    CopilotCli(Result<CopilotCcusage, copilot::Error>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
@@ -55,51 +70,74 @@ pub enum AiMessage {
 impl AiGroup {
     pub fn new(secrets: SecretPaths) -> Self {
         Self {
-            openrouter: SourceCell::default(),
-            claude_oauth: SourceCell::default(),
-            claude_ccusage: SourceCell::default(),
-            copilot_metered: SourceCell::default(),
-            copilot_free: SourceCell::default(),
-            copilot_cli: SourceCell::default(),
+            openrouter: LastPoll::default(),
+            claude_oauth: LastPoll::default(),
+            claude_ccusage: LastPoll::default(),
+            copilot_metered: LastPoll::default(),
+            copilot_free: LastPoll::default(),
+            copilot_cli: LastPoll::default(),
             secrets,
+            available: Available::default(),
             menu: MenuGroup::default(),
         }
     }
 
+    pub fn probe(&self) -> Task<AiMessage> {
+        let secrets = self.secrets.clone();
+        Task::future(async move {
+            let claude_ccusage = match &secrets.claude_code_oauth {
+                Some(key) => ClaudeCcusage::available(key).await,
+                None => false,
+            };
+            let (metered, free) = match &secrets.gh_auth_token {
+                Some(key) => (
+                    CopilotMetered::available(key).await,
+                    CopilotFree::available(key).await,
+                ),
+                None => (false, false),
+            };
+            AiMessage::Available(Available {
+                claude_ccusage,
+                copilot: CopilotAvailable {
+                    metered,
+                    free,
+                    cli: CopilotCcusage::available(&()).await,
+                },
+            })
+        })
+    }
+
     pub fn subscription(&self) -> Subscription<AiMessage> {
         let secrets = &self.secrets;
+        let available = self.available;
         let mut subscriptions = Vec::new();
-        if secrets.openrouter_management.is_some() {
-            subscriptions.push(
-                poll_arg::<OpenRouter>(secrets.openrouter_management.clone())
-                    .map(AiMessage::OpenRouter),
-            );
+        if let Some(key) = secrets.openrouter_management.clone() {
+            subscriptions.push(polling::<OpenRouter>(key).map(AiMessage::OpenRouter));
         }
-        if secrets.claude_code_oauth.is_some() {
-            subscriptions.push(
-                poll_arg::<ClaudeOauth>(secrets.claude_code_oauth.clone())
-                    .map(AiMessage::ClaudeOauth),
-            );
-            subscriptions.push(
-                poll_arg::<ClaudeCcusage>(secrets.claude_code_oauth.clone())
-                    .map(AiMessage::ClaudeCcusage),
-            );
+        if let Some(key) = secrets.claude_code_oauth.clone() {
+            subscriptions.push(polling::<ClaudeOauth>(key.clone()).map(AiMessage::ClaudeOauth));
+            if available.claude_ccusage {
+                subscriptions.push(polling::<ClaudeCcusage>(key).map(AiMessage::ClaudeCcusage));
+            }
         }
-        if secrets.gh_auth_token.is_some() {
-            subscriptions.push(
-                poll_arg::<CopilotMetered>(secrets.gh_auth_token.clone())
-                    .map(AiMessage::CopilotMetered),
-            );
-            subscriptions.push(
-                poll_arg::<CopilotFree>(secrets.gh_auth_token.clone()).map(AiMessage::CopilotFree),
-            );
+        if let Some(key) = secrets.gh_auth_token.clone() {
+            if available.copilot.metered {
+                subscriptions
+                    .push(polling::<CopilotMetered>(key.clone()).map(AiMessage::CopilotMetered));
+            }
+            if available.copilot.free {
+                subscriptions.push(polling::<CopilotFree>(key).map(AiMessage::CopilotFree));
+            }
         }
-        subscriptions.push(poll_arg::<CopilotCcusage>(None).map(AiMessage::CopilotCli));
+        if available.copilot.cli {
+            subscriptions.push(polling::<CopilotCcusage>(()).map(AiMessage::CopilotCli));
+        }
         Subscription::batch(subscriptions)
     }
 
     pub fn update(&mut self, message: AiMessage) -> Task<AiMessage> {
         match message {
+            AiMessage::Available(available) => self.available = available,
             AiMessage::OpenRouter(reading) => self.openrouter.receive(reading),
             AiMessage::ClaudeOauth(reading) => self.claude_oauth.receive(reading),
             AiMessage::ClaudeCcusage(reading) => self.claude_ccusage.receive(reading),
@@ -123,12 +161,12 @@ impl AiGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::AiOpenRouter => tooltip_of(&self.openrouter),
-            HoverTarget::AiClaudeOauth => tooltip_of(&self.claude_oauth),
-            HoverTarget::AiClaudeCcusage => tooltip_of(&self.claude_ccusage),
-            HoverTarget::AiCopilotMetered => tooltip_of(&self.copilot_metered),
-            HoverTarget::AiCopilotFree => tooltip_of(&self.copilot_free),
-            HoverTarget::AiCopilotCli => tooltip_of(&self.copilot_cli),
+            HoverTarget::AiOpenRouter => self.openrouter.tooltip(),
+            HoverTarget::AiClaudeOauth => self.claude_oauth.tooltip(),
+            HoverTarget::AiClaudeCcusage => self.claude_ccusage.tooltip(),
+            HoverTarget::AiCopilotMetered => self.copilot_metered.tooltip(),
+            HoverTarget::AiCopilotFree => self.copilot_free.tooltip(),
+            HoverTarget::AiCopilotCli => self.copilot_cli.tooltip(),
             _ => None,
         }
     }
@@ -138,7 +176,7 @@ impl AiGroup {
         let readings = ReadingRow::new()
             .opacity(reveal)
             .push(Reading::new(
-                self.claude_oauth.display(),
+                self.claude_oauth.present(),
                 HoverTarget::AiClaudeOauth,
             ))
             .push(Reading::new(
@@ -146,7 +184,7 @@ impl AiGroup {
                 HoverTarget::AiClaudeCcusage,
             ))
             .push(Reading::new(
-                self.copilot_metered.display(),
+                self.copilot_metered.present(),
                 HoverTarget::AiCopilotMetered,
             ))
             .push(Reading::new(
@@ -154,11 +192,11 @@ impl AiGroup {
                 HoverTarget::AiCopilotFree,
             ))
             .push(Reading::new(
-                self.copilot_cli.display(),
+                self.copilot_cli.present(),
                 HoverTarget::AiCopilotCli,
             ))
             .push(Reading::new(
-                self.openrouter.display(),
+                self.openrouter.present(),
                 HoverTarget::AiOpenRouter,
             ))
             .row(config, AiMessage::Tooltip);
@@ -182,14 +220,6 @@ impl AiGroup {
             AiMessage::Menu,
         ))
     }
-}
-
-fn tooltip_of<S: ApiSource>(cell: &SourceCell<S>) -> Option<Tooltip> {
-    let tooltip = Tooltip {
-        body: cell.display()?.tooltip(),
-        footer: cell.footer(S::INTERVAL),
-    };
-    (!tooltip.is_empty()).then_some(tooltip)
 }
 
 fn robot_handle<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {

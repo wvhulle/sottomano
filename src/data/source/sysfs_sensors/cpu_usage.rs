@@ -51,22 +51,24 @@ impl BarWidget for CpuUsage {
 impl Source for CpuUsage {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "cpu";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_cpu_usage)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_cpu_usage() -> Result<Option<CpuUsage>, Error> {
+fn read_cpu_usage() -> Result<CpuUsage, Error> {
     let busy = cpu_busy_frac().ok_or_else(|| Error::Unreadable(CPU_STAT.to_owned()))?;
-    Ok(Some(CpuUsage {
+    Ok(CpuUsage {
         percent: (busy * 100.0).round() as i64,
         freqs_ghz: core_ghz(),
-    }))
+    })
 }
 
 pub(crate) fn cpu_busy_frac() -> Option<f64> {

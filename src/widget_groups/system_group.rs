@@ -6,13 +6,14 @@ use iced::{
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
-            BarWidget, Tooltip,
+            BarWidget, Source, Tooltip,
             disk::{self, Disk},
             sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
         },
-        source_cell::SourceCell,
     },
+    message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -37,35 +38,47 @@ fn hover_reading<'a>(
 
 #[derive(Default)]
 pub struct SystemGroup {
-    cpu: SourceCell<CpuUsage>,
-    memory: SourceCell<Memory>,
-    temperature: SourceCell<Temperature>,
-    disk: SourceCell<Disk>,
+    cpu: LastPoll<CpuUsage>,
+    memory: LastPoll<Memory>,
+    temperature: LastPoll<Temperature>,
+    disk: LastPoll<Disk>,
+    sensors: bool,
     pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
 pub enum SystemMessage {
-    Cpu(Result<Option<CpuUsage>, sysfs_sensors::Error>),
-    Memory(Result<Option<Memory>, sysfs_sensors::Error>),
-    Temperature(Result<Option<Temperature>, sysfs_sensors::Error>),
-    Disk(Result<Option<Disk>, disk::Error>),
+    Sensors(bool),
+    Cpu(Result<CpuUsage, sysfs_sensors::Error>),
+    Memory(Result<Memory, sysfs_sensors::Error>),
+    Temperature(Result<Temperature, sysfs_sensors::Error>),
+    Disk(Result<Disk, disk::Error>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
 
 impl SystemGroup {
-    pub fn subscription() -> Subscription<SystemMessage> {
+    pub fn probe() -> Task<SystemMessage> {
+        Task::future(async { SystemMessage::Sensors(Temperature::available(&()).await) })
+    }
+
+    pub fn subscription(&self) -> Subscription<SystemMessage> {
+        let temperature = if self.sensors {
+            polling::<Temperature>(()).map(SystemMessage::Temperature)
+        } else {
+            Subscription::none()
+        };
         Subscription::batch([
-            SourceCell::subscription().map(SystemMessage::Cpu),
-            SourceCell::subscription().map(SystemMessage::Memory),
-            SourceCell::subscription().map(SystemMessage::Temperature),
-            SourceCell::subscription().map(SystemMessage::Disk),
+            polling::<CpuUsage>(()).map(SystemMessage::Cpu),
+            polling::<Memory>(()).map(SystemMessage::Memory),
+            temperature,
+            polling::<Disk>(()).map(SystemMessage::Disk),
         ])
     }
 
     pub fn update(&mut self, msg: SystemMessage) -> Task<SystemMessage> {
         match msg {
+            SystemMessage::Sensors(sensors) => self.sensors = sensors,
             SystemMessage::Cpu(reading) => self.cpu.receive(reading),
             SystemMessage::Memory(reading) => self.memory.receive(reading),
             SystemMessage::Temperature(reading) => self.temperature.receive(reading),

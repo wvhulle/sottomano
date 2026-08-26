@@ -273,20 +273,20 @@ pub trait BarWidget {
 }
 
 pub trait Source: BarWidget + Clone + PartialEq + Sized + Send + 'static {
-    type Error: Clone + PartialEq + Debug + Display + Send + 'static;
-
-    const NAME: &'static str;
-    const INTERVAL: Duration;
-
-    fn poll() -> impl Future<Output = Result<Option<Self>, Self::Error>> + Send;
-}
-
-pub trait ApiSource: BarWidget + Clone + PartialEq + Sized + Send + 'static {
-    type Error: Clone + PartialEq + Debug + Display + Send + 'static;
+    type Error: Clone + Debug + Display + Send + 'static;
     type Key: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
     const INTERVAL: Duration;
 
-    fn poll(key: Self::Key) -> impl Future<Output = Result<Option<Self>, Self::Error>> + Send;
+    fn available(key: &Self::Key) -> impl Future<Output = bool> + Send {
+        let _ = key;
+        async { true }
+    }
+
+    fn poll(key: Self::Key) -> impl Future<Output = Result<Self, Self::Error>> + Send;
+}
+
+pub trait Occasional: BarWidget {
+    fn present(&self) -> bool;
 }

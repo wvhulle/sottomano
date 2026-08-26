@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use tokio::task::spawn_blocking;
 
-use super::{Error, core_freqs, favg, fmax, fmin, ghz};
+use super::{CPU_FREQ, Error, core_freqs, favg, fmax, fmin, ghz};
 use crate::data::source::{BarWidget, Glyph, Source, TooltipBody, font_awesome::Solid, row};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,17 +50,28 @@ impl BarWidget for CpuClock {
 impl Source for CpuClock {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "cpu-clock";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn available(_key: &()) -> bool {
+        spawn_blocking(core_freqs)
+            .await
+            .is_ok_and(|cores| !cores.is_empty())
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_cpu_clock)
             .await
-            .map_err(|_| Error::Panicked)
+            .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_cpu_clock() -> Option<CpuClock> {
+fn read_cpu_clock() -> Result<CpuClock, Error> {
     let cores = core_freqs();
-    (!cores.is_empty()).then_some(CpuClock { cores })
+    if cores.is_empty() {
+        return Err(Error::Unreadable(CPU_FREQ.to_owned()));
+    }
+    Ok(CpuClock { cores })
 }

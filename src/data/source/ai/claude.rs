@@ -3,16 +3,18 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
 use chrono::{DateTime, Local, Utc};
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::data::source::{
-    ApiSource, BarWidget, Glyph, Level, Row, TooltipBody, Unit, Value as GaugeValue,
+    BarWidget, Glyph, Level, Occasional, Row, Source, TooltipBody, Unit, Value as GaugeValue,
     ai::{level_from_cost, level_from_remaining},
-    command::{exists, output},
+    command::{self, exists, require},
     http, row,
     simple_icons::SimpleIcon,
 };
@@ -20,15 +22,16 @@ use crate::data::source::{
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const BACKOFF: Duration = Duration::from_mins(15);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Error {
     Credentials,
     NoToken,
     RateLimited,
     Backoff,
     Api(String),
+    Decode(Arc<serde_json::Error>),
     Fetch(http::Error),
-    Ccusage(String),
+    Ccusage(command::Error),
 }
 
 impl Display for Error {
@@ -39,8 +42,9 @@ impl Display for Error {
             Error::RateLimited => write!(f, "rate limited"),
             Error::Backoff => write!(f, "rate limited (backing off)"),
             Error::Api(message) => write!(f, "{message}"),
+            Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Fetch(error) => write!(f, "{error}"),
-            Error::Ccusage(detail) => write!(f, "ccusage: {detail}"),
+            Error::Ccusage(error) => write!(f, "ccusage: {error}"),
         }
     }
 }
@@ -49,6 +53,79 @@ impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
     }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Error::Decode(Arc::new(error))
+    }
+}
+
+impl From<command::Error> for Error {
+    fn from(error: command::Error) -> Self {
+        Error::Ccusage(error)
+    }
+}
+
+#[derive(Deserialize)]
+struct Credentials {
+    #[serde(rename = "claudeAiOauth")]
+    oauth: Option<Oauth>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Oauth {
+    access_token: Option<String>,
+    rate_limit_tier: Option<String>,
+    subscription_type: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Usage {
+    five_hour: Window,
+    seven_day: Window,
+    seven_day_sonnet: Option<Window>,
+    #[serde(rename = "extra_usage")]
+    overage: Option<Overage>,
+}
+
+#[derive(Deserialize)]
+struct Window {
+    utilization: f64,
+    resets_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Overage {
+    #[serde(default)]
+    is_enabled: bool,
+    used_credits: Option<f64>,
+    monthly_limit: Option<f64>,
+    utilization: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct ApiError {
+    error: ApiMessage,
+}
+
+#[derive(Deserialize)]
+struct ApiMessage {
+    message: String,
+}
+
+#[derive(Deserialize)]
+struct DailyReport {
+    daily: Vec<DayEntry>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DayEntry {
+    total_cost: f64,
+    total_tokens: u64,
+    models_used: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -78,26 +155,20 @@ impl BarWidget for ClaudeOauth {
     }
 }
 
-impl ApiSource for ClaudeOauth {
+impl Source for ClaudeOauth {
     type Error = Error;
-    type Key = Option<PathBuf>;
+    type Key = PathBuf;
 
     const NAME: &'static str = "claude-usage-oauth";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
-        let Some(key) = key else {
-            return Ok(None);
-        };
-        let credentials = read_json(&key).ok_or(Error::Credentials)?;
+    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+        let credentials = read_credentials(&key)?;
         if backoff_active() {
             return Err(Error::Backoff);
         }
-        let token = credentials
-            .get("claudeAiOauth")
-            .and_then(|oauth| oauth.get("accessToken"))
-            .and_then(Value::as_str)
-            .ok_or(Error::NoToken)?;
+        let oauth = credentials.oauth.as_ref().ok_or(Error::NoToken)?;
+        let token = oauth.access_token.as_ref().ok_or(Error::NoToken)?;
 
         let auth = format!("Bearer {token}");
         let resp = http::get(
@@ -116,41 +187,37 @@ impl ApiSource for ClaudeOauth {
         }
         let body = resp.body.unwrap_or(Value::Null);
         if resp.status != 200 {
-            let message = body
-                .get("error")
-                .and_then(|error| error.get("message"))
-                .and_then(Value::as_str)
-                .map_or_else(|| format!("HTTP {}", resp.status), ToOwned::to_owned);
-            return Err(Error::Api(message));
+            return Err(Error::Api(api_error(body, resp.status)));
         }
 
-        let Some(session_used) = utilization(&body, "five_hour") else {
-            return Ok(None);
-        };
-        if session_used <= 0 {
-            return Ok(None);
-        }
-        let weekly_used = utilization(&body, "seven_day").unwrap_or(0);
+        let usage: Usage = serde_json::from_value(body)?;
+        let session_used = percent(usage.five_hour.utilization);
         let mut tooltip = vec![
-            row(
-                "Plan",
-                plan(&credentials).unwrap_or_else(|| "unknown".to_owned()),
-            ),
+            row("Plan", plan(oauth)),
             row("Session", format!("{session_used}%")),
-            row("Session resets", resets(&body, "five_hour")),
-            row("Weekly", format!("{weekly_used}%")),
-            row("Weekly resets", resets(&body, "seven_day")),
+            row("Session resets", resets(usage.five_hour.resets_at.as_ref())),
+            row(
+                "Weekly",
+                format!("{}%", percent(usage.seven_day.utilization)),
+            ),
+            row("Weekly resets", resets(usage.seven_day.resets_at.as_ref())),
         ];
-        if let Some(sonnet) = utilization(&body, "seven_day_sonnet") {
-            tooltip.push(row("Sonnet", format!("{sonnet}%")));
-            tooltip.push(row("Sonnet resets", resets(&body, "seven_day_sonnet")));
+        if let Some(sonnet) = &usage.seven_day_sonnet {
+            tooltip.push(row("Sonnet", format!("{}%", percent(sonnet.utilization))));
+            tooltip.push(row("Sonnet resets", resets(sonnet.resets_at.as_ref())));
         }
-        push_extra(&body, &mut tooltip);
+        push_extra(usage.overage.as_ref(), &mut tooltip);
 
-        Ok(Some(ClaudeOauth {
+        Ok(ClaudeOauth {
             session_remaining: 100 - session_used,
             tooltip,
-        }))
+        })
+    }
+}
+
+impl Occasional for ClaudeOauth {
+    fn present(&self) -> bool {
+        self.session_remaining < 100
     }
 }
 
@@ -182,85 +249,58 @@ impl BarWidget for ClaudeCcusage {
     }
 }
 
-impl ApiSource for ClaudeCcusage {
+impl Source for ClaudeCcusage {
     type Error = Error;
-    type Key = Option<PathBuf>;
+    type Key = PathBuf;
 
     const NAME: &'static str = "claude-usage-ccusage";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
-        let Some(key) = key else {
-            return Ok(None);
-        };
-        let credentials = read_json(&key).ok_or(Error::Credentials)?;
-        let has_oauth = credentials
-            .get("claudeAiOauth")
-            .and_then(|oauth| oauth.get("accessToken"))
-            .and_then(Value::as_str)
-            .is_some();
-        if has_oauth || !exists("ccusage").await {
-            return Ok(None);
-        }
+    async fn available(key: &PathBuf) -> bool {
+        let oauth_configured = read_credentials(key).is_ok_and(|credentials| {
+            credentials
+                .oauth
+                .is_some_and(|oauth| oauth.access_token.is_some())
+        });
+        !oauth_configured && exists("ccusage").await
+    }
+
+    async fn poll(_key: PathBuf) -> Result<Self, Self::Error> {
         let today = Local::now().format("%Y%m%d").to_string();
-        let Some(raw) = output("ccusage", &["daily", "--since", &today, "--json"])
-            .await
-            .map_err(|error| Error::Ccusage(error.to_string()))?
-        else {
-            return Ok(None);
-        };
-        let days = serde_json::from_str::<Value>(&raw)
-            .map_err(|error| Error::Ccusage(error.to_string()))?
-            .get("daily")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let Some(day) = days.into_iter().next() else {
-            return Ok(Some(ClaudeCcusage {
+        let raw = require("ccusage", &["daily", "--since", &today, "--json"]).await?;
+        let report: DailyReport = serde_json::from_str(&raw)?;
+        let Some(day) = report.daily.into_iter().next() else {
+            return Ok(ClaudeCcusage {
                 cost: 0.0,
                 tokens: 0,
                 models: String::new(),
-            }));
+            });
         };
-        Ok(Some(ClaudeCcusage {
-            cost: day.get("totalCost").and_then(Value::as_f64).unwrap_or(0.0),
-            tokens: day.get("totalTokens").and_then(Value::as_u64).unwrap_or(0),
-            models: day
-                .get("modelsUsed")
-                .and_then(Value::as_array)
-                .map(|models| {
-                    models
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                })
-                .unwrap_or_default(),
-        }))
+        Ok(ClaudeCcusage {
+            cost: day.total_cost,
+            tokens: day.total_tokens,
+            models: day.models_used.join(", "),
+        })
     }
 }
 
-fn read_json(path: &Path) -> Option<Value> {
-    serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
+fn read_credentials(path: &Path) -> Result<Credentials, Error> {
+    let raw = fs::read_to_string(path).map_err(|_| Error::Credentials)?;
+    Ok(serde_json::from_str(&raw)?)
+}
+
+fn api_error(body: Value, status: u16) -> String {
+    serde_json::from_value::<ApiError>(body)
+        .map_or_else(|_| format!("HTTP {status}"), |api| api.error.message)
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn utilization(body: &Value, window: &str) -> Option<i64> {
-    body.get(window)?
-        .get("utilization")?
-        .as_f64()
-        .map(|u| u as i64)
+fn percent(utilization: f64) -> i64 {
+    utilization as i64
 }
 
-fn resets(body: &Value, window: &str) -> String {
-    let Some(iso) = body
-        .get(window)
-        .and_then(|w| w.get("resets_at"))
-        .and_then(Value::as_str)
-    else {
-        return "—".to_owned();
-    };
-    let Ok(at) = iso.parse::<DateTime<Utc>>() else {
+fn resets(resets_at: Option<&String>) -> String {
+    let Some(at) = resets_at.and_then(|iso| iso.parse::<DateTime<Utc>>().ok()) else {
         return "—".to_owned();
     };
     let diff = at.signed_duration_since(Utc::now());
@@ -269,20 +309,15 @@ fn resets(body: &Value, window: &str) -> String {
     format!("{hours}h{mins}m")
 }
 
-fn plan(credentials: &Value) -> Option<String> {
-    let oauth = credentials.get("claudeAiOauth")?;
-    if let Some(tier) = oauth.get("rateLimitTier").and_then(Value::as_str)
-        && !tier.is_empty()
-    {
-        return Some(title_case(
-            &tier.replace("default_claude_", "").replace('_', " "),
-        ));
+fn plan(oauth: &Oauth) -> String {
+    if let Some(tier) = oauth.rate_limit_tier.as_ref().filter(|t| !t.is_empty()) {
+        return title_case(&tier.replace("default_claude_", "").replace('_', " "));
     }
     oauth
-        .get("subscriptionType")
-        .and_then(Value::as_str)
+        .subscription_type
+        .as_ref()
         .filter(|value| !value.is_empty())
-        .map(title_case)
+        .map_or_else(|| "unknown".to_owned(), |value| title_case(value))
 }
 
 fn title_case(text: &str) -> String {
@@ -297,31 +332,19 @@ fn title_case(text: &str) -> String {
         .join(" ")
 }
 
-#[allow(clippy::cast_possible_truncation)]
-fn push_extra(body: &Value, tooltip: &mut Vec<Row>) {
-    let Some(extra) = body.get("extra_usage") else {
+fn push_extra(extra: Option<&Overage>, tooltip: &mut Vec<Row>) {
+    let Some(extra) = extra.filter(|extra| extra.is_enabled) else {
         return;
     };
-    if extra.get("is_enabled").and_then(Value::as_bool) != Some(true) {
-        return;
+    if let Some(spent) = extra.used_credits {
+        tooltip.push(row("Extra spent", format!("€{:.2}", spent / 100.0)));
     }
-    let spent = extra
-        .get("used_credits")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0)
-        / 100.0;
-    let limit = extra
-        .get("monthly_limit")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0)
-        / 100.0;
-    let util = extra
-        .get("utilization")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0) as i64;
-    tooltip.push(row("Extra spent", format!("€{spent:.2}")));
-    tooltip.push(row("Extra limit", format!("€{limit:.0}")));
-    tooltip.push(row("Extra", format!("{util}%")));
+    if let Some(limit) = extra.monthly_limit {
+        tooltip.push(row("Extra limit", format!("€{:.0}", limit / 100.0)));
+    }
+    if let Some(utilization) = extra.utilization {
+        tooltip.push(row("Extra", format!("{}%", percent(utilization))));
+    }
 }
 
 fn backoff_active() -> bool {
@@ -351,4 +374,60 @@ fn arm_backoff() {
 fn backoff_path() -> PathBuf {
     let base = env::var_os("HOME").map_or_else(PathBuf::new, PathBuf::from);
     base.join(".cache/vetrata/claude-usage-backoff")
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const USAGE: &str = r#"{
+        "five_hour": {
+            "utilization": 42.0, "resets_at": "2026-08-27T12:00:00Z",
+            "limit_dollars": null, "used_dollars": null
+        },
+        "seven_day": { "utilization": 49.0, "resets_at": "2026-09-01T00:00:00Z" },
+        "seven_day_sonnet": null,
+        "extra_usage": {
+            "is_enabled": false, "monthly_limit": null,
+            "used_credits": null, "utilization": null
+        },
+        "limits": {}
+    }"#;
+
+    const DAILY: &str = r#"{
+        "daily": [{
+            "totalCost": 3.5, "totalTokens": 987, "modelsUsed": ["claude-opus-5"],
+            "period": "2026-08-27", "agent": "claude"
+        }],
+        "totals": {}
+    }"#;
+
+    #[test]
+    fn usage_windows_decode_with_null_sonnet_and_disabled_overage() {
+        let usage: Usage = serde_json::from_str(USAGE).unwrap();
+        assert_eq!(percent(usage.five_hour.utilization), 42);
+        assert_eq!(percent(usage.seven_day.utilization), 49);
+        assert!(usage.seven_day_sonnet.is_none());
+        let mut tooltip = Vec::new();
+        push_extra(usage.overage.as_ref(), &mut tooltip);
+        assert!(tooltip.is_empty());
+    }
+
+    #[test]
+    fn daily_report_entry_decodes() {
+        let report: DailyReport = serde_json::from_str(DAILY).unwrap();
+        let day = report.daily.into_iter().next().unwrap();
+        assert_eq!(day.total_tokens, 987);
+        assert_eq!(day.models_used, vec!["claude-opus-5".to_owned()]);
+    }
+
+    #[test]
+    fn credentials_expose_the_oauth_token() {
+        let credentials: Credentials = serde_json::from_str(
+            r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_max_20x"}}"#,
+        )
+        .unwrap();
+        let oauth = credentials.oauth.unwrap();
+        assert_eq!(oauth.access_token.as_deref(), Some("t"));
+        assert_eq!(plan(&oauth), "Max 20x");
+    }
 }

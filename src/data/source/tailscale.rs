@@ -98,23 +98,27 @@ impl BarWidget for Tailscale {
 impl Source for Tailscale {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "tailscale";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
-        let Some(raw) = command::output("tailscale", &["status", "--json"]).await? else {
-            return Ok(None);
-        };
+    async fn available(_key: &()) -> bool {
+        command::exists("tailscale").await
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        let raw = command::require("tailscale", &["status", "--json"]).await?;
         let status: Json = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
         let running = status.get("BackendState").and_then(Json::as_str) == Some("Running");
         if !running {
-            return Ok(Some(Tailscale {
+            return Ok(Tailscale {
                 running: false,
                 self_name: String::new(),
                 self_ip: String::new(),
                 online: Vec::new(),
                 total_peers: 0,
-            }));
+            });
         }
         let self_node = status.get("Self");
         let self_name = self_node
@@ -137,13 +141,13 @@ impl Source for Tailscale {
                 ip: first_ip(peer),
             })
             .collect();
-        Ok(Some(Tailscale {
+        Ok(Tailscale {
             running: true,
             self_name,
             self_ip,
             online,
             total_peers,
-        }))
+        })
     }
 }
 

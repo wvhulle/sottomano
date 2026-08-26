@@ -7,6 +7,7 @@ use crate::data::source::{
     BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
+const HWMON: &str = "/sys/class/hwmon";
 const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 
@@ -68,23 +69,34 @@ impl BarWidget for Temperature {
 impl Source for Temperature {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "temperature";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn available(_key: &()) -> bool {
+        spawn_blocking(cpu_temp_readings)
+            .await
+            .is_ok_and(|readings| !readings.is_empty())
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_temperature)
             .await
-            .map_err(|_| Error::Panicked)
+            .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_temperature() -> Option<Temperature> {
+fn read_temperature() -> Result<Temperature, Error> {
     let readings = cpu_temp_readings();
-    (!readings.is_empty()).then_some(Temperature { readings })
+    if readings.is_empty() {
+        return Err(Error::Unreadable(HWMON.to_owned()));
+    }
+    Ok(Temperature { readings })
 }
 
 fn cpu_temp_readings() -> Vec<TempReading> {
-    let mut chips = list_dir("/sys/class/hwmon");
+    let mut chips = list_dir(HWMON);
     chips.sort();
     chips
         .iter()
