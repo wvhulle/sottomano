@@ -49,11 +49,18 @@ pub enum MonitorMessage {
 }
 
 impl MonitorGroup {
-    pub fn subscription() -> Subscription<MonitorMessage> {
+    pub fn probe() -> Task<MonitorMessage> {
+        Task::batch([
+            ToggleControl::<Clight>::probe(()).map(MonitorMessage::Clight),
+            ToggleControl::<Umbra>::probe(()).map(MonitorMessage::Umbra),
+        ])
+    }
+
+    pub fn subscription(&self) -> Subscription<MonitorMessage> {
         Subscription::batch([
             backlight::subscription().map(MonitorMessage::Backlights),
-            ToggleControl::<Clight>::subscription(()).map(MonitorMessage::Clight),
-            ToggleControl::<Umbra>::subscription(()).map(MonitorMessage::Umbra),
+            self.clight.subscription(()).map(MonitorMessage::Clight),
+            self.umbra.subscription(()).map(MonitorMessage::Umbra),
         ])
     }
 

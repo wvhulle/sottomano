@@ -40,8 +40,10 @@ pub mod memory;
 pub mod power;
 pub mod temperature;
 
+pub(super) const CPU_FREQ: &str = "/sys/devices/system/cpu";
+
 pub(super) fn core_freqs() -> Vec<cpu_clock::CoreFreq> {
-    let mut cores: Vec<cpu_clock::CoreFreq> = list_dir("/sys/devices/system/cpu")
+    let mut cores: Vec<cpu_clock::CoreFreq> = list_dir(CPU_FREQ)
         .iter()
         .filter_map(|dir| {
             let name = dir.file_name()?.to_str()?;
@@ -68,8 +70,10 @@ fn cpu_core_index(name: &str) -> Option<u32> {
         .flatten()
 }
 
+pub(super) const POWER_SUPPLY: &str = "/sys/class/power_supply";
+
 pub(super) fn first_power_supply(prefix: &str) -> Option<PathBuf> {
-    let mut entries: Vec<PathBuf> = list_dir("/sys/class/power_supply")
+    let mut entries: Vec<PathBuf> = list_dir(POWER_SUPPLY)
         .into_iter()
         .filter(|p| {
             p.file_name()

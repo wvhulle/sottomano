@@ -8,13 +8,13 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
             BarWidget, Tooltip, journal,
             kernel_errors::KernelErrors,
             niri,
             systemd_failed::{Failed, JournalScope, System, User},
         },
-        source_cell::SourceCell,
     },
     message_subscriptions::blocking,
     wayland_layers::{
@@ -26,9 +26,9 @@ use crate::{
 
 #[derive(Default)]
 pub struct JournalGroup {
-    system: SourceCell<Failed<System>>,
-    user: SourceCell<Failed<User>>,
-    kernel: SourceCell<KernelErrors>,
+    system: LastPoll<Failed<System>>,
+    user: LastPoll<Failed<User>>,
+    kernel: LastPoll<KernelErrors>,
 }
 
 #[derive(Debug, Clone)]

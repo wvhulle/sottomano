@@ -28,14 +28,12 @@ use crate::{
             model::{NotifHandle, Outbound, ServerEvent},
             server,
         },
-        source::{ApiSource, Source, desktop_entries, logind, niri},
+        source::{Source, desktop_entries, logind, niri},
     },
     wayland_layers::notifications::NotificationMessage,
     widget_groups::{
-        audio_group::AudioGroup, battery_group::BatteryGroup, clock_group::ClockGroup,
-        internet_group::InternetGroup, journal_group::JournalGroup, media_group::MediaGroup,
-        monitor_group::MonitorGroup, net_interfaces_group::NetInterfacesGroup,
-        power_profile_group::PowerProfileGroup, system_group::SystemGroup, tray_group::TrayGroup,
+        audio_group::AudioGroup, clock_group::ClockGroup, journal_group::JournalGroup,
+        media_group::MediaGroup, net_interfaces_group::NetInterfacesGroup, tray_group::TrayGroup,
         weather_group::WeatherGroup, window_group::WindowGroup,
     },
     widgets::idle::{self, IdleTrigger},
@@ -64,13 +62,13 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     };
     Subscription::batch([
         WeatherGroup::subscription().map(Message::Weather),
-        BatteryGroup::subscription().map(Message::Battery),
-        SystemGroup::subscription().map(Message::System),
+        state.battery_group.subscription().map(Message::Battery),
+        state.system_group.subscription().map(Message::System),
         ClockGroup::subscription().map(Message::Clock),
         JournalGroup::subscription().map(Message::Journal),
-        InternetGroup::subscription().map(Message::Internet),
+        state.internet_group.subscription().map(Message::Internet),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
-        MonitorGroup::subscription().map(Message::Monitor),
+        state.monitor_group.subscription().map(Message::Monitor),
         state
             .color_temperature_group
             .subscription()
@@ -80,7 +78,10 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         idle_subscription(state),
         locker_subscription(state),
         AudioGroup::subscription().map(Message::Audio),
-        PowerProfileGroup::subscription().map(Message::PowerProfile),
+        state
+            .power_profile_group
+            .subscription()
+            .map(Message::PowerProfile),
         state.ai_group.subscription().map(Message::Ai),
         WindowGroup::subscription().map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),
@@ -112,23 +113,44 @@ pub(crate) fn blocking<T: Default + Send + 'static>(
     )
 }
 
-fn polled<T, F>(
+fn ticked<T, F>(
     every: Duration,
     work: impl Fn() -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = T>
 where
-    T: Clone + PartialEq + Send + 'static,
+    T: Send + 'static,
     F: Future<Output = T> + Send,
 {
     use iced::futures::StreamExt;
     let mut timer = interval(every);
     timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    let readings = IntervalStream::new(timer).then(move |_| work());
-    emit_changes(readings)
+    IntervalStream::new(timer).then(move |_| work())
 }
 
-pub(crate) fn polling<S: Source>() -> Subscription<Result<Option<S>, S::Error>> {
-    Subscription::run_with(S::NAME, |_| polled(S::INTERVAL, S::poll))
+fn emit_reading_changes<S: Clone + PartialEq, E>(
+    readings: impl Stream<Item = Result<S, E>>,
+) -> impl Stream<Item = Result<S, E>> {
+    use iced::futures::StreamExt;
+    readings
+        .scan(None, |previous, reading| {
+            let emit = if let Ok(value) = &reading {
+                let changed = previous.as_ref() != Some(value);
+                *previous = Some(value.clone());
+                changed
+            } else {
+                *previous = None;
+                true
+            };
+            ready(Some(emit.then_some(reading)))
+        })
+        .filter_map(ready)
+}
+
+pub(crate) fn polling<S: Source>(key: S::Key) -> Subscription<Result<S, S::Error>> {
+    Subscription::run_with((S::NAME, key), |(_, key)| {
+        let key = key.clone();
+        emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
+    })
 }
 
 pub(crate) fn emit_changes<T: Clone + PartialEq>(
@@ -146,13 +168,6 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub(crate) fn poll_arg<S: ApiSource>(key: S::Key) -> Subscription<Result<Option<S>, S::Error>> {
-    Subscription::run_with((S::NAME, key), |(_, key)| {
-        let key = key.clone();
-        polled(S::INTERVAL, move || S::poll(key.clone()))
-    })
-}
-
 pub(crate) fn poll_every<
     T: Clone + PartialEq + Send + 'static,
     F: Future<Output = T> + Send + 'static,
@@ -161,7 +176,9 @@ pub(crate) fn poll_every<
     every: Duration,
     poll: fn() -> F,
 ) -> Subscription<T> {
-    Subscription::run_with((key, every, poll), |&(_, every, poll)| polled(every, poll))
+    Subscription::run_with((key, every, poll), |&(_, every, poll)| {
+        emit_changes(ticked(every, poll))
+    })
 }
 
 pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<Option<S>>

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     data::source::{
-        ApiSource, BarWidget, Glyph, TooltipBody, command, font_awesome::Solid, gamma, row,
+        BarWidget, Glyph, Source, TooltipBody, command, font_awesome::Solid, gamma, row,
     },
     widgets::toggle_control::Toggle,
 };
@@ -34,23 +34,27 @@ impl BarWidget for SunFollow {
     }
 }
 
-impl ApiSource for SunFollow {
+impl Source for SunFollow {
     type Error = command::Error;
     type Key = String;
 
     const NAME: &'static str = "screen temperature";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn poll(unit: String) -> Result<Option<Self>, Self::Error> {
-        let state = command::output(
+    async fn available(_unit: &String) -> bool {
+        command::exists("systemctl").await
+    }
+
+    async fn poll(unit: String) -> Result<Self, Self::Error> {
+        let state = command::require(
             "systemctl",
             &["--user", "show", "-p", "ActiveState", "--value", &unit],
         )
         .await?;
-        Ok(state.map(|state| SunFollow {
+        Ok(SunFollow {
             auto: state.trim() == "active",
             unit,
-        }))
+        })
     }
 }
 

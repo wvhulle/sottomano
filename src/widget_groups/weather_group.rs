@@ -6,12 +6,13 @@ use iced::{
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
             Tooltip,
             weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
         },
-        source_cell::SourceCell,
     },
+    message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -26,21 +27,21 @@ use crate::{
 
 #[derive(Default)]
 pub struct WeatherGroup {
-    temp: SourceCell<Temperature>,
-    rain: SourceCell<Rain>,
-    birch: SourceCell<Pollen<Birch>>,
-    grass: SourceCell<Pollen<Grass>>,
-    location: SourceCell<Location>,
+    temp: LastPoll<Temperature>,
+    rain: LastPoll<Rain>,
+    birch: LastPoll<Pollen<Birch>>,
+    grass: LastPoll<Pollen<Grass>>,
+    location: LastPoll<Location>,
     pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Temp(Result<Option<Temperature>, weather::Error>),
-    Rain(Result<Option<Rain>, weather::Error>),
-    Birch(Result<Option<Pollen<Birch>>, weather::Error>),
-    Grass(Result<Option<Pollen<Grass>>, weather::Error>),
-    Location(Result<Option<Location>, weather::Error>),
+    Temp(Result<Temperature, weather::Error>),
+    Rain(Result<Rain, weather::Error>),
+    Birch(Result<Pollen<Birch>, weather::Error>),
+    Grass(Result<Pollen<Grass>, weather::Error>),
+    Location(Result<Location, weather::Error>),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
@@ -48,11 +49,11 @@ pub enum WeatherMessage {
 impl WeatherGroup {
     pub fn subscription() -> Subscription<WeatherMessage> {
         Subscription::batch([
-            SourceCell::subscription().map(WeatherMessage::Temp),
-            SourceCell::subscription().map(WeatherMessage::Rain),
-            SourceCell::subscription().map(WeatherMessage::Birch),
-            SourceCell::subscription().map(WeatherMessage::Grass),
-            SourceCell::subscription().map(WeatherMessage::Location),
+            polling::<Temperature>(()).map(WeatherMessage::Temp),
+            polling::<Rain>(()).map(WeatherMessage::Rain),
+            polling::<Pollen<Birch>>(()).map(WeatherMessage::Birch),
+            polling::<Pollen<Grass>>(()).map(WeatherMessage::Grass),
+            polling::<Location>(()).map(WeatherMessage::Location),
         ])
     }
 
@@ -87,6 +88,7 @@ impl WeatherGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, WeatherMessage>> {
+        self.location.get()?;
         let handle_reading = source_reading(config, self.temp.display(), 1.0)?;
         let handle = button(hoverable(
             handle_reading,
@@ -102,9 +104,9 @@ impl WeatherGroup {
         let content = ReadingRow::new()
             .opacity(reveal)
             .push(Reading::new(self.location.display(), HoverTarget::Location))
-            .push(Reading::new(self.rain.display(), HoverTarget::WeatherRain))
-            .push(Reading::new(self.birch.display(), HoverTarget::PollenBirch))
-            .push(Reading::new(self.grass.display(), HoverTarget::PollenGrass))
+            .push(Reading::new(self.rain.present(), HoverTarget::WeatherRain))
+            .push(Reading::new(self.birch.present(), HoverTarget::PollenBirch))
+            .push(Reading::new(self.grass.present(), HoverTarget::PollenGrass))
             .row(config, WeatherMessage::Tooltip)
             .unwrap_or_else(Row::new);
 

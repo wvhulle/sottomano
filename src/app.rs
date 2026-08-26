@@ -189,6 +189,15 @@ impl Bar {
             Task::perform(state::panel::load(), Message::PanelLoaded),
             blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
+            BatteryGroup::probe().map(Message::Battery),
+            SystemGroup::probe().map(Message::System),
+            InternetGroup::probe().map(Message::Internet),
+            PowerProfileGroup::probe().map(Message::PowerProfile),
+            MonitorGroup::probe().map(Message::Monitor),
+            bar.color_temperature_group
+                .probe()
+                .map(Message::ColorTemperature),
+            bar.ai_group.probe().map(Message::Ai),
         ]);
         (bar, init)
     }

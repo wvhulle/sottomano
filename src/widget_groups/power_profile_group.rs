@@ -5,13 +5,14 @@ use iced::{Element, Subscription, Task};
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
-            Tooltip, TooltipBody, bus,
+            Source, Tooltip, TooltipBody, bus,
             power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
             row,
         },
-        source_cell::SourceCell,
     },
+    message_subscriptions::polling,
     state::power,
     wayland_layers::{
         surface::Position,
@@ -28,19 +29,20 @@ const STEP: f32 = 50.0;
 const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileGroup {
-    cell: SourceCell<PowerProfile>,
+    cell: LastPoll<PowerProfile>,
     control: SliderControl,
     profile_models: HashMap<Profile, RegressionState>,
     estimates: HashMap<Profile, Option<Estimate>>,
     battery_id: String,
     load_started: bool,
     loaded: bool,
+    daemon: bool,
 }
 
 impl Default for PowerProfileGroup {
     fn default() -> Self {
         Self {
-            cell: SourceCell::default(),
+            cell: LastPoll::default(),
             control: SliderControl::new(RANGE, HoverTarget::PowerProfile, Profile::Balanced.icon())
                 .slider_step(STEP)
                 .scroll_step(STEP)
@@ -53,13 +55,15 @@ impl Default for PowerProfileGroup {
             battery_id: String::new(),
             load_started: false,
             loaded: false,
+            daemon: false,
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum PowerProfileMessage {
-    Reading(Result<Option<PowerProfile>, bus::Error>),
+    Daemon(bool),
+    Reading(Result<PowerProfile, bus::Error>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
     Tooltip(TooltipMessage),
@@ -70,12 +74,23 @@ impl PowerProfileGroup {
         self.control.is_animating()
     }
 
-    pub fn subscription() -> Subscription<PowerProfileMessage> {
-        SourceCell::subscription().map(PowerProfileMessage::Reading)
+    pub fn probe() -> Task<PowerProfileMessage> {
+        Task::future(async { PowerProfileMessage::Daemon(PowerProfile::available(&()).await) })
+    }
+
+    pub fn subscription(&self) -> Subscription<PowerProfileMessage> {
+        if !self.daemon {
+            return Subscription::none();
+        }
+        polling::<PowerProfile>(()).map(PowerProfileMessage::Reading)
     }
 
     pub fn update(&mut self, msg: PowerProfileMessage) -> Task<PowerProfileMessage> {
         match msg {
+            PowerProfileMessage::Daemon(daemon) => {
+                self.daemon = daemon;
+                Task::none()
+            }
             PowerProfileMessage::Reading(reading) => {
                 self.cell.receive(reading);
                 let Some(PowerProfile {

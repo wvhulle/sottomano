@@ -129,31 +129,32 @@ impl BarWidget for Wireguard {
 impl Source for Wireguard {
     type Error = command::Error;
 
+    type Key = ();
+
     const NAME: &'static str = "wireguard";
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
-        let Some(interfaces) = command::output("wg", &["show", "interfaces"]).await? else {
-            return Ok(None);
-        };
+    async fn available(_key: &()) -> bool {
+        command::exists("wg").await
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        let interfaces = command::require("wg", &["show", "interfaces"]).await?;
         let mut tunnels = Vec::new();
         for iface in interfaces.split_whitespace() {
-            if let Some(tunnel) = read_tunnel(iface).await? {
-                tunnels.push(tunnel);
-            }
+            tunnels.push(read_tunnel(iface).await?);
         }
-        Ok((!tunnels.is_empty()).then_some(Wireguard { tunnels }))
+        Ok(Wireguard { tunnels })
     }
 }
 
-async fn read_tunnel(iface: &str) -> Result<Option<Tunnel>, command::Error> {
-    let Some(dump) = command::output("wg", &["show", iface, "dump"]).await? else {
-        return Ok(None);
-    };
+async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
+    let dump = command::require("wg", &["show", iface, "dump"]).await?;
     let mut lines = dump.lines();
-    let Some(interface) = lines.next() else {
-        return Ok(None);
-    };
+    let interface = lines.next().ok_or_else(|| command::Error::Failed {
+        program: "wg".to_owned(),
+        stderr: format!("empty dump for {iface}"),
+    })?;
     let port: Option<u32> = interface
         .split('\t')
         .nth(2)
@@ -179,13 +180,13 @@ async fn read_tunnel(iface: &str) -> Result<Option<Tunnel>, command::Error> {
             }
         })
         .collect();
-    Ok(Some(Tunnel {
+    Ok(Tunnel {
         name: iface.to_string(),
         server: port.is_some(),
         ip: interface_ip(iface).await,
         port,
         peers,
-    }))
+    })
 }
 
 async fn interface_ip(iface: &str) -> String {

@@ -66,24 +66,26 @@ impl BarWidget for Memory {
 impl Source for Memory {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "memory";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_meminfo)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_meminfo() -> Result<Option<Memory>, Error> {
+fn read_meminfo() -> Result<Memory, Error> {
     let info = fs::read_to_string(MEMINFO).map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
     let total_kb = meminfo_kb(&info, "MemTotal")?;
     let available_kb = meminfo_kb(&info, "MemAvailable")?;
-    Ok(Some(Memory {
+    Ok(Memory {
         used_kb: total_kb - available_kb,
         total_kb,
-    }))
+    })
 }
 
 fn meminfo_kb(info: &str, key: &str) -> Result<i64, Error> {

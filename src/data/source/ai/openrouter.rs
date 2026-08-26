@@ -1,14 +1,16 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
+    sync::Arc,
     time::Duration,
 };
 
 use chrono::{Local, SecondsFormat, TimeZone, Utc};
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::data::source::{
-    ApiSource, BarWidget, Glyph, Level, TooltipBody,
+    BarWidget, Glyph, Level, Occasional, Source, TooltipBody,
     ai::{level_from_cost, read_secret},
     http, row,
     simple_icons::SimpleIcon,
@@ -17,11 +19,12 @@ use crate::data::source::{
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Error {
     Secret,
     Fetch(http::Error),
     Api(String),
+    Decode(Arc<serde_json::Error>),
 }
 
 impl Display for Error {
@@ -30,6 +33,7 @@ impl Display for Error {
             Error::Secret => write!(f, "management key unreadable"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Api(message) => write!(f, "{message}"),
+            Error::Decode(error) => write!(f, "unexpected response: {error}"),
         }
     }
 }
@@ -40,17 +44,61 @@ impl From<http::Error> for Error {
     }
 }
 
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Error::Decode(Arc::new(error))
+    }
+}
+
+fn decode<T: for<'de> Deserialize<'de>>(body: Option<Value>) -> Result<T, Error> {
+    Ok(serde_json::from_value(body.unwrap_or(Value::Null))?)
+}
+
+#[derive(Deserialize)]
+struct Envelope<T> {
+    data: T,
+}
+
+#[derive(Deserialize)]
+struct Analytics {
+    data: Vec<Usage>,
+}
+
+#[derive(Deserialize)]
+struct Usage {
+    model: Option<String>,
+    total_usage: f64,
+}
+
+#[derive(Deserialize)]
+struct ApiError {
+    error: ApiMessage,
+}
+
+#[derive(Deserialize)]
+struct ApiMessage {
+    message: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+struct Credits {
+    #[serde(rename = "total_credits")]
+    total: f64,
+    #[serde(rename = "total_usage")]
+    used: f64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenRouter {
     spend: f64,
     models: Vec<(String, f64)>,
-    credits: Option<Credits>,
+    credits: Credits,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct Credits {
-    total: f64,
-    used: f64,
+impl OpenRouter {
+    fn overspent(&self) -> bool {
+        self.credits.used > self.credits.total
+    }
 }
 
 impl BarWidget for OpenRouter {
@@ -67,18 +115,15 @@ impl BarWidget for OpenRouter {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![row("Today", format!("${} USD", money(self.spend)))];
-        if let Some(credits) = &self.credits {
-            let remaining = credits.total - credits.used;
-            rows.push(row(
-                "Credits remaining",
-                format!("${} USD", money(remaining)),
-            ));
-            rows.push(row(
+        let remaining = self.credits.total - self.credits.used;
+        let mut rows = vec![
+            row("Today", format!("${} USD", money(self.spend))),
+            row("Credits remaining", format!("${} USD", money(remaining))),
+            row(
                 "Lifetime credits purchased",
-                format!("${} USD", money(credits.total)),
-            ));
-        }
+                format!("${} USD", money(self.credits.total)),
+            ),
+        ];
         if !self.models.is_empty() {
             rows.push(row(" ", "by model (since midnight)"));
             for (name, cost) in self.models.iter().take(6) {
@@ -93,32 +138,28 @@ impl BarWidget for OpenRouter {
     }
 }
 
-impl ApiSource for OpenRouter {
+impl Source for OpenRouter {
     type Error = Error;
-    type Key = Option<PathBuf>;
+    type Key = PathBuf;
 
     const NAME: &'static str = "openrouter-usage";
     const INTERVAL: Duration = Duration::from_secs(20);
 
-    async fn poll(key: Option<PathBuf>) -> Result<Option<Self>, Self::Error> {
-        let Some(key) = key else {
-            return Ok(None);
-        };
+    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
         let key = read_secret(&key).ok_or(Error::Secret)?;
 
         let models = spend_by_model(&key).await?;
-        let spend = models.iter().map(|(_, cost)| cost).sum();
-        let credits = credits(&key).await?;
-
-        let overspent = credits.as_ref().is_some_and(|c| c.used > c.total);
-        if spend == 0.0 && !overspent {
-            return Ok(None);
-        }
-        Ok(Some(Self {
-            spend,
+        Ok(Self {
+            spend: models.iter().map(|(_, cost)| cost).sum(),
             models,
-            credits,
-        }))
+            credits: credits(&key).await?,
+        })
+    }
+}
+
+impl Occasional for OpenRouter {
+    fn present(&self) -> bool {
+        self.spend > 0.0 || self.overspent()
     }
 }
 
@@ -132,57 +173,34 @@ async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
     });
     let auth = format!("Bearer {key}");
     let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15).await?;
-    let body = resp.body.unwrap_or(Value::Null);
     if resp.status != 200 {
-        return Err(Error::Api(api_error(&body, resp.status)));
+        return Err(Error::Api(api_error(resp.body, resp.status)));
     }
-    let rows = body
-        .get("data")
-        .and_then(|data| data.get("data"))
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let analytics: Envelope<Analytics> = decode(resp.body)?;
 
     let mut per_model: Vec<(String, f64)> = Vec::new();
-    for entry in rows {
-        let name = short_model(entry.get("model").and_then(Value::as_str));
-        let cost = entry
-            .get("total_usage")
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
+    for usage in analytics.data.data {
+        let name = short_model(usage.model.as_deref());
         match per_model.iter_mut().find(|(existing, _)| *existing == name) {
-            Some((_, total)) => *total += cost,
-            None => per_model.push((name, cost)),
+            Some((_, total)) => *total += usage.total_usage,
+            None => per_model.push((name, usage.total_usage)),
         }
     }
     per_model.sort_by(|a, b| b.1.total_cmp(&a.1));
     Ok(per_model)
 }
 
-async fn credits(key: &str) -> Result<Option<Credits>, Error> {
+async fn credits(key: &str) -> Result<Credits, Error> {
     let auth = format!("Bearer {key}");
     let resp = http::get(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
-    let body = resp.body.unwrap_or(Value::Null);
     if resp.status != 200 {
         return Err(Error::Api(format!("HTTP {}", resp.status)));
     }
-    let data = body.get("data");
-    match (
-        data.and_then(|d| d.get("total_credits"))
-            .and_then(Value::as_f64),
-        data.and_then(|d| d.get("total_usage"))
-            .and_then(Value::as_f64),
-    ) {
-        (Some(total), Some(used)) => Ok(Some(Credits { total, used })),
-        _ => Ok(None),
-    }
+    decode::<Envelope<Credits>>(resp.body).map(|envelope| envelope.data)
 }
 
-fn api_error(body: &Value, status: u16) -> String {
-    body.get("error")
-        .and_then(|error| error.get("message"))
-        .and_then(Value::as_str)
-        .map_or_else(|| format!("HTTP {status}"), ToOwned::to_owned)
+fn api_error(body: Option<Value>, status: u16) -> String {
+    decode::<ApiError>(body).map_or_else(|_| format!("HTTP {status}"), |api| api.error.message)
 }
 
 fn local_midnight_utc() -> String {
@@ -214,5 +232,42 @@ fn short_model(slug: Option<&str>) -> String {
             head.to_owned()
         }
         _ => base.to_owned(),
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn credits_envelope_decodes() {
+        let envelope: Envelope<Credits> =
+            serde_json::from_str(r#"{"data":{"total_credits":25.0,"total_usage":4.5}}"#).unwrap();
+        assert!((envelope.data.total - 25.0).abs() < f64::EPSILON);
+        assert!((envelope.data.used - 4.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn analytics_rows_decode() {
+        let envelope: Envelope<Analytics> = serde_json::from_str(
+            r#"{"data":{"cachedAt":null,"metadata":{"row_count":1},
+                "data":[{"date__day":"2026-08-27","model":"openai/gpt-5.4","total_usage":0.42}]}}"#,
+        )
+        .unwrap();
+        let usage = envelope.data.data.into_iter().next().unwrap();
+        assert_eq!(short_model(usage.model.as_deref()), "gpt-5.4");
+        assert!((usage.total_usage - 0.42).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn zero_spend_without_overspend_is_not_present() {
+        let reading = OpenRouter {
+            spend: 0.0,
+            models: Vec::new(),
+            credits: Credits {
+                total: 25.0,
+                used: 4.5,
+            },
+        };
+        assert!(!reading.present());
     }
 }

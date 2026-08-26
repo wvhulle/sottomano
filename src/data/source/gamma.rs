@@ -54,31 +54,35 @@ impl BarWidget for Gamma {
 impl Source for Gamma {
     type Error = Error;
 
+    type Key = ();
+
     const NAME: &'static str = "gamma";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn poll() -> Result<Option<Self>, Self::Error> {
+    async fn available(_key: &()) -> bool {
+        spawn_blocking(read_gamma)
+            .await
+            .is_ok_and(|reading| reading.is_ok())
+    }
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
         spawn_blocking(read_gamma)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_gamma() -> Result<Option<Gamma>, Error> {
+fn read_gamma() -> Result<Gamma, Error> {
     let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
     let proxy = GammaRelayProxyBlocking::new(&connection)
         .map_err(|error| Error::Connect(error.to_string()))?;
-    let Some(brightness) = bus::call(proxy.brightness())? else {
-        return Ok(None);
-    };
-    let Some(temperature) = bus::call(proxy.temperature())? else {
-        return Ok(None);
-    };
+    let brightness = bus::require(proxy.brightness())?;
+    let temperature = bus::require(proxy.temperature())?;
     #[allow(clippy::cast_possible_truncation)]
-    Ok(Some(Gamma {
+    Ok(Gamma {
         brightness: (brightness * 100.0).round() as i64,
         temperature,
-    }))
+    })
 }
 
 pub fn set_brightness(percent: i64) -> bool {

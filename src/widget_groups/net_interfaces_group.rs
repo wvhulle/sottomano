@@ -3,6 +3,7 @@ use iced::{Element, Subscription, Task};
 use crate::{
     config::Config,
     data::{
+        last_poll::LastPoll,
         source::{
             Tooltip,
             net_interfaces::{
@@ -12,7 +13,6 @@ use crate::{
                 wifi::{self, Wifi},
             },
         },
-        source_cell::SourceCell,
     },
     message_subscriptions::dbus,
     wayland_layers::{
@@ -24,10 +24,10 @@ use crate::{
 
 #[derive(Default)]
 pub struct NetInterfacesGroup {
-    bluetooth: SourceCell<Bluetooth>,
-    ethernet: SourceCell<Ethernet>,
-    wifi: SourceCell<Wifi>,
-    mobile: SourceCell<Mobile>,
+    bluetooth: LastPoll<Bluetooth>,
+    ethernet: LastPoll<Ethernet>,
+    wifi: LastPoll<Wifi>,
+    mobile: LastPoll<Mobile>,
 }
 
 #[derive(Debug, Clone)]
