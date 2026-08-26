@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fmt, io::Error, thread};
+use std::{collections::HashMap, fmt, io::Error, process, thread};
 
-use iced::Rectangle;
+use iced::{Rectangle, Size};
 use niri_ipc::{Event, Request, Response, Window, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
 
@@ -134,19 +134,20 @@ impl Snapshot {
     }
 }
 
+fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
+    eprintln!("niri: {reason}; the bar cannot run without niri events");
+    process::exit(1)
+}
+
 pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
     let (tx, rx) = mpsc::channel(256);
     thread::spawn(move || {
         let mut socket = match Socket::connect() {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("niri: connect failed: {e}");
-                return;
-            }
+            Ok(socket) => socket,
+            Err(e) => exit_without_niri(&format_args!("connect failed: {e}")),
         };
         if let Err(e) = socket.send(Request::EventStream) {
-            eprintln!("niri: EventStream request failed: {e}");
-            return;
+            exit_without_niri(&format_args!("EventStream request failed: {e}"));
         }
         let mut read = socket.read_events();
         loop {
@@ -156,14 +157,18 @@ pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
                         return;
                     }
                 }
-                Err(e) => {
-                    eprintln!("niri: event read ended: {e}");
-                    return;
-                }
+                Err(e) => exit_without_niri(&format_args!("event read ended: {e}")),
             }
         }
     });
     rx
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct WinLayout {
+    pub column: Option<usize>,
+    pub tile_size: Size,
+    pub is_floating: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -174,6 +179,7 @@ pub struct WinEntry {
     pub pid: Option<i32>,
     pub is_focused: bool,
     pub is_urgent: bool,
+    pub layout: WinLayout,
 }
 
 pub fn all_windows(state: &EventStreamState) -> Vec<WinEntry> {
@@ -188,6 +194,11 @@ fn win_entry(w: &niri_ipc::Window) -> WinEntry {
         pid: w.pid,
         is_focused: w.is_focused,
         is_urgent: w.is_urgent,
+        layout: WinLayout {
+            column: w.layout.pos_in_scrolling_layout.map(|(column, _)| column),
+            tile_size: Size::new(w.layout.tile_size.0 as f32, w.layout.tile_size.1 as f32),
+            is_floating: w.is_floating,
+        },
     }
 }
 
