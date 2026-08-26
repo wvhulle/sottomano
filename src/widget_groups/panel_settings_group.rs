@@ -289,8 +289,8 @@ fn icon_toggle<'a>(
     press: PanelSettingsMessage,
     target: HoverTarget,
 ) -> Element<'a, PanelSettingsMessage> {
-    let alpha = if active { 1.0 } else { DISABLED_ALPHA };
-    let color = config.palette.bar_foreground.scale_alpha(alpha);
+    let opacity = if active { 1.0 } else { DISABLED_ALPHA };
+    let color = config.palette.bar_foreground.scale_alpha(opacity);
     let widget = icon.glyph().size(config.font.icon_size_px).color(color);
     hoverable(
         button(widget)

@@ -148,8 +148,8 @@ impl MediaGroup {
         let icons: Vec<Element<'a, MediaMessage>> = usable
             .into_iter()
             .map(|m| {
-                let alpha = reveal * if m.bus == current.bus { 1.0 } else { 0.4 };
-                let icon = source_icon(config, index, m, side, alpha);
+                let opacity = reveal * if m.bus == current.bus { 1.0 } else { 0.4 };
+                let icon = source_icon(config, index, m, side, opacity);
                 button(icon)
                     .padding(0)
                     .style(flat_button(config.palette.bar_foreground))
@@ -196,9 +196,9 @@ impl MediaGroup {
     ) -> Option<Element<'a, MediaMessage>> {
         let media = self.current()?;
         let status = self.status(media);
-        let alpha = if status == Status::Playing { 1.0 } else { 0.4 };
+        let opacity = if status == Status::Playing { 1.0 } else { 0.4 };
 
-        let handle = handle(config, media, status, alpha);
+        let handle = handle(config, media, status, opacity);
         let handle = button(hoverable(handle, HoverTarget::Media, MediaMessage::Tooltip))
             .padding(0)
             .style(flat_button(config.palette.bar_foreground))
@@ -239,14 +239,14 @@ fn handle<'a>(
     config: &Config,
     media: &Media,
     status: Status,
-    alpha: f32,
+    opacity: f32,
 ) -> Element<'a, MediaMessage> {
     let side = config.font.icon_size_px;
     if let Some(art) = &media.art {
         return image(art.clone())
             .width(side)
             .height(side)
-            .opacity(alpha)
+            .opacity(opacity)
             .into();
     }
     let icon = if status == Status::Playing {
@@ -256,7 +256,7 @@ fn handle<'a>(
     };
     icon.glyph()
         .size(side)
-        .color(config.palette.bar_foreground.scale_alpha(alpha))
+        .color(config.palette.bar_foreground.scale_alpha(opacity))
         .into()
 }
 
@@ -265,7 +265,7 @@ fn source_icon<'a>(
     index: &DesktopIndex,
     media: &Media,
     side: f32,
-    alpha: f32,
+    opacity: f32,
 ) -> Element<'a, MediaMessage> {
     if let Some(path) = index.app_icon(&media.app_id()) {
         let is_svg = path
@@ -275,20 +275,20 @@ fn source_icon<'a>(
             svg(svg::Handle::from_path(path))
                 .width(side)
                 .height(side)
-                .opacity(alpha)
+                .opacity(opacity)
                 .into()
         } else {
             image(image::Handle::from_path(path))
                 .width(side)
                 .height(side)
-                .opacity(alpha)
+                .opacity(opacity)
                 .into()
         };
     }
     player_icon(media)
         .glyph()
         .size(side)
-        .color(config.palette.bar_foreground.scale_alpha(alpha))
+        .color(config.palette.bar_foreground.scale_alpha(opacity))
         .into()
 }
 

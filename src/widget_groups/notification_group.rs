@@ -72,8 +72,8 @@ fn toggle<'a>(
     active: bool,
     message: NotificationGroupMessage,
 ) -> Element<'a, NotificationGroupMessage> {
-    let alpha = if active { 1.0 } else { DISABLED_ALPHA };
-    let color = config.palette.bar_foreground.scale_alpha(alpha);
+    let opacity = if active { 1.0 } else { DISABLED_ALPHA };
+    let color = config.palette.bar_foreground.scale_alpha(opacity);
     button(icon.glyph().size(config.font.icon_size_px).color(color))
         .padding(0)
         .style(flat_button(color))

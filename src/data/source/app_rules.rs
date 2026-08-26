@@ -1,3 +1,5 @@
+use iced::Font;
+
 use super::niri::WinEntry;
 
 const SEPARATORS: [&str; 3] = [" — ", " · ", " - "];
@@ -35,10 +37,31 @@ pub fn rule_for(app_id: &str) -> AppRule {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TitleParts {
     pub lead: String,
     pub main: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleRole {
+    Lead,
+    Main,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleRun {
+    pub text: String,
+    pub font: Font,
+    pub role: TitleRole,
+}
+
+pub fn label_for(win: &WinEntry) -> &str {
+    if win.title.is_empty() {
+        &win.app_id
+    } else {
+        &win.title
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +90,10 @@ impl AppRule {
                 main: title.to_string(),
             },
         }
+    }
+
+    pub fn lead_first(self) -> bool {
+        !matches!(self, AppRule::Terminal)
     }
 
     pub fn favicon_key(self, title: &str) -> Option<String> {
@@ -400,7 +427,26 @@ mod tests {
             is_focused: false,
             is_urgent: false,
             layout: WinLayout::default(),
+            title_runs: Vec::new(),
         }
+    }
+
+    #[test]
+    fn terminals_put_the_command_before_the_directory() {
+        let rule = rule_for("kitty");
+        let parts = rule.rewrite("vetrata — cargo");
+        assert_eq!(parts.lead, "vetrata");
+        assert_eq!(parts.main, "cargo");
+        assert!(!rule.lead_first());
+    }
+
+    #[test]
+    fn browsers_strip_the_brand_and_lead_with_context() {
+        let rule = rule_for("firefox");
+        let parts = rule.rewrite("Odin-rs · GitHub — Mozilla Firefox");
+        assert_eq!(parts.main, "Odin-rs");
+        assert_eq!(parts.lead, "GitHub");
+        assert!(rule.lead_first());
     }
 
     #[test]

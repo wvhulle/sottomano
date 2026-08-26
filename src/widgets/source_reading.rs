@@ -12,7 +12,7 @@ use crate::{
 pub fn source_reading<'a, Message: 'a>(
     config: &Config,
     widget: Option<&dyn BarWidget>,
-    alpha: f32,
+    opacity: f32,
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
     let color = if widget.disabled() {
@@ -20,7 +20,7 @@ pub fn source_reading<'a, Message: 'a>(
     } else {
         level_color(config, widget.level())
     }
-    .scale_alpha(alpha);
+    .scale_alpha(opacity);
     let icon: Element<Message> = match widget.icon() {
         Glyph::SimpleIcon(mark) => svg(mark.handle())
             .width(config.font.icon_size_px)

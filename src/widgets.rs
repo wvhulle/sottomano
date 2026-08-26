@@ -2,6 +2,7 @@ pub mod activity_line;
 pub mod bounds_probe;
 pub mod confirm_button;
 pub mod context_menu;
+pub mod favicon;
 pub mod focus_indicator;
 pub mod gauge;
 pub mod idle;
@@ -17,7 +18,9 @@ pub mod source_reading;
 pub mod text;
 pub mod toggle_control;
 pub mod tracked;
+pub mod window_icon;
 pub mod window_list_viewport;
+pub mod window_title;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
 

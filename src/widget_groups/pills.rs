@@ -12,14 +12,14 @@ use crate::{
 
 pub struct Pills<'w> {
     entries: Vec<(&'w dyn BarWidget, HoverTarget)>,
-    alpha: f32,
+    opacity: f32,
 }
 
 impl Default for Pills<'_> {
     fn default() -> Self {
         Self {
             entries: Vec::new(),
-            alpha: 1.0,
+            opacity: 1.0,
         }
     }
 }
@@ -29,8 +29,8 @@ impl<'w> Pills<'w> {
         Self::default()
     }
 
-    pub fn alpha(mut self, alpha: f32) -> Self {
-        self.alpha = alpha;
+    pub fn opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity;
         self
     }
 
@@ -46,11 +46,11 @@ impl<'w> Pills<'w> {
         config: &Config,
         wrap: impl Fn(TooltipMessage) -> M + Clone + 'a,
     ) -> Option<Row<'a, M>> {
-        let Self { entries, alpha } = self;
+        let Self { entries, opacity } = self;
         let pills: Vec<Element<'a, M>> = entries
             .into_iter()
             .filter_map(|(widget, target)| {
-                let reading = source_reading(config, Some(widget), alpha)?;
+                let reading = source_reading(config, Some(widget), opacity)?;
                 Some(hoverable(reading, target, wrap.clone()))
             })
             .collect();

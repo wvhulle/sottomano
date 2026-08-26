@@ -16,7 +16,7 @@ use super::reveal::clip_cursor;
 
 const LINE_STEP_PX: f32 = 60.0;
 
-const CLIPPED_ALPHA: f32 = 0.4;
+const CLIPPED_OPACITY: f32 = 0.4;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Metrics {
@@ -30,7 +30,7 @@ impl Metrics {
         (self.content_width - self.viewport_width).max(0.0)
     }
 
-    pub fn item_alpha(&self, offset: f32, index: usize) -> f32 {
+    pub fn item_opacity(&self, offset: f32, index: usize) -> f32 {
         let Some(&(left, right)) = self.item_bounds.get(index) else {
             return 1.0;
         };
@@ -40,7 +40,7 @@ impl Metrics {
         }
         let offset = offset.clamp(0.0, max);
         let clipped = left < offset - 0.5 || right > offset + self.viewport_width + 0.5;
-        if clipped { CLIPPED_ALPHA } else { 1.0 }
+        if clipped { CLIPPED_OPACITY } else { 1.0 }
     }
 }
 

@@ -12,12 +12,13 @@ use crate::{
         surface::{self, Margin, Surface},
         tooltip::{
             HoverTarget, TooltipMessage,
-            tooltip_content::render,
+            tooltip_content::TooltipContent,
             tooltip_placement::{Rendering, morphing_tooltip},
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
         tray_menu::MenuAnchor,
     },
+    widgets::favicon::Favicons,
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
@@ -160,6 +161,7 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
+        favicons: &'a Favicons,
         content: impl Fn(&HoverTarget) -> Tooltip,
     ) -> Option<Element<'a, Message>> {
         if !self.hosts(surface) {
@@ -176,22 +178,22 @@ impl TooltipHost {
         let progress = self.transition.progress();
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
-            let alpha = (1.0 - 2.0 * progress).max(0.0);
-            if alpha > 0.0 {
-                renderings.push(Rendering::outgoing(render(
-                    &previous.content,
-                    config,
-                    alpha,
-                )));
+            let opacity = (1.0 - 2.0 * progress).max(0.0);
+            if opacity > 0.0 {
+                renderings.push(Rendering::outgoing(
+                    TooltipContent::new(&previous.content, config, favicons)
+                        .opacity(opacity)
+                        .view(),
+                ));
             }
         }
         if let Some(current) = self.transition.current() {
-            let alpha = (2.0 * progress - 1.0).max(0.0);
-            renderings.push(Rendering::incoming(render(
-                &content(&current.target),
-                config,
-                alpha,
-            )));
+            let opacity = (2.0 * progress - 1.0).max(0.0);
+            renderings.push(Rendering::incoming(
+                TooltipContent::new(&content(&current.target), config, favicons)
+                    .opacity(opacity)
+                    .view(),
+            ));
         }
         Some(morphing_tooltip(
             renderings,
