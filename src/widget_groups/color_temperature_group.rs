@@ -7,18 +7,20 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip, TooltipBody, bus,
-        font_awesome::Solid,
-        gamma::{self, Gamma},
-        row,
-        screen_temperature::{self, SunFollow},
+    data::{
+        source::{
+            Tooltip, TooltipBody, bus,
+            font_awesome::Solid,
+            gamma::{self, Gamma},
+            row,
+            screen_temperature::{self, SunFollow},
+        },
+        source_cell::SourceCell,
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::source_cell::SourceCell,
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},

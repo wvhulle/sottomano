@@ -1,24 +1,27 @@
 use iced::{
-    Alignment, Element, Subscription, Task,
-    widget::{Row, button, mouse_area},
+    Element, Subscription, Task,
+    widget::{Row, button},
 };
 
 use crate::{
     config::Config,
-    data::source::{
-        BarWidget, Tooltip, command,
-        tailscale::{self, Tailscale, open_admin},
-        throughput::{self, Download, Readings, Throughput, Upload},
-        wireguard::{Wireguard, disconnect},
+    data::{
+        source::{
+            BarWidget, Tooltip, command,
+            tailscale::{self, Tailscale, open_admin},
+            throughput::{self, Download, Readings, Throughput, Upload},
+            wireguard::{Wireguard, disconnect},
+        },
+        source_cell::SourceCell,
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widget_groups::source_cell::SourceCell,
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
+        reading_row::{Reading, ReadingRow},
         source_reading::source_reading,
     },
 };
@@ -111,51 +114,29 @@ impl InternetGroup {
         .into();
 
         let reveal = self.menu.reveal();
-        let mut pills: Vec<Element<'a, InternetMessage>> = Vec::new();
-        if let Some(up) = self.up.get()
-            && let Some(reading) = source_reading(config, Some(up as &dyn BarWidget), reveal)
-        {
-            pills.push(hoverable(
-                reading,
-                HoverTarget::InternetUp,
-                InternetMessage::Tooltip,
-            ));
-        }
-        if let Some(wireguard) = self.wireguard.get() {
-            for tunnel in &wireguard.tunnels {
-                if let Some(reading) =
-                    source_reading(config, Some(tunnel as &dyn BarWidget), reveal)
-                {
-                    let name = tunnel.name.clone();
-                    let hover = hoverable(
-                        reading,
-                        HoverTarget::Wireguard(name.clone()),
-                        InternetMessage::Tooltip,
-                    );
-                    pills.push(
-                        mouse_area(hover)
-                            .on_right_press(InternetMessage::Disconnect(name))
-                            .into(),
-                    );
-                }
-            }
-        }
-        if let Some(tailscale) = self.tailscale.get()
-            && let Some(reading) = source_reading(config, Some(tailscale as &dyn BarWidget), reveal)
-        {
-            let hover = hoverable(reading, HoverTarget::Tailscale, InternetMessage::Tooltip);
-            pills.push(
-                button(hover)
-                    .padding(0)
-                    .style(flat_button(config.palette.bar_foreground))
-                    .on_press(InternetMessage::OpenTailscale)
-                    .into(),
-            );
-        }
-
-        let content = Row::with_children(pills)
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let tunnels = self
+            .wireguard
+            .get()
+            .map_or(&[][..], |wireguard| &wireguard.tunnels);
+        let content = tunnels
+            .iter()
+            .fold(
+                ReadingRow::new()
+                    .opacity(reveal)
+                    .push(Reading::new(self.up.display(), HoverTarget::InternetUp)),
+                |readings, tunnel| {
+                    readings.push(
+                        Reading::new(Some(tunnel), HoverTarget::Wireguard(tunnel.name.clone()))
+                            .on_right_press(InternetMessage::Disconnect(tunnel.name.clone())),
+                    )
+                },
+            )
+            .push(
+                Reading::new(self.tailscale.display(), HoverTarget::Tailscale)
+                    .on_press(InternetMessage::OpenTailscale),
+            )
+            .row(config, InternetMessage::Tooltip)
+            .unwrap_or_else(Row::new);
 
         Some(self.menu.view(
             config,

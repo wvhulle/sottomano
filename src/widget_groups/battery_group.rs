@@ -2,15 +2,18 @@ use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip,
-        sysfs_sensors::{self, battery::Battery, power::PowerDraw},
+    data::{
+        source::{
+            Tooltip,
+            sysfs_sensors::{self, battery::Battery, power::PowerDraw},
+        },
+        source_cell::SourceCell,
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::{pills::Pills, source_cell::SourceCell},
+    widgets::reading_row::{Reading, ReadingRow},
 };
 
 #[derive(Default)]
@@ -56,9 +59,9 @@ impl BatteryGroup {
         config: &Config,
         position: Position,
     ) -> Option<Element<'a, BatteryMessage>> {
-        Pills::new()
-            .push(self.charge.display(), HoverTarget::Battery)
-            .push(self.draw.display(), HoverTarget::PowerDraw)
+        ReadingRow::new()
+            .push(Reading::new(self.charge.display(), HoverTarget::Battery))
+            .push(Reading::new(self.draw.display(), HoverTarget::PowerDraw))
             .slot(config, position, BatteryMessage::Tooltip)
     }
 }

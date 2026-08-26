@@ -12,6 +12,7 @@ pub mod native_icon;
 pub mod overlay_shadow;
 pub mod pager_slot;
 pub mod progress_line;
+pub mod reading_row;
 pub mod reveal;
 pub mod slider_control;
 pub mod source_reading;

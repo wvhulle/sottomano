@@ -2,10 +2,12 @@ use iced::{Element, Subscription, Task, widget::button};
 
 use crate::{
     config::Config,
-    data::source::{ApiSource, BarWidget, Tooltip},
+    data::{
+        source::{ApiSource, BarWidget, Tooltip},
+        source_cell::SourceCell,
+    },
     message_subscriptions::{blocking, poll_arg},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
-    widget_groups::source_cell::SourceCell,
     widgets::{flat_button, source_reading::source_reading},
 };
 
