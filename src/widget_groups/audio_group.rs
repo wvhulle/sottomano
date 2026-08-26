@@ -37,6 +37,13 @@ impl ControlKind {
             ControlKind::Source => Target::DefaultSource,
         }
     }
+
+    fn label(self) -> &'static str {
+        match self {
+            ControlKind::Sink => "Volume",
+            ControlKind::Source => "Microphone",
+        }
+    }
 }
 
 pub struct AudioGroup {
@@ -201,10 +208,29 @@ impl AudioGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::AudioSink => self.sink.as_ref().map(|reading| tooltip(reading, false)),
-            HoverTarget::AudioSource => self.source.as_ref().map(|reading| tooltip(reading, true)),
+            HoverTarget::AudioSink => self.tooltip(ControlKind::Sink),
+            HoverTarget::AudioSource => self.tooltip(ControlKind::Source),
             _ => None,
         }
+    }
+
+    fn tooltip(&self, kind: ControlKind) -> Option<Tooltip> {
+        let (reading, control) = match kind {
+            ControlKind::Sink => (self.sink.as_ref()?, &self.sink_control),
+            ControlKind::Source => (self.source.as_ref()?, &self.source_control),
+        };
+        let rows = [
+            Some(row(kind.label(), control.readout_text())),
+            Some(row("State", if reading.muted { "muted" } else { "active" })),
+            reading
+                .device
+                .as_ref()
+                .map(|device| row("Device", device.clone())),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        Some(Tooltip::table(rows))
     }
 
     pub fn view<'a>(
@@ -260,22 +286,6 @@ fn feed(control: &mut SliderControl, reading: Option<&Reading>) {
         control.update(ControlMessage::Reading(percent_f(reading.percent)));
         control.update(ControlMessage::Disabled(reading.muted));
     }
-}
-
-fn tooltip(reading: &Reading, input: bool) -> Tooltip {
-    let label = if input { "Microphone" } else { "Volume" };
-    let rows = [
-        Some(row(label, format!("{}%", reading.percent))),
-        Some(row("State", if reading.muted { "muted" } else { "active" })),
-        reading
-            .device
-            .as_ref()
-            .map(|device| row("Device", device.clone())),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    Tooltip::table(rows)
 }
 
 fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {

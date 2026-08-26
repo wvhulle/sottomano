@@ -8,7 +8,7 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{
-        BarWidget, Tooltip,
+        Tooltip,
         backlight::{self, Backlight},
         clight::Clight,
         font_awesome::Solid,
@@ -139,7 +139,8 @@ impl MonitorGroup {
         match target {
             HoverTarget::Backlight(serial) => {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
-                Some(Tooltip::of(backlight.tooltip()))
+                let brightness = self.sliders.get(serial)?.readout_text();
+                Some(Tooltip::of(backlight.tooltip(brightness)))
             }
             HoverTarget::ClightAuto => self.clight.tooltip(),
             HoverTarget::DarkMode => self.umbra.tooltip(),

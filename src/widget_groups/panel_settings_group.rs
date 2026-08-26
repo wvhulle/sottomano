@@ -41,25 +41,6 @@ fn confirmed(
         .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Confirmed { value, ok })))
 }
 
-pub fn tooltip_for(target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip> {
-    match target {
-        HoverTarget::CornerRadius => Some(radius_tooltip(chrome)),
-        HoverTarget::FloatOffset => Some(offset_tooltip(chrome)),
-        HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
-        HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
-        HoverTarget::DarkenChrome => Some(darken_tooltip(chrome)),
-        _ => None,
-    }
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn radius_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip::table(vec![row(
-        "Corners",
-        format!("{} px radius", chrome.corner_radius_px.round() as i64),
-    )])
-}
-
 fn blur_tooltip(chrome: &ChromeState) -> Tooltip {
     Tooltip::table(vec![row(
         "Blur",
@@ -79,25 +60,6 @@ fn disconnected_tooltip(chrome: &ChromeState) -> Tooltip {
         } else {
             "one bar"
         },
-    )])
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn darken_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip::table(vec![row(
-        "Darken",
-        format!(
-            "{} % black tint over the chrome",
-            (chrome.darken_chrome_factor * 100.0).round() as i64
-        ),
-    )])
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn offset_tooltip(chrome: &ChromeState) -> Tooltip {
-    Tooltip::table(vec![row(
-        "Offset",
-        format!("{} px", chrome.float_offset_px.round() as i64),
     )])
 }
 
@@ -148,6 +110,26 @@ impl Default for PanelSettingsGroup {
 }
 
 impl PanelSettingsGroup {
+    pub fn tooltip_for(&self, target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip> {
+        match target {
+            HoverTarget::CornerRadius => Some(Tooltip::table(vec![row(
+                "Corners",
+                format!("{} radius", self.radius.readout_text()),
+            )])),
+            HoverTarget::FloatOffset => Some(Tooltip::table(vec![row(
+                "Offset",
+                self.offset.readout_text(),
+            )])),
+            HoverTarget::DarkenChrome => Some(Tooltip::table(vec![row(
+                "Darken",
+                format!("{} black tint over the chrome", self.darken.readout_text()),
+            )])),
+            HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
+            HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
+            _ => None,
+        }
+    }
+
     pub fn is_animating(&self) -> bool {
         self.radius.is_animating() || self.offset.is_animating() || self.darken.is_animating()
     }

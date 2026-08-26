@@ -155,7 +155,7 @@ impl PowerProfileGroup {
         if !matches!(target, HoverTarget::PowerProfile) {
             return None;
         }
-        let active_profile = self.cell.get()?.active_profile;
+        let active_profile = Profile::from_position(self.control.current());
         let rows = Profile::ALL
             .into_iter()
             .map(|profile| {
