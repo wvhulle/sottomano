@@ -2,6 +2,7 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
     future::Future,
     hash::Hash,
+    path::PathBuf,
     time::{Duration, SystemTime},
 };
 
@@ -131,10 +132,28 @@ pub struct LogEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreviewTile {
+    pub title: String,
+    pub icon: Option<PathBuf>,
+    pub width_px: i32,
+    pub height_px: i32,
+    pub is_focused: bool,
+    pub is_urgent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePreview {
+    pub header: Vec<Row>,
+    pub columns: Vec<Vec<PreviewTile>>,
+    pub floating: Vec<PreviewTile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TooltipBody {
     Table(Vec<Row>),
     Log(Vec<LogEntry>),
     Text { title: String, body: String },
+    Workspace(WorkspacePreview),
 }
 
 impl TooltipBody {
@@ -143,6 +162,9 @@ impl TooltipBody {
             TooltipBody::Table(rows) => rows.is_empty(),
             TooltipBody::Log(entries) => entries.is_empty(),
             TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),
+            TooltipBody::Workspace(preview) => {
+                preview.columns.is_empty() && preview.floating.is_empty()
+            }
         }
     }
 }
