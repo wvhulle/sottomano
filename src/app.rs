@@ -4,7 +4,7 @@ use std::{
 };
 
 use chrono::Utc;
-use iced::{Color, Element, Task, theme::Style, window::Id};
+use iced::{Color, Element, Font, Task, theme::Style, window::Id};
 use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
@@ -16,6 +16,7 @@ use crate::{
             Tooltip, TooltipBody,
             app_icon::{self, DesktopEntries},
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
+            favicons::RawFavicon,
             launch_tracker::{Buckets, LaunchTracker},
             niri,
         },
@@ -54,7 +55,7 @@ use crate::{
         },
         workspaces_group::workspace_tooltip,
     },
-    widgets::menu_group::MenuGroup,
+    widgets::{favicon::Favicons, menu_group::MenuGroup, text::FontFallbacks},
 };
 
 pub struct Bar {
@@ -87,6 +88,8 @@ pub struct Bar {
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
+    pub(crate) favicons: Favicons,
+    pub(crate) font_fallbacks: FontFallbacks,
 }
 
 #[to_layer_message(multi)]
@@ -115,6 +118,8 @@ pub enum Message {
     TrackerLoaded(Buckets),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     IconsResolved(ResolvedIcons),
+    FaviconsResolved(HashMap<String, RawFavicon>),
+    FallbackFontsResolved(HashMap<char, Font>),
     DismissPressed,
     WorkspaceClicked {
         id: u64,
@@ -170,6 +175,8 @@ impl Bar {
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
+            favicons: Favicons::default(),
+            font_fallbacks: FontFallbacks::default(),
             session: Session::default(),
             config,
         };
@@ -201,6 +208,15 @@ impl Bar {
             }
             Message::IconsResolved(resolved) => {
                 self.desktop_entries.merge(resolved);
+                Task::none()
+            }
+            Message::FaviconsResolved(raw) => {
+                self.favicons.merge(raw);
+                Task::none()
+            }
+            Message::FallbackFontsResolved(fonts) => {
+                self.font_fallbacks.merge(fonts);
+                self.rederive_snapshot();
                 Task::none()
             }
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
@@ -366,12 +382,9 @@ impl Bar {
             window_group::Action::ToggleWindowAudio(pid) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
             }
-            window_group::Action::RefreshWindowList => Task::batch([
-                self.window_group
-                    .refresh_window_list(&self.niri, &self.config.font)
-                    .map(Message::WindowGroup),
-                self.resolve_icons(),
-            ]),
+            window_group::Action::RefreshWindowList => {
+                Task::batch([self.refresh_window_assets(), self.resolve_icons()])
+            }
             window_group::Action::None => Task::none(),
         }
     }
@@ -594,17 +607,13 @@ impl Bar {
             }
             let _ = self.niri.apply(event);
         }
-        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
+        self.rederive_snapshot();
         if focus_change {
             self.dismiss_menus();
             tasks.push(self.tray_group.close_menu());
         }
         if window_change {
-            tasks.push(
-                self.window_group
-                    .refresh_window_list(&self.niri, &self.config.font)
-                    .map(Message::WindowGroup),
-            );
+            tasks.push(self.refresh_window_assets());
         }
         if window_change || workspace_change {
             tasks.push(self.refresh_quick_launch());
@@ -647,6 +656,26 @@ impl Bar {
             .collect();
         self.window_group.set_ranked(ranked);
         self.resolve_icons()
+    }
+
+    fn rederive_snapshot(&mut self) {
+        self.niri_snapshot =
+            niri::Snapshot::derive(&self.niri, &self.config.font, &self.font_fallbacks);
+    }
+
+    fn refresh_window_assets(&mut self) -> Task<Message> {
+        let titles = niri::all_windows(&self.niri);
+        Task::batch([
+            self.favicons
+                .poll(&self.niri)
+                .map(Message::FaviconsResolved),
+            self.font_fallbacks
+                .resolve_missing(
+                    titles.iter().flat_map(|win| win.title.chars()),
+                    &self.config.font,
+                )
+                .map(Message::FallbackFontsResolved),
+        ])
     }
 
     fn resolve_icons(&mut self) -> Task<Message> {
@@ -747,7 +776,9 @@ impl Bar {
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         if let Some(element) = self
             .tooltip
-            .view(window, &self.config, |target| self.tooltip_for(target))
+            .view(window, &self.config, &self.favicons, |target| {
+                self.tooltip_for(target)
+            })
         {
             return element;
         }

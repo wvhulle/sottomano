@@ -37,7 +37,7 @@ impl ConfirmButton {
     pub fn view<'a, Message: 'a + Clone>(
         &self,
         config: &Config,
-        alpha: f32,
+        opacity: f32,
         active: bool,
         on_press: Message,
     ) -> Element<'a, Message> {
@@ -48,7 +48,7 @@ impl ConfirmButton {
         } else {
             (Solid::Bolt, config.palette.inactive)
         };
-        let color = color.scale_alpha(alpha);
+        let color = color.scale_alpha(opacity);
         button(glyph.glyph().size(config.font.icon_size_px).color(color))
             .padding(0)
             .style(flat_button(color))

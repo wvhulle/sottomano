@@ -71,10 +71,10 @@ impl<S: Toggle> ToggleControl<S> {
         &self,
         config: &Config,
         target: HoverTarget,
-        alpha: f32,
+        opacity: f32,
     ) -> Option<Element<'a, ToggleMessage<S>>> {
         let display = self.cell.get()?;
-        let reading = source_reading(config, Some(display as &dyn BarWidget), alpha)?;
+        let reading = source_reading(config, Some(display as &dyn BarWidget), opacity)?;
         let hover = hoverable(reading, target, ToggleMessage::Tooltip);
         Some(
             button(hover)

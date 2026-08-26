@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::data::source::{
     PreviewTile, Row, Tooltip, TooltipBody, WorkspacePreview,
-    app_rules::{self, IconCandidate},
+    app_rules::{self, AppRule, IconCandidate},
     desktop_entries::DesktopIndex,
     niri, row,
 };
@@ -53,13 +53,11 @@ fn scrolling_columns(windows: &[niri::WinEntry]) -> Vec<Vec<&niri::WinEntry>> {
 }
 
 fn preview_tile(icons: &DesktopIndex, window: &niri::WinEntry) -> PreviewTile {
+    let rule = app_rules::rule_for(&window.app_id);
     PreviewTile {
-        title: if window.title.is_empty() {
-            window.app_id.clone()
-        } else {
-            window.title.clone()
-        },
-        icon: icon_path(icons, window),
+        title: window.title_runs.clone(),
+        favicon_key: rule.favicon_key(&window.title),
+        icon: icon_path(icons, rule, window),
         width_px: window.layout.tile_size.width.round() as i32,
         height_px: window.layout.tile_size.height.round() as i32,
         is_focused: window.is_focused,
@@ -67,9 +65,8 @@ fn preview_tile(icons: &DesktopIndex, window: &niri::WinEntry) -> PreviewTile {
     }
 }
 
-fn icon_path(icons: &DesktopIndex, window: &niri::WinEntry) -> Option<PathBuf> {
-    app_rules::rule_for(&window.app_id)
-        .icon_candidates(window)
+fn icon_path(icons: &DesktopIndex, rule: AppRule, window: &niri::WinEntry) -> Option<PathBuf> {
+    rule.icon_candidates(window)
         .into_iter()
         .find_map(|candidate| match candidate {
             IconCandidate::Theme(name) => icons.theme_icon_path(&name),
@@ -92,6 +89,7 @@ mod tests {
             pid: None,
             is_focused: false,
             is_urgent: false,
+            title_runs: Vec::new(),
             layout: niri::WinLayout {
                 column,
                 tile_size: Size::new(800.0, 600.0),

@@ -5,16 +5,14 @@ pub mod window_tooltip;
 use std::{collections::HashMap, sync::Arc};
 
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
-use niri_ipc::state::EventStreamState;
 use quick_launch::{QuickLaunch, QuickLaunchMessage};
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
-    config::{Config, font::FontConfig},
-    data::source::{
-        app_icon::DesktopEntries, audio::WindowAudio, desktop_entries::DesktopIndex, niri,
-    },
+    config::Config,
+    data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri},
     wayland_layers::surface::Position,
+    widgets::window_icon::WindowIcons,
 };
 
 #[derive(Default)]
@@ -70,20 +68,10 @@ impl WindowGroup {
         self.quick_launch.icon_keys()
     }
 
-    pub fn refresh_window_list(
-        &mut self,
-        niri: &EventStreamState,
-        font: &FontConfig,
-    ) -> Task<WindowGroupMessage> {
-        self.window_list
-            .refresh(niri, font)
-            .map(WindowGroupMessage::WindowList)
-    }
-
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
-        index: &'a DesktopIndex,
+        icons: WindowIcons<'a>,
         audio: &HashMap<i32, WindowAudio>,
         output: &str,
         config: &Config,
@@ -91,11 +79,11 @@ impl WindowGroup {
     ) -> Option<Element<'a, WindowGroupMessage>> {
         let quick_launch = self
             .quick_launch
-            .view(index, output, config, position)
+            .view(icons.entries, output, config, position)
             .map(|e| e.map(WindowGroupMessage::QuickLaunch));
         let window_list = self
             .window_list
-            .view(niri, index, audio, output, config, position)
+            .view(niri, icons, audio, output, config, position)
             .map(|e| e.map(WindowGroupMessage::WindowList));
         if quick_launch.is_none() && window_list.is_none() {
             return None;

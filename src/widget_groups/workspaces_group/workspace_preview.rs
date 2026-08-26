@@ -2,7 +2,7 @@ use iced::{
     Border, Color, Element, Padding,
     alignment::Vertical,
     border::Radius,
-    widget::{Column, Row as RowWidget, container, text::Wrapping},
+    widget::{Column, Row as RowWidget, container, rich_text, text::Wrapping},
 };
 
 use crate::{
@@ -10,8 +10,7 @@ use crate::{
     config::Config,
     data::source::{PreviewTile, WorkspacePreview},
     widgets::{
-        native_icon::{IconSource, native_icon},
-        text::bar_text,
+        favicon::Favicons, text::LINE_HEIGHT, window_icon::window_icon, window_title::title_spans,
     },
 };
 
@@ -19,117 +18,122 @@ const TILE_GAP_PX: f32 = 3.0;
 const TILE_LABEL_GAP_PX: f32 = 5.0;
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;
 const TILE_LABEL_SCALE: f32 = 0.8;
-const TILE_BORDER_PX: f32 = 1.0;
+const TILE_BORDER_PX: f32 = 2.0;
 const TILE_RADIUS_PX: f32 = 4.0;
 const TILE_FILL_ALPHA: f32 = 0.18;
+const TILE_OUTLINE_ALPHA: f32 = 0.7;
 const TILE_PADDING: Padding = Padding::new(4.0);
 
-pub fn schematic<'a>(
-    preview: &WorkspacePreview,
-    config: &Config,
-    foreground: Color,
-    dim: Color,
-    alpha: f32,
-) -> Element<'a, Message> {
-    let scale = config.widgets.workspace_preview_scale;
-    let mut rows = vec![
-        RowWidget::with_children(
-            preview
-                .columns
-                .iter()
-                .map(|column| stacked_column(column, config, scale, foreground, dim, alpha)),
-        )
-        .spacing(TILE_GAP_PX)
-        .into(),
-    ];
-    if !preview.floating.is_empty() {
-        rows.push(
+pub struct WorkspaceSchematic<'a> {
+    preview: &'a WorkspacePreview,
+    config: &'a Config,
+    favicons: &'a Favicons,
+    opacity: f32,
+}
+
+impl<'a> WorkspaceSchematic<'a> {
+    pub fn new(preview: &'a WorkspacePreview, config: &'a Config, favicons: &'a Favicons) -> Self {
+        Self {
+            preview,
+            config,
+            favicons,
+            opacity: 1.0,
+        }
+    }
+
+    pub fn opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity;
+        self
+    }
+
+    pub fn view(self) -> Element<'static, Message> {
+        let mut rows = vec![
             RowWidget::with_children(
-                preview
-                    .floating
+                self.preview
+                    .columns
                     .iter()
-                    .map(|tile| window_tile(tile, config, scale, foreground, dim, alpha)),
+                    .map(|column| self.column(column)),
             )
             .spacing(TILE_GAP_PX)
             .into(),
+        ];
+        if !self.preview.floating.is_empty() {
+            rows.push(
+                RowWidget::with_children(self.preview.floating.iter().map(|tile| self.tile(tile)))
+                    .spacing(TILE_GAP_PX)
+                    .into(),
+            );
+        }
+        Column::with_children(rows).spacing(TILE_GAP_PX).into()
+    }
+
+    fn column(&self, tiles: &[PreviewTile]) -> Element<'static, Message> {
+        Column::with_children(tiles.iter().map(|tile| self.tile(tile)))
+            .spacing(TILE_GAP_PX)
+            .into()
+    }
+
+    fn tile(&self, tile: &PreviewTile) -> Element<'static, Message> {
+        let scale = self.config.widgets.workspace_preview_scale;
+        let side = self.config.font.icon_size_px;
+        let width = (tile.width_px as f32 * scale).max(side);
+        let height = (tile.height_px as f32 * scale).max(side);
+
+        let icon = window_icon(
+            self.favicons,
+            tile.favicon_key.as_deref(),
+            tile.icon.as_deref(),
+            side,
+            self.opacity,
         );
+        let label = (width >= side * TILE_LABEL_WIDTH_RATIO).then(|| self.label(tile));
+        let content = RowWidget::with_children(icon.into_iter().chain(label).collect::<Vec<_>>())
+            .spacing(TILE_LABEL_GAP_PX)
+            .align_y(Vertical::Top);
+
+        let outline = self.outline(tile);
+        let fill = Color {
+            a: TILE_FILL_ALPHA,
+            ..self.config.palette.dim
+        }
+        .scale_alpha(self.opacity);
+
+        container(content)
+            .width(width)
+            .height(height)
+            .padding(TILE_PADDING)
+            .clip(true)
+            .style(move |_| container::Style {
+                background: Some(fill.into()),
+                border: Border {
+                    color: outline,
+                    width: TILE_BORDER_PX,
+                    radius: Radius::new(TILE_RADIUS_PX),
+                },
+                ..container::Style::default()
+            })
+            .into()
     }
-    Column::with_children(rows).spacing(TILE_GAP_PX).into()
-}
 
-fn stacked_column<'a>(
-    tiles: &[PreviewTile],
-    config: &Config,
-    scale: f32,
-    foreground: Color,
-    dim: Color,
-    alpha: f32,
-) -> Element<'a, Message> {
-    Column::with_children(
-        tiles
-            .iter()
-            .map(|tile| window_tile(tile, config, scale, foreground, dim, alpha)),
-    )
-    .spacing(TILE_GAP_PX)
-    .into()
-}
-
-fn window_tile<'a>(
-    tile: &PreviewTile,
-    config: &Config,
-    scale: f32,
-    foreground: Color,
-    dim: Color,
-    alpha: f32,
-) -> Element<'a, Message> {
-    let side = config.font.icon_size_px;
-    let width = (tile.width_px as f32 * scale).max(side);
-    let height = (tile.height_px as f32 * scale).max(side);
-    let icon = tile
-        .icon
-        .as_ref()
-        .map(|path| native_icon(&IconSource::Themed(path.clone()), side, alpha));
-    let label = (width >= side * TILE_LABEL_WIDTH_RATIO).then(|| {
-        bar_text(&config.font, tile.title.clone())
-            .size(config.font.text_size_px * TILE_LABEL_SCALE)
-            .color(foreground)
+    fn label(&self, tile: &PreviewTile) -> Element<'static, Message> {
+        rich_text(title_spans(self.config, &tile.title, self.opacity))
+            .size(self.config.font.text_size_px * TILE_LABEL_SCALE)
+            .line_height(LINE_HEIGHT)
             .wrapping(Wrapping::WordOrGlyph)
-    });
-    let content = RowWidget::with_children(
-        icon.into_iter()
-            .chain(label.map(Element::from))
-            .collect::<Vec<_>>(),
-    )
-    .spacing(TILE_LABEL_GAP_PX)
-    .align_y(Vertical::Top);
-
-    let outline = if tile.is_urgent {
-        config.palette.urgent
-    } else if tile.is_focused {
-        config.palette.focus
-    } else {
-        dim
+            .into()
     }
-    .scale_alpha(alpha);
-    let fill = Color {
-        a: TILE_FILL_ALPHA,
-        ..config.palette.dim
-    }
-    .scale_alpha(alpha);
 
-    container(content)
-        .width(width)
-        .height(height)
-        .padding(TILE_PADDING)
-        .clip(true)
-        .style(move |_| container::Style {
-            background: Some(fill.into()),
-            border: Border {
-                color: outline,
-                width: TILE_BORDER_PX,
-                radius: Radius::new(TILE_RADIUS_PX),
-            },
-            ..container::Style::default()
-        })
-        .into()
+    fn outline(&self, tile: &PreviewTile) -> Color {
+        if tile.is_urgent {
+            self.config.palette.urgent
+        } else if tile.is_focused {
+            self.config.palette.focus
+        } else {
+            Color {
+                a: TILE_OUTLINE_ALPHA,
+                ..self.config.palette.bar_foreground
+            }
+        }
+        .scale_alpha(self.opacity)
+    }
 }

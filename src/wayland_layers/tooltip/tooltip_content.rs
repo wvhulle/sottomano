@@ -9,9 +9,9 @@ use iced::{
 use crate::{
     app::Message,
     config::Config,
-    data::source::{RefreshInfo, Row, Tooltip, TooltipBody, level_color},
-    widget_groups::workspaces_group::workspace_preview,
-    widgets::text::bar_text,
+    data::source::{LogEntry, RefreshInfo, Row, Tooltip, TooltipBody, level_color},
+    widget_groups::workspaces_group::workspace_preview::WorkspaceSchematic,
+    widgets::{favicon::Favicons, text::bar_text},
 };
 
 pub const CONTENT_PADDING: Padding = Padding::new(10.0);
@@ -19,6 +19,7 @@ const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
 const FOOTER_GAP_PX: f32 = 6.0;
 const SECTION_GAP_PX: f32 = 8.0;
+const DIM_ALPHA: f32 = 0.7;
 const FOOTER_SCALE: f32 = 0.85;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
@@ -27,135 +28,160 @@ const FOOTER_PADDING: Padding = Padding {
     left: 6.0,
 };
 
-pub fn render<'a>(tooltip: &Tooltip, config: &Config, alpha: f32) -> Element<'a, Message> {
-    let foreground = config.palette.bar_foreground.scale_alpha(alpha);
-    let dim = Color {
-        a: 0.7,
-        ..config.palette.bar_foreground
-    }
-    .scale_alpha(alpha);
-    let now = SystemTime::now();
-    let grid = tooltip_grid(&tooltip.body, config, foreground, dim, alpha, now);
-
-    let italic = Font {
-        style: FontStyle::Italic,
-        ..config.font.iced_font
-    };
-    let body = match tooltip.footer {
-        Some(info) => {
-            let footer = container(
-                bar_text(&config.font, footer_text(info, now))
-                    .size(config.font.text_size_px * FOOTER_SCALE)
-                    .font(italic)
-                    .color(dim),
-            )
-            .padding(FOOTER_PADDING);
-            Column::with_children([grid, footer.into()])
-                .spacing(FOOTER_GAP_PX)
-                .into()
-        }
-        None => grid,
-    };
-
-    container(body).padding(CONTENT_PADDING).into()
+pub struct TooltipContent<'a> {
+    tooltip: &'a Tooltip,
+    config: &'a Config,
+    favicons: &'a Favicons,
+    opacity: f32,
+    now: SystemTime,
 }
 
-fn tooltip_grid<'a>(
-    body: &TooltipBody,
-    config: &Config,
-    foreground: Color,
-    dim: Color,
-    alpha: f32,
-    now: SystemTime,
-) -> Element<'a, Message> {
-    match body {
-        TooltipBody::Table(rows) => table_grid(rows, config, foreground, dim),
-        TooltipBody::Workspace(preview) => Column::with_children([
-            table_grid(&preview.header, config, foreground, dim),
-            workspace_preview::schematic(preview, config, foreground, dim, alpha),
-        ])
-        .spacing(SECTION_GAP_PX)
-        .into(),
-        TooltipBody::Log(entries) => row![
+impl<'a> TooltipContent<'a> {
+    pub fn new(tooltip: &'a Tooltip, config: &'a Config, favicons: &'a Favicons) -> Self {
+        Self {
+            tooltip,
+            config,
+            favicons,
+            opacity: 1.0,
+            now: SystemTime::now(),
+        }
+    }
+
+    pub fn opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity;
+        self
+    }
+
+    pub fn view(self) -> Element<'static, Message> {
+        let grid = self.grid();
+        let body = match self.tooltip.footer {
+            Some(info) => Column::with_children([grid, self.footer(info)])
+                .spacing(FOOTER_GAP_PX)
+                .into(),
+            None => grid,
+        };
+        container(body).padding(CONTENT_PADDING).into()
+    }
+
+    fn foreground(&self) -> Color {
+        self.config.palette.bar_foreground.scale_alpha(self.opacity)
+    }
+
+    fn dim(&self) -> Color {
+        Color {
+            a: DIM_ALPHA,
+            ..self.config.palette.bar_foreground
+        }
+        .scale_alpha(self.opacity)
+    }
+
+    fn footer(&self, info: RefreshInfo) -> Element<'static, Message> {
+        let italic = Font {
+            style: FontStyle::Italic,
+            ..self.config.font.iced_font
+        };
+        container(
+            bar_text(&self.config.font, footer_text(info, self.now))
+                .size(self.config.font.text_size_px * FOOTER_SCALE)
+                .font(italic)
+                .color(self.dim()),
+        )
+        .padding(FOOTER_PADDING)
+        .into()
+    }
+
+    fn grid(&self) -> Element<'static, Message> {
+        match &self.tooltip.body {
+            TooltipBody::Table(rows) => self.table(rows),
+            TooltipBody::Workspace(preview) => Column::with_children([
+                self.table(&preview.header),
+                WorkspaceSchematic::new(preview, self.config, self.favicons)
+                    .opacity(self.opacity)
+                    .view(),
+            ])
+            .spacing(SECTION_GAP_PX)
+            .into(),
+            TooltipBody::Log(entries) => self.log(entries),
+            TooltipBody::Text { title, body } => self.text(title, body),
+        }
+    }
+
+    fn log(&self, entries: &[LogEntry]) -> Element<'static, Message> {
+        row![
             Column::with_children(entries.iter().map(|entry| {
-                bar_text(&config.font, relative(entry.at, now))
-                    .color(dim)
+                bar_text(&self.config.font, relative(entry.at, self.now))
+                    .color(self.dim())
                     .into()
             }))
             .spacing(ROW_SPACING_PX),
             Column::with_children(entries.iter().map(|entry| {
-                bar_text(&config.font, entry.message.clone())
-                    .color(level_color(config, entry.level).scale_alpha(alpha))
+                bar_text(&self.config.font, entry.message.clone())
+                    .color(level_color(self.config, entry.level).scale_alpha(self.opacity))
                     .into()
             }))
             .spacing(ROW_SPACING_PX),
         ]
         .spacing(COLUMN_GAP_PX)
-        .into(),
-        TooltipBody::Text { title, body } => {
-            let bold = Font {
-                weight: Weight::Bold,
-                ..config.font.iced_font
-            };
-            let mut column = Column::new().spacing(ROW_SPACING_PX);
-            if !title.is_empty() {
-                column = column.push(
-                    bar_text(&config.font, title.clone())
-                        .font(bold)
-                        .color(foreground),
-                );
-            }
-            if !body.is_empty() {
-                column = column.push(bar_text(&config.font, body.clone()).color(dim));
-            }
-            column.into()
-        }
+        .into()
     }
-}
 
-fn table_grid<'a>(
-    rows: &[Row],
-    config: &Config,
-    foreground: Color,
-    dim: Color,
-) -> Element<'a, Message> {
-    let text_column = |cells: Vec<String>, color: Color| {
-        Column::with_children(cells.into_iter().map(|cell| {
-            container(bar_text(&config.font, cell).color(color))
-                .max_width(config.widgets.tooltip_value_width_px)
+    fn text(&self, title: &str, body: &str) -> Element<'static, Message> {
+        let bold = Font {
+            weight: Weight::Bold,
+            ..self.config.font.iced_font
+        };
+        let mut column = Column::new().spacing(ROW_SPACING_PX);
+        if !title.is_empty() {
+            column = column.push(
+                bar_text(&self.config.font, title.to_owned())
+                    .font(bold)
+                    .color(self.foreground()),
+            );
+        }
+        if !body.is_empty() {
+            column = column.push(bar_text(&self.config.font, body.to_owned()).color(self.dim()));
+        }
+        column.into()
+    }
+
+    fn table(&self, rows: &[Row]) -> Element<'static, Message> {
+        let mut columns = vec![
+            self.text_column(rows.iter().map(|entry| entry.key.clone()), self.dim()),
+            self.text_column(
+                rows.iter().map(|entry| entry.value.clone()),
+                self.foreground(),
+            ),
+        ];
+        if rows.iter().any(|entry| entry.second.is_some()) {
+            let part = |entry: &Row, second: bool| {
+                entry
+                    .second
+                    .as_ref()
+                    .map_or_else(String::new, |(key, value)| {
+                        if second { value.clone() } else { key.clone() }
+                    })
+            };
+            columns.push(self.text_column(rows.iter().map(|e| part(e, false)), self.dim()));
+            columns.push(self.text_column(rows.iter().map(|e| part(e, true)), self.foreground()));
+        }
+        RowWidget::with_children(columns)
+            .spacing(COLUMN_GAP_PX)
+            .into()
+    }
+
+    fn text_column(
+        &self,
+        cells: impl Iterator<Item = String>,
+        color: Color,
+    ) -> Element<'static, Message> {
+        Column::with_children(cells.map(|cell| {
+            container(bar_text(&self.config.font, cell).color(color))
+                .max_width(self.config.widgets.tooltip_value_width_px)
                 .into()
         }))
         .spacing(ROW_SPACING_PX)
-    };
-    let mut columns = vec![
-        text_column(rows.iter().map(|entry| entry.key.clone()).collect(), dim).into(),
-        text_column(
-            rows.iter().map(|entry| entry.value.clone()).collect(),
-            foreground,
-        )
-        .into(),
-    ];
-    if rows.iter().any(|entry| entry.second.is_some()) {
-        let second_key = |entry: &Row| {
-            entry
-                .second
-                .as_ref()
-                .map(|(key, _)| key.clone())
-                .unwrap_or_default()
-        };
-        let second_value = |entry: &Row| {
-            entry
-                .second
-                .as_ref()
-                .map(|(_, value)| value.clone())
-                .unwrap_or_default()
-        };
-        columns.push(text_column(rows.iter().map(second_key).collect(), dim).into());
-        columns.push(text_column(rows.iter().map(second_value).collect(), foreground).into());
-    }
-    RowWidget::with_children(columns)
-        .spacing(COLUMN_GAP_PX)
         .into()
+    }
 }
 
 fn footer_text(info: RefreshInfo, now: SystemTime) -> String {

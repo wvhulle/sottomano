@@ -10,7 +10,7 @@ use font_awesome::{Brands, FontAwesome, Solid};
 use iced::Color;
 use simple_icons::SimpleIcon;
 
-use crate::config::Config;
+use crate::{config::Config, data::source::app_rules::TitleRun};
 
 pub mod ai;
 pub mod app_icon;
@@ -133,7 +133,8 @@ pub struct LogEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreviewTile {
-    pub title: String,
+    pub title: Vec<TitleRun>,
+    pub favicon_key: Option<String>,
     pub icon: Option<PathBuf>,
     pub width_px: i32,
     pub height_px: i32,

@@ -133,7 +133,7 @@ impl AiGroup {
     pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, AiMessage>> {
         let reveal = self.menu.reveal();
         let pills = Pills::new()
-            .alpha(reveal)
+            .opacity(reveal)
             .push(self.claude_oauth.display(), HoverTarget::AiClaudeOauth)
             .push(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage)
             .push(

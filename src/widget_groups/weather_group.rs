@@ -97,7 +97,7 @@ impl WeatherGroup {
 
         let reveal = self.menu.reveal();
         let content = Pills::new()
-            .alpha(reveal)
+            .opacity(reveal)
             .push(self.location.display(), HoverTarget::Location)
             .push(self.rain.display(), HoverTarget::WeatherRain)
             .push(self.birch.display(), HoverTarget::PollenBirch)

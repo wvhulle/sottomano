@@ -25,10 +25,10 @@ use crate::{
 fn hover_reading<'a>(
     config: &Config,
     widget: &dyn BarWidget,
-    alpha: f32,
+    opacity: f32,
     target: HoverTarget,
 ) -> Option<Element<'a, SystemMessage>> {
-    let reading = source_reading(config, Some(widget), alpha)?;
+    let reading = source_reading(config, Some(widget), opacity)?;
     Some(hoverable(reading, target, SystemMessage::Tooltip))
 }
 
@@ -104,7 +104,7 @@ impl SystemGroup {
 
         let reveal = self.menu.reveal();
         let content = Pills::new()
-            .alpha(reveal)
+            .opacity(reveal)
             .push(self.temperature.display(), HoverTarget::Temperature)
             .push(self.memory.display(), HoverTarget::Memory)
             .push(self.disk.display(), HoverTarget::Disk)
