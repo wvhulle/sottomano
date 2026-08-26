@@ -1,19 +1,16 @@
 pub mod timer;
 pub mod wayland;
 
-use std::time::Duration;
+use std::{convert::Infallible, time::Duration};
 
-use iced::{
-    Subscription,
-    futures::{SinkExt, channel::mpsc::Sender},
-    stream,
-};
-use tokio::{sync::mpsc, task::spawn_blocking};
+use tokio::task::spawn_blocking;
 
 use crate::{
     data::source::{logind, niri},
-    widgets::idle::wayland::SideEffect,
+    widgets::idle::wayland::{IdleNotifier, WaylandError},
 };
+
+const RECONNECT_ATTEMPTS: usize = 3;
 
 const LADDER: [(u64, &str); 11] = [
     (10, "10s"),
@@ -66,7 +63,7 @@ pub fn label_at(pos: f32) -> &'static str {
     from_position(pos).map_or("∞", label_for)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 pub enum IdleAction {
     Lock,
     ScreenOff,
@@ -103,67 +100,31 @@ pub fn perform(action: IdleAction) {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Arm {
-    pub timeout: Duration,
+#[derive(Debug, Clone, Copy, Hash)]
+pub struct IdleTrigger {
+    pub after: Duration,
     pub action: IdleAction,
 }
 
-#[derive(Debug, Clone)]
-pub struct IdleHandle {
-    tx: mpsc::Sender<Vec<Arm>>,
-}
-
-impl IdleHandle {
-    pub fn arm(&self, arms: Vec<Arm>) {
-        let _ = self.tx.try_send(arms);
+pub async fn perform_when_idle(triggers: Vec<IdleTrigger>) {
+    if triggers.is_empty() {
+        return;
+    }
+    for _ in 0..RECONNECT_ATTEMPTS {
+        let Err(e) = perform_while_connected(&triggers).await;
+        eprintln!("idle daemon: {e}");
+        if !matches!(e, WaylandError::Io(_)) {
+            return;
+        }
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum IdleEvent {
-    Connected(IdleHandle),
-}
-
-pub fn subscription() -> Subscription<IdleEvent> {
-    Subscription::run(|| {
-        stream::channel(16, |mut output: Sender<IdleEvent>| async move {
-            let mut wl = match wayland::connect().await {
-                Ok(wl) => wl,
-                Err(e) => {
-                    eprintln!("idle daemon: {e}");
-                    return;
-                }
-            };
-            let (tx, mut rx) = mpsc::channel::<Vec<Arm>>(16);
-            if output
-                .send(IdleEvent::Connected(IdleHandle { tx }))
-                .await
-                .is_err()
-            {
-                return;
-            }
-            loop {
-                tokio::select! {
-                    pushed = rx.recv() => {
-                        let Some(arms) = pushed else { return };
-                        wayland::rearm(&mut wl, &arms);
-                    }
-                    pumped = wayland::pump(&mut wl) => {
-                        match pumped {
-                            Ok(effects) => {
-                                for SideEffect::Idled(action) in effects {
-                                    spawn_blocking(move || perform(action));
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("idle daemon: {e}");
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    })
+async fn perform_while_connected(triggers: &[IdleTrigger]) -> Result<Infallible, WaylandError> {
+    let mut notifier = IdleNotifier::connect().await?;
+    notifier.arm(triggers);
+    loop {
+        for action in notifier.elapsed().await? {
+            spawn_blocking(move || perform(action));
+        }
+    }
 }

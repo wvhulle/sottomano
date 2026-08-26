@@ -17,7 +17,7 @@ use crate::{
     widgets::{
         flat_button,
         idle::{
-            IdleAction, IdleHandle, perform,
+            IdleAction, IdleTrigger, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
         menu_group::{MenuGroup, MenuMessage},
@@ -49,7 +49,6 @@ pub struct IdleTimeoutsGroup {
     screen_off: IdleTimer,
     standby: IdleTimer,
     power_down: IdleTimer,
-    handle: Option<IdleHandle>,
     pub(crate) menu: MenuGroup,
 }
 
@@ -88,7 +87,6 @@ impl Default for IdleTimeoutsGroup {
                 IdleAction::PowerOff,
                 true,
             ),
-            handle: None,
             menu: MenuGroup::default(),
         }
     }
@@ -124,12 +122,6 @@ impl IdleTimeoutsGroup {
         ]
     }
 
-    pub fn connected(&mut self, handle: IdleHandle) -> Task<IdleTimeoutsMessage> {
-        self.handle = Some(handle);
-        self.rearm();
-        Task::none()
-    }
-
     fn close_all(&mut self) {
         for kind in TimerKind::ALL {
             let timer = self.timer_mut(kind);
@@ -155,7 +147,6 @@ impl IdleTimeoutsGroup {
                 self.screen_off.set_timeout(timeouts.screen_off);
                 self.standby.set_timeout(timeouts.standby);
                 self.power_down.set_timeout(timeouts.power_down);
-                self.rearm();
                 Task::none()
             }
             IdleTimeoutsMessage::Menu(m) => {
@@ -170,15 +161,13 @@ impl IdleTimeoutsGroup {
                     self.close_others(kind);
                     Task::none()
                 }
-                TimerChange::Persist(value) => {
-                    self.rearm();
-                    Task::future(state::idle::save(self.timeouts())).map(move |ok| {
+                TimerChange::Persist(value) => Task::future(state::idle::save(self.timeouts()))
+                    .map(move |ok| {
                         IdleTimeoutsMessage::Timer(
                             kind,
                             TimerMessage::Slider(ControlMessage::Confirmed { value, ok }),
                         )
-                    })
-                }
+                    }),
                 TimerChange::Fire(action) => {
                     self.close_others(kind);
                     blocking("idle action", move || {
@@ -208,16 +197,11 @@ impl IdleTimeoutsGroup {
             .map(|(_, timer)| timer.tooltip())
     }
 
-    fn rearm(&self) {
-        let Some(handle) = &self.handle else {
-            return;
-        };
-        let arms = self
-            .entries()
+    pub fn triggers(&self) -> Vec<IdleTrigger> {
+        self.entries()
             .into_iter()
-            .filter_map(|(_, timer)| timer.arm())
-            .collect();
-        handle.arm(arms);
+            .filter_map(|(_, timer)| timer.trigger())
+            .collect()
     }
 
     pub fn view<'a>(

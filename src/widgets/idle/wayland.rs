@@ -1,15 +1,11 @@
 use std::{error::Error as StdError, fmt, io, mem::take};
 
-use wayrs_client::{
-    Connection, EventCtx,
-    global::GlobalExt,
-    protocol::{WlSeat, wl_registry},
-};
+use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
 use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
 };
 
-use crate::widgets::idle::{Arm, IdleAction};
+use crate::widgets::idle::{IdleAction, IdleTrigger};
 
 #[derive(Debug)]
 pub enum WaylandError {
@@ -34,79 +30,80 @@ impl fmt::Display for WaylandError {
 
 impl StdError for WaylandError {}
 
-#[derive(Debug, Clone, Copy)]
-pub enum SideEffect {
-    Idled(IdleAction),
-}
-
 pub struct DispatchState {
     notifier: ExtIdleNotifierV1,
     seats: Vec<WlSeat>,
     notifications: Vec<(ExtIdleNotificationV1, IdleAction)>,
-    effects: Vec<SideEffect>,
+    elapsed: Vec<IdleAction>,
 }
 
-pub struct Wayland {
+pub struct IdleNotifier {
     conn: Connection<DispatchState>,
     state: DispatchState,
 }
 
-pub async fn connect() -> Result<Wayland, WaylandError> {
-    let mut conn = Connection::<DispatchState>::connect().map_err(WaylandError::Connect)?;
-    conn.add_registry_cb(registry_cb);
-    conn.async_roundtrip().await.map_err(WaylandError::Io)?;
+impl IdleNotifier {
+    pub async fn connect() -> Result<Self, WaylandError> {
+        let mut conn = Connection::<DispatchState>::connect().map_err(WaylandError::Connect)?;
+        conn.async_roundtrip().await.map_err(WaylandError::Io)?;
 
-    let seat_globals: Vec<_> = conn
-        .globals()
-        .iter()
-        .filter(|g| g.is::<WlSeat>())
-        .cloned()
-        .collect();
-    let seats: Vec<WlSeat> = seat_globals
-        .iter()
-        .filter_map(|g| g.bind_with_cb(&mut conn, 1..=8, seat_cb).ok())
-        .collect();
-    if seats.is_empty() {
-        return Err(WaylandError::NoSeat);
+        let seat_globals: Vec<_> = conn
+            .globals()
+            .iter()
+            .filter(|g| g.is::<WlSeat>())
+            .cloned()
+            .collect();
+        let seats: Vec<WlSeat> = seat_globals
+            .iter()
+            .filter_map(|g| g.bind(&mut conn, 1..=8).ok())
+            .collect();
+        if seats.is_empty() {
+            return Err(WaylandError::NoSeat);
+        }
+        let notifier: ExtIdleNotifierV1 = conn
+            .bind_singleton(1..=1)
+            .map_err(|_| WaylandError::NotifierUnavailable)?;
+
+        Ok(Self {
+            conn,
+            state: DispatchState {
+                notifier,
+                seats,
+                notifications: Vec::new(),
+                elapsed: Vec::new(),
+            },
+        })
     }
-    let notifier: ExtIdleNotifierV1 = conn
-        .bind_singleton(1..=1)
-        .map_err(|_| WaylandError::NotifierUnavailable)?;
 
-    Ok(Wayland {
-        conn,
-        state: DispatchState {
-            notifier,
-            seats,
-            notifications: Vec::new(),
-            effects: Vec::new(),
-        },
-    })
-}
-
-pub fn rearm(w: &mut Wayland, arms: &[Arm]) {
-    for (notif, _) in w.state.notifications.drain(..) {
-        notif.destroy(&mut w.conn);
-    }
-    for arm in arms {
-        let timeout_ms = u32::try_from(arm.timeout.as_millis()).unwrap_or(u32::MAX);
-        for seat in w.state.seats.clone() {
-            let notif = w.state.notifier.get_idle_notification_with_cb(
-                &mut w.conn,
-                timeout_ms,
-                seat,
-                notification_cb,
-            );
-            w.state.notifications.push((notif, arm.action));
+    pub fn arm(&mut self, triggers: &[IdleTrigger]) {
+        for (notification, _) in self.state.notifications.drain(..) {
+            notification.destroy(&mut self.conn);
+        }
+        for trigger in triggers {
+            let after_ms = u32::try_from(trigger.after.as_millis()).unwrap_or(u32::MAX);
+            for seat in self.state.seats.clone() {
+                let notification = self.state.notifier.get_idle_notification_with_cb(
+                    &mut self.conn,
+                    after_ms,
+                    seat,
+                    notification_cb,
+                );
+                self.state
+                    .notifications
+                    .push((notification, trigger.action));
+            }
         }
     }
-}
 
-pub async fn pump(w: &mut Wayland) -> Result<Vec<SideEffect>, WaylandError> {
-    w.conn.async_flush().await.map_err(WaylandError::Io)?;
-    w.conn.async_recv_events().await.map_err(WaylandError::Io)?;
-    w.conn.dispatch_events(&mut w.state);
-    Ok(take(&mut w.state.effects))
+    pub async fn elapsed(&mut self) -> Result<Vec<IdleAction>, WaylandError> {
+        self.conn.async_flush().await.map_err(WaylandError::Io)?;
+        self.conn
+            .async_recv_events()
+            .await
+            .map_err(WaylandError::Io)?;
+        self.conn.dispatch_events(&mut self.state);
+        Ok(take(&mut self.state.elapsed))
+    }
 }
 
 fn notification_cb(
@@ -121,15 +118,6 @@ fn notification_cb(
         return;
     };
     if let ext_idle_notification_v1::Event::Idled = event {
-        state.effects.push(SideEffect::Idled(*action));
+        state.elapsed.push(*action);
     }
 }
-
-fn registry_cb(
-    _conn: &mut Connection<DispatchState>,
-    _state: &mut DispatchState,
-    _: &wl_registry::Event,
-) {
-}
-
-fn seat_cb(_ctx: EventCtx<DispatchState, WlSeat>) {}
