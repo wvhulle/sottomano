@@ -216,6 +216,10 @@ impl SliderControl {
         self.value.value()
     }
 
+    pub fn readout_text(&self) -> String {
+        (self.readout)(self.current())
+    }
+
     fn severity(&self) -> Level {
         self.thresholds.level(self.current())
     }
@@ -300,7 +304,7 @@ impl SliderControl {
                 ControlMessage::Release,
             );
             let readout = button(
-                bar_text(&config.font, (self.readout)(self.current()))
+                bar_text(&config.font, self.readout_text())
                     .width(self.readout_width)
                     .align_x(Horizontal::Center)
                     .color(config.palette.bar_foreground),

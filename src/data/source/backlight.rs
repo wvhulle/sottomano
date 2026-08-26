@@ -7,7 +7,7 @@ use zbus::{blocking::Connection, proxy, zvariant::Type};
 
 use crate::{
     data::source::{
-        BarWidget, Glyph, TooltipBody, Unit, Value, clight,
+        TooltipBody, clight,
         font_awesome::{FontAwesome, Solid},
         row,
     },
@@ -57,21 +57,8 @@ impl Backlight {
             Kind::External => Solid::Desktop.into(),
         }
     }
-}
 
-impl BarWidget for Backlight {
-    fn icon(&self) -> Glyph {
-        self.face().into()
-    }
-
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.percent,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
+    pub fn tooltip(&self, brightness: String) -> TooltipBody {
         let kind = match self.kind {
             Kind::Internal => "Internal",
             Kind::External => "External (DDC)",
@@ -79,7 +66,7 @@ impl BarWidget for Backlight {
         TooltipBody::Table(vec![
             row("Display", self.serial.clone()),
             row("Type", kind),
-            row("Brightness", format!("{}%", self.percent)),
+            row("Brightness", brightness),
         ])
     }
 }

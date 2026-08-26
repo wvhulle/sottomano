@@ -112,7 +112,7 @@ impl IdleTimer {
     }
 
     pub fn tooltip(&self) -> Tooltip {
-        let when = match self.timeout {
+        let when = match from_position(self.control.current()) {
             None => row("State", "disabled"),
             Some(timeout) => row(
                 &format!("{} at", self.action.verb()),

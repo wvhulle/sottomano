@@ -505,7 +505,10 @@ impl Bar {
             .or_else(|| self.weather_group.tooltip_for(target))
             .or_else(|| self.media_group.tooltip_for(target))
             .or_else(|| self.ai_group.tooltip_for(target))
-            .or_else(|| panel_settings_group::tooltip_for(target, &self.session.chrome))
+            .or_else(|| {
+                self.panel_settings_group
+                    .tooltip_for(target, &self.session.chrome)
+            })
             .unwrap_or_else(Tooltip::empty)
     }
 
