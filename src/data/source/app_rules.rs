@@ -359,7 +359,7 @@ fn is_claude_session(title: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::niri::WinLayout, *};
 
     #[test]
     fn firefox_title_rewrite() {
@@ -399,6 +399,7 @@ mod tests {
             pid: None,
             is_focused: false,
             is_urgent: false,
+            layout: WinLayout::default(),
         }
     }
 

@@ -1,3 +1,4 @@
+pub mod workspace_preview;
 pub mod workspace_tooltip;
 
 use iced::{

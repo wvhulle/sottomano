@@ -474,8 +474,12 @@ impl Bar {
             return window_tooltip::tooltip(&self.niri, *window).unwrap_or_else(Tooltip::empty);
         }
         if let HoverTarget::Workspace(workspace) = target {
-            return workspace_tooltip::tooltip(&self.niri_snapshot, *workspace)
-                .unwrap_or_else(Tooltip::empty);
+            return workspace_tooltip::tooltip(
+                &self.niri_snapshot,
+                &self.desktop_entries,
+                *workspace,
+            )
+            .unwrap_or_else(Tooltip::empty);
         }
         if let HoverTarget::Output(output) = target {
             return output_group::tooltip(&self.outputs, output);
