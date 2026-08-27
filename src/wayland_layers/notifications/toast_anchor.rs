@@ -16,6 +16,10 @@ pub enum AnchorGroup {
 }
 
 impl ToastAnchor {
+    pub fn is_window_bound(self) -> bool {
+        matches!(self, Self::Window { .. })
+    }
+
     pub fn group(self) -> AnchorGroup {
         match self {
             Self::Edge {
@@ -39,4 +43,5 @@ pub struct ToastSlot<'a> {
     pub id: u32,
     pub anchor: ToastAnchor,
     pub card: Element<'a, NotificationMessage>,
+    pub animating: bool,
 }

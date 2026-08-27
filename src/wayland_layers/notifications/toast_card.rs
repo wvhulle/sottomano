@@ -114,7 +114,7 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
         let mut body_row = Row::new()
             .spacing(BODY_ROW_SPACING)
             .align_y(Alignment::Center);
-        if let Some(icon) = icon_slot(&card.notif.icons, &card.config.notifications) {
+        if let Some(icon) = icon_slot(&card.notif.icons, &card.config.notifications, card.reveal) {
             body_row = body_row.push(icon);
         }
         body_row = body_row.push(card.column(chrome));
@@ -277,32 +277,41 @@ impl Card<'_> {
 fn icon_slot<'a>(
     icons: &CardIcons,
     config: &NotificationConfig,
+    reveal: f32,
 ) -> Option<Element<'a, NotificationMessage>> {
     match (&icons.image, &icons.badge) {
         (Some(image), badge) => {
             let main_size = config.image_size;
-            let main = icon_widget(image, main_size);
+            let main = icon_widget(image, main_size, reveal);
             Some(match badge {
                 Some(badge) => {
-                    let overlay = container(icon_widget(badge, config.badge_size))
+                    let overlay = container(icon_widget(badge, config.badge_size, reveal))
                         .width(main_size)
                         .height(main_size)
                         .align_x(Alignment::Start)
                         .align_y(Alignment::Start);
-                    iced::widget::stack![main, overlay].into()
+                    iced::widget::stack![main, overlay].clip(true).into()
                 }
                 None => main,
             })
         }
-        (None, Some(badge)) => Some(icon_widget(badge, config.app_icon_size)),
+        (None, Some(badge)) => Some(icon_widget(badge, config.app_icon_size, reveal)),
         (None, None) => None,
     }
 }
 
-fn icon_widget<'a>(icon: &CardIcon, size: f32) -> Element<'a, NotificationMessage> {
+fn icon_widget<'a>(icon: &CardIcon, size: f32, reveal: f32) -> Element<'a, NotificationMessage> {
     match icon {
-        CardIcon::Raster(handle) => image(handle.clone()).width(size).height(size).into(),
-        CardIcon::Svg(handle) => svg(handle.clone()).width(size).height(size).into(),
+        CardIcon::Raster(handle) => image(handle.clone())
+            .width(size)
+            .height(size)
+            .opacity(reveal)
+            .into(),
+        CardIcon::Svg(handle) => svg(handle.clone())
+            .width(size)
+            .height(size)
+            .opacity(reveal)
+            .into(),
     }
 }
 
