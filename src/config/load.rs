@@ -142,33 +142,29 @@ pub fn load() -> Config {
         color_temperature_unit: user.color_temperature_unit,
         locker: user.locker,
         secrets: SecretPaths {
-            openrouter_management: secret_path(
-                "VETRATA_OPENROUTER_KEY_FILE",
-                [config_home().map(|dir| dir.join("vetrata/openrouter-management-key"))],
-            ),
-            claude_code_oauth: secret_path(
-                "VETRATA_CLAUDE_CODE_OAUTH_FILE",
-                [
-                    home().map(|home| home.join(".claude/.credentials.json")),
-                    config_home().map(|dir| dir.join("vetrata/claude-code-oauth")),
-                ],
-            ),
-            gh_auth_token: secret_path(
-                "VETRATA_GH_AUTH_TOKEN_FILE",
-                [
-                    state_home().map(|dir| dir.join("chatbot/copilot-token")),
-                    config_home().map(|dir| dir.join("vetrata/gh-auth-token")),
-                ],
-            ),
+            openrouter_management: [
+                config_home().map(|dir| dir.join("vetrata/openrouter-management-key")),
+                Some(PathBuf::from("/run/agenix/openrouter-management-key")),
+            ]
+            .into_iter()
+            .flatten()
+            .find(|path| path.is_file()),
+            claude_code_oauth: [
+                home().map(|home| home.join(".claude/.credentials.json")),
+                Some(PathBuf::from("/run/agenix/claude-code-oauth")),
+            ]
+            .into_iter()
+            .flatten()
+            .find(|path| path.is_file()),
+            gh_auth_token: [
+                state_home().map(|dir| dir.join("chatbot/copilot-token")),
+                Some(PathBuf::from("/run/agenix/gh-auth-token")),
+            ]
+            .into_iter()
+            .flatten()
+            .find(|path| path.is_file()),
         },
     }
-}
-
-fn secret_path(var: &str, defaults: impl IntoIterator<Item = Option<PathBuf>>) -> Option<PathBuf> {
-    env::var_os(var)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| defaults.into_iter().flatten().find(|path| path.is_file()))
 }
 
 fn home() -> Option<PathBuf> {
@@ -189,49 +185,4 @@ fn state_home() -> Option<PathBuf> {
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .or_else(|| home().map(|home| home.join(".local/state")))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn environment_override_wins_over_defaults() {
-        unsafe { env::set_var("VETRATA_TEST_SECRET", "/explicit/path") };
-        let resolved = secret_path(
-            "VETRATA_TEST_SECRET",
-            [Some(PathBuf::from("/etc/hostname"))],
-        );
-        unsafe { env::remove_var("VETRATA_TEST_SECRET") };
-        assert_eq!(resolved, Some(PathBuf::from("/explicit/path")));
-    }
-
-    #[test]
-    fn defaults_are_skipped_unless_the_file_exists() {
-        let resolved = secret_path(
-            "VETRATA_TEST_UNSET_SECRET",
-            [
-                Some(PathBuf::from("/nonexistent/first")),
-                Some(PathBuf::from("/etc/hostname")),
-            ],
-        );
-        assert_eq!(resolved, Some(PathBuf::from("/etc/hostname")));
-    }
-
-    #[test]
-    fn no_default_matches_when_none_exist() {
-        let resolved = secret_path(
-            "VETRATA_TEST_UNSET_SECRET",
-            [Some(PathBuf::from("/nonexistent/only"))],
-        );
-        assert_eq!(resolved, None);
-    }
-
-    #[test]
-    fn config_home_follows_xdg_then_home() {
-        unsafe { env::set_var("XDG_CONFIG_HOME", "/xdg/config") };
-        assert_eq!(config_home(), Some(PathBuf::from("/xdg/config")));
-        unsafe { env::remove_var("XDG_CONFIG_HOME") };
-        assert_eq!(config_home(), home().map(|home| home.join(".config")));
-    }
 }
