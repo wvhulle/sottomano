@@ -772,13 +772,11 @@ impl Bar {
             .map(|position| self.open_bar(output, position))
             .collect();
         opens.push(self.tooltip.open_surface(output, offset));
-        if self.config.chrome.shadow {
-            opens.extend(
-                Position::ALL
-                    .into_iter()
-                    .map(|position| self.open_backdrop(output, position)),
-            );
-        }
+        opens.extend(
+            Position::ALL
+                .into_iter()
+                .map(|position| self.open_backdrop(output, position)),
+        );
         Task::batch(opens)
     }
 

@@ -153,13 +153,8 @@ in
       example = lib.literalExpression ''
         {
           palette.bar_foreground = "#ffffff";
-          chrome = {
-            outer_height_px = 28.0;
-            # Cast the gradient legibility shadow (opens the off-screen casters
-            # and activates the niri layer-rules below).
-            shadow = true;
-          };
-          font.name = "Inter";
+          chrome.outer_height_px = 28.0;
+          font.text_size_px = 15.0;
         }
       '';
       description = ''
