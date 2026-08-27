@@ -251,11 +251,6 @@ impl NotificationLayer {
             .any(|n| n.countdown.is_some_and(Countdown::is_running))
     }
 
-    pub fn is_animating(&self) -> bool {
-        let now = Instant::now();
-        self.live.iter().any(|n| n.is_animating(now))
-    }
-
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
         let notif = self.showing().find(|n| n.data.id == id)?;
         resolve_window_id(&notif.data, placement)
@@ -309,7 +304,7 @@ impl NotificationLayer {
             .iter()
             .filter(|n| n.place.output == *output)
             .collect();
-        ordered.sort_by_key(|n| Reverse(n.seq));
+        ordered.sort_by_key(|n| Reverse((n.place.anchor.is_window_bound(), n.seq)));
         let slots: Vec<ToastSlot<'_>> = ordered
             .into_iter()
             .map(|notif| {
@@ -323,6 +318,7 @@ impl NotificationLayer {
                             .reveal(reveal),
                         reveal,
                     ),
+                    animating: notif.is_animating(now),
                 }
             })
             .collect();

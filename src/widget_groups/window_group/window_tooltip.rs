@@ -29,6 +29,7 @@ fn identity(window: &niri_ipc::Window) -> Vec<Row> {
     if let Some(app_id) = &window.app_id {
         rows.push(row("App id", app_id.clone()));
     }
+    rows.push(row("Window id", window.id.to_string()));
     rows
 }
 

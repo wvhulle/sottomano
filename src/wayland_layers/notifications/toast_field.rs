@@ -5,7 +5,7 @@ use std::{collections::HashMap, convert::identity};
 use iced::{
     Animation, Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
-        Clipboard, Layout, Shell, Widget,
+        Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
@@ -36,11 +36,13 @@ pub fn field<'a>(
             anchors: Vec::new(),
             cards: Vec::new(),
             config: config.clone(),
+            revealing: false,
         },
         |mut field, slot| {
             field.ids.push(slot.id);
             field.anchors.push(slot.anchor);
             field.cards.push(slot.card);
+            field.revealing |= slot.animating;
             field
         },
     );
@@ -53,6 +55,7 @@ struct ToastField<'a> {
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
     config: NotificationConfig,
+    revealing: bool,
 }
 
 struct Drift {
@@ -308,15 +311,17 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
         viewport: &Rectangle,
     ) {
         self.views(tree, layout).rev().for_each(|card| {
-            card.widget.as_widget().draw(
-                card.state,
-                renderer,
-                theme,
-                style,
-                card.layout,
-                cursor,
-                viewport,
-            );
+            renderer.with_layer(*viewport, |renderer| {
+                card.widget.as_widget().draw(
+                    card.state,
+                    renderer,
+                    theme,
+                    style,
+                    card.layout,
+                    cursor,
+                    viewport,
+                );
+            });
         });
     }
 
@@ -383,6 +388,8 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
         }
         if drifting {
             shell.invalidate_layout();
+        }
+        if drifting || self.revealing {
             shell.request_redraw();
         }
     }

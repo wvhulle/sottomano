@@ -527,8 +527,8 @@ impl Bar {
             .unwrap_or_else(Tooltip::empty)
     }
 
-    pub fn any_notification_animating(&self) -> bool {
-        self.notifications.is_animating()
+    pub fn any_notification_live(&self) -> bool {
+        self.notifications.is_active()
     }
 
     pub fn any_notification_expiring(&self) -> bool {
