@@ -24,36 +24,30 @@ This compiles a quick debug build and runs the two panels.
 
 ## Secrets
 
-The AI widgets read three optional token files. Each is looked up by trying
-the paths below in order and taking the first one that exists; when none do,
-the corresponding pills stay hidden. There is no environment variable and no
-configuration option — deploy the file to one of these paths.
+The AI widgets read three optional token files, all from
+`$XDG_CONFIG_HOME/vetrata/`. A file that is absent hides its pills. There is no
+environment variable, no configuration key and no fallback location — put the
+file there, or symlink it there.
 
-**OpenRouter management key** — plain text. A regular API key is not enough:
-the usage widget calls `/analytics/query`, which only management keys may
-access.
+`openrouter-management-key` — an OpenRouter **management** key as plain text. A
+regular API key is not enough: the usage widget calls `/analytics/query`, which
+only management keys may access.
 
-1. `$XDG_CONFIG_HOME/vetrata/openrouter-management-key`
-2. `/run/agenix/openrouter-management-key`
+`claude-code-oauth` — the Claude Code OAuth credentials JSON (the
+`~/.claude/.credentials.json` blob containing `claudeAiOauth.accessToken`).
+Drives the Claude subscription gauge; on API-key machines with no OAuth token it
+surfaces `ccusage` daily spend instead.
 
-**Claude Code OAuth credentials** — the `~/.claude/.credentials.json` blob
-containing `claudeAiOauth.accessToken`. Drives the Claude subscription gauge;
-on API-key machines (no OAuth token) it surfaces `ccusage` daily spend instead.
+`gh-auth-token` — a bare `gho_` GitHub OAuth token. The Copilot usage pills read
+it and call `/copilot_internal/user` directly. Without it the Copilot quota
+pills are hidden; the local-`ccusage` Copilot pill needs no token and still
+shows if `ccusage` is installed.
 
-1. `~/.claude/.credentials.json`
-2. `/run/agenix/claude-code-oauth`
-
-**GitHub OAuth token** — a bare `gho_` token. The Copilot usage pills read it
-and call `/copilot_internal/user` directly. Without it the Copilot quota pills
-are hidden; the local-`ccusage` Copilot pill needs no token and still shows if
-`ccusage` is installed.
-
-1. `$XDG_STATE_HOME/chatbot/copilot-token`
-2. `/run/agenix/gh-auth-token`
-
-The `/run/agenix` entries are the agenix defaults, so a `cargo r` build picks
-up secrets already deployed on the machine without going through the systemd
-unit.
+Because the location is fixed, a `cargo r` build sees the same secrets as the
+installed one. With the home-manager module, set
+`services.vetrata.secretFiles.<name>` to wherever the secret actually lives
+(an agenix path, another tool's credentials file) and it is symlinked into
+place rather than copied, so nothing lands in the nix store.
 
 ## History
 
