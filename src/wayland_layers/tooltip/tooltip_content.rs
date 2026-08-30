@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use iced::{
     Color, Element, Font, Padding,
     font::{Style as FontStyle, Weight},
-    widget::{Column, Row as RowWidget, container, row},
+    widget::{Column, Container, Row as RowWidget, container, row},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     data::source::{LogEntry, RefreshInfo, Row, Tooltip, TooltipBody, level_color},
     widget_groups::workspaces_group::workspace_preview::WorkspaceSchematic,
-    widgets::{favicon::Favicons, text::bar_text},
+    widgets::{copyable::copyable, favicon::Favicons, text::bar_text},
 };
 
 pub const CONTENT_PADDING: Padding = Padding::new(10.0);
@@ -67,6 +67,10 @@ impl<'a> TooltipContent<'a> {
         self.config.palette.bar_foreground.scale_alpha(self.opacity)
     }
 
+    fn flash(&self) -> Color {
+        self.config.palette.focus.scale_alpha(self.opacity)
+    }
+
     fn dim(&self) -> Color {
         Color {
             a: DIM_ALPHA,
@@ -115,9 +119,13 @@ impl<'a> TooltipContent<'a> {
             }))
             .spacing(ROW_SPACING_PX),
             Column::with_children(entries.iter().map(|entry| {
-                bar_text(&self.config.font, entry.message.clone())
-                    .color(level_color(self.config, entry.level).scale_alpha(self.opacity))
-                    .into()
+                copyable(
+                    bar_text(&self.config.font, entry.message.clone())
+                        .color(level_color(self.config, entry.level).scale_alpha(self.opacity)),
+                    entry.message.clone(),
+                    Message::CopyText,
+                    self.flash(),
+                )
             }))
             .spacing(ROW_SPACING_PX),
         ]
@@ -147,10 +155,7 @@ impl<'a> TooltipContent<'a> {
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
         let mut columns = vec![
             self.text_column(rows.iter().map(|entry| entry.key.clone()), self.dim()),
-            self.text_column(
-                rows.iter().map(|entry| entry.value.clone()),
-                self.foreground(),
-            ),
+            self.value_column(rows.iter().map(|entry| entry.value.clone())),
         ];
         if rows.iter().any(|entry| entry.second.is_some()) {
             let part = |entry: &Row, second: bool| {
@@ -162,7 +167,7 @@ impl<'a> TooltipContent<'a> {
                     })
             };
             columns.push(self.text_column(rows.iter().map(|e| part(e, false)), self.dim()));
-            columns.push(self.text_column(rows.iter().map(|e| part(e, true)), self.foreground()));
+            columns.push(self.value_column(rows.iter().map(|e| part(e, true))));
         }
         RowWidget::with_children(columns)
             .spacing(COLUMN_GAP_PX)
@@ -174,13 +179,27 @@ impl<'a> TooltipContent<'a> {
         cells: impl Iterator<Item = String>,
         color: Color,
     ) -> Element<'static, Message> {
+        Column::with_children(cells.map(|cell| self.cell(cell, color).into()))
+            .spacing(ROW_SPACING_PX)
+            .into()
+    }
+
+    fn value_column(&self, cells: impl Iterator<Item = String>) -> Element<'static, Message> {
         Column::with_children(cells.map(|cell| {
-            container(bar_text(&self.config.font, cell).color(color))
-                .max_width(self.config.widgets.tooltip_value_width_px)
-                .into()
+            let copied = cell.clone();
+            let value = self.cell(cell, self.foreground());
+            if copied.trim().is_empty() {
+                return value.into();
+            }
+            copyable(value, copied, Message::CopyText, self.flash())
         }))
         .spacing(ROW_SPACING_PX)
         .into()
+    }
+
+    fn cell(&self, text: String, color: Color) -> Container<'static, Message> {
+        container(bar_text(&self.config.font, text).color(color))
+            .max_width(self.config.widgets.tooltip_value_width_px)
     }
 }
 

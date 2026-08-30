@@ -7,7 +7,7 @@ use std::{
 };
 
 use font_awesome::{Brands, FontAwesome, Solid};
-use iced::Color;
+use iced::{Color, Size};
 use simple_icons::SimpleIcon;
 
 use crate::{config::Config, data::source::app_rules::TitleRun};
@@ -131,25 +131,25 @@ pub struct LogEntry {
     pub level: Level,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PreviewTile {
+    pub window: u64,
     pub title: Vec<TitleRun>,
     pub favicon_key: Option<String>,
     pub icon: Option<PathBuf>,
-    pub width_px: i32,
-    pub height_px: i32,
+    pub tile_size: Size,
     pub is_focused: bool,
     pub is_urgent: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WorkspacePreview {
     pub header: Vec<Row>,
     pub columns: Vec<Vec<PreviewTile>>,
     pub floating: Vec<PreviewTile>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TooltipBody {
     Table(Vec<Row>),
     Log(Vec<LogEntry>),
@@ -176,7 +176,7 @@ pub struct RefreshInfo {
     pub last: SystemTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
     pub body: TooltipBody,
     pub footer: Option<RefreshInfo>,

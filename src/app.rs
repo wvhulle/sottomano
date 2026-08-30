@@ -11,7 +11,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use crate::{
     config::Config,
     data::{
-        sink::sound,
+        sink::{clipboard, sound},
         source::{
             Tooltip, TooltipBody,
             app_icon::{self, DesktopEntries},
@@ -130,6 +130,8 @@ pub enum Message {
     Redraw,
     WindowClosed(Id),
     PointerLeft,
+    CopyText(String),
+    FocusWindow(u64),
     TooltipTick,
     TooltipHideElapsed,
     Tooltip(TooltipMessage),
@@ -277,7 +279,14 @@ impl Bar {
                 &self.surfaces,
             ),
             Message::Tooltip(msg) => self.update_tooltip(msg),
-            Message::PointerLeft => self.dismiss_tooltip(),
+            Message::PointerLeft => self.tooltip.leave_after_grace(),
+            Message::CopyText(text) => {
+                blocking("clipboard", move || clipboard::write(&text)).discard()
+            }
+            Message::FocusWindow(window) => Task::batch([
+                self.dismiss_tooltip(),
+                niri_action(move || niri::focus_window(window)),
+            ]),
             Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
             Message::Notification(msg) => self.update_notification(msg),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
@@ -472,14 +481,12 @@ impl Bar {
 
     fn dismiss_tooltip(&mut self) -> Task<Message> {
         let departing = self.tooltip_departure();
-        self.tooltip.dismiss(departing);
-        Task::none()
+        self.tooltip.dismiss(departing)
     }
 
     fn leave_tooltip_after_grace(&mut self) -> Task<Message> {
         let departing = self.tooltip_departure();
-        self.tooltip.leave_elapsed(departing);
-        Task::none()
+        self.tooltip.leave_elapsed(departing)
     }
 
     fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {

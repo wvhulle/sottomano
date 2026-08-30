@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
-use iced::{Element, Rectangle, Task, time::Duration, widget::Space, window::Id};
-use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
+use iced::{Element, Rectangle, Task, time::Duration, widget::mouse_area, window::Id};
+use iced_layershell::{
+    actions::ActionCallback,
+    reexport::{Anchor, Layer, NewLayerShellSettings},
+};
 use tokio::time::sleep;
 
 use crate::{
@@ -9,7 +12,7 @@ use crate::{
     config::Config,
     data::source::Tooltip,
     wayland_layers::{
-        surface::{self, Margin, Surface},
+        surface::{self, Margin, Position, Surface},
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
@@ -33,6 +36,11 @@ impl TooltipHost {
     pub fn update(&mut self, message: TooltipMessage) -> Task<Message> {
         match message {
             TooltipMessage::Exit { target } => self.exit(&target),
+            TooltipMessage::EnterTooltip => {
+                self.transition.cancel_leave();
+                Task::none()
+            }
+            TooltipMessage::ExitTooltip => self.leave_after_grace(),
             TooltipMessage::Enter { .. } | TooltipMessage::EnterAnchor { .. } => Task::none(),
         }
     }
@@ -73,20 +81,35 @@ impl TooltipHost {
         {
             return Task::none();
         }
+        self.leave_after_grace()
+    }
+
+    pub fn leave_after_grace(&mut self) -> Task<Message> {
         self.transition.request_leave();
         Task::future(sleep(HIDE_GRACE)).map(|()| Message::TooltipHideElapsed)
     }
 
-    pub fn leave_elapsed(&mut self, departing: Option<Departed>) {
-        if self.transition.is_leaving() {
-            self.transition.hide(departing);
+    pub fn leave_elapsed(&mut self, departing: Option<Departed>) -> Task<Message> {
+        if !self.transition.is_leaving() {
+            return Task::none();
         }
+        self.transition.hide(departing);
+        self.clear_input_regions()
     }
 
-    pub fn dismiss(&mut self, departing: Option<Departed>) {
-        if self.transition.current().is_some() {
-            self.transition.hide(departing);
+    pub fn dismiss(&mut self, departing: Option<Departed>) -> Task<Message> {
+        if self.transition.current().is_none() {
+            return Task::none();
         }
+        self.transition.hide(departing);
+        self.clear_input_regions()
+    }
+
+    fn clear_input_regions(&self) -> Task<Message> {
+        Task::batch(
+            self.surfaces()
+                .map(|surface| Task::done(input_region(surface, Rectangle::default()))),
+        )
     }
 
     pub fn open_surface(&mut self, output: &str, float_offset: i32) -> Task<Message> {
@@ -95,10 +118,13 @@ impl TooltipHost {
         }
         let id = Id::unique();
         self.surfaces.insert(output.to_string(), id);
-        Task::done(Message::NewLayerShell {
-            settings: tooltip_settings(output, float_offset),
-            id,
-        })
+        Task::batch([
+            Task::done(Message::NewLayerShell {
+                settings: tooltip_settings(output, float_offset),
+                id,
+            }),
+            Task::done(input_region(id, Rectangle::default())),
+        ])
     }
 
     pub fn surfaces(&self) -> impl Iterator<Item = Id> {
@@ -172,7 +198,15 @@ impl TooltipHost {
             .placement()
             .filter(|placement| self.surfaces.get(&placement.output) == Some(&surface))
         else {
-            return Some(Space::new().into());
+            return Some(morphing_tooltip(
+                Vec::new(),
+                Rectangle::default(),
+                Position::Top,
+                0.0,
+                self.transition.seq(),
+                config,
+                move |bounds| input_region(surface, bounds),
+            ));
         };
 
         let progress = self.transition.progress();
@@ -189,11 +223,11 @@ impl TooltipHost {
         }
         if let Some(current) = self.transition.current() {
             let opacity = (2.0 * progress - 1.0).max(0.0);
-            renderings.push(Rendering::incoming(
+            renderings.push(Rendering::incoming(hoverable_content(
                 TooltipContent::new(&content(&current.target), config, favicons)
                     .opacity(opacity)
                     .view(),
-            ));
+            )));
         }
         Some(morphing_tooltip(
             renderings,
@@ -202,7 +236,31 @@ impl TooltipHost {
             progress,
             self.transition.seq(),
             config,
+            move |bounds| input_region(surface, bounds),
         ))
+    }
+}
+
+fn hoverable_content(content: Element<'_, Message>) -> Element<'_, Message> {
+    mouse_area(content)
+        .on_enter(Message::Tooltip(TooltipMessage::EnterTooltip))
+        .on_exit(Message::Tooltip(TooltipMessage::ExitTooltip))
+        .into()
+}
+
+fn input_region(surface: Id, bounds: Rectangle) -> Message {
+    Message::SetInputRegion {
+        id: surface,
+        callback: ActionCallback::new(move |region| {
+            if bounds.width > 0.0 && bounds.height > 0.0 {
+                region.add(
+                    bounds.x as i32,
+                    bounds.y as i32,
+                    bounds.width as i32,
+                    bounds.height as i32,
+                );
+            }
+        }),
     }
 }
 
@@ -213,7 +271,6 @@ fn tooltip_settings(output: &str, float_offset: i32) -> NewLayerShellSettings {
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         margin: Some(Margin::uniform(float_offset).edges()),
         layer: Layer::Overlay,
-        events_transparent: true,
         ..surface::base_settings(Some(output), "vetrata-tooltip")
     }
 }

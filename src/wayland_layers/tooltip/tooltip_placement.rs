@@ -7,6 +7,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     mouse::Cursor,
+    window,
 };
 
 use crate::{
@@ -42,9 +43,11 @@ pub fn morphing_tooltip<'a>(
     progress: f32,
     seq: u64,
     config: &Config,
+    on_bounds: impl Fn(Rectangle) -> Message + 'a,
 ) -> Element<'a, Message> {
     Element::new(MorphingTooltip {
         renderings,
+        on_bounds: Box::new(on_bounds),
         anchor,
         edge_inset: config.chrome.outer_height_px + config.chrome.popup_gap_px,
         position,
@@ -57,6 +60,7 @@ pub fn morphing_tooltip<'a>(
 
 struct MorphingTooltip<'a> {
     renderings: Vec<Rendering<'a>>,
+    on_bounds: Box<dyn Fn(Rectangle) -> Message + 'a>,
     anchor: Rectangle,
     edge_inset: f32,
     position: Position,
@@ -71,6 +75,7 @@ struct MorphState {
     seq: u64,
     from: Rectangle,
     current: Rectangle,
+    published: Option<Rectangle>,
 }
 
 fn resting(
@@ -159,6 +164,23 @@ impl<'a> MorphingTooltip<'a> {
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
+            .map(|((rendering, state), layout)| RenderingViewMut {
+                widget: &mut rendering.element,
+                state,
+                layout,
+            })
+    }
+
+    fn live_view<'t>(
+        &'t mut self,
+        tree: &'t mut Tree,
+        layout: Layout<'t>,
+    ) -> Option<RenderingViewMut<'t, 'a>> {
+        self.renderings
+            .iter_mut()
+            .zip(&mut tree.children)
+            .zip(layout.children())
+            .find(|((rendering, _), _)| rendering.incoming)
             .map(|((rendering, state), layout)| RenderingViewMut {
                 widget: &mut rendering.element,
                 state,
@@ -310,7 +332,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        self.views_mut(tree, layout).for_each(|rendering| {
+        if let Some(rendering) = self.live_view(tree, layout) {
             rendering.widget.as_widget_mut().update(
                 rendering.state,
                 event,
@@ -321,7 +343,21 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
                 shell,
                 viewport,
             );
-        });
+        }
+        if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
+            return;
+        }
+        let live = self.renderings.iter().any(|rendering| rendering.incoming);
+        let state: &mut MorphState = tree.state.downcast_mut();
+        let interactive = if live {
+            state.current
+        } else {
+            Rectangle::default()
+        };
+        if state.published != Some(interactive) {
+            state.published = Some(interactive);
+            shell.publish((self.on_bounds)(interactive));
+        }
     }
 
     fn mouse_interaction(

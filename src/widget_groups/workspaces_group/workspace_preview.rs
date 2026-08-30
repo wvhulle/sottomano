@@ -2,7 +2,7 @@ use iced::{
     Border, Color, Element, Padding,
     alignment::Vertical,
     border::Radius,
-    widget::{Column, Row as RowWidget, container, rich_text, text::Wrapping},
+    widget::{Column, Row as RowWidget, button, button::Status, rich_text, text::Wrapping},
 };
 
 use crate::{
@@ -21,6 +21,7 @@ const TILE_LABEL_SCALE: f32 = 0.8;
 const TILE_BORDER_PX: f32 = 2.0;
 const TILE_RADIUS_PX: f32 = 4.0;
 const TILE_FILL_ALPHA: f32 = 0.18;
+const TILE_HOVER_FILL_ALPHA: f32 = 0.34;
 const TILE_OUTLINE_ALPHA: f32 = 0.7;
 const TILE_PADDING: Padding = Padding::new(4.0);
 
@@ -76,8 +77,8 @@ impl<'a> WorkspaceSchematic<'a> {
     fn tile(&self, tile: &PreviewTile) -> Element<'static, Message> {
         let scale = self.config.widgets.workspace_preview_scale;
         let side = self.config.font.icon_size_px;
-        let width = (tile.width_px as f32 * scale).max(side);
-        let height = (tile.height_px as f32 * scale).max(side);
+        let width = (tile.tile_size.width * scale).max(side);
+        let height = (tile.tile_size.height * scale).max(side);
 
         let icon = window_icon(
             self.favicons,
@@ -92,25 +93,37 @@ impl<'a> WorkspaceSchematic<'a> {
             .align_y(Vertical::Top);
 
         let outline = self.outline(tile);
+        let highlight = self.config.palette.focus.scale_alpha(self.opacity);
         let fill = Color {
             a: TILE_FILL_ALPHA,
             ..self.config.palette.dim
         }
         .scale_alpha(self.opacity);
+        let hovered_fill = Color {
+            a: TILE_HOVER_FILL_ALPHA,
+            ..self.config.palette.dim
+        }
+        .scale_alpha(self.opacity);
+        let text_color = self.config.palette.bar_foreground.scale_alpha(self.opacity);
 
-        container(content)
+        button(content)
             .width(width)
             .height(height)
             .padding(TILE_PADDING)
             .clip(true)
-            .style(move |_| container::Style {
-                background: Some(fill.into()),
-                border: Border {
-                    color: outline,
-                    width: TILE_BORDER_PX,
-                    radius: Radius::new(TILE_RADIUS_PX),
-                },
-                ..container::Style::default()
+            .on_press(Message::FocusWindow(tile.window))
+            .style(move |_, status| {
+                let hovered = matches!(status, Status::Hovered | Status::Pressed);
+                button::Style {
+                    background: Some(if hovered { hovered_fill } else { fill }.into()),
+                    text_color,
+                    border: Border {
+                        color: if hovered { highlight } else { outline },
+                        width: TILE_BORDER_PX,
+                        radius: Radius::new(TILE_RADIUS_PX),
+                    },
+                    ..button::Style::default()
+                }
             })
             .into()
     }
