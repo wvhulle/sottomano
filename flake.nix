@@ -79,6 +79,7 @@
           wireguard-tools
           tailscale
           xdg-utils
+          wl-clipboard
         ])
         ++ [
           umbra.packages.${system}.default

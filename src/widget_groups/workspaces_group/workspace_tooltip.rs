@@ -55,11 +55,11 @@ fn scrolling_columns(windows: &[niri::WinEntry]) -> Vec<Vec<&niri::WinEntry>> {
 fn preview_tile(icons: &DesktopIndex, window: &niri::WinEntry) -> PreviewTile {
     let rule = app_rules::rule_for(&window.app_id);
     PreviewTile {
+        window: window.id,
         title: window.title_runs.clone(),
         favicon_key: rule.favicon_key(&window.title),
         icon: icon_path(icons, rule, window),
-        width_px: window.layout.tile_size.width.round() as i32,
-        height_px: window.layout.tile_size.height.round() as i32,
+        tile_size: window.layout.tile_size,
         is_focused: window.is_focused,
         is_urgent: window.is_urgent,
     }

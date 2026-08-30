@@ -13,7 +13,7 @@ pub use crate::wayland_layers::tooltip::{
     tooltip_content::relative,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
     Cpu,
     Memory,
@@ -82,4 +82,6 @@ pub enum TooltipMessage {
     Exit {
         target: HoverTarget,
     },
+    EnterTooltip,
+    ExitTooltip,
 }
