@@ -2,7 +2,7 @@ use core::slice;
 use std::time::{Duration, Instant};
 
 use iced::{
-    Border, Color, Element, Event, Length, Rectangle, Size,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Size,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -13,21 +13,29 @@ use iced::{
     mouse::{Cursor, Interaction},
 };
 
-const FLASH: Duration = Duration::from_millis(600);
-const FLASH_ALPHA: f32 = 0.45;
-const FLASH_RADIUS_PX: f32 = 3.0;
+const HOLD: Duration = Duration::from_millis(700);
+const OUTLINE_ALPHA: f32 = 0.45;
+const COPIED_FILL_ALPHA: f32 = 0.3;
+const BORDER_PX: f32 = 1.0;
+const RADIUS_PX: f32 = 3.0;
+const PADDING: Padding = Padding {
+    top: 1.0,
+    right: 4.0,
+    bottom: 1.0,
+    left: 4.0,
+};
 
 pub fn copyable<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     text: String,
     on_copy: impl Fn(String) -> Message + 'a,
-    flash: Color,
+    accent: Color,
 ) -> Element<'a, Message> {
     Element::new(Copyable {
         content: content.into(),
         text,
         on_copy: Box::new(on_copy),
-        flash,
+        accent,
     })
 }
 
@@ -35,26 +43,29 @@ struct Copyable<'a, Message> {
     content: Element<'a, Message>,
     text: String,
     on_copy: Box<dyn Fn(String) -> Message + 'a>,
-    flash: Color,
+    accent: Color,
 }
 
 #[derive(Default)]
-struct Copied(Option<Instant>);
+struct CellState {
+    hovered: bool,
+    copied_at: Option<Instant>,
+}
 
-impl Copied {
-    fn fading(&self, now: Instant) -> Option<f32> {
-        let elapsed = now.duration_since(self.0?);
-        (elapsed < FLASH).then(|| 1.0 - elapsed.div_duration_f32(FLASH))
+impl CellState {
+    fn holding(&self, now: Instant) -> bool {
+        self.copied_at
+            .is_some_and(|at| now.duration_since(at) < HOLD)
     }
 }
 
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Message> {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<Copied>()
+        tree::Tag::of::<CellState>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(Copied::default())
+        tree::State::new(CellState::default())
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -70,11 +81,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let child = self
-            .content
-            .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, limits);
-        Node::with_children(child.size(), vec![child])
+        let child = self.content.as_widget_mut().layout(
+            &mut tree.children[0],
+            renderer,
+            &limits.shrink(PADDING),
+        );
+        let padded = child.size().expand(PADDING);
+        Node::with_children(padded, vec![child.move_to((PADDING.left, PADDING.top))])
     }
 
     fn update(
@@ -98,21 +111,27 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
             shell,
             viewport,
         );
-        if shell.is_event_captured() {
+        let over = cursor.is_over(layout.bounds());
+        let state = tree.state.downcast_mut::<CellState>();
+        if state.hovered != over {
+            state.hovered = over;
+            shell.request_redraw();
+        }
+        if shell.is_event_captured() || !over {
             return;
         }
-        let pressed = matches!(
+        if !matches!(
             event,
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
-        );
-        if !pressed || !cursor.is_over(layout.bounds()) {
+        ) {
             return;
         }
         let now = Instant::now();
-        tree.state.downcast_mut::<Copied>().0 = Some(now);
+        state.copied_at = Some(now);
         shell.publish((self.on_copy)(self.text.clone()));
         shell.capture_event();
-        shell.request_redraw_at(now + FLASH);
+        shell.request_redraw();
+        shell.request_redraw_at(now + HOLD);
     }
 
     fn draw(
@@ -125,17 +144,26 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        if let Some(remaining) = tree.state.downcast_ref::<Copied>().fading(Instant::now()) {
+        let state = tree.state.downcast_ref::<CellState>();
+        let copied = state.holding(Instant::now());
+        if copied || state.hovered {
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: layout.bounds(),
                     border: Border {
-                        radius: Radius::new(FLASH_RADIUS_PX),
-                        ..Border::default()
+                        color: self
+                            .accent
+                            .scale_alpha(if copied { 1.0 } else { OUTLINE_ALPHA }),
+                        width: BORDER_PX,
+                        radius: Radius::new(RADIUS_PX),
                     },
                     ..renderer::Quad::default()
                 },
-                self.flash.scale_alpha(remaining * FLASH_ALPHA),
+                if copied {
+                    self.accent.scale_alpha(COPIED_FILL_ALPHA)
+                } else {
+                    Color::TRANSPARENT
+                },
             );
         }
         self.content.as_widget().draw(

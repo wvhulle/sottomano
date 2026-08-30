@@ -2,13 +2,14 @@ use std::time::SystemTime;
 
 use iced::{
     Color, Element, Font, Padding,
+    alignment::{Horizontal, Vertical},
     font::{Style as FontStyle, Weight},
-    widget::{Column, Container, Row as RowWidget, container, row},
+    widget::{Column, Container, Space, container, table},
 };
 
 use crate::{
     app::Message,
-    config::Config,
+    config::{Config, font::FontConfig},
     data::source::{LogEntry, RefreshInfo, Row, Tooltip, TooltipBody, level_color},
     widget_groups::workspaces_group::workspace_preview::WorkspaceSchematic,
     widgets::{copyable::copyable, favicon::Favicons, text::bar_text},
@@ -111,26 +112,27 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn log(&self, entries: &[LogEntry]) -> Element<'static, Message> {
-        row![
-            Column::with_children(entries.iter().map(|entry| {
-                bar_text(&self.config.font, relative(entry.at, self.now))
-                    .color(self.dim())
-                    .into()
-            }))
-            .spacing(ROW_SPACING_PX),
-            Column::with_children(entries.iter().map(|entry| {
-                copyable(
-                    bar_text(&self.config.font, entry.message.clone())
-                        .color(level_color(self.config, entry.level).scale_alpha(self.opacity)),
-                    entry.message.clone(),
-                    Message::CopyText,
-                    self.flash(),
-                )
-            }))
-            .spacing(ROW_SPACING_PX),
-        ]
-        .spacing(COLUMN_GAP_PX)
-        .into()
+        let dim = self.dim();
+        let flash = self.flash();
+        let opacity = self.opacity;
+        let key_font = self.config.font.clone();
+        let value_font = self.config.font.clone();
+        let value_width = self.config.widgets.tooltip_value_width_px;
+        let config = self.config;
+        let now = self.now;
+
+        key_value_table(
+            entries.iter().cloned(),
+            move |entry: LogEntry| {
+                cell(&key_font, relative(entry.at, now), dim, value_width).into()
+            },
+            move |entry: LogEntry| {
+                let color = level_color(config, entry.level).scale_alpha(opacity);
+                let text = entry.message;
+                let value = cell(&value_font, text.clone(), color, value_width);
+                copyable(value, text, Message::CopyText, flash)
+            },
+        )
     }
 
     fn text(&self, title: &str, body: &str) -> Element<'static, Message> {
@@ -153,54 +155,55 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
-        let mut columns = vec![
-            self.text_column(rows.iter().map(|entry| entry.key.clone()), self.dim()),
-            self.value_column(rows.iter().map(|entry| entry.value.clone())),
-        ];
-        if rows.iter().any(|entry| entry.second.is_some()) {
-            let part = |entry: &Row, second: bool| {
-                entry
-                    .second
-                    .as_ref()
-                    .map_or_else(String::new, |(key, value)| {
-                        if second { value.clone() } else { key.clone() }
-                    })
-            };
-            columns.push(self.text_column(rows.iter().map(|e| part(e, false)), self.dim()));
-            columns.push(self.value_column(rows.iter().map(|e| part(e, true))));
-        }
-        RowWidget::with_children(columns)
-            .spacing(COLUMN_GAP_PX)
-            .into()
-    }
+        let dim = self.dim();
+        let foreground = self.foreground();
+        let flash = self.flash();
+        let key_font = self.config.font.clone();
+        let value_font = self.config.font.clone();
+        let value_width = self.config.widgets.tooltip_value_width_px;
 
-    fn text_column(
-        &self,
-        cells: impl Iterator<Item = String>,
-        color: Color,
-    ) -> Element<'static, Message> {
-        Column::with_children(cells.map(|cell| self.cell(cell, color).into()))
-            .spacing(ROW_SPACING_PX)
-            .into()
+        key_value_table(
+            rows.iter().cloned(),
+            move |entry: Row| cell(&key_font, entry.key, dim, value_width).into(),
+            move |entry: Row| {
+                let text = entry.value;
+                let value = cell(&value_font, text.clone(), foreground, value_width);
+                if text.trim().is_empty() {
+                    return value.into();
+                }
+                copyable(value, text, Message::CopyText, flash)
+            },
+        )
     }
+}
 
-    fn value_column(&self, cells: impl Iterator<Item = String>) -> Element<'static, Message> {
-        Column::with_children(cells.map(|cell| {
-            let copied = cell.clone();
-            let value = self.cell(cell, self.foreground());
-            if copied.trim().is_empty() {
-                return value.into();
-            }
-            copyable(value, copied, Message::CopyText, self.flash())
-        }))
-        .spacing(ROW_SPACING_PX)
-        .into()
-    }
+fn key_value_table<'b, T: Clone + 'static>(
+    rows: impl IntoIterator<Item = T>,
+    key: impl Fn(T) -> Element<'static, Message> + 'b,
+    value: impl Fn(T) -> Element<'static, Message> + 'b,
+) -> Element<'static, Message> {
+    table::table(
+        [
+            table::column(Space::new(), key)
+                .align_x(Horizontal::Right)
+                .align_y(Vertical::Top),
+            table::column(Space::new(), value).align_y(Vertical::Top),
+        ],
+        rows,
+    )
+    .separator(0.0)
+    .padding_x(COLUMN_GAP_PX / 2.0)
+    .padding_y(ROW_SPACING_PX / 2.0)
+    .into()
+}
 
-    fn cell(&self, text: String, color: Color) -> Container<'static, Message> {
-        container(bar_text(&self.config.font, text).color(color))
-            .max_width(self.config.widgets.tooltip_value_width_px)
-    }
+fn cell(
+    font: &FontConfig,
+    text: String,
+    color: Color,
+    max_width: f32,
+) -> Container<'static, Message> {
+    container(bar_text(font, text).color(color)).max_width(max_width)
 }
 
 fn footer_text(info: RefreshInfo, now: SystemTime) -> String {

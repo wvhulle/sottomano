@@ -97,22 +97,12 @@ impl Value {
 pub struct Row {
     pub key: String,
     pub value: String,
-    pub second: Option<(String, String)>,
 }
 
 pub fn row(key: &str, value: impl Into<String>) -> Row {
     Row {
         key: key.to_string(),
         value: value.into(),
-        second: None,
-    }
-}
-
-pub fn row_pair(key: &str, value: impl Into<String>, key2: &str, value2: impl Into<String>) -> Row {
-    Row {
-        key: key.to_string(),
-        value: value.into(),
-        second: Some((key2.to_string(), value2.into())),
     }
 }
 
@@ -120,7 +110,6 @@ pub fn separator() -> Row {
     Row {
         key: String::new(),
         value: String::new(),
-        second: None,
     }
 }
 
