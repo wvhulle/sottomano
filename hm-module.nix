@@ -162,6 +162,44 @@ in
       '';
     };
 
+    secretFiles = {
+      "openrouter-management-key" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file containing an OpenRouter **management** key as plain
+          text. A regular API key is not enough: the usage widget calls
+          `/analytics/query`, which only management keys may access. Symlinked
+          into ~/.config/vetrata/, where the bar looks for it. When unset, the
+          OpenRouter pill is hidden.
+        '';
+      };
+
+      "claude-code-oauth" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to the Claude Code OAuth credentials JSON (the
+          `~/.claude/.credentials.json` blob with `claudeAiOauth.accessToken`).
+          Drives the Claude subscription gauge; on API-key machines (no OAuth
+          token) it instead surfaces `ccusage` daily spend. Symlinked into
+          ~/.config/vetrata/. When unset, the Claude pills are hidden.
+        '';
+      };
+
+      "gh-auth-token" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file holding a bare `gho_` GitHub OAuth token. The Copilot
+          usage pills read it and call `/copilot_internal/user` directly.
+          Symlinked into ~/.config/vetrata/. When unset, the Copilot quota pills
+          are hidden (the local-`ccusage` Copilot pill needs no token and still
+          shows if `ccusage` is installed).
+        '';
+      };
+    };
+
     umbra.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -192,8 +230,24 @@ in
 
     home.packages = [ cfg.package ];
 
-    xdg.configFile."vetrata.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
-      source = tomlFormat.generate "vetrata.toml" cfg.settings;
+    xdg.configFile = {
+      "vetrata.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
+        source = tomlFormat.generate "vetrata.toml" cfg.settings;
+      };
+
+      "vetrata/openrouter-management-key" =
+        lib.mkIf (cfg.secretFiles."openrouter-management-key" != null)
+          {
+            source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."openrouter-management-key";
+          };
+
+      "vetrata/claude-code-oauth" = lib.mkIf (cfg.secretFiles."claude-code-oauth" != null) {
+        source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."claude-code-oauth";
+      };
+
+      "vetrata/gh-auth-token" = lib.mkIf (cfg.secretFiles."gh-auth-token" != null) {
+        source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."gh-auth-token";
+      };
     };
 
     services.umbra.apps.vetrata = lib.mkIf cfg.umbra.enable {

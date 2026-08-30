@@ -129,6 +129,7 @@ pub fn load() -> Config {
             process::exit(1);
         }
     };
+    let secrets = config_home().map(|dir| dir.join("vetrata"));
     Config {
         palette: user.palette,
         chrome: user.chrome,
@@ -142,27 +143,18 @@ pub fn load() -> Config {
         color_temperature_unit: user.color_temperature_unit,
         locker: user.locker,
         secrets: SecretPaths {
-            openrouter_management: [
-                config_home().map(|dir| dir.join("vetrata/openrouter-management-key")),
-                Some(PathBuf::from("/run/agenix/openrouter-management-key")),
-            ]
-            .into_iter()
-            .flatten()
-            .find(|path| path.is_file()),
-            claude_code_oauth: [
-                home().map(|home| home.join(".claude/.credentials.json")),
-                Some(PathBuf::from("/run/agenix/claude-code-oauth")),
-            ]
-            .into_iter()
-            .flatten()
-            .find(|path| path.is_file()),
-            gh_auth_token: [
-                state_home().map(|dir| dir.join("chatbot/copilot-token")),
-                Some(PathBuf::from("/run/agenix/gh-auth-token")),
-            ]
-            .into_iter()
-            .flatten()
-            .find(|path| path.is_file()),
+            openrouter_management: secrets
+                .as_ref()
+                .map(|dir| dir.join("openrouter-management-key"))
+                .filter(|path| path.is_file()),
+            claude_code_oauth: secrets
+                .as_ref()
+                .map(|dir| dir.join("claude-code-oauth"))
+                .filter(|path| path.is_file()),
+            gh_auth_token: secrets
+                .as_ref()
+                .map(|dir| dir.join("gh-auth-token"))
+                .filter(|path| path.is_file()),
         },
     }
 }
@@ -178,11 +170,4 @@ fn config_home() -> Option<PathBuf> {
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .or_else(|| home().map(|home| home.join(".config")))
-}
-
-fn state_home() -> Option<PathBuf> {
-    env::var_os("XDG_STATE_HOME")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| home().map(|home| home.join(".local/state")))
 }
