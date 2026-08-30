@@ -10,6 +10,7 @@ use std::{
     sync::Arc,
 };
 
+use bytesize::ByteSize;
 use iced::futures::{
     Stream, StreamExt,
     stream::{self, select},
@@ -22,7 +23,7 @@ use zbus::{
     zvariant::OwnedValue,
 };
 
-use crate::data::source::{Level, Row, net_interfaces::nm::AddressBlock, row, row_pair, separator};
+use crate::data::source::{Level, Row, net_interfaces::nm::AddressBlock, row, separator};
 
 pub(crate) type Properties = HashMap<String, OwnedValue>;
 
@@ -186,14 +187,17 @@ pub(crate) fn link_stats_rows(
     match (rate, mtu) {
         (0, 0) => Vec::new(),
         (0, mtu) => vec![row(&key("MTU"), mtu.to_string())],
-        (rate, 0) => vec![row(&key(rate_label), format!("{rate} Mb/s"))],
-        (rate, mtu) => vec![row_pair(
-            &key(rate_label),
-            format!("{rate} Mb/s"),
-            "MTU",
-            mtu.to_string(),
-        )],
+        (rate, 0) => vec![row(&key(rate_label), bitrate(rate))],
+        (rate, mtu) => vec![
+            row(&key(rate_label), bitrate(rate)),
+            row("MTU", mtu.to_string()),
+        ],
     }
+}
+
+fn bitrate(megabits_per_sec: u32) -> String {
+    let bits_per_sec = u64::from(megabits_per_sec) * 1_000_000;
+    format!("{}/s", ByteSize::b(bits_per_sec / 8).display().si_bits())
 }
 
 pub(crate) fn interface<'a>(

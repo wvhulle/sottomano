@@ -7,7 +7,7 @@ use crate::data::source::{
     net_interfaces::{
         address_rows, dns_rows, group, link_stats_rows, nm, nm_readings, signal_level,
     },
-    row, row_pair,
+    row,
 };
 
 pub const NAME: &str = "wifi";
@@ -63,15 +63,10 @@ impl BarWidget for Wifi {
         if let Some(ssid) = &link.ssid {
             identity.push(row("SSID", ssid.clone()));
         }
-        identity.push(match &link.security {
-            Some(security) => row_pair(
-                "Signal",
-                format!("{}%", link.signal),
-                "Security",
-                security.clone(),
-            ),
-            None => row("Signal", format!("{}%", link.signal)),
-        });
+        identity.push(row("Signal", format!("{}%", link.signal)));
+        if let Some(security) = &link.security {
+            identity.push(row("Security", security.clone()));
+        }
         if let Some(frequency) = &link.frequency {
             identity.push(row("Frequency", frequency.clone()));
         }
