@@ -1,5 +1,6 @@
 pub mod host_surfaces;
 pub mod hover_area;
+pub mod tooltip_connector;
 pub mod tooltip_content;
 pub mod tooltip_placement;
 pub mod tooltip_transition;

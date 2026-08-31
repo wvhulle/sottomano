@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, Occasional, Source, TooltipBody, Unit, Value as GaugeValue,
-    ai::{level_from_cost, level_from_remaining, read_secret},
+    ai::{level_from_cost, level_from_used, read_secret},
     command::{self, exists, require},
     http, row,
     simple_icons::SimpleIcon,
@@ -132,8 +132,8 @@ impl UserInfo {
 
 impl QuotaSnapshot {
     #[allow(clippy::cast_possible_truncation)]
-    fn percent_remaining(&self) -> i64 {
-        self.percent_remaining.map_or_else(
+    fn percent_used(&self) -> i64 {
+        100 - self.percent_remaining.map_or_else(
             || (self.remaining * 100) / self.entitlement,
             |percent| percent as i64,
         )
@@ -156,7 +156,7 @@ pub struct CopilotMetered {
     used: i64,
     limit: i64,
     remaining: i64,
-    percent_remaining: i64,
+    percent_used: i64,
     reset: Option<String>,
 }
 
@@ -166,12 +166,12 @@ impl BarWidget for CopilotMetered {
     }
 
     fn level(&self) -> Level {
-        level_from_remaining(self.percent_remaining)
+        level_from_used(self.percent_used)
     }
 
     fn value(&self) -> Option<GaugeValue> {
         Some(GaugeValue::Gauge {
-            percent: self.percent_remaining,
+            percent: self.percent_used,
             unit: Unit::Percent,
         })
     }
@@ -212,7 +212,7 @@ impl Source for CopilotMetered {
             used: snapshot.entitlement - snapshot.remaining,
             limit: snapshot.entitlement,
             remaining: snapshot.remaining,
-            percent_remaining: snapshot.percent_remaining(),
+            percent_used: snapshot.percent_used(),
             reset: quota_reset(&info),
         })
     }
@@ -220,7 +220,7 @@ impl Source for CopilotMetered {
 
 impl Occasional for CopilotMetered {
     fn present(&self) -> bool {
-        self.percent_remaining < 100
+        self.percent_used > 0
     }
 }
 
@@ -447,7 +447,7 @@ mod tests {
         let (snapshot, label) = info.metered_quota().unwrap();
         assert_eq!(label, "Chat");
         assert_eq!(snapshot.entitlement, 200);
-        assert_eq!(snapshot.percent_remaining(), 75);
+        assert_eq!(snapshot.percent_used(), 25);
         assert_eq!(quota_reset(&info).as_deref(), Some("2026-09-01T00:00:00Z"));
     }
 

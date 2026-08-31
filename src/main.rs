@@ -25,6 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ..Default::default()
         },
         default_font: config.font.iced_font,
+        antialiasing: true,
         ..Default::default()
     };
     settings.fonts.push(config.font.data.to_vec().into());

@@ -12,10 +12,10 @@ pub fn read_secret(path: &Path) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
 }
 
-pub fn level_from_remaining(remaining: i64) -> Level {
-    if remaining < 10 {
+pub fn level_from_used(used: i64) -> Level {
+    if used > 90 {
         Level::Critical
-    } else if remaining < 25 {
+    } else if used > 75 {
         Level::Warning
     } else {
         Level::Ok
