@@ -1,17 +1,21 @@
 use iced::{
-    Border, Color, Element, Event, Length, Rectangle, Size,
+    Border, Color, Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
+        graphics::geometry::Renderer as _,
         layout::{Limits, Node},
         mouse, renderer,
         widget::{Operation, Tree, tree},
     },
     mouse::Cursor,
+    widget::canvas::Frame,
     window,
 };
 
 use crate::{
-    app::Message, config::Config, wayland_layers::surface::Position,
+    app::Message,
+    config::Config,
+    wayland_layers::{surface::Position, tooltip::tooltip_connector::notch},
     widgets::overlay_shadow::overlay_shadow,
 };
 
@@ -50,6 +54,7 @@ pub fn morphing_tooltip<'a>(
         on_bounds: Box::new(on_bounds),
         anchor,
         edge_inset: config.chrome.outer_height_px + config.chrome.popup_gap_px,
+        bar_thickness: config.chrome.outer_height_px,
         position,
         progress: progress.clamp(0.0, 1.0),
         seq,
@@ -63,6 +68,7 @@ struct MorphingTooltip<'a> {
     on_bounds: Box<dyn Fn(Rectangle) -> Message + 'a>,
     anchor: Rectangle,
     edge_inset: f32,
+    bar_thickness: f32,
     position: Position,
     progress: f32,
     seq: u64,
@@ -85,7 +91,8 @@ fn resting(
     position: Position,
     edge_inset: f32,
 ) -> Rectangle {
-    let x = anchor.x.clamp(0.0, (surface.width - size.width).max(0.0));
+    let x =
+        (anchor.center_x() - size.width / 2.0).clamp(0.0, (surface.width - size.width).max(0.0));
     let y = match position {
         Position::Top => edge_inset,
         Position::Bottom => surface.height - edge_inset - size.height,
@@ -95,24 +102,6 @@ fn resting(
         y,
         width: size.width,
         height: size.height,
-    }
-}
-
-fn pinned_to_anchor(
-    anchor: Rectangle,
-    surface: Size,
-    position: Position,
-    edge_inset: f32,
-) -> Rectangle {
-    let y = match position {
-        Position::Top => edge_inset,
-        Position::Bottom => surface.height - edge_inset,
-    };
-    Rectangle {
-        x: anchor.center_x(),
-        y,
-        width: 0.0,
-        height: 0.0,
     }
 }
 
@@ -169,6 +158,14 @@ impl<'a> MorphingTooltip<'a> {
                 state,
                 layout,
             })
+    }
+
+    fn is_live(&self) -> bool {
+        self.renderings.iter().any(|rendering| rendering.incoming)
+    }
+
+    fn is_settled(&self) -> bool {
+        self.progress >= 1.0 && self.is_live()
     }
 
     fn live_view<'t>(
@@ -238,7 +235,13 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
             .map(|(_, node)| node.size());
-        let at_anchor = pinned_to_anchor(self.anchor, surface, self.position, self.edge_inset);
+        let at_anchor = resting(
+            self.anchor,
+            Size::ZERO,
+            surface,
+            self.position,
+            self.edge_inset,
+        );
 
         let state: &mut MorphState = tree.state.downcast_mut();
         if state.seq != self.seq {
@@ -276,6 +279,11 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
+        let surface = layout.bounds().size();
+        let bar_edge_y = match self.position {
+            Position::Top => self.bar_thickness,
+            Position::Bottom => surface.height - self.bar_thickness,
+        };
         renderer.fill_quad(
             renderer::Quad {
                 bounds: box_bounds,
@@ -289,6 +297,21 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
             },
             self.background,
         );
+        if self.is_settled() {
+            let notch = notch(
+                self.anchor,
+                bar_edge_y,
+                box_bounds,
+                self.position,
+                self.radius,
+            );
+            let fill = self.background;
+            renderer.with_translation(Vector::new(notch.region.x, notch.region.y), |renderer| {
+                let mut frame = Frame::new(renderer, notch.region.size());
+                frame.fill(&notch.path, fill);
+                renderer.draw_geometry(frame.into_geometry());
+            });
+        }
         renderer.with_layer(box_bounds, |renderer| {
             self.views(tree, layout).for_each(|rendering| {
                 rendering.widget.as_widget().draw(
@@ -347,7 +370,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
         if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
             return;
         }
-        let live = self.renderings.iter().any(|rendering| rendering.incoming);
+        let live = self.is_live();
         let state: &mut MorphState = tree.state.downcast_mut();
         let interactive = if live {
             state.current

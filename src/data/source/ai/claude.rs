@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use crate::data::source::{
     BarWidget, Glyph, Level, Occasional, Row, Source, TooltipBody, Unit, Value as GaugeValue,
-    ai::{level_from_cost, level_from_remaining},
+    ai::{level_from_cost, level_from_used},
     command::{self, exists, require},
     http, row,
     simple_icons::SimpleIcon,
@@ -130,7 +130,7 @@ struct DayEntry {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeOauth {
-    session_remaining: i64,
+    session_used: i64,
     tooltip: Vec<Row>,
 }
 
@@ -140,12 +140,12 @@ impl BarWidget for ClaudeOauth {
     }
 
     fn level(&self) -> Level {
-        level_from_remaining(self.session_remaining)
+        level_from_used(self.session_used)
     }
 
     fn value(&self) -> Option<GaugeValue> {
         Some(GaugeValue::Gauge {
-            percent: self.session_remaining,
+            percent: self.session_used,
             unit: Unit::Percent,
         })
     }
@@ -209,7 +209,7 @@ impl Source for ClaudeOauth {
         push_extra(usage.overage.as_ref(), &mut tooltip);
 
         Ok(ClaudeOauth {
-            session_remaining: 100 - session_used,
+            session_used,
             tooltip,
         })
     }
@@ -217,7 +217,7 @@ impl Source for ClaudeOauth {
 
 impl Occasional for ClaudeOauth {
     fn present(&self) -> bool {
-        self.session_remaining < 100
+        self.session_used > 0
     }
 }
 
