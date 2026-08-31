@@ -135,10 +135,13 @@ impl WindowList {
             .align_y(Alignment::Center);
         let focus_opacity =
             focused_index.map_or(1.0, |i| self.metrics.item_opacity(self.scroll, i));
-        let indicated = focus_indicator(row, focused_index)
-            .color(config.palette.focus.scale_alpha(focus_opacity))
-            .thickness(config.widgets.focus_underline_thickness_px)
-            .edge(position);
+        let indicated = focus_indicator(
+            row,
+            focused_index,
+            config.palette.focus.scale_alpha(focus_opacity),
+        )
+        .thickness(config.widgets.focus_underline_thickness_px)
+        .edge(position);
         Some(window_list_viewport(
             indicated,
             self.scroll,
@@ -305,7 +308,7 @@ fn count_badge<'a>(
         count.to_string()
     };
     let background = config.palette.urgent.scale_alpha(opacity);
-    let foreground = config.palette.bar_background.scale_alpha(opacity);
+    let foreground = config.palette.surface.scale_alpha(opacity);
     let size = config.font.text_size_px;
     let badge = container(text(label).size(size).color(foreground))
         .padding([0.0, config.spacing.widget_spacing_px])

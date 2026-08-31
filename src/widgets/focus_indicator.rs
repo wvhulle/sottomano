@@ -22,11 +22,12 @@ const MOTION: Duration = Duration::from_millis(160);
 pub fn focus_indicator<'a, Message>(
     slots: impl Into<Element<'a, Message>>,
     active: Option<usize>,
+    color: Color,
 ) -> FocusIndicator<'a, Message> {
     FocusIndicator {
         slots: slots.into(),
         active,
-        color: Color::WHITE,
+        color,
         thickness: 1.0,
         edge: Position::Bottom,
     }
@@ -41,12 +42,6 @@ pub struct FocusIndicator<'a, Message> {
 }
 
 impl<Message> FocusIndicator<'_, Message> {
-    #[must_use]
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-
     #[must_use]
     pub fn thickness(mut self, thickness: f32) -> Self {
         self.thickness = thickness;

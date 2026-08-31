@@ -12,7 +12,6 @@ use iced_layershell::reexport::{
 
 use crate::{
     app::{Bar, Message},
-    blend,
     config::Config,
     state::ChromeState,
     wayland_layers::{
@@ -115,11 +114,11 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .height(Length::Fill)
         .style(|_| container::Style {
             background: (!bar.session.chrome.disconnected_groups).then(|| {
-                blend::darkened(
-                    bar.config.palette.bar_background,
-                    bar.session.chrome.darken_chrome_factor,
-                )
-                .into()
+                bar.config
+                    .palette
+                    .surface
+                    .scale_alpha(bar.session.chrome.chrome_tint_factor)
+                    .into()
             }),
             border: iced::Border {
                 radius: bar.session.chrome.radius().into(),
@@ -292,7 +291,10 @@ fn pill<'a>(
     if !chrome.disconnected_groups {
         return group;
     }
-    let background = blend::darkened(config.palette.bar_background, chrome.darken_chrome_factor);
+    let background = config
+        .palette
+        .surface
+        .scale_alpha(chrome.chrome_tint_factor);
     let radius = chrome.radius();
     let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
     container(group)

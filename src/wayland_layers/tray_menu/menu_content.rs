@@ -19,7 +19,7 @@ pub fn menu_content<'a>(open_menu: &OpenMenu, config: &'a Config) -> Element<'a,
         &|id| Message::Tray(TrayMessage::MenuItemClicked(id)),
         &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
     );
-    let background = config.palette.popup_background();
+    let background = config.palette.surface;
     let radius = f32::from(config.chrome.popup_radius_px);
     let menu = container(entries)
         .width(Length::Fixed(MENU_WIDTH))

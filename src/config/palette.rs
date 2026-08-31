@@ -1,11 +1,11 @@
-use iced::Color;
+use iced::{Color, Theme, theme};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct Palette {
     #[serde(with = "css_color")]
-    pub bar_background: Color,
+    pub surface: Color,
     #[serde(with = "css_color")]
     pub bar_foreground: Color,
     #[serde(with = "css_color")]
@@ -18,28 +18,38 @@ pub struct Palette {
     pub focus: Color,
     #[serde(with = "css_color")]
     pub dim: Color,
-}
-
-impl Palette {
-    pub fn popup_background(&self) -> Color {
-        Color {
-            a: 1.0,
-            ..self.bar_background
-        }
-    }
+    #[serde(with = "css_color")]
+    pub surface_raised: Color,
 }
 
 impl Default for Palette {
     fn default() -> Self {
         Self {
-            bar_background: css("transparent"),
-            bar_foreground: css("#ffffff"),
-            inactive: css("#bdae93"),
-            urgent: css("#fb4934"),
-            warning: css("#fabd2f"),
-            focus: css("#8ec07c"),
-            dim: css("#FFFFFF80"),
+            surface: css("#0b0e14"),
+            bar_foreground: css("#e6e1cf"),
+            inactive: css("#bfbdb6"),
+            urgent: css("#f07178"),
+            warning: css("#ffb454"),
+            focus: css("#95e6cb"),
+            dim: css("#3e4b59"),
+            surface_raised: css("#202229"),
         }
+    }
+}
+
+impl From<&Palette> for Theme {
+    fn from(palette: &Palette) -> Self {
+        Theme::custom(
+            String::from("umbra"),
+            theme::Palette {
+                background: palette.surface,
+                text: palette.bar_foreground,
+                primary: palette.focus,
+                success: palette.focus,
+                warning: palette.warning,
+                danger: palette.urgent,
+            },
+        )
     }
 }
 

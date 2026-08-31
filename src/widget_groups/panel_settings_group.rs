@@ -30,7 +30,7 @@ pub enum Action {
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 const RADIUS_RANGE: RangeInclusive<f32> = 0.0..=16.0;
-const DARKEN_RANGE: RangeInclusive<f32> = 0.0..=100.0;
+const TINT_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
 fn confirmed(
     value: f32,
@@ -67,7 +67,7 @@ pub struct PanelSettingsGroup {
     pub(crate) menu: MenuGroup,
     radius: SliderControl,
     offset: SliderControl,
-    darken: SliderControl,
+    tint: SliderControl,
 }
 
 #[derive(Debug, Clone)]
@@ -77,7 +77,7 @@ pub enum PanelSettingsMessage {
     ToggleDisconnectedGroups,
     Radius(ControlMessage),
     Offset(ControlMessage),
-    Darken(ControlMessage),
+    Tint(ControlMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -101,7 +101,7 @@ impl Default for PanelSettingsGroup {
             .icon_only()
             .readout_width(44.0)
             .readout(|value| format!("{} px", value.round())),
-            darken: SliderControl::new(DARKEN_RANGE, HoverTarget::DarkenChrome, Solid::XRay.into())
+            tint: SliderControl::new(TINT_RANGE, HoverTarget::TintChrome, Solid::XRay.into())
                 .icon_only()
                 .readout_width(44.0)
                 .readout(|value| format!("{} %", value.round())),
@@ -120,9 +120,9 @@ impl PanelSettingsGroup {
                 "Offset",
                 self.offset.readout_text(),
             )])),
-            HoverTarget::DarkenChrome => Some(Tooltip::table(vec![row(
-                "Darken",
-                format!("{} black tint over the chrome", self.darken.readout_text()),
+            HoverTarget::TintChrome => Some(Tooltip::table(vec![row(
+                "Tint",
+                format!("{} tint over the chrome", self.tint.readout_text()),
             )])),
             HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
             HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
@@ -131,13 +131,13 @@ impl PanelSettingsGroup {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.radius.is_animating() || self.offset.is_animating() || self.darken.is_animating()
+        self.radius.is_animating() || self.offset.is_animating() || self.tint.is_animating()
     }
 
     fn close_sliders(&mut self) {
         self.radius.close();
         self.offset.close();
-        self.darken.close();
+        self.tint.close();
     }
 
     pub fn close_menu(&mut self) {
@@ -192,13 +192,13 @@ impl PanelSettingsGroup {
                 }
                 _ => Action::None,
             },
-            PanelSettingsMessage::Darken(msg) => match self.darken.update(msg) {
+            PanelSettingsMessage::Tint(msg) => match self.tint.update(msg) {
                 SliderAction::Commit(percent) => {
-                    chrome.darken_chrome_factor = percent / 100.0;
+                    chrome.chrome_tint_factor = percent / 100.0;
                     Action::Run(confirmed(
                         percent,
-                        state::panel::save_darken_chrome_factor(chrome.darken_chrome_factor),
-                        PanelSettingsMessage::Darken,
+                        state::panel::save_chrome_tint_factor(chrome.chrome_tint_factor),
+                        PanelSettingsMessage::Tint,
                     ))
                 }
                 _ => Action::None,
@@ -212,8 +212,8 @@ impl PanelSettingsGroup {
             .update(ControlMessage::Reading(chrome.corner_radius_px));
         self.offset
             .update(ControlMessage::Reading(chrome.float_offset_px));
-        self.darken
-            .update(ControlMessage::Reading(chrome.darken_chrome_factor * 100.0));
+        self.tint
+            .update(ControlMessage::Reading(chrome.chrome_tint_factor * 100.0));
     }
 
     #[allow(clippy::unnecessary_wraps)]
@@ -254,7 +254,7 @@ impl PanelSettingsGroup {
         let content = Row::with_children([
             disconnected_toggle,
             blur_toggle,
-            slider_element(&self.darken, config, PanelSettingsMessage::Darken),
+            slider_element(&self.tint, config, PanelSettingsMessage::Tint),
             slider_element(&self.radius, config, PanelSettingsMessage::Radius),
             slider_element(&self.offset, config, PanelSettingsMessage::Offset),
         ])

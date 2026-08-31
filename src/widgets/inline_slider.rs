@@ -36,7 +36,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         value,
         ghost,
         accent,
-        track: config.palette.bar_foreground.scale_alpha(0.25),
+        track: config.palette.surface_raised,
     };
     stack![
         interaction_slider(config, range, value, step, on_change, on_release),
