@@ -5,7 +5,7 @@ use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Brands,
     net_interfaces::{interface, managed_objects_readings, prop, signal_level},
-    row,
+    row, section,
 };
 
 pub const NAME: &str = "bluetooth";
@@ -14,12 +14,21 @@ const SERVICE: &str = "org.bluez";
 const ROOT: &str = "/";
 const ADAPTER: &str = "org.bluez.Adapter1";
 const DEVICE: &str = "org.bluez.Device1";
+const BATTERY: &str = "org.bluez.Battery1";
+
+#[derive(Debug, Clone)]
+struct Device {
+    name: String,
+    address: Option<String>,
+    signal: Option<i64>,
+    battery: Option<u8>,
+}
 
 #[derive(Debug, Clone)]
 pub struct Bluetooth {
     powered: bool,
-    connected: Vec<String>,
-    signal: Option<i64>,
+    connected: Vec<Device>,
+    paired: usize,
 }
 
 fn rssi_quality(dbm: i64) -> i64 {
@@ -45,11 +54,11 @@ impl BarWidget for Bluetooth {
     }
 
     fn level(&self) -> Level {
-        self.signal.map_or(Level::Ok, signal_level)
+        self.best_signal().map_or(Level::Ok, signal_level)
     }
 
     fn value(&self) -> Option<Value> {
-        self.signal.map(|percent| Value::Gauge {
+        self.best_signal().map(|percent| Value::Gauge {
             percent,
             unit: Unit::Percent,
         })
@@ -59,16 +68,36 @@ impl BarWidget for Bluetooth {
         if !self.powered {
             return TooltipBody::rows(vec![row("Bluetooth", "off")]);
         }
-        let summary = if self.connected.is_empty() {
-            "on".to_string()
-        } else {
-            format!("{} connected", self.connected.len())
-        };
-        let mut rows = vec![row("Bluetooth", summary)];
-        for (index, name) in self.connected.iter().enumerate() {
-            rows.push(row(&format!("Device {}", index + 1), name.clone()));
+        let mut sections = vec![section(
+            "Bluetooth",
+            vec![
+                row("Connected", self.connected.len().to_string()),
+                row("Paired", self.paired.to_string()),
+            ],
+        )];
+        for device in &self.connected {
+            let mut rows = Vec::new();
+            if let Some(address) = &device.address {
+                rows.push(row("Address", address.clone()));
+            }
+            if let Some(signal) = device.signal {
+                rows.push(row("Signal", format!("{signal}%")));
+            }
+            if let Some(battery) = device.battery {
+                rows.push(row("Battery", format!("{battery}%")));
+            }
+            sections.push(section(device.name.clone(), rows));
         }
-        TooltipBody::rows(rows)
+        TooltipBody::Sections(sections)
+    }
+}
+
+impl Bluetooth {
+    fn best_signal(&self) -> Option<i64> {
+        self.connected
+            .iter()
+            .filter_map(|device| device.signal)
+            .max()
     }
 }
 
@@ -82,30 +111,43 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
         return Some(Bluetooth {
             powered: false,
             connected: Vec::new(),
-            signal: None,
+            paired: 0,
         });
     }
 
-    let devices = objects
+    let paired = objects
         .values()
         .filter_map(|interfaces| interface(interfaces, DEVICE))
-        .filter(|device| prop::<bool>(device, "Connected").unwrap_or(false));
-    let connected = devices
-        .clone()
-        .map(|device| {
-            prop::<String>(device, "Alias")
+        .filter(|device| prop::<bool>(device, "Paired").unwrap_or(false))
+        .count();
+
+    let connected = objects
+        .values()
+        .filter_map(|interfaces| {
+            let device = interface(interfaces, DEVICE)?;
+            if !prop::<bool>(device, "Connected").unwrap_or(false) {
+                return None;
+            }
+            let name = prop::<String>(device, "Alias")
                 .or_else(|| prop::<String>(device, "Name"))
-                .unwrap_or_default()
+                .unwrap_or_default();
+            let address = prop::<String>(device, "Address");
+            let signal = prop::<i16>(device, "RSSI").map(|dbm| rssi_quality(i64::from(dbm)));
+            let battery = interface(interfaces, BATTERY)
+                .and_then(|battery| prop::<u8>(battery, "Percentage"));
+            Some(Device {
+                name,
+                address,
+                signal,
+                battery,
+            })
         })
         .collect();
-    let signal = devices
-        .filter_map(|device| prop::<i16>(device, "RSSI"))
-        .map(|dbm| rssi_quality(i64::from(dbm)))
-        .max();
+
     Some(Bluetooth {
         powered: true,
         connected,
-        signal,
+        paired,
     })
 }
 
