@@ -62,20 +62,26 @@ impl BarWidget for Ethernet {
                     label.to_string()
                 }
             };
-            let mut identity = vec![row(&key("Interface"), link.name.clone())];
+            let mut identity = vec![row(&key("Interface Name"), link.name.clone())];
             if let Some(connection) = &link.connection {
-                identity.push(row(&key("Connection"), connection.clone()));
+                identity.push(row(&key("Network Profile"), connection.clone()));
             }
             if let Some(mac) = &link.mac {
-                identity.push(row(&key("MAC"), mac.clone()));
+                identity.push(row(&key("MAC Address"), mac.clone()));
             }
             group(&mut rows, identity);
-            group(&mut rows, address_rows(&key, "IPv4", link.ipv4.as_ref()));
-            group(&mut rows, address_rows(&key, "IPv6", link.ipv6.as_ref()));
+            group(
+                &mut rows,
+                address_rows(&key, "IPv4 Address", link.ipv4.as_ref()),
+            );
+            group(
+                &mut rows,
+                address_rows(&key, "IPv6 Address", link.ipv6.as_ref()),
+            );
             group(&mut rows, dns_rows(&key, &link.dns));
             group(
                 &mut rows,
-                link_stats_rows(&key, "Speed", link.speed, link.mtu),
+                link_stats_rows(&key, "Link Speed", link.speed, link.mtu),
             );
         }
         TooltipBody::Table(rows)

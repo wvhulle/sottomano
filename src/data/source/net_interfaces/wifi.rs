@@ -61,27 +61,33 @@ impl BarWidget for Wifi {
         let key = |label: &str| label.to_string();
         let mut identity = Vec::new();
         if let Some(ssid) = &link.ssid {
-            identity.push(row("SSID", ssid.clone()));
+            identity.push(row("Network Name (SSID)", ssid.clone()));
         }
-        identity.push(row("Signal", format!("{}%", link.signal)));
+        identity.push(row("Signal Strength", format!("{}%", link.signal)));
         if let Some(security) = &link.security {
-            identity.push(row("Security", security.clone()));
+            identity.push(row("Security Type", security.clone()));
         }
         if let Some(frequency) = &link.frequency {
-            identity.push(row("Frequency", frequency.clone()));
+            identity.push(row("Frequency Band", frequency.clone()));
         }
-        identity.push(row("Interface", self.device.clone()));
+        identity.push(row("Interface Name", self.device.clone()));
         if let Some(mac) = &link.mac {
-            identity.push(row("MAC", mac.clone()));
+            identity.push(row("MAC Address", mac.clone()));
         }
         let mut rows = Vec::new();
         group(&mut rows, identity);
-        group(&mut rows, address_rows(&key, "IPv4", link.ipv4.as_ref()));
-        group(&mut rows, address_rows(&key, "IPv6", link.ipv6.as_ref()));
+        group(
+            &mut rows,
+            address_rows(&key, "IPv4 Address", link.ipv4.as_ref()),
+        );
+        group(
+            &mut rows,
+            address_rows(&key, "IPv6 Address", link.ipv6.as_ref()),
+        );
         group(&mut rows, dns_rows(&key, &link.dns));
         group(
             &mut rows,
-            link_stats_rows(&key, "Bitrate", link.bitrate / 1000, link.mtu),
+            link_stats_rows(&key, "Radio Speed", link.bitrate / 1000, link.mtu),
         );
         TooltipBody::Table(rows)
     }
