@@ -187,7 +187,7 @@ impl PowerProfileGroup {
                 )
             })
             .collect();
-        self.cell.tooltip_with(TooltipBody::Table(rows))
+        self.cell.tooltip_with(TooltipBody::rows(rows))
     }
 
     pub fn view<'a>(

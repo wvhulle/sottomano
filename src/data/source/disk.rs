@@ -67,7 +67,7 @@ impl BarWidget for Disk {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Mount", "/"),
             row("Used", format!("{}%", self.used_pct())),
             row(

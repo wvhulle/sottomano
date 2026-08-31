@@ -12,9 +12,7 @@ use zbus::Connection as SessionBus;
 use crate::data::source::{
     BarWidget, Glyph, Level, Occasional, Row, Source, TooltipBody, Unit, Value,
     font_awesome::{FontAwesome, Solid},
-    http,
-    net_interfaces::group,
-    row,
+    http, row, section, untitled,
 };
 
 #[derive(Debug, Clone)]
@@ -198,10 +196,11 @@ impl BarWidget for Temperature {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![row("Conditions", self.conditions)];
-        group(&mut rows, self.temperature_rows());
-        group(&mut rows, self.air_rows());
-        TooltipBody::Table(rows)
+        TooltipBody::Sections(vec![
+            untitled(vec![row("Conditions", self.conditions)]),
+            section("Temperature", self.temperature_rows()),
+            section("Air", self.air_rows()),
+        ])
     }
 }
 
@@ -274,7 +273,7 @@ impl BarWidget for Rain {
         } else {
             format!("{:.1} mm/h", self.mm_per_h)
         };
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Rain", now),
             row(
                 "Peak",
@@ -403,7 +402,7 @@ impl<A: Allergen> BarWidget for Pollen<A> {
     fn tooltip(&self) -> TooltipBody {
         let mut all = self.all.clone();
         all.sort_by(|a, b| b.1.total_cmp(&a.1));
-        TooltipBody::Table(
+        TooltipBody::rows(
             all.into_iter()
                 .map(|(label, value)| row(label, format!("{value:.0} grains/m³")))
                 .collect(),
@@ -474,7 +473,7 @@ impl BarWidget for Location {
         } else {
             format!("{:.1} km", self.geo.accuracy / 1000.0)
         };
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Place", dash(&self.geo.place_name)),
             row("Country", dash(&self.geo.place_country)),
             row("Distance", distance),

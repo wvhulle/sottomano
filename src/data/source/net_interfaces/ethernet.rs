@@ -4,8 +4,8 @@ use zbus::Connection;
 use crate::data::source::{
     BarWidget, Glyph, TooltipBody,
     font_awesome::Solid,
-    net_interfaces::{address_rows, dns_rows, group, link_stats_rows, nm, nm_readings},
-    row,
+    net_interfaces::{address_section, dns_section, link_stats_section, nm, nm_readings},
+    row, section,
 };
 
 pub const NAME: &str = "ethernet";
@@ -46,14 +46,14 @@ impl BarWidget for Ethernet {
     fn tooltip(&self) -> TooltipBody {
         let connected = self.connected_count();
         if connected == 0 {
-            return TooltipBody::Table(
+            return TooltipBody::rows(
                 self.links
                     .iter()
                     .map(|link| row(&link.name, "disconnected"))
                     .collect(),
             );
         }
-        let mut rows = Vec::new();
+        let mut sections = Vec::new();
         for link in self.links.iter().filter(|link| link.connected) {
             let key = |label: &str| {
                 if connected > 1 {
@@ -62,29 +62,26 @@ impl BarWidget for Ethernet {
                     label.to_string()
                 }
             };
-            let mut identity = vec![row(&key("Interface Name"), link.name.clone())];
+            let mut identity = vec![row("Interface Name", link.name.clone())];
             if let Some(connection) = &link.connection {
-                identity.push(row(&key("Network Profile"), connection.clone()));
+                identity.push(row("Network Profile", connection.clone()));
             }
             if let Some(mac) = &link.mac {
-                identity.push(row(&key("MAC Address"), mac.clone()));
+                identity.push(row("MAC Address", mac.clone()));
             }
-            group(&mut rows, identity);
-            group(
-                &mut rows,
-                address_rows(&key, "IPv4 Address", link.ipv4.as_ref()),
-            );
-            group(
-                &mut rows,
-                address_rows(&key, "IPv6 Address", link.ipv6.as_ref()),
-            );
-            group(&mut rows, dns_rows(&key, &link.dns));
-            group(
-                &mut rows,
-                link_stats_rows(&key, "Link Speed", link.speed, link.mtu),
-            );
+            sections.push(section(key("Identity"), identity));
+            sections.push(address_section(&key, "IPv4", link.ipv4.as_ref()));
+            sections.push(address_section(&key, "IPv6", link.ipv6.as_ref()));
+            sections.push(dns_section(&key, &link.dns));
+            sections.push(link_stats_section(
+                &key,
+                "Link",
+                "Link Speed",
+                link.speed,
+                link.mtu,
+            ));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::Sections(sections)
     }
 }
 

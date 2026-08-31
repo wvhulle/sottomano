@@ -106,11 +106,21 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
     }
 }
 
-pub fn separator() -> Row {
-    Row {
-        key: String::new(),
-        value: String::new(),
+#[derive(Debug, Clone, PartialEq)]
+pub struct Section {
+    pub title: Option<String>,
+    pub rows: Vec<Row>,
+}
+
+pub fn section(title: impl Into<String>, rows: Vec<Row>) -> Section {
+    Section {
+        title: Some(title.into()),
+        rows,
     }
+}
+
+pub fn untitled(rows: Vec<Row>) -> Section {
+    Section { title: None, rows }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,16 +150,22 @@ pub struct WorkspacePreview {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TooltipBody {
-    Table(Vec<Row>),
+    Sections(Vec<Section>),
     Log(Vec<LogEntry>),
     Text { title: String, body: String },
     Workspace(WorkspacePreview),
 }
 
 impl TooltipBody {
+    pub fn rows(rows: Vec<Row>) -> Self {
+        TooltipBody::Sections(vec![untitled(rows)])
+    }
+
     fn is_empty(&self) -> bool {
         match self {
-            TooltipBody::Table(rows) => rows.is_empty(),
+            TooltipBody::Sections(sections) => {
+                sections.iter().all(|section| section.rows.is_empty())
+            }
             TooltipBody::Log(entries) => entries.is_empty(),
             TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),
             TooltipBody::Workspace(preview) => {
@@ -181,7 +197,7 @@ impl Tooltip {
     }
 
     pub fn table(rows: Vec<Row>) -> Self {
-        Self::of(TooltipBody::Table(rows))
+        Self::of(TooltipBody::rows(rows))
     }
 
     pub fn is_empty(&self) -> bool {

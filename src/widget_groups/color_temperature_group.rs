@@ -180,16 +180,13 @@ impl ColorTemperatureGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::GammaDim => self.gamma.tooltip_with(TooltipBody::Table(vec![row(
-                "Dim",
-                self.dim.readout_text(),
+            HoverTarget::GammaDim => self
+                .gamma
+                .tooltip_with(TooltipBody::rows(vec![row("Dim", self.dim.readout_text())])),
+            HoverTarget::ColorTemperature => self.gamma.tooltip_with(TooltipBody::rows(vec![row(
+                "Temperature",
+                self.warmth.readout_text(),
             )])),
-            HoverTarget::ColorTemperature => {
-                self.gamma.tooltip_with(TooltipBody::Table(vec![row(
-                    "Temperature",
-                    self.warmth.readout_text(),
-                )]))
-            }
             HoverTarget::AutoColorTemperature => self.auto.tooltip(),
             _ => None,
         }

@@ -25,7 +25,7 @@ impl BarWidget for FailedReading {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![row("Error", self.message.clone())])
+        TooltipBody::rows(vec![row("Error", self.message.clone())])
     }
 }
 

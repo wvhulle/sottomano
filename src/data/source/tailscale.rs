@@ -77,7 +77,7 @@ impl BarWidget for Tailscale {
 
     fn tooltip(&self) -> TooltipBody {
         if !self.running {
-            return TooltipBody::Table(vec![row("Tailscale", "disconnected")]);
+            return TooltipBody::rows(vec![row("Tailscale", "disconnected")]);
         }
         let mut rows = vec![
             row("Tailscale", "connected"),
@@ -91,7 +91,7 @@ impl BarWidget for Tailscale {
         for peer in &self.online {
             rows.push(row(&peer.name, format!("→ {}", peer.ip)));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 

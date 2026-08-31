@@ -144,9 +144,9 @@ impl<D: Direction> BarWidget for Throughput<D> {
 
     fn tooltip(&self) -> TooltipBody {
         if self.interfaces.is_empty() {
-            return TooltipBody::Table(vec![row("Connectivity", "none")]);
+            return TooltipBody::rows(vec![row("Connectivity", "none")]);
         }
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row(D::LABEL, format_rate(self.rate)),
             row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),

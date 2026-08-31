@@ -188,7 +188,7 @@ impl BarWidget for CopilotMetered {
         if let Some(reset) = &self.reset {
             rows.push(row("Resets", reset.clone()));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 
@@ -261,7 +261,7 @@ impl BarWidget for CopilotFree {
         if let Some(reset) = &self.reset {
             rows.push(row("Resets", reset.clone()));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 
@@ -325,7 +325,7 @@ impl BarWidget for CopilotCcusage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Plan", "copilot-cli"),
             row("Source", "ccusage"),
             row("Scope", "local CLI session data"),

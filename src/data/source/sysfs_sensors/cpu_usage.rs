@@ -44,7 +44,7 @@ impl BarWidget for CpuUsage {
             rows.push(row("Frequency avg", ghz(favg(&self.freqs_ghz))));
             rows.push(row("Frequency max", ghz(fmax(&self.freqs_ghz))));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 

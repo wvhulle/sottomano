@@ -44,7 +44,7 @@ impl BarWidget for Gamma {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Dim", format!("{}%", self.brightness)),
             row("Temperature", format!("{} K", self.temperature)),
         ])

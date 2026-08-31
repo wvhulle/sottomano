@@ -10,8 +10,8 @@ use zbus::{
 use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Solid,
-    net_interfaces::{group, interface, managed_objects_readings, prop, signal_level},
-    row,
+    net_interfaces::{interface, managed_objects_readings, prop, signal_level},
+    row, section,
 };
 
 pub const NAME: &str = "mobile-broadband";
@@ -77,8 +77,7 @@ impl BarWidget for Mobile {
             identity.push(row("Network Registration", registration.clone()));
         }
 
-        let mut rows = Vec::new();
-        group(&mut rows, identity);
+        let mut sections = vec![section("Modem", identity)];
         if self.state == "connected" {
             let mut addresses = Vec::new();
             if let Some(ip) = &self.ipv4 {
@@ -87,7 +86,7 @@ impl BarWidget for Mobile {
             if let Some(ip) = &self.ipv6 {
                 addresses.push(row("IPv6 Address", ip.clone()));
             }
-            group(&mut rows, addresses);
+            sections.push(section("Address", addresses));
         } else {
             let mut status = vec![row("Connection State", self.state.clone())];
             if self.state == "failed"
@@ -95,7 +94,7 @@ impl BarWidget for Mobile {
             {
                 status.push(row("Failure Reason", reason.clone()));
             }
-            group(&mut rows, status);
+            sections.push(section("Status", status));
         }
         let mut stats = Vec::new();
         if let Some(rx) = self.rx {
@@ -105,10 +104,13 @@ impl BarWidget for Mobile {
             ));
         }
         if let Some(tx) = self.tx {
-            stats.push(row("Sent (TX)", ByteSize::b(tx).display().iec().to_string()));
+            stats.push(row(
+                "Sent (TX)",
+                ByteSize::b(tx).display().iec().to_string(),
+            ));
         }
-        group(&mut rows, stats);
-        TooltipBody::Table(rows)
+        sections.push(section("Data", stats));
+        TooltipBody::Sections(sections)
     }
 }
 

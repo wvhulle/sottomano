@@ -10,9 +10,11 @@ use iced::{
 use crate::{
     app::Message,
     config::{Config, font::FontConfig},
-    data::source::{LogEntry, RefreshInfo, Row, Tooltip, TooltipBody, level_color},
+    data::source::{LogEntry, RefreshInfo, Row, Section, Tooltip, TooltipBody, level_color},
     widget_groups::workspaces_group::workspace_preview::WorkspaceSchematic,
-    widgets::{copyable::copyable, favicon::Favicons, text::bar_text},
+    widgets::{
+        copyable::copyable, favicon::Favicons, section_column::section_column, text::bar_text,
+    },
 };
 
 pub const CONTENT_PADDING: Padding = Padding::new(10.0);
@@ -20,6 +22,7 @@ const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
 const FOOTER_GAP_PX: f32 = 6.0;
 const SECTION_GAP_PX: f32 = 8.0;
+const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
 const FOOTER_SCALE: f32 = 0.85;
 const FOOTER_PADDING: Padding = Padding {
@@ -97,7 +100,7 @@ impl<'a> TooltipContent<'a> {
 
     fn grid(&self) -> Element<'static, Message> {
         match &self.tooltip.body {
-            TooltipBody::Table(rows) => self.table(rows),
+            TooltipBody::Sections(sections) => self.sections(sections),
             TooltipBody::Workspace(preview) => Column::with_children([
                 self.table(&preview.header),
                 WorkspaceSchematic::new(preview, self.config, self.favicons)
@@ -152,6 +155,27 @@ impl<'a> TooltipContent<'a> {
             column = column.push(bar_text(&self.config.font, body.to_owned()).color(self.dim()));
         }
         column.into()
+    }
+
+    fn sections(&self, sections: &[Section]) -> Element<'static, Message> {
+        let italic = Font {
+            style: FontStyle::Italic,
+            ..self.config.font.iced_font
+        };
+        let heading = self.config.palette.inactive.scale_alpha(self.opacity);
+        let divider = self.config.palette.surface_raised.scale_alpha(self.opacity);
+        let font = self.config.font.clone();
+
+        let filled = sections.iter().filter(|section| !section.rows.is_empty());
+        let mut column = Column::new().spacing(SECTION_GAP_PX);
+        for section in filled {
+            let mut group = Column::new().spacing(ROW_SPACING_PX);
+            if let Some(title) = &section.title {
+                group = group.push(bar_text(&font, title.clone()).font(italic).color(heading));
+            }
+            column = column.push(group.push(self.table(&section.rows)));
+        }
+        section_column(column, divider, DIVIDER_THICKNESS_PX, CONTENT_PADDING.left)
     }
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {

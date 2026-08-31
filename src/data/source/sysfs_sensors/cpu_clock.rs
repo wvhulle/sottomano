@@ -43,7 +43,7 @@ impl BarWidget for CpuClock {
                 .iter()
                 .map(|c| row(&format!("Core {}", c.core), ghz(c.ghz))),
         );
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 

@@ -397,7 +397,7 @@ impl BarWidget for SliderControl {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
+        TooltipBody::rows(Vec::new())
     }
 }
 
