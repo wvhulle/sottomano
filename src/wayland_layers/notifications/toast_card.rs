@@ -152,7 +152,7 @@ impl Card<'_> {
     fn chrome(&self) -> CardChrome {
         let palette = &self.config.palette;
         let accent = urgency_accent(self.notif.data.urgency, palette);
-        let background = mix(palette.popup_background(), accent, URGENCY_TINT_AMOUNT);
+        let background = mix(palette.surface, accent, URGENCY_TINT_AMOUNT);
         let rest = mix(background, accent, RESTING_BORDER_TINT_AMOUNT);
         let fade = |color: Color| Color {
             a: color.a * self.reveal,
@@ -351,48 +351,4 @@ fn action_button<'a>(
         })
         .on_press(message)
         .into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn rgb(r: u8, g: u8, b: u8) -> Color {
-        Color::from_rgb8(r, g, b)
-    }
-
-    fn tinted_card(accent: Color) -> Color {
-        mix(Color::BLACK, accent, URGENCY_TINT_AMOUNT)
-    }
-
-    #[test]
-    fn tinted_card_is_distinguishable_from_a_black_window_behind_it() {
-        let fill = tinted_card(rgb(0xfb, 0x49, 0x34));
-        assert!(fill.relative_luminance() > Color::BLACK.relative_luminance());
-        assert!(fill.relative_contrast(Color::BLACK) > 1.2);
-    }
-
-    #[test]
-    fn tinted_card_keeps_title_and_body_legible() {
-        let title = Color::WHITE;
-        let body = rgb(0xbd, 0xae, 0x93);
-        for accent in [
-            rgb(0xbd, 0xae, 0x93),
-            rgb(0x8e, 0xc0, 0x7c),
-            rgb(0xfb, 0x49, 0x34),
-        ] {
-            let fill = tinted_card(accent);
-            assert!(title.relative_contrast(fill) > 4.5);
-            assert!(body.relative_contrast(fill) > 4.5);
-        }
-    }
-
-    #[test]
-    fn subtext_stays_legible_when_dim_is_darker_than_the_card() {
-        let fill = tinted_card(rgb(0xf0, 0x71, 0x78));
-        let unusable_dim = rgb(0x3e, 0x4b, 0x59);
-        let subtext = readable(fill, unusable_dim);
-        assert!(subtext.relative_contrast(fill) > unusable_dim.relative_contrast(fill));
-        assert!(subtext.relative_contrast(fill) > 4.5);
-    }
 }

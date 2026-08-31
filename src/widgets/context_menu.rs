@@ -20,7 +20,6 @@ use crate::{
 const ROW_SPACING: f32 = 1.0;
 const ROW_PADDING: [f32; 2] = [5.0, 8.0];
 const SUBMENU_INDENT: f32 = 16.0;
-const DIVIDER_ALPHA: f32 = 0.3;
 const HOVER_ALPHA: f32 = 0.22;
 const CHEVRON_SCALE: f32 = 0.85;
 
@@ -155,7 +154,7 @@ fn button_style(status: button::Status, text: Color, accent: Color, radius: f32)
 }
 
 fn divider<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
-    let color = config.palette.bar_foreground.scale_alpha(DIVIDER_ALPHA);
+    let color = config.palette.surface_raised;
     container(activity_line(color, 1.0, 1.0))
         .width(Length::Fill)
         .padding([4.0, 0.0])

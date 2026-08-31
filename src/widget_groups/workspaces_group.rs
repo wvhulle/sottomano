@@ -75,8 +75,7 @@ pub fn view<'a>(
         config.palette.focus
     };
     Some(
-        focus_indicator(row, active)
-            .color(color)
+        focus_indicator(row, active, color)
             .thickness(config.widgets.focus_underline_thickness_px)
             .edge(position)
             .into(),

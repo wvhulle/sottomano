@@ -9,7 +9,8 @@ const CORNER_RADIUS: &str = "corner_radius_px";
 const FLOAT_OFFSET: &str = "float_offset_px";
 const BLUR_BACKGROUND: &str = "blur_background";
 const DISCONNECTED_GROUPS: &str = "disconnected_groups";
-const DARKEN_CHROME_FACTOR: &str = "darken_chrome_factor";
+const CHROME_TINT_FACTOR: &str = "chrome_tint_factor";
+const LEGACY_DARKEN_CHROME_FACTOR: &str = "darken_chrome_factor";
 const DND: &str = "dnd";
 const SOUND: &str = "sound";
 const SPATIAL_LAYOUT: &str = "spatial_layout";
@@ -37,8 +38,8 @@ pub async fn save_disconnected_groups(disconnected: bool) {
     put_flag(DISCONNECTED_GROUPS, disconnected).await;
 }
 
-pub async fn save_darken_chrome_factor(factor: f32) -> bool {
-    put(DARKEN_CHROME_FACTOR, &factor.to_string()).await
+pub async fn save_chrome_tint_factor(factor: f32) -> bool {
+    put(CHROME_TINT_FACTOR, &factor.to_string()).await
 }
 
 pub async fn save_dnd(dnd: bool) {
@@ -96,8 +97,8 @@ async fn try_load() -> Result<Session, StoreError> {
             FLOAT_OFFSET => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
             BLUR_BACKGROUND => session.chrome.blur_background = parse_flag(&value),
             DISCONNECTED_GROUPS => session.chrome.disconnected_groups = parse_flag(&value),
-            DARKEN_CHROME_FACTOR => {
-                session.chrome.darken_chrome_factor = value.parse().unwrap_or_default();
+            CHROME_TINT_FACTOR | LEGACY_DARKEN_CHROME_FACTOR => {
+                session.chrome.chrome_tint_factor = value.parse().unwrap_or_default();
             }
             DND => session.notifications.dnd = parse_flag(&value),
             SOUND => session.notifications.sound = parse_flag(&value),

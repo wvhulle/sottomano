@@ -1,5 +1,4 @@
 mod app;
-mod blend;
 mod config;
 mod data;
 mod message_subscriptions;
@@ -37,6 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Bar::view,
     )
     .style(Bar::style)
+    .theme(Bar::theme)
     .subscription(message_subscriptions::subscription)
     .settings(settings)
     .run()?;

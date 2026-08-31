@@ -53,7 +53,7 @@ pub fn morphing_tooltip<'a>(
         position,
         progress: progress.clamp(0.0, 1.0),
         seq,
-        background: config.palette.popup_background(),
+        background: config.palette.surface,
         radius: f32::from(config.chrome.popup_radius_px),
     })
 }

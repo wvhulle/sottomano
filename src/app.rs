@@ -60,6 +60,7 @@ use crate::{
 
 pub struct Bar {
     pub(crate) config: Config,
+    pub(crate) theme: iced::Theme,
     pub(crate) session: Session,
     pub(crate) weather_group: WeatherGroup,
     pub(crate) battery_group: BatteryGroup,
@@ -180,6 +181,7 @@ impl Bar {
             favicons: Favicons::default(),
             font_fallbacks: FontFallbacks::default(),
             session: Session::default(),
+            theme: iced::Theme::from(&config.palette),
             config,
         };
         let init = Task::batch([
@@ -812,6 +814,10 @@ impl Bar {
             return element;
         }
         view(self, window)
+    }
+
+    pub fn theme(&self, _window: Id) -> iced::Theme {
+        self.theme.clone()
     }
 
     pub fn style(&self, _theme: &iced::Theme) -> Style {

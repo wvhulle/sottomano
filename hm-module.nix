@@ -10,12 +10,12 @@ let
   themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
 
-  foregroundPalette = p: {
+  modeToPalette = p: {
+    surface = p.base00;
+    surface_raised = p.base02;
     bar_foreground = p.base05;
     inactive = p.base04;
     dim = p.base03;
-  };
-  accentPalette = p: {
     urgent = p.base08;
     warning = p.base0A;
     focus = p.base0C;
@@ -25,10 +25,7 @@ let
     modePalette:
     tomlFormat.generate "vetrata.toml" (
       lib.recursiveUpdate cfg.settings {
-        palette =
-          foregroundPalette themeCfg.palettes.dark
-          // accentPalette modePalette
-          // (cfg.settings.palette or { });
+        palette = modeToPalette modePalette // (cfg.settings.palette or { });
       }
     );
 

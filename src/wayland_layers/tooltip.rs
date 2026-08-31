@@ -25,7 +25,7 @@ pub enum HoverTarget {
     FloatOffset,
     BlurBackground,
     DisconnectedGroups,
-    DarkenChrome,
+    TintChrome,
     JournalSystem,
     JournalUser,
     JournalKernel,

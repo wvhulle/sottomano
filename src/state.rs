@@ -18,7 +18,7 @@ pub struct ChromeState {
     pub disconnected_groups: bool,
     pub corner_radius_px: f32,
     pub float_offset_px: f32,
-    pub darken_chrome_factor: f32,
+    pub chrome_tint_factor: f32,
 }
 
 #[derive(Debug, Clone)]
