@@ -43,7 +43,7 @@ impl BarWidget for Memory {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Memory", format!("{}%", self.percent())),
             row(
                 "Used",

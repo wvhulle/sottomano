@@ -76,7 +76,7 @@ impl BarWidget for Battery {
         if let Some(wh) = self.energy_wh {
             rows.push(row("Remaining", format!("{wh:.1} Wh")));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 

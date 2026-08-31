@@ -151,7 +151,7 @@ impl BarWidget for ClaudeOauth {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(self.tooltip.clone())
+        TooltipBody::rows(self.tooltip.clone())
     }
 }
 
@@ -239,9 +239,9 @@ impl BarWidget for ClaudeCcusage {
 
     fn tooltip(&self) -> TooltipBody {
         if self.tokens == 0 && self.cost == 0.0 {
-            return TooltipBody::Table(vec![row("Usage", "no activity today")]);
+            return TooltipBody::rows(vec![row("Usage", "no activity today")]);
         }
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Today", format!("${:.2} USD", self.cost)),
             row("Tokens", self.tokens.to_string()),
             row("Models", self.models.clone()),

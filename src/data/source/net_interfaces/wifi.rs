@@ -5,9 +5,9 @@ use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value,
     font_awesome::Solid,
     net_interfaces::{
-        address_rows, dns_rows, group, link_stats_rows, nm, nm_readings, signal_level,
+        address_section, dns_section, link_stats_section, nm, nm_readings, signal_level,
     },
-    row,
+    row, section,
 };
 
 pub const NAME: &str = "wifi";
@@ -56,7 +56,7 @@ impl BarWidget for Wifi {
 
     fn tooltip(&self) -> TooltipBody {
         let Some(link) = &self.link else {
-            return TooltipBody::Table(vec![row("WiFi", "disconnected")]);
+            return TooltipBody::rows(vec![row("WiFi", "disconnected")]);
         };
         let key = |label: &str| label.to_string();
         let mut identity = Vec::new();
@@ -74,22 +74,14 @@ impl BarWidget for Wifi {
         if let Some(mac) = &link.mac {
             identity.push(row("MAC Address", mac.clone()));
         }
-        let mut rows = Vec::new();
-        group(&mut rows, identity);
-        group(
-            &mut rows,
-            address_rows(&key, "IPv4 Address", link.ipv4.as_ref()),
-        );
-        group(
-            &mut rows,
-            address_rows(&key, "IPv6 Address", link.ipv6.as_ref()),
-        );
-        group(&mut rows, dns_rows(&key, &link.dns));
-        group(
-            &mut rows,
-            link_stats_rows(&key, "Radio Speed", link.bitrate / 1000, link.mtu),
-        );
-        TooltipBody::Table(rows)
+        let sections = vec![
+            section("Identity", identity),
+            address_section(&key, "IPv4", link.ipv4.as_ref()),
+            address_section(&key, "IPv6", link.ipv6.as_ref()),
+            dns_section(&key, &link.dns),
+            link_stats_section(&key, "Radio", "Radio Speed", link.bitrate / 1000, link.mtu),
+        ];
+        TooltipBody::Sections(sections)
     }
 }
 

@@ -27,7 +27,7 @@ impl BarWidget for SunFollow {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![row(
+        TooltipBody::rows(vec![row(
             "Auto-temperature",
             if self.auto { "on" } else { "off — manual" },
         )])

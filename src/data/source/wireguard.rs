@@ -107,7 +107,7 @@ impl BarWidget for Tunnel {
                 ));
             }
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 
@@ -122,7 +122,7 @@ impl BarWidget for Wireguard {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
+        TooltipBody::rows(Vec::new())
     }
 }
 

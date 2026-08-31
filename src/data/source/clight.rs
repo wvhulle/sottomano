@@ -50,7 +50,7 @@ impl BarWidget for Clight {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![row(
+        TooltipBody::rows(vec![row(
             "Auto-brightness",
             if self.auto { "on" } else { "off — manual" },
         )])

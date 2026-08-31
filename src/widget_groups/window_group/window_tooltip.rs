@@ -3,22 +3,21 @@ use std::time::{Duration, SystemTime};
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    data::source::{Row, Tooltip, process, row, separator},
+    data::source::{Row, Tooltip, TooltipBody, process, row, section, untitled},
     wayland_layers::tooltip::relative,
 };
 
 pub fn tooltip(niri_state: &EventStreamState, window: u64) -> Option<Tooltip> {
     let window = niri_state.windows.windows.get(&window)?;
-    let mut rows = identity(window);
-    rows.push(separator());
-    rows.extend(layout(niri_state, window));
+    let mut sections = vec![
+        untitled(identity(window)),
+        section("Layout", layout(niri_state, window)),
+    ];
     if let Some(details) = window.pid.and_then(process::read) {
-        rows.push(separator());
-        rows.extend(facts(window, &details));
-        rows.push(separator());
-        rows.extend(command(&details));
+        sections.push(section("Process", facts(window, &details)));
+        sections.push(section("Command", command(&details)));
     }
-    Some(Tooltip::table(rows))
+    Some(Tooltip::of(TooltipBody::Sections(sections)))
 }
 
 fn identity(window: &niri_ipc::Window) -> Vec<Row> {

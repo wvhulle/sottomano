@@ -145,7 +145,7 @@ impl BarWidget for PowerProfile {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(Vec::new())
+        TooltipBody::rows(Vec::new())
     }
 }
 

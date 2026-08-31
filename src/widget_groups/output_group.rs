@@ -94,11 +94,12 @@ mod tests {
 
     fn labelled(tooltip: &Tooltip) -> Vec<(String, String)> {
         match &tooltip.body {
-            TooltipBody::Table(rows) => rows
+            TooltipBody::Sections(sections) => sections
                 .iter()
+                .flat_map(|section| &section.rows)
                 .map(|r| (r.key.clone(), r.value.clone()))
                 .collect(),
-            _ => panic!("expected a table"),
+            _ => panic!("expected sections"),
         }
     }
 

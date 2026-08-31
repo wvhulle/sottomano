@@ -63,7 +63,7 @@ impl Backlight {
             Kind::Internal => "Internal",
             Kind::External => "External (DDC)",
         };
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Display", self.serial.clone()),
             row("Type", kind),
             row("Brightness", brightness),

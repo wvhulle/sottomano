@@ -52,7 +52,7 @@ impl BarWidget for PowerDraw {
 
     fn tooltip(&self) -> TooltipBody {
         let w = format!("{:.1} W", self.watts);
-        TooltipBody::Table(match self.status {
+        TooltipBody::rows(match self.status {
             ChargeStatus::Charging => vec![row("Rate", w)],
             ChargeStatus::Full | ChargeStatus::NotCharging => vec![row("Power", "AC")],
             _ => vec![row("Draw", w)],

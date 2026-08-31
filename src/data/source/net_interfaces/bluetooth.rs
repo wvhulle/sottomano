@@ -57,7 +57,7 @@ impl BarWidget for Bluetooth {
 
     fn tooltip(&self) -> TooltipBody {
         if !self.powered {
-            return TooltipBody::Table(vec![row("Bluetooth", "off")]);
+            return TooltipBody::rows(vec![row("Bluetooth", "off")]);
         }
         let summary = if self.connected.is_empty() {
             "on".to_string()
@@ -68,7 +68,7 @@ impl BarWidget for Bluetooth {
         for (index, name) in self.connected.iter().enumerate() {
             rows.push(row(&format!("Device {}", index + 1), name.clone()));
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 

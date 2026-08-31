@@ -20,7 +20,7 @@ impl BarWidget for Umbra {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Table(vec![row("Mode", if self.dark { "Dark" } else { "Light" })])
+        TooltipBody::rows(vec![row("Mode", if self.dark { "Dark" } else { "Light" })])
     }
 }
 

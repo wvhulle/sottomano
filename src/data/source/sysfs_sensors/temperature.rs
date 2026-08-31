@@ -56,7 +56,7 @@ impl BarWidget for Temperature {
         let temps = self.temps();
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
-        TooltipBody::Table(vec![
+        TooltipBody::rows(vec![
             row("Chips", chips.join(", ")),
             row("Samples", self.readings.len().to_string()),
             row("Min", format!("{}°C", fmin(&temps).round() as i64)),

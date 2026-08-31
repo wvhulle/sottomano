@@ -134,7 +134,7 @@ impl BarWidget for OpenRouter {
                 rows.push(row("other", format!("${}", money(rest))));
             }
         }
-        TooltipBody::Table(rows)
+        TooltipBody::rows(rows)
     }
 }
 
