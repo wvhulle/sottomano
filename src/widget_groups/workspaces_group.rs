@@ -2,7 +2,7 @@ pub mod workspace_preview;
 pub mod workspace_tooltip;
 
 use iced::{
-    Alignment, Element,
+    Alignment, Element, Length,
     widget::{Row, button, row},
 };
 
@@ -65,6 +65,7 @@ pub fn view<'a>(
     });
     let row = Row::with_children(slots)
         .spacing(config.spacing.widget_spacing_px)
+        .height(Length::Fill)
         .align_y(Alignment::Center);
     let active_is_urgent = active
         .and_then(|i| workspaces.get(i))

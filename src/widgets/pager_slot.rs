@@ -34,19 +34,22 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
             .widgets
             .focus_underline_thickness_px
             .max(config.widgets.window_segment_thickness_px);
-        let edge_side = match self.ticks {
-            Some(ticks) => container(ticks)
-                .height(band)
-                .align_y(Vertical::Center)
-                .into(),
-            None => Space::new().height(band).into(),
+        let ticks_against = |edge: Vertical| -> Element<'a, Message> {
+            self.ticks.map_or_else(
+                || Space::new().height(band).into(),
+                |ticks| container(ticks).height(band).align_y(edge).into(),
+            )
         };
-        let (top, middle, bottom) = match position {
-            Position::Bottom => (self.indicator, self.content, edge_side),
-            Position::Top => (edge_side, self.content, self.indicator),
+        let label = container(self.content)
+            .height(Length::Fill)
+            .align_y(Vertical::Center);
+        let (top, bottom) = match position {
+            Position::Bottom => (self.indicator, ticks_against(Vertical::Bottom)),
+            Position::Top => (ticks_against(Vertical::Top), self.indicator),
         };
-        Column::with_children([top, middle, bottom])
+        Column::with_children([top, label.into(), bottom])
             .width(Length::Shrink)
+            .height(Length::Fill)
             .align_x(Alignment::Center)
             .into()
     }
