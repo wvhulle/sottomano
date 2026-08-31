@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, io::Error, process, thread};
+use std::{collections::HashMap, fmt, process, thread};
 
 use iced::{Rectangle, Size};
 use niri_ipc::{Event, Request, Response, Window, socket::Socket, state::EventStreamState};
@@ -429,76 +429,13 @@ fn unique<T>(iter: &mut impl Iterator<Item = T>) -> Option<T> {
     }
 }
 
-#[derive(Debug)]
-pub enum ActionError {
-    Transport(Error),
-    Rejected(String),
-}
-
-impl From<Error> for ActionError {
-    fn from(e: Error) -> Self {
-        Self::Transport(e)
-    }
-}
-
-impl fmt::Display for ActionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Transport(e) => write!(f, "action transport failed: {e}"),
-            Self::Rejected(m) => write!(f, "niri rejected action: {m}"),
-        }
-    }
-}
-
-pub fn focus_window(id: u64) {
-    if let Err(e) = send_action(niri_ipc::Action::FocusWindow { id }) {
-        eprintln!("niri: focus window {id}: {e}");
-    }
-}
-
-pub fn focus_workspace(id: u64) {
-    let action = niri_ipc::Action::FocusWorkspace {
-        reference: niri_ipc::WorkspaceReferenceArg::Id(id),
-    };
-    if let Err(e) = send_action(action) {
-        eprintln!("niri: focus workspace {id}: {e}");
-    }
-}
-
-pub fn toggle_overview() {
-    if let Err(e) = send_action(niri_ipc::Action::ToggleOverview {}) {
-        eprintln!("niri: toggle overview: {e}");
-    }
-}
-
-pub fn close_window(id: u64) {
-    if let Err(e) = send_action(niri_ipc::Action::CloseWindow { id: Some(id) }) {
-        eprintln!("niri: close window {id}: {e}");
-    }
-}
-
-pub fn move_window_here(id: u64, target_ws: u64) {
-    let action = niri_ipc::Action::MoveWindowToWorkspace {
-        window_id: Some(id),
-        reference: niri_ipc::WorkspaceReferenceArg::Id(target_ws),
-        focus: true,
-    };
-    if let Err(e) = send_action(action) {
-        eprintln!("niri: move window {id} to workspace {target_ws}: {e}");
-    }
-}
-
-pub fn power_off_monitors() {
-    if let Err(e) = send_action(niri_ipc::Action::PowerOffMonitors {}) {
-        eprintln!("niri: power off monitors: {e}");
-    }
-}
-
-pub fn spawn(command: &[String]) {
-    if let Err(e) = send_action(niri_ipc::Action::Spawn {
-        command: command.to_vec(),
-    }) {
-        eprintln!("niri: spawn {command:?}: {e}");
+pub fn send_action(action: &niri_ipc::Action) {
+    let sent =
+        Socket::connect().and_then(|mut socket| socket.send(Request::Action(action.clone())));
+    match sent {
+        Ok(Ok(_)) => {}
+        Ok(Err(rejection)) => eprintln!("niri rejected {action:?}: {rejection}"),
+        Err(e) => eprintln!("niri unreachable for {action:?}: {e}"),
     }
 }
 
@@ -567,12 +504,6 @@ pub fn output_info() -> HashMap<String, OutputInfo> {
             .collect(),
         _ => HashMap::new(),
     }
-}
-
-fn send_action(action: niri_ipc::Action) -> Result<(), ActionError> {
-    let reply = Socket::connect()?.send(Request::Action(action))?;
-    reply.map_err(ActionError::Rejected)?;
-    Ok(())
 }
 
 #[cfg(test)]

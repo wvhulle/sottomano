@@ -122,7 +122,10 @@ impl MediaGroup {
         else {
             return Task::none();
         };
-        blocking("mpris raise", move || niri::focus_window(id)).discard()
+        blocking("mpris raise", move || {
+            niri::send_action(&niri_ipc::Action::FocusWindow { id });
+        })
+        .discard()
     }
 
     pub fn icon_keys(&self) -> Vec<String> {

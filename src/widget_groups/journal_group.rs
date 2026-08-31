@@ -55,7 +55,10 @@ impl JournalGroup {
             JournalMessage::User(reading) => self.user.load(reading),
             JournalMessage::Kernel(reading) => self.kernel.load(reading),
             JournalMessage::OpenLog(command) => {
-                return blocking("journal log terminal", move || niri::spawn(&command)).discard();
+                return blocking("journal log terminal", move || {
+                    niri::send_action(&niri_ipc::Action::Spawn { command });
+                })
+                .discard();
             }
             JournalMessage::Tooltip(_) => {}
         }

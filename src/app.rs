@@ -4,7 +4,7 @@ use std::{
 };
 
 use chrono::Utc;
-use iced::{Color, Element, Font, Task, theme::Style, window::Id};
+use iced::{Color, Element, Font, Rectangle, Task, theme::Style, window::Id};
 use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
@@ -262,22 +262,17 @@ impl Bar {
             Message::WorkspaceClicked {
                 is_active: true, ..
             }
-            | Message::OverviewToggled => niri_action(niri::toggle_overview),
-            Message::WorkspaceClicked { id, .. } => niri_action(move || niri::focus_workspace(id)),
+            | Message::OverviewToggled => niri_action(niri_ipc::Action::ToggleOverview {}),
+            Message::WorkspaceClicked { id, .. } => niri_action(niri_ipc::Action::FocusWorkspace {
+                reference: niri_ipc::WorkspaceReferenceArg::Id(id),
+            }),
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => self.forget_window(window),
             Message::PillBounds {
                 window,
                 zone,
                 rects,
-            } => self.blur_casters.pill_rects(
-                window,
-                zone,
-                &rects,
-                &self.config,
-                &self.session.chrome,
-                &self.surfaces,
-            ),
+            } => self.update_pill_bounds(window, zone, &rects),
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => {
@@ -285,7 +280,7 @@ impl Bar {
             }
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_tooltip(),
-                niri_action(move || niri::focus_window(window)),
+                niri_action(niri_ipc::Action::FocusWindow { id: window }),
             ]),
             Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
             Message::Notification(msg) => self.update_notification(msg),
@@ -309,6 +304,17 @@ impl Bar {
             | Message::RemoveWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    fn update_pill_bounds(&mut self, window: Id, zone: Zone, rects: &[Rectangle]) -> Task<Message> {
+        self.blur_casters.pill_rects(
+            window,
+            zone,
+            rects,
+            &self.config,
+            &self.session.chrome,
+            &self.surfaces,
+        )
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -395,7 +401,10 @@ impl Bar {
         match self.window_group.update(msg) {
             window_group::Action::Run(task) => task.map(Message::WindowGroup),
             window_group::Action::FocusWindow(window) => {
-                niri_action(move || niri::focus_window(window))
+                niri_action(niri_ipc::Action::FocusWindow { id: window })
+            }
+            window_group::Action::MaximizeColumn => {
+                niri_action(niri_ipc::Action::MaximizeColumn {})
             }
             window_group::Action::ToggleWindowAudio(pid) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
@@ -450,7 +459,7 @@ impl Bar {
             eprintln!("tray: {item_id}: no window with app_id {window_app_id}");
             return Task::none();
         };
-        niri_action(move || niri::focus_window(window))
+        niri_action(niri_ipc::Action::FocusWindow { id: window })
     }
 
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {

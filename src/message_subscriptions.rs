@@ -189,8 +189,8 @@ where
     Subscription::run_with((name, readings), |&(_, readings)| readings())
 }
 
-pub(crate) fn niri_action(action: impl FnOnce() + Send + 'static) -> Task<Message> {
-    blocking("niri action", action).discard()
+pub(crate) fn niri_action(action: niri_ipc::Action) -> Task<Message> {
+    blocking("niri action", move || niri::send_action(&action)).discard()
 }
 
 fn locker_subscription(state: &Bar) -> Subscription<Message> {
