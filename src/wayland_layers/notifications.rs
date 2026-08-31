@@ -23,7 +23,7 @@ use crate::{
     data::{
         notifications::model::{NotifHandle, NotificationData, Outbound, close_reason},
         sink::sound,
-        source::{app_icon::DesktopEntries, niri, niri::Placement},
+        source::{app_icon::DesktopEntries, niri::Placement},
     },
     message_subscriptions::niri_action,
     state::{self, NotificationState},
@@ -68,7 +68,7 @@ impl NotificationLayer {
             }
             NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
                 Some(window) => Task::batch([
-                    niri_action(move || niri::focus_window(window)),
+                    niri_action(niri_ipc::Action::FocusWindow { id: window }),
                     self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
                 ]),
                 None => self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
@@ -271,12 +271,16 @@ impl NotificationLayer {
             .filter(|_| is_window_action(key))
         {
             Some(window) => match key {
-                "default" => niri_action(move || niri::focus_window(window)),
-                "quit" => niri_action(move || niri::close_window(window)),
+                "default" => niri_action(niri_ipc::Action::FocusWindow { id: window }),
+                "quit" => niri_action(niri_ipc::Action::CloseWindow { id: Some(window) }),
                 "move" => placement
                     .active_workspace_for_move()
                     .map_or_else(Task::none, |target| {
-                        niri_action(move || niri::move_window_here(window, target))
+                        niri_action(niri_ipc::Action::MoveWindowToWorkspace {
+                            window_id: Some(window),
+                            reference: niri_ipc::WorkspaceReferenceArg::Id(target),
+                            focus: true,
+                        })
                     }),
                 _ => Task::none(),
             },

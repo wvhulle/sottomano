@@ -63,7 +63,10 @@ impl QuickLaunch {
             .as_ref()
             .and_then(|entries| entries.exec_command(&app_id))
             .unwrap_or_else(|| vec![app_id]);
-        blocking("quicklaunch launch", move || niri::spawn(&command)).discard()
+        blocking("quicklaunch launch", move || {
+            niri::send_action(&niri_ipc::Action::Spawn { command });
+        })
+        .discard()
     }
 
     pub fn view<'a>(

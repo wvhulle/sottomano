@@ -48,6 +48,7 @@ pub struct WindowList {
 #[derive(Debug, Clone)]
 pub enum WindowListMessage {
     Clicked(u64),
+    MaximizeToggled,
     ToggleAudio(i32),
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
@@ -60,6 +61,7 @@ pub enum WindowListMessage {
 pub enum Action {
     None,
     FocusWindow(u64),
+    MaximizeColumn,
     ToggleAudio(i32),
     RefreshIcons,
 }
@@ -76,6 +78,7 @@ impl WindowList {
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
         match msg {
             WindowListMessage::Clicked(window) => Action::FocusWindow(window),
+            WindowListMessage::MaximizeToggled => Action::MaximizeColumn,
             WindowListMessage::ToggleAudio(pid) => Action::ToggleAudio(pid),
             WindowListMessage::LauncherEntriesChanged(entries) => {
                 self.launcher = entries;
@@ -195,7 +198,11 @@ fn window_button<'a>(
     let pressable = button(slot.view(config, position))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
-        .on_press(WindowListMessage::Clicked(win.id));
+        .on_press(if win.is_focused && !win.layout.is_floating {
+            WindowListMessage::MaximizeToggled
+        } else {
+            WindowListMessage::Clicked(win.id)
+        });
     let hover = hoverable(
         pressable.into(),
         HoverTarget::Window(win.id),

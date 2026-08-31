@@ -94,7 +94,7 @@ impl IdleAction {
 pub fn perform(action: IdleAction) {
     match action {
         IdleAction::Lock => logind::lock(),
-        IdleAction::ScreenOff => niri::power_off_monitors(),
+        IdleAction::ScreenOff => niri::send_action(&niri_ipc::Action::PowerOffMonitors {}),
         IdleAction::Suspend => logind::suspend(),
         IdleAction::PowerOff => logind::power_off(),
     }

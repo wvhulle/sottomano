@@ -31,6 +31,7 @@ pub enum Action {
     None,
     Run(Task<WindowGroupMessage>),
     FocusWindow(u64),
+    MaximizeColumn,
     ToggleWindowAudio(i32),
     RefreshWindowList,
 }
@@ -50,6 +51,7 @@ impl WindowGroup {
             WindowGroupMessage::WindowList(m) => match self.window_list.update(m) {
                 window_list::Action::None => Action::None,
                 window_list::Action::FocusWindow(window) => Action::FocusWindow(window),
+                window_list::Action::MaximizeColumn => Action::MaximizeColumn,
                 window_list::Action::ToggleAudio(pid) => Action::ToggleWindowAudio(pid),
                 window_list::Action::RefreshIcons => Action::RefreshWindowList,
             },
