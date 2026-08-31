@@ -158,13 +158,17 @@ pub(crate) fn address_rows(
     let Some(block) = block else {
         return Vec::new();
     };
-    let mask_label = if label == "IPv6" { "Prefix" } else { "Netmask" };
+    let mask_label = if label == "IPv6 Address" {
+        "Prefix Length"
+    } else {
+        "Subnet Mask"
+    };
     let mut rows = vec![
         row(&key(label), block.address.clone()),
         row(&key(mask_label), block.mask.clone()),
     ];
     if let Some(gateway) = &block.gateway {
-        rows.push(row(&key("Gateway"), gateway.clone()));
+        rows.push(row(&key("Gateway (Router)"), gateway.clone()));
     }
     rows
 }
@@ -173,7 +177,7 @@ pub(crate) fn dns_rows(key: &impl Fn(&str) -> String, servers: &[String]) -> Vec
     let Some((first, rest)) = servers.split_first() else {
         return Vec::new();
     };
-    let mut rows = vec![row(&key("DNS"), first.clone())];
+    let mut rows = vec![row(&key("DNS Server"), first.clone())];
     rows.extend(rest.iter().map(|server| row("", server.clone())));
     rows
 }
@@ -186,11 +190,11 @@ pub(crate) fn link_stats_rows(
 ) -> Vec<Row> {
     match (rate, mtu) {
         (0, 0) => Vec::new(),
-        (0, mtu) => vec![row(&key("MTU"), mtu.to_string())],
+        (0, mtu) => vec![row(&key("Max Packet Size (MTU)"), mtu.to_string())],
         (rate, 0) => vec![row(&key(rate_label), bitrate(rate))],
         (rate, mtu) => vec![
             row(&key(rate_label), bitrate(rate)),
-            row("MTU", mtu.to_string()),
+            row("Max Packet Size (MTU)", mtu.to_string()),
         ],
     }
 }

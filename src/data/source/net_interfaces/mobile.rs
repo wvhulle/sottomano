@@ -61,20 +61,20 @@ impl BarWidget for Mobile {
     fn tooltip(&self) -> TooltipBody {
         let mut identity = Vec::new();
         if let Some(model) = &self.model {
-            identity.push(row("Model", model.clone()));
+            identity.push(row("Modem Model", model.clone()));
         }
         if let Some(operator) = &self.operator {
-            identity.push(row("Operator", operator.clone()));
+            identity.push(row("Carrier", operator.clone()));
         }
         if !self.technology.is_empty() {
-            identity.push(row("Technology", self.technology.join(", ")));
+            identity.push(row("Network Type", self.technology.join(", ")));
         }
         if let Some(signal) = self.signal {
             let suffix = if self.signal_recent { "" } else { " (cached)" };
-            identity.push(row("Signal", format!("{signal}%{suffix}")));
+            identity.push(row("Signal Strength", format!("{signal}%{suffix}")));
         }
         if let Some(registration) = &self.registration {
-            identity.push(row("Registration", registration.clone()));
+            identity.push(row("Network Registration", registration.clone()));
         }
 
         let mut rows = Vec::new();
@@ -82,27 +82,30 @@ impl BarWidget for Mobile {
         if self.state == "connected" {
             let mut addresses = Vec::new();
             if let Some(ip) = &self.ipv4 {
-                addresses.push(row("IPv4", ip.clone()));
+                addresses.push(row("IPv4 Address", ip.clone()));
             }
             if let Some(ip) = &self.ipv6 {
-                addresses.push(row("IPv6", ip.clone()));
+                addresses.push(row("IPv6 Address", ip.clone()));
             }
             group(&mut rows, addresses);
         } else {
-            let mut status = vec![row("State", self.state.clone())];
+            let mut status = vec![row("Connection State", self.state.clone())];
             if self.state == "failed"
                 && let Some(reason) = &self.failed_reason
             {
-                status.push(row("FailedReason", reason.clone()));
+                status.push(row("Failure Reason", reason.clone()));
             }
             group(&mut rows, status);
         }
         let mut stats = Vec::new();
         if let Some(rx) = self.rx {
-            stats.push(row("RX", ByteSize::b(rx).display().iec().to_string()));
+            stats.push(row(
+                "Received (RX)",
+                ByteSize::b(rx).display().iec().to_string(),
+            ));
         }
         if let Some(tx) = self.tx {
-            stats.push(row("TX", ByteSize::b(tx).display().iec().to_string()));
+            stats.push(row("Sent (TX)", ByteSize::b(tx).display().iec().to_string()));
         }
         group(&mut rows, stats);
         TooltipBody::Table(rows)
