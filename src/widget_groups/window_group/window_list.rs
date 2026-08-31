@@ -132,6 +132,7 @@ impl WindowList {
         });
         let row = Row::with_children(buttons)
             .spacing(config.spacing.group_spacing_px)
+            .height(Length::Fill)
             .align_y(Alignment::Center);
         let focus_opacity =
             focused_index.map_or(1.0, |i| self.metrics.item_opacity(self.scroll, i));

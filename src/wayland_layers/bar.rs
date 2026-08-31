@@ -279,6 +279,7 @@ fn zone<'a>(
             .map(|group| pill(group, config, chrome)),
     )
     .spacing(spacing)
+    .height(Length::Fill)
     .align_y(Alignment::Center)
     .into()
 }
@@ -419,6 +420,7 @@ fn bar_row<'a>(
         Space::new().width(Length::Fill),
         end,
     ]
+    .height(Length::Fill)
     .align_y(Alignment::Center)
     .padding([0.0, config.spacing.group_padding_px])
     .into()
