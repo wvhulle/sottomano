@@ -105,6 +105,13 @@ impl NotificationServer {
     ) -> zbus::Result<()>;
 
     #[zbus(signal)]
+    async fn activation_token(
+        emitter: &SignalEmitter<'_>,
+        id: u32,
+        activation_token: &str,
+    ) -> zbus::Result<()>;
+
+    #[zbus(signal)]
     async fn action_invoked(
         emitter: &SignalEmitter<'_>,
         id: u32,
@@ -151,6 +158,9 @@ pub async fn serve(
         };
         while let Some(ob) = outbound.recv().await {
             let result = match ob {
+                Outbound::ActivationToken { id, token } => {
+                    NotificationServer::activation_token(&emitter, id, &token).await
+                }
                 Outbound::ActionInvoked { id, key } => {
                     NotificationServer::action_invoked(&emitter, id, &key).await
                 }

@@ -10,12 +10,17 @@ pub mod toast_lifecycle;
 use std::{cmp::Reverse, collections::HashSet};
 
 use expiry_countdown::Countdown;
-use iced::{Element, Task, time::Instant, window::Id};
-use iced_layershell::actions::ActionCallback;
+use iced::{
+    Element, Task,
+    time::{Duration, Instant},
+    window::Id,
+};
+use iced_layershell::{actions::ActionCallback, reexport::ActivationTokenSink};
 use output_surfaces::ToastSurfaces;
 use placement_policy::{placement_for, resolve_window_id};
 use toast_anchor::ToastSlot;
 pub use toast_lifecycle::{Notification, NotificationMessage};
+use tokio::{sync::mpsc, time::timeout};
 
 use crate::{
     app::Message,
@@ -31,8 +36,16 @@ use crate::{
     widgets::reveal::reveal_y,
 };
 
+const DEFAULT_ACTION: &str = "default";
+
+/// How long the compositor gets to answer `get_activation_token` before the
+/// action is invoked without one.
+const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
+
+/// Keys vetrata resolves itself against a niri window, rather than handing back
+/// to the sender.
 fn is_window_action(key: &str) -> bool {
-    matches!(key, "default" | "move" | "quit")
+    matches!(key, "move" | "quit")
 }
 
 #[derive(Default)]
@@ -66,13 +79,9 @@ impl NotificationLayer {
             NotificationMessage::Served(data) => {
                 self.serve(data, placement, entries, config, notif_state)
             }
-            NotificationMessage::BodyClicked(id) => match self.window_of(id, placement) {
-                Some(window) => Task::batch([
-                    niri_action(niri_ipc::Action::FocusWindow { id: window }),
-                    self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
-                ]),
-                None => self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
-            },
+            NotificationMessage::BodyClicked(id) => {
+                self.activate_action(id, DEFAULT_ACTION, placement, config, notif_state)
+            }
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
                     self.hovered = Some(id);
@@ -87,6 +96,9 @@ impl NotificationLayer {
             }
             NotificationMessage::ActionClicked { id, key } => {
                 self.activate_action(id, &key, placement, config, notif_state)
+            }
+            NotificationMessage::DefaultActivated { id, token } => {
+                self.invoke_default(id, token, placement, config, notif_state)
             }
             NotificationMessage::CloseRequested(id) => self.dismiss(
                 id,
@@ -132,7 +144,7 @@ impl NotificationLayer {
                 .filter(|n| n.data.window_id_hint == Some(window))
                 .map(|n| n.data.id)
                 .collect();
-            tasks.extend(self.close_all(dupes, close_reason::DISMISSED));
+            tasks.push(self.close_all(dupes, close_reason::DISMISSED));
         }
         if notif_state.sound && !data.suppress_sound {
             tasks.push(sound::play(&data, self.sound_theme.as_deref()));
@@ -164,7 +176,7 @@ impl NotificationLayer {
             .filter(|n| is_stale(&n.data, placement))
             .map(|n| n.data.id)
             .collect();
-        let mut tasks = self.close_all(stale, close_reason::UNDEFINED);
+        let mut tasks = vec![self.close_all(stale, close_reason::UNDEFINED)];
         tasks.push(self.reconcile(placement, config, notif_state));
         Task::batch(tasks)
     }
@@ -196,7 +208,7 @@ impl NotificationLayer {
             .filter(|n| n.countdown.is_some_and(|c| c.has_elapsed(now)))
             .map(|n| n.data.id)
             .collect();
-        let mut tasks = self.close_all(expired, close_reason::EXPIRED);
+        let mut tasks = vec![self.close_all(expired, close_reason::EXPIRED)];
         tasks.push(self.prune(placement, config, notif_state));
         Task::batch(tasks)
     }
@@ -219,11 +231,10 @@ impl NotificationLayer {
         });
     }
 
-    fn close_all(
-        &mut self,
-        candidates: impl IntoIterator<Item = u32>,
-        reason: u32,
-    ) -> Vec<Task<Message>> {
+    /// Starts the fade-out and reports which notifications were actually
+    /// showing, so the caller can order their `Closed` signals against
+    /// whatever else it is emitting.
+    fn withdraw_all(&mut self, candidates: impl IntoIterator<Item = u32>) -> Vec<u32> {
         let now = Instant::now();
         let closing: Vec<u32> = candidates
             .into_iter()
@@ -235,9 +246,19 @@ impl NotificationLayer {
             .for_each(|n| n.withdraw(now));
         self.prune_hover();
         closing
+    }
+
+    fn close_all(
+        &mut self,
+        candidates: impl IntoIterator<Item = u32>,
+        reason: u32,
+    ) -> Task<Message> {
+        let closed = self
+            .withdraw_all(candidates)
             .into_iter()
-            .map(|id| self.emit(Outbound::Closed { id, reason }))
-            .collect()
+            .map(|id| Outbound::Closed { id, reason })
+            .collect();
+        self.emit(closed)
     }
 
     fn prune_hover(&mut self) {
@@ -257,6 +278,11 @@ impl NotificationLayer {
             .filter(|&w| placement.workspace_of_window(w).is_some())
     }
 
+    fn declares_default_action(&self, id: u32) -> bool {
+        self.showing()
+            .any(|n| n.data.id == id && n.data.actions.iter().any(|a| a.key == DEFAULT_ACTION))
+    }
+
     fn activate_action(
         &mut self,
         id: u32,
@@ -265,15 +291,22 @@ impl NotificationLayer {
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
+        if key == DEFAULT_ACTION && self.declares_default_action(id) {
+            return self.request_activation_token(id);
+        }
+
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
-        let activation = match self
-            .window_of(id, placement)
-            .filter(|_| is_window_action(key))
-        {
-            Some(window) => match key {
-                "default" => niri_action(niri_ipc::Action::FocusWindow { id: window }),
-                "quit" => niri_action(niri_ipc::Action::CloseWindow { id: Some(window) }),
-                "move" => placement
+        let window = self.window_of(id, placement);
+        let activation = match (key, window) {
+            (DEFAULT_ACTION, Some(window)) => {
+                niri_action(niri_ipc::Action::FocusWindow { id: window })
+            }
+            (DEFAULT_ACTION, None) => Task::none(),
+            ("quit", Some(window)) => {
+                niri_action(niri_ipc::Action::CloseWindow { id: Some(window) })
+            }
+            ("move", Some(window)) => {
+                placement
                     .active_workspace_for_move()
                     .map_or_else(Task::none, |target| {
                         niri_action(niri_ipc::Action::MoveWindowToWorkspace {
@@ -281,13 +314,12 @@ impl NotificationLayer {
                             reference: niri_ipc::WorkspaceReferenceArg::Id(target),
                             focus: true,
                         })
-                    }),
-                _ => Task::none(),
-            },
-            None => self.emit(Outbound::ActionInvoked {
+                    })
+            }
+            _ => self.emit(vec![Outbound::ActionInvoked {
                 id,
                 key: key.to_owned(),
-            }),
+            }]),
         };
 
         if survives_action_invocation {
@@ -298,6 +330,78 @@ impl NotificationLayer {
                 self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
             ])
         }
+    }
+
+    /// A notification that ships its own default action knows which of its
+    /// windows the user meant; vetrata cannot. So the click is handed back with
+    /// an activation token and the sender raises itself.
+    fn request_activation_token(&self, id: u32) -> Task<Message> {
+        let toast_surface = self
+            .showing()
+            .find(|n| n.data.id == id)
+            .and_then(|n| self.surfaces.window_on(n.place.output.as_ref()));
+        let Some(toast_surface) = toast_surface else {
+            return Task::done(Message::Notification(
+                NotificationMessage::DefaultActivated { id, token: None },
+            ));
+        };
+
+        let (sender, mut receiver) = mpsc::channel(1);
+        let sink = ActivationTokenSink::new(move |token| {
+            let _ = sender.try_send(token);
+        });
+
+        Task::batch([
+            Task::done(Message::RequestActivationToken {
+                id: toast_surface,
+                sink,
+            }),
+            Task::future(async move {
+                timeout(ACTIVATION_TOKEN_GRACE, receiver.recv())
+                    .await
+                    .ok()
+                    .flatten()
+            })
+            .map(move |token| {
+                Message::Notification(NotificationMessage::DefaultActivated { id, token })
+            }),
+        ])
+    }
+
+    fn invoke_default(
+        &mut self,
+        id: u32,
+        token: Option<String>,
+        placement: &Placement,
+        config: &Config,
+        notif_state: &NotificationState,
+    ) -> Task<Message> {
+        let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
+        let mut outbound: Vec<Outbound> = token
+            .map(|token| Outbound::ActivationToken { id, token })
+            .into_iter()
+            .collect();
+        outbound.push(Outbound::ActionInvoked {
+            id,
+            key: DEFAULT_ACTION.to_owned(),
+        });
+
+        if survives_action_invocation {
+            return self.emit(outbound);
+        }
+
+        outbound.extend(
+            self.withdraw_all([id])
+                .into_iter()
+                .map(|id| Outbound::Closed {
+                    id,
+                    reason: close_reason::DISMISSED,
+                }),
+        );
+        Task::batch([
+            self.emit(outbound),
+            self.reconcile(placement, config, notif_state),
+        ])
     }
 
     pub fn view(&self, window: Id, config: &Config) -> Option<Element<'_, Message>> {
@@ -390,21 +494,26 @@ impl NotificationLayer {
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
-        let mut tasks = self.close_all([id], reason);
-        tasks.push(self.reconcile(placement, config, notif_state));
-        Task::batch(tasks)
+        Task::batch([
+            self.close_all([id], reason),
+            self.reconcile(placement, config, notif_state),
+        ])
     }
 
-    fn emit(&self, outbound: Outbound) -> Task<Message> {
+    /// Signals reach the bus in the order given: a client reading an
+    /// `ActivationToken` only associates it with the action that follows it.
+    fn emit(&self, outbound: Vec<Outbound>) -> Task<Message> {
         match &self.handle {
-            Some(handle) => {
+            Some(handle) if !outbound.is_empty() => {
                 let sender = handle.sender();
                 Task::future(async move {
-                    let _ = sender.send(outbound).await;
+                    for signal in outbound {
+                        let _ = sender.send(signal).await;
+                    }
                 })
                 .discard()
             }
-            None => Task::none(),
+            _ => Task::none(),
         }
     }
 

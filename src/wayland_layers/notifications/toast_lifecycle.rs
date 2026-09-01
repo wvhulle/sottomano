@@ -21,6 +21,7 @@ pub enum NotificationMessage {
     HoverChanged { id: u32, hovered: bool },
     Dismiss(u32),
     ActionClicked { id: u32, key: String },
+    DefaultActivated { id: u32, token: Option<String> },
     Rects { window: Id, rects: Vec<Rectangle> },
     Tick,
 }
