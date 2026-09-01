@@ -1,13 +1,10 @@
 pub mod host_surfaces;
 pub mod hover_area;
-pub mod tooltip_connector;
 pub mod tooltip_content;
-pub mod tooltip_placement;
 pub mod tooltip_transition;
 
 use iced::{Rectangle, window::Id};
 
-use crate::data::source::Tooltip;
 pub use crate::wayland_layers::tooltip::{
     host_surfaces::TooltipHost,
     hover_area::{hoverable, on_surface},
@@ -63,7 +60,7 @@ pub enum HoverTarget {
     AiCopilotMetered,
     AiCopilotFree,
     AiCopilotCli,
-    Tray(Box<Tooltip>),
+    Tray(String),
     Window(u64),
     Workspace(u64),
     Output(String),

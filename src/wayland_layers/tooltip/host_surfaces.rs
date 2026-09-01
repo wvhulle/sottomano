@@ -16,12 +16,13 @@ use crate::{
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
-            tooltip_placement::{Rendering, morphing_tooltip},
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
-        tray_menu::MenuAnchor,
     },
-    widgets::favicon::Favicons,
+    widgets::{
+        anchored_popup::{Rendering, anchored_popup},
+        favicon::Favicons,
+    },
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
@@ -173,16 +174,6 @@ impl TooltipHost {
         self.transition.is_morphing()
     }
 
-    pub fn menu_anchor(&self, float_offset: i32) -> Option<MenuAnchor> {
-        let current = self.transition.current()?;
-        matches!(current.target, HoverTarget::Tray(_)).then(|| MenuAnchor {
-            anchor: current.placement.anchor,
-            output: current.placement.output.clone(),
-            float_offset,
-            position: current.placement.position,
-        })
-    }
-
     pub fn view<'a>(
         &self,
         surface: Id,
@@ -198,7 +189,7 @@ impl TooltipHost {
             .placement()
             .filter(|placement| self.surfaces.get(&placement.output) == Some(&surface))
         else {
-            return Some(morphing_tooltip(
+            return Some(anchored_popup(
                 Vec::new(),
                 Rectangle::default(),
                 Position::Top,
@@ -229,7 +220,7 @@ impl TooltipHost {
                     .view(),
             )));
         }
-        Some(morphing_tooltip(
+        Some(anchored_popup(
             renderings,
             placement.anchor,
             placement.position,

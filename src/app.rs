@@ -259,7 +259,7 @@ impl Bar {
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
             Message::DismissPressed => {
                 self.dismiss_menus();
-                self.tray_group.close_menu()
+                Task::none()
             }
             Message::WorkspaceClicked {
                 is_active: true, ..
@@ -291,6 +291,7 @@ impl Bar {
             Message::TooltipTick
             | Message::AnchorChange { .. }
             | Message::SetInputRegion { .. }
+            | Message::RequestActivationToken { .. }
             | Message::AnchorSizeChange { .. }
             | Message::LayerChange { .. }
             | Message::MarginChange { .. }
@@ -367,7 +368,6 @@ impl Bar {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
-        self.tray_group.forget(window);
         self.notifications.forget(window);
         self.blur_casters.forget(window)
     }
@@ -439,13 +439,9 @@ impl Bar {
     }
 
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
-        let anchor = self
-            .tooltip
-            .menu_anchor(self.session.chrome.margin_offset_px());
-        match self.tray_group.update(msg, &self.config, anchor) {
+        match self.tray_group.update(msg) {
             tray_group::Action::None => Task::none(),
-            tray_group::Action::Run(task) => task,
-            tray_group::Action::MenuOpened(task) => Task::batch([self.dismiss_tooltip(), task]),
+            tray_group::Action::MenuItemActivated => self.dismiss_tooltip(),
             tray_group::Action::FocusWindow {
                 window_app_id,
                 item_id,
@@ -507,8 +503,8 @@ impl Bar {
     }
 
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
-        if let HoverTarget::Tray(tooltip) = target {
-            return (**tooltip).clone();
+        if let HoverTarget::Tray(address) = target {
+            return self.tray_group.tooltip_for(address);
         }
         if let HoverTarget::Window(window) = target {
             return window_tooltip::tooltip(&self.niri, *window).unwrap_or_else(Tooltip::empty);
@@ -637,7 +633,6 @@ impl Bar {
         self.rederive_snapshot();
         if focus_change {
             self.dismiss_menus();
-            tasks.push(self.tray_group.close_menu());
         }
         if window_change {
             tasks.push(self.refresh_window_assets());
@@ -805,9 +800,6 @@ impl Bar {
                 self.tooltip_for(target)
             })
         {
-            return element;
-        }
-        if let Some(element) = self.tray_group.menu_view(window, &self.config) {
             return element;
         }
         if let Some(element) = self.notifications.view(window, &self.config) {

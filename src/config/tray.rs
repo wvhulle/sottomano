@@ -8,7 +8,6 @@ pub enum ClickAction {
     #[default]
     ActivateItem,
     SecondaryActivateItem,
-    OpenItemMenu,
     FocusAppWindow,
     Ignore,
 }
@@ -29,7 +28,7 @@ impl Default for TrayRule {
             hide_icon: false,
             left_click: ClickAction::ActivateItem,
             middle_click: ClickAction::SecondaryActivateItem,
-            right_click: ClickAction::OpenItemMenu,
+            right_click: ClickAction::Ignore,
             window_app_id: None,
         }
     }

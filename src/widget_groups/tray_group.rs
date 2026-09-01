@@ -1,25 +1,23 @@
+use std::collections::HashSet;
+
 use iced::{
-    Alignment, Element, Task,
+    Alignment, Element,
     widget::{Column, Row, button, mouse_area},
-    window::Id,
 };
 
 use crate::{
-    app::Message,
     config::{Config, tray::ClickAction},
     data::source::{
-        Tooltip, TooltipBody,
+        Tooltip, TooltipBody, TrayMenuBody,
         font_awesome::Solid,
         tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
     },
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
-        tray_menu::{MenuAnchor, TrayMenuHost},
     },
     widgets::{
         activity_line::activity_line,
-        context_menu::MenuNode,
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
@@ -30,14 +28,8 @@ use crate::{
 pub struct TrayGroup {
     items: Vec<TrayItem>,
     handle: Option<TrayHandle>,
-    menu_host: TrayMenuHost,
+    open_submenus: HashSet<i32>,
     pub(crate) menu: MenuGroup,
-}
-
-struct MenuTarget {
-    address: String,
-    menu_path: String,
-    nodes: Vec<MenuNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -46,20 +38,22 @@ pub enum TrayMessage {
     Menu(MenuMessage),
     Activate(String),
     Secondary(String),
-    OpenMenu(usize),
     FocusWindow {
         window_app_id: String,
         item_id: String,
     },
-    MenuItemClicked(i32),
+    MenuItemClicked {
+        address: String,
+        menu_path: String,
+        id: i32,
+    },
     ToggleSubmenu(i32),
     Tooltip(TooltipMessage),
 }
 
 pub enum Action {
     None,
-    Run(Task<Message>),
-    MenuOpened(Task<Message>),
+    MenuItemActivated,
     FocusWindow {
         window_app_id: String,
         item_id: String,
@@ -72,12 +66,7 @@ impl TrayGroup {
         tray::subscription().map(TrayMessage::Update)
     }
 
-    pub fn update(
-        &mut self,
-        message: TrayMessage,
-        config: &Config,
-        anchor: Option<MenuAnchor>,
-    ) -> Action {
+    pub fn update(&mut self, message: TrayMessage) -> Action {
         match message {
             TrayMessage::Update(TrayUpdate::Connected(handle)) => {
                 self.handle = Some(handle);
@@ -106,67 +95,58 @@ impl TrayGroup {
                 window_app_id,
                 item_id,
             },
-            TrayMessage::OpenMenu(index) => self.open_menu(index, config, anchor),
-            TrayMessage::MenuItemClicked(id) => {
-                if let Some((address, menu_path)) = self.menu_host.target() {
-                    self.command(TrayCommand::MenuClick {
-                        address,
-                        menu_path,
-                        id,
-                    });
-                }
-                Action::Run(self.menu_host.close())
+            TrayMessage::MenuItemClicked {
+                address,
+                menu_path,
+                id,
+            } => {
+                self.command(TrayCommand::MenuClick {
+                    address,
+                    menu_path,
+                    id,
+                });
+                self.open_submenus.clear();
+                Action::MenuItemActivated
             }
             TrayMessage::ToggleSubmenu(id) => {
-                self.menu_host.toggle_submenu(id);
+                if !self.open_submenus.remove(&id) {
+                    self.open_submenus.insert(id);
+                }
                 Action::None
             }
             TrayMessage::Tooltip(message) => Action::Tooltip(message),
         }
     }
 
-    fn open_menu(&mut self, index: usize, config: &Config, anchor: Option<MenuAnchor>) -> Action {
-        let Some(target) = self.menu_target(index, config) else {
-            return Action::None;
+    pub fn tooltip_for(&self, address: &str) -> Tooltip {
+        self.items
+            .iter()
+            .find(|item| item.address == address)
+            .map_or_else(Tooltip::empty, |item| self.item_tooltip(item))
+    }
+
+    fn item_tooltip(&self, item: &TrayItem) -> Tooltip {
+        let (title, body) = match &item.tooltip {
+            Some(tip) if !tip.title.is_empty() => (tip.title.clone(), tip.body.clone()),
+            Some(tip) => (item.name().to_string(), tip.body.clone()),
+            None => (item.name().to_string(), String::new()),
         };
-        if self.menu_host.is_open_for(&target.address) {
-            return Action::Run(self.menu_host.close());
+        let menu_path = item
+            .menu_path
+            .as_ref()
+            .filter(|_| !item.menu.is_empty())
+            .cloned();
+        match menu_path {
+            Some(menu_path) => Tooltip::of(TooltipBody::TrayMenu(TrayMenuBody {
+                address: item.address.clone(),
+                menu_path,
+                title,
+                body,
+                nodes: item.menu.clone(),
+                open_submenus: self.open_submenus.clone(),
+            })),
+            None => Tooltip::of(TooltipBody::Text { title, body }),
         }
-        let Some(place) = anchor else {
-            return Action::None;
-        };
-        Action::MenuOpened(self.menu_host.open(
-            target.address,
-            target.menu_path,
-            target.nodes,
-            &place,
-        ))
-    }
-
-    fn menu_target(&self, index: usize, config: &Config) -> Option<MenuTarget> {
-        let visible = self.visible(config);
-        let item = visible.get(index)?;
-        let Some(menu_path) = item.menu_path.as_ref().filter(|_| !item.menu.is_empty()) else {
-            eprintln!("tray: {}: no menu", item.id);
-            return None;
-        };
-        Some(MenuTarget {
-            address: item.address.clone(),
-            menu_path: menu_path.clone(),
-            nodes: item.menu.clone(),
-        })
-    }
-
-    pub fn close_menu(&mut self) -> Task<Message> {
-        self.menu_host.close()
-    }
-
-    pub fn forget(&mut self, surface: Id) {
-        self.menu_host.forget(surface);
-    }
-
-    pub fn menu_view<'a>(&self, surface: Id, config: &'a Config) -> Option<Element<'a, Message>> {
-        self.menu_host.view(surface, config)
     }
 
     fn command(&self, command: TrayCommand) {
@@ -204,10 +184,7 @@ impl TrayGroup {
         .on_press(TrayMessage::Menu(MenuMessage::Toggle))
         .into();
 
-        let icons = visible
-            .iter()
-            .enumerate()
-            .map(|(index, item)| item_view(config, item, index, reveal));
+        let icons = visible.iter().map(|item| item_view(config, item, reveal));
         let content = Row::with_children(icons)
             .spacing(config.spacing.widget_spacing_px)
             .align_y(Alignment::Center);
@@ -227,12 +204,10 @@ fn click_message(
     action: ClickAction,
     window_app_id: Option<&String>,
     item: &TrayItem,
-    index: usize,
 ) -> Option<TrayMessage> {
     match action {
         ClickAction::ActivateItem => Some(TrayMessage::Activate(item.address.clone())),
         ClickAction::SecondaryActivateItem => Some(TrayMessage::Secondary(item.address.clone())),
-        ClickAction::OpenItemMenu => Some(TrayMessage::OpenMenu(index)),
         ClickAction::FocusAppWindow => window_app_id.map(|app_id| TrayMessage::FocusWindow {
             window_app_id: app_id.clone(),
             item_id: item.id.clone(),
@@ -241,21 +216,7 @@ fn click_message(
     }
 }
 
-fn item_tooltip(item: &TrayItem) -> Tooltip {
-    let (title, body) = match &item.tooltip {
-        Some(tip) if !tip.title.is_empty() => (tip.title.clone(), tip.body.clone()),
-        Some(tip) => (item.name().to_string(), tip.body.clone()),
-        None => (item.name().to_string(), String::new()),
-    };
-    Tooltip::of(TooltipBody::Text { title, body })
-}
-
-fn item_view<'a>(
-    config: &Config,
-    item: &TrayItem,
-    index: usize,
-    reveal: f32,
-) -> Element<'a, TrayMessage> {
+fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, TrayMessage> {
     let side = config.font.icon_size_px;
     let glyph: Element<'a, TrayMessage> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
@@ -284,19 +245,19 @@ fn item_view<'a>(
 
     let hover = hoverable(
         marked,
-        HoverTarget::Tray(Box::new(item_tooltip(item))),
+        HoverTarget::Tray(item.address.clone()),
         TrayMessage::Tooltip,
     );
     let rule = config.tray.rule(&item.id);
     let app_id = rule.window_app_id.as_ref();
     let mut clickable = mouse_area(hover);
-    if let Some(message) = click_message(rule.left_click, app_id, item, index) {
+    if let Some(message) = click_message(rule.left_click, app_id, item) {
         clickable = clickable.on_press(message);
     }
-    if let Some(message) = click_message(rule.middle_click, app_id, item, index) {
+    if let Some(message) = click_message(rule.middle_click, app_id, item) {
         clickable = clickable.on_middle_press(message);
     }
-    if let Some(message) = click_message(rule.right_click, app_id, item, index) {
+    if let Some(message) = click_message(rule.right_click, app_id, item) {
         clickable = clickable.on_right_press(message);
     }
     clickable.into()

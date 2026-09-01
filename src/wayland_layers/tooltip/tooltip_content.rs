@@ -10,10 +10,15 @@ use iced::{
 use crate::{
     app::Message,
     config::{Config, font::FontConfig},
-    data::source::{LogEntry, RefreshInfo, Row, Section, Tooltip, TooltipBody, level_color},
-    widget_groups::workspaces_group::workspace_preview::WorkspaceSchematic,
+    data::source::{
+        LogEntry, RefreshInfo, Row, Section, Tooltip, TooltipBody, TrayMenuBody, level_color,
+    },
+    widget_groups::{
+        tray_group::TrayMessage, workspaces_group::workspace_preview::WorkspaceSchematic,
+    },
     widgets::{
-        copyable::copyable, favicon::Favicons, section_column::section_column, text::bar_text,
+        context_menu::context_menu, copyable::copyable, favicon::Favicons,
+        section_column::section_column, text::bar_text,
     },
 };
 
@@ -22,6 +27,7 @@ const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
 const FOOTER_GAP_PX: f32 = 6.0;
 const SECTION_GAP_PX: f32 = 8.0;
+const TRAY_MENU_WIDTH_PX: f32 = 250.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
 const FOOTER_SCALE: f32 = 0.85;
@@ -111,7 +117,34 @@ impl<'a> TooltipContent<'a> {
             .into(),
             TooltipBody::Log(entries) => self.log(entries),
             TooltipBody::Text { title, body } => self.text(title, body),
+            TooltipBody::TrayMenu(menu) => self.tray_menu(menu),
         }
+    }
+
+    fn tray_menu(&self, menu: &TrayMenuBody) -> Element<'static, Message> {
+        let address = menu.address.clone();
+        let menu_path = menu.menu_path.clone();
+        let entries = context_menu(
+            self.config,
+            &menu.nodes,
+            &menu.open_submenus,
+            &move |id| {
+                Message::Tray(TrayMessage::MenuItemClicked {
+                    address: address.clone(),
+                    menu_path: menu_path.clone(),
+                    id,
+                })
+            },
+            &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
+            CONTENT_PADDING.left,
+        );
+        let mut column = Column::new().spacing(SECTION_GAP_PX);
+        if !menu.title.is_empty() || !menu.body.is_empty() {
+            column = column.push(self.text(&menu.title, &menu.body));
+        }
+        column
+            .push(container(entries).width(TRAY_MENU_WIDTH_PX))
+            .into()
     }
 
     fn log(&self, entries: &[LogEntry]) -> Element<'static, Message> {
