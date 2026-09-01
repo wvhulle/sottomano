@@ -15,13 +15,11 @@ pub fn section_column<'a, Message: 'a>(
     sections: impl Into<Element<'a, Message>>,
     divider: Color,
     thickness: f32,
-    overhang: f32,
 ) -> Element<'a, Message> {
     Element::new(SectionColumn {
         sections: sections.into(),
         divider,
         thickness,
-        overhang,
     })
 }
 
@@ -29,7 +27,6 @@ struct SectionColumn<'a, Message> {
     sections: Element<'a, Message>,
     divider: Color,
     thickness: f32,
-    overhang: f32,
 }
 
 impl<Message> SectionColumn<'_, Message> {
@@ -41,9 +38,9 @@ impl<Message> SectionColumn<'_, Message> {
     ) -> Rectangle {
         let gap_center = (above.y + above.height + below.y) / 2.0;
         Rectangle {
-            x: container.x - self.overhang,
+            x: container.x,
             y: gap_center - self.thickness / 2.0,
-            width: container.width + self.overhang * 2.0,
+            width: container.width,
             height: self.thickness,
         }
     }

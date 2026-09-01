@@ -11,15 +11,15 @@ use crate::{
     data::source::font_awesome::Solid,
     widgets::{
         DISABLED_ALPHA,
+        activity_line::activity_line,
         native_icon::{IconSource, native_icon},
-        section_column::section_column,
         text::bar_text,
     },
 };
 
 const ROW_SPACING: f32 = 1.0;
-const GROUP_GAP: f32 = 9.0;
 const DIVIDER_THICKNESS: f32 = 1.0;
+const DIVIDER_PADDING: [f32; 2] = [4.0, 0.0];
 const ROW_PADDING: [f32; 2] = [5.0, 8.0];
 const SUBMENU_INDENT: f32 = 16.0;
 const HOVER_ALPHA: f32 = 0.22;
@@ -49,26 +49,14 @@ pub fn context_menu<'a, Message: Clone + 'a>(
     open: &HashSet<i32>,
     on_activate: &impl Fn(i32) -> Message,
     on_toggle: &impl Fn(i32) -> Message,
-    divider_overhang: f32,
 ) -> Element<'a, Message> {
-    let groups = separated_groups(nodes).into_iter().map(|group| {
-        let rows = group.into_iter().flat_map(|node| {
-            entry_rows(config, node, open, on_activate, on_toggle, divider_overhang)
-        });
-        Column::with_children(rows)
-            .spacing(ROW_SPACING)
-            .width(Length::Fill)
-            .into()
-    });
-    let sections = Column::with_children(groups)
-        .spacing(GROUP_GAP)
-        .width(Length::Fill);
-    section_column(
-        sections,
-        config.palette.surface_raised,
-        DIVIDER_THICKNESS,
-        divider_overhang,
-    )
+    let rows = clean_separators(nodes)
+        .into_iter()
+        .flat_map(|node| entry_rows(config, node, open, on_activate, on_toggle));
+    Column::with_children(rows)
+        .spacing(ROW_SPACING)
+        .width(Length::Fill)
+        .into()
 }
 
 fn entry_rows<'a, Message: Clone + 'a>(
@@ -77,10 +65,9 @@ fn entry_rows<'a, Message: Clone + 'a>(
     open: &HashSet<i32>,
     on_activate: &impl Fn(i32) -> Message,
     on_toggle: &impl Fn(i32) -> Message,
-    divider_overhang: f32,
 ) -> Vec<Element<'a, Message>> {
     match node.kind {
-        MenuKind::Separator => Vec::new(),
+        MenuKind::Separator => vec![divider(config)],
         MenuKind::Submenu if open.contains(&node.id) => vec![
             entry(config, node, true, on_toggle(node.id)),
             container(context_menu(
@@ -89,7 +76,6 @@ fn entry_rows<'a, Message: Clone + 'a>(
                 open,
                 on_activate,
                 on_toggle,
-                divider_overhang,
             ))
             .padding(Padding::ZERO.left(SUBMENU_INDENT))
             .into(),
@@ -169,10 +155,32 @@ fn button_style(status: button::Status, text: Color, accent: Color, radius: f32)
     }
 }
 
-fn separated_groups(nodes: &[MenuNode]) -> Vec<Vec<&MenuNode>> {
-    nodes
-        .split(|node| matches!(node.kind, MenuKind::Separator))
-        .map(|group| group.iter().collect())
-        .filter(|group: &Vec<&MenuNode>| !group.is_empty())
-        .collect()
+fn divider<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
+    let color = config.palette.surface_raised;
+    container(activity_line(color, 1.0, DIVIDER_THICKNESS))
+        .width(Length::Fill)
+        .padding(DIVIDER_PADDING)
+        .into()
+}
+
+fn clean_separators(nodes: &[MenuNode]) -> Vec<&MenuNode> {
+    let mut out: Vec<&MenuNode> = Vec::new();
+    for node in nodes {
+        let is_separator = matches!(node.kind, MenuKind::Separator);
+        if is_separator
+            && out
+                .last()
+                .is_none_or(|last| matches!(last.kind, MenuKind::Separator))
+        {
+            continue;
+        }
+        out.push(node);
+    }
+    if out
+        .last()
+        .is_some_and(|last| matches!(last.kind, MenuKind::Separator))
+    {
+        out.pop();
+    }
+    out
 }
