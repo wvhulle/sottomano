@@ -22,7 +22,19 @@ use crate::{
     },
 };
 
-pub const CONTENT_PADDING: Padding = Padding::new(10.0);
+const CONTENT_INSET_PX: f32 = 10.0;
+const CONTENT_INSET: Padding = Padding {
+    top: 0.0,
+    right: CONTENT_INSET_PX,
+    bottom: 0.0,
+    left: CONTENT_INSET_PX,
+};
+const SHELL_PADDING: Padding = Padding {
+    top: CONTENT_INSET_PX,
+    right: 0.0,
+    bottom: CONTENT_INSET_PX,
+    left: 0.0,
+};
 const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
 const FOOTER_GAP_PX: f32 = 6.0;
@@ -33,9 +45,9 @@ const DIM_ALPHA: f32 = 0.7;
 const FOOTER_SCALE: f32 = 0.85;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
-    right: 6.0,
+    right: 6.0 + CONTENT_INSET_PX,
     bottom: 2.0,
-    left: 6.0,
+    left: 6.0 + CONTENT_INSET_PX,
 };
 
 pub struct TooltipContent<'a> {
@@ -70,7 +82,7 @@ impl<'a> TooltipContent<'a> {
                 .into(),
             None => grid,
         };
-        container(body).padding(CONTENT_PADDING).into()
+        container(body).padding(SHELL_PADDING).into()
     }
 
     fn foreground(&self) -> Color {
@@ -107,16 +119,18 @@ impl<'a> TooltipContent<'a> {
     fn grid(&self) -> Element<'static, Message> {
         match &self.tooltip.body {
             TooltipBody::Sections(sections) => self.sections(sections),
-            TooltipBody::Workspace(preview) => Column::with_children([
-                self.table(&preview.header),
-                WorkspaceSchematic::new(preview, self.config, self.favicons)
-                    .opacity(self.opacity)
-                    .view(),
-            ])
-            .spacing(SECTION_GAP_PX)
-            .into(),
-            TooltipBody::Log(entries) => self.log(entries),
-            TooltipBody::Text { title, body } => self.text(title, body),
+            TooltipBody::Workspace(preview) => inset(
+                Column::with_children([
+                    self.table(&preview.header),
+                    WorkspaceSchematic::new(preview, self.config, self.favicons)
+                        .opacity(self.opacity)
+                        .view(),
+                ])
+                .spacing(SECTION_GAP_PX)
+                .into(),
+            ),
+            TooltipBody::Log(entries) => inset(self.log(entries)),
+            TooltipBody::Text { title, body } => inset(self.text(title, body)),
             TooltipBody::TrayMenu(menu) => self.tray_menu(menu),
         }
     }
@@ -136,11 +150,14 @@ impl<'a> TooltipContent<'a> {
                 })
             },
             &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
-            CONTENT_PADDING.left,
         );
         let mut column = Column::new().spacing(SECTION_GAP_PX);
         if !menu.title.is_empty() || !menu.body.is_empty() {
-            column = column.push(self.text(&menu.title, &menu.body));
+            column = column.push(
+                container(self.text(&menu.title, &menu.body))
+                    .padding(CONTENT_INSET)
+                    .width(TRAY_MENU_WIDTH_PX),
+            );
         }
         column
             .push(container(entries).width(TRAY_MENU_WIDTH_PX))
@@ -206,9 +223,9 @@ impl<'a> TooltipContent<'a> {
             if let Some(title) = &section.title {
                 group = group.push(bar_text(&font, title.clone()).font(italic).color(heading));
             }
-            column = column.push(group.push(self.table(&section.rows)));
+            column = column.push(inset(group.push(self.table(&section.rows)).into()));
         }
-        section_column(column, divider, DIVIDER_THICKNESS_PX, CONTENT_PADDING.left)
+        section_column(column, divider, DIVIDER_THICKNESS_PX)
     }
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
@@ -261,6 +278,10 @@ fn cell(
     max_width: f32,
 ) -> Container<'static, Message> {
     container(bar_text(font, text).color(color)).max_width(max_width)
+}
+
+fn inset(content: Element<'static, Message>) -> Element<'static, Message> {
+    container(content).padding(CONTENT_INSET).into()
 }
 
 fn footer_text(info: RefreshInfo, now: SystemTime) -> String {
