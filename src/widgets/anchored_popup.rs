@@ -15,8 +15,8 @@ use iced::{
 use crate::{
     app::Message,
     config::Config,
-    wayland_layers::{surface::Position, tooltip::tooltip_connector::notch},
-    widgets::overlay_shadow::overlay_shadow,
+    wayland_layers::surface::Position,
+    widgets::{overlay_shadow::overlay_shadow, popup_connector::notch},
 };
 
 pub struct Rendering<'a> {
@@ -40,7 +40,7 @@ impl<'a> Rendering<'a> {
     }
 }
 
-pub fn morphing_tooltip<'a>(
+pub fn anchored_popup<'a>(
     renderings: Vec<Rendering<'a>>,
     anchor: Rectangle,
     position: Position,
@@ -49,7 +49,7 @@ pub fn morphing_tooltip<'a>(
     config: &Config,
     on_bounds: impl Fn(Rectangle) -> Message + 'a,
 ) -> Element<'a, Message> {
-    Element::new(MorphingTooltip {
+    Element::new(AnchoredPopup {
         renderings,
         on_bounds: Box::new(on_bounds),
         anchor,
@@ -63,7 +63,7 @@ pub fn morphing_tooltip<'a>(
     })
 }
 
-struct MorphingTooltip<'a> {
+struct AnchoredPopup<'a> {
     renderings: Vec<Rendering<'a>>,
     on_bounds: Box<dyn Fn(Rectangle) -> Message + 'a>,
     anchor: Rectangle,
@@ -127,7 +127,7 @@ struct RenderingViewMut<'t, 'a> {
     layout: Layout<'t>,
 }
 
-impl<'a> MorphingTooltip<'a> {
+impl<'a> AnchoredPopup<'a> {
     fn views<'t>(
         &'t self,
         tree: &'t Tree,
@@ -186,7 +186,7 @@ impl<'a> MorphingTooltip<'a> {
     }
 }
 
-impl Widget<Message, iced::Theme, iced::Renderer> for MorphingTooltip<'_> {
+impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<MorphState>()
     }

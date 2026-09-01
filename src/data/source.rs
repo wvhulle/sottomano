@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::{self, Debug, Display, Formatter},
     future::Future,
     hash::Hash,
@@ -10,7 +11,7 @@ use font_awesome::{Brands, FontAwesome, Solid};
 use iced::{Color, Size};
 use simple_icons::SimpleIcon;
 
-use crate::{config::Config, data::source::app_rules::TitleRun};
+use crate::{config::Config, data::source::app_rules::TitleRun, widgets::context_menu::MenuNode};
 
 pub mod ai;
 pub mod app_icon;
@@ -154,6 +155,17 @@ pub enum TooltipBody {
     Log(Vec<LogEntry>),
     Text { title: String, body: String },
     Workspace(WorkspacePreview),
+    TrayMenu(TrayMenuBody),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrayMenuBody {
+    pub address: String,
+    pub menu_path: String,
+    pub title: String,
+    pub body: String,
+    pub nodes: Vec<MenuNode>,
+    pub open_submenus: HashSet<i32>,
 }
 
 impl TooltipBody {
@@ -170,6 +182,9 @@ impl TooltipBody {
             TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),
             TooltipBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
+            }
+            TooltipBody::TrayMenu(menu) => {
+                menu.nodes.is_empty() && menu.title.is_empty() && menu.body.is_empty()
             }
         }
     }

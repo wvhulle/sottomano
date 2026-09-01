@@ -1,4 +1,5 @@
 pub mod activity_line;
+pub mod anchored_popup;
 pub mod bounds_probe;
 pub mod confirm_button;
 pub mod context_menu;
@@ -12,6 +13,7 @@ pub mod menu_group;
 pub mod native_icon;
 pub mod overlay_shadow;
 pub mod pager_slot;
+pub mod popup_connector;
 pub mod progress_line;
 pub mod reading_row;
 pub mod reveal;

@@ -5,7 +5,7 @@ use iced::{
     widget::{image, svg},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IconSource {
     Pixmap(image::Handle),
     Themed(PathBuf),
