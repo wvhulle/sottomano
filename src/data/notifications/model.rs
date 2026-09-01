@@ -74,6 +74,7 @@ pub mod close_reason {
 
 #[derive(Debug, Clone)]
 pub enum Outbound {
+    ActivationToken { id: u32, token: String },
     ActionInvoked { id: u32, key: String },
     Closed { id: u32, reason: u32 },
 }

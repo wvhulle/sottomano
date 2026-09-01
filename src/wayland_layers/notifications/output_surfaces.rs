@@ -20,6 +20,13 @@ impl ToastSurfaces {
             .map(|(output, _)| output)
     }
 
+    pub fn window_on(&self, output: Option<&String>) -> Option<Id> {
+        self.by_output
+            .iter()
+            .find(|(key, _)| key.as_ref() == output)
+            .map(|(_, id)| *id)
+    }
+
     pub fn forget(&mut self, window: Id) {
         self.by_output.retain(|_, id| *id != window);
     }
