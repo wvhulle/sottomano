@@ -253,7 +253,7 @@ async fn run(output: &mut Sender<TrayUpdate>) {
     let client = match Client::new().await {
         Ok(client) => client,
         Err(e) => {
-            eprintln!("tray: {e}");
+            tracing::warn!("tray: {e}");
             return;
         }
     };
@@ -384,6 +384,6 @@ async fn run_command(client: &Client, command: TrayCommand) {
         },
     };
     if let Err(e) = client.activate(request).await {
-        eprintln!("tray: activate: {e}");
+        tracing::warn!("tray: activate: {e}");
     }
 }

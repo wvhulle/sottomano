@@ -31,7 +31,7 @@ pub fn kernel_errors() -> mpsc::Receiver<Vec<KernelEntry>> {
     let (tx, rx) = mpsc::channel(16);
     thread::spawn(move || {
         let Some(mut journal) = open_kernel_journal() else {
-            eprintln!("journal: kernel journal open failed");
+            tracing::warn!("journal: kernel journal open failed");
             return;
         };
         if tx.blocking_send(scan_kernel_errors(&mut journal)).is_err() {
@@ -45,7 +45,7 @@ pub fn kernel_errors() -> mpsc::Receiver<Vec<KernelEntry>> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("journal: kernel wait ended: {e}");
+                    tracing::warn!("journal: kernel wait ended: {e}");
                     return;
                 }
             }
@@ -155,19 +155,19 @@ async fn watch_failed(user: bool) -> BoxStream<'static, Vec<FailedUnitInfo>> {
     let connection = match connect(user).await {
         Ok(connection) => connection,
         Err(e) => {
-            eprintln!("journal: systemd connect failed: {e}");
+            tracing::warn!("journal: systemd connect failed: {e}");
             return stream::empty().boxed();
         }
     };
     if let Ok(manager) = ManagerProxy::new(&connection).await
         && let Err(e) = manager.subscribe().await
     {
-        eprintln!("journal: systemd subscribe failed: {e}");
+        tracing::warn!("journal: systemd subscribe failed: {e}");
     }
     let signals = match systemd_signals(&connection).await {
         Ok(signals) => signals,
         Err(e) => {
-            eprintln!("journal: systemd signal match failed: {e}");
+            tracing::warn!("journal: systemd signal match failed: {e}");
             return stream::empty().boxed();
         }
     };

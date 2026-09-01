@@ -10,12 +10,19 @@ mod widgets;
 use std::error::Error;
 
 use app::Bar;
-use iced_layershell::{
+use iced_exwlshell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
 };
+use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::new(
+            "error,vetrata=warn,exwlshellev=warn,iced_exwlshell=warn",
+        ))
+        .init();
+
     let config = config::load();
     data::source::font_awesome::load_fonts();
 
@@ -24,6 +31,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             start_mode: StartMode::Background,
             ..Default::default()
         },
+        with_connection: message_subscriptions::wayland_connection()
+            .map(|connection| connection.clone().into()),
         default_font: config.font.iced_font,
         antialiasing: true,
         ..Default::default()

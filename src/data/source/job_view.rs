@@ -325,7 +325,7 @@ pub fn subscription() -> Subscription<Jobs> {
         stream::channel(16, |mut output: Sender<Jobs>| async move {
             loop {
                 if let Err(e) = serve(&mut output).await {
-                    eprintln!("job view: {e}");
+                    tracing::warn!("job view: {e}");
                 }
                 sleep(Duration::from_secs(2)).await;
             }

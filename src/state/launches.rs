@@ -19,7 +19,7 @@ pub async fn load() -> Buckets {
     match try_load().await {
         Ok(buckets) => buckets,
         Err(e) => {
-            eprintln!("launch store: load failed: {e}");
+            tracing::warn!("launch store: load failed: {e}");
             Buckets::new()
         }
     }
@@ -27,7 +27,7 @@ pub async fn load() -> Buckets {
 
 pub async fn record(delta: LaunchDelta) {
     if let Err(e) = try_record(&delta).await {
-        eprintln!("launch store: record failed: {e}");
+        tracing::warn!("launch store: record failed: {e}");
     }
 }
 

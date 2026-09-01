@@ -122,7 +122,7 @@ pub fn subscription() -> Subscription<LauncherEntries> {
         stream::channel(16, |mut output: Sender<LauncherEntries>| async move {
             loop {
                 if let Err(e) = watch(&mut output).await {
-                    eprintln!("launcher entry: {e}");
+                    tracing::warn!("launcher entry: {e}");
                 }
                 sleep(Duration::from_secs(2)).await;
             }

@@ -15,7 +15,7 @@ use iced::{
     time::{Duration, Instant},
     window::Id,
 };
-use iced_layershell::{actions::ActionCallback, reexport::ActivationTokenSink};
+use iced_exwlshell::{actions::ActionCallback, reexport::ActivationTokenSink};
 use output_surfaces::ToastSurfaces;
 use placement_policy::{placement_for, resolve_window_id};
 use toast_anchor::ToastSlot;

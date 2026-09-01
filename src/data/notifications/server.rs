@@ -62,14 +62,14 @@ impl NotificationServer {
             resident: hint_bool(&hints, "resident"),
         };
         if let Err(e) = self.events.send(ServerEvent::Notify(Box::new(data))).await {
-            eprintln!("notifications: dropping Notify: {e}");
+            tracing::error!("notifications: dropping Notify: {e}");
         }
         id
     }
 
     async fn close_notification(&self, id: u32) {
         if let Err(e) = self.events.send(ServerEvent::CloseRequested(id)).await {
-            eprintln!("notifications: dropping CloseNotification: {e}");
+            tracing::error!("notifications: dropping CloseNotification: {e}");
         }
     }
 
@@ -141,7 +141,7 @@ pub async fn serve(
     {
         RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {}
         RequestNameReply::InQueue | RequestNameReply::Exists => {
-            eprintln!(
+            tracing::error!(
                 "notifications: another daemon owns {NAME} and disallowed replacement; toasts \
                  stay dormant until it exits"
             );
@@ -152,7 +152,7 @@ pub async fn serve(
         let emitter = match SignalEmitter::new(&conn, PATH) {
             Ok(emitter) => emitter,
             Err(e) => {
-                eprintln!("notifications: signal emitter: {e}");
+                tracing::error!("notifications: signal emitter: {e}");
                 return;
             }
         };
@@ -169,7 +169,7 @@ pub async fn serve(
                 }
             };
             if let Err(e) = result {
-                eprintln!("notifications: emit signal: {e}");
+                tracing::warn!("notifications: emit signal: {e}");
             }
         }
         drop(conn);

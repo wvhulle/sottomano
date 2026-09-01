@@ -95,7 +95,7 @@ pub fn attach(core: &Core, peaks: &watch::Sender<Peaks>) -> Vec<Meter> {
         .filter_map(|direction| {
             capture(core, direction, peaks)
                 .inspect_err(|e| {
-                    eprintln!("audio: no {} level meter: {e}", stream_name(direction));
+                    tracing::debug!("audio: no {} level meter: {e}", stream_name(direction));
                 })
                 .ok()
         })
@@ -154,7 +154,7 @@ impl Capture {
         match state {
             StreamState::Error(message) if !self.reported => {
                 self.reported = true;
-                eprintln!(
+                tracing::warn!(
                     "audio: {} stopped: {message}{}",
                     stream_name(self.direction),
                     remedy(self.direction)

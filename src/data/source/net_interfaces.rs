@@ -35,7 +35,7 @@ pub(crate) fn kept_readings<T>(
         ready(match reading {
             Ok(reading) => Some(reading),
             Err(e) => {
-                eprintln!("{label}: read failed: {e}");
+                tracing::debug!("{label}: read failed: {e}");
                 None
             }
         })
@@ -60,7 +60,7 @@ where
             ready(match subscribed {
                 Ok(readings) => Some(readings),
                 Err(e) => {
-                    eprintln!("{label}: watch failed: {e}");
+                    tracing::warn!("{label}: watch failed: {e}");
                     None
                 }
             })

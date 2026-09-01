@@ -63,6 +63,17 @@ fn disconnected_tooltip(chrome: &ChromeState) -> Tooltip {
     )])
 }
 
+fn auto_collapse_tooltip(chrome: &ChromeState) -> Tooltip {
+    Tooltip::table(vec![row(
+        "Groups",
+        if chrome.auto_collapse_groups {
+            "collapse when another window takes focus"
+        } else {
+            "stay open until the handle is clicked"
+        },
+    )])
+}
+
 pub struct PanelSettingsGroup {
     pub(crate) menu: MenuGroup,
     radius: SliderControl,
@@ -75,6 +86,7 @@ pub enum PanelSettingsMessage {
     Menu(MenuMessage),
     ToggleBlurBackground,
     ToggleDisconnectedGroups,
+    ToggleAutoCollapseGroups,
     Radius(ControlMessage),
     Offset(ControlMessage),
     Tint(ControlMessage),
@@ -126,6 +138,7 @@ impl PanelSettingsGroup {
             )])),
             HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
             HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
+            HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(chrome)),
             _ => None,
         }
     }
@@ -166,6 +179,15 @@ impl PanelSettingsGroup {
                 Action::RebuildBlur(
                     Task::future(state::panel::save_disconnected_groups(
                         chrome.disconnected_groups,
+                    ))
+                    .discard(),
+                )
+            }
+            PanelSettingsMessage::ToggleAutoCollapseGroups => {
+                chrome.auto_collapse_groups = !chrome.auto_collapse_groups;
+                Action::Run(
+                    Task::future(state::panel::save_auto_collapse_groups(
+                        chrome.auto_collapse_groups,
                     ))
                     .discard(),
                 )
@@ -242,6 +264,13 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleDisconnectedGroups,
             HoverTarget::DisconnectedGroups,
         );
+        let pin_toggle = icon_toggle(
+            config,
+            Solid::Thumbtack,
+            !chrome.auto_collapse_groups,
+            PanelSettingsMessage::ToggleAutoCollapseGroups,
+            HoverTarget::AutoCollapseGroups,
+        );
         let blur_toggle = icon_toggle(
             config,
             Solid::Snowflake,
@@ -253,6 +282,7 @@ impl PanelSettingsGroup {
         let reveal = self.menu.reveal();
         let content = Row::with_children([
             disconnected_toggle,
+            pin_toggle,
             blur_toggle,
             slider_element(&self.tint, config, PanelSettingsMessage::Tint),
             slider_element(&self.radius, config, PanelSettingsMessage::Radius),

@@ -23,7 +23,11 @@ freedesktop-sound = "0.1"
 humantime = "2.3"
 iced = { version = "0.14.0", features = ["tokio", "image", "svg", "canvas"] }
 iced_font_awesome = "0.4.2"
-iced_layershell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
+iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
+iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
+wayland-client = "0.31"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 libc = "0.2.176"
 niri-ipc = "26.4.0"

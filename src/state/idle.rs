@@ -22,7 +22,7 @@ pub async fn load() -> Timeouts {
     match try_load().await {
         Ok(timeouts) => timeouts,
         Err(e) => {
-            eprintln!("idle timeouts: load failed: {e}");
+            tracing::warn!("idle timeouts: load failed: {e}");
             Timeouts::default()
         }
     }
@@ -32,7 +32,7 @@ pub async fn save(timeouts: Timeouts) -> bool {
     match try_save(timeouts).await {
         Ok(()) => true,
         Err(e) => {
-            eprintln!("idle timeouts: save failed: {e}");
+            tracing::warn!("idle timeouts: save failed: {e}");
             false
         }
     }

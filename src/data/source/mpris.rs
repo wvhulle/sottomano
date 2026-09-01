@@ -306,7 +306,7 @@ pub fn subscription() -> Subscription<Vec<Media>> {
         stream::channel(16, |mut output: Sender<Vec<Media>>| async move {
             loop {
                 if let Err(e) = watch(&mut output).await {
-                    eprintln!("mpris: {e}");
+                    tracing::warn!("mpris: {e}");
                 }
                 sleep(Duration::from_secs(2)).await;
             }

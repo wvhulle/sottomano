@@ -5,7 +5,7 @@ use std::{
 
 use chrono::Utc;
 use iced::{Color, Element, Font, Rectangle, Task, theme::Style, window::Id};
-use iced_layershell::{actions::LayerShellOutputEvent, to_layer_message};
+use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
@@ -93,6 +93,16 @@ pub struct Bar {
     pub(crate) font_fallbacks: FontFallbacks,
 }
 
+/// What vetrata needs from the compositor's output list; the wire events carry
+/// more than that, so they are narrowed here rather than threaded through.
+#[derive(Debug, Clone)]
+pub enum OutputChange {
+    Connected(Option<String>),
+    Rearranged,
+    Disconnected(Option<String>),
+    Unavailable(String),
+}
+
 #[to_layer_message(multi)]
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -138,6 +148,7 @@ pub enum Message {
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
     OutputsResolved(HashMap<String, niri::OutputInfo>),
+    Output(OutputChange),
     ReloadDesktopEntries,
     PillBounds {
         window: Id,
@@ -212,7 +223,7 @@ impl Bar {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::OutputEvent(event) => self.apply_output_event(event),
+            Message::Output(change) => self.apply_output_change(change),
             Message::WindowGroup(msg) => self.update_window_group(msg),
             Message::TrackerLoaded(buckets) => self.load_launch_tracker(buckets),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
@@ -289,13 +300,13 @@ impl Bar {
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => self.prune_notifications(),
             Message::TooltipTick
-            | Message::AnchorChange { .. }
+            | Message::LayoutChange { .. }
+            | Message::BlurOptionChange { .. }
+            | Message::PopUpReposition { .. }
             | Message::SetInputRegion { .. }
             | Message::RequestActivationToken { .. }
-            | Message::AnchorSizeChange { .. }
             | Message::LayerChange { .. }
             | Message::MarginChange { .. }
-            | Message::SizeChange { .. }
             | Message::ExclusiveZoneChange { .. }
             | Message::KeyboardInteractivityChange { .. }
             | Message::VirtualKeyboardPressed { .. }
@@ -342,14 +353,20 @@ impl Bar {
         self.refresh_quick_launch()
     }
 
-    fn apply_output_event(&mut self, event: LayerShellOutputEvent) -> Task<Message> {
-        match event {
-            LayerShellOutputEvent::Connected { name } => {
+    fn apply_output_change(&mut self, change: OutputChange) -> Task<Message> {
+        match change {
+            OutputChange::Connected(Some(name)) => {
                 Task::batch([self.open_bars(&name), query_outputs()])
             }
-            LayerShellOutputEvent::Disconnected { name } => {
+            OutputChange::Disconnected(Some(name)) => {
                 Task::batch([self.forget_output(&name), query_outputs()])
             }
+            OutputChange::Rearranged => query_outputs(),
+            OutputChange::Unavailable(reason) => {
+                tracing::error!("wayland: output tracking stopped: {reason}");
+                Task::none()
+            }
+            OutputChange::Connected(None) | OutputChange::Disconnected(None) => Task::none(),
         }
     }
 
@@ -361,7 +378,12 @@ impl Bar {
             .map(|(&id, _)| id)
             .collect();
         self.tooltip.forget_output(output);
-        Task::batch(stranded.into_iter().map(|id| self.forget_window(id)))
+        Task::batch(stranded.into_iter().flat_map(|id| {
+            [
+                self.forget_window(id),
+                Task::done(Message::RemoveWindow(id)),
+            ]
+        }))
     }
 
     fn forget_window(&mut self, window: Id) -> Task<Message> {
@@ -454,7 +476,7 @@ impl Bar {
         let candidates = [String::from(window_app_id)];
         let Some(window) = niri::Placement::derive(&self.niri).window_by_source(&candidates, None)
         else {
-            eprintln!("tray: {item_id}: no window with app_id {window_app_id}");
+            tracing::debug!("tray: {item_id}: no window with app_id {window_app_id}");
             return Task::none();
         };
         niri_action(niri_ipc::Action::FocusWindow { id: window })
@@ -590,6 +612,9 @@ impl Bar {
     }
 
     fn dismiss_menus(&mut self) {
+        if !self.session.chrome.auto_collapse_groups {
+            return;
+        }
         self.panel_settings_group.close_menu();
         self.monitor_group.close_menu();
         self.color_temperature_group.close_menu();
@@ -778,7 +803,17 @@ impl Bar {
         Task::done(Message::NewLayerShell { settings, id })
     }
 
+    /// The compositor's output list reaches vetrata through a worker that may
+    /// restart and re-announce everything it knows, so an output already
+    /// carrying surfaces is left alone rather than given a second set.
     fn open_bars(&mut self, output: &str) -> Task<Message> {
+        if self
+            .surfaces
+            .values()
+            .any(|surface| surface.output == output)
+        {
+            return Task::none();
+        }
         let offset = self.session.chrome.margin_offset_px();
         let mut opens: Vec<Task<Message>> = Position::ALL
             .into_iter()

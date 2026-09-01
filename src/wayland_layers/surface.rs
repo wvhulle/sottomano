@@ -1,4 +1,4 @@
-use iced_layershell::reexport::{
+use iced_exwlshell::reexport::{
     Anchor, KeyboardInteractivity, NewLayerShellSettings, OutputOption,
 };
 

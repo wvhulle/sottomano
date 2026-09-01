@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use iced::{Element, Rectangle, Task, time::Duration, widget::mouse_area, window::Id};
-use iced_layershell::{
+use iced_exwlshell::{
     actions::ActionCallback,
-    reexport::{Anchor, Layer, NewLayerShellSettings},
+    reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings},
 };
 use tokio::time::sleep;
 
@@ -257,7 +257,7 @@ fn input_region(surface: Id, bounds: Rectangle) -> Message {
 
 fn tooltip_settings(output: &str, float_offset: i32) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some((0, 0)),
+        size: LayerSize::FILL,
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         margin: Some(Margin::uniform(float_offset).edges()),

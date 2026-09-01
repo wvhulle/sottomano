@@ -6,8 +6,8 @@ use iced::{
     widget::{Row, Space, container, mouse_area, row, stack, text},
     window::Id,
 };
-use iced_layershell::reexport::{
-    KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption,
+use iced_exwlshell::reexport::{
+    KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
 };
 
 use crate::{
@@ -85,7 +85,7 @@ pub fn layer_settings(
     margin: Margin,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some((0, height)),
+        size: LayerSize::fill_width(height),
         exclusive_zone: Some(height.cast_signed()),
         anchor: position.anchor(),
         layer: Layer::Top,
