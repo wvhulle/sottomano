@@ -125,7 +125,7 @@ pub fn load() -> Config {
         Ok(user) => user,
         Err(LoadError::Missing) => UserConfig::default(),
         Err(e) => {
-            eprintln!("invalid configuration {}: {e}", path.display());
+            tracing::warn!("invalid configuration {}: {e}", path.display());
             process::exit(1);
         }
     };

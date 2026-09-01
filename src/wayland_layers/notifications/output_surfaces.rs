@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use iced::{Task, window::Id};
-use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
+use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 
 use crate::{app::Message, wayland_layers::surface};
 
@@ -64,7 +64,7 @@ impl ToastSurfaces {
 
 fn field_settings(output: Option<&str>) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some((0, 0)),
+        size: LayerSize::FILL,
         exclusive_zone: Some(0),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         layer: Layer::Overlay,

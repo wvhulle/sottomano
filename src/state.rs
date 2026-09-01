@@ -12,13 +12,27 @@ pub struct Session {
     pub notifications: NotificationState,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ChromeState {
     pub blur_background: bool,
     pub disconnected_groups: bool,
+    pub auto_collapse_groups: bool,
     pub corner_radius_px: f32,
     pub float_offset_px: f32,
     pub chrome_tint_factor: f32,
+}
+
+impl Default for ChromeState {
+    fn default() -> Self {
+        Self {
+            blur_background: false,
+            disconnected_groups: false,
+            auto_collapse_groups: true,
+            corner_radius_px: 0.0,
+            float_offset_px: 0.0,
+            chrome_tint_factor: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

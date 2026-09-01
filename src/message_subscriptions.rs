@@ -1,6 +1,7 @@
 use std::{
     convert::identity,
     future::{Future, ready},
+    sync::OnceLock,
     time::Duration,
 };
 
@@ -13,15 +14,17 @@ use iced::{
     time::every,
     window::{close_events, frames},
 };
+use iced_wayland_subscriber::output::{self, OutputEvent};
 use tokio::{
     sync::mpsc,
     task::spawn_blocking,
     time::{MissedTickBehavior, interval},
 };
 use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
+use wayland_client::Connection;
 
 use crate::{
-    app::{Bar, Message},
+    app::{Bar, Message, OutputChange},
     config::locker::Locker,
     data::{
         notifications::{
@@ -40,6 +43,36 @@ use crate::{
 };
 
 const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
+
+static WAYLAND: OnceLock<Connection> = OnceLock::new();
+
+/// One connection shared by the shell and the output listener, so both observe
+/// the same compositor state.
+pub fn wayland_connection() -> Option<&'static Connection> {
+    if WAYLAND.get().is_none() {
+        match Connection::connect_to_env() {
+            Ok(connection) => {
+                let _ = WAYLAND.set(connection);
+            }
+            Err(e) => tracing::error!("wayland: no connection, outputs will not be tracked: {e}"),
+        }
+    }
+    WAYLAND.get()
+}
+
+fn outputs() -> Subscription<Message> {
+    let Some(connection) = wayland_connection() else {
+        return Subscription::none();
+    };
+    output::listen(connection.clone()).map(|event| {
+        Message::Output(match event {
+            OutputEvent::Insert(info) => OutputChange::Connected(info.name),
+            OutputEvent::Changed(_) => OutputChange::Rearranged,
+            OutputEvent::Removed(info) => OutputChange::Disconnected(info.name),
+            OutputEvent::Stop(e) => OutputChange::Unavailable(e.to_string()),
+        })
+    })
+}
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
     let animation = if state.any_menu_animating()
@@ -61,6 +94,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         Subscription::none()
     };
     Subscription::batch([
+        outputs(),
         WeatherGroup::subscription().map(Message::Weather),
         state.battery_group.subscription().map(Message::Battery),
         state.system_group.subscription().map(Message::System),
@@ -105,7 +139,7 @@ pub(crate) fn blocking<T: Default + Send + 'static>(
     Task::perform(
         async move {
             spawn_blocking(work).await.unwrap_or_else(|e| {
-                eprintln!("{context}: task panicked: {e}");
+                tracing::error!("{context}: task panicked: {e}");
                 T::default()
             })
         },
@@ -237,7 +271,7 @@ fn notifications_subscription() -> Subscription<Message> {
             let (event_tx, mut event_rx) = mpsc::channel::<ServerEvent>(256);
             let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(256);
             if let Err(e) = server::serve(event_tx, outbound_rx).await {
-                eprintln!("notifications: server failed to start: {e}");
+                tracing::error!("notifications: server failed to start: {e}");
                 return;
             }
             let handle = NotifHandle::new(outbound_tx);

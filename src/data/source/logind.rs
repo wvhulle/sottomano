@@ -61,7 +61,7 @@ pub async fn run_locker(locker: Locker) {
     }
     match watch_lock_requests(locker.lock_before_sleep).await {
         Ok(requests) => spawn_locker_on(requests, &locker.command).await,
-        Err(e) => eprintln!("locker: {e}"),
+        Err(e) => tracing::warn!("locker: {e}"),
     }
 }
 
@@ -104,7 +104,7 @@ fn start_locker(command: &[String]) -> Option<Child> {
     match command::spawn(command) {
         Ok(child) => child,
         Err(e) => {
-            eprintln!("locker: {e}");
+            tracing::warn!("locker: {e}");
             None
         }
     }

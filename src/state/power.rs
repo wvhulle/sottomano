@@ -21,14 +21,14 @@ pub(crate) const DROP_LEGACY_TABLE: &str = "DROP TABLE IF EXISTS power_profile";
 
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
     try_load(&battery).await.unwrap_or_else(|e| {
-        eprintln!("power regression: load failed: {e}");
+        tracing::warn!("power regression: load failed: {e}");
         HashMap::new()
     })
 }
 
 pub async fn save(battery: String, profile: Profile, state: RegressionState) {
     if let Err(e) = try_save(&battery, profile, state).await {
-        eprintln!("power regression: save failed: {e}");
+        tracing::warn!("power regression: save failed: {e}");
     }
 }
 

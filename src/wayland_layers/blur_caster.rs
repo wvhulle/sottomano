@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iced::{Element, Length, Rectangle, Task, widget::Space, window::Id};
-use iced_layershell::reexport::{Anchor, Layer, NewLayerShellSettings};
+use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 
 use crate::{
     app::Message,
@@ -128,8 +128,9 @@ impl BlurCasters {
                         id: *id,
                         margin: pill_margin(position, float, *rect).edges(),
                     }));
-                    tasks.push(Task::done(Message::SizeChange {
+                    tasks.push(Task::done(Message::LayoutChange {
                         id: *id,
+                        anchor: position.edge() | Anchor::Left,
                         size: pill_size(*rect, config),
                     }));
                 }
@@ -259,7 +260,7 @@ fn strip_settings(
     chrome: &ChromeState,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: Some((0, config.chrome.outer_height_px as u32)),
+        size: LayerSize::fill_width(config.chrome.outer_height_px as u32),
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Bottom,
@@ -278,7 +279,7 @@ fn pill_settings(
 ) -> NewLayerShellSettings {
     let float = active_float_margin(chrome, position);
     NewLayerShellSettings {
-        size: Some(pill_size(rect, config)),
+        size: pill_size(rect, config),
         exclusive_zone: Some(-1),
         anchor: position.edge() | Anchor::Left,
         layer: Layer::Bottom,
@@ -308,8 +309,8 @@ fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn pill_size(rect: Rectangle, config: &Config) -> (u32, u32) {
-    (
+fn pill_size(rect: Rectangle, config: &Config) -> LayerSize {
+    LayerSize::px(
         rect.width.round().max(1.0) as u32,
         config.chrome.outer_height_px as u32,
     )

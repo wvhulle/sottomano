@@ -141,7 +141,7 @@ async fn serve_until_pipewire_stops(output: &mut Sender<AudioEvent>) {
         .name("pipewire-audio".to_owned())
         .spawn(move || run(&states, &peaks, requests))
     {
-        eprintln!("audio: pipewire thread spawn failed: {e}");
+        tracing::error!("audio: pipewire thread spawn failed: {e}");
         return;
     }
     let connected = AudioEvent::Connected(Commands { sender: commands });
@@ -579,13 +579,13 @@ fn dispatch(session: &Shared, states: &Publisher, event: Event) {
 
 fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &Graph) {
     if previous.sink.is_some() && next.sink.is_none() {
-        eprintln!(
+        tracing::warn!(
             "audio: default sink {:?} no longer resolves to a node",
             graph.default_sink
         );
     }
     if previous.source.is_some() && next.source.is_none() {
-        eprintln!(
+        tracing::warn!(
             "audio: default source {:?} no longer resolves to a node",
             graph.default_source
         );
@@ -600,7 +600,7 @@ fn run(
     pipewire::init();
     let states = Rc::new(states.clone());
     if let Err(e) = serve(&states, peaks, commands) {
-        eprintln!("audio: pipewire connect failed: {e}");
+        tracing::error!("audio: pipewire connect failed: {e}");
     }
     states.send_replace(AudioState::default());
     peaks.send_replace(Peaks::default());
@@ -631,7 +631,7 @@ fn serve(
     let _core_listener = core
         .add_listener_local()
         .error(|id, _, res, message| {
-            eprintln!("audio: pipewire object {id} reported an error ({res}): {message}");
+            tracing::warn!("audio: pipewire object {id} reported an error ({res}): {message}");
         })
         .register();
 
@@ -681,7 +681,7 @@ fn track(
 fn bind<P: ProxyT>(registry: &Registry, global: &GlobalObject<&DictRef>, label: &str) -> Option<P> {
     registry
         .bind::<P, _>(global)
-        .inspect_err(|e| eprintln!("audio: bind {label} {} failed: {e}", global.id))
+        .inspect_err(|e| tracing::warn!("audio: bind {label} {} failed: {e}", global.id))
         .ok()
 }
 

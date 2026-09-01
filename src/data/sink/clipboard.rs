@@ -7,7 +7,7 @@ pub fn write(text: &str) {
         return;
     }
     if !command::blocking::run(COPY_PROGRAM, &["--trim-newline", "--", text]) {
-        eprintln!(
+        tracing::warn!(
             "clipboard: {COPY_PROGRAM} failed to copy {} bytes",
             text.len()
         );

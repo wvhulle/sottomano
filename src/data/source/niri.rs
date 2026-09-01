@@ -145,7 +145,7 @@ impl Snapshot {
 }
 
 fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
-    eprintln!("niri: {reason}; the bar cannot run without niri events");
+    tracing::error!("niri: {reason}; the bar cannot run without niri events");
     process::exit(1)
 }
 
@@ -434,8 +434,8 @@ pub fn send_action(action: &niri_ipc::Action) {
         Socket::connect().and_then(|mut socket| socket.send(Request::Action(action.clone())));
     match sent {
         Ok(Ok(_)) => {}
-        Ok(Err(rejection)) => eprintln!("niri rejected {action:?}: {rejection}"),
-        Err(e) => eprintln!("niri unreachable for {action:?}: {e}"),
+        Ok(Err(rejection)) => tracing::warn!("niri rejected {action:?}: {rejection}"),
+        Err(e) => tracing::warn!("niri unreachable for {action:?}: {e}"),
     }
 }
 

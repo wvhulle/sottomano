@@ -112,7 +112,7 @@ pub async fn perform_when_idle(triggers: Vec<IdleTrigger>) {
     }
     for _ in 0..RECONNECT_ATTEMPTS {
         let Err(e) = perform_while_connected(&triggers).await;
-        eprintln!("idle daemon: {e}");
+        tracing::warn!("idle daemon: {e}");
         if !matches!(e, WaylandError::Io(_)) {
             return;
         }

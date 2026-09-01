@@ -2,7 +2,7 @@ use iced::{
     Color, Element, Length,
     widget::{Space, container},
 };
-use iced_layershell::reexport::{Layer, NewLayerShellSettings};
+use iced_exwlshell::reexport::{Layer, LayerSize, NewLayerShellSettings};
 
 use crate::{
     app::Message,
@@ -23,7 +23,7 @@ pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellS
         Position::Bottom => (0, 0, -h, 0),
     };
     NewLayerShellSettings {
-        size: Some((0, height)),
+        size: LayerSize::fill_width(height),
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Background,

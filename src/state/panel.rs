@@ -9,6 +9,7 @@ const CORNER_RADIUS: &str = "corner_radius_px";
 const FLOAT_OFFSET: &str = "float_offset_px";
 const BLUR_BACKGROUND: &str = "blur_background";
 const DISCONNECTED_GROUPS: &str = "disconnected_groups";
+const AUTO_COLLAPSE_GROUPS: &str = "auto_collapse_groups";
 const CHROME_TINT_FACTOR: &str = "chrome_tint_factor";
 const LEGACY_DARKEN_CHROME_FACTOR: &str = "darken_chrome_factor";
 const DND: &str = "dnd";
@@ -17,7 +18,7 @@ const SPATIAL_LAYOUT: &str = "spatial_layout";
 
 pub async fn load() -> Session {
     try_load().await.unwrap_or_else(|e| {
-        eprintln!("panel settings: load failed: {e}");
+        tracing::warn!("panel settings: load failed: {e}");
         Session::default()
     })
 }
@@ -36,6 +37,10 @@ pub async fn save_blur_background(blur: bool) {
 
 pub async fn save_disconnected_groups(disconnected: bool) {
     put_flag(DISCONNECTED_GROUPS, disconnected).await;
+}
+
+pub async fn save_auto_collapse_groups(collapse: bool) {
+    put_flag(AUTO_COLLAPSE_GROUPS, collapse).await;
 }
 
 pub async fn save_chrome_tint_factor(factor: f32) -> bool {
@@ -66,7 +71,7 @@ async fn put(key: &str, value: &str) -> bool {
     match try_put(key, value).await {
         Ok(()) => true,
         Err(e) => {
-            eprintln!("panel settings: save {key} failed: {e}");
+            tracing::warn!("panel settings: save {key} failed: {e}");
             false
         }
     }
@@ -97,6 +102,7 @@ async fn try_load() -> Result<Session, StoreError> {
             FLOAT_OFFSET => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
             BLUR_BACKGROUND => session.chrome.blur_background = parse_flag(&value),
             DISCONNECTED_GROUPS => session.chrome.disconnected_groups = parse_flag(&value),
+            AUTO_COLLAPSE_GROUPS => session.chrome.auto_collapse_groups = parse_flag(&value),
             CHROME_TINT_FACTOR | LEGACY_DARKEN_CHROME_FACTOR => {
                 session.chrome.chrome_tint_factor = value.parse().unwrap_or_default();
             }
