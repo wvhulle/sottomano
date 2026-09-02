@@ -11,10 +11,12 @@ use crate::{
     app::Message,
     config::{Config, font::FontConfig},
     data::source::{
-        LogEntry, RefreshInfo, Row, Section, Tooltip, TooltipBody, TrayMenuBody, level_color,
+        LogEntry, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
+        level_color,
     },
     widget_groups::{
-        tray_group::TrayMessage, workspaces_group::workspace_preview::WorkspaceSchematic,
+        tray_group::TrayMessage, window_group::process_tree::ProcessTree,
+        workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
         context_menu::context_menu, copyable::copyable, favicon::Favicons,
@@ -216,16 +218,25 @@ impl<'a> TooltipContent<'a> {
         let divider = self.config.palette.surface_raised.scale_alpha(self.opacity);
         let font = self.config.font.clone();
 
-        let filled = sections.iter().filter(|section| !section.rows.is_empty());
+        let filled = sections.iter().filter(|section| !section.body.is_empty());
         let mut column = Column::new().spacing(SECTION_GAP_PX);
         for section in filled {
             let mut group = Column::new().spacing(ROW_SPACING_PX);
             if let Some(title) = &section.title {
                 group = group.push(bar_text(&font, title.clone()).font(italic).color(heading));
             }
-            column = column.push(inset(group.push(self.table(&section.rows)).into()));
+            column = column.push(inset(group.push(self.body(&section.body)).into()));
         }
         section_column(column, divider, DIVIDER_THICKNESS_PX)
+    }
+
+    fn body(&self, body: &SectionBody) -> Element<'static, Message> {
+        match body {
+            SectionBody::Rows(rows) => self.table(rows),
+            SectionBody::Tree(root) => ProcessTree::new(root, self.config)
+                .opacity(self.opacity)
+                .view(),
+        }
     }
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {

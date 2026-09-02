@@ -11,7 +11,11 @@ use font_awesome::{Brands, FontAwesome, Solid};
 use iced::{Color, Size};
 use simple_icons::SimpleIcon;
 
-use crate::{config::Config, data::source::app_rules::TitleRun, widgets::context_menu::MenuNode};
+use crate::{
+    config::Config,
+    data::source::{app_rules::TitleRun, process::Process},
+    widgets::context_menu::MenuNode,
+};
 
 pub mod ai;
 pub mod app_icon;
@@ -108,20 +112,45 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum SectionBody {
+    Rows(Vec<Row>),
+    Tree(Process),
+}
+
+impl SectionBody {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            SectionBody::Rows(rows) => rows.is_empty(),
+            SectionBody::Tree(_) => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Section {
     pub title: Option<String>,
-    pub rows: Vec<Row>,
+    pub body: SectionBody,
 }
 
 pub fn section(title: impl Into<String>, rows: Vec<Row>) -> Section {
     Section {
         title: Some(title.into()),
-        rows,
+        body: SectionBody::Rows(rows),
     }
 }
 
 pub fn untitled(rows: Vec<Row>) -> Section {
-    Section { title: None, rows }
+    Section {
+        title: None,
+        body: SectionBody::Rows(rows),
+    }
+}
+
+pub fn tree_section(title: impl Into<String>, root: Process) -> Section {
+    Section {
+        title: Some(title.into()),
+        body: SectionBody::Tree(root),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,7 +205,7 @@ impl TooltipBody {
     fn is_empty(&self) -> bool {
         match self {
             TooltipBody::Sections(sections) => {
-                sections.iter().all(|section| section.rows.is_empty())
+                sections.iter().all(|section| section.body.is_empty())
             }
             TooltipBody::Log(entries) => entries.is_empty(),
             TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),

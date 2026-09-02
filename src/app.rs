@@ -50,9 +50,7 @@ use crate::{
         system_group::{SystemGroup, SystemMessage},
         tray_group::{self, TrayGroup, TrayMessage},
         weather_group::{WeatherGroup, WeatherMessage},
-        window_group::{
-            self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS, window_tooltip,
-        },
+        window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
         workspaces_group::workspace_tooltip,
     },
     widgets::{favicon::Favicons, menu_group::MenuGroup, text::FontFallbacks},
@@ -529,7 +527,10 @@ impl Bar {
             return self.tray_group.tooltip_for(address);
         }
         if let HoverTarget::Window(window) = target {
-            return window_tooltip::tooltip(&self.niri, *window).unwrap_or_else(Tooltip::empty);
+            return self
+                .window_group
+                .window_tooltip(&self.niri, *window)
+                .unwrap_or_else(Tooltip::empty);
         }
         if let HoverTarget::Workspace(workspace) = target {
             return workspace_tooltip::tooltip(
@@ -569,6 +570,10 @@ impl Bar {
 
     pub fn any_notification_expiring(&self) -> bool {
         self.notifications.has_running_countdown()
+    }
+
+    pub fn is_watching_window(&self) -> bool {
+        matches!(self.tooltip.target(), Some(HoverTarget::Window(_)))
     }
 
     pub fn tooltip_has_relative_time(&self) -> bool {

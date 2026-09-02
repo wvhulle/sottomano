@@ -3,19 +3,29 @@ use std::time::{Duration, SystemTime};
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    data::source::{Row, Tooltip, TooltipBody, process, row, section, untitled},
+    data::source::{
+        Row, Tooltip, TooltipBody,
+        process::{self, Launch, Process},
+        row, section, tree_section, untitled,
+    },
     wayland_layers::tooltip::relative,
 };
 
-pub fn tooltip(niri_state: &EventStreamState, window: u64) -> Option<Tooltip> {
+pub fn tooltip(
+    niri_state: &EventStreamState,
+    window: u64,
+    tree: Option<&Process>,
+) -> Option<Tooltip> {
     let window = niri_state.windows.windows.get(&window)?;
     let mut sections = vec![
         untitled(identity(window)),
         section("Layout", layout(niri_state, window)),
     ];
-    if let Some(details) = window.pid.and_then(process::read) {
-        sections.push(section("Process", facts(window, &details)));
-        sections.push(section("Command", command(&details)));
+    if let Some(launched) = window.pid.and_then(process::launch) {
+        sections.push(section("Command", command(&launched)));
+    }
+    if let Some(root) = tree {
+        sections.push(tree_section("Process", root.clone()));
     }
     Some(Tooltip::of(TooltipBody::Sections(sections)))
 }
@@ -38,26 +48,22 @@ fn layout(niri_state: &EventStreamState, window: &niri_ipc::Window) -> Vec<Row> 
         .workspace_id
         .and_then(|id| niri_state.workspaces.workspaces.get(&id))
     {
-        rows.push(row("Workspace", workspace.idx.to_string()));
-        if let Some(name) = workspace.name.as_ref().filter(|name| !name.is_empty()) {
-            rows.push(row("Workspace name", name.clone()));
-        }
+        let name = workspace.name.as_ref().filter(|name| !name.is_empty());
+        rows.push(row(
+            "Workspace",
+            match name {
+                Some(name) => format!("{} · {name}", workspace.idx),
+                None => workspace.idx.to_string(),
+            },
+        ));
     }
     rows.push(row(
-        "Layout",
-        if window.is_floating {
-            "floating"
-        } else {
-            "tiled"
+        "Position",
+        match window.layout.pos_in_scrolling_layout {
+            Some((column, tile)) => format!("column {column}, tile {tile}"),
+            None => "floating".to_owned(),
         },
     ));
-    if let Some((column, tile)) = window.layout.pos_in_scrolling_layout {
-        rows.push(row("Column", column.to_string()));
-        rows.push(row("Tile", tile.to_string()));
-    }
-    let (width, height) = window.layout.window_size;
-    rows.push(row("Width", width.to_string()));
-    rows.push(row("Height", height.to_string()));
     if let Some(focused) = focus_age(window) {
         rows.push(row(
             "Focused",
@@ -73,38 +79,17 @@ fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
     process::monotonic()?.checked_sub(stamp)
 }
 
-fn facts(window: &niri_ipc::Window, details: &process::Process) -> Vec<Row> {
+fn command(launched: &Launch) -> Vec<Row> {
     let mut rows = Vec::new();
-    if let Some(pid) = window.pid {
-        rows.push(row("PID", pid.to_string()));
+    if let Some(binary) = &launched.binary {
+        rows.push(row("Binary", binary.display().to_string()));
     }
-    if let Some(parent) = details.parent {
-        rows.push(row("Parent", parent.to_string()));
-    }
-    if let Some(rss) = details.rss {
-        rows.push(row("Memory", rss.display().iec().to_string()));
-    }
-    if let Some(threads) = details.threads {
-        rows.push(row("Threads", threads.to_string()));
-    }
-    if let Some(uptime) = details.uptime {
-        let whole = Duration::from_secs(uptime.as_secs());
-        rows.push(row("Uptime", humantime::format_duration(whole).to_string()));
-    }
-    if let Some(scope) = &details.scope {
-        rows.push(row("Scope", scope.clone()));
-    }
-    rows
-}
-
-fn command(details: &process::Process) -> Vec<Row> {
-    let mut rows = Vec::new();
-    if let Some(exe) = &details.exe {
-        rows.push(row("Binary", exe.display().to_string()));
-    }
-    for (index, argument) in details.cmdline.iter().enumerate() {
+    for (index, argument) in launched.arguments.iter().enumerate() {
         let key = if index == 0 { "Command" } else { "" };
         rows.push(row(key, argument.clone()));
+    }
+    if let Some(scope) = &launched.scope {
+        rows.push(row("Scope", scope.clone()));
     }
     rows
 }
