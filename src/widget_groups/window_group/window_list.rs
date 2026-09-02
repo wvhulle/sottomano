@@ -17,6 +17,7 @@ use crate::{
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
+        process::{self, Forest, Process},
     },
     wayland_layers::{
         surface::Position,
@@ -43,6 +44,7 @@ pub struct WindowList {
     jobs: Jobs,
     scroll: f32,
     metrics: Metrics,
+    processes: Forest,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +55,7 @@ pub enum WindowListMessage {
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
+    ProcessesScanned(Forest),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -67,12 +70,22 @@ pub enum Action {
 }
 
 impl WindowList {
-    pub fn subscription() -> Subscription<WindowListMessage> {
+    pub fn subscription(watched_window: bool) -> Subscription<WindowListMessage> {
+        let processes = if watched_window {
+            process::subscription().map(WindowListMessage::ProcessesScanned)
+        } else {
+            Subscription::none()
+        };
         Subscription::batch([
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
             launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
             job_view::subscription().map(WindowListMessage::JobsChanged),
+            processes,
         ])
+    }
+
+    pub fn process(&self, pid: i32) -> Option<&Process> {
+        self.processes.subtree(pid)
     }
 
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
@@ -89,6 +102,10 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::Tooltip(_) => Action::None,
+            WindowListMessage::ProcessesScanned(forest) => {
+                self.processes = forest;
+                Action::None
+            }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,
             WindowListMessage::Scrolled(offset) => {
                 self.scroll = offset.clamp(0.0, self.metrics.max_scroll());

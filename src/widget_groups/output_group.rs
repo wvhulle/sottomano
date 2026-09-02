@@ -74,7 +74,7 @@ fn geometry_rows(info: &OutputInfo) -> Vec<Row> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::source::TooltipBody;
+    use crate::data::source::{SectionBody, TooltipBody};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(
@@ -96,7 +96,11 @@ mod tests {
         match &tooltip.body {
             TooltipBody::Sections(sections) => sections
                 .iter()
-                .flat_map(|section| &section.rows)
+                .filter_map(|section| match &section.body {
+                    SectionBody::Rows(rows) => Some(rows),
+                    SectionBody::Tree(_) => None,
+                })
+                .flatten()
                 .map(|r| (r.key.clone(), r.value.clone()))
                 .collect(),
             _ => panic!("expected sections"),
