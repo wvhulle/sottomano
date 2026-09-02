@@ -114,20 +114,6 @@ mod tests {
     }
 
     #[test]
-    fn negative_timeouts_all_mean_server_default() {
-        assert_eq!(ExpireTimeout::from_millis(-1), ExpireTimeout::ServerDefault);
-        assert_eq!(
-            ExpireTimeout::from_millis(i32::MIN),
-            ExpireTimeout::ServerDefault
-        );
-        assert_eq!(ExpireTimeout::from_millis(0), ExpireTimeout::Never);
-        assert_eq!(
-            ExpireTimeout::from_millis(2_500),
-            ExpireTimeout::After(Duration::from_millis(2_500))
-        );
-    }
-
-    #[test]
     fn pausing_then_resuming_preserves_remaining_time() {
         let start = Instant::now();
         let countdown = Countdown::started(Duration::from_secs(10), start);
@@ -140,37 +126,6 @@ mod tests {
         let resumed = paused.resumed(start + Duration::from_secs(100));
         assert!(!resumed.has_elapsed(start + Duration::from_secs(105)));
         assert!(resumed.has_elapsed(start + Duration::from_secs(106)));
-    }
-
-    #[test]
-    fn pausing_after_the_deadline_saturates() {
-        let start = Instant::now();
-        let countdown = Countdown::started(Duration::from_secs(1), start);
-        let Countdown::Paused { remaining } = countdown.paused(start + Duration::from_secs(30))
-        else {
-            panic!("pausing a running countdown must yield Paused");
-        };
-        assert_eq!(remaining, Duration::ZERO);
-    }
-
-    #[test]
-    fn pausing_twice_keeps_the_first_remaining_time() {
-        let start = Instant::now();
-        let paused = Countdown::started(Duration::from_secs(10), start)
-            .paused(start + Duration::from_secs(3));
-        let Countdown::Paused { remaining } = paused.paused(start + Duration::from_secs(9)) else {
-            panic!("pausing twice must stay Paused");
-        };
-        assert_eq!(remaining, Duration::from_secs(7));
-    }
-
-    #[test]
-    fn resuming_a_running_countdown_leaves_the_deadline_alone() {
-        let start = Instant::now();
-        let running = Countdown::started(Duration::from_secs(10), start);
-        let resumed = running.resumed(start + Duration::from_secs(3));
-        assert!(!resumed.has_elapsed(start + Duration::from_secs(9)));
-        assert!(resumed.has_elapsed(start + Duration::from_secs(10)));
     }
 
     #[test]

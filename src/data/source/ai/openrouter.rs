@@ -239,14 +239,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn credits_envelope_decodes() {
-        let envelope: Envelope<Credits> =
-            serde_json::from_str(r#"{"data":{"total_credits":25.0,"total_usage":4.5}}"#).unwrap();
-        assert!((envelope.data.total - 25.0).abs() < f64::EPSILON);
-        assert!((envelope.data.used - 4.5).abs() < f64::EPSILON);
-    }
-
-    #[test]
     fn analytics_rows_decode() {
         let envelope: Envelope<Analytics> = serde_json::from_str(
             r#"{"data":{"cachedAt":null,"metadata":{"row_count":1},

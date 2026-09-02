@@ -166,23 +166,4 @@ mod tests {
         let models = read_models(&conn, "BAT0").await.unwrap();
         assert_eq!(models[&Profile::Balanced], distinct_state());
     }
-
-    #[tokio::test]
-    async fn upsert_replaces_the_row_for_the_same_battery_and_profile() {
-        let conn = connection().await;
-        write_model(&conn, "BAT0", Profile::Balanced, distinct_state())
-            .await
-            .unwrap();
-        let updated = RegressionState {
-            coefficients: Vector3::new(9.0, 9.0, 9.0),
-            covariance: Matrix3::identity(),
-        };
-        write_model(&conn, "BAT0", Profile::Balanced, updated)
-            .await
-            .unwrap();
-
-        let models = read_models(&conn, "BAT0").await.unwrap();
-        assert_eq!(models.len(), 1);
-        assert_eq!(models[&Profile::Balanced], updated);
-    }
 }

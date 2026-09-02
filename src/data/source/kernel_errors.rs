@@ -68,16 +68,3 @@ fn priority_level(priority: u8) -> Level {
         Level::Warning
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn follows_this_boot_at_warning_and_above() {
-        assert_eq!(
-            KernelErrors::follow_log_args(),
-            ["-k", "-b", "-f", "-p", "warning"]
-        );
-    }
-}

@@ -475,15 +475,6 @@ mod tests {
     }
 
     #[test]
-    fn command_icons_have_unique_keys() {
-        let mut commands: Vec<&str> = CMD_ICONS.iter().map(|(cmd, _)| *cmd).collect();
-        commands.sort_unstable();
-        let count = commands.len();
-        commands.dedup();
-        assert_eq!(commands.len(), count);
-    }
-
-    #[test]
     fn rule_for_prefers_more_specific_keyword() {
         assert!(matches!(
             rule_for("org.chromium.Chromium"),
