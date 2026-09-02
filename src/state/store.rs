@@ -1,4 +1,4 @@
-use std::{env, fmt, fs, io, ops::Deref, path::PathBuf};
+use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, time::Duration};
 
 use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
@@ -10,13 +10,14 @@ pub(crate) enum StoreError {
     CreateDirectory(io::Error),
     Database(turso::Error),
     Column(ColumnError),
-    UnknownSetting(String),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) enum ColumnError {
-    NotText { index: usize },
-    NotInteger { index: usize },
+    Missing { name: String },
+    NotText { name: String },
+    NotInteger { name: String },
+    NotReal { name: String },
 }
 
 impl From<io::Error> for StoreError {
@@ -44,7 +45,6 @@ impl fmt::Display for StoreError {
             Self::CreateDirectory(e) => write!(f, "creating state directory failed: {e}"),
             Self::Database(e) => write!(f, "database error: {e}"),
             Self::Column(e) => write!(f, "{e}"),
-            Self::UnknownSetting(key) => write!(f, "unknown setting {key}"),
         }
     }
 }
@@ -52,8 +52,10 @@ impl fmt::Display for StoreError {
 impl fmt::Display for ColumnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotText { index } => write!(f, "column {index} is not text"),
-            Self::NotInteger { index } => write!(f, "column {index} is not an integer"),
+            Self::Missing { name } => write!(f, "column {name} is absent from the result set"),
+            Self::NotText { name } => write!(f, "column {name} is not text"),
+            Self::NotInteger { name } => write!(f, "column {name} is not an integer"),
+            Self::NotReal { name } => write!(f, "column {name} is not a real"),
         }
     }
 }
@@ -99,16 +101,24 @@ async fn build() -> Result<Store, StoreError> {
         .build()
         .await?;
     let connection = database.connect()?;
-    connection.execute(launches::CREATE_TABLE, ()).await?;
-    connection.execute(panel::CREATE_TABLE, ()).await?;
-    connection.execute(idle::CREATE_TABLE, ()).await?;
-    connection.execute(power::DROP_LEGACY_TABLE, ()).await?;
-    connection.execute(power::CREATE_TABLE, ()).await?;
-    connection.execute(rate_limit::CREATE_TABLE, ()).await?;
+    apply_schema(&connection).await?;
     Ok(Store {
         connection,
         _database: database,
     })
+}
+
+pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), StoreError> {
+    connection.execute(launches::CREATE_TABLE, ()).await?;
+    connection.execute(panel::CREATE_TABLE, ()).await?;
+    connection.execute(idle::CREATE_TABLE, ()).await?;
+    for statement in power::DROP_LEGACY_TABLES {
+        connection.execute(statement, ()).await?;
+    }
+    connection.execute(power::CREATE_TABLE, ()).await?;
+    connection.execute(rate_limit::CREATE_TABLE, ()).await?;
+    panel::adopt_legacy_settings(connection).await?;
+    Ok(())
 }
 
 fn db_path() -> Option<PathBuf> {
@@ -118,22 +128,107 @@ fn db_path() -> Option<PathBuf> {
     Some(state.join("vetrata/state.db"))
 }
 
-pub(crate) fn text(row: &turso::Row, index: usize) -> Result<String, StoreError> {
-    let value = row.get_value(index)?;
-    let Some(text) = value.as_text() else {
-        return Err(ColumnError::NotText { index }.into());
-    };
-    Ok(text.clone())
-}
+pub(crate) struct Columns(HashMap<String, usize>);
 
-pub(crate) fn optional_text(row: &turso::Row, index: usize) -> Result<Option<String>, StoreError> {
-    Ok(row.get_value(index)?.as_text().cloned())
-}
+impl Columns {
+    pub(crate) fn of(rows: &turso::Rows) -> Self {
+        Self(
+            rows.column_names()
+                .into_iter()
+                .enumerate()
+                .map(|(index, name)| (name.to_lowercase(), index))
+                .collect(),
+        )
+    }
 
-pub(crate) fn integer(row: &turso::Row, index: usize) -> Result<i64, StoreError> {
-    let value = row.get_value(index)?;
-    let Some(integer) = value.as_integer() else {
-        return Err(ColumnError::NotInteger { index }.into());
-    };
-    Ok(*integer)
+    fn value(&self, row: &turso::Row, name: &str) -> Result<turso::Value, StoreError> {
+        let index =
+            self.0
+                .get(&name.to_lowercase())
+                .copied()
+                .ok_or_else(|| ColumnError::Missing {
+                    name: name.to_owned(),
+                })?;
+        Ok(row.get_value(index)?)
+    }
+
+    pub(crate) fn text(&self, row: &turso::Row, name: &str) -> Result<String, StoreError> {
+        match self.value(row, name)? {
+            turso::Value::Text(text) => Ok(text),
+            _ => Err(ColumnError::NotText {
+                name: name.to_owned(),
+            }
+            .into()),
+        }
+    }
+
+    pub(crate) fn optional_text(
+        &self,
+        row: &turso::Row,
+        name: &str,
+    ) -> Result<Option<String>, StoreError> {
+        match self.value(row, name)? {
+            turso::Value::Text(text) => Ok(Some(text)),
+            _ => Ok(None),
+        }
+    }
+
+    pub(crate) fn integer(&self, row: &turso::Row, name: &str) -> Result<i64, StoreError> {
+        match self.value(row, name)? {
+            turso::Value::Integer(integer) => Ok(integer),
+            _ => Err(ColumnError::NotInteger {
+                name: name.to_owned(),
+            }
+            .into()),
+        }
+    }
+
+    pub(crate) fn optional_integer(
+        &self,
+        row: &turso::Row,
+        name: &str,
+    ) -> Result<Option<i64>, StoreError> {
+        match self.value(row, name)? {
+            turso::Value::Integer(integer) => Ok(Some(integer)),
+            _ => Ok(None),
+        }
+    }
+
+    pub(crate) fn real(&self, row: &turso::Row, name: &str) -> Result<f64, StoreError> {
+        match self.value(row, name)? {
+            turso::Value::Real(real) => Ok(real),
+            turso::Value::Integer(integer) => Ok(integer as f64),
+            _ => Err(ColumnError::NotReal {
+                name: name.to_owned(),
+            }
+            .into()),
+        }
+    }
+
+    pub(crate) fn optional_real(
+        &self,
+        row: &turso::Row,
+        name: &str,
+    ) -> Result<Option<f64>, StoreError> {
+        match self.value(row, name)? {
+            turso::Value::Real(real) => Ok(Some(real)),
+            turso::Value::Integer(integer) => Ok(Some(integer as f64)),
+            _ => Ok(None),
+        }
+    }
+
+    pub(crate) fn optional_flag(
+        &self,
+        row: &turso::Row,
+        name: &str,
+    ) -> Result<Option<bool>, StoreError> {
+        Ok(self
+            .optional_integer(row, name)?
+            .map(|integer| integer != 0))
+    }
+
+    pub(crate) fn duration(&self, row: &turso::Row, name: &str) -> Option<Duration> {
+        let seconds = self.optional_integer(row, name).ok()??;
+        Some(Duration::from_secs(u64::try_from(seconds).unwrap_or(0)))
+    }
 }

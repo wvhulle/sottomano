@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::state::{StoreError, integer, open, optional_text};
+use crate::state::{Columns, StoreError, open};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
     source TEXT PRIMARY KEY,
@@ -52,6 +52,13 @@ pub async fn clear(source: &'static str) {
 
 async fn try_load(source: &str) -> Result<Option<Backoff>, StoreError> {
     let conn = open().await?;
+    read_backoff(&conn, source).await
+}
+
+async fn read_backoff(
+    conn: &turso::Connection,
+    source: &str,
+) -> Result<Option<Backoff>, StoreError> {
     let mut rows = conn
         .query(
             "SELECT retry_after_unix, attempts, status, message
@@ -59,19 +66,28 @@ async fn try_load(source: &str) -> Result<Option<Backoff>, StoreError> {
             (source.to_string(),),
         )
         .await?;
+    let columns = Columns::of(&rows);
     let Some(row) = rows.next().await? else {
         return Ok(None);
     };
     Ok(Some(Backoff {
-        retry_after_unix: integer(&row, 0)?,
-        attempts: u32::try_from(integer(&row, 1)?).unwrap_or(u32::MAX),
-        status: u16::try_from(integer(&row, 2)?).unwrap_or(u16::MAX),
-        message: optional_text(&row, 3)?,
+        retry_after_unix: columns.integer(&row, "retry_after_unix")?,
+        attempts: u32::try_from(columns.integer(&row, "attempts")?).unwrap_or(u32::MAX),
+        status: u16::try_from(columns.integer(&row, "status")?).unwrap_or(u16::MAX),
+        message: columns.optional_text(&row, "message")?,
     }))
 }
 
 async fn try_save(source: &str, backoff: &Backoff) -> Result<(), StoreError> {
     let conn = open().await?;
+    write_backoff(&conn, source, backoff).await
+}
+
+async fn write_backoff(
+    conn: &turso::Connection,
+    source: &str,
+    backoff: &Backoff,
+) -> Result<(), StoreError> {
     conn.execute(
         "INSERT INTO rate_limit_backoff (source, retry_after_unix, attempts, status, message)
          VALUES (?1, ?2, ?3, ?4, ?5)
@@ -91,6 +107,10 @@ async fn try_save(source: &str, backoff: &Backoff) -> Result<(), StoreError> {
 
 async fn try_clear(source: &str) -> Result<(), StoreError> {
     let conn = open().await?;
+    clear_backoff(&conn, source).await
+}
+
+async fn clear_backoff(conn: &turso::Connection, source: &str) -> Result<(), StoreError> {
     conn.execute(
         "DELETE FROM rate_limit_backoff WHERE source = ?1",
         (source.to_string(),),
@@ -105,4 +125,36 @@ pub fn now_unix() -> i64 {
         .map_or(0, |elapsed| {
             i64::try_from(elapsed.as_secs()).unwrap_or(i64::MAX)
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Backoff, CREATE_TABLE, read_backoff, write_backoff};
+
+    async fn connection() -> turso::Connection {
+        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
+        let conn = database.connect().unwrap();
+        conn.execute(CREATE_TABLE, ()).await.unwrap();
+        conn
+    }
+
+    fn backoff() -> Backoff {
+        Backoff {
+            retry_after_unix: 1_700_000_000,
+            attempts: 3,
+            status: 429,
+            message: Some("slow down".to_owned()),
+        }
+    }
+
+    #[tokio::test]
+    async fn backoff_survives_a_round_trip() {
+        let conn = connection().await;
+        write_backoff(&conn, "claude", &backoff()).await.unwrap();
+
+        assert_eq!(
+            read_backoff(&conn, "claude").await.unwrap(),
+            Some(backoff())
+        );
+    }
 }
