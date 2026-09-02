@@ -41,6 +41,7 @@ pub mod logind;
 pub mod mpris;
 pub mod net_interfaces;
 pub mod niri;
+pub mod nix_store;
 pub mod power_profile;
 pub mod process;
 pub mod screen_temperature;

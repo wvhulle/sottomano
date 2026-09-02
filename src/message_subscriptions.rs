@@ -117,7 +117,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
             .subscription()
             .map(Message::PowerProfile),
         state.ai_group.subscription().map(Message::Ai),
-        WindowGroup::subscription(state.is_watching_window()).map(Message::WindowGroup),
+        WindowGroup::subscription(state.watched_window()).map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),

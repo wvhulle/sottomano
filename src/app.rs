@@ -19,6 +19,7 @@ use crate::{
             favicons::RawFavicon,
             launch_tracker::{Buckets, LaunchTracker},
             niri,
+            process::Watched,
         },
     },
     message_subscriptions::{blocking, niri_action},
@@ -572,8 +573,15 @@ impl Bar {
         self.notifications.has_running_countdown()
     }
 
-    pub fn is_watching_window(&self) -> bool {
-        matches!(self.tooltip.target(), Some(HoverTarget::Window(_)))
+    pub fn watched_window(&self) -> Option<Watched> {
+        let Some(HoverTarget::Window(window)) = self.tooltip.target() else {
+            return None;
+        };
+        let window = self.niri.windows.windows.get(window)?;
+        Some(Watched {
+            pid: window.pid?,
+            app_id: window.app_id.clone(),
+        })
     }
 
     pub fn tooltip_has_relative_time(&self) -> bool {

@@ -17,7 +17,7 @@ use crate::{
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
-        process::{self, Forest, Process},
+        process::{self, Forest, Inspection, Process, Watched},
     },
     wayland_layers::{
         surface::Position,
@@ -45,6 +45,7 @@ pub struct WindowList {
     scroll: f32,
     metrics: Metrics,
     processes: Forest,
+    inspected: Option<Inspection>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +57,7 @@ pub enum WindowListMessage {
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
     ProcessesScanned(Forest),
+    ProcessInspected(Inspection),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -70,22 +72,28 @@ pub enum Action {
 }
 
 impl WindowList {
-    pub fn subscription(watched_window: bool) -> Subscription<WindowListMessage> {
-        let processes = if watched_window {
-            process::subscription().map(WindowListMessage::ProcessesScanned)
-        } else {
-            Subscription::none()
+    pub fn subscription(watched_window: Option<Watched>) -> Subscription<WindowListMessage> {
+        let watched = match watched_window {
+            Some(window) => Subscription::batch([
+                process::subscription().map(WindowListMessage::ProcessesScanned),
+                process::inspection(window).map(WindowListMessage::ProcessInspected),
+            ]),
+            None => Subscription::none(),
         };
         Subscription::batch([
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
             launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
             job_view::subscription().map(WindowListMessage::JobsChanged),
-            processes,
+            watched,
         ])
     }
 
     pub fn process(&self, pid: i32) -> Option<&Process> {
         self.processes.subtree(pid)
+    }
+
+    pub fn inspection(&self, pid: i32) -> Option<&Inspection> {
+        self.inspected.as_ref().filter(|found| found.pid == pid)
     }
 
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
@@ -104,6 +112,10 @@ impl WindowList {
             WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::ProcessesScanned(forest) => {
                 self.processes = forest;
+                Action::None
+            }
+            WindowListMessage::ProcessInspected(inspected) => {
+                self.inspected = Some(inspected);
                 Action::None
             }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,

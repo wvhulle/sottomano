@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    future::pending,
     mem::zeroed,
     path::PathBuf,
     time::Duration,
@@ -17,6 +18,8 @@ use procfs::{
     ticks_per_second,
 };
 use tokio::{task::spawn_blocking, time::sleep};
+
+use crate::data::source::nix_store::Provenance;
 
 const SCAN_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -143,6 +146,7 @@ fn graft(mut node: Process, brood: &mut HashMap<i32, Vec<Process>>) -> Process {
     node
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Launch {
     pub binary: Option<PathBuf>,
     pub arguments: Vec<String>,
@@ -155,6 +159,45 @@ pub fn launch(pid: i32) -> Option<Launch> {
         binary: process.exe().ok(),
         arguments: process.cmdline().unwrap_or_default(),
         scope: scope(&process),
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Watched {
+    pub pid: i32,
+    pub app_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Inspection {
+    pub pid: i32,
+    pub launch: Launch,
+    pub provenance: Provenance,
+}
+
+fn inspect(watched: &Watched) -> Option<Inspection> {
+    let launch = launch(watched.pid)?;
+    let provenance = launch
+        .binary
+        .as_deref()
+        .map(|binary| Provenance::of(binary, &launch.arguments, watched.app_id.as_deref()))
+        .unwrap_or_default();
+    Some(Inspection {
+        pid: watched.pid,
+        launch,
+        provenance,
+    })
+}
+
+pub fn inspection(watched: Watched) -> Subscription<Inspection> {
+    Subscription::run_with(watched, |watched| {
+        let watched = watched.clone();
+        stream::channel(1, move |mut output: Sender<Inspection>| async move {
+            if let Ok(Some(inspected)) = spawn_blocking(move || inspect(&watched)).await {
+                let _ = output.send(inspected).await;
+            }
+            pending::<()>().await;
+        })
     })
 }
 
