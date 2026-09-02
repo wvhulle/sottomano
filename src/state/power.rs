@@ -4,20 +4,31 @@ use nalgebra::{Matrix3, Vector3};
 
 use crate::{
     data::source::power_profile::{Profile, RegressionState},
-    state::{StoreError, open, text},
+    state::{Columns, StoreError, open},
 };
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS power_regression (
+pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS power_model (
     battery TEXT NOT NULL,
     profile TEXT NOT NULL,
-    base_w TEXT NOT NULL,
-    k_bright TEXT NOT NULL,
-    k_load TEXT NOT NULL,
-    covariance TEXT NOT NULL,
+    base_w REAL NOT NULL,
+    k_bright REAL NOT NULL,
+    k_load REAL NOT NULL,
+    cov_00 REAL NOT NULL,
+    cov_01 REAL NOT NULL,
+    cov_02 REAL NOT NULL,
+    cov_10 REAL NOT NULL,
+    cov_11 REAL NOT NULL,
+    cov_12 REAL NOT NULL,
+    cov_20 REAL NOT NULL,
+    cov_21 REAL NOT NULL,
+    cov_22 REAL NOT NULL,
     PRIMARY KEY (battery, profile)
 )";
 
-pub(crate) const DROP_LEGACY_TABLE: &str = "DROP TABLE IF EXISTS power_profile";
+pub(crate) const DROP_LEGACY_TABLES: [&str; 2] = [
+    "DROP TABLE IF EXISTS power_profile",
+    "DROP TABLE IF EXISTS power_regression",
+];
 
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
     try_load(&battery).await.unwrap_or_else(|e| {
@@ -34,33 +45,46 @@ pub async fn save(battery: String, profile: Profile, state: RegressionState) {
 
 async fn try_load(battery: &str) -> Result<HashMap<Profile, RegressionState>, StoreError> {
     let conn = open().await?;
+    read_models(&conn, battery).await
+}
+
+async fn read_models(
+    conn: &turso::Connection,
+    battery: &str,
+) -> Result<HashMap<Profile, RegressionState>, StoreError> {
     let mut rows = conn
         .query(
-            "SELECT profile, base_w, k_bright, k_load, covariance FROM power_regression
-             WHERE battery = ?1",
+            "SELECT profile, base_w, k_bright, k_load,
+                    cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22
+             FROM power_model WHERE battery = ?1",
             (battery.to_string(),),
         )
         .await?;
+    let columns = Columns::of(&rows);
     let mut states = HashMap::new();
     while let Some(row) = rows.next().await? {
-        let Some(profile) = Profile::from_name(&text(&row, 0)?) else {
-            continue;
-        };
-        let (Ok(base_w), Ok(k_bright), Ok(k_load)) = (
-            text(&row, 1)?.parse(),
-            text(&row, 2)?.parse(),
-            text(&row, 3)?.parse(),
-        ) else {
-            continue;
-        };
-        let Some(covariance) = parse_covariance(&text(&row, 4)?) else {
+        let Some(profile) = Profile::from_name(&columns.text(&row, "profile")?) else {
             continue;
         };
         states.insert(
             profile,
             RegressionState {
-                coefficients: Vector3::new(base_w, k_bright, k_load),
-                covariance,
+                coefficients: Vector3::new(
+                    columns.real(&row, "base_w")?,
+                    columns.real(&row, "k_bright")?,
+                    columns.real(&row, "k_load")?,
+                ),
+                covariance: Matrix3::new(
+                    columns.real(&row, "cov_00")?,
+                    columns.real(&row, "cov_01")?,
+                    columns.real(&row, "cov_02")?,
+                    columns.real(&row, "cov_10")?,
+                    columns.real(&row, "cov_11")?,
+                    columns.real(&row, "cov_12")?,
+                    columns.real(&row, "cov_20")?,
+                    columns.real(&row, "cov_21")?,
+                    columns.real(&row, "cov_22")?,
+                ),
             },
         );
     }
@@ -73,38 +97,92 @@ async fn try_save(
     state: RegressionState,
 ) -> Result<(), StoreError> {
     let conn = open().await?;
+    write_model(&conn, battery, profile, state).await
+}
+
+async fn write_model(
+    conn: &turso::Connection,
+    battery: &str,
+    profile: Profile,
+    state: RegressionState,
+) -> Result<(), StoreError> {
     conn.execute(
-        "INSERT INTO power_regression (battery, profile, base_w, k_bright, k_load, covariance)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO power_model (battery, profile, base_w, k_bright, k_load,
+             cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
          ON CONFLICT(battery, profile)
-         DO UPDATE SET base_w = ?3, k_bright = ?4, k_load = ?5, covariance = ?6",
+         DO UPDATE SET base_w = ?3, k_bright = ?4, k_load = ?5,
+             cov_00 = ?6, cov_01 = ?7, cov_02 = ?8,
+             cov_10 = ?9, cov_11 = ?10, cov_12 = ?11,
+             cov_20 = ?12, cov_21 = ?13, cov_22 = ?14",
         (
             battery.to_string(),
             profile.name().to_string(),
-            state.coefficients[0].to_string(),
-            state.coefficients[1].to_string(),
-            state.coefficients[2].to_string(),
-            format_covariance(&state.covariance),
+            state.coefficients[0],
+            state.coefficients[1],
+            state.coefficients[2],
+            state.covariance[(0, 0)],
+            state.covariance[(0, 1)],
+            state.covariance[(0, 2)],
+            state.covariance[(1, 0)],
+            state.covariance[(1, 1)],
+            state.covariance[(1, 2)],
+            state.covariance[(2, 0)],
+            state.covariance[(2, 1)],
+            state.covariance[(2, 2)],
         ),
     )
     .await?;
     Ok(())
 }
 
-fn format_covariance(covariance: &Matrix3<f64>) -> String {
-    covariance
-        .as_slice()
-        .iter()
-        .map(f64::to_string)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
+#[cfg(test)]
+mod tests {
+    use nalgebra::{Matrix3, Vector3};
 
-fn parse_covariance(text: &str) -> Option<Matrix3<f64>> {
-    let values: Vec<f64> = text
-        .split_whitespace()
-        .map(str::parse)
-        .collect::<Result<_, _>>()
-        .ok()?;
-    (values.len() == 9).then(|| Matrix3::from_column_slice(&values))
+    use super::{CREATE_TABLE, Profile, RegressionState, read_models, write_model};
+
+    async fn connection() -> turso::Connection {
+        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
+        let conn = database.connect().unwrap();
+        conn.execute(CREATE_TABLE, ()).await.unwrap();
+        conn
+    }
+
+    fn distinct_state() -> RegressionState {
+        RegressionState {
+            coefficients: Vector3::new(1.5, 2.5, 3.5),
+            covariance: Matrix3::new(11.0, 12.0, 13.0, 21.0, 22.0, 23.0, 31.0, 32.0, 33.0),
+        }
+    }
+
+    #[tokio::test]
+    async fn coefficients_and_covariance_survive_a_round_trip() {
+        let conn = connection().await;
+        write_model(&conn, "BAT0", Profile::Balanced, distinct_state())
+            .await
+            .unwrap();
+
+        let models = read_models(&conn, "BAT0").await.unwrap();
+        assert_eq!(models[&Profile::Balanced], distinct_state());
+    }
+
+    #[tokio::test]
+    async fn upsert_replaces_the_row_for_the_same_battery_and_profile() {
+        let conn = connection().await;
+        write_model(&conn, "BAT0", Profile::Balanced, distinct_state())
+            .await
+            .unwrap();
+        let updated = RegressionState {
+            coefficients: Vector3::new(9.0, 9.0, 9.0),
+            covariance: Matrix3::identity(),
+        };
+        write_model(&conn, "BAT0", Profile::Balanced, updated)
+            .await
+            .unwrap();
+
+        let models = read_models(&conn, "BAT0").await.unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[&Profile::Balanced], updated);
+    }
 }

@@ -5,7 +5,7 @@ pub mod power;
 pub mod rate_limit;
 pub mod store;
 
-pub(crate) use store::{StoreError, integer, open, optional_text, text};
+pub(crate) use store::{Columns, StoreError, open};
 
 #[derive(Debug, Clone, Default)]
 pub struct Session {
