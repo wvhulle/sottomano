@@ -19,12 +19,12 @@ use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
-const FLOOR: f64 = 10_000.0;
+const FLOOR: ByteSize = ByteSize::kb(10);
+const CEILING: ByteSize = ByteSize::mb(125);
 
 pub trait Direction {
     const LABEL: &'static str;
     const ICON: Solid;
-    const CAP_BYTES_PER_SEC: f64;
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,6 @@ pub struct Upload;
 impl Direction for Upload {
     const LABEL: &'static str = "Up";
     const ICON: Solid = Solid::Upload;
-    const CAP_BYTES_PER_SEC: f64 = 12_500_000.0;
 }
 
 #[derive(Debug, Clone)]
@@ -42,13 +41,13 @@ pub struct Download;
 impl Direction for Download {
     const LABEL: &'static str = "Down";
     const ICON: Solid = Solid::Download;
-    const CAP_BYTES_PER_SEC: f64 = 25_000_000.0;
 }
 
 #[derive(Debug, Clone)]
 pub struct Throughput<D: Direction> {
     interfaces: Vec<String>,
-    rate: f64,
+    rate: ByteSize,
+    peak_rate: ByteSize,
     connectivity: Connectivity,
     direction: PhantomData<D>,
 }
@@ -89,33 +88,46 @@ impl Connectivity {
     }
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn format_rate(bytes_per_sec: f64) -> String {
-    let bytes = bytes_per_sec.max(0.0) as u64;
-    format!("{}/s", ByteSize::b(bytes).display().iec())
+fn format_rate(rate: ByteSize) -> String {
+    format!("{}/s", rate.display().iec())
+}
+
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+fn scaled(rate: ByteSize) -> f32 {
+    if rate <= FLOOR {
+        return 0.0;
+    }
+    let span = (CEILING.as_u64() as f64 / FLOOR.as_u64() as f64).ln();
+    let reach = (rate.as_u64() as f64 / FLOOR.as_u64() as f64).ln();
+    ((reach / span) as f32).clamp(0.0, 1.0)
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn percent(fraction: f32) -> i64 {
+    (fraction * 100.0).round() as i64
 }
 
 impl<D: Direction> Throughput<D> {
-    fn idle(&self) -> bool {
-        self.rate < FLOOR
+    fn current_fraction(&self) -> f32 {
+        if self.interfaces.is_empty() {
+            return 0.0;
+        }
+        scaled(self.rate)
+    }
+
+    fn peak_fraction(&self) -> f32 {
+        if self.interfaces.is_empty() {
+            return 0.0;
+        }
+        scaled(self.peak_rate)
     }
 
     fn load_level(&self) -> Level {
-        match self.gauge_percent() {
+        match percent(self.current_fraction()) {
             95.. => Level::Critical,
             80..95 => Level::Warning,
             _ => Level::Ok,
         }
-    }
-
-    fn gauge_percent(&self) -> i64 {
-        if self.interfaces.is_empty() || self.rate < FLOOR {
-            return 0;
-        }
-        let fraction = (self.rate / FLOOR).ln() / (D::CAP_BYTES_PER_SEC / FLOOR).ln();
-        #[allow(clippy::cast_possible_truncation)]
-        let percent = (fraction * 100.0).round() as i64;
-        percent.clamp(0, 100)
     }
 }
 
@@ -125,7 +137,7 @@ impl<D: Direction> BarWidget for Throughput<D> {
     }
 
     fn disabled(&self) -> bool {
-        self.idle() && self.level() == Level::Ok
+        self.peak_rate < FLOOR && self.level() == Level::Ok
     }
 
     fn level(&self) -> Level {
@@ -137,9 +149,17 @@ impl<D: Direction> BarWidget for Throughput<D> {
 
     fn value(&self) -> Option<Value> {
         Some(Value::Gauge {
-            percent: self.gauge_percent(),
+            percent: percent(self.peak_fraction()),
             unit: Unit::Percent,
         })
+    }
+
+    fn live_fraction(&self) -> f32 {
+        let peak = self.peak_fraction();
+        if peak <= 0.0 {
+            return 1.0;
+        }
+        (self.current_fraction() / peak).clamp(0.0, 1.0)
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -148,9 +168,10 @@ impl<D: Direction> BarWidget for Throughput<D> {
         }
         TooltipBody::rows(vec![
             row(D::LABEL, format_rate(self.rate)),
+            row("Peak", format_rate(self.peak_rate)),
             row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),
-            row("Capacity", format_rate(D::CAP_BYTES_PER_SEC)),
+            row("Capacity", format_rate(CEILING)),
         ])
     }
 }
@@ -167,10 +188,13 @@ pub fn subscription() -> Subscription<Readings> {
             let connection = Connection::system().await.ok();
             let mut ticks = IntervalStream::new(interval(Duration::from_secs(1)));
             let mut previous: Option<Sample> = None;
+            let mut peak = Rates::default();
             while ticks.next().await.is_some() {
                 let current = capture();
                 let link = connectivity(connection.as_ref()).await;
-                let readings = rate(previous.as_ref(), &current, link);
+                let rates = sample_rates(previous.as_ref(), &current);
+                peak = peak.raised_by(rates);
+                let readings = readings(&current, rates, peak, link);
                 previous = Some(current);
                 if output.send(readings).await.is_err() {
                     break;
@@ -191,10 +215,19 @@ struct Sample {
     at: Instant,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct Rates {
-    rx: f64,
-    tx: f64,
+    rx: ByteSize,
+    tx: ByteSize,
+}
+
+impl Rates {
+    fn raised_by(self, other: Self) -> Self {
+        Self {
+            rx: self.rx.max(other.rx),
+            tx: self.tx.max(other.tx),
+        }
+    }
 }
 
 fn capture() -> Sample {
@@ -209,42 +242,47 @@ fn capture() -> Sample {
     }
 }
 
-fn rate(previous: Option<&Sample>, current: &Sample, connectivity: Connectivity) -> Readings {
-    let rates = previous
-        .map(|prev| current.at.duration_since(prev.at).as_secs_f64())
-        .filter(|seconds| *seconds > 0.0)
+fn sample_rates(previous: Option<&Sample>, current: &Sample) -> Rates {
+    previous
+        .map(|prev| current.at.duration_since(prev.at))
+        .filter(|elapsed| elapsed.as_millis() > 0)
         .zip(previous)
-        .map(|(seconds, prev)| {
+        .map(|(elapsed, prev)| {
             current
                 .counters
                 .iter()
                 .filter_map(|(interface, now)| Some((now, prev.counters.get(interface)?)))
                 .fold(Rates::default(), |total, (now, was)| Rates {
-                    rx: total.rx + per_second(now.rx, was.rx, seconds),
-                    tx: total.tx + per_second(now.tx, was.tx, seconds),
+                    rx: total.rx + per_second(now.rx, was.rx, elapsed),
+                    tx: total.tx + per_second(now.tx, was.tx, elapsed),
                 })
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+fn readings(current: &Sample, rates: Rates, peak: Rates, connectivity: Connectivity) -> Readings {
     let interfaces: Vec<String> = current.counters.keys().cloned().collect();
     Readings {
         down: Throughput {
             interfaces: interfaces.clone(),
             rate: rates.rx,
+            peak_rate: peak.rx,
             connectivity,
             direction: PhantomData,
         },
         up: Throughput {
             interfaces,
             rate: rates.tx,
+            peak_rate: peak.tx,
             connectivity,
             direction: PhantomData,
         },
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
-fn per_second(now: u64, was: u64, seconds: f64) -> f64 {
-    now.saturating_sub(was) as f64 / seconds
+fn per_second(now: u64, was: u64, elapsed: Duration) -> ByteSize {
+    let bytes = u128::from(now.saturating_sub(was)) * 1000 / elapsed.as_millis();
+    ByteSize::b(u64::try_from(bytes).unwrap_or(u64::MAX))
 }
 
 fn read_counters(interface: &str) -> Counters {
