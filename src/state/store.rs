@@ -2,7 +2,7 @@ use std::{env, fmt, fs, io, ops::Deref, path::PathBuf};
 
 use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
-use super::{idle, launches, panel, power};
+use super::{idle, launches, panel, power, rate_limit};
 
 #[derive(Debug)]
 pub(crate) enum StoreError {
@@ -104,6 +104,7 @@ async fn build() -> Result<Store, StoreError> {
     connection.execute(idle::CREATE_TABLE, ()).await?;
     connection.execute(power::DROP_LEGACY_TABLE, ()).await?;
     connection.execute(power::CREATE_TABLE, ()).await?;
+    connection.execute(rate_limit::CREATE_TABLE, ()).await?;
     Ok(Store {
         connection,
         _database: database,
@@ -123,6 +124,10 @@ pub(crate) fn text(row: &turso::Row, index: usize) -> Result<String, StoreError>
         return Err(ColumnError::NotText { index }.into());
     };
     Ok(text.clone())
+}
+
+pub(crate) fn optional_text(row: &turso::Row, index: usize) -> Result<Option<String>, StoreError> {
+    Ok(row.get_value(index)?.as_text().cloned())
 }
 
 pub(crate) fn integer(row: &turso::Row, index: usize) -> Result<i64, StoreError> {

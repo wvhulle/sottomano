@@ -2,9 +2,10 @@ pub mod idle;
 pub mod launches;
 pub mod panel;
 pub mod power;
+pub mod rate_limit;
 pub mod store;
 
-pub(crate) use store::{StoreError, integer, open, text};
+pub(crate) use store::{StoreError, integer, open, optional_text, text};
 
 #[derive(Debug, Clone, Default)]
 pub struct Session {

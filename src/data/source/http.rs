@@ -44,7 +44,14 @@ impl From<reqwest::Error> for Error {
 
 pub struct Response {
     pub status: u16,
+    pub headers: HeaderMap,
     pub body: Option<Value>,
+}
+
+impl Response {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.get(name).and_then(|value| value.to_str().ok())
+    }
 }
 
 pub async fn get(
@@ -104,9 +111,11 @@ async fn request(
     }
     let resp = req.send().await?;
     let status = resp.status().as_u16();
+    let headers = resp.headers().clone();
     let bytes = resp.bytes().await?;
     Ok(Response {
         status,
+        headers,
         body: serde_json::from_slice(&bytes).ok(),
     })
 }
