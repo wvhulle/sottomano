@@ -12,7 +12,7 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::Config,
-    data::source::{Tooltip, app_icon::DesktopEntries, audio::WindowAudio, niri},
+    data::source::{Tooltip, app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
     wayland_layers::surface::Position,
     widgets::window_icon::WindowIcons,
 };
@@ -39,7 +39,7 @@ pub enum Action {
 }
 
 impl WindowGroup {
-    pub fn subscription(watched_window: bool) -> Subscription<WindowGroupMessage> {
+    pub fn subscription(watched_window: Option<Watched>) -> Subscription<WindowGroupMessage> {
         WindowList::subscription(watched_window).map(WindowGroupMessage::WindowList)
     }
 
@@ -49,6 +49,7 @@ impl WindowGroup {
             niri_state,
             window,
             pid.and_then(|pid| self.window_list.process(pid)),
+            pid.and_then(|pid| self.window_list.inspection(pid)),
         )
     }
 

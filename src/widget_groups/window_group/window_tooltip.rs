@@ -4,8 +4,9 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     data::source::{
-        Row, Tooltip, TooltipBody,
-        process::{self, Launch, Process},
+        Row, Section, Tooltip, TooltipBody,
+        nix_store::{Provenance, StorePackage},
+        process::{self, Inspection, Launch, Process},
         row, section, tree_section, untitled,
     },
     wayland_layers::tooltip::relative,
@@ -15,14 +16,13 @@ pub fn tooltip(
     niri_state: &EventStreamState,
     window: u64,
     tree: Option<&Process>,
+    inspected: Option<&Inspection>,
 ) -> Option<Tooltip> {
     let window = niri_state.windows.windows.get(&window)?;
-    let mut sections = vec![
-        untitled(identity(window)),
-        section("Layout", layout(niri_state, window)),
-    ];
-    if let Some(launched) = window.pid.and_then(process::launch) {
-        sections.push(section("Command", command(&launched)));
+    let mut sections = vec![untitled(identity(window))];
+    if let Some(inspected) = inspected {
+        sections.extend(packages(&inspected.provenance));
+        sections.push(section("Command", command(inspected)));
     }
     if let Some(root) = tree {
         sections.push(tree_section("Process", root.clone()));
@@ -39,31 +39,6 @@ fn identity(window: &niri_ipc::Window) -> Vec<Row> {
         rows.push(row("App id", app_id.clone()));
     }
     rows.push(row("Window id", window.id.to_string()));
-    rows
-}
-
-fn layout(niri_state: &EventStreamState, window: &niri_ipc::Window) -> Vec<Row> {
-    let mut rows = Vec::new();
-    if let Some(workspace) = window
-        .workspace_id
-        .and_then(|id| niri_state.workspaces.workspaces.get(&id))
-    {
-        let name = workspace.name.as_ref().filter(|name| !name.is_empty());
-        rows.push(row(
-            "Workspace",
-            match name {
-                Some(name) => format!("{} · {name}", workspace.idx),
-                None => workspace.idx.to_string(),
-            },
-        ));
-    }
-    rows.push(row(
-        "Position",
-        match window.layout.pos_in_scrolling_layout {
-            Some((column, tile)) => format!("column {column}, tile {tile}"),
-            None => "floating".to_owned(),
-        },
-    ));
     if let Some(focused) = focus_age(window) {
         rows.push(row(
             "Focused",
@@ -79,12 +54,40 @@ fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
     process::monotonic()?.checked_sub(stamp)
 }
 
-fn command(launched: &Launch) -> Vec<Row> {
+fn versioned(package: &StorePackage) -> Row {
+    row(
+        &package.name,
+        package.version.clone().unwrap_or_else(|| "—".to_owned()),
+    )
+}
+
+fn packages(provenance: &Provenance) -> Vec<Section> {
+    let mut sections = Vec::new();
+    if let Some(package) = &provenance.package {
+        sections.push(section("Package", vec![versioned(package)]));
+    }
+    if let Some(runtime) = &provenance.runtime {
+        sections.push(section("Runtime", vec![versioned(runtime)]));
+    }
+    if !provenance.referenced.is_empty() {
+        sections.push(section(
+            "Referenced",
+            provenance.referenced.iter().map(versioned).collect(),
+        ));
+    }
+    sections
+}
+
+fn command(inspected: &Inspection) -> Vec<Row> {
+    let launched = &inspected.launch;
     let mut rows = Vec::new();
+    if let Some(provider) = &inspected.provenance.profile {
+        rows.push(row("Profile", provider.clone()));
+    }
     if let Some(binary) = &launched.binary {
         rows.push(row("Binary", binary.display().to_string()));
     }
-    for (index, argument) in launched.arguments.iter().enumerate() {
+    for (index, argument) in beyond_binary(launched).enumerate() {
         let key = if index == 0 { "Command" } else { "" };
         rows.push(row(key, argument.clone()));
     }
@@ -92,4 +95,13 @@ fn command(launched: &Launch) -> Vec<Row> {
         rows.push(row("Scope", scope.clone()));
     }
     rows
+}
+
+fn beyond_binary(launched: &Launch) -> impl Iterator<Item = &String> {
+    let echoes_binary = launched
+        .binary
+        .as_ref()
+        .zip(launched.arguments.first())
+        .is_some_and(|(binary, first)| binary.as_os_str() == first.as_str());
+    launched.arguments.iter().skip(usize::from(echoes_binary))
 }
