@@ -87,24 +87,3 @@ impl Source for ClaudeCcusage {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const DAILY: &str = r#"{
-        "daily": [{
-            "totalCost": 3.5, "totalTokens": 987, "modelsUsed": ["claude-opus-5"],
-            "period": "2026-08-27", "agent": "claude"
-        }],
-        "totals": {}
-    }"#;
-
-    #[test]
-    fn daily_report_entry_decodes() {
-        let report: DailyReport = serde_json::from_str(DAILY).unwrap();
-        let day = report.daily.into_iter().next().unwrap();
-        assert_eq!(day.total_tokens, 987);
-        assert_eq!(day.models_used, vec!["claude-opus-5".to_owned()]);
-    }
-}

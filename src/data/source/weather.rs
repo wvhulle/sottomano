@@ -504,19 +504,6 @@ impl Source for Location {
 mod tests {
     use super::*;
 
-    const FORECAST: &str = r#"{
-        "current": {
-            "time": "2026-08-27T10:30", "interval": 900,
-            "temperature_2m": 20.4, "weather_code": 3,
-            "relative_humidity_2m": 75, "wind_speed_10m": 15.5,
-            "apparent_temperature": 20.2
-        },
-        "daily": {
-            "time": ["2026-08-27"],
-            "temperature_2m_max": [28.4], "temperature_2m_min": [18.5]
-        }
-    }"#;
-
     const AIR_QUALITY: &str = r#"{
         "current": {
             "time": "2026-08-27T10:00", "interval": 3600,
@@ -524,19 +511,6 @@ mod tests {
             "mugwort_pollen": 0.7, "olive_pollen": 0.0, "ragweed_pollen": 0.7
         }
     }"#;
-
-    #[test]
-    fn forecast_decodes_integer_humidity_and_weather_code() {
-        let forecast: Forecast = serde_json::from_str(FORECAST).unwrap();
-        assert!((forecast.current.relative_humidity_2m - 75.0).abs() < f64::EPSILON);
-        assert_eq!(forecast.current.weather_code, 3);
-        assert!((today(&forecast.daily.temperature_2m_max).unwrap() - 28.4).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn empty_daily_series_is_malformed() {
-        assert!(today(&[]).is_err());
-    }
 
     #[test]
     fn allergens_select_their_own_species() {

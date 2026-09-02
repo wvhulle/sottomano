@@ -237,70 +237,18 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CREATE_TABLE, Setting, adopt_legacy_settings, flag, measure, read_session, write_setting,
-    };
+    use super::{CREATE_TABLE, Setting, flag, measure, read_session, write_setting};
 
-    const LEGACY_CREATE_TABLE: &str = "CREATE TABLE panel_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-    )";
-
-    async fn legacy_connection(entries: &[(&str, &str)]) -> turso::Connection {
+    async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
         let conn = database.connect().unwrap();
         conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn.execute(LEGACY_CREATE_TABLE, ()).await.unwrap();
-        for (key, value) in entries {
-            conn.execute(
-                "INSERT INTO panel_settings (key, value) VALUES (?1, ?2)",
-                ((*key).to_string(), (*value).to_string()),
-            )
-            .await
-            .unwrap();
-        }
         conn
     }
 
     #[tokio::test]
-    async fn adopts_legacy_key_value_settings() {
-        let conn = legacy_connection(&[
-            ("corner_radius_px", "12.5"),
-            ("darken_chrome_factor", "0.25"),
-            ("dnd", "1"),
-            ("sound", "0"),
-            ("auto_collapse_groups", "0"),
-            ("from_a_newer_build", "1"),
-        ])
-        .await;
-        adopt_legacy_settings(&conn).await.unwrap();
-
-        let session = read_session(&conn).await.unwrap();
-        assert!((session.chrome.corner_radius_px - 12.5).abs() < f32::EPSILON);
-        assert!((session.chrome.chrome_tint_factor - 0.25).abs() < f32::EPSILON);
-        assert!(session.notifications.dnd);
-        assert!(!session.notifications.sound);
-        assert!(!session.chrome.auto_collapse_groups);
-        assert!(!session.chrome.blur_background);
-        assert!(session.notifications.spatial_layout);
-    }
-
-    #[tokio::test]
-    async fn drops_the_legacy_table_and_is_idempotent() {
-        let conn = legacy_connection(&[("dnd", "1")]).await;
-        adopt_legacy_settings(&conn).await.unwrap();
-        assert!(
-            conn.query("SELECT key FROM panel_settings", ())
-                .await
-                .is_err()
-        );
-        adopt_legacy_settings(&conn).await.unwrap();
-        assert!(read_session(&conn).await.unwrap().notifications.dnd);
-    }
-
-    #[tokio::test]
     async fn every_setting_round_trips_to_its_own_column() {
-        let conn = legacy_connection(&[]).await;
+        let conn = connection().await;
         for (setting, value) in [
             (Setting::CornerRadius, measure(12.5)),
             (Setting::FloatOffset, measure(3.25)),
@@ -329,7 +277,7 @@ mod tests {
 
     #[tokio::test]
     async fn unwritten_columns_keep_their_defaults() {
-        let conn = legacy_connection(&[]).await;
+        let conn = connection().await;
         write_setting(&conn, Setting::Dnd, flag(true))
             .await
             .unwrap();

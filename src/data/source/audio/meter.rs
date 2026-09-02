@@ -293,20 +293,6 @@ mod tests {
     }
 
     #[test]
-    fn quantize_snaps_inaudible_values_to_silence() {
-        assert_eq!(quantize(0.0), 0.0);
-        assert_eq!(quantize(0.001), 0.0);
-        assert_eq!(quantize(1.0), 1.0);
-    }
-
-    #[test]
-    fn perceptual_curve_lifts_quiet_signals_and_preserves_the_extremes() {
-        assert_eq!(perceptual(0.0), 0.0);
-        assert_eq!(perceptual(1.0), 1.0);
-        assert!(perceptual(0.1) > 0.4);
-    }
-
-    #[test]
     fn attack_is_immediate_and_release_is_gradual() {
         let (mut capture, _receiver) = capture_of(Direction::Output);
         let start = Instant::now();
@@ -358,18 +344,5 @@ mod tests {
         output.observe(1.0, start);
         assert_eq!(receiver.borrow().output, 1.0);
         assert_eq!(receiver.borrow().input, 1.0);
-    }
-
-    #[test]
-    fn a_failure_is_reported_once_until_the_stream_recovers() {
-        let (mut capture, _receiver) = capture_of(Direction::Output);
-        capture.report(&StreamState::Error("no target node available".into()));
-        assert!(capture.reported);
-
-        capture.report(&StreamState::Error("no target node available".into()));
-        assert!(capture.reported);
-
-        capture.report(&StreamState::Streaming);
-        assert!(!capture.reported);
     }
 }

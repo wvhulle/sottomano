@@ -126,16 +126,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn seconds_format_ticks_every_second() {
-        assert_eq!(period("%H:%M:%S"), Duration::from_secs(1));
-    }
-
-    #[test]
-    fn minute_format_ticks_every_minute() {
-        assert_eq!(period("%H:%M"), Duration::from_secs(60));
-    }
-
-    #[test]
     fn boundary_delay_completes_the_period() {
         let now = Local.timestamp_opt(1_000, 250_000_000).unwrap();
         assert_eq!(

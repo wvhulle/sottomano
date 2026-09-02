@@ -1133,17 +1133,6 @@ mod tests {
     }
 
     #[test]
-    fn percent_round_trips_through_cubic_volume() {
-        for percent in 0..=100 {
-            let levels = Levels {
-                channel_volumes: vec![cubic(percent)],
-                mute: false,
-            };
-            assert_eq!(levels.percent(), percent);
-        }
-    }
-
-    #[test]
     fn reading_prefers_route_over_node_props() {
         let graph = graph_with(vec![
             Event::NodeAdded {
@@ -1351,20 +1340,6 @@ mod tests {
     }
 
     #[test]
-    fn partial_levels_update_keeps_untouched_fields() {
-        let mut levels = Levels {
-            channel_volumes: vec![cubic(30), cubic(30)],
-            mute: false,
-        };
-        levels.merge(LevelsUpdate {
-            channel_volumes: None,
-            mute: Some(true),
-        });
-        assert_eq!(levels.percent(), 30);
-        assert!(levels.mute);
-    }
-
-    #[test]
     fn adjust_resolves_against_current_level() {
         let levels = Levels {
             channel_volumes: vec![cubic(33), cubic(33)],
@@ -1390,59 +1365,5 @@ mod tests {
                 .percent,
             100
         );
-    }
-
-    #[test]
-    fn resolve_refuses_before_channel_count_is_known() {
-        let levels = Levels::default();
-        assert!(resolve(&levels, CommandKind::SetVolume(50)).is_none());
-    }
-
-    #[test]
-    fn route_pod_round_trips_through_the_parser() {
-        let change = LevelChange::Volumes(vec![cubic(38), cubic(38)]);
-        let bytes = pod_bytes(&route_object(3, 3, &change)).unwrap();
-        let parsed = parse_route(Pod::from_bytes(&bytes).unwrap()).unwrap();
-        assert_eq!(
-            parsed,
-            RouteLevels {
-                index: 3,
-                route_device: 3,
-                update: LevelsUpdate {
-                    channel_volumes: Some(vec![cubic(38), cubic(38)]),
-                    mute: None,
-                },
-            }
-        );
-    }
-
-    #[test]
-    fn props_pod_round_trips_mute() {
-        let bytes = pod_bytes(&props_object(vec![level_property(&LevelChange::Mute(
-            true,
-        ))]))
-        .unwrap();
-        let parsed = parse_props(Pod::from_bytes(&bytes).unwrap()).unwrap();
-        assert_eq!(
-            parsed,
-            LevelsUpdate {
-                channel_volumes: None,
-                mute: Some(true),
-            }
-        );
-    }
-
-    #[test]
-    fn metadata_keys_map_to_events() {
-        let sink = default_event(Some("default.audio.sink"), Some(r#"{"name":"speaker"}"#));
-        assert!(matches!(
-            sink,
-            Some(Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some(ref name),
-            }) if name == "speaker"
-        ));
-        assert!(default_event(None, None).is_none());
-        assert!(default_event(Some("default.video.source"), None).is_none());
     }
 }

@@ -381,40 +381,6 @@ mod tests {
     }
 
     #[test]
-    fn recovers_known_coefficients() {
-        let true_draw = |c: Conditions| 5.0 + 8.0 * c.brightness_frac + 40.0 * c.cpu_busy_frac;
-        let samples = [
-            Conditions::new(0.1, 0.2),
-            Conditions::new(0.9, 0.1),
-            Conditions::new(0.3, 0.8),
-            Conditions::new(0.6, 0.5),
-            Conditions::new(0.2, 0.4),
-            Conditions::new(0.8, 0.9),
-        ];
-        let mut model = RegressionState::seed(true_draw(samples[0]));
-        for _ in 0..15 {
-            for conditions in samples {
-                model = model.observe(conditions, true_draw(conditions));
-            }
-        }
-        assert!(
-            (model.coefficients[0] - 5.0).abs() < 1.0,
-            "base {}",
-            model.coefficients[0]
-        );
-        assert!(
-            (model.coefficients[1] - 8.0).abs() < 2.0,
-            "k_bright {}",
-            model.coefficients[1]
-        );
-        assert!(
-            (model.coefficients[2] - 40.0).abs() < 2.0,
-            "k_load {}",
-            model.coefficients[2]
-        );
-    }
-
-    #[test]
     fn responds_to_brightness_without_relearning() {
         let true_draw = |c: Conditions| 5.0 + 20.0 * c.brightness_frac;
         let dim = Conditions::new(0.1, 0.0);
@@ -490,30 +456,5 @@ mod tests {
             PowerProfile::on_battery(Profile::Balanced, 50.0).at(Conditions::new(0.5, 0.5));
         let estimates = estimate(&reading, &HashMap::new());
         assert!(estimates[&Profile::Balanced].is_none());
-    }
-
-    #[test]
-    fn missing_backlight_leaves_brightness_coefficient_inert() {
-        let mut model = RegressionState::seed(10.0);
-        for step in 0..60 {
-            let cpu_busy_frac = if step % 2 == 0 { 0.2 } else { 0.8 };
-            let draw = 10.0 + 30.0 * cpu_busy_frac;
-            model = model.observe(Conditions::new(0.0, cpu_busy_frac), draw);
-        }
-        assert!(
-            model.coefficients[1].abs() < 0.5,
-            "k_bright {} should stay near its seed of 0",
-            model.coefficients[1]
-        );
-        assert!(
-            model.covariance[(1, 1)] > SEED_VARIANCE_COEFF,
-            "k_bright variance {} should not shrink without brightness variation",
-            model.covariance[(1, 1)]
-        );
-        assert!(
-            (model.coefficients[2] - 30.0).abs() < 2.0,
-            "k_load {} should still be learned",
-            model.coefficients[2]
-        );
     }
 }

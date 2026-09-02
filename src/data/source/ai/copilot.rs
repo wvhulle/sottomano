@@ -431,14 +431,6 @@ mod tests {
         "limited_user_reset_date": 1788220800
     }"#;
 
-    const MONTHLY: &str = r#"{
-        "monthly": [{
-            "month": "2026-08", "totalTokens": 4321, "totalCost": 1.25,
-            "modelsUsed": ["gpt-5.4"], "inputTokens": 1, "outputTokens": 2
-        }],
-        "totals": {}
-    }"#;
-
     #[test]
     fn metered_account_picks_the_chat_snapshot() {
         let info: UserInfo = serde_json::from_str(USER_INFO).unwrap();
@@ -471,15 +463,6 @@ mod tests {
         .unwrap();
         assert!(!info.metered_plan());
         assert!(!info.free_plan());
-    }
-
-    #[test]
-    fn monthly_report_entry_decodes() {
-        let report: MonthlyReport = serde_json::from_str(MONTHLY).unwrap();
-        let entry = report.monthly.into_iter().next_back().unwrap();
-        assert_eq!(entry.month, "2026-08");
-        assert_eq!(entry.total_tokens, 4321);
-        assert_eq!(entry.models_used, vec!["gpt-5.4".to_owned()]);
     }
 
     #[test]

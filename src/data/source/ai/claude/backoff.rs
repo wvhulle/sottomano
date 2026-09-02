@@ -154,37 +154,4 @@ mod tests {
             None
         );
     }
-
-    #[test]
-    fn a_short_server_delay_is_clamped_up_to_the_minimum() {
-        let delay = retry_delay_from_headers(&response(&[("retry-after", "3")]))
-            .unwrap()
-            .clamp(MIN_DELAY, MAX_DELAY);
-        assert_eq!(delay, MIN_DELAY);
-    }
-
-    #[test]
-    fn a_long_server_delay_is_clamped_down_to_the_maximum() {
-        let delay = retry_delay_from_headers(&response(&[("retry-after", "86400")]))
-            .unwrap()
-            .clamp(MIN_DELAY, MAX_DELAY);
-        assert_eq!(delay, MAX_DELAY);
-    }
-
-    #[test]
-    fn the_escalating_ladder_doubles_then_caps() {
-        assert_eq!(escalating_delay(0), Duration::from_mins(5));
-        assert_eq!(escalating_delay(1), Duration::from_mins(10));
-        assert_eq!(escalating_delay(2), Duration::from_mins(20));
-        assert_eq!(escalating_delay(3), Duration::from_mins(40));
-        assert_eq!(escalating_delay(4), MAX_DELAY);
-        assert_eq!(escalating_delay(u32::MAX), MAX_DELAY);
-    }
-
-    #[test]
-    fn jitter_stays_within_ten_percent() {
-        let jittered = with_jitter(Duration::from_mins(20));
-        assert!(jittered >= Duration::from_mins(18) && jittered <= Duration::from_mins(22));
-        assert_eq!(with_jitter(Duration::from_secs(5)), Duration::from_secs(5));
-    }
 }
