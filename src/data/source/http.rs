@@ -7,6 +7,7 @@ use reqwest::{
     Method,
     header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue},
 };
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +17,8 @@ pub enum Error {
     Request(String),
     Body(String),
     Empty,
+    Status(u16),
+    Decode(String),
 }
 
 impl Display for Error {
@@ -26,6 +29,8 @@ impl Display for Error {
             Error::Request(detail) => write!(f, "{detail}"),
             Error::Body(detail) => write!(f, "unreadable response: {detail}"),
             Error::Empty => write!(f, "empty response"),
+            Error::Status(code) => write!(f, "HTTP {code}"),
+            Error::Decode(detail) => write!(f, "unexpected response: {detail}"),
         }
     }
 }
@@ -77,6 +82,19 @@ pub async fn get_text(url: &str, timeout_secs: u64) -> Result<String, Error> {
         return Err(Error::Empty);
     }
     Ok(body)
+}
+
+pub async fn get_json<T: DeserializeOwned>(
+    url: &str,
+    headers: &[(&str, &str)],
+    timeout_secs: u64,
+) -> Result<T, Error> {
+    let response = get(url, headers, timeout_secs).await?;
+    if response.status != 200 {
+        return Err(Error::Status(response.status));
+    }
+    serde_json::from_value(response.body.unwrap_or(Value::Null))
+        .map_err(|error| Error::Decode(error.to_string()))
 }
 
 fn client(timeout_secs: u64) -> Result<reqwest::Client, Error> {

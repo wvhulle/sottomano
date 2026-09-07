@@ -101,7 +101,6 @@ impl QuickLaunch {
         Some(self.menu.view(
             config,
             position,
-            reveal,
             handle,
             content.into(),
             QuickLaunchMessage::Menu,

@@ -40,6 +40,7 @@ pub struct SecretPaths {
     pub openrouter_management: Option<PathBuf>,
     pub claude_code_oauth: Option<PathBuf>,
     pub gh_auth_token: Option<PathBuf>,
+    pub unsplash_access_key: Option<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -154,6 +155,10 @@ pub fn load() -> Config {
             gh_auth_token: secrets
                 .as_ref()
                 .map(|dir| dir.join("gh-auth-token"))
+                .filter(|path| path.is_file()),
+            unsplash_access_key: secrets
+                .as_ref()
+                .map(|dir| dir.join("unsplash-access-key"))
                 .filter(|path| path.is_file()),
         },
     }

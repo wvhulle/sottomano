@@ -37,6 +37,7 @@ use crate::{
         power_profile_group::PowerProfileMessage,
         system_group::SystemMessage,
         tray_group::TrayMessage,
+        wallpaper_group::WallpaperMessage,
         weather_group::WeatherMessage,
         window_group::{WindowGroupMessage, window_list::WindowListMessage},
         workspaces_group::{self, WorkspacesMessage},
@@ -227,6 +228,10 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
                     m => Message::IdleTimeouts(m),
                 },
             ),
+            slot(bar.wallpaper_group.view(config, position), |m| match m {
+                WallpaperMessage::Tooltip(t) => Message::Tooltip(t),
+                m => Message::Wallpaper(m),
+            }),
             slot(
                 bar.media_group.view(config, &bar.desktop_entries, position),
                 |m| match m {

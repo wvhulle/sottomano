@@ -236,7 +236,6 @@ impl IdleTimeoutsGroup {
         self.menu.view(
             config,
             position,
-            reveal,
             handle,
             content.into(),
             IdleTimeoutsMessage::Menu,

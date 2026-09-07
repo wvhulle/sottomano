@@ -195,6 +195,23 @@ in
           shows if `ccusage` is installed).
         '';
       };
+
+      "unsplash-access-key" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file holding an Unsplash **access key** (the Client-ID of a
+          registered application at https://unsplash.com/developers) as plain
+          text. Not the Unsplash secret key, which only the OAuth flow uses and
+          the bar never sends. The wallpaper pill reads it and calls
+          `/photos/{id}` to turn the Unsplash photo id embedded in the current
+          wallpaper's filename into a caption, photographer and place, then looks
+          that place up on the Wikipedia edition matching the session locale.
+          Symlinked into ~/.config/vetrata/. The pill needs no configuration: it
+          shows when this key and a wallpaper daemon (`awww` or `swww`, tried in
+          that order) are both present, and hides otherwise.
+        '';
+      };
     };
 
     umbra.enable = lib.mkOption {
@@ -244,6 +261,10 @@ in
 
       "vetrata/gh-auth-token" = lib.mkIf (cfg.secretFiles."gh-auth-token" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."gh-auth-token";
+      };
+
+      "vetrata/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
+        source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."unsplash-access-key";
       };
     };
 

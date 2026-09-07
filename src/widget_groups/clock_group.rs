@@ -86,15 +86,8 @@ impl ClockGroup {
             .spacing(config.spacing.widget_spacing_px)
             .align_y(Alignment::Center);
 
-        let reveal = self.menu.reveal();
-        self.menu.view(
-            config,
-            position,
-            reveal,
-            handle,
-            content.into(),
-            ClockMessage::Menu,
-        )
+        self.menu
+            .view(config, position, handle, content.into(), ClockMessage::Menu)
     }
 }
 

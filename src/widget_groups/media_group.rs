@@ -227,14 +227,10 @@ impl MediaGroup {
         .spacing(config.spacing.widget_spacing_px)
         .align_y(Alignment::Center);
 
-        Some(self.menu.view(
-            config,
-            position,
-            reveal,
-            handle,
-            content.into(),
-            MediaMessage::Menu,
-        ))
+        Some(
+            self.menu
+                .view(config, position, handle, content.into(), MediaMessage::Menu),
+        )
     }
 }
 

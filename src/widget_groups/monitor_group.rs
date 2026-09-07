@@ -188,11 +188,9 @@ impl MonitorGroup {
         let content = Row::with_children(children)
             .spacing(config.spacing.widget_spacing_px)
             .align_y(Alignment::Center);
-        let reveal = self.menu.reveal();
         Some(self.menu.view(
             config,
             position,
-            reveal,
             Self::handle(config),
             content.into(),
             MonitorMessage::Menu,

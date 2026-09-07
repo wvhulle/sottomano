@@ -50,6 +50,7 @@ use crate::{
         power_profile_group::{PowerProfileGroup, PowerProfileMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{self, TrayGroup, TrayMessage},
+        wallpaper_group::{WallpaperGroup, WallpaperMessage},
         weather_group::{WeatherGroup, WeatherMessage},
         window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
         workspaces_group::workspace_tooltip,
@@ -62,6 +63,7 @@ pub struct Bar {
     pub(crate) theme: iced::Theme,
     pub(crate) session: Session,
     pub(crate) weather_group: WeatherGroup,
+    pub(crate) wallpaper_group: WallpaperGroup,
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
@@ -106,6 +108,7 @@ pub enum OutputChange {
 #[derive(Debug, Clone)]
 pub enum Message {
     Weather(WeatherMessage),
+    Wallpaper(WallpaperMessage),
     Battery(BatteryMessage),
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
@@ -160,6 +163,7 @@ impl Bar {
     pub fn new(config: Config) -> (Self, Task<Message>) {
         let bar = Self {
             weather_group: WeatherGroup::default(),
+            wallpaper_group: WallpaperGroup::new(&config.secrets),
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
@@ -212,6 +216,7 @@ impl Bar {
                 .probe()
                 .map(Message::ColorTemperature),
             bar.ai_group.probe().map(Message::Ai),
+            bar.wallpaper_group.probe().map(Message::Wallpaper),
         ]);
         (bar, init)
     }
@@ -243,6 +248,7 @@ impl Bar {
                 Task::none()
             }
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
+            Message::Wallpaper(msg) => self.wallpaper_group.update(msg).map(Message::Wallpaper),
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
@@ -556,6 +562,7 @@ impl Bar {
             .or_else(|| self.idle_timeouts_group.tooltip_for(target))
             .or_else(|| self.internet_group.tooltip_for(target))
             .or_else(|| self.weather_group.tooltip_for(target))
+            .or_else(|| self.wallpaper_group.tooltip_for(target))
             .or_else(|| self.media_group.tooltip_for(target))
             .or_else(|| self.ai_group.tooltip_for(target))
             .or_else(|| {
@@ -597,8 +604,9 @@ impl Bar {
             .map(Message::ColorTemperature)
     }
 
-    fn menus(&self) -> [&MenuGroup; 12] {
+    fn menus(&self) -> [&MenuGroup; 13] {
         [
+            &self.wallpaper_group.menu,
             &self.clock_group.menu,
             &self.monitor_group.menu,
             &self.color_temperature_group.menu,
@@ -632,6 +640,7 @@ impl Bar {
         self.monitor_group.close_menu();
         self.color_temperature_group.close_menu();
         let _ = [
+            &mut self.wallpaper_group.menu,
             &mut self.clock_group.menu,
             &mut self.weather_group.menu,
             &mut self.system_group.menu,

@@ -96,6 +96,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     Subscription::batch([
         outputs(),
         WeatherGroup::subscription().map(Message::Weather),
+        state.wallpaper_group.subscription().map(Message::Wallpaper),
         state.battery_group.subscription().map(Message::Battery),
         state.system_group.subscription().map(Message::System),
         ClockGroup::subscription().map(Message::Clock),
