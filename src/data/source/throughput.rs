@@ -2,6 +2,7 @@ use std::{
     collections::BTreeMap,
     fs,
     marker::PhantomData,
+    ops::Add,
     time::{Duration, Instant},
 };
 
@@ -19,8 +20,11 @@ use crate::data::source::{
     BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::Solid, row,
 };
 
-const FLOOR: ByteSize = ByteSize::kb(10);
-const CEILING: ByteSize = ByteSize::mb(125);
+const BACKGROUND_CHATTER: ByteSize = ByteSize::kb(10);
+const SCALE_START: ByteSize = ByteSize::kb(100);
+const SCALE_END: ByteSize = ByteSize::mb(125);
+const HI_RES_AUDIO_STREAM: ByteSize = ByteSize::kb(1_152);
+const HI_RES_VIDEO_STREAM: ByteSize = ByteSize::kb(3_125);
 
 pub trait Direction {
     const LABEL: &'static str;
@@ -92,14 +96,19 @@ fn format_rate(rate: ByteSize) -> String {
     format!("{}/s", rate.display().iec())
 }
 
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-fn scaled(rate: ByteSize) -> f32 {
-    if rate <= FLOOR {
+#[allow(clippy::cast_precision_loss)]
+fn ratio(quantity: ByteSize, reference: ByteSize) -> f64 {
+    quantity.as_u64() as f64 / reference.as_u64() as f64
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn fraction_of_scale(rate: ByteSize) -> f32 {
+    if rate <= SCALE_START {
         return 0.0;
     }
-    let span = (CEILING.as_u64() as f64 / FLOOR.as_u64() as f64).ln();
-    let reach = (rate.as_u64() as f64 / FLOOR.as_u64() as f64).ln();
-    ((reach / span) as f32).clamp(0.0, 1.0)
+    let log_width_of_scale = ratio(SCALE_END, SCALE_START).ln();
+    let log_position_of_rate = ratio(rate, SCALE_START).ln();
+    ((log_position_of_rate / log_width_of_scale) as f32).clamp(0.0, 1.0)
 }
 
 #[allow(clippy::cast_possible_truncation)]
@@ -108,24 +117,32 @@ fn percent(fraction: f32) -> i64 {
 }
 
 impl<D: Direction> Throughput<D> {
-    fn current_fraction(&self) -> f32 {
+    fn fraction_of_carried(&self, rate: ByteSize) -> f32 {
         if self.interfaces.is_empty() {
             return 0.0;
         }
-        scaled(self.rate)
+        fraction_of_scale(rate)
+    }
+
+    fn current_fraction(&self) -> f32 {
+        self.fraction_of_carried(self.rate)
     }
 
     fn peak_fraction(&self) -> f32 {
-        if self.interfaces.is_empty() {
-            return 0.0;
-        }
-        scaled(self.peak_rate)
+        self.fraction_of_carried(self.peak_rate)
     }
 
-    fn load_level(&self) -> Level {
-        match percent(self.current_fraction()) {
-            95.. => Level::Critical,
-            80..95 => Level::Warning,
+    fn unused(&self) -> bool {
+        self.peak_rate <= BACKGROUND_CHATTER
+    }
+
+    fn link_level(&self) -> Level {
+        if self.unused() {
+            return Level::Ok;
+        }
+        match self.peak_rate {
+            peak if peak < HI_RES_AUDIO_STREAM => Level::Critical,
+            peak if peak < HI_RES_VIDEO_STREAM => Level::Warning,
             _ => Level::Ok,
         }
     }
@@ -137,14 +154,14 @@ impl<D: Direction> BarWidget for Throughput<D> {
     }
 
     fn disabled(&self) -> bool {
-        self.peak_rate < FLOOR && self.level() == Level::Ok
+        self.unused() && self.level() == Level::Ok
     }
 
     fn level(&self) -> Level {
         if self.interfaces.is_empty() {
             return Level::Critical;
         }
-        self.connectivity.level().max(self.load_level())
+        self.connectivity.level().max(self.link_level())
     }
 
     fn value(&self) -> Option<Value> {
@@ -171,7 +188,7 @@ impl<D: Direction> BarWidget for Throughput<D> {
             row("Peak", format_rate(self.peak_rate)),
             row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),
-            row("Capacity", format_rate(CEILING)),
+            row("Capacity", format_rate(SCALE_END)),
         ])
     }
 }
@@ -187,16 +204,10 @@ pub fn subscription() -> Subscription<Readings> {
         channel(16, |mut output: Sender<Readings>| async move {
             let connection = Connection::system().await.ok();
             let mut ticks = IntervalStream::new(interval(Duration::from_secs(1)));
-            let mut previous: Option<Sample> = None;
-            let mut peak = Rates::default();
+            let mut session = Session::default();
             while ticks.next().await.is_some() {
-                let current = capture();
                 let link = connectivity(connection.as_ref()).await;
-                let rates = sample_rates(previous.as_ref(), &current);
-                peak = peak.raised_by(rates);
-                let readings = readings(&current, rates, peak, link);
-                previous = Some(current);
-                if output.send(readings).await.is_err() {
+                if output.send(session.observe(capture(), link)).await.is_err() {
                     break;
                 }
             }
@@ -206,13 +217,32 @@ pub fn subscription() -> Subscription<Readings> {
 
 #[derive(Default, Clone, Copy)]
 struct Counters {
-    rx: u64,
-    tx: u64,
+    rx: ByteSize,
+    tx: ByteSize,
 }
 
 struct Sample {
     counters: BTreeMap<String, Counters>,
     at: Instant,
+}
+
+#[derive(Default)]
+struct Session {
+    previous: Option<Sample>,
+    peak: Rates,
+}
+
+impl Session {
+    fn observe(&mut self, current: Sample, connectivity: Connectivity) -> Readings {
+        let rates = self
+            .previous
+            .as_ref()
+            .map_or_else(Rates::default, |previous| current.rates_since(previous));
+        self.peak = self.peak.raised_by(rates);
+        let readings = readings(&current, rates, self.peak, connectivity);
+        self.previous = Some(current);
+        readings
+    }
 }
 
 #[derive(Default, Clone, Copy)]
@@ -222,11 +252,23 @@ struct Rates {
 }
 
 impl Rates {
-    fn raised_by(self, other: Self) -> Self {
+    fn combine(self, other: Self, join: impl Fn(ByteSize, ByteSize) -> ByteSize) -> Self {
         Self {
-            rx: self.rx.max(other.rx),
-            tx: self.tx.max(other.tx),
+            rx: join(self.rx, other.rx),
+            tx: join(self.tx, other.tx),
         }
+    }
+
+    fn raised_by(self, other: Self) -> Self {
+        self.combine(other, Ord::max)
+    }
+}
+
+impl Add for Rates {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        self.combine(other, Add::add)
     }
 }
 
@@ -242,22 +284,21 @@ fn capture() -> Sample {
     }
 }
 
-fn sample_rates(previous: Option<&Sample>, current: &Sample) -> Rates {
-    previous
-        .map(|prev| current.at.duration_since(prev.at))
-        .filter(|elapsed| elapsed.as_millis() > 0)
-        .zip(previous)
-        .map(|(elapsed, prev)| {
-            current
-                .counters
-                .iter()
-                .filter_map(|(interface, now)| Some((now, prev.counters.get(interface)?)))
-                .fold(Rates::default(), |total, (now, was)| Rates {
-                    rx: total.rx + per_second(now.rx, was.rx, elapsed),
-                    tx: total.tx + per_second(now.tx, was.tx, elapsed),
-                })
-        })
-        .unwrap_or_default()
+impl Sample {
+    fn rates_since(&self, previous: &Self) -> Rates {
+        let elapsed = self.at.duration_since(previous.at);
+        if elapsed.as_millis() == 0 {
+            return Rates::default();
+        }
+        self.counters
+            .iter()
+            .filter_map(|(interface, now)| Some((now, previous.counters.get(interface)?)))
+            .map(|(now, was)| Rates {
+                rx: per_second(now.rx, was.rx, elapsed),
+                tx: per_second(now.tx, was.tx, elapsed),
+            })
+            .fold(Rates::default(), Add::add)
+    }
 }
 
 fn readings(current: &Sample, rates: Rates, peak: Rates, connectivity: Connectivity) -> Readings {
@@ -280,9 +321,10 @@ fn readings(current: &Sample, rates: Rates, peak: Rates, connectivity: Connectiv
     }
 }
 
-fn per_second(now: u64, was: u64, elapsed: Duration) -> ByteSize {
-    let bytes = u128::from(now.saturating_sub(was)) * 1000 / elapsed.as_millis();
-    ByteSize::b(u64::try_from(bytes).unwrap_or(u64::MAX))
+fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> ByteSize {
+    let transferred = now.as_u64().saturating_sub(was.as_u64());
+    let bytes_per_second = u128::from(transferred) * 1000 / elapsed.as_millis();
+    ByteSize::b(u64::try_from(bytes_per_second).unwrap_or(u64::MAX))
 }
 
 fn read_counters(interface: &str) -> Counters {
@@ -290,7 +332,7 @@ fn read_counters(interface: &str) -> Counters {
         fs::read_to_string(format!("/sys/class/net/{interface}/statistics/{file}"))
             .ok()
             .and_then(|value| value.trim().parse().ok())
-            .unwrap_or(0)
+            .map_or(ByteSize::default(), ByteSize::b)
     };
     Counters {
         rx: counter("rx_bytes"),
@@ -322,14 +364,12 @@ trait NetworkManager {
 }
 
 async fn connectivity(connection: Option<&Connection>) -> Connectivity {
-    let Some(connection) = connection else {
-        return Connectivity::Unknown;
-    };
-    match NetworkManagerProxy::new(connection).await {
-        Ok(proxy) => proxy
-            .connectivity()
-            .await
-            .map_or(Connectivity::Unknown, Connectivity::from_nm),
-        Err(_) => Connectivity::Unknown,
-    }
+    reported_connectivity(connection)
+        .await
+        .map_or(Connectivity::Unknown, Connectivity::from_nm)
+}
+
+async fn reported_connectivity(connection: Option<&Connection>) -> Option<u32> {
+    let proxy = NetworkManagerProxy::new(connection?).await.ok()?;
+    proxy.connectivity().await.ok()
 }
