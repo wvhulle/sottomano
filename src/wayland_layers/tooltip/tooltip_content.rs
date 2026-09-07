@@ -195,16 +195,25 @@ impl<'a> TooltipContent<'a> {
             weight: Weight::Bold,
             ..self.config.font.iced_font
         };
+        let max_width = self.config.widgets.tooltip_value_width_px;
         let mut column = Column::new().spacing(ROW_SPACING_PX);
         if !title.is_empty() {
             column = column.push(
-                bar_text(&self.config.font, title.to_owned())
-                    .font(bold)
-                    .color(self.foreground()),
+                container(
+                    bar_text(&self.config.font, title.to_owned())
+                        .font(bold)
+                        .color(self.foreground()),
+                )
+                .max_width(max_width),
             );
         }
         if !body.is_empty() {
-            column = column.push(bar_text(&self.config.font, body.to_owned()).color(self.dim()));
+            column = column.push(cell(
+                &self.config.font,
+                body.to_owned(),
+                self.dim(),
+                max_width,
+            ));
         }
         column.into()
     }

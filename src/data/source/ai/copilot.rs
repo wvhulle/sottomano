@@ -23,7 +23,6 @@ const USER_AGENT: &str = "vetrata";
 pub enum Error {
     Secret,
     Fetch(http::Error),
-    Api(u16),
     Decode(Arc<serde_json::Error>),
     NoQuota,
     Ccusage(command::Error),
@@ -34,7 +33,6 @@ impl Display for Error {
         match self {
             Error::Secret => write!(f, "GitHub token unreadable"),
             Error::Fetch(error) => write!(f, "{error}"),
-            Error::Api(status) => write!(f, "HTTP {status}"),
             Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::NoQuota => write!(f, "no metered quota in response"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
@@ -377,7 +375,7 @@ fn quota_reset(info: &UserInfo) -> Option<String> {
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {
     let token = read_secret(key).ok_or(Error::Secret)?;
     let auth = format!("token {token}");
-    let resp = http::get(
+    Ok(http::get_json(
         USER_URL,
         &[
             ("Authorization", &auth),
@@ -386,13 +384,7 @@ async fn user_info(key: &Path) -> Result<UserInfo, Error> {
         ],
         10,
     )
-    .await?;
-    if resp.status != 200 {
-        return Err(Error::Api(resp.status));
-    }
-    Ok(serde_json::from_value(
-        resp.body.ok_or(Error::Api(resp.status))?,
-    )?)
+    .await?)
 }
 
 fn format_epoch(epoch: i64) -> Option<String> {

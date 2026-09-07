@@ -15,6 +15,7 @@ pub mod panel_settings_group;
 pub mod power_profile_group;
 pub mod system_group;
 pub mod tray_group;
+pub mod wallpaper_group;
 pub mod weather_group;
 pub mod window_group;
 pub mod workspaces_group;

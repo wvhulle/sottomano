@@ -279,7 +279,6 @@ impl PanelSettingsGroup {
             HoverTarget::BlurBackground,
         );
 
-        let reveal = self.menu.reveal();
         let content = Row::with_children([
             disconnected_toggle,
             pin_toggle,
@@ -293,7 +292,6 @@ impl PanelSettingsGroup {
         Some(self.menu.view(
             config,
             position,
-            reveal,
             handle,
             content.into(),
             PanelSettingsMessage::Menu,

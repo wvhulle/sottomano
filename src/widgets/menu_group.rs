@@ -69,7 +69,6 @@ impl MenuGroup {
         &self,
         config: &Config,
         position: Position,
-        reveal: f32,
         handle: Element<'a, Message>,
         content: Element<'a, Message>,
         to_message: F,
@@ -77,6 +76,7 @@ impl MenuGroup {
     where
         F: Fn(MenuMessage) -> Message,
     {
+        let reveal = self.reveal();
         let inner = Row::with_children([handle, revealed_content(config, reveal, content)])
             .align_y(Alignment::Center);
         let slot = PagerSlot::new(inner.into(), edge_indicator(config, self.hovered, reveal))

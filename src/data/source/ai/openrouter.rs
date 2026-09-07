@@ -192,11 +192,9 @@ async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
 
 async fn credits(key: &str) -> Result<Credits, Error> {
     let auth = format!("Bearer {key}");
-    let resp = http::get(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
-    if resp.status != 200 {
-        return Err(Error::Api(format!("HTTP {}", resp.status)));
-    }
-    decode::<Envelope<Credits>>(resp.body).map(|envelope| envelope.data)
+    let envelope: Envelope<Credits> =
+        http::get_json(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
+    Ok(envelope.data)
 }
 
 fn api_error(body: Option<Value>, status: u16) -> String {

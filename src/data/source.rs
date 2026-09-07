@@ -52,6 +52,7 @@ pub mod tailscale;
 pub mod throughput;
 pub mod tray;
 pub mod umbra;
+pub mod wallpaper;
 pub mod weather;
 pub mod wireguard;
 

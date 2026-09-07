@@ -211,14 +211,10 @@ impl AiGroup {
             .on_press(AiMessage::Menu(MenuMessage::Toggle))
             .into();
         let content = readings.unwrap_or_else(Row::new);
-        Some(self.menu.view(
-            config,
-            position,
-            reveal,
-            handle,
-            content.into(),
-            AiMessage::Menu,
-        ))
+        Some(
+            self.menu
+                .view(config, position, handle, content.into(), AiMessage::Menu),
+        )
     }
 }
 

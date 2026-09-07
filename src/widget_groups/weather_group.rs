@@ -113,7 +113,6 @@ impl WeatherGroup {
         Some(self.menu.view(
             config,
             position,
-            reveal,
             handle,
             content.into(),
             WeatherMessage::Menu,
