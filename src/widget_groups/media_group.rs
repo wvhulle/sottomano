@@ -1,6 +1,7 @@
 use iced::{
-    Alignment, Element, Subscription, Task,
-    widget::{Row, button, image, svg},
+    Alignment, Element, Font, Subscription, Task,
+    font::Style as FontStyle,
+    widget::{Row, button, image, rich_text, svg, text::Span},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -22,11 +23,11 @@ use crate::{
     widgets::{
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
-        text::bar_text,
+        text::{LINE_HEIGHT, colored_span},
     },
 };
 
-const MAX_TITLE: usize = 40;
+const SEPARATOR: &str = " · ";
 
 #[derive(Default)]
 pub struct MediaGroup {
@@ -209,8 +210,9 @@ impl MediaGroup {
             .into();
 
         let reveal = self.menu.reveal();
-        let title = bar_text(&config.font, truncate(&media.label()))
-            .color(config.palette.bar_foreground.scale_alpha(reveal));
+        let title = rich_text(label_spans(config, media, reveal))
+            .size(config.font.text_size_px)
+            .line_height(LINE_HEIGHT);
         let title = button(title)
             .padding(0)
             .style(flat_button(config.palette.bar_foreground))
@@ -350,11 +352,22 @@ fn transport<'a>(
         .into()
 }
 
-fn truncate(label: &str) -> String {
-    if label.chars().count() > MAX_TITLE {
-        let head: String = label.chars().take(MAX_TITLE - 1).collect();
-        format!("{head}…")
-    } else {
-        label.to_string()
+fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>> {
+    let base = config.font.iced_font;
+    let italic = Font {
+        style: FontStyle::Italic,
+        ..base
+    };
+    let lead = config.palette.inactive.scale_alpha(reveal);
+    let main = config.palette.bar_foreground.scale_alpha(reveal);
+    match (media.artist.as_str(), media.title.as_str()) {
+        ("", "") => vec![colored_span(media.identity.clone(), base, main)],
+        ("", title) => vec![colored_span(title.to_owned(), base, main)],
+        (artist, "") => vec![colored_span(artist.to_owned(), italic, main)],
+        (artist, title) => vec![
+            colored_span(artist.to_owned(), italic, lead),
+            colored_span(SEPARATOR.to_owned(), base, lead),
+            colored_span(title.to_owned(), base, main),
+        ],
     }
 }
