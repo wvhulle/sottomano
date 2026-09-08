@@ -67,15 +67,6 @@ impl Media {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| app_handle(&self.bus))
     }
-
-    pub fn label(&self) -> String {
-        match (self.artist.is_empty(), self.title.is_empty()) {
-            (false, false) => format!("{} — {}", self.artist, self.title),
-            (true, false) => self.title.clone(),
-            (false, true) => self.artist.clone(),
-            (true, true) => self.identity.clone(),
-        }
-    }
 }
 
 fn string(metadata: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
