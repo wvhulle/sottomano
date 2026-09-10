@@ -242,6 +242,10 @@ impl SliderControl {
         self.value.value()
     }
 
+    fn reading_tolerance(&self) -> f32 {
+        self.slider_step / 2.0
+    }
+
     pub fn readout_text(&self) -> String {
         (self.readout)(self.current())
     }
@@ -287,7 +291,7 @@ impl SliderControl {
             ControlMessage::Confirmed { value, ok } => into_action(self.value.confirmed(value, ok)),
             ControlMessage::Adjusted(resolved) => into_action(self.value.adjusted(resolved)),
             ControlMessage::Reading(reading) => {
-                self.value.sync(reading);
+                self.value.sync(reading, self.reading_tolerance());
                 Action::None
             }
             ControlMessage::Level(level) => {
@@ -323,7 +327,7 @@ impl SliderControl {
                 config,
                 self.range.clone(),
                 self.current(),
-                self.value.ghost(),
+                self.value.ghost(self.reading_tolerance()),
                 self.slider_step,
                 self.severity(),
                 ControlMessage::Set,

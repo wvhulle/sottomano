@@ -28,17 +28,21 @@ impl Tracked {
         self.pending.unwrap_or(self.reading)
     }
 
-    pub fn ghost(&self) -> Option<f32> {
-        self.pending.map(|_| self.acked)
+    pub fn ghost(&self, tolerance: f32) -> Option<f32> {
+        let target = self.pending?;
+        ((self.reading - target).abs() > tolerance).then_some(self.reading)
     }
 
-    pub fn sync(&mut self, reading: f32) {
+    pub fn sync(&mut self, reading: f32, tolerance: f32) {
         self.reading = reading;
         if self.dragging || self.in_flight || self.queued_delta != 0.0 {
             return;
         }
-        self.pending = None;
-        self.acked = reading;
+        if (reading - self.acked).abs() <= tolerance {
+            self.pending = None;
+        } else if self.pending.is_none() {
+            self.acked = reading;
+        }
     }
 
     pub fn drag(&mut self, pos: f32) -> Option<Write> {
