@@ -7,7 +7,7 @@ use std::{
 use niri_ipc::state::EventStreamState;
 use rusqlite::Connection;
 
-use super::app_rules::{self, AppRule};
+use crate::data::source::app_rules::{self, AppRule};
 
 #[derive(Debug, Clone)]
 pub struct RawFavicon {

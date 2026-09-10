@@ -1,19 +1,32 @@
 use std::path::{Path, PathBuf};
 
-use crate::data::source::{
-    PreviewTile, Row, Tooltip, TooltipBody, WorkspacePreview,
-    app_rules::{self, AppRule, IconCandidate},
-    desktop_entries::DesktopIndex,
-    niri, row,
+use crate::{
+    config::font::FontConfig,
+    data::source::{
+        app_rules::{self, AppRule, IconCandidate},
+        desktop_entries::DesktopIndex,
+        niri,
+    },
+    widgets::{
+        text::FontFallbacks,
+        tooltip_body::{PreviewTile, Row, Tooltip, TooltipBody, WorkspacePreview, row},
+        window_title::title_runs,
+    },
 };
 
-pub fn tooltip(snapshot: &niri::Snapshot, icons: &DesktopIndex, workspace: u64) -> Option<Tooltip> {
+pub fn tooltip(
+    snapshot: &niri::Snapshot,
+    icons: &DesktopIndex,
+    font: &FontConfig,
+    fallbacks: &FontFallbacks,
+    workspace: u64,
+) -> Option<Tooltip> {
     let windows = snapshot.windows_on_workspace(workspace);
     if windows.is_empty() {
         return None;
     }
     let pill = snapshot.workspace(workspace)?;
-    let tile = |window| preview_tile(icons, window);
+    let tile = |window| preview_tile(icons, font, fallbacks, window);
     Some(Tooltip::of(TooltipBody::Workspace(WorkspacePreview {
         header: identity(pill),
         columns: scrolling_columns(windows)
@@ -52,11 +65,16 @@ fn scrolling_columns(windows: &[niri::WinEntry]) -> Vec<Vec<&niri::WinEntry>> {
         .collect()
 }
 
-fn preview_tile(icons: &DesktopIndex, window: &niri::WinEntry) -> PreviewTile {
+fn preview_tile(
+    icons: &DesktopIndex,
+    font: &FontConfig,
+    fallbacks: &FontFallbacks,
+    window: &niri::WinEntry,
+) -> PreviewTile {
     let rule = app_rules::rule_for(&window.app_id);
     PreviewTile {
         window: window.id,
-        title: window.title_runs.clone(),
+        title: title_runs(font, fallbacks, &window.title_parts, window.lead_first),
         favicon_key: rule.favicon_key(&window.title),
         icon: icon_path(icons, rule, window),
         tile_size: window.layout.tile_size,
@@ -80,6 +98,7 @@ mod tests {
     use iced::Size;
 
     use super::*;
+    use crate::data::source::app_rules::TitleParts;
 
     fn window(id: u64, column: Option<usize>) -> niri::WinEntry {
         niri::WinEntry {
@@ -89,7 +108,8 @@ mod tests {
             pid: None,
             is_focused: false,
             is_urgent: false,
-            title_runs: Vec::new(),
+            title_parts: TitleParts::default(),
+            lead_first: false,
             layout: niri::WinLayout {
                 column,
                 tile_size: Size::new(800.0, 600.0),

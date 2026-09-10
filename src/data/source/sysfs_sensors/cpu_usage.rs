@@ -2,10 +2,8 @@ use std::{fs, thread, time::Duration};
 
 use tokio::task::spawn_blocking;
 
-use super::{Error, core_ghz, favg, fmax, fmin, ghz};
-use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
-};
+use super::{Error, core_ghz};
+use crate::data::source::Source;
 
 const CPU_STAT: &str = "/proc/stat";
 
@@ -13,39 +11,6 @@ const CPU_STAT: &str = "/proc/stat";
 pub struct CpuUsage {
     pub percent: i64,
     pub freqs_ghz: Vec<f64>,
-}
-
-impl BarWidget for CpuUsage {
-    fn icon(&self) -> Glyph {
-        Solid::Microchip.into()
-    }
-
-    fn level(&self) -> Level {
-        match self.percent {
-            p if p > 90 => Level::Critical,
-            p if p > 70 => Level::Warning,
-            _ => Level::Ok,
-        }
-    }
-
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.percent,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![row("CPU", format!("{}%", self.percent))];
-        if self.freqs_ghz.is_empty() {
-            rows.push(row("Frequency", "unavailable"));
-        } else {
-            rows.push(row("Frequency min", ghz(fmin(&self.freqs_ghz))));
-            rows.push(row("Frequency avg", ghz(favg(&self.freqs_ghz))));
-            rows.push(row("Frequency max", ghz(fmax(&self.freqs_ghz))));
-        }
-        TooltipBody::rows(rows)
-    }
 }
 
 impl Source for CpuUsage {

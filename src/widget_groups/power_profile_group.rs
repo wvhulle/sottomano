@@ -2,15 +2,13 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 use iced::{Element, Subscription, Task};
 
+pub mod profile_icon;
+
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            Source, Tooltip, TooltipBody, bus,
-            power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
-            row,
-        },
+    data::source::{
+        Source, bus,
+        power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
     },
     message_subscriptions::polling,
     state::power,
@@ -18,9 +16,12 @@ use crate::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
+    widget_groups::power_profile_group::profile_icon::profile_face,
     widgets::{
+        last_poll::LastPoll,
         pager_slot::permanently_inactive_slot,
         slider_control::{Action, ControlMessage, SliderControl},
+        tooltip_body::{Tooltip, TooltipBody, row},
     },
 };
 
@@ -43,13 +44,17 @@ impl Default for PowerProfileGroup {
     fn default() -> Self {
         Self {
             cell: LastPoll::default(),
-            control: SliderControl::new(RANGE, HoverTarget::PowerProfile, Profile::Balanced.icon())
-                .slider_step(STEP)
-                .scroll_step(STEP)
-                .readout_width(70.0)
-                .icon_only()
-                .readout(|value| Profile::from_position(value).title().to_string())
-                .glyph(|value, _| Profile::from_position(value).icon()),
+            control: SliderControl::new(
+                RANGE,
+                HoverTarget::PowerProfile,
+                profile_face(Profile::Balanced),
+            )
+            .slider_step(STEP)
+            .scroll_step(STEP)
+            .readout_width(70.0)
+            .icon_only()
+            .readout(|value| Profile::from_position(value).title().to_string())
+            .glyph(|value, _| profile_face(Profile::from_position(value))),
             profile_models: HashMap::new(),
             estimates: HashMap::new(),
             battery_id: String::new(),

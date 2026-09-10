@@ -2,10 +2,8 @@ use std::{path::Path, time::Duration};
 
 use tokio::task::spawn_blocking;
 
-use super::{Error, favg, fmax, fmin, list_dir, read_i64, read_trimmed};
-use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
-};
+use super::{Error, list_dir, read_i64, read_trimmed};
+use crate::data::source::Source;
 
 const HWMON: &str = "/sys/class/hwmon";
 const CPU_CHIP_PREFIXES: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
@@ -23,46 +21,8 @@ pub struct Temperature {
 }
 
 impl Temperature {
-    fn temps(&self) -> Vec<f64> {
+    pub fn celsius_samples(&self) -> Vec<f64> {
         self.readings.iter().map(|r| r.celsius).collect()
-    }
-}
-
-impl BarWidget for Temperature {
-    fn icon(&self) -> Glyph {
-        Solid::TemperatureHalf.into()
-    }
-
-    fn level(&self) -> Level {
-        let avg = favg(&self.temps());
-        if avg > 85.0 {
-            Level::Critical
-        } else if avg > 70.0 {
-            Level::Warning
-        } else {
-            Level::Ok
-        }
-    }
-
-    fn value(&self) -> Option<Value> {
-        let avg = favg(&self.temps()).round() as i64;
-        Some(Value::Gauge {
-            percent: avg.min(100),
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let temps = self.temps();
-        let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
-        chips.dedup();
-        TooltipBody::rows(vec![
-            row("Chips", chips.join(", ")),
-            row("Samples", self.readings.len().to_string()),
-            row("Min", format!("{}°C", fmin(&temps).round() as i64)),
-            row("Avg", format!("{}°C", favg(&temps).round() as i64)),
-            row("Max", format!("{}°C", fmax(&temps).round() as i64)),
-        ])
     }
 }
 

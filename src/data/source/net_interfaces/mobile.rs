@@ -1,18 +1,12 @@
 use std::collections::HashMap;
 
-use bytesize::ByteSize;
 use iced::futures::Stream;
 use zbus::{
     fdo::ManagedObjects,
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::data::source::{
-    BarWidget, Glyph, Level, TooltipBody, Unit, Value,
-    font_awesome::Solid,
-    net_interfaces::{interface, managed_objects_readings, prop, signal_level},
-    row, section,
-};
+use crate::data::source::net_interfaces::{interface, managed_objects_readings, prop};
 
 pub const NAME: &str = "mobile-broadband";
 
@@ -24,94 +18,18 @@ const BEARER: &str = "org.freedesktop.ModemManager1.Bearer";
 
 #[derive(Debug, Clone)]
 pub struct Mobile {
-    model: Option<String>,
-    operator: Option<String>,
-    technology: Vec<String>,
-    signal: Option<i64>,
-    signal_recent: bool,
-    registration: Option<String>,
-    state: String,
-    ipv4: Option<String>,
-    ipv6: Option<String>,
-    rx: Option<u64>,
-    tx: Option<u64>,
-    failed_reason: Option<String>,
-}
-
-impl BarWidget for Mobile {
-    fn icon(&self) -> Glyph {
-        Solid::TowerCell.into()
-    }
-
-    fn disabled(&self) -> bool {
-        self.state != "connected"
-    }
-
-    fn level(&self) -> Level {
-        self.signal.map_or(Level::Ok, signal_level)
-    }
-
-    fn value(&self) -> Option<Value> {
-        self.signal.map(|percent| Value::Gauge {
-            percent,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let mut identity = Vec::new();
-        if let Some(model) = &self.model {
-            identity.push(row("Modem Model", model.clone()));
-        }
-        if let Some(operator) = &self.operator {
-            identity.push(row("Carrier", operator.clone()));
-        }
-        if !self.technology.is_empty() {
-            identity.push(row("Network Type", self.technology.join(", ")));
-        }
-        if let Some(signal) = self.signal {
-            let suffix = if self.signal_recent { "" } else { " (cached)" };
-            identity.push(row("Signal Strength", format!("{signal}%{suffix}")));
-        }
-        if let Some(registration) = &self.registration {
-            identity.push(row("Network Registration", registration.clone()));
-        }
-
-        let mut sections = vec![section("Modem", identity)];
-        if self.state == "connected" {
-            let mut addresses = Vec::new();
-            if let Some(ip) = &self.ipv4 {
-                addresses.push(row("IPv4 Address", ip.clone()));
-            }
-            if let Some(ip) = &self.ipv6 {
-                addresses.push(row("IPv6 Address", ip.clone()));
-            }
-            sections.push(section("Address", addresses));
-        } else {
-            let mut status = vec![row("Connection State", self.state.clone())];
-            if self.state == "failed"
-                && let Some(reason) = &self.failed_reason
-            {
-                status.push(row("Failure Reason", reason.clone()));
-            }
-            sections.push(section("Status", status));
-        }
-        let mut stats = Vec::new();
-        if let Some(rx) = self.rx {
-            stats.push(row(
-                "Received (RX)",
-                ByteSize::b(rx).display().iec().to_string(),
-            ));
-        }
-        if let Some(tx) = self.tx {
-            stats.push(row(
-                "Sent (TX)",
-                ByteSize::b(tx).display().iec().to_string(),
-            ));
-        }
-        sections.push(section("Data", stats));
-        TooltipBody::Sections(sections)
-    }
+    pub model: Option<String>,
+    pub operator: Option<String>,
+    pub technology: Vec<String>,
+    pub signal: Option<i64>,
+    pub signal_recent: bool,
+    pub registration: Option<String>,
+    pub state: String,
+    pub ipv4: Option<String>,
+    pub ipv6: Option<String>,
+    pub rx: Option<u64>,
+    pub tx: Option<u64>,
+    pub failed_reason: Option<String>,
 }
 
 fn state_name(state: i32) -> &'static str {

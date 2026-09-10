@@ -7,12 +7,7 @@ use nalgebra::{Matrix1, Matrix1x3, Matrix3, Matrix3x1, U1, U3, Vector1, Vector3}
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody, bus,
-    bus::Error,
-    font_awesome::{FontAwesome, Solid},
-    sysfs_sensors,
-};
+use crate::data::source::{Source, bus, bus::Error, sysfs_sensors};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Profile {
@@ -46,14 +41,6 @@ impl Profile {
             Profile::PowerSaver => "Power saver",
             Profile::Balanced => "Balanced",
             Profile::Performance => "Performance",
-        }
-    }
-
-    pub fn icon(self) -> FontAwesome {
-        match self {
-            Profile::PowerSaver => Solid::Leaf.into(),
-            Profile::Balanced => Solid::ScaleBalanced.into(),
-            Profile::Performance => Solid::Rocket.into(),
         }
     }
 
@@ -137,16 +124,6 @@ pub struct PowerProfile {
     pub discharging: bool,
     pub battery_id: String,
     pub conditions: Conditions,
-}
-
-impl BarWidget for PowerProfile {
-    fn icon(&self) -> Glyph {
-        self.active_profile.icon().into()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(Vec::new())
-    }
 }
 
 impl Source for PowerProfile {

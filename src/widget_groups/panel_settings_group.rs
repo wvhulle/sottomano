@@ -8,7 +8,6 @@ use iced::{
 use crate::{
     app::Message,
     config::Config,
-    data::source::{Tooltip, font_awesome::Solid, row},
     state::{self, ChromeState},
     wayland_layers::{
         surface::Position,
@@ -16,8 +15,10 @@ use crate::{
     },
     widgets::{
         DISABLED_ALPHA, flat_button,
+        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
+        tooltip_body::{Tooltip, row},
     },
 };
 

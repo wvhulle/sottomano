@@ -7,13 +7,12 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{
-        app_icon::DesktopEntries, desktop_entries::DesktopIndex, font_awesome::Solid, niri,
-    },
+    data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     message_subscriptions::blocking,
     wayland_layers::surface::Position,
     widgets::{
         flat_button,
+        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
     },
 };

@@ -6,14 +6,10 @@ use std::{
 };
 
 use serde::Deserialize;
-use situo_client::{Fix, Locate, Source as FixSource};
+use situo_client::{Fix, Locate};
 use zbus::Connection as SessionBus;
 
-use crate::data::source::{
-    BarWidget, Glyph, Level, Occasional, Row, Source, TooltipBody, Unit, Value,
-    font_awesome::{FontAwesome, Solid},
-    http, row, section, untitled,
-};
+use crate::data::source::{Source, http};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -128,80 +124,15 @@ async fn located() -> Result<Fix, Error> {
     }
 }
 
-struct Wmo {
-    icon: FontAwesome,
-    description: &'static str,
-}
-
-fn wmo(code: i64) -> Wmo {
-    let (icon, description) = match code {
-        0 => (Solid::Sun.into(), "Clear sky"),
-        1 => (Solid::Sun.into(), "Mainly clear"),
-        2 => (Solid::CloudSun.into(), "Partly cloudy"),
-        3 => (Solid::Cloud.into(), "Overcast"),
-        45 | 48 => (Solid::Smog.into(), "Fog"),
-        51 | 53 | 55 => (Solid::CloudRain.into(), "Drizzle"),
-        56 | 57 => (Solid::CloudRain.into(), "Freezing drizzle"),
-        61 | 63 | 65 => (Solid::CloudShowersHeavy.into(), "Rain"),
-        66 | 67 => (Solid::CloudShowersHeavy.into(), "Freezing rain"),
-        71 | 73 | 75 => (Solid::Snowflake.into(), "Snow"),
-        77 => (Solid::Snowflake.into(), "Snow grains"),
-        80..=82 => (Solid::CloudShowersHeavy.into(), "Rain showers"),
-        85 | 86 => (Solid::Snowflake.into(), "Snow showers"),
-        95 => (Solid::CloudBolt.into(), "Thunderstorm"),
-        96 | 99 => (Solid::CloudBolt.into(), "Thunderstorm with hail"),
-        _ => (Solid::CloudSun.into(), "Unknown"),
-    };
-    Wmo { icon, description }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
-    icon: FontAwesome,
-    conditions: &'static str,
-    temp: f64,
-    feels: f64,
-    temp_min: f64,
-    temp_max: f64,
-    humidity: f64,
-    wind: f64,
-}
-
-impl Temperature {
-    fn temperature_rows(&self) -> Vec<Row> {
-        vec![
-            row("Now", format!("{}°C (feels {}°C)", self.temp, self.feels)),
-            row(
-                "Today",
-                format!("{}°C – {}°C", self.temp_min, self.temp_max),
-            ),
-        ]
-    }
-
-    fn air_rows(&self) -> Vec<Row> {
-        vec![
-            row("Humidity", format!("{}%", self.humidity)),
-            row("Wind", format!("{} km/h", self.wind)),
-        ]
-    }
-}
-
-impl BarWidget for Temperature {
-    fn icon(&self) -> Glyph {
-        self.icon.into()
-    }
-
-    fn label(&self) -> Option<String> {
-        Some(format!("{}°", self.temp))
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            untitled(vec![row("Conditions", self.conditions)]),
-            section("Temperature", self.temperature_rows()),
-            section("Air", self.air_rows()),
-        ])
-    }
+    pub weather_code: i64,
+    pub temp: f64,
+    pub feels: f64,
+    pub temp_min: f64,
+    pub temp_max: f64,
+    pub humidity: f64,
+    pub wind: f64,
 }
 
 impl Source for Temperature {
@@ -219,10 +150,8 @@ impl Source for Temperature {
             geo.latitude, geo.longitude
         );
         let forecast: Forecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
-        let wmo = wmo(forecast.current.weather_code);
         Ok(Temperature {
-            icon: wmo.icon,
-            conditions: wmo.description,
+            weather_code: forecast.current.weather_code,
             temp: forecast.current.temperature_2m,
             feels: forecast.current.apparent_temperature,
             temp_min: today(&forecast.daily.temperature_2m_min)?,
@@ -235,15 +164,14 @@ impl Source for Temperature {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rain {
-    icon: FontAwesome,
-    mm_per_h: f64,
-    peak: Downpour,
+    pub mm_per_h: f64,
+    pub peak: Downpour,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Downpour {
-    mm_per_h: f64,
-    at: String,
+pub struct Downpour {
+    pub mm_per_h: f64,
+    pub at: String,
 }
 
 fn buienradar_mm(value: f64) -> f64 {
@@ -260,27 +188,6 @@ fn downpour(line: &str) -> Option<Downpour> {
         mm_per_h: buienradar_mm(intensity.trim().parse().ok()?),
         at: at.trim().to_string(),
     })
-}
-
-impl BarWidget for Rain {
-    fn icon(&self) -> Glyph {
-        self.icon.into()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let now = if self.mm_per_h <= 0.0 {
-            "none right now".to_string()
-        } else {
-            format!("{:.1} mm/h", self.mm_per_h)
-        };
-        TooltipBody::rows(vec![
-            row("Rain", now),
-            row(
-                "Peak",
-                format!("{:.1} mm/h at {}", self.peak.mm_per_h, self.peak.at),
-            ),
-        ])
-    }
 }
 
 impl Source for Rain {
@@ -304,32 +211,15 @@ impl Source for Rain {
             .max_by(|earlier, later| earlier.mm_per_h.total_cmp(&later.mm_per_h))
             .cloned()
             .ok_or(Error::Malformed)?;
-        let icon = if peak.mm_per_h < 0.5 {
-            Solid::Droplet.into()
-        } else if peak.mm_per_h < 2.5 {
-            Solid::CloudRain.into()
-        } else if peak.mm_per_h < 7.5 {
-            Solid::CloudShowersHeavy.into()
-        } else {
-            Solid::CloudBolt.into()
-        };
         Ok(Rain {
-            icon,
             mm_per_h: forecast.first().map_or(0.0, |now| now.mm_per_h),
             peak,
         })
     }
 }
 
-impl Occasional for Rain {
-    fn present(&self) -> bool {
-        self.peak.mm_per_h > 0.0
-    }
-}
-
 pub trait Allergen {
     const SOURCE_NAME: &'static str;
-    const ICON: Solid;
     const THRESHOLDS: [f64; 3];
 
     fn concentration(readings: &PollenReadings) -> f64;
@@ -340,7 +230,6 @@ pub struct Grass;
 
 impl Allergen for Grass {
     const SOURCE_NAME: &'static str = "pollen-grass";
-    const ICON: Solid = Solid::Seedling;
     const THRESHOLDS: [f64; 3] = [20.0, 50.0, 80.0];
 
     fn concentration(readings: &PollenReadings) -> f64 {
@@ -353,7 +242,6 @@ pub struct Birch;
 
 impl Allergen for Birch {
     const SOURCE_NAME: &'static str = "pollen-birch";
-    const ICON: Solid = Solid::Tree;
     const THRESHOLDS: [f64; 3] = [10.0, 45.0, 100.0];
 
     fn concentration(readings: &PollenReadings) -> f64 {
@@ -363,51 +251,9 @@ impl Allergen for Birch {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pollen<A: Allergen> {
-    value: f64,
-    all: Vec<(&'static str, f64)>,
+    pub value: f64,
+    pub all: Vec<(&'static str, f64)>,
     allergen: PhantomData<A>,
-}
-
-impl<A: Allergen> BarWidget for Pollen<A> {
-    fn icon(&self) -> Glyph {
-        A::ICON.into()
-    }
-
-    fn level(&self) -> Level {
-        let [moderate, high, _] = A::THRESHOLDS;
-        if self.value >= high {
-            Level::Critical
-        } else if self.value >= moderate {
-            Level::Warning
-        } else {
-            Level::Ok
-        }
-    }
-
-    fn value(&self) -> Option<Value> {
-        let cap = A::THRESHOLDS[2];
-        let percent = if self.value < 1.0 {
-            0
-        } else {
-            #[allow(clippy::cast_possible_truncation)]
-            let p = (self.value.ln() / cap.ln() * 100.0).round() as i64;
-            p.clamp(0, 100)
-        };
-        Some(Value::Gauge {
-            percent,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let mut all = self.all.clone();
-        all.sort_by(|a, b| b.1.total_cmp(&a.1));
-        TooltipBody::rows(
-            all.into_iter()
-                .map(|(label, value)| row(label, format!("{value:.0} grains/m³")))
-                .collect(),
-        )
-    }
 }
 
 impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<A> {
@@ -433,57 +279,9 @@ impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<
     }
 }
 
-impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Occasional for Pollen<A> {
-    fn present(&self) -> bool {
-        self.value > 0.0
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {
-    geo: Fix,
-}
-
-impl BarWidget for Location {
-    fn icon(&self) -> Glyph {
-        if self.geo.source == FixSource::Manual {
-            Solid::LocationPinLock.into()
-        } else {
-            Solid::LocationDot.into()
-        }
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let dash = |s: &str| {
-            if s.is_empty() {
-                "—".to_string()
-            } else {
-                s.to_string()
-            }
-        };
-        let distance = if self.geo.place_distance_km.is_nan() {
-            "—".to_string()
-        } else {
-            format!("{:.2} km", self.geo.place_distance_km)
-        };
-        let accuracy = if self.geo.accuracy.is_nan() {
-            "—".to_string()
-        } else if self.geo.accuracy < 1000.0 {
-            format!("{:.0} m", self.geo.accuracy)
-        } else {
-            format!("{:.1} km", self.geo.accuracy / 1000.0)
-        };
-        TooltipBody::rows(vec![
-            row("Place", dash(&self.geo.place_name)),
-            row("Country", dash(&self.geo.place_country)),
-            row("Distance", distance),
-            row("Latitude", format!("{:.4}", self.geo.latitude)),
-            row("Longitude", format!("{:.4}", self.geo.longitude)),
-            row("Accuracy", accuracy),
-            row("Source", dash(self.geo.source.as_str())),
-            row("Method", dash(&self.geo.description)),
-        ])
-    }
+    pub geo: Fix,
 }
 
 impl Source for Location {
@@ -521,27 +319,26 @@ mod tests {
     }
 
     #[test]
-    fn pollen_below_threshold_is_not_present() {
+    fn pollen_below_threshold_reads_zero() {
         let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
         let birch: Pollen<Birch> = Pollen {
             value: Birch::concentration(&air.current),
             all: air.current.all(),
             allergen: PhantomData,
         };
-        assert!(!birch.present());
+        assert!(birch.value.abs() < f64::EPSILON);
     }
 
     #[test]
-    fn rain_peak_drives_presence() {
+    fn rain_lines_decode_into_downpours() {
         let dry = Rain {
-            icon: Solid::Droplet.into(),
             mm_per_h: 0.0,
             peak: Downpour {
                 mm_per_h: 0.0,
                 at: "09:15".to_owned(),
             },
         };
-        assert!(!dry.present());
+        assert!(dry.peak.mm_per_h.abs() < f64::EPSILON);
         assert!(downpour("087|09:10").is_some());
     }
 }

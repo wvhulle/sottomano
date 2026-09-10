@@ -1,3 +1,6 @@
+pub mod gamma_dim_gauge;
+pub mod sun_follow_toggle;
+
 use std::ops::RangeInclusive;
 
 use iced::{
@@ -7,15 +10,10 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            Source, Tooltip, TooltipBody, bus,
-            font_awesome::Solid,
-            gamma::{self, Gamma},
-            row,
-            screen_temperature::{self, SunFollow},
-        },
+    data::source::{
+        Source, bus,
+        gamma::{self, Gamma},
+        screen_temperature::{self, SunFollow},
     },
     message_subscriptions::polling,
     wayland_layers::{
@@ -24,9 +22,12 @@ use crate::{
     },
     widgets::{
         flat_button,
+        font_awesome::Solid,
+        last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
+        tooltip_body::{Tooltip, TooltipBody, row},
     },
 };
 

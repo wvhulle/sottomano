@@ -2,16 +2,16 @@ use iced::{Element, Subscription, Task, widget::button};
 
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{BarWidget, Source, Tooltip},
-    },
+    data::source::Source,
     message_subscriptions::{blocking, polling},
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
-    widgets::{flat_button, source_reading::source_reading},
+    widgets::{
+        bar_widget::BarWidget, flat_button, last_poll::LastPoll, source_reading::source_reading,
+        tooltip_body::Tooltip,
+    },
 };
 
-pub trait Toggle: Source {
+pub trait Toggle: Source + BarWidget {
     fn toggled(&self) -> Self;
     fn toggle(&self) -> bool;
 }

@@ -5,14 +5,15 @@ use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::Config,
-    data::source::{Tooltip, font_awesome::FontAwesome, row},
     wayland_layers::tooltip::HoverTarget,
     widgets::{
         confirm_button::{ConfirmButton, Press},
+        font_awesome::FontAwesome,
         idle::{
             IdleAction, IdleTrigger, MAX_POSITION, from_position, label_at, label_for, position,
         },
         slider_control::{Action, ControlMessage, SliderControl},
+        tooltip_body::{Tooltip, row},
     },
 };
 

@@ -13,7 +13,6 @@ use crate::{
     data::source::{
         app_rules::{self, AppRule},
         audio::WindowAudio,
-        font_awesome::Solid,
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
@@ -27,12 +26,13 @@ use crate::{
         activity_line::activity_line,
         flat_button,
         focus_indicator::focus_indicator,
+        font_awesome::Solid,
         pager_slot::PagerSlot,
         progress_line::progress_line,
         text::LINE_HEIGHT,
-        window_icon::{WindowIcons, window_icon},
+        window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
-        window_title::title_spans,
+        window_title::{title_runs, title_spans},
     },
 };
 
@@ -134,7 +134,7 @@ impl WindowList {
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
-        icons: WindowIcons<'a>,
+        icons: WindowAssets<'a>,
         audio: &HashMap<i32, WindowAudio>,
         output: &str,
         config: &Config,
@@ -214,7 +214,7 @@ impl Extras<'_> {
 
 fn window_button<'a>(
     config: &Config,
-    icons: WindowIcons<'a>,
+    icons: WindowAssets<'a>,
     win: &niri::WinEntry,
     extras: Extras<'_>,
     position: Position,
@@ -251,14 +251,20 @@ fn window_button<'a>(
 
 fn button_content<'a>(
     config: &Config,
-    icons: WindowIcons<'a>,
+    icons: WindowAssets<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
     extras: Extras<'_>,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
     let icon = badged_icon(config, icons, rule, win, extras, opacity);
-    let title = rich_text(title_spans(config, &win.title_runs, opacity))
+    let runs = title_runs(
+        &config.font,
+        icons.fallbacks,
+        &win.title_parts,
+        win.lead_first,
+    );
+    let title = rich_text(title_spans(config, &runs, opacity))
         .size(config.font.text_size_px)
         .line_height(LINE_HEIGHT);
     Row::new()
@@ -362,7 +368,7 @@ fn count_badge<'a>(
 
 fn badged_icon<'a>(
     config: &Config,
-    icons: WindowIcons<'a>,
+    icons: WindowAssets<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
     extras: Extras<'_>,
@@ -380,7 +386,7 @@ fn badged_icon<'a>(
 
 fn resolved_icon<'a>(
     config: &Config,
-    icons: WindowIcons<'a>,
+    icons: WindowAssets<'a>,
     rule: AppRule,
     win: &niri::WinEntry,
     opacity: f32,

@@ -4,10 +4,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::{ApiFailure, Error, backoff, percent, plan, read_credentials, time_until_reset};
-use crate::data::source::{
-    BarWidget, Glyph, Level, Occasional, Row, Source, TooltipBody, Unit, Value as GaugeValue,
-    ai::level_from_used, http, row, simple_icons::SimpleIcon,
-};
+use crate::data::source::{Source, http};
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
@@ -38,29 +35,30 @@ struct Overage {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ClaudeOauth {
-    session_used: i64,
-    tooltip: Vec<Row>,
+pub struct WindowUsage {
+    pub used: i64,
+    pub resets_in: String,
 }
 
-impl BarWidget for ClaudeOauth {
-    fn icon(&self) -> Glyph {
-        SimpleIcon::Claude.into()
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtraUsage {
+    pub spent_credits: Option<f64>,
+    pub monthly_limit: Option<f64>,
+    pub used: Option<i64>,
+}
 
-    fn level(&self) -> Level {
-        level_from_used(self.session_used)
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClaudeOauth {
+    pub plan: String,
+    pub session: WindowUsage,
+    pub weekly: WindowUsage,
+    pub sonnet: Option<WindowUsage>,
+    pub extra: Option<ExtraUsage>,
+}
 
-    fn value(&self) -> Option<GaugeValue> {
-        Some(GaugeValue::Gauge {
-            percent: self.session_used,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(self.tooltip.clone())
+impl ClaudeOauth {
+    pub fn session_used(&self) -> i64 {
+        self.session.used
     }
 }
 
@@ -102,58 +100,29 @@ impl Source for ClaudeOauth {
         backoff::reset().await;
 
         let usage: Usage = serde_json::from_value(body)?;
-        let session_used = percent(usage.five_hour.utilization);
-        let mut tooltip = vec![
-            row("Plan", plan(oauth)),
-            row("Session", format!("{session_used}%")),
-            row(
-                "Session resets",
-                time_until_reset(usage.five_hour.resets_at.as_ref()),
-            ),
-            row(
-                "Weekly",
-                format!("{}%", percent(usage.seven_day.utilization)),
-            ),
-            row(
-                "Weekly resets",
-                time_until_reset(usage.seven_day.resets_at.as_ref()),
-            ),
-        ];
-        if let Some(sonnet) = &usage.seven_day_sonnet {
-            tooltip.push(row("Sonnet", format!("{}%", percent(sonnet.utilization))));
-            tooltip.push(row(
-                "Sonnet resets",
-                time_until_reset(sonnet.resets_at.as_ref()),
-            ));
-        }
-        push_overage_rows(usage.overage.as_ref(), &mut tooltip);
-
         Ok(ClaudeOauth {
-            session_used,
-            tooltip,
+            plan: plan(oauth),
+            session: window_usage(&usage.five_hour),
+            weekly: window_usage(&usage.seven_day),
+            sonnet: usage.seven_day_sonnet.as_ref().map(window_usage),
+            extra: usage.overage.as_ref().and_then(extra_usage),
         })
     }
 }
 
-impl Occasional for ClaudeOauth {
-    fn present(&self) -> bool {
-        self.session_used > 0
+fn window_usage(window: &Window) -> WindowUsage {
+    WindowUsage {
+        used: percent(window.utilization),
+        resets_in: time_until_reset(window.resets_at.as_ref()),
     }
 }
 
-fn push_overage_rows(extra: Option<&Overage>, tooltip: &mut Vec<Row>) {
-    let Some(extra) = extra.filter(|extra| extra.is_enabled) else {
-        return;
-    };
-    if let Some(spent) = extra.used_credits {
-        tooltip.push(row("Extra spent", format!("€{:.2}", spent / 100.0)));
-    }
-    if let Some(limit) = extra.monthly_limit {
-        tooltip.push(row("Extra limit", format!("€{:.0}", limit / 100.0)));
-    }
-    if let Some(utilization) = extra.utilization {
-        tooltip.push(row("Extra", format!("{}%", percent(utilization))));
-    }
+fn extra_usage(extra: &Overage) -> Option<ExtraUsage> {
+    extra.is_enabled.then(|| ExtraUsage {
+        spent_credits: extra.used_credits,
+        monthly_limit: extra.monthly_limit,
+        used: extra.utilization.map(percent),
+    })
 }
 
 #[cfg(test)]
@@ -180,8 +149,6 @@ mod tests {
         assert_eq!(percent(usage.five_hour.utilization), 42);
         assert_eq!(percent(usage.seven_day.utilization), 49);
         assert!(usage.seven_day_sonnet.is_none());
-        let mut tooltip = Vec::new();
-        push_overage_rows(usage.overage.as_ref(), &mut tooltip);
-        assert!(tooltip.is_empty());
+        assert!(usage.overage.as_ref().and_then(extra_usage).is_none());
     }
 }

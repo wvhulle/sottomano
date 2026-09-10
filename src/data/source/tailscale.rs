@@ -5,10 +5,7 @@ use std::{
 
 use serde_json::Value as Json;
 
-use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody, command, command::blocking::run, font_awesome::Solid,
-    row,
-};
+use crate::data::source::{Source, command, command::blocking::run};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -32,18 +29,18 @@ impl From<command::Error> for Error {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Peer {
-    name: String,
-    ip: String,
+pub struct Peer {
+    pub name: String,
+    pub ip: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tailscale {
-    running: bool,
-    self_name: String,
-    self_ip: String,
-    online: Vec<Peer>,
-    total_peers: usize,
+    pub running: bool,
+    pub self_name: String,
+    pub self_ip: String,
+    pub online: Vec<Peer>,
+    pub total_peers: usize,
 }
 
 fn short_name(dns: &str) -> String {
@@ -57,42 +54,6 @@ fn first_ip(node: &Json) -> String {
         .and_then(Json::as_str)
         .unwrap_or("—")
         .to_string()
-}
-
-impl BarWidget for Tailscale {
-    fn icon(&self) -> Glyph {
-        Solid::CircleNodes.into()
-    }
-
-    fn disabled(&self) -> bool {
-        !self.running
-    }
-
-    fn badge(&self) -> Option<u32> {
-        if !self.running {
-            return None;
-        }
-        u32::try_from(self.online.len()).ok().filter(|c| *c > 0)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        if !self.running {
-            return TooltipBody::rows(vec![row("Tailscale", "disconnected")]);
-        }
-        let mut rows = vec![
-            row("Tailscale", "connected"),
-            row("Self", self.self_name.clone()),
-            row("IP", self.self_ip.clone()),
-            row(
-                "Peers",
-                format!("{}/{} online", self.online.len(), self.total_peers),
-            ),
-        ];
-        for peer in &self.online {
-            rows.push(row(&peer.name, format!("→ {}", peer.ip)));
-        }
-        TooltipBody::rows(rows)
-    }
 }
 
 impl Source for Tailscale {

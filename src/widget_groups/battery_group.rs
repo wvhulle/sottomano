@@ -1,20 +1,24 @@
+pub mod battery_charge_gauge;
+pub mod power_draw_gauge;
+
 use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            Source, Tooltip,
-            sysfs_sensors::{self, battery::Battery, power::PowerDraw},
-        },
+    data::source::{
+        Source,
+        sysfs_sensors::{self, battery::Battery, power::PowerDraw},
     },
     message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widgets::reading_row::{Reading, ReadingRow},
+    widgets::{
+        last_poll::LastPoll,
+        reading_row::{Reading, ReadingRow},
+        tooltip_body::Tooltip,
+    },
 };
 
 #[derive(Default)]

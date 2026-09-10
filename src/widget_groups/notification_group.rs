@@ -5,10 +5,13 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::font_awesome::{FontAwesome, Regular, Solid},
     state::NotificationState,
     wayland_layers::surface::Position,
-    widgets::{DISABLED_ALPHA, flat_button, pager_slot::permanently_inactive_slot},
+    widgets::{
+        DISABLED_ALPHA, flat_button,
+        font_awesome::{FontAwesome, Regular, Solid},
+        pager_slot::permanently_inactive_slot,
+    },
 };
 
 #[derive(Debug, Clone, Copy)]

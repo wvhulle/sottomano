@@ -1,87 +1,31 @@
 use iced::futures::{Stream, future::try_join_all, try_join};
 use zbus::Connection;
 
-use crate::data::source::{
-    BarWidget, Glyph, TooltipBody,
-    font_awesome::Solid,
-    net_interfaces::{address_section, dns_section, link_stats_section, nm, nm_readings},
-    row, section,
-};
+use crate::data::source::net_interfaces::{nm, nm_readings};
 
 pub const NAME: &str = "ethernet";
 
 #[derive(Debug, Clone)]
-struct Link {
-    name: String,
-    connected: bool,
-    connection: Option<String>,
-    mac: Option<String>,
-    ipv4: Option<nm::AddressBlock>,
-    ipv6: Option<nm::AddressBlock>,
-    dns: Vec<String>,
-    speed: u32,
-    mtu: u32,
+pub struct Link {
+    pub name: String,
+    pub connected: bool,
+    pub connection: Option<String>,
+    pub mac: Option<String>,
+    pub ipv4: Option<nm::AddressBlock>,
+    pub ipv6: Option<nm::AddressBlock>,
+    pub dns: Vec<String>,
+    pub speed: u32,
+    pub mtu: u32,
 }
 
 #[derive(Debug, Clone)]
 pub struct Ethernet {
-    links: Vec<Link>,
+    pub links: Vec<Link>,
 }
 
 impl Ethernet {
-    fn connected_count(&self) -> usize {
+    pub fn connected_count(&self) -> usize {
         self.links.iter().filter(|link| link.connected).count()
-    }
-}
-
-impl BarWidget for Ethernet {
-    fn icon(&self) -> Glyph {
-        Solid::Ethernet.into()
-    }
-
-    fn disabled(&self) -> bool {
-        self.connected_count() == 0
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let connected = self.connected_count();
-        if connected == 0 {
-            return TooltipBody::rows(
-                self.links
-                    .iter()
-                    .map(|link| row(&link.name, "disconnected"))
-                    .collect(),
-            );
-        }
-        let mut sections = Vec::new();
-        for link in self.links.iter().filter(|link| link.connected) {
-            let key = |label: &str| {
-                if connected > 1 {
-                    format!("{} {label}", link.name)
-                } else {
-                    label.to_string()
-                }
-            };
-            let mut identity = vec![row("Interface Name", link.name.clone())];
-            if let Some(connection) = &link.connection {
-                identity.push(row("Network Profile", connection.clone()));
-            }
-            if let Some(mac) = &link.mac {
-                identity.push(row("MAC Address", mac.clone()));
-            }
-            sections.push(section(key("Identity"), identity));
-            sections.push(address_section(&key, "IPv4", link.ipv4.as_ref()));
-            sections.push(address_section(&key, "IPv6", link.ipv6.as_ref()));
-            sections.push(dns_section(&key, &link.dns));
-            sections.push(link_stats_section(
-                &key,
-                "Link",
-                "Link Speed",
-                link.speed,
-                link.mtu,
-            ));
-        }
-        TooltipBody::Sections(sections)
     }
 }
 

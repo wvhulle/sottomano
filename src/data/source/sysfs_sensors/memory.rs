@@ -1,12 +1,9 @@
 use std::{fs, time::Duration};
 
-use bytesize::ByteSize;
 use tokio::task::spawn_blocking;
 
 use super::Error;
-use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody, Unit, Value, font_awesome::Solid, row,
-};
+use crate::data::source::Source;
 
 const MEMINFO: &str = "/proc/meminfo";
 
@@ -17,49 +14,8 @@ pub struct Memory {
 }
 
 impl Memory {
-    fn percent(&self) -> i64 {
+    pub fn percent(&self) -> i64 {
         ((self.used_kb as f64 * 100.0) / self.total_kb as f64).round() as i64
-    }
-}
-
-impl BarWidget for Memory {
-    fn icon(&self) -> Glyph {
-        Solid::Memory.into()
-    }
-
-    fn level(&self) -> Level {
-        match self.percent() {
-            p if p > 90 => Level::Critical,
-            p if p > 75 => Level::Warning,
-            _ => Level::Ok,
-        }
-    }
-
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.percent(),
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![
-            row("Memory", format!("{}%", self.percent())),
-            row(
-                "Used",
-                ByteSize::kib(self.used_kb.unsigned_abs())
-                    .display()
-                    .iec()
-                    .to_string(),
-            ),
-            row(
-                "Total",
-                ByteSize::kib(self.total_kb.unsigned_abs())
-                    .display()
-                    .iec()
-                    .to_string(),
-            ),
-        ])
     }
 }
 

@@ -3,15 +3,13 @@ use iced::{
     widget::{Row, button},
 };
 
+pub mod geolocation_fix;
+pub mod pollen_count_gauge;
+pub mod weather_conditions;
+
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            Tooltip,
-            weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
-        },
-    },
+    data::source::weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
     message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
@@ -19,9 +17,11 @@ use crate::{
     },
     widgets::{
         flat_button,
+        last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
         source_reading::source_reading,
+        tooltip_body::Tooltip,
     },
 };
 

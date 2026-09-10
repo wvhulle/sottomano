@@ -14,7 +14,10 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
-pub use self::{ccusage::ClaudeCcusage, oauth::ClaudeOauth};
+pub use self::{
+    ccusage::ClaudeCcusage,
+    oauth::{ClaudeOauth, ExtraUsage, WindowUsage},
+};
 use crate::data::source::{command, http};
 
 #[derive(Debug, Clone)]

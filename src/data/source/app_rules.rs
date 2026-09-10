@@ -1,6 +1,4 @@
-use iced::Font;
-
-use super::niri::WinEntry;
+use crate::data::source::niri::WinEntry;
 
 const SEPARATORS: [&str; 3] = [" — ", " · ", " - "];
 
@@ -41,19 +39,6 @@ pub fn rule_for(app_id: &str) -> AppRule {
 pub struct TitleParts {
     pub lead: String,
     pub main: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TitleRole {
-    Lead,
-    Main,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TitleRun {
-    pub text: String,
-    pub font: Font,
-    pub role: TitleRole,
 }
 
 pub fn label_for(win: &WinEntry) -> &str {
@@ -427,7 +412,8 @@ mod tests {
             is_focused: false,
             is_urgent: false,
             layout: WinLayout::default(),
-            title_runs: Vec::new(),
+            title_parts: TitleParts::default(),
+            lead_first: false,
         }
     }
 

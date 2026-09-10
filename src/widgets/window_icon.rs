@@ -7,20 +7,19 @@ use crate::{
         app_rules::{AppRule, IconCandidate},
         desktop_entries::DesktopIndex,
         niri,
+        tray::IconSource,
     },
-    widgets::{
-        favicon::Favicons,
-        native_icon::{IconSource, native_icon},
-    },
+    widgets::{favicon::Favicons, native_icon::native_icon, text::FontFallbacks},
 };
 
 #[derive(Clone, Copy)]
-pub struct WindowIcons<'a> {
+pub struct WindowAssets<'a> {
     pub entries: &'a DesktopIndex,
     pub favicons: &'a Favicons,
+    pub fallbacks: &'a FontFallbacks,
 }
 
-impl WindowIcons<'_> {
+impl WindowAssets<'_> {
     pub fn path_for(&self, rule: AppRule, win: &niri::WinEntry) -> Option<PathBuf> {
         rule.icon_candidates(win)
             .into_iter()

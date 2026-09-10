@@ -1,3 +1,7 @@
+pub mod backlight_display;
+pub mod clight_auto_brightness;
+pub mod umbra_dark_mode;
+
 use std::{collections::BTreeMap, ops::RangeInclusive};
 
 use iced::{
@@ -8,10 +12,8 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{
-        Tooltip,
         backlight::{self, Backlight},
         clight::Clight,
-        font_awesome::Solid,
         umbra::Umbra,
     },
     wayland_layers::{
@@ -20,9 +22,11 @@ use crate::{
     },
     widgets::{
         flat_button,
+        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
+        tooltip_body::Tooltip,
     },
 };
 
@@ -96,7 +100,7 @@ impl MonitorGroup {
                             SliderControl::new(
                                 PERCENT,
                                 HoverTarget::Backlight(backlight.serial.clone()),
-                                backlight.face(),
+                                backlight_display::face(backlight),
                             )
                             .scroll_step(STEP)
                             .readout(|value| format!("{}%", as_percent(value)))
@@ -147,7 +151,9 @@ impl MonitorGroup {
             HoverTarget::Backlight(serial) => {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
                 let brightness = self.sliders.get(serial)?.readout_text();
-                Some(Tooltip::of(backlight.tooltip(brightness)))
+                Some(Tooltip::of(backlight_display::tooltip(
+                    backlight, brightness,
+                )))
             }
             HoverTarget::ClightAuto => self.clight.tooltip(),
             HoverTarget::DarkMode => self.umbra.tooltip(),

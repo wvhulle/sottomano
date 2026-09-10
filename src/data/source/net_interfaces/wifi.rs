@@ -1,88 +1,28 @@
 use iced::futures::{Stream, try_join};
 use zbus::Connection;
 
-use crate::data::source::{
-    BarWidget, Glyph, Level, TooltipBody, Unit, Value,
-    font_awesome::Solid,
-    net_interfaces::{
-        address_section, dns_section, link_stats_section, nm, nm_readings, signal_level,
-    },
-    row, section,
-};
+use crate::data::source::net_interfaces::{nm, nm_readings};
 
 pub const NAME: &str = "wifi";
 
 #[derive(Debug, Clone)]
-struct Link {
-    ssid: Option<String>,
-    signal: i64,
-    frequency: Option<String>,
-    security: Option<String>,
-    mac: Option<String>,
-    ipv4: Option<nm::AddressBlock>,
-    ipv6: Option<nm::AddressBlock>,
-    dns: Vec<String>,
-    bitrate: u32,
-    mtu: u32,
+pub struct Link {
+    pub ssid: Option<String>,
+    pub signal: i64,
+    pub frequency: Option<String>,
+    pub security: Option<String>,
+    pub mac: Option<String>,
+    pub ipv4: Option<nm::AddressBlock>,
+    pub ipv6: Option<nm::AddressBlock>,
+    pub dns: Vec<String>,
+    pub bitrate: u32,
+    pub mtu: u32,
 }
 
 #[derive(Debug, Clone)]
 pub struct Wifi {
-    device: String,
-    link: Option<Link>,
-}
-
-impl BarWidget for Wifi {
-    fn icon(&self) -> Glyph {
-        Solid::Wifi.into()
-    }
-
-    fn disabled(&self) -> bool {
-        self.link.is_none()
-    }
-
-    fn level(&self) -> Level {
-        self.link
-            .as_ref()
-            .map_or(Level::Ok, |link| signal_level(link.signal))
-    }
-
-    fn value(&self) -> Option<Value> {
-        self.link.as_ref().map(|link| Value::Gauge {
-            percent: link.signal,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let Some(link) = &self.link else {
-            return TooltipBody::rows(vec![row("WiFi", "disconnected")]);
-        };
-        let key = |label: &str| label.to_string();
-        let mut identity = Vec::new();
-        if let Some(ssid) = &link.ssid {
-            identity.push(row("Network Name (SSID)", ssid.clone()));
-        }
-        identity.push(row("Signal Strength", format!("{}%", link.signal)));
-        if let Some(security) = &link.security {
-            identity.push(row("Security Type", security.clone()));
-        }
-        if let Some(frequency) = &link.frequency {
-            identity.push(row("Frequency Band", frequency.clone()));
-        }
-        identity.push(row("Interface Name", self.device.clone()));
-        if let Some(mac) = &link.mac {
-            identity.push(row("MAC Address", mac.clone()));
-        }
-        let sections = vec![
-            section("Identity", identity),
-            address_section(&key, "IPv4", link.ipv4.as_ref()),
-            address_section(&key, "IPv6", link.ipv6.as_ref()),
-            dns_section(&key, &link.dns),
-            link_stats_section(&key, "Radio", "Radio Speed", link.bitrate / 1000, link.mtu),
-        ];
-        TooltipBody::Sections(sections)
-    }
+    pub device: String,
+    pub link: Option<Link>,
 }
 
 async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {

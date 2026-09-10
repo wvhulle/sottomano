@@ -10,7 +10,6 @@ use tokio::time::sleep;
 use crate::{
     app::Message,
     config::Config,
-    data::source::Tooltip,
     wayland_layers::{
         surface::{self, Margin, Position, Surface},
         tooltip::{
@@ -22,6 +21,7 @@ use crate::{
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
         favicon::Favicons,
+        tooltip_body::Tooltip,
     },
 };
 

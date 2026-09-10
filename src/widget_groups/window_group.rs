@@ -12,9 +12,9 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::Config,
-    data::source::{Tooltip, app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
+    data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
     wayland_layers::surface::Position,
-    widgets::window_icon::WindowIcons,
+    widgets::{tooltip_body::Tooltip, window_icon::WindowAssets},
 };
 
 #[derive(Default)]
@@ -85,7 +85,7 @@ impl WindowGroup {
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
-        icons: WindowIcons<'a>,
+        icons: WindowAssets<'a>,
         audio: &HashMap<i32, WindowAudio>,
         output: &str,
         config: &Config,

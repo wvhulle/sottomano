@@ -3,8 +3,8 @@ use std::time::Instant;
 use iced::{Animation, Rectangle, animation::Easing, time::Duration};
 
 use crate::{
-    data::source::Tooltip,
     wayland_layers::{surface::Position, tooltip::HoverTarget},
+    widgets::tooltip_body::Tooltip,
 };
 
 const MORPH: Duration = Duration::from_millis(160);

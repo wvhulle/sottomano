@@ -1,6 +1,9 @@
 use iced::{Element, widget::button};
 
-use crate::{config::Config, data::source::font_awesome::Solid, widgets::flat_button};
+use crate::{
+    config::Config,
+    widgets::{flat_button, font_awesome::Solid},
+};
 
 pub enum Press {
     Fire,

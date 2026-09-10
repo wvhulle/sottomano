@@ -5,8 +5,12 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{BarWidget, Glyph, font_awesome::Solid, level_color},
-    widgets::{gauge::Gauge, text::bar_text},
+    widgets::{
+        bar_widget::{BarWidget, Glyph, level_color},
+        font_awesome::Solid,
+        gauge::Gauge,
+        text::bar_text,
+    },
 };
 
 pub fn source_reading<'a, Message: 'a>(

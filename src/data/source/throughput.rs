@@ -16,19 +16,12 @@ use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
 use zbus::{Connection, proxy};
 
-use crate::data::source::{
-    BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::Solid, row,
-};
-
-const BACKGROUND_CHATTER: ByteSize = ByteSize::kb(10);
-const SCALE_START: ByteSize = ByteSize::kb(100);
-const SCALE_END: ByteSize = ByteSize::mb(125);
-const HI_RES_AUDIO_STREAM: ByteSize = ByteSize::kb(1_152);
-const HI_RES_VIDEO_STREAM: ByteSize = ByteSize::kb(3_125);
+pub const BACKGROUND_CHATTER: ByteSize = ByteSize::kb(10);
+pub const SCALE_START: ByteSize = ByteSize::kb(100);
+pub const SCALE_END: ByteSize = ByteSize::mb(125);
 
 pub trait Direction {
     const LABEL: &'static str;
-    const ICON: Solid;
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +29,6 @@ pub struct Upload;
 
 impl Direction for Upload {
     const LABEL: &'static str = "Up";
-    const ICON: Solid = Solid::Upload;
 }
 
 #[derive(Debug, Clone)]
@@ -44,20 +36,19 @@ pub struct Download;
 
 impl Direction for Download {
     const LABEL: &'static str = "Down";
-    const ICON: Solid = Solid::Download;
 }
 
 #[derive(Debug, Clone)]
 pub struct Throughput<D: Direction> {
-    interfaces: Vec<String>,
-    rate: ByteSize,
-    peak_rate: ByteSize,
-    connectivity: Connectivity,
+    pub interfaces: Vec<String>,
+    pub rate: ByteSize,
+    pub peak_rate: ByteSize,
+    pub connectivity: Connectivity,
     direction: PhantomData<D>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Connectivity {
+pub enum Connectivity {
     Full,
     Limited,
     None,
@@ -74,7 +65,7 @@ impl Connectivity {
         }
     }
 
-    fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Self::Full => "full",
             Self::Limited => "limited",
@@ -82,18 +73,6 @@ impl Connectivity {
             Self::Unknown => "unknown",
         }
     }
-
-    fn level(self) -> Level {
-        match self {
-            Self::Full => Level::Ok,
-            Self::Limited | Self::Unknown => Level::Warning,
-            Self::None => Level::Critical,
-        }
-    }
-}
-
-fn format_rate(rate: ByteSize) -> String {
-    format!("{}/s", rate.display().iec())
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -102,18 +81,13 @@ fn ratio(quantity: ByteSize, reference: ByteSize) -> f64 {
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn fraction_of_scale(rate: ByteSize) -> f32 {
+pub fn fraction_of_scale(rate: ByteSize) -> f32 {
     if rate <= SCALE_START {
         return 0.0;
     }
     let log_width_of_scale = ratio(SCALE_END, SCALE_START).ln();
     let log_position_of_rate = ratio(rate, SCALE_START).ln();
     ((log_position_of_rate / log_width_of_scale) as f32).clamp(0.0, 1.0)
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn percent(fraction: f32) -> i64 {
-    (fraction * 100.0).round() as i64
 }
 
 impl<D: Direction> Throughput<D> {
@@ -124,72 +98,16 @@ impl<D: Direction> Throughput<D> {
         fraction_of_scale(rate)
     }
 
-    fn current_fraction(&self) -> f32 {
+    pub fn current_fraction(&self) -> f32 {
         self.fraction_of_carried(self.rate)
     }
 
-    fn peak_fraction(&self) -> f32 {
+    pub fn peak_fraction(&self) -> f32 {
         self.fraction_of_carried(self.peak_rate)
     }
 
-    fn unused(&self) -> bool {
+    pub fn unused(&self) -> bool {
         self.peak_rate <= BACKGROUND_CHATTER
-    }
-
-    fn link_level(&self) -> Level {
-        if self.unused() {
-            return Level::Ok;
-        }
-        match self.peak_rate {
-            peak if peak < HI_RES_AUDIO_STREAM => Level::Critical,
-            peak if peak < HI_RES_VIDEO_STREAM => Level::Warning,
-            _ => Level::Ok,
-        }
-    }
-}
-
-impl<D: Direction> BarWidget for Throughput<D> {
-    fn icon(&self) -> Glyph {
-        D::ICON.into()
-    }
-
-    fn disabled(&self) -> bool {
-        self.unused() && self.level() == Level::Ok
-    }
-
-    fn level(&self) -> Level {
-        if self.interfaces.is_empty() {
-            return Level::Critical;
-        }
-        self.connectivity.level().max(self.link_level())
-    }
-
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: percent(self.peak_fraction()),
-            unit: Unit::Percent,
-        })
-    }
-
-    fn live_fraction(&self) -> f32 {
-        let peak = self.peak_fraction();
-        if peak <= 0.0 {
-            return 1.0;
-        }
-        (self.current_fraction() / peak).clamp(0.0, 1.0)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        if self.interfaces.is_empty() {
-            return TooltipBody::rows(vec![row("Connectivity", "none")]);
-        }
-        TooltipBody::rows(vec![
-            row(D::LABEL, format_rate(self.rate)),
-            row("Peak", format_rate(self.peak_rate)),
-            row("Interfaces", self.interfaces.join(", ")),
-            row("Connectivity", self.connectivity.label()),
-            row("Capacity", format_rate(SCALE_END)),
-        ])
     }
 }
 

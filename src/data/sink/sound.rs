@@ -3,7 +3,6 @@ use std::{path::PathBuf, process::Command};
 use iced::Task;
 
 use crate::{
-    app::Message,
     data::notifications::model::{NotificationData, Urgency},
     message_subscriptions::blocking,
 };
@@ -61,7 +60,10 @@ pub(crate) fn session_theme() -> Option<String> {
     (!theme.is_empty()).then(|| theme.to_owned())
 }
 
-pub fn play(data: &NotificationData, theme: Option<&str>) -> Task<Message> {
+pub fn play<Message: Send + 'static>(
+    data: &NotificationData,
+    theme: Option<&str>,
+) -> Task<Message> {
     let explicit = data.sound_file.clone();
     let alert = Alert::of(data);
     let theme = theme.map(ToOwned::to_owned);

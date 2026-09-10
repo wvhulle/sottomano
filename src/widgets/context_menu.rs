@@ -8,12 +8,10 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::font_awesome::Solid,
+    data::source::tray::{MenuKind, MenuNode},
     widgets::{
-        DISABLED_ALPHA,
-        activity_line::activity_line,
-        native_icon::{IconSource, native_icon},
-        text::bar_text,
+        DISABLED_ALPHA, activity_line::activity_line, font_awesome::Solid,
+        native_icon::native_icon, text::bar_text,
     },
 };
 
@@ -24,24 +22,6 @@ const ROW_PADDING: [f32; 2] = [5.0, 8.0];
 const SUBMENU_INDENT: f32 = 16.0;
 const HOVER_ALPHA: f32 = 0.22;
 const CHEVRON_SCALE: f32 = 0.85;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MenuNode {
-    pub id: i32,
-    pub label: String,
-    pub enabled: bool,
-    pub kind: MenuKind,
-    pub icon: Option<IconSource>,
-    pub children: Vec<MenuNode>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuKind {
-    Standard,
-    Separator,
-    Submenu,
-    Toggle(bool),
-}
 
 pub fn context_menu<'a, Message: Clone + 'a>(
     config: &Config,

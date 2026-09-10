@@ -4,17 +4,17 @@ use iced::{Element, widget::button};
 
 use crate::{
     config::Config,
-    data::source::{
-        Row, Tooltip,
-        font_awesome::Solid,
-        niri::{OutputInfo, OutputMode},
-        row,
-    },
+    data::source::niri::{OutputInfo, OutputMode},
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widgets::{flat_button, pager_slot::permanently_inactive_slot},
+    widgets::{
+        flat_button,
+        font_awesome::Solid,
+        pager_slot::permanently_inactive_slot,
+        tooltip_body::{Row, Tooltip, row},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ fn geometry_rows(info: &OutputInfo) -> Vec<Row> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::source::{SectionBody, TooltipBody};
+    use crate::widgets::tooltip_body::{SectionBody, TooltipBody};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(

@@ -8,12 +8,10 @@ use niri_ipc::state::EventStreamState;
 use crate::{
     config::Config,
     data::source::{
-        Tooltip,
         desktop_entries::DesktopIndex,
-        font_awesome::{FontAwesome, Solid},
         mpris,
         mpris::{Media, Status},
-        niri, row,
+        niri,
     },
     message_subscriptions::blocking,
     wayland_layers::{
@@ -22,8 +20,10 @@ use crate::{
     },
     widgets::{
         flat_button,
+        font_awesome::{FontAwesome, Solid},
         menu_group::{MenuGroup, MenuMessage},
         text::{LINE_HEIGHT, colored_span},
+        tooltip_body::{Tooltip, row},
     },
 };
 

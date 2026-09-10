@@ -4,11 +4,7 @@ use iced::{Rectangle, Size};
 use niri_ipc::{Event, Request, Response, Window, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
 
-use crate::{
-    config::font::FontConfig,
-    data::source::app_rules::{self, TitleRun},
-    widgets::{text::FontFallbacks, window_title::title_runs},
-};
+use crate::data::source::app_rules::{self, TitleParts};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VEdge {
@@ -48,7 +44,7 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn derive(state: &EventStreamState, font: &FontConfig, fallbacks: &FontFallbacks) -> Self {
+    pub fn derive(state: &EventStreamState) -> Self {
         let mut workspaces: HashMap<String, Vec<WsPill>> = HashMap::new();
         let mut active = HashMap::new();
         for w in state.workspaces.workspaces.values() {
@@ -85,10 +81,7 @@ impl Snapshot {
                         .unwrap_or((usize::MAX, usize::MAX));
                     (col, tile, w.id)
                 });
-                let entries = group
-                    .into_iter()
-                    .map(|w| titled_entry(w, font, fallbacks))
-                    .collect();
+                let entries = group.into_iter().map(titled_entry).collect();
                 (workspace, entries)
             })
             .collect();
@@ -190,22 +183,19 @@ pub struct WinEntry {
     pub is_focused: bool,
     pub is_urgent: bool,
     pub layout: WinLayout,
-    pub title_runs: Vec<TitleRun>,
+    pub title_parts: TitleParts,
+    pub lead_first: bool,
 }
 
 pub fn all_windows(state: &EventStreamState) -> Vec<WinEntry> {
     state.windows.windows.values().map(win_entry).collect()
 }
 
-fn titled_entry(w: &niri_ipc::Window, font: &FontConfig, fallbacks: &FontFallbacks) -> WinEntry {
+fn titled_entry(w: &niri_ipc::Window) -> WinEntry {
     let mut entry = win_entry(w);
     let rule = app_rules::rule_for(&entry.app_id);
-    entry.title_runs = title_runs(
-        font,
-        fallbacks,
-        &rule.rewrite(app_rules::label_for(&entry)),
-        rule.lead_first(),
-    );
+    entry.title_parts = rule.rewrite(app_rules::label_for(&entry));
+    entry.lead_first = rule.lead_first();
     entry
 }
 
@@ -217,7 +207,8 @@ fn win_entry(w: &niri_ipc::Window) -> WinEntry {
         pid: w.pid,
         is_focused: w.is_focused,
         is_urgent: w.is_urgent,
-        title_runs: Vec::new(),
+        title_parts: TitleParts::default(),
+        lead_first: false,
         layout: WinLayout {
             column: w.layout.pos_in_scrolling_layout.map(|(column, _)| column),
             tile_size: Size::new(w.layout.tile_size.0 as f32, w.layout.tile_size.1 as f32),

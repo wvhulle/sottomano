@@ -5,14 +5,7 @@ use serde::{Deserialize, Serialize};
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy, zvariant::Type};
 
-use crate::{
-    data::source::{
-        TooltipBody, clight,
-        font_awesome::{FontAwesome, Solid},
-        row,
-    },
-    message_subscriptions::poll_every,
-};
+use crate::{data::source::clight, message_subscriptions::poll_every};
 
 #[proxy(
     interface = "org.clightd.clightd.Backlight",
@@ -48,27 +41,6 @@ pub struct Backlight {
     pub serial: String,
     pub kind: Kind,
     pub percent: i64,
-}
-
-impl Backlight {
-    pub fn face(&self) -> FontAwesome {
-        match self.kind {
-            Kind::Internal => Solid::Laptop.into(),
-            Kind::External => Solid::Desktop.into(),
-        }
-    }
-
-    pub fn tooltip(&self, brightness: String) -> TooltipBody {
-        let kind = match self.kind {
-            Kind::Internal => "Internal",
-            Kind::External => "External (DDC)",
-        };
-        TooltipBody::rows(vec![
-            row("Display", self.serial.clone()),
-            row("Type", kind),
-            row("Brightness", brightness),
-        ])
-    }
 }
 
 const INTERVAL: Duration = Duration::from_secs(10);

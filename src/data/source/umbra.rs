@@ -1,27 +1,10 @@
 use std::time::Duration;
 
-use crate::{
-    data::source::{BarWidget, Glyph, Source, TooltipBody, command, font_awesome::Solid, row},
-    widgets::toggle_control::Toggle,
-};
+use crate::data::source::{Source, command};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Umbra {
     pub dark: bool,
-}
-
-impl BarWidget for Umbra {
-    fn icon(&self) -> Glyph {
-        if self.dark {
-            Solid::Moon.into()
-        } else {
-            Solid::Sun.into()
-        }
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![row("Mode", if self.dark { "Dark" } else { "Light" })])
-    }
 }
 
 impl Source for Umbra {
@@ -43,12 +26,6 @@ impl Source for Umbra {
     }
 }
 
-impl Toggle for Umbra {
-    fn toggled(&self) -> Self {
-        Umbra { dark: !self.dark }
-    }
-
-    fn toggle(&self) -> bool {
-        command::blocking::run("umbra", &["toggle"])
-    }
+pub fn toggle_mode() -> bool {
+    command::blocking::run("umbra", &["toggle"])
 }
