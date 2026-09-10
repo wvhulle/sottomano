@@ -248,7 +248,6 @@ impl Bar {
             }
             Message::FallbackFontsResolved(fonts) => {
                 self.font_fallbacks.merge(fonts);
-                self.rederive_snapshot();
                 Task::none()
             }
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
