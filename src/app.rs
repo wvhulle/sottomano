@@ -609,27 +609,8 @@ impl Bar {
             .map(Message::ColorTemperature)
     }
 
-    fn menus(&self) -> [&MenuGroup; 13] {
-        [
-            &self.wallpaper_group.menu,
-            &self.clock_group.menu,
-            &self.monitor_group.menu,
-            &self.color_temperature_group.menu,
-            &self.weather_group.menu,
-            &self.system_group.menu,
-            &self.media_group.menu,
-            &self.idle_timeouts_group.menu,
-            &self.panel_settings_group.menu,
-            &self.internet_group.menu,
-            &self.window_group.quick_launch.menu,
-            &self.tray_group.menu,
-            &self.ai_group.menu,
-        ]
-    }
-
-    pub fn any_menu_animating(&self) -> bool {
-        self.menus().iter().any(|menu| menu.is_animating())
-            || self.audio_group.is_animating()
+    pub fn any_slider_animating(&self) -> bool {
+        self.audio_group.is_animating()
             || self.monitor_group.is_animating()
             || self.color_temperature_group.is_animating()
             || self.panel_settings_group.is_animating()

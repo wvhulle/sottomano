@@ -84,38 +84,42 @@ impl WeatherGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, WeatherMessage>> {
         self.location.get()?;
-        let handle_reading = source_reading(config, self.temp.display(), 1.0)?;
-        let handle = button(hoverable(
-            handle_reading,
-            HoverTarget::WeatherTemp,
-            WeatherMessage::Tooltip,
-        ))
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(WeatherMessage::Menu(MenuMessage::Toggle))
-        .into();
+        source_reading::<WeatherMessage>(config, self.temp.display(), 1.0)?;
 
-        let reveal = self.menu.reveal();
-        let content = ReadingRow::new()
-            .opacity(reveal)
-            .push(Reading::new(self.location.display(), HoverTarget::Location))
-            .push(Reading::new(self.rain.present(), HoverTarget::WeatherRain))
-            .push(Reading::new(self.birch.present(), HoverTarget::PollenBirch))
-            .push(Reading::new(self.grass.present(), HoverTarget::PollenGrass))
-            .row(config, WeatherMessage::Tooltip)
-            .unwrap_or_else(Row::new);
+        let handle = move || {
+            let reading = source_reading(config, self.temp.display(), 1.0)
+                .unwrap_or_else(|| Row::new().into());
+            button(hoverable(
+                reading,
+                HoverTarget::WeatherTemp,
+                WeatherMessage::Tooltip,
+            ))
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(WeatherMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        Some(self.menu.view(
-            config,
-            position,
-            handle,
-            content.into(),
-            WeatherMessage::Menu,
-        ))
+        let content = move |reveal: f32| {
+            ReadingRow::new()
+                .opacity(reveal)
+                .push(Reading::new(self.location.display(), HoverTarget::Location))
+                .push(Reading::new(self.rain.present(), HoverTarget::WeatherRain))
+                .push(Reading::new(self.birch.present(), HoverTarget::PollenBirch))
+                .push(Reading::new(self.grass.present(), HoverTarget::PollenGrass))
+                .row(config, WeatherMessage::Tooltip)
+                .unwrap_or_else(Row::new)
+                .into()
+        };
+
+        Some(
+            self.menu
+                .view(config, position, handle, content, WeatherMessage::Menu),
+        )
     }
 }

@@ -193,45 +193,49 @@ impl MediaGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
-        index: &DesktopIndex,
+        &'a self,
+        config: &'a Config,
+        index: &'a DesktopIndex,
         position: Position,
     ) -> Option<Element<'a, MediaMessage>> {
         let media = self.current()?;
         let status = self.status(media);
         let opacity = if status == Status::Playing { 1.0 } else { 0.4 };
 
-        let handle = handle(config, media, status, opacity);
-        let handle = button(hoverable(handle, HoverTarget::Media, MediaMessage::Tooltip))
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(MediaMessage::Menu(MenuMessage::Toggle))
-            .into();
+        let handle = move || {
+            let face = handle(config, media, status, opacity);
+            button(hoverable(face, HoverTarget::Media, MediaMessage::Tooltip))
+                .padding(0)
+                .style(flat_button(config.palette.bar_foreground))
+                .on_press(MediaMessage::Menu(MenuMessage::Toggle))
+                .into()
+        };
 
-        let reveal = self.menu.reveal();
-        let title = rich_text(label_spans(config, media, reveal))
-            .size(config.font.text_size_px)
-            .line_height(LINE_HEIGHT);
-        let title = button(title)
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(MediaMessage::Source(media.bus.clone()));
-        let content = Row::with_children(
-            [
-                Some(title.into()),
-                Some(transport(config, media, status, reveal)),
-                self.sources(config, index, media, reveal),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .spacing(config.spacing.widget_spacing_px)
-        .align_y(Alignment::Center);
+        let content = move |reveal: f32| {
+            let title = rich_text(label_spans(config, media, reveal))
+                .size(config.font.text_size_px)
+                .line_height(LINE_HEIGHT);
+            let title = button(title)
+                .padding(0)
+                .style(flat_button(config.palette.bar_foreground))
+                .on_press(MediaMessage::Source(media.bus.clone()));
+            Row::with_children(
+                [
+                    Some(title.into()),
+                    Some(transport(config, media, status, reveal)),
+                    self.sources(config, index, media, reveal),
+                ]
+                .into_iter()
+                .flatten(),
+            )
+            .spacing(config.spacing.widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into()
+        };
 
         Some(
             self.menu
-                .view(config, position, handle, content.into(), MediaMessage::Menu),
+                .view(config, position, handle, content, MediaMessage::Menu),
         )
     }
 }

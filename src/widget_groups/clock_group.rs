@@ -73,21 +73,25 @@ impl ClockGroup {
         })
     }
 
-    pub fn view<'a>(&self, config: &Config, position: Position) -> Element<'a, ClockMessage> {
-        let handle: Element<'a, ClockMessage> =
+    pub fn view<'a>(&'a self, config: &'a Config, position: Position) -> Element<'a, ClockMessage> {
+        let handle = move || {
             button(bar_text(&config.font, self.time_text.clone()))
                 .padding(0)
                 .style(flat_button(config.palette.bar_foreground))
                 .on_press(ClockMessage::Menu(MenuMessage::Toggle))
-                .into();
+                .into()
+        };
 
-        let content = Row::new()
-            .push(bar_text(&config.font, self.date_text.clone()))
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = move |_reveal: f32| {
+            Row::new()
+                .push(bar_text(&config.font, self.date_text.clone()))
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
+        };
 
         self.menu
-            .view(config, position, handle, content.into(), ClockMessage::Menu)
+            .view(config, position, handle, content, ClockMessage::Menu)
     }
 }
 

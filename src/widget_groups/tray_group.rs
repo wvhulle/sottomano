@@ -162,34 +162,41 @@ impl TrayGroup {
 
     pub fn view<'a>(
         &'a self,
-        config: &Config,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, TrayMessage>> {
         let visible = self.visible(config);
         if visible.is_empty() {
             return None;
         }
-        let reveal = self.menu.reveal();
 
-        let handle = button(
-            Solid::EllipsisVertical
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(TrayMessage::Menu(MenuMessage::Toggle))
-        .into();
+        let handle = move || {
+            button(
+                Solid::EllipsisVertical
+                    .glyph()
+                    .size(config.font.icon_size_px)
+                    .color(config.palette.bar_foreground),
+            )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(TrayMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        let icons = visible.iter().map(|item| item_view(config, item, reveal));
-        let content = Row::with_children(icons)
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = move |reveal: f32| {
+            let icons = self
+                .visible(config)
+                .into_iter()
+                .map(|item| item_view(config, item, reveal));
+            Row::with_children(icons)
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
+        };
 
         Some(
             self.menu
-                .view(config, position, handle, content.into(), TrayMessage::Menu),
+                .view(config, position, handle, content, TrayMessage::Menu),
         )
     }
 }

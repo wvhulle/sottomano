@@ -75,7 +75,7 @@ fn outputs() -> Subscription<Message> {
 }
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    let animation = if state.any_menu_animating()
+    let animation = if state.any_slider_animating()
         || state.any_notification_live()
         || state.tooltip.is_morphing()
     {

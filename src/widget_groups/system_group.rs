@@ -108,40 +108,40 @@ impl SystemGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, SystemMessage>> {
-        let handle = hover_reading(
-            config,
-            self.cpu.get().map(|w| w as &dyn BarWidget)?,
-            1.0,
-            HoverTarget::Cpu,
-        )?;
-        let handle = button(handle)
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(SystemMessage::Menu(MenuMessage::Toggle))
-            .into();
+        let cpu = self.cpu.get().map(|w| w as &dyn BarWidget)?;
+        hover_reading(config, cpu, 1.0, HoverTarget::Cpu)?;
 
-        let reveal = self.menu.reveal();
-        let content = ReadingRow::new()
-            .opacity(reveal)
-            .push(Reading::new(
-                self.temperature.display(),
-                HoverTarget::Temperature,
-            ))
-            .push(Reading::new(self.memory.display(), HoverTarget::Memory))
-            .push(Reading::new(self.disk.display(), HoverTarget::Disk))
-            .row(config, SystemMessage::Tooltip)
-            .unwrap_or_else(Row::new);
+        let handle = move || {
+            let reading = hover_reading(config, cpu, 1.0, HoverTarget::Cpu)
+                .unwrap_or_else(|| Row::new().into());
+            button(reading)
+                .padding(0)
+                .style(flat_button(config.palette.bar_foreground))
+                .on_press(SystemMessage::Menu(MenuMessage::Toggle))
+                .into()
+        };
 
-        Some(self.menu.view(
-            config,
-            position,
-            handle,
-            content.into(),
-            SystemMessage::Menu,
-        ))
+        let content = move |reveal: f32| {
+            ReadingRow::new()
+                .opacity(reveal)
+                .push(Reading::new(
+                    self.temperature.display(),
+                    HoverTarget::Temperature,
+                ))
+                .push(Reading::new(self.memory.display(), HoverTarget::Memory))
+                .push(Reading::new(self.disk.display(), HoverTarget::Disk))
+                .row(config, SystemMessage::Tooltip)
+                .unwrap_or_else(Row::new)
+                .into()
+        };
+
+        Some(
+            self.menu
+                .view(config, position, handle, content, SystemMessage::Menu),
+        )
     }
 }

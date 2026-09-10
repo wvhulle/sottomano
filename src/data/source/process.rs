@@ -19,7 +19,7 @@ use procfs::{
 };
 use tokio::{task::spawn_blocking, time::sleep};
 
-use crate::data::source::nix_store::Provenance;
+use crate::{data::source::nix_store::Provenance, message_subscriptions::emit_changes};
 
 const SCAN_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -106,7 +106,7 @@ pub fn forest() -> Forest {
 }
 
 pub fn subscription() -> Subscription<Forest> {
-    Subscription::run(scan)
+    Subscription::run(|| emit_changes(scan()))
 }
 
 fn scan() -> impl Stream<Item = Forest> {

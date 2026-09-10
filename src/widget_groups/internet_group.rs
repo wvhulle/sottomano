@@ -130,53 +130,57 @@ impl InternetGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, InternetMessage>> {
         let down = self.down.get()?;
-        let handle_reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)?;
-        let handle = button(hoverable(
-            handle_reading,
-            HoverTarget::InternetDown,
-            InternetMessage::Tooltip,
-        ))
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(InternetMessage::Menu(MenuMessage::Toggle))
-        .into();
+        source_reading::<InternetMessage>(config, Some(down as &dyn BarWidget), 1.0)?;
 
-        let reveal = self.menu.reveal();
-        let tunnels = self
-            .wireguard
-            .get()
-            .map_or(&[][..], |wireguard| &wireguard.tunnels);
-        let content = tunnels
-            .iter()
-            .fold(
-                ReadingRow::new()
-                    .opacity(reveal)
-                    .push(Reading::new(self.up.display(), HoverTarget::InternetUp)),
-                |readings, tunnel| {
-                    readings.push(
-                        Reading::new(Some(tunnel), HoverTarget::Wireguard(tunnel.name.clone()))
-                            .on_right_press(InternetMessage::Disconnect(tunnel.name.clone())),
-                    )
-                },
-            )
-            .push(
-                Reading::new(self.tailscale.display(), HoverTarget::Tailscale)
-                    .on_press(InternetMessage::OpenTailscale),
-            )
-            .row(config, InternetMessage::Tooltip)
-            .unwrap_or_else(Row::new);
+        let handle = move || {
+            let reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)
+                .unwrap_or_else(|| Row::new().into());
+            button(hoverable(
+                reading,
+                HoverTarget::InternetDown,
+                InternetMessage::Tooltip,
+            ))
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(InternetMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        Some(self.menu.view(
-            config,
-            position,
-            handle,
-            content.into(),
-            InternetMessage::Menu,
-        ))
+        let content = move |reveal: f32| {
+            let tunnels = self
+                .wireguard
+                .get()
+                .map_or(&[][..], |wireguard| &wireguard.tunnels);
+            tunnels
+                .iter()
+                .fold(
+                    ReadingRow::new()
+                        .opacity(reveal)
+                        .push(Reading::new(self.up.display(), HoverTarget::InternetUp)),
+                    |readings, tunnel| {
+                        readings.push(
+                            Reading::new(Some(tunnel), HoverTarget::Wireguard(tunnel.name.clone()))
+                                .on_right_press(InternetMessage::Disconnect(tunnel.name.clone())),
+                        )
+                    },
+                )
+                .push(
+                    Reading::new(self.tailscale.display(), HoverTarget::Tailscale)
+                        .on_press(InternetMessage::OpenTailscale),
+                )
+                .row(config, InternetMessage::Tooltip)
+                .unwrap_or_else(Row::new)
+                .into()
+        };
+
+        Some(
+            self.menu
+                .view(config, position, handle, content, InternetMessage::Menu),
+        )
     }
 }
