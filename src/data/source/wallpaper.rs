@@ -1,16 +1,25 @@
 use std::{
     collections::HashMap,
+    env,
     fmt::{Display, Formatter, Result as FmtResult},
-    path::Path,
-    time::Duration,
+    fs, io,
+    path::{Path, PathBuf},
 };
 
+use iced::{
+    Subscription,
+    futures::{SinkExt, StreamExt, channel::mpsc::Sender, future::ready},
+    stream,
+};
 use icu_locale_core::Locale;
+use inotify::{EventMask, Inotify, WatchMask};
 use serde::Deserialize;
+use tokio::time::{Duration, sleep};
 
 use crate::data::source::{ai::read_secret, command, http};
 
-pub const QUERY_INTERVAL: Duration = Duration::from_secs(30);
+const WATCH_RETRY: Duration = Duration::from_secs(2);
+const EVENT_BUFFER_BYTES: usize = 1024;
 
 const UNSPLASH_PHOTO_ENDPOINT: &str = "https://api.unsplash.com/photos/";
 const UNSPLASH_PHOTO_PAGE: &str = "https://unsplash.com/photos/";
@@ -119,6 +128,108 @@ struct SearchedPage {
     extract: Option<String>,
 }
 
+pub fn subscription() -> Subscription<Result<String, command::Error>> {
+    Subscription::run(|| {
+        stream::channel(
+            4,
+            |mut output: Sender<Result<String, command::Error>>| async move {
+                loop {
+                    if let Err(e) = watch(&mut output).await {
+                        tracing::warn!("wallpaper watch: {e}");
+                    }
+                    sleep(WATCH_RETRY).await;
+                }
+            },
+        )
+    })
+}
+
+async fn watch(output: &mut Sender<Result<String, command::Error>>) -> Result<(), io::Error> {
+    let roots = cache_roots();
+    if roots.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "no wallpaper cache directory to watch",
+        ));
+    }
+
+    let inotify = Inotify::init()?;
+    let mut watches = inotify.watches();
+    let mut directories = HashMap::new();
+    for root in &roots {
+        if let Err(e) = watches.add(root, WatchMask::CREATE) {
+            tracing::warn!("wallpaper watch {}: {e}", root.display());
+        }
+        for version in version_directories(root) {
+            match watches.add(&version, WatchMask::CLOSE_WRITE) {
+                Ok(descriptor) => {
+                    directories.insert(descriptor, version);
+                }
+                Err(e) => tracing::warn!("wallpaper watch {}: {e}", version.display()),
+            }
+        }
+    }
+
+    let mut changes = inotify
+        .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
+        .take_while(|event| {
+            ready(
+                !event
+                    .as_ref()
+                    .is_ok_and(|event| event.mask.contains(EventMask::ISDIR)),
+            )
+        });
+
+    output
+        .send(displayed_path().await)
+        .await
+        .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))?;
+
+    while let Some(event) = changes.next().await {
+        let event = event?;
+        let requested = directories
+            .get(&event.wd)
+            .zip(event.name.as_ref())
+            .map(|(directory, entry)| directory.join(entry))
+            .and_then(|entry| fs::read(entry).ok())
+            .and_then(|cached| {
+                let requested = cached.rsplit(|byte| *byte == 0).next()?;
+                String::from_utf8(requested.to_vec()).ok()
+            })
+            .filter(|requested| Path::new(requested).is_file());
+        let reading = match requested {
+            Some(path) => Ok(path),
+            None => displayed_path().await,
+        };
+        output
+            .send(reading)
+            .await
+            .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))?;
+    }
+    Ok(())
+}
+
+fn cache_roots() -> Vec<PathBuf> {
+    let base = env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
+    base.into_iter()
+        .flat_map(|base| WALLPAPER_DAEMONS.map(|daemon| base.join(daemon)))
+        .filter(|root| root.is_dir())
+        .collect()
+}
+
+fn version_directories(root: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect()
+}
+
 pub async fn displayed_path() -> Result<String, command::Error> {
     let mut failure = None;
     for daemon in WALLPAPER_DAEMONS {
@@ -141,6 +252,18 @@ pub async fn daemon_installed() -> bool {
         }
     }
     false
+}
+
+pub fn unresolved(path: &str, id: &str) -> Wallpaper {
+    Wallpaper {
+        file_name: file_name(path).to_owned(),
+        caption: None,
+        photographer: None,
+        photo_url: format!("{UNSPLASH_PHOTO_PAGE}{id}"),
+        place: None,
+        position: None,
+        article: None,
+    }
 }
 
 pub async fn resolve(path: String, id: String, unsplash_key: &Path) -> Result<Wallpaper, Error> {
