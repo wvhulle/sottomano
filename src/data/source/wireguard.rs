@@ -1,26 +1,22 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use bytesize::ByteSize;
 use serde_json::Value as Json;
 
-use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody, command, command::blocking::run, font_awesome::Solid,
-    row,
-};
+use crate::data::source::{Source, command, command::blocking::run};
 
 const CONNECTED_WINDOW: u64 = 180;
 
 #[derive(Debug, Clone, PartialEq)]
-struct Peer {
-    endpoint: String,
-    allowed_ips: String,
-    handshake_ago: Option<u64>,
-    rx: u64,
-    tx: u64,
+pub struct Peer {
+    pub endpoint: String,
+    pub allowed_ips: String,
+    pub handshake_ago: Option<u64>,
+    pub rx: u64,
+    pub tx: u64,
 }
 
 impl Peer {
-    fn connected(&self) -> bool {
+    pub fn connected(&self) -> bool {
         self.handshake_ago
             .is_some_and(|ago| ago <= CONNECTED_WINDOW)
     }
@@ -29,101 +25,21 @@ impl Peer {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tunnel {
     pub name: String,
-    server: bool,
-    ip: String,
-    port: Option<u32>,
-    peers: Vec<Peer>,
+    pub server: bool,
+    pub ip: String,
+    pub port: Option<u32>,
+    pub peers: Vec<Peer>,
 }
 
 impl Tunnel {
-    fn connected_peers(&self) -> usize {
+    pub fn connected_peers(&self) -> usize {
         self.peers.iter().filter(|p| p.connected()).count()
-    }
-}
-
-impl BarWidget for Tunnel {
-    fn icon(&self) -> Glyph {
-        if self.server {
-            Solid::Minimize.into()
-        } else {
-            Solid::LocationPinLock.into()
-        }
-    }
-
-    fn disabled(&self) -> bool {
-        if self.server {
-            self.connected_peers() == 0
-        } else {
-            !self.peers.iter().any(Peer::connected)
-        }
-    }
-
-    fn badge(&self) -> Option<u32> {
-        self.server
-            .then(|| u32::try_from(self.connected_peers()).ok())
-            .flatten()
-            .filter(|c| *c > 0)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let mut rows = Vec::new();
-        if self.server {
-            rows.push(row(&self.name, "server"));
-            rows.push(row("IP", self.ip.clone()));
-            if let Some(port) = self.port {
-                rows.push(row("port", port.to_string()));
-            }
-            rows.push(row(
-                "clients",
-                format!("{}/{}", self.connected_peers(), self.peers.len()),
-            ));
-            for peer in self.peers.iter().filter(|p| p.connected()) {
-                let key = if peer.endpoint.is_empty() {
-                    "peer"
-                } else {
-                    &peer.endpoint
-                };
-                rows.push(row(key, peer.allowed_ips.clone()));
-            }
-        } else {
-            rows.push(row(&self.name, "client"));
-            if let Some(peer) = self.peers.first() {
-                if !peer.endpoint.is_empty() {
-                    rows.push(row("server", peer.endpoint.clone()));
-                }
-                rows.push(row("IP", self.ip.clone()));
-                rows.push(row(
-                    "handshake",
-                    peer.handshake_ago
-                        .map_or_else(|| "never".to_string(), |ago| format!("{ago}s ago")),
-                ));
-                rows.push(row(
-                    "transfer",
-                    format!(
-                        "↓{} ↑{}",
-                        ByteSize::b(peer.rx).display().iec(),
-                        ByteSize::b(peer.tx).display().iec()
-                    ),
-                ));
-            }
-        }
-        TooltipBody::rows(rows)
     }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Wireguard {
     pub tunnels: Vec<Tunnel>,
-}
-
-impl BarWidget for Wireguard {
-    fn icon(&self) -> Glyph {
-        Solid::ShieldHalved.into()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(Vec::new())
-    }
 }
 
 impl Source for Wireguard {

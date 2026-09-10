@@ -4,7 +4,8 @@ use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 use niri_ipc::state::EventStreamState;
 
-use super::{app_rules::IconCandidate, niri};
+use super::niri;
+use crate::data::source::app_rules::{self, IconCandidate};
 
 #[derive(Debug)]
 pub struct DesktopEntries {
@@ -115,7 +116,7 @@ fn icon_keys(
     let mut keys: Vec<String> = niri::all_windows(niri_state)
         .iter()
         .flat_map(|w| {
-            super::app_rules::rule_for(&w.app_id)
+            app_rules::rule_for(&w.app_id)
                 .icon_candidates(w)
                 .into_iter()
                 .filter_map(&pick)

@@ -9,12 +9,7 @@ use chrono::{Local, SecondsFormat, TimeZone, Utc};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::data::source::{
-    BarWidget, Glyph, Level, Occasional, Source, TooltipBody,
-    ai::{level_from_cost, read_secret},
-    http, row,
-    simple_icons::SimpleIcon,
-};
+use crate::data::source::{Source, ai::read_secret, http};
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
@@ -81,60 +76,23 @@ struct ApiMessage {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
-struct Credits {
+pub struct Credits {
     #[serde(rename = "total_credits")]
-    total: f64,
+    pub total: f64,
     #[serde(rename = "total_usage")]
-    used: f64,
+    pub used: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpenRouter {
-    spend: f64,
-    models: Vec<(String, f64)>,
-    credits: Credits,
+    pub spend: f64,
+    pub models: Vec<(String, f64)>,
+    pub credits: Credits,
 }
 
 impl OpenRouter {
-    fn overspent(&self) -> bool {
+    pub fn overspent(&self) -> bool {
         self.credits.used > self.credits.total
-    }
-}
-
-impl BarWidget for OpenRouter {
-    fn icon(&self) -> Glyph {
-        SimpleIcon::OpenRouter.into()
-    }
-
-    fn label(&self) -> Option<String> {
-        Some(format!("{:.2}", self.spend))
-    }
-
-    fn level(&self) -> Level {
-        level_from_cost(self.spend)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let remaining = self.credits.total - self.credits.used;
-        let mut rows = vec![
-            row("Today", format!("${} USD", money(self.spend))),
-            row("Credits remaining", format!("${} USD", money(remaining))),
-            row(
-                "Lifetime credits purchased",
-                format!("${} USD", money(self.credits.total)),
-            ),
-        ];
-        if !self.models.is_empty() {
-            rows.push(row(" ", "by model (since midnight)"));
-            for (name, cost) in self.models.iter().take(6) {
-                rows.push(row(name, format!("${}", money(*cost))));
-            }
-            let rest: f64 = self.models.iter().skip(6).map(|(_, cost)| cost).sum();
-            if rest > 0.0 {
-                rows.push(row("other", format!("${}", money(rest))));
-            }
-        }
-        TooltipBody::rows(rows)
     }
 }
 
@@ -154,12 +112,6 @@ impl Source for OpenRouter {
             models,
             credits: credits(&key).await?,
         })
-    }
-}
-
-impl Occasional for OpenRouter {
-    fn present(&self) -> bool {
-        self.spend > 0.0 || self.overspent()
     }
 }
 
@@ -217,10 +169,6 @@ fn now_utc() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-fn money(value: f64) -> String {
-    format!("{}", (value * 100.0).round() / 100.0)
-}
-
 fn short_model(slug: Option<&str>) -> String {
     let Some(base) = slug.and_then(|slug| slug.rsplit('/').next()) else {
         return "unknown".to_owned();
@@ -249,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_spend_without_overspend_is_not_present() {
+    fn credits_within_budget_are_not_overspent() {
         let reading = OpenRouter {
             spend: 0.0,
             models: Vec::new(),
@@ -258,6 +206,7 @@ mod tests {
                 used: 4.5,
             },
         };
-        assert!(!reading.present());
+        assert!(reading.spend.abs() < f64::EPSILON);
+        assert!(!reading.overspent());
     }
 }

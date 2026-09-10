@@ -8,7 +8,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{Level, level_color},
+    widgets::bar_widget::{Level, level_color},
 };
 
 const KNOB_RADIUS: f32 = 5.0;

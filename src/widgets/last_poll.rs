@@ -1,8 +1,12 @@
 use std::{fmt::Display, time::SystemTime};
 
-use crate::data::source::{
-    BarWidget, Glyph, Level, Occasional, RefreshInfo, Source, Tooltip, TooltipBody,
-    font_awesome::Solid, row,
+use crate::{
+    data::source::Source,
+    widgets::{
+        bar_widget::{BarWidget, Glyph, Level, Occasional},
+        font_awesome::Solid,
+        tooltip_body::{RefreshInfo, Tooltip, TooltipBody, row},
+    },
 };
 
 pub struct FailedReading {
@@ -106,7 +110,7 @@ impl<S: Occasional> LastPoll<S> {
     }
 }
 
-impl<S: Source> LastPoll<S> {
+impl<S: Source + BarWidget> LastPoll<S> {
     pub fn tooltip(&self) -> Option<Tooltip> {
         self.tooltip_with(self.display()?.tooltip())
     }

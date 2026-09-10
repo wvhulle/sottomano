@@ -5,11 +5,8 @@ use serde::Deserialize;
 
 use super::{Error, read_credentials};
 use crate::data::source::{
-    BarWidget, Glyph, Level, Source, TooltipBody,
-    ai::level_from_cost,
+    Source,
     command::{exists, require},
-    row,
-    simple_icons::SimpleIcon,
 };
 
 #[derive(Deserialize)]
@@ -27,30 +24,9 @@ struct DayEntry {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeCcusage {
-    cost: f64,
-    tokens: u64,
-    models: String,
-}
-
-impl BarWidget for ClaudeCcusage {
-    fn icon(&self) -> Glyph {
-        SimpleIcon::Claude.into()
-    }
-
-    fn level(&self) -> Level {
-        level_from_cost(self.cost)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        if self.tokens == 0 && self.cost == 0.0 {
-            return TooltipBody::rows(vec![row("Usage", "no activity today")]);
-        }
-        TooltipBody::rows(vec![
-            row("Today", format!("${:.2} USD", self.cost)),
-            row("Tokens", self.tokens.to_string()),
-            row("Models", self.models.clone()),
-        ])
-    }
+    pub cost: f64,
+    pub tokens: u64,
+    pub models: String,
 }
 
 impl Source for ClaudeCcusage {

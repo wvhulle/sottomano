@@ -10,15 +10,9 @@ use iced::{
 
 use crate::{
     config::{Config, SecretPaths},
-    data::{
-        last_poll::LastPoll,
-        source::{
-            BarWidget, Glyph, Tooltip, TooltipBody, command,
-            font_awesome::Solid,
-            row, section,
-            simple_icons::SimpleIcon,
-            wallpaper::{self, Position, Wallpaper},
-        },
+    data::source::{
+        command,
+        wallpaper::{self, Position, Wallpaper},
     },
     message_subscriptions::poll_every,
     wayland_layers::{
@@ -26,10 +20,15 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        bar_widget::{BarWidget, Glyph},
         flat_button,
+        font_awesome::Solid,
+        last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
+        simple_icons::SimpleIcon,
         source_reading::source_reading,
+        tooltip_body::{Tooltip, TooltipBody, row, section},
     },
 };
 

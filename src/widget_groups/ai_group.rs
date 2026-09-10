@@ -1,3 +1,8 @@
+pub mod claude_usage;
+pub mod copilot_usage;
+pub mod openrouter_credit_spend;
+pub mod spend_to_level;
+
 use iced::{
     Element, Subscription, Task,
     widget::{Row, button},
@@ -5,16 +10,12 @@ use iced::{
 
 use crate::{
     config::{Config, SecretPaths},
-    data::{
-        last_poll::LastPoll,
-        source::{
-            Source, Tooltip,
-            ai::{
-                claude::{self, ClaudeCcusage, ClaudeOauth},
-                copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
-                openrouter::{self, OpenRouter},
-            },
-            font_awesome::Solid,
+    data::source::{
+        Source,
+        ai::{
+            claude::{self, ClaudeCcusage, ClaudeOauth},
+            copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
+            openrouter::{self, OpenRouter},
         },
     },
     message_subscriptions::polling,
@@ -24,8 +25,11 @@ use crate::{
     },
     widgets::{
         flat_button,
+        font_awesome::Solid,
+        last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
+        tooltip_body::Tooltip,
     },
 };
 

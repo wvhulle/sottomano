@@ -3,12 +3,7 @@ use std::{env, fs, time::Duration};
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
-use crate::{
-    data::source::{
-        BarWidget, Glyph, Source, TooltipBody, backlight, bus, bus::Error, font_awesome::Solid, row,
-    },
-    widgets::toggle_control::Toggle,
-};
+use crate::data::source::{Source, backlight, bus, bus::Error};
 
 #[proxy(
     interface = "org.clight.clight.Conf.Backlight",
@@ -34,27 +29,6 @@ trait ClightDaemon {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Clight {
     pub auto: bool,
-}
-
-impl BarWidget for Clight {
-    fn icon(&self) -> Glyph {
-        if self.auto {
-            Solid::Eye.into()
-        } else {
-            Solid::EyeSlash.into()
-        }
-    }
-
-    fn disabled(&self) -> bool {
-        !self.auto
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![row(
-            "Auto-brightness",
-            if self.auto { "on" } else { "off — manual" },
-        )])
-    }
 }
 
 impl Source for Clight {
@@ -84,16 +58,6 @@ fn read_auto_calib() -> Result<Clight, Error> {
     Ok(Clight {
         auto: !bus::require(proxy.no_auto_calib())?,
     })
-}
-
-impl Toggle for Clight {
-    fn toggled(&self) -> Self {
-        Clight { auto: !self.auto }
-    }
-
-    fn toggle(&self) -> bool {
-        flip()
-    }
 }
 
 fn no_auto_calib() -> Option<bool> {
@@ -139,7 +103,7 @@ pub fn pause_auto_calib() {
     persist(true);
 }
 
-fn flip() -> bool {
+pub fn flip() -> bool {
     let currently_auto = no_auto_calib().is_some_and(|no| !no);
     let manual = currently_auto;
     let ok = set_no_auto_calib(manual);

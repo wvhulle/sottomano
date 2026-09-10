@@ -4,12 +4,13 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     data::source::{
-        Row, Section, Tooltip, TooltipBody,
         nix_store::{Provenance, StorePackage},
         process::{self, Inspection, Launch, Process},
-        row, section, tree_section, untitled,
     },
     wayland_layers::tooltip::relative,
+    widgets::tooltip_body::{
+        Row, Section, Tooltip, TooltipBody, row, section, tree_section, untitled,
+    },
 };
 
 pub fn tooltip(

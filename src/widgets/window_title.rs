@@ -2,11 +2,24 @@ use iced::{Font, font::Style as FontStyle, widget::text::Span};
 
 use crate::{
     config::{Config, font::FontConfig},
-    data::source::app_rules::{TitleParts, TitleRole, TitleRun},
+    data::source::app_rules::TitleParts,
     widgets::text::{FontFallbacks, colored_span},
 };
 
 const SEPARATOR: &str = " · ";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleRole {
+    Lead,
+    Main,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleRun {
+    pub text: String,
+    pub font: Font,
+    pub role: TitleRole,
+}
 
 pub fn title_runs(
     font: &FontConfig,

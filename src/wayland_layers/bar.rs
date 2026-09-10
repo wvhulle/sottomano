@@ -42,7 +42,7 @@ use crate::{
         window_group::{WindowGroupMessage, window_list::WindowListMessage},
         workspaces_group::{self, WorkspacesMessage},
     },
-    widgets::{bounds_probe::bounds_probe, window_icon::WindowIcons},
+    widgets::{bounds_probe::bounds_probe, window_icon::WindowAssets},
 };
 
 pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
@@ -369,9 +369,10 @@ fn bottom_row<'a>(
             slot(
                 bar.window_group.view(
                     &bar.niri_snapshot,
-                    WindowIcons {
+                    WindowAssets {
                         entries: &bar.desktop_entries,
                         favicons: &bar.favicons,
+                        fallbacks: &bar.font_fallbacks,
                     },
                     bar.audio_group.window_audio(),
                     output,

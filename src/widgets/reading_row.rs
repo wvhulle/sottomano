@@ -5,12 +5,14 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::BarWidget,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widgets::{flat_button, pager_slot::permanently_inactive_slot, source_reading::source_reading},
+    widgets::{
+        bar_widget::BarWidget, flat_button, pager_slot::permanently_inactive_slot,
+        source_reading::source_reading,
+    },
 };
 
 pub struct Reading<'w, M> {

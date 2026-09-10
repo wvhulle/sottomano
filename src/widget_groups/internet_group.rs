@@ -3,16 +3,17 @@ use iced::{
     widget::{Row, button},
 };
 
+pub mod network_throughput_gauge;
+pub mod tailscale_mesh_tooltip;
+pub mod wireguard_tunnel_tooltip;
+
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            BarWidget, Source, Tooltip, command,
-            tailscale::{self, Tailscale, open_admin},
-            throughput::{self, Download, Readings, Throughput, Upload},
-            wireguard::{Wireguard, disconnect},
-        },
+    data::source::{
+        Source, command,
+        tailscale::{self, Tailscale, open_admin},
+        throughput::{self, Download, Readings, Throughput, Upload},
+        wireguard::{Wireguard, disconnect},
     },
     message_subscriptions::polling,
     wayland_layers::{
@@ -20,10 +21,13 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        bar_widget::BarWidget,
         flat_button,
+        last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
         source_reading::source_reading,
+        tooltip_body::Tooltip,
     },
 };
 

@@ -1,25 +1,29 @@
 use iced::{Element, Subscription, Task};
 
+pub mod bluetooth_devices_tooltip;
+pub mod ethernet_link_tooltip;
+pub mod interface_sections;
+pub mod mobile_modem_tooltip;
+pub mod wifi_link_tooltip;
+
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            Tooltip,
-            net_interfaces::{
-                bluetooth::{self, Bluetooth},
-                ethernet::{self, Ethernet},
-                mobile::{self, Mobile},
-                wifi::{self, Wifi},
-            },
-        },
+    data::source::net_interfaces::{
+        bluetooth::{self, Bluetooth},
+        ethernet::{self, Ethernet},
+        mobile::{self, Mobile},
+        wifi::{self, Wifi},
     },
     message_subscriptions::dbus,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widgets::reading_row::{Reading, ReadingRow},
+    widgets::{
+        last_poll::LastPoll,
+        reading_row::{Reading, ReadingRow},
+        tooltip_body::Tooltip,
+    },
 };
 
 #[derive(Default)]

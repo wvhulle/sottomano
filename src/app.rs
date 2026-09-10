@@ -13,7 +13,6 @@ use crate::{
     data::{
         sink::{clipboard, sound},
         source::{
-            Tooltip, TooltipBody,
             app_icon::{self, DesktopEntries},
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
@@ -55,7 +54,12 @@ use crate::{
         window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
         workspaces_group::workspace_tooltip,
     },
-    widgets::{favicon::Favicons, menu_group::MenuGroup, text::FontFallbacks},
+    widgets::{
+        favicon::Favicons,
+        menu_group::MenuGroup,
+        text::FontFallbacks,
+        tooltip_body::{Tooltip, TooltipBody},
+    },
 };
 
 pub struct Bar {
@@ -543,6 +547,8 @@ impl Bar {
             return workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
+                &self.config.font,
+                &self.font_fallbacks,
                 *workspace,
             )
             .unwrap_or_else(Tooltip::empty);
@@ -728,8 +734,7 @@ impl Bar {
     }
 
     fn rederive_snapshot(&mut self) {
-        self.niri_snapshot =
-            niri::Snapshot::derive(&self.niri, &self.config.font, &self.font_fallbacks);
+        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
     }
 
     fn refresh_window_assets(&mut self) -> Task<Message> {

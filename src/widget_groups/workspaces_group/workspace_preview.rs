@@ -8,9 +8,12 @@ use iced::{
 use crate::{
     app::Message,
     config::Config,
-    data::source::{PreviewTile, WorkspacePreview},
     widgets::{
-        favicon::Favicons, text::LINE_HEIGHT, window_icon::window_icon, window_title::title_spans,
+        favicon::Favicons,
+        text::LINE_HEIGHT,
+        tooltip_body::{PreviewTile, WorkspacePreview},
+        window_icon::window_icon,
+        window_title::title_spans,
     },
 };
 

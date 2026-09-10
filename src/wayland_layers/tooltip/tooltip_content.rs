@@ -10,17 +10,20 @@ use iced::{
 use crate::{
     app::Message,
     config::{Config, font::FontConfig},
-    data::source::{
-        LogEntry, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
-        level_color,
-    },
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
-        context_menu::context_menu, copyable::copyable, favicon::Favicons,
-        section_column::section_column, text::bar_text,
+        bar_widget::level_color,
+        context_menu::context_menu,
+        copyable::copyable,
+        favicon::Favicons,
+        section_column::section_column,
+        text::bar_text,
+        tooltip_body::{
+            LogEntry, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
+        },
     },
 };
 

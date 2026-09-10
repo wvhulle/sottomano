@@ -3,9 +3,7 @@ use std::{ops::RangeInclusive, time::Duration};
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{
-    BarWidget, Glyph, Source, TooltipBody, Unit, Value, bus, bus::Error, font_awesome::Solid, row,
-};
+use crate::data::source::{Source, bus, bus::Error};
 
 #[proxy(
     interface = "rs.wl.gammarelay",
@@ -29,26 +27,6 @@ pub const TEMP_RANGE: RangeInclusive<u16> = 3000..=6500;
 pub struct Gamma {
     pub brightness: i64,
     pub temperature: u16,
-}
-
-impl BarWidget for Gamma {
-    fn icon(&self) -> Glyph {
-        Solid::CircleHalfStroke.into()
-    }
-
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.brightness,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![
-            row("Dim", format!("{}%", self.brightness)),
-            row("Temperature", format!("{} K", self.temperature)),
-        ])
-    }
 }
 
 impl Source for Gamma {

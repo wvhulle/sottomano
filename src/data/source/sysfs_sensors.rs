@@ -148,11 +148,7 @@ pub(super) fn read_i64(path: impl AsRef<Path>) -> Option<i64> {
     read_trimmed(path)?.parse().ok()
 }
 
-pub(super) fn ghz(value: f64) -> String {
-    format!("{value:.2} GHz")
-}
-
-pub(super) fn favg(xs: &[f64]) -> f64 {
+pub fn favg(xs: &[f64]) -> f64 {
     if xs.is_empty() {
         0.0
     } else {
@@ -160,10 +156,10 @@ pub(super) fn favg(xs: &[f64]) -> f64 {
     }
 }
 
-pub(super) fn fmin(xs: &[f64]) -> f64 {
+pub fn fmin(xs: &[f64]) -> f64 {
     xs.iter().copied().fold(f64::INFINITY, f64::min)
 }
 
-pub(super) fn fmax(xs: &[f64]) -> f64 {
+pub fn fmax(xs: &[f64]) -> f64 {
     xs.iter().copied().fold(f64::NEG_INFINITY, f64::max)
 }

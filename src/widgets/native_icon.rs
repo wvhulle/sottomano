@@ -1,15 +1,9 @@
-use std::path::PathBuf;
-
 use iced::{
     Element,
     widget::{image, svg},
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum IconSource {
-    Pixmap(image::Handle),
-    Themed(PathBuf),
-}
+use crate::data::source::tray::IconSource;
 
 pub fn native_icon<'a, Message: 'a>(
     source: &IconSource,

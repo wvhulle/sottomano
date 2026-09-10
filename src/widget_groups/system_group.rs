@@ -1,3 +1,9 @@
+pub mod cpu_clock_label;
+pub mod cpu_load_gauge;
+pub mod cpu_temperature_gauge;
+pub mod disk_usage_gauge;
+pub mod memory_usage_gauge;
+
 use iced::{
     Element, Subscription, Task,
     widget::{Row, button},
@@ -5,13 +11,10 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            BarWidget, Source, Tooltip,
-            disk::{self, Disk},
-            sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
-        },
+    data::source::{
+        Source,
+        disk::{self, Disk},
+        sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     message_subscriptions::polling,
     wayland_layers::{
@@ -19,10 +22,13 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        bar_widget::BarWidget,
         flat_button,
+        last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
         source_reading::source_reading,
+        tooltip_body::Tooltip,
     },
 };
 

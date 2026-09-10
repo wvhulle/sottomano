@@ -7,7 +7,6 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{Tooltip, font_awesome::Solid},
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
     wayland_layers::{
@@ -16,12 +15,14 @@ use crate::{
     },
     widgets::{
         flat_button,
+        font_awesome::Solid,
         idle::{
             IdleAction, IdleTrigger, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
         menu_group::{MenuGroup, MenuMessage},
         slider_control::ControlMessage,
+        tooltip_body::Tooltip,
     },
 };
 

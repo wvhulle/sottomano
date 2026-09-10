@@ -9,11 +9,10 @@ use chrono::DateTime;
 use serde::Deserialize;
 
 use crate::data::source::{
-    BarWidget, Glyph, Level, Occasional, Source, TooltipBody, Unit, Value as GaugeValue,
-    ai::{level_from_cost, level_from_used, read_secret},
+    Source,
+    ai::read_secret,
     command::{self, exists, require},
-    http, row,
-    simple_icons::SimpleIcon,
+    http,
 };
 
 const USER_URL: &str = "https://api.github.com/copilot_internal/user";
@@ -149,45 +148,13 @@ fn usable<'a>(
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
-    plan: String,
-    quota: String,
-    used: i64,
-    limit: i64,
-    remaining: i64,
-    percent_used: i64,
-    reset: Option<String>,
-}
-
-impl BarWidget for CopilotMetered {
-    fn icon(&self) -> Glyph {
-        SimpleIcon::GithubCopilot.into()
-    }
-
-    fn level(&self) -> Level {
-        level_from_used(self.percent_used)
-    }
-
-    fn value(&self) -> Option<GaugeValue> {
-        Some(GaugeValue::Gauge {
-            percent: self.percent_used,
-            unit: Unit::Percent,
-        })
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![
-            row("Plan", self.plan.clone()),
-            row("Source", "/copilot_internal/user"),
-            row("Quota", self.quota.clone()),
-            row("Used", self.used.to_string()),
-            row("Limit", self.limit.to_string()),
-            row("Remaining", self.remaining.to_string()),
-        ];
-        if let Some(reset) = &self.reset {
-            rows.push(row("Resets", reset.clone()));
-        }
-        TooltipBody::rows(rows)
-    }
+    pub plan: String,
+    pub quota: String,
+    pub used: i64,
+    pub limit: i64,
+    pub remaining: i64,
+    pub percent_used: i64,
+    pub reset: Option<String>,
 }
 
 impl Source for CopilotMetered {
@@ -216,51 +183,12 @@ impl Source for CopilotMetered {
     }
 }
 
-impl Occasional for CopilotMetered {
-    fn present(&self) -> bool {
-        self.percent_used > 0
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
-    plan: String,
-    chat: i64,
-    completions: i64,
-    reset: Option<String>,
-}
-
-impl BarWidget for CopilotFree {
-    fn icon(&self) -> Glyph {
-        SimpleIcon::GithubCopilot.into()
-    }
-
-    fn label(&self) -> Option<String> {
-        Some(self.chat.to_string())
-    }
-
-    fn level(&self) -> Level {
-        if self.chat <= 5 {
-            Level::Critical
-        } else if self.chat <= 20 {
-            Level::Warning
-        } else {
-            Level::Ok
-        }
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![
-            row("Plan", self.plan.clone()),
-            row("Source", "/copilot_internal/user"),
-            row("Chat", self.chat.to_string()),
-            row("Completions", self.completions.to_string()),
-        ];
-        if let Some(reset) = &self.reset {
-            rows.push(row("Resets", reset.clone()));
-        }
-        TooltipBody::rows(rows)
-    }
+    pub plan: String,
+    pub chat: i64,
+    pub completions: i64,
+    pub reset: Option<String>,
 }
 
 impl Source for CopilotFree {
@@ -291,48 +219,10 @@ impl Source for CopilotFree {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CopilotCcusage {
-    month: String,
-    tokens: u64,
-    cost: f64,
-    models: String,
-}
-
-impl Occasional for CopilotCcusage {
-    fn present(&self) -> bool {
-        self.tokens > 0 || self.cost > 0.0
-    }
-}
-
-impl BarWidget for CopilotCcusage {
-    fn icon(&self) -> Glyph {
-        SimpleIcon::GithubCopilot.into()
-    }
-
-    fn label(&self) -> Option<String> {
-        Some(if self.cost > 0.0 {
-            format!("${:.2}", self.cost)
-        } else if self.tokens > 0 {
-            "cli".to_owned()
-        } else {
-            String::new()
-        })
-    }
-
-    fn level(&self) -> Level {
-        level_from_cost(self.cost)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![
-            row("Plan", "copilot-cli"),
-            row("Source", "ccusage"),
-            row("Scope", "local CLI session data"),
-            row("Month", self.month.clone()),
-            row("MonthTokens", self.tokens.to_string()),
-            row("MonthCost", format!("${:.2}", self.cost)),
-            row("Models", self.models.clone()),
-        ])
-    }
+    pub month: String,
+    pub tokens: u64,
+    pub cost: f64,
+    pub models: String,
 }
 
 impl Source for CopilotCcusage {
@@ -458,9 +348,11 @@ mod tests {
     }
 
     #[test]
-    fn empty_monthly_report_is_not_present() {
+    fn empty_monthly_report_yields_no_usage() {
         let report: MonthlyReport = serde_json::from_str(r#"{"monthly":[]}"#).unwrap();
         assert!(report.monthly.is_empty());
-        assert!(!CopilotCcusage::default().present());
+        let empty = CopilotCcusage::default();
+        assert_eq!(empty.tokens, 0);
+        assert!(empty.cost.abs() < f64::EPSILON);
     }
 }

@@ -4,11 +4,8 @@ use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::Config,
-    data::source::{
-        Tooltip,
-        audio::{self, AudioEvent, AudioState, Commands, Peaks, Reading, Target, WindowAudio},
-        font_awesome::{FontAwesome, Solid},
-        row,
+    data::source::audio::{
+        self, AudioEvent, AudioState, Commands, Peaks, Reading, Target, WindowAudio,
     },
     message_subscriptions::blocking,
     wayland_layers::{
@@ -16,8 +13,10 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
+        font_awesome::{FontAwesome, Solid},
         pager_slot::permanently_inactive_slot,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
+        tooltip_body::{Tooltip, row},
     },
 };
 

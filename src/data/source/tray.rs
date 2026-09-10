@@ -18,13 +18,31 @@ use tokio::{
     time::{Duration, sleep},
 };
 
-use crate::{
-    data::source::app_icon::DesktopEntries,
-    widgets::{
-        context_menu::{MenuKind, MenuNode},
-        native_icon::IconSource,
-    },
-};
+use crate::data::source::app_icon::DesktopEntries;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IconSource {
+    Pixmap(image::Handle),
+    Themed(PathBuf),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MenuNode {
+    pub id: i32,
+    pub label: String,
+    pub enabled: bool,
+    pub kind: MenuKind,
+    pub icon: Option<IconSource>,
+    pub children: Vec<MenuNode>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuKind {
+    Standard,
+    Separator,
+    Submenu,
+    Toggle(bool),
+}
 
 #[derive(Debug, Clone)]
 pub struct Tip {

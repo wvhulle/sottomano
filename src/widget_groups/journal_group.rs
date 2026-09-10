@@ -5,23 +5,27 @@ use iced::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
+pub mod failed_unit_log;
+pub mod kernel_error_log;
+
 use crate::{
     config::Config,
-    data::{
-        last_poll::LastPoll,
-        source::{
-            BarWidget, Tooltip, journal,
-            kernel_errors::KernelErrors,
-            niri,
-            systemd_failed::{Failed, JournalScope, System, User},
-        },
+    data::source::{
+        journal,
+        kernel_errors::KernelErrors,
+        niri,
+        systemd_failed::{Failed, JournalScope, System, User},
     },
     message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
-    widgets::{flat_button, pager_slot::permanently_inactive_slot, source_reading::source_reading},
+    widgets::{
+        bar_widget::BarWidget, flat_button, last_poll::LastPoll,
+        pager_slot::permanently_inactive_slot, source_reading::source_reading,
+        tooltip_body::Tooltip,
+    },
 };
 
 #[derive(Default)]

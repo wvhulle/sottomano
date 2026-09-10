@@ -7,11 +7,7 @@ use iced::{
 
 use crate::{
     config::{Config, tray::ClickAction},
-    data::source::{
-        Tooltip, TooltipBody, TrayMenuBody,
-        font_awesome::Solid,
-        tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
-    },
+    data::source::tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -19,8 +15,10 @@ use crate::{
     widgets::{
         activity_line::activity_line,
         flat_button,
+        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
+        tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
     },
 };
 

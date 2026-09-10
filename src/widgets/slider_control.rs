@@ -11,15 +11,17 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::{BarWidget, Glyph, Level, TooltipBody, Unit, Value, font_awesome::FontAwesome},
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
+        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
         flat_button,
+        font_awesome::FontAwesome,
         inline_slider::inline_slider,
         reveal::reveal_x,
         source_reading::source_reading,
         text::bar_text,
+        tooltip_body::TooltipBody,
         tracked::{Nudge, Tracked, Write},
     },
 };
