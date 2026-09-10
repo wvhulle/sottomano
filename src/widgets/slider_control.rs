@@ -15,6 +15,7 @@ use crate::{
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
+        device_setting::{DeviceSetting, Nudge, Write},
         flat_button,
         font_awesome::FontAwesome,
         inline_slider::inline_slider,
@@ -22,7 +23,6 @@ use crate::{
         source_reading::source_reading,
         text::bar_text,
         tooltip_body::TooltipBody,
-        tracked::{Nudge, Tracked, Write},
     },
 };
 
@@ -57,7 +57,7 @@ fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
 pub struct SliderControl {
     open: Animation<bool>,
     accum: f32,
-    value: Tracked,
+    value: DeviceSetting,
     disabled: bool,
     live: f32,
     caption: Option<String>,
@@ -145,7 +145,7 @@ impl SliderControl {
                 .easing(Easing::EaseOutCubic)
                 .duration(EXPAND),
             accum: 0.0,
-            value: Tracked::default(),
+            value: DeviceSetting::default(),
             disabled: false,
             live: 1.0,
             caption: None,
@@ -239,11 +239,7 @@ impl SliderControl {
     }
 
     pub fn current(&self) -> f32 {
-        self.value.value()
-    }
-
-    fn reading_tolerance(&self) -> f32 {
-        self.slider_step / 2.0
+        self.value.wanted()
     }
 
     pub fn readout_text(&self) -> String {
@@ -279,7 +275,7 @@ impl SliderControl {
                 if self.relative_scroll {
                     let nudge = Nudge {
                         delta: target - self.current(),
-                        optimistic: target,
+                        requested: target,
                     };
                     into_action(self.value.adjust(nudge))
                 } else {
@@ -288,10 +284,14 @@ impl SliderControl {
             }
             ControlMessage::Set(pos) => into_action(self.value.drag(pos)),
             ControlMessage::Release => into_action(self.value.end_drag()),
-            ControlMessage::Confirmed { value, ok } => into_action(self.value.confirmed(value, ok)),
-            ControlMessage::Adjusted(resolved) => into_action(self.value.adjusted(resolved)),
+            ControlMessage::Confirmed { value, ok } => {
+                into_action(self.value.absolute_written(value, ok))
+            }
+            ControlMessage::Adjusted(resolved) => {
+                into_action(self.value.relative_written(resolved))
+            }
             ControlMessage::Reading(reading) => {
-                self.value.sync(reading, self.reading_tolerance());
+                self.value.observe(reading, self.slider_step);
                 Action::None
             }
             ControlMessage::Level(level) => {
@@ -327,7 +327,7 @@ impl SliderControl {
                 config,
                 self.range.clone(),
                 self.current(),
-                self.value.ghost(self.reading_tolerance()),
+                self.value.lagging(self.slider_step),
                 self.slider_step,
                 self.severity(),
                 ControlMessage::Set,
