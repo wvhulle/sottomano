@@ -14,7 +14,6 @@ use crate::{
         command,
         wallpaper::{self, Position, Wallpaper},
     },
-    message_subscriptions::poll_every,
     wayland_layers::{
         surface::Position as SurfacePosition,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
@@ -182,6 +181,7 @@ impl Photo {
 
 pub struct WallpaperGroup {
     lookup: LastPoll<Lookup>,
+    shown: Option<String>,
     unsplash_key: Option<PathBuf>,
     wallpaper_daemon: bool,
     pub(crate) menu: MenuGroup,
@@ -200,6 +200,7 @@ impl WallpaperGroup {
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
             lookup: LastPoll::default(),
+            shown: None,
             unsplash_key: secrets.unsplash_access_key.clone(),
             wallpaper_daemon: false,
             menu: MenuGroup::default(),
@@ -217,12 +218,7 @@ impl WallpaperGroup {
         if self.unsplash_key.is_none() || !self.wallpaper_daemon {
             return Subscription::none();
         }
-        poll_every(
-            "wallpaper-displayed",
-            wallpaper::QUERY_INTERVAL,
-            wallpaper::displayed_path,
-        )
-        .map(WallpaperMessage::Displayed)
+        wallpaper::subscription().map(WallpaperMessage::Displayed)
     }
 
     pub fn update(&mut self, message: WallpaperMessage) -> Task<WallpaperMessage> {
@@ -245,10 +241,16 @@ impl WallpaperGroup {
     }
 
     fn follow(&mut self, path: String) -> Task<WallpaperMessage> {
+        if self.shown.as_deref() == Some(path.as_str()) {
+            return Task::none();
+        }
+        self.shown = Some(path.clone());
         let (Some(id), Some(key)) = (wallpaper::photo_id(&path), self.unsplash_key.clone()) else {
             self.lookup.load(None);
             return Task::none();
         };
+        self.lookup
+            .load(Some(Lookup(wallpaper::unresolved(&path, &id))));
         Task::future(async move { wallpaper::resolve(path, id, &key).await })
             .map(WallpaperMessage::Resolved)
     }
