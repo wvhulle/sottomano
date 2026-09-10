@@ -57,7 +57,7 @@ fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
 pub struct SliderControl {
     open: Animation<bool>,
     accum: f32,
-    value: DeviceSetting,
+    device_setting: DeviceSetting,
     disabled: bool,
     live: f32,
     caption: Option<String>,
@@ -145,7 +145,7 @@ impl SliderControl {
                 .easing(Easing::EaseOutCubic)
                 .duration(EXPAND),
             accum: 0.0,
-            value: DeviceSetting::default(),
+            device_setting: DeviceSetting::default(),
             disabled: false,
             live: 1.0,
             caption: None,
@@ -239,7 +239,7 @@ impl SliderControl {
     }
 
     pub fn current(&self) -> f32 {
-        self.value.wanted()
+        self.device_setting.wanted_value()
     }
 
     pub fn readout_text(&self) -> String {
@@ -274,24 +274,25 @@ impl SliderControl {
                     .clamp(*self.range.start(), *self.range.end());
                 if self.relative_scroll {
                     let nudge = Nudge {
-                        delta: target - self.current(),
-                        requested: target,
+                        step_delta: target - self.current(),
+                        resulting_value: target,
                     };
-                    into_action(self.value.adjust(nudge))
+                    into_action(self.device_setting.nudged_by(nudge))
                 } else {
-                    into_action(self.value.scroll(target))
+                    into_action(self.device_setting.scrolled_to(target))
                 }
             }
-            ControlMessage::Set(pos) => into_action(self.value.drag(pos)),
-            ControlMessage::Release => into_action(self.value.end_drag()),
+            ControlMessage::Set(pos) => into_action(self.device_setting.drag_moved_to(pos)),
+            ControlMessage::Release => into_action(self.device_setting.drag_ended()),
             ControlMessage::Confirmed { value, ok } => {
-                into_action(self.value.absolute_written(value, ok))
+                into_action(self.device_setting.absolute_write_finished(value, ok))
             }
             ControlMessage::Adjusted(resolved) => {
-                into_action(self.value.relative_written(resolved))
+                into_action(self.device_setting.relative_write_finished(resolved))
             }
             ControlMessage::Reading(reading) => {
-                self.value.observe(reading, self.slider_step);
+                self.device_setting
+                    .device_reported(reading, self.slider_step);
                 Action::None
             }
             ControlMessage::Level(level) => {
@@ -327,7 +328,7 @@ impl SliderControl {
                 config,
                 self.range.clone(),
                 self.current(),
-                self.value.lagging(self.slider_step),
+                self.device_setting.lagging_device_value(self.slider_step),
                 self.slider_step,
                 self.severity(),
                 ControlMessage::Set,

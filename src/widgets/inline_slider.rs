@@ -21,7 +21,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     config: &Config,
     range: RangeInclusive<f32>,
     value: f32,
-    lagging: Option<f32>,
+    lagging_value: Option<f32>,
     step: f32,
     level: Level,
     on_change: impl Fn(f32) -> Message + 'a,
@@ -34,7 +34,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     let face = SliderFace {
         range: range.clone(),
         value,
-        lagging,
+        lagging_value,
         accent,
         track: config.palette.surface_raised,
     };
@@ -79,7 +79,7 @@ fn interaction_slider<'a, Message: Clone + 'a>(
 struct SliderFace {
     range: RangeInclusive<f32>,
     value: f32,
-    lagging: Option<f32>,
+    lagging_value: Option<f32>,
     accent: Color,
     track: Color,
 }
@@ -109,7 +109,7 @@ impl<Message> canvas::Program<Message> for SliderFace {
         let rail_y = bounds.height / 2.0;
         let handle_x = centre(self.value);
         let gap = self
-            .lagging
+            .lagging_value
             .map(|at| (centre(at) - KNOB_RADIUS, centre(at) + KNOB_RADIUS));
 
         let mut frame = canvas::Frame::new(renderer, bounds.size());
@@ -128,16 +128,16 @@ impl<Message> canvas::Program<Message> for SliderFace {
             );
         });
 
-        if let Some(lagging) = self.lagging {
+        if let Some(lagging_value) = self.lagging_value {
             frame.stroke(
-                &canvas::Path::circle(Point::new(centre(lagging), rail_y), KNOB_RADIUS),
+                &canvas::Path::circle(Point::new(centre(lagging_value), rail_y), KNOB_RADIUS),
                 canvas::Stroke::default()
                     .with_width(1.5)
                     .with_color(self.accent),
             );
         }
 
-        let handle_radius = if self.lagging.is_some() {
+        let handle_radius = if self.lagging_value.is_some() {
             KNOB_RADIUS_DRAG
         } else {
             KNOB_RADIUS
