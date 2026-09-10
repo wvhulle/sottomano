@@ -241,60 +241,61 @@ impl PanelSettingsGroup {
 
     #[allow(clippy::unnecessary_wraps)]
     pub fn view<'a>(
-        &self,
-        config: &Config,
-        chrome: &ChromeState,
+        &'a self,
+        config: &'a Config,
+        chrome: &'a ChromeState,
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let handle: Element<'a, PanelSettingsMessage> = button(
-            Solid::Sliders
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(foreground),
-        )
-        .padding(0)
-        .style(flat_button(foreground))
-        .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
-        .into();
+        let handle = move || {
+            button(
+                Solid::Sliders
+                    .glyph()
+                    .size(config.font.icon_size_px)
+                    .color(foreground),
+            )
+            .padding(0)
+            .style(flat_button(foreground))
+            .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        let disconnected_toggle = icon_toggle(
-            config,
-            Solid::Capsules,
-            chrome.disconnected_groups,
-            PanelSettingsMessage::ToggleDisconnectedGroups,
-            HoverTarget::DisconnectedGroups,
-        );
-        let pin_toggle = icon_toggle(
-            config,
-            Solid::Thumbtack,
-            !chrome.auto_collapse_groups,
-            PanelSettingsMessage::ToggleAutoCollapseGroups,
-            HoverTarget::AutoCollapseGroups,
-        );
-        let blur_toggle = icon_toggle(
-            config,
-            Solid::Snowflake,
-            chrome.blur_background,
-            PanelSettingsMessage::ToggleBlurBackground,
-            HoverTarget::BlurBackground,
-        );
-
-        let content = Row::with_children([
-            disconnected_toggle,
-            pin_toggle,
-            blur_toggle,
-            slider_element(&self.tint, config, PanelSettingsMessage::Tint),
-            slider_element(&self.radius, config, PanelSettingsMessage::Radius),
-            slider_element(&self.offset, config, PanelSettingsMessage::Offset),
-        ])
-        .spacing(config.spacing.widget_spacing_px)
-        .align_y(Alignment::Center);
+        let content = move |_reveal: f32| {
+            Row::with_children([
+                icon_toggle(
+                    config,
+                    Solid::Capsules,
+                    chrome.disconnected_groups,
+                    PanelSettingsMessage::ToggleDisconnectedGroups,
+                    HoverTarget::DisconnectedGroups,
+                ),
+                icon_toggle(
+                    config,
+                    Solid::Thumbtack,
+                    !chrome.auto_collapse_groups,
+                    PanelSettingsMessage::ToggleAutoCollapseGroups,
+                    HoverTarget::AutoCollapseGroups,
+                ),
+                icon_toggle(
+                    config,
+                    Solid::Snowflake,
+                    chrome.blur_background,
+                    PanelSettingsMessage::ToggleBlurBackground,
+                    HoverTarget::BlurBackground,
+                ),
+                slider_element(&self.tint, config, PanelSettingsMessage::Tint),
+                slider_element(&self.radius, config, PanelSettingsMessage::Radius),
+                slider_element(&self.offset, config, PanelSettingsMessage::Offset),
+            ])
+            .spacing(config.spacing.widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into()
+        };
         Some(self.menu.view(
             config,
             position,
             handle,
-            content.into(),
+            content,
             PanelSettingsMessage::Menu,
         ))
     }

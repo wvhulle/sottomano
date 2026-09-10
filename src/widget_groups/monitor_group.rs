@@ -162,43 +162,47 @@ impl MonitorGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, MonitorMessage>> {
-        let mut children: Vec<Element<'a, MonitorMessage>> = Vec::new();
-
-        for backlight in &self.backlights {
-            if let Some(control) = self.sliders.get(&backlight.serial) {
-                children.push(backlight_slider(config, control, &backlight.serial));
+        let children = move || {
+            let mut children: Vec<Element<'a, MonitorMessage>> = Vec::new();
+            for backlight in &self.backlights {
+                if let Some(control) = self.sliders.get(&backlight.serial) {
+                    children.push(backlight_slider(config, control, &backlight.serial));
+                }
             }
-        }
+            if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
+                children.push(clight.map(|m| match m {
+                    ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
+                    m => MonitorMessage::Clight(m),
+                }));
+            }
+            if let Some(umbra) = self.umbra.view(config, HoverTarget::DarkMode, 1.0) {
+                children.push(umbra.map(|m| match m {
+                    ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
+                    m => MonitorMessage::Umbra(m),
+                }));
+            }
+            children
+        };
 
-        if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
-            children.push(clight.map(|m| match m {
-                ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-                m => MonitorMessage::Clight(m),
-            }));
-        }
-        if let Some(umbra) = self.umbra.view(config, HoverTarget::DarkMode, 1.0) {
-            children.push(umbra.map(|m| match m {
-                ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-                m => MonitorMessage::Umbra(m),
-            }));
-        }
-
-        if children.is_empty() {
+        if children().is_empty() {
             return None;
         }
 
-        let content = Row::with_children(children)
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = move |_reveal: f32| {
+            Row::with_children(children())
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
+        };
         Some(self.menu.view(
             config,
             position,
-            Self::handle(config),
-            content.into(),
+            move || Self::handle(config),
+            content,
             MonitorMessage::Menu,
         ))
     }

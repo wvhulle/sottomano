@@ -206,40 +206,39 @@ impl IdleTimeoutsGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
-        let reveal = self.menu.reveal();
-        let group_gap = config.spacing.widget_spacing_px * 1.5;
-        let controls = self.entries().map(|(kind, timer)| {
-            timer.view(config, reveal).map(move |m| match m {
-                TimerMessage::Slider(ControlMessage::Tooltip(t)) => IdleTimeoutsMessage::Tooltip(t),
-                m => IdleTimeoutsMessage::Timer(kind, m),
-            })
-        });
+        let handle = move || {
+            button(
+                Solid::Stopwatch
+                    .glyph()
+                    .size(config.font.icon_size_px)
+                    .color(config.palette.bar_foreground),
+            )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(IdleTimeoutsMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        let handle = button(
-            Solid::Stopwatch
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(IdleTimeoutsMessage::Menu(MenuMessage::Toggle))
-        .into();
+        let content = move |reveal: f32| {
+            let controls = self.entries().map(|(kind, timer)| {
+                timer.view(config, reveal).map(move |m| match m {
+                    TimerMessage::Slider(ControlMessage::Tooltip(t)) => {
+                        IdleTimeoutsMessage::Tooltip(t)
+                    }
+                    m => IdleTimeoutsMessage::Timer(kind, m),
+                })
+            });
+            Row::with_children(controls)
+                .spacing(config.spacing.widget_spacing_px * 1.5)
+                .align_y(Alignment::Center)
+                .into()
+        };
 
-        let content = Row::with_children(controls)
-            .spacing(group_gap)
-            .align_y(Alignment::Center);
-
-        self.menu.view(
-            config,
-            position,
-            handle,
-            content.into(),
-            IdleTimeoutsMessage::Menu,
-        )
+        self.menu
+            .view(config, position, handle, content, IdleTimeoutsMessage::Menu)
     }
 }

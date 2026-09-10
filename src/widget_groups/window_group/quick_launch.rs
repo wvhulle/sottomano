@@ -72,38 +72,39 @@ impl QuickLaunch {
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
-        config: &Config,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
-        let handle = button(
-            Solid::Rocket
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(QuickLaunchMessage::Menu(MenuMessage::Toggle))
-        .into();
+        let handle = move || {
+            button(
+                Solid::Rocket
+                    .glyph()
+                    .size(config.font.icon_size_px)
+                    .color(config.palette.bar_foreground),
+            )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(QuickLaunchMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        let reveal = self.menu.reveal();
-        let content = Row::with_children(
-            app_ids
-                .iter()
-                .filter_map(|app_id| icon_slot(config, index, app_id, reveal)),
-        )
-        .spacing(config.spacing.widget_spacing_px)
-        .align_y(Alignment::Center);
+        let content = move |reveal: f32| {
+            Row::with_children(
+                app_ids
+                    .iter()
+                    .filter_map(|app_id| icon_slot(config, index, app_id, reveal)),
+            )
+            .spacing(config.spacing.widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into()
+        };
 
-        Some(self.menu.view(
-            config,
-            position,
-            handle,
-            content.into(),
-            QuickLaunchMessage::Menu,
-        ))
+        Some(
+            self.menu
+                .view(config, position, handle, content, QuickLaunchMessage::Menu),
+        )
     }
 }
 

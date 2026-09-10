@@ -194,39 +194,43 @@ impl ColorTemperatureGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, ColorTemperatureMessage>> {
-        let mut children: Vec<Element<'a, ColorTemperatureMessage>> = Vec::new();
+        let children = move || {
+            let mut children: Vec<Element<'a, ColorTemperatureMessage>> = Vec::new();
+            if self.gamma.get().is_some() {
+                children.push(self.dim_slider(config));
+                children.push(self.warmth_slider(config));
+            }
+            if let Some(auto) = self
+                .auto
+                .view(config, HoverTarget::AutoColorTemperature, 1.0)
+            {
+                children.push(auto.map(|m| match m {
+                    ToggleMessage::Tooltip(t) => ColorTemperatureMessage::Tooltip(t),
+                    m => ColorTemperatureMessage::Auto(m),
+                }));
+            }
+            children
+        };
 
-        if self.gamma.get().is_some() {
-            children.push(self.dim_slider(config));
-            children.push(self.warmth_slider(config));
-        }
-
-        if let Some(auto) = self
-            .auto
-            .view(config, HoverTarget::AutoColorTemperature, 1.0)
-        {
-            children.push(auto.map(|m| match m {
-                ToggleMessage::Tooltip(t) => ColorTemperatureMessage::Tooltip(t),
-                m => ColorTemperatureMessage::Auto(m),
-            }));
-        }
-
-        if children.is_empty() {
+        if children().is_empty() {
             return None;
         }
 
-        let content = Row::with_children(children)
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center);
+        let content = move |_reveal: f32| {
+            Row::with_children(children())
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
+        };
         Some(self.menu.view(
             config,
             position,
-            Self::handle(config),
-            content.into(),
+            move || Self::handle(config),
+            content,
             ColorTemperatureMessage::Menu,
         ))
     }

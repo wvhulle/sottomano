@@ -265,47 +265,52 @@ impl WallpaperGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: SurfacePosition,
     ) -> Option<Element<'a, WallpaperMessage>> {
-        let handle_reading = source_reading(config, self.lookup.display(), 1.0)?;
-        let handle = button(hoverable(
-            handle_reading,
-            HoverTarget::Wallpaper,
-            WallpaperMessage::Tooltip,
-        ))
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(WallpaperMessage::Menu(MenuMessage::Toggle))
-        .into();
+        source_reading::<WallpaperMessage>(config, self.lookup.display(), 1.0)?;
 
-        let place = self.lookup.get().and_then(Place::of);
-        let article = self.lookup.get().and_then(Article::of);
-        let photo = self.lookup.get().map(Photo::of);
-        let readings = ReadingRow::new()
-            .opacity(self.menu.reveal())
-            .push(Reading::new(
-                place.as_ref().map(|pill| pill as &dyn BarWidget),
-                HoverTarget::WallpaperPlace,
+        let handle = move || {
+            let reading = source_reading(config, self.lookup.display(), 1.0)
+                .unwrap_or_else(|| Row::new().into());
+            button(hoverable(
+                reading,
+                HoverTarget::Wallpaper,
+                WallpaperMessage::Tooltip,
             ))
-            .push(Reading::new(
-                article.as_ref().map(|pill| pill as &dyn BarWidget),
-                HoverTarget::WallpaperArticle,
-            ))
-            .push(Reading::new(
-                photo.as_ref().map(|pill| pill as &dyn BarWidget),
-                HoverTarget::WallpaperPhoto,
-            ))
-            .row(config, WallpaperMessage::Tooltip)
-            .unwrap_or_else(Row::new);
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(WallpaperMessage::Menu(MenuMessage::Toggle))
+            .into()
+        };
 
-        Some(self.menu.view(
-            config,
-            position,
-            handle,
-            readings.into(),
-            WallpaperMessage::Menu,
-        ))
+        let content = move |reveal: f32| {
+            let place = self.lookup.get().and_then(Place::of);
+            let article = self.lookup.get().and_then(Article::of);
+            let photo = self.lookup.get().map(Photo::of);
+            ReadingRow::new()
+                .opacity(reveal)
+                .push(Reading::new(
+                    place.as_ref().map(|pill| pill as &dyn BarWidget),
+                    HoverTarget::WallpaperPlace,
+                ))
+                .push(Reading::new(
+                    article.as_ref().map(|pill| pill as &dyn BarWidget),
+                    HoverTarget::WallpaperArticle,
+                ))
+                .push(Reading::new(
+                    photo.as_ref().map(|pill| pill as &dyn BarWidget),
+                    HoverTarget::WallpaperPhoto,
+                ))
+                .row(config, WallpaperMessage::Tooltip)
+                .unwrap_or_else(Row::new)
+                .into()
+        };
+
+        Some(
+            self.menu
+                .view(config, position, handle, content, WallpaperMessage::Menu),
+        )
     }
 }

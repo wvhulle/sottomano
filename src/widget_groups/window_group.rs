@@ -88,7 +88,7 @@ impl WindowGroup {
         icons: WindowAssets<'a>,
         audio: &HashMap<i32, WindowAudio>,
         output: &str,
-        config: &Config,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, WindowGroupMessage>> {
         let quick_launch = self

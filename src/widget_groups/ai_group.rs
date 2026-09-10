@@ -175,49 +175,56 @@ impl AiGroup {
         }
     }
 
-    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, AiMessage>> {
-        let reveal = self.menu.reveal();
-        let readings = ReadingRow::new()
-            .opacity(reveal)
-            .push(Reading::new(
-                self.claude_oauth.present(),
-                HoverTarget::AiClaudeOauth,
-            ))
-            .push(Reading::new(
-                self.claude_ccusage.display(),
-                HoverTarget::AiClaudeCcusage,
-            ))
-            .push(Reading::new(
-                self.copilot_metered.present(),
-                HoverTarget::AiCopilotMetered,
-            ))
-            .push(Reading::new(
-                self.copilot_free.display(),
-                HoverTarget::AiCopilotFree,
-            ))
-            .push(Reading::new(
-                self.copilot_cli.present(),
-                HoverTarget::AiCopilotCli,
-            ))
-            .push(Reading::new(
-                self.openrouter.present(),
-                HoverTarget::AiOpenRouter,
-            ))
-            .row(config, AiMessage::Tooltip);
+    pub fn view<'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+    ) -> Option<Element<'a, AiMessage>> {
+        let readings = move |reveal: f32| {
+            ReadingRow::new()
+                .opacity(reveal)
+                .push(Reading::new(
+                    self.claude_oauth.present(),
+                    HoverTarget::AiClaudeOauth,
+                ))
+                .push(Reading::new(
+                    self.claude_ccusage.display(),
+                    HoverTarget::AiClaudeCcusage,
+                ))
+                .push(Reading::new(
+                    self.copilot_metered.present(),
+                    HoverTarget::AiCopilotMetered,
+                ))
+                .push(Reading::new(
+                    self.copilot_free.display(),
+                    HoverTarget::AiCopilotFree,
+                ))
+                .push(Reading::new(
+                    self.copilot_cli.present(),
+                    HoverTarget::AiCopilotCli,
+                ))
+                .push(Reading::new(
+                    self.openrouter.present(),
+                    HoverTarget::AiOpenRouter,
+                ))
+                .row(config, AiMessage::Tooltip)
+        };
 
-        if !self.configured() && readings.is_none() {
+        if !self.configured() && readings(1.0).is_none() {
             return None;
         }
 
-        let handle = button(robot_handle(config))
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(AiMessage::Menu(MenuMessage::Toggle))
-            .into();
-        let content = readings.unwrap_or_else(Row::new);
+        let handle = move || {
+            button(robot_handle(config))
+                .padding(0)
+                .style(flat_button(config.palette.bar_foreground))
+                .on_press(AiMessage::Menu(MenuMessage::Toggle))
+                .into()
+        };
+        let content = move |reveal: f32| readings(reveal).unwrap_or_else(Row::new).into();
         Some(
             self.menu
-                .view(config, position, handle, content.into(), AiMessage::Menu),
+                .view(config, position, handle, content, AiMessage::Menu),
         )
     }
 }

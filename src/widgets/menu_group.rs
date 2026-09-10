@@ -1,14 +1,16 @@
 use iced::{
-    Alignment, Animation, Element, Padding,
-    animation::Easing,
-    time::{Duration, Instant},
+    Alignment, Element, Padding,
+    time::Duration,
     widget::{Row, container, mouse_area},
 };
 
 use crate::{
     config::Config,
     wayland_layers::surface::Position,
-    widgets::{activity_line::activity_line, pager_slot::PagerSlot, reveal::reveal_x},
+    widgets::{
+        activity_line::activity_line, expand_animation::expand_animation, pager_slot::PagerSlot,
+        reveal::reveal_x,
+    },
 };
 
 const EXPAND: Duration = Duration::from_millis(90);
@@ -21,30 +23,20 @@ pub enum MenuMessage {
     Close,
 }
 
+#[derive(Default)]
 pub struct MenuGroup {
-    expand: Animation<bool>,
+    expanded: bool,
     hovered: bool,
-}
-
-impl Default for MenuGroup {
-    fn default() -> Self {
-        Self {
-            expand: Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(EXPAND),
-            hovered: false,
-        }
-    }
 }
 
 impl MenuGroup {
     pub fn update(&mut self, msg: MenuMessage) -> bool {
         let was_open = self.is_open();
         match msg {
-            MenuMessage::Toggle => self.expand.go_mut(!self.is_open(), Instant::now()),
+            MenuMessage::Toggle => self.expanded = !self.expanded,
             MenuMessage::CursorEntered => self.hovered = true,
             MenuMessage::CursorExited => self.hovered = false,
-            MenuMessage::Close => self.expand.go_mut(false, Instant::now()),
+            MenuMessage::Close => self.expanded = false,
         }
         was_open && !self.is_open()
     }
@@ -54,34 +46,29 @@ impl MenuGroup {
     }
 
     pub fn is_open(&self) -> bool {
-        self.expand.value()
-    }
-
-    pub fn is_animating(&self) -> bool {
-        self.expand.is_animating(Instant::now())
-    }
-
-    pub fn reveal(&self) -> f32 {
-        self.expand.interpolate(0.0, 1.0, Instant::now())
+        self.expanded
     }
 
     pub fn view<'a, Message: 'a + Clone, F>(
         &self,
-        config: &Config,
+        config: &'a Config,
         position: Position,
-        handle: Element<'a, Message>,
-        content: Element<'a, Message>,
+        handle: impl Fn() -> Element<'a, Message> + 'a,
+        content: impl Fn(f32) -> Element<'a, Message> + 'a,
         to_message: F,
     ) -> Element<'a, Message>
     where
         F: Fn(MenuMessage) -> Message,
     {
-        let reveal = self.reveal();
-        let inner = Row::with_children([handle, revealed_content(config, reveal, content)])
-            .align_y(Alignment::Center);
-        let slot = PagerSlot::new(inner.into(), edge_indicator(config, self.hovered, reveal))
-            .view(config, position);
-        mouse_area(slot)
+        let hovered = self.hovered;
+        let animated = expand_animation(self.expanded, EXPAND, move |reveal| {
+            let inner =
+                Row::with_children([handle(), revealed_content(config, reveal, content(reveal))])
+                    .align_y(Alignment::Center);
+            PagerSlot::new(inner.into(), edge_indicator(config, hovered, reveal))
+                .view(config, position)
+        });
+        mouse_area(animated)
             .on_enter(to_message(MenuMessage::CursorEntered))
             .on_exit(to_message(MenuMessage::CursorExited))
             .into()
