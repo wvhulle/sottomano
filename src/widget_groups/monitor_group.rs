@@ -16,6 +16,7 @@ use crate::{
         clight::Clight,
         umbra::Umbra,
     },
+    message_subscriptions::blocking,
     wayland_layers::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
@@ -118,6 +119,7 @@ impl MonitorGroup {
     }
 
     fn update_backlight(&mut self, serial: String, m: ControlMessage) -> Task<MonitorMessage> {
+        let write_settled = matches!(m, ControlMessage::Confirmed { ok: true, .. });
         let action = match self.sliders.get_mut(&serial) {
             Some(control) => control.update(m),
             None => return Task::none(),
@@ -133,6 +135,9 @@ impl MonitorGroup {
                     backlight::set(&set_serial, as_percent(value))
                 })
                 .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
+            }
+            Action::None | Action::Right | Action::Adjust(_) if write_settled => {
+                blocking("backlight reread", backlight::poll_all).map(MonitorMessage::Backlights)
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
