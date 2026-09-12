@@ -80,6 +80,7 @@ fn preview_tile(
         tile_size: window.layout.tile_size,
         is_focused: window.is_focused,
         is_urgent: window.is_urgent,
+        is_floating: window.layout.is_floating,
     }
 }
 

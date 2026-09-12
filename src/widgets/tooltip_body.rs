@@ -82,6 +82,7 @@ pub struct PreviewTile {
     pub tile_size: Size,
     pub is_focused: bool,
     pub is_urgent: bool,
+    pub is_floating: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

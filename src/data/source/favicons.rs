@@ -45,13 +45,19 @@ pub fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
         return out;
     }
     let Some(cache_dir) = state_dir() else {
+        tracing::debug!("favicons: no writable state directory");
         return out;
     };
     let Some(profile) = profile_dir() else {
+        tracing::debug!("favicons: no Firefox profile under ~/.mozilla/firefox");
         return out;
     };
     let Some(places) = fresh_copy(&profile.join("places.sqlite"), &cache_dir, "places.sqlite")
     else {
+        tracing::debug!(
+            "favicons: cannot copy places.sqlite from {}",
+            profile.display()
+        );
         return out;
     };
     let Some(favicons_db) = fresh_copy(
@@ -59,13 +65,25 @@ pub fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
         &cache_dir,
         "favicons.sqlite",
     ) else {
+        tracing::debug!(
+            "favicons: cannot copy favicons.sqlite from {}",
+            profile.display()
+        );
         return out;
     };
-    let Ok(places_conn) = Connection::open(&places) else {
-        return out;
+    let places_conn = match Connection::open(&places) {
+        Ok(connection) => connection,
+        Err(error) => {
+            tracing::debug!("favicons: cannot open {}: {error}", places.display());
+            return out;
+        }
     };
-    let Ok(favicons_conn) = Connection::open(&favicons_db) else {
-        return out;
+    let favicons_conn = match Connection::open(&favicons_db) {
+        Ok(connection) => connection,
+        Err(error) => {
+            tracing::debug!("favicons: cannot open {}: {error}", favicons_db.display());
+            return out;
+        }
     };
 
     for title in titles {
@@ -76,30 +94,78 @@ pub fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
     out
 }
 
-fn resolve_one(places: &Connection, favicons: &Connection, title: &str) -> Option<RawFavicon> {
-    let url: String = places
-        .query_row(
-            "SELECT url FROM moz_places WHERE title = ?1 ORDER BY last_visit_date DESC LIMIT 1",
-            [title],
-            |row| row.get(0),
-        )
-        .ok()?;
+const PAGE_ICON_QUERY: &str = "SELECT i.data FROM moz_pages_w_icons p JOIN moz_icons_to_pages m \
+                               ON m.page_id = p.id JOIN moz_icons i ON i.id = m.icon_id WHERE \
+                               p.page_url = ?1 ORDER BY i.width DESC LIMIT 1";
 
-    let blob: Vec<u8> = favicons
-        .query_row(
-            "SELECT i.data FROM moz_pages_w_icons p JOIN moz_icons_to_pages m ON m.page_id = p.id \
-             JOIN moz_icons i ON i.id = m.icon_id WHERE p.page_url = ?1 ORDER BY i.width DESC \
-             LIMIT 1",
-            [&url],
-            |row| row.get(0),
-        )
-        .ok()?;
-    if blob.is_empty() {
+const ORIGIN_ICON_QUERY: &str = "SELECT i.data FROM moz_pages_w_icons p JOIN moz_icons_to_pages m \
+                                 ON m.page_id = p.id JOIN moz_icons i ON i.id = m.icon_id WHERE \
+                                 p.page_url LIKE ?1 || '%' ORDER BY i.width DESC LIMIT 1";
+
+const ROOT_ICON_QUERY: &str = "SELECT data FROM moz_icons WHERE root = 1 AND icon_url = ?1 || \
+                               '/favicon.ico' ORDER BY width DESC LIMIT 1";
+
+fn resolve_one(places: &Connection, favicons: &Connection, title: &str) -> Option<RawFavicon> {
+    let urls = candidate_urls(places, title);
+    if urls.is_empty() {
+        tracing::debug!("favicons: no history title matches {title:?}");
         return None;
     }
 
-    let kind = classify(&blob);
-    Some(RawFavicon { bytes: blob, kind })
+    let blob = urls
+        .iter()
+        .find_map(|url| icon_blob(favicons, PAGE_ICON_QUERY, url))
+        .or_else(|| {
+            let origin = origin_of(urls.first()?)?;
+            icon_blob(favicons, ORIGIN_ICON_QUERY, origin)
+                .or_else(|| icon_blob(favicons, ROOT_ICON_QUERY, origin))
+        });
+
+    if let Some(bytes) = blob {
+        let kind = classify(&bytes);
+        Some(RawFavicon { bytes, kind })
+    } else {
+        tracing::debug!(
+            "favicons: {title:?} matched {} urls but none has an icon",
+            urls.len()
+        );
+        None
+    }
+}
+
+fn candidate_urls(places: &Connection, title: &str) -> Vec<String> {
+    let mut statement = match places.prepare(
+        "SELECT url, title FROM moz_places WHERE title = ?1 OR (title LIKE '(%' AND title LIKE \
+         '%' || ?1) ORDER BY last_visit_date DESC LIMIT 32",
+    ) {
+        Ok(statement) => statement,
+        Err(error) => {
+            tracing::debug!("favicons: history query failed: {error}");
+            return Vec::new();
+        }
+    };
+    let Ok(rows) = statement.query_map([title], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }) else {
+        return Vec::new();
+    };
+    rows.filter_map(Result::ok)
+        .filter(|(_, stored)| app_rules::strip_unread_badge(stored) == title)
+        .map(|(url, _)| url)
+        .collect()
+}
+
+fn icon_blob(favicons: &Connection, query: &str, parameter: &str) -> Option<Vec<u8>> {
+    favicons
+        .query_row(query, [parameter], |row| row.get::<_, Vec<u8>>(0))
+        .ok()
+        .filter(|blob| !blob.is_empty())
+}
+
+fn origin_of(url: &str) -> Option<&str> {
+    let (scheme, rest) = url.split_once("://")?;
+    let host_len = rest.find('/').unwrap_or(rest.len());
+    (host_len > 0).then(|| &url[..scheme.len() + 3 + host_len])
 }
 
 fn profile_dir() -> Option<PathBuf> {
