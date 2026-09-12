@@ -83,7 +83,9 @@ impl AppRule {
 
     pub fn favicon_key(self, title: &str) -> Option<String> {
         match self {
-            AppRule::Firefox => core(title, &FIREFOX_BRANDS).filter(|c| !c.is_empty()),
+            AppRule::Firefox => core(title, &FIREFOX_BRANDS)
+                .map(|c| strip_unread_badge(&c).to_string())
+                .filter(|c| !c.is_empty()),
             _ => None,
         }
     }
@@ -132,6 +134,20 @@ fn core(title: &str, brands: &[&str]) -> Option<String> {
             .find_map(|sep| title.strip_suffix(&format!("{sep}{brand}")))
             .map(str::to_string)
     })
+}
+
+pub fn strip_unread_badge(title: &str) -> &str {
+    let Some(rest) = title.strip_prefix('(') else {
+        return title;
+    };
+    let Some((count, tail)) = rest.split_once(") ") else {
+        return title;
+    };
+    let digits = count.strip_suffix('+').unwrap_or(count);
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return title;
+    }
+    tail
 }
 
 fn split(s: &str, from_end: bool) -> Option<(&str, &str)> {
@@ -401,6 +417,30 @@ mod tests {
             Some("Odin-rs · GitHub".to_string())
         );
         assert_eq!(AppRule::Firefox.favicon_key("some plain title"), None);
+    }
+
+    #[test]
+    fn firefox_favicon_key_ignores_unread_badges() {
+        assert_eq!(
+            AppRule::Firefox.favicon_key("(2) WhatsApp — Mozilla Firefox"),
+            Some("WhatsApp".to_string())
+        );
+        assert_eq!(
+            AppRule::Firefox.favicon_key("(20+) Facebook — Firefox"),
+            Some("Facebook".to_string())
+        );
+    }
+
+    #[test]
+    fn firefox_favicon_key_keeps_non_numeric_parentheses() {
+        assert_eq!(
+            AppRule::Firefox.favicon_key("(draft) Notes — Firefox"),
+            Some("(draft) Notes".to_string())
+        );
+        assert_eq!(
+            AppRule::Firefox.favicon_key("(1)WhatsApp — Firefox"),
+            Some("(1)WhatsApp".to_string())
+        );
     }
 
     fn kitty_window(title: &str) -> WinEntry {

@@ -1,5 +1,5 @@
 use iced::{
-    Border, Color, Element, Padding,
+    Border, Color, Element, Padding, Shadow, Vector,
     alignment::Vertical,
     border::Radius,
     widget::{Column, Row as RowWidget, button, button::Status, rich_text, text::Wrapping},
@@ -27,6 +27,10 @@ const TILE_FILL_ALPHA: f32 = 0.18;
 const TILE_HOVER_FILL_ALPHA: f32 = 0.34;
 const TILE_OUTLINE_ALPHA: f32 = 0.7;
 const TILE_PADDING: Padding = Padding::new(4.0);
+const FLOATING_TILE_RADIUS_PX: f32 = 8.0;
+const FLOATING_SHADOW_ALPHA: f32 = 0.45;
+const FLOATING_SHADOW_OFFSET: Vector = Vector::new(0.0, 2.0);
+const FLOATING_SHADOW_BLUR_PX: f32 = 6.0;
 
 pub struct WorkspaceSchematic<'a> {
     preview: &'a WorkspacePreview,
@@ -107,6 +111,12 @@ impl<'a> WorkspaceSchematic<'a> {
             ..self.config.palette.dim
         }
         .scale_alpha(self.opacity);
+        let radius = if tile.is_floating {
+            FLOATING_TILE_RADIUS_PX
+        } else {
+            TILE_RADIUS_PX
+        };
+        let shadow = self.lift(tile);
         let text_color = self.config.palette.bar_foreground.scale_alpha(self.opacity);
 
         button(content)
@@ -123,12 +133,28 @@ impl<'a> WorkspaceSchematic<'a> {
                     border: Border {
                         color: if hovered { highlight } else { outline },
                         width: TILE_BORDER_PX,
-                        radius: Radius::new(TILE_RADIUS_PX),
+                        radius: Radius::new(radius),
                     },
+                    shadow,
                     ..button::Style::default()
                 }
             })
             .into()
+    }
+
+    fn lift(&self, tile: &PreviewTile) -> Shadow {
+        if !tile.is_floating {
+            return Shadow::default();
+        }
+        Shadow {
+            color: Color {
+                a: FLOATING_SHADOW_ALPHA,
+                ..self.config.palette.surface
+            }
+            .scale_alpha(self.opacity),
+            offset: FLOATING_SHADOW_OFFSET,
+            blur_radius: FLOATING_SHADOW_BLUR_PX,
+        }
     }
 
     fn label(&self, tile: &PreviewTile) -> Element<'static, Message> {
