@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt, io,
     rc::Rc,
     sync::{
@@ -172,10 +172,26 @@ enum CommandKind {
     ToggleMute,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
     Output,
     Input,
+}
+
+impl Direction {
+    fn target(self) -> Target {
+        match self {
+            Direction::Output => Target::DefaultSink,
+            Direction::Input => Target::DefaultSource,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Direction::Output => "sink",
+            Direction::Input => "source",
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -218,6 +234,7 @@ struct RoutePlacement {
 
 #[derive(Debug)]
 struct AudioNode {
+    direction: Direction,
     name: String,
     description: String,
     serial: u64,
@@ -245,6 +262,22 @@ struct Graph {
     routes: HashMap<u32, HashMap<u32, Route>>,
     default_sink: Option<String>,
     default_source: Option<String>,
+}
+
+impl Graph {
+    fn default_name(&self, direction: Direction) -> Option<&str> {
+        match direction {
+            Direction::Output => self.default_sink.as_deref(),
+            Direction::Input => self.default_source.as_deref(),
+        }
+    }
+
+    fn node_count(&self, direction: Direction) -> usize {
+        self.nodes
+            .values()
+            .filter(|node| node.direction == direction)
+            .count()
+    }
 }
 
 #[derive(Debug)]
@@ -480,6 +513,7 @@ struct Proxies {
 struct Session {
     graph: Graph,
     proxies: Proxies,
+    reported_missing: HashSet<Direction>,
 }
 
 enum Destination<'session> {
@@ -575,6 +609,26 @@ fn dispatch(session: &Shared, states: &Publisher, event: Event) {
         *current = next;
         true
     });
+    report_missing_defaults(&mut session.borrow_mut());
+}
+
+fn report_missing_defaults(session: &mut Session) {
+    for direction in [Direction::Output, Direction::Input] {
+        let graph = &session.graph;
+        let present = graph.node_count(direction);
+        if default_node_id(graph, direction.target()).is_some() || present == 0 {
+            session.reported_missing.remove(&direction);
+        } else if session.reported_missing.insert(direction) {
+            let label = direction.label();
+            if let Some(name) = graph.default_name(direction) {
+                tracing::warn!("audio: default {label} {name} matches none of the {present} {label} nodes");
+            } else {
+                tracing::warn!(
+                    "audio: no default {label} has been published while {present} {label} nodes are present"
+                );
+            }
+        }
+    }
 }
 
 fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &Graph) {
@@ -692,8 +746,8 @@ fn track_node(
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
-    if node_direction(props).is_some() {
-        track_device_node(registry, session, states, global, props);
+    if let Some(direction) = node_direction(props) {
+        track_device_node(registry, session, states, global, props, direction);
     } else if is_output_stream(props) {
         track_stream_node(registry, session, states, global, props);
     }
@@ -705,6 +759,7 @@ fn track_device_node(
     states: &Publisher,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
+    direction: Direction,
 ) {
     let Some(proxy) = bind::<Node>(registry, global, "node") else {
         return;
@@ -721,7 +776,7 @@ fn track_device_node(
         states,
         Event::NodeAdded {
             id,
-            node: node_from_props(props),
+            node: node_from_props(props, direction),
         },
     );
     session.borrow_mut().proxies.nodes.insert(
@@ -952,8 +1007,9 @@ fn stream_from_props(props: &DictRef) -> AppStream {
     }
 }
 
-fn node_from_props(props: &DictRef) -> AudioNode {
+fn node_from_props(props: &DictRef, direction: Direction) -> AudioNode {
     AudioNode {
+        direction,
         name: props.get("node.name").unwrap_or_default().to_owned(),
         description: props
             .get("node.nick")
@@ -1107,15 +1163,12 @@ fn pod_bytes(value: &Value) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
 
-    fn node(name: &str, volumes: &[f32]) -> AudioNode {
-        serialised(name, volumes, 0)
-    }
-
-    fn serialised(name: &str, volumes: &[f32], serial: u64) -> AudioNode {
+    fn node(direction: Direction, name: &str, volumes: &[f32]) -> AudioNode {
         AudioNode {
+            direction,
             name: name.to_owned(),
             description: name.to_owned(),
-            serial,
+            serial: 0,
             placement: None,
             levels: Levels {
                 channel_volumes: volumes.to_vec(),
@@ -1137,7 +1190,7 @@ mod tests {
         let graph = graph_with(vec![
             Event::NodeAdded {
                 id: 56,
-                node: node("speaker", &[cubic(54)]),
+                node: node(Direction::Output, "speaker", &[cubic(54)]),
             },
             Event::NodePlacement {
                 id: 56,
@@ -1170,7 +1223,7 @@ mod tests {
         let graph = graph_with(vec![
             Event::NodeAdded {
                 id: 7,
-                node: node("null-sink", &[cubic(42)]),
+                node: node(Direction::Output, "null-sink", &[cubic(42)]),
             },
             Event::DefaultChanged {
                 direction: Direction::Output,
@@ -1185,11 +1238,17 @@ mod tests {
         let graph = graph_with(vec![
             Event::NodeAdded {
                 id: 91,
-                node: serialised("bluez", &[cubic(10)], 1593),
+                node: AudioNode {
+                    serial: 1593,
+                    ..node(Direction::Output, "bluez", &[cubic(10)])
+                },
             },
             Event::NodeAdded {
                 id: 90,
-                node: serialised("bluez", &[cubic(70)], 29349),
+                node: AudioNode {
+                    serial: 29349,
+                    ..node(Direction::Output, "bluez", &[cubic(70)])
+                },
             },
             Event::DefaultChanged {
                 direction: Direction::Output,
@@ -1204,7 +1263,10 @@ mod tests {
         let built_in = vec![
             Event::NodeAdded {
                 id: 58,
-                node: serialised("mic1", &[cubic(60)], 58),
+                node: AudioNode {
+                    serial: 58,
+                    ..node(Direction::Input, "mic1", &[cubic(60)])
+                },
             },
             Event::DefaultChanged {
                 direction: Direction::Input,
@@ -1217,7 +1279,10 @@ mod tests {
         for event in [
             Event::NodeAdded {
                 id: 97,
-                node: serialised("bluez_in", &[], 1593),
+                node: AudioNode {
+                    serial: 1593,
+                    ..node(Direction::Input, "bluez_in", &[])
+                },
             },
             Event::NodePlacement {
                 id: 97,
@@ -1265,7 +1330,10 @@ mod tests {
         let mut graph = graph_with(vec![
             Event::NodeAdded {
                 id: 97,
-                node: serialised("bluez_in", &[cubic(35)], 1593),
+                node: AudioNode {
+                    serial: 1593,
+                    ..node(Direction::Input, "bluez_in", &[cubic(35)])
+                },
             },
             Event::DefaultChanged {
                 direction: Direction::Input,
@@ -1281,7 +1349,10 @@ mod tests {
             &mut graph,
             Event::NodeAdded {
                 id: 101,
-                node: serialised("bluez_in", &[cubic(35)], 29349),
+                node: AudioNode {
+                    serial: 29349,
+                    ..node(Direction::Input, "bluez_in", &[cubic(35)])
+                },
             },
         );
         assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
@@ -1292,7 +1363,7 @@ mod tests {
         let mut graph = graph_with(vec![
             Event::NodeAdded {
                 id: 56,
-                node: node("speaker", &[cubic(54)]),
+                node: node(Direction::Output, "speaker", &[cubic(54)]),
             },
             Event::NodePlacement {
                 id: 56,
@@ -1326,7 +1397,7 @@ mod tests {
         let mut graph = graph_with(vec![
             Event::NodeAdded {
                 id: 56,
-                node: node("speaker", &[cubic(54)]),
+                node: node(Direction::Output, "speaker", &[cubic(54)]),
             },
             Event::DefaultChanged {
                 direction: Direction::Output,
