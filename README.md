@@ -1,86 +1,89 @@
 # Vetrata
 
-My personal desktop shell existing out of two panels.
+My personal desktop shell for the [niri](https://github.com/YaLTeR/niri)
+compositor: two panels in one binary, built on [iced](https://iced.rs) and
+[iced_layershell](https://crates.io/crates/iced_layershell), reading D-Bus with
+`zbus` where a service exists and calling the CLI where one does not.
 
-Current focused on the [niri](https://github.com/YaLTeR/niri)
-compositor exclusively.
+![The top panel](docs/top-bar.png)
 
-One compiled binary built on:
+![The bottom panel](docs/bottom-bar.png)
 
-- [iced](https://iced.rs). My first project with this framework.
-- [iced_layershell](https://crates.io/crates/iced_layershell):
-- D-Bus calls with `zbus` as much as possible.
-- CLI calls otherwise
+## What's different
+
+### What it shows you
+
+![The AI, idle, media and volume widget groups](docs/indicators.png)
+
+- **AI harness usage.** Claude subscription, Copilot quota and OpenRouter spend,
+  tracked while you work.
+- **Media that plays along.** The current MPRIS track, with play/pause and a
+  jump back to the app that owns it.
+- **Systemd health.** Failed units and kernel errors become a widget group that
+  opens the journal for them.
+- **Where your wallpaper was taken.** The current wallpaper's location, with a
+  summary of its Wikipedia article.
+
+### What hovering reveals
+
+![The tooltip for a window in the window list](docs/window-tooltip.png)
+
+- **Cards that grow and morph.** A tooltip expands out of the widget group you
+  hovered, and sliding along the bar morphs that card into the next rather than
+  popping a new one.
+- **Windows explain themselves.** Hover an entry in the window list for its app
+  id, focus age, the command behind it and the nix packages it came from, with a
+  live process tree underneath.
+- **Copyable values.** Click an address, a PID, a network name in a tooltip and
+  it goes to the clipboard.
+
+### What you can do from the bar
+
+![The workspace widget group, focus marker over the current workspace](docs/workspaces.png)
+
+- **The focus marker slides.** Switch workspace or window and the indicator
+  glides to its new place instead of blinking there.
+- **Settings adjust in place.** Idle timers, backlight, volume, colour
+  temperature and the panel's own shape are sliders in the bar itself.
+- **Quick launch knows your workspace.** Each workspace offers the apps you
+  actually start there.
 
 ## Run
 
-Assuming you are running a shell inside the Nix devshell:
+Inside the Nix devshell (`nix develop`):
 
 ```bash
 cargo r
 ```
 
-This compiles a quick debug build and runs the two panels.
+A debug build, running both panels.
+
+## Install
+
+Import `homeModules.default` from the flake. It installs the package, writes
+`~/.config/vetrata.toml`, adds the niri layer rules and, unless
+`services.vetrata.systemdUnit` is disabled, a systemd user service bound to
+`graphical-session.target`.
+
+## Configure
+
+`~/.config/vetrata.toml`, or `services.vetrata.settings`, which is written to it
+verbatim. The keys mirror the structs in `src/config/` — unknown ones are
+rejected rather than ignored.
 
 ## Secrets
 
-The AI widgets read three optional token files, all from
-`$XDG_CONFIG_HOME/vetrata/`. A file that is absent hides its pills. There is no
-environment variable, no configuration key and no fallback location — put the
-file there, or symlink it there.
+Four optional files, all read from `$XDG_CONFIG_HOME/vetrata/`. No environment
+variable, no configuration key, no fallback location. An absent file hides the
+widget group that needs it.
 
-`openrouter-management-key` — an OpenRouter **management** key as plain text. A
-regular API key is not enough: the usage widget calls `/analytics/query`, which
-only management keys may access.
+| file | what it is |
+| --- | --- |
+| `openrouter-management-key` | An OpenRouter **management** key, plain text. A regular API key is not enough: the usage widget calls `/analytics/query`. |
+| `claude-code-oauth` | The Claude Code credentials JSON (`~/.claude/.credentials.json`, containing `claudeAiOauth.accessToken`). Without an OAuth token it falls back to `ccusage` daily spend. |
+| `gh-auth-token` | A bare `gho_` GitHub OAuth token, used to call `/copilot_internal/user`. |
+| `unsplash-access-key` | An Unsplash **access** key — the Client-ID of an app registered at <https://unsplash.com/developers>, never the secret key. |
 
-`claude-code-oauth` — the Claude Code OAuth credentials JSON (the
-`~/.claude/.credentials.json` blob containing `claudeAiOauth.accessToken`).
-Drives the Claude subscription gauge; on API-key machines with no OAuth token it
-surfaces `ccusage` daily spend instead.
-
-`gh-auth-token` — a bare `gho_` GitHub OAuth token. The Copilot usage pills read
-it and call `/copilot_internal/user` directly. Without it the Copilot quota
-pills are hidden; the local-`ccusage` Copilot pill needs no token and still
-shows if `ccusage` is installed.
-
-`unsplash-access-key` — an Unsplash **access key**, the Client-ID of an
-application registered at <https://unsplash.com/developers>. Drives the
-wallpaper pill described below. The Unsplash *secret* key is only used by the
-OAuth flow and is never sent, so do not put it here.
-
-Because the location is fixed, a `cargo r` build sees the same secrets as the
-installed one. With the home-manager module, set
-`services.vetrata.secretFiles.<name>` to wherever the secret actually lives
-(an agenix path, another tool's credentials file) and it is symlinked into
-place rather than copied, so nothing lands in the nix store.
-
-## Wallpaper
-
-The wallpaper pill names the place the current wallpaper was photographed in and
-summarises the Wikipedia article for that place. It asks `swww query` (or the
-`awww` fork, whichever is installed) which image
-is on screen every 30 s; when the image changes it reads the Unsplash photo id
-out of the filename — Unsplash downloads are named
-`firstname-lastname-<id>-unsplash.jpg` — and resolves that id once against the
-Unsplash and Wikipedia APIs.
-
-No image is ever uploaded or inspected, only its filename, so wallpapers that did
-not come from Unsplash resolve to nothing and the pill hides itself. Unsplash
-fills in a location for roughly half its photos; without one the tooltip still
-carries the caption and photographer.
-
-There is nothing to configure. The pill appears when both halves are actually
-there — `awww` or `swww` on the session PATH (the same way `hyprlock` and the
-terminal are) and `unsplash-access-key` in place — and hides otherwise, like
-every other secret-backed pill. The Wikipedia edition follows the session
-locale, taking the language subtag of `LC_ALL`, `LC_MESSAGES` or `LANG` and
-falling back to `en`, so a `nl_BE.UTF-8` session reads nl.wikipedia.org.
-
-The daemons are tried in that order, and any other swww fork works too as long
-as its `query` prints `currently displaying: image: <path>`. Neither binary is
-bundled: shipping one would shadow yours on PATH, and a client/daemon version
-mismatch across that socket would break wallpaper switching.
-
-## History
-
-This is a Rust rewrite of my other project [odin](https://codeberg.org/wvhulle/odin).
+`services.vetrata.secretFiles.<name>` symlinks each from wherever the secret
+actually lives, so nothing lands in the nix store, and a `cargo r` build sees
+the same files as the installed binary.
