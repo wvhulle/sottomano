@@ -1,4 +1,4 @@
-use iced::{Element, Subscription, Task};
+use iced::{Element, Subscription, Task, widget::Row};
 
 pub mod bluetooth_devices_tooltip;
 pub mod ethernet_link_tooltip;
@@ -20,7 +20,10 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
+        bar_widget::BarWidget,
+        font_awesome::Solid,
         last_poll::LastPoll,
+        menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
         tooltip_body::Tooltip,
     },
@@ -32,6 +35,7 @@ pub struct NetInterfacesGroup {
     ethernet: LastPoll<Ethernet>,
     wifi: LastPoll<Wifi>,
     mobile: LastPoll<Mobile>,
+    pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +44,7 @@ pub enum NetInterfacesMessage {
     Ethernet(Option<Ethernet>),
     Wifi(Option<Wifi>),
     Mobile(Option<Mobile>),
+    Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -59,6 +64,9 @@ impl NetInterfacesGroup {
             NetInterfacesMessage::Ethernet(reading) => self.ethernet.load(reading),
             NetInterfacesMessage::Wifi(reading) => self.wifi.load(reading),
             NetInterfacesMessage::Mobile(reading) => self.mobile.load(reading),
+            NetInterfacesMessage::Menu(msg) => {
+                self.menu.update(msg);
+            }
             NetInterfacesMessage::Tooltip(_) => {}
         }
         Task::none()
@@ -75,18 +83,49 @@ impl NetInterfacesGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, NetInterfacesMessage>> {
-        ReadingRow::new()
-            .push(Reading::new(
-                self.bluetooth.display(),
-                HoverTarget::Bluetooth,
-            ))
-            .push(Reading::new(self.ethernet.display(), HoverTarget::Ethernet))
-            .push(Reading::new(self.wifi.display(), HoverTarget::Wifi))
-            .push(Reading::new(self.mobile.display(), HoverTarget::Mobile))
-            .slot(config, position, NetInterfacesMessage::Tooltip)
+        let readings = move |reveal: f32| {
+            ReadingRow::new()
+                .opacity(reveal)
+                .push(Reading::new(
+                    self.bluetooth.display(),
+                    HoverTarget::Bluetooth,
+                ))
+                .push(Reading::new(self.ethernet.display(), HoverTarget::Ethernet))
+                .push(Reading::new(self.wifi.display(), HoverTarget::Wifi))
+                .push(Reading::new(self.mobile.display(), HoverTarget::Mobile))
+                .row(config, NetInterfacesMessage::Tooltip)
+        };
+        readings(1.0)?;
+
+        let content = move |reveal: f32| readings(reveal).unwrap_or_else(Row::new).into();
+        let slot = self.menu.slot(
+            move || Self::face(config),
+            content,
+            NetInterfacesMessage::Menu,
+        );
+        let slot = match self.preferred_uplink() {
+            Some(widget) => slot.previewed_value(widget),
+            None => slot,
+        };
+        Some(slot.view(config, position))
+    }
+
+    fn preferred_uplink(&self) -> Option<&dyn BarWidget> {
+        [self.mobile.display(), self.wifi.display()]
+            .into_iter()
+            .flatten()
+            .find(|widget| !widget.disabled() && widget.value().is_some())
+    }
+
+    fn face<'a>(config: &Config) -> Element<'a, NetInterfacesMessage> {
+        Solid::Link
+            .glyph()
+            .size(config.font.icon_size_px)
+            .color(config.palette.bar_foreground)
+            .into()
     }
 }

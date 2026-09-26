@@ -634,6 +634,7 @@ impl Bar {
             &mut self.media_group.menu,
             &mut self.idle_timeouts_group.menu,
             &mut self.internet_group.menu,
+            &mut self.net_interfaces_group.menu,
             &mut self.window_group.quick_launch.menu,
             &mut self.tray_group.menu,
             &mut self.ai_group.menu,
