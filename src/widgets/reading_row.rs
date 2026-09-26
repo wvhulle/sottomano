@@ -5,14 +5,8 @@ use iced::{
 
 use crate::{
     config::Config,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
-    widgets::{
-        bar_widget::BarWidget, flat_button, pager_slot::permanently_inactive_slot,
-        source_reading::source_reading,
-    },
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    widgets::{bar_widget::BarWidget, flat_button, source_reading::source_reading},
 };
 
 pub struct Reading<'w, M> {
@@ -118,18 +112,5 @@ impl<'w, M> ReadingRow<'w, M> {
                 .spacing(config.spacing.widget_spacing_px)
                 .align_y(Alignment::Center)
         })
-    }
-
-    pub fn slot<'a>(
-        self,
-        config: &Config,
-        position: Position,
-        wrap: impl Fn(TooltipMessage) -> M + Clone + 'a,
-    ) -> Option<Element<'a, M>>
-    where
-        M: Clone + 'a,
-    {
-        let row = self.row(config, wrap)?;
-        Some(permanently_inactive_slot(row.into(), config, position))
     }
 }
