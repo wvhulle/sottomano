@@ -621,10 +621,13 @@ fn report_missing_defaults(session: &mut Session) {
         } else if session.reported_missing.insert(direction) {
             let label = direction.label();
             if let Some(name) = graph.default_name(direction) {
-                tracing::warn!("audio: default {label} {name} matches none of the {present} {label} nodes");
+                tracing::warn!(
+                    "audio: default {label} {name} matches none of the {present} {label} nodes"
+                );
             } else {
                 tracing::warn!(
-                    "audio: no default {label} has been published while {present} {label} nodes are present"
+                    "audio: no default {label} has been published while {present} {label} nodes \
+                     are present"
                 );
             }
         }

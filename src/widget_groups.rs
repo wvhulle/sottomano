@@ -12,7 +12,6 @@ pub mod net_interfaces_group;
 pub mod notification_group;
 pub mod output_group;
 pub mod panel_settings_group;
-pub mod power_profile_group;
 pub mod system_group;
 pub mod tray_group;
 pub mod wallpaper_group;

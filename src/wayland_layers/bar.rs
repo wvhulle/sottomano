@@ -34,7 +34,6 @@ use crate::{
         notification_group,
         output_group::{self, OutputMessage},
         panel_settings_group::PanelSettingsMessage,
-        power_profile_group::PowerProfileMessage,
         system_group::SystemMessage,
         tray_group::TrayMessage,
         wallpaper_group::WallpaperMessage,
@@ -143,13 +142,6 @@ fn top_start(bar: &Bar, position: Position) -> Element<'_, Message> {
                 BatteryMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::Battery(m),
             }),
-            slot(
-                bar.power_profile_group.view(config, position),
-                |m| match m {
-                    PowerProfileMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::PowerProfile(m),
-                },
-            ),
             slot(bar.system_group.view(config, position), |m| match m {
                 SystemMessage::Tooltip(t) => Message::Tooltip(t),
                 m => Message::System(m),
