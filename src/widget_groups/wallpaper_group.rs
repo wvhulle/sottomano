@@ -3,10 +3,7 @@ use std::{
     path::PathBuf,
 };
 
-use iced::{
-    Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::{Config, SecretPaths},
@@ -20,7 +17,6 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        flat_button,
         font_awesome::Solid,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
@@ -273,18 +269,10 @@ impl WallpaperGroup {
     ) -> Option<Element<'a, WallpaperMessage>> {
         source_reading::<WallpaperMessage>(config, self.lookup.display(), 1.0)?;
 
-        let handle = move || {
+        let face = move || {
             let reading = source_reading(config, self.lookup.display(), 1.0)
                 .unwrap_or_else(|| Row::new().into());
-            button(hoverable(
-                reading,
-                HoverTarget::Wallpaper,
-                WallpaperMessage::Tooltip,
-            ))
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(WallpaperMessage::Menu(MenuMessage::Toggle))
-            .into()
+            hoverable(reading, HoverTarget::Wallpaper, WallpaperMessage::Tooltip)
         };
 
         let content = move |reveal: f32| {
@@ -312,7 +300,8 @@ impl WallpaperGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, WallpaperMessage::Menu),
+                .slot(face, content, WallpaperMessage::Menu)
+                .view(config, position),
         )
     }
 }

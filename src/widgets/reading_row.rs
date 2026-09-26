@@ -32,6 +32,10 @@ impl<'w, M> Reading<'w, M> {
         }
     }
 
+    pub fn is_present(&self) -> bool {
+        self.widget.is_some()
+    }
+
     pub fn on_press(mut self, message: M) -> Self {
         self.on_press = Some(message);
         self

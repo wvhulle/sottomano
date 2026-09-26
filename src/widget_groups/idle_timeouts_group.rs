@@ -1,9 +1,6 @@
 use std::{thread, time::Duration};
 
-use iced::{
-    Alignment, Element, Task,
-    widget::{Row, button},
-};
+use iced::{Alignment, Element, Task, widget::Row};
 
 use crate::{
     config::Config,
@@ -14,7 +11,6 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        flat_button,
         font_awesome::Solid,
         idle::{
             IdleAction, IdleTrigger, perform,
@@ -210,17 +206,12 @@ impl IdleTimeoutsGroup {
         config: &'a Config,
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
-        let handle = move || {
-            button(
-                Solid::Stopwatch
-                    .glyph()
-                    .size(config.font.icon_size_px)
-                    .color(config.palette.bar_foreground),
-            )
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(IdleTimeoutsMessage::Menu(MenuMessage::Toggle))
-            .into()
+        let face = move || {
+            Solid::Stopwatch
+                .glyph()
+                .size(config.font.icon_size_px)
+                .color(config.palette.bar_foreground)
+                .into()
         };
 
         let content = move |reveal: f32| {
@@ -239,6 +230,8 @@ impl IdleTimeoutsGroup {
         };
 
         self.menu
-            .view(config, position, handle, content, IdleTimeoutsMessage::Menu)
+            .slot(face, content, IdleTimeoutsMessage::Menu)
+            .previewed_value(self.lock.reading())
+            .view(config, position)
     }
 }

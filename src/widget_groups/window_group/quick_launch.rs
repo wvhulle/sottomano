@@ -77,17 +77,12 @@ impl QuickLaunch {
     ) -> Option<Element<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
-        let handle = move || {
-            button(
-                Solid::Rocket
-                    .glyph()
-                    .size(config.font.icon_size_px)
-                    .color(config.palette.bar_foreground),
-            )
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(QuickLaunchMessage::Menu(MenuMessage::Toggle))
-            .into()
+        let face = move || {
+            Solid::Rocket
+                .glyph()
+                .size(config.font.icon_size_px)
+                .color(config.palette.bar_foreground)
+                .into()
         };
 
         let content = move |reveal: f32| {
@@ -103,7 +98,8 @@ impl QuickLaunch {
 
         Some(
             self.menu
-                .view(config, position, handle, content, QuickLaunchMessage::Menu),
+                .slot(face, content, QuickLaunchMessage::Menu)
+                .view(config, position),
         )
     }
 }

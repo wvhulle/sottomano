@@ -1,15 +1,20 @@
 use iced::{
     Alignment, Element, Padding,
     time::Duration,
-    widget::{Row, container, mouse_area},
+    widget::{Row, button, container, mouse_area},
 };
 
 use crate::{
     config::Config,
     wayland_layers::surface::Position,
     widgets::{
-        activity_line::activity_line, expand_animation::expand_animation, pager_slot::PagerSlot,
+        activity_line::activity_line,
+        bar_widget::BarWidget,
+        expand_animation::expand_animation,
+        flat_button,
+        pager_slot::PagerSlot,
         reveal::reveal_x,
+        source_reading::{reading_color, reading_value},
     },
 };
 
@@ -49,30 +54,102 @@ impl MenuGroup {
         self.expanded
     }
 
-    pub fn view<'a, Message: 'a + Clone, F>(
+    pub fn slot<'a, Message, Face, Content, OnEvent>(
         &self,
-        config: &'a Config,
-        position: Position,
-        handle: impl Fn() -> Element<'a, Message> + 'a,
-        content: impl Fn(f32) -> Element<'a, Message> + 'a,
-        to_message: F,
-    ) -> Element<'a, Message>
+        face: Face,
+        content: Content,
+        on_event: OnEvent,
+    ) -> MenuSlot<'a, Face, Content, OnEvent>
     where
-        F: Fn(MenuMessage) -> Message,
+        Message: 'a + Clone,
+        Face: Fn() -> Element<'a, Message> + 'a,
+        Content: Fn(f32) -> Element<'a, Message> + 'a,
+        OnEvent: Fn(MenuMessage) -> Message,
     {
-        let hovered = self.hovered;
-        let animated = expand_animation(self.expanded, EXPAND, move |reveal| {
-            let inner =
-                Row::with_children([handle(), revealed_content(config, reveal, content(reveal))])
-                    .align_y(Alignment::Center);
+        MenuSlot {
+            expanded: self.expanded,
+            hovered: self.hovered,
+            face,
+            content,
+            on_event,
+            previewed_value: None,
+        }
+    }
+}
+
+pub struct MenuSlot<'a, Face, Content, OnEvent> {
+    expanded: bool,
+    hovered: bool,
+    face: Face,
+    content: Content,
+    on_event: OnEvent,
+    previewed_value: Option<&'a dyn BarWidget>,
+}
+
+impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
+    #[must_use]
+    pub fn previewed_value(mut self, widget: &'a dyn BarWidget) -> Self {
+        self.previewed_value = Some(widget);
+        self
+    }
+
+    pub fn view<Message>(self, config: &'a Config, position: Position) -> Element<'a, Message>
+    where
+        Message: 'a + Clone,
+        Face: Fn() -> Element<'a, Message> + 'a,
+        Content: Fn(f32) -> Element<'a, Message> + 'a,
+        OnEvent: Fn(MenuMessage) -> Message,
+    {
+        let Self {
+            expanded,
+            hovered,
+            face,
+            content,
+            on_event,
+            previewed_value,
+        } = self;
+        let toggle = on_event(MenuMessage::Toggle);
+        let animated = expand_animation(expanded, EXPAND, move |reveal| {
+            let handle = button(
+                Row::with_children([
+                    face(),
+                    collapsing_previewed_value(config, previewed_value, reveal),
+                ])
+                .align_y(Alignment::Center),
+            )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(toggle.clone());
+            let inner = Row::with_children([
+                handle.into(),
+                revealed_content(config, reveal, content(reveal)),
+            ])
+            .align_y(Alignment::Center);
             PagerSlot::new(inner.into(), edge_indicator(config, hovered, reveal))
                 .view(config, position)
         });
         mouse_area(animated)
-            .on_enter(to_message(MenuMessage::CursorEntered))
-            .on_exit(to_message(MenuMessage::CursorExited))
+            .on_enter(on_event(MenuMessage::CursorEntered))
+            .on_exit(on_event(MenuMessage::CursorExited))
             .into()
     }
+}
+
+fn collapsing_previewed_value<'a, Message: 'a>(
+    config: &Config,
+    previewed_value: Option<&dyn BarWidget>,
+    reveal: f32,
+) -> Element<'a, Message> {
+    let Some(value) = previewed_value
+        .and_then(|widget| reading_value(config, widget, reading_color(config, widget)))
+    else {
+        return Row::new().into();
+    };
+    let gap = config.spacing.widget_spacing_px;
+    reveal_x(
+        container(value).padding(Padding::ZERO.left(gap)),
+        1.0 - reveal,
+    )
 }
 
 fn revealed_content<'a, Message: 'a>(

@@ -105,15 +105,12 @@ impl BatteryGroup {
     ) -> Option<Element<'a, BatteryMessage>> {
         let charge_reading = move || {
             ReadingRow::new()
-                .push(
-                    Reading::new(self.charge.display(), HoverTarget::Battery)
-                        .on_press(BatteryMessage::Menu(MenuMessage::Toggle)),
-                )
+                .push(Reading::new(self.charge.display(), HoverTarget::Battery))
                 .row(config, BatteryMessage::Tooltip)
         };
         charge_reading()?;
 
-        let handle = move || charge_reading().unwrap_or_else(Row::new).into();
+        let face = move || charge_reading().unwrap_or_else(Row::new).into();
 
         let content = move |reveal: f32| {
             let draw = ReadingRow::new()
@@ -135,7 +132,8 @@ impl BatteryGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, BatteryMessage::Menu),
+                .slot(face, content, BatteryMessage::Menu)
+                .view(config, position),
         )
     }
 }

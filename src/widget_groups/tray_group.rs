@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use iced::{
     Alignment, Element,
-    widget::{Column, Row, button, mouse_area},
+    widget::{Column, Row, mouse_area},
 };
 
 use crate::{
@@ -14,7 +14,6 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
-        flat_button,
         font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
@@ -170,17 +169,12 @@ impl TrayGroup {
             return None;
         }
 
-        let handle = move || {
-            button(
-                Solid::EllipsisVertical
-                    .glyph()
-                    .size(config.font.icon_size_px)
-                    .color(config.palette.bar_foreground),
-            )
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(TrayMessage::Menu(MenuMessage::Toggle))
-            .into()
+        let face = move || {
+            Solid::EllipsisVertical
+                .glyph()
+                .size(config.font.icon_size_px)
+                .color(config.palette.bar_foreground)
+                .into()
         };
 
         let content = move |reveal: f32| {
@@ -196,7 +190,8 @@ impl TrayGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, TrayMessage::Menu),
+                .slot(face, content, TrayMessage::Menu)
+                .view(config, position),
         )
     }
 }

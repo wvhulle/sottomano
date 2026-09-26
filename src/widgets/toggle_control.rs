@@ -79,6 +79,10 @@ impl<S: Toggle> ToggleControl<S> {
         self.cell.tooltip()
     }
 
+    pub fn reading(&self) -> Option<&dyn BarWidget> {
+        self.cell.get().map(|display| display as &dyn BarWidget)
+    }
+
     pub fn view<'a>(
         &self,
         config: &Config,

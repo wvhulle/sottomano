@@ -3,10 +3,7 @@ pub mod copilot_usage;
 pub mod openrouter_credit_spend;
 pub mod spend_to_level;
 
-use iced::{
-    Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::{Config, SecretPaths},
@@ -24,8 +21,6 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        flat_button,
-        font_awesome::Solid,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
@@ -156,13 +151,6 @@ impl AiGroup {
         Task::none()
     }
 
-    fn configured(&self) -> bool {
-        let secrets = &self.secrets;
-        secrets.openrouter_management.is_some()
-            || secrets.claude_code_oauth.is_some()
-            || secrets.gh_auth_token.is_some()
-    }
-
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::AiOpenRouter => self.openrouter.tooltip(),
@@ -175,64 +163,50 @@ impl AiGroup {
         }
     }
 
+    fn readings(&self) -> [Reading<'_, AiMessage>; 6] {
+        [
+            Reading::new(self.claude_oauth.present(), HoverTarget::AiClaudeOauth),
+            Reading::new(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage),
+            Reading::new(
+                self.copilot_metered.present(),
+                HoverTarget::AiCopilotMetered,
+            ),
+            Reading::new(self.copilot_free.display(), HoverTarget::AiCopilotFree),
+            Reading::new(self.copilot_cli.present(), HoverTarget::AiCopilotCli),
+            Reading::new(self.openrouter.present(), HoverTarget::AiOpenRouter),
+        ]
+    }
+
     pub fn view<'a>(
         &'a self,
         config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, AiMessage>> {
-        let readings = move |reveal: f32| {
-            ReadingRow::new()
-                .opacity(reveal)
-                .push(Reading::new(
-                    self.claude_oauth.present(),
-                    HoverTarget::AiClaudeOauth,
-                ))
-                .push(Reading::new(
-                    self.claude_ccusage.display(),
-                    HoverTarget::AiClaudeCcusage,
-                ))
-                .push(Reading::new(
-                    self.copilot_metered.present(),
-                    HoverTarget::AiCopilotMetered,
-                ))
-                .push(Reading::new(
-                    self.copilot_free.display(),
-                    HoverTarget::AiCopilotFree,
-                ))
-                .push(Reading::new(
-                    self.copilot_cli.present(),
-                    HoverTarget::AiCopilotCli,
-                ))
-                .push(Reading::new(
-                    self.openrouter.present(),
-                    HoverTarget::AiOpenRouter,
-                ))
+        let face_index = self.readings().iter().position(Reading::is_present)?;
+
+        let face = move || {
+            self.readings()
+                .into_iter()
+                .skip(face_index)
+                .take(1)
+                .fold(ReadingRow::new(), ReadingRow::push)
                 .row(config, AiMessage::Tooltip)
-        };
-
-        if !self.configured() && readings(1.0).is_none() {
-            return None;
-        }
-
-        let handle = move || {
-            button(robot_handle(config))
-                .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
-                .on_press(AiMessage::Menu(MenuMessage::Toggle))
+                .unwrap_or_else(Row::new)
                 .into()
         };
-        let content = move |reveal: f32| readings(reveal).unwrap_or_else(Row::new).into();
+        let content = move |reveal: f32| {
+            self.readings()
+                .into_iter()
+                .skip(face_index + 1)
+                .fold(ReadingRow::new().opacity(reveal), ReadingRow::push)
+                .row(config, AiMessage::Tooltip)
+                .unwrap_or_else(Row::new)
+                .into()
+        };
         Some(
             self.menu
-                .view(config, position, handle, content, AiMessage::Menu),
+                .slot(face, content, AiMessage::Menu)
+                .view(config, position),
         )
     }
-}
-
-fn robot_handle<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
-    Solid::Robot
-        .glyph()
-        .size(config.font.icon_size_px)
-        .color(config.palette.bar_foreground)
-        .into()
 }

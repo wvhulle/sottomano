@@ -4,10 +4,7 @@ pub mod umbra_dark_mode;
 
 use std::{collections::BTreeMap, ops::RangeInclusive};
 
-use iced::{
-    Alignment, Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::Config,
@@ -22,7 +19,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        flat_button,
+        bar_widget::BarWidget,
         font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
@@ -193,9 +190,14 @@ impl MonitorGroup {
             children
         };
 
-        if children().is_empty() {
-            return None;
-        }
+        let first_child = self
+            .backlights
+            .iter()
+            .filter_map(|backlight| self.sliders.get(&backlight.serial))
+            .map(|slider| slider as &dyn BarWidget)
+            .chain(self.clight.reading())
+            .chain(self.umbra.reading())
+            .next()?;
 
         let content = move |_reveal: f32| {
             Row::with_children(children())
@@ -203,26 +205,20 @@ impl MonitorGroup {
                 .align_y(Alignment::Center)
                 .into()
         };
-        Some(self.menu.view(
-            config,
-            position,
-            move || Self::handle(config),
-            content,
-            MonitorMessage::Menu,
-        ))
+        Some(
+            self.menu
+                .slot(move || Self::face(config), content, MonitorMessage::Menu)
+                .previewed_value(first_child)
+                .view(config, position),
+        )
     }
 
-    fn handle<'a>(config: &Config) -> Element<'a, MonitorMessage> {
-        button(
-            Solid::Lightbulb
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(MonitorMessage::Menu(MenuMessage::Toggle))
-        .into()
+    fn face<'a>(config: &Config) -> Element<'a, MonitorMessage> {
+        Solid::Lightbulb
+            .glyph()
+            .size(config.font.icon_size_px)
+            .color(config.palette.bar_foreground)
+            .into()
     }
 }
 

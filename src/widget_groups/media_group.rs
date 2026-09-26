@@ -202,13 +202,9 @@ impl MediaGroup {
         let status = self.status(media);
         let opacity = if status == Status::Playing { 1.0 } else { 0.4 };
 
-        let handle = move || {
-            let face = handle(config, media, status, opacity);
-            button(hoverable(face, HoverTarget::Media, MediaMessage::Tooltip))
-                .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
-                .on_press(MediaMessage::Menu(MenuMessage::Toggle))
-                .into()
+        let face = move || {
+            let track = track_face(config, media, status, opacity);
+            hoverable(track, HoverTarget::Media, MediaMessage::Tooltip)
         };
 
         let content = move |reveal: f32| {
@@ -235,12 +231,13 @@ impl MediaGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, MediaMessage::Menu),
+                .slot(face, content, MediaMessage::Menu)
+                .view(config, position),
         )
     }
 }
 
-fn handle<'a>(
+fn track_face<'a>(
     config: &Config,
     media: &Media,
     status: Status,

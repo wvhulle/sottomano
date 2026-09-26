@@ -2,10 +2,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Local};
 use iced::{
-    Alignment, Element, Subscription, Task,
-    futures::channel::mpsc::Sender,
-    stream,
-    widget::{Row, button},
+    Alignment, Element, Subscription, Task, futures::channel::mpsc::Sender, stream, widget::Row,
 };
 use tokio::time::sleep;
 
@@ -13,7 +10,6 @@ use crate::{
     config::Config,
     wayland_layers::surface::Position,
     widgets::{
-        flat_button,
         menu_group::{MenuGroup, MenuMessage},
         text::bar_text,
     },
@@ -74,13 +70,7 @@ impl ClockGroup {
     }
 
     pub fn view<'a>(&'a self, config: &'a Config, position: Position) -> Element<'a, ClockMessage> {
-        let handle = move || {
-            button(bar_text(&config.font, self.time_text.clone()))
-                .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
-                .on_press(ClockMessage::Menu(MenuMessage::Toggle))
-                .into()
-        };
+        let face = move || bar_text(&config.font, self.time_text.clone()).into();
 
         let content = move |_reveal: f32| {
             Row::new()
@@ -91,7 +81,8 @@ impl ClockGroup {
         };
 
         self.menu
-            .view(config, position, handle, content, ClockMessage::Menu)
+            .slot(face, content, ClockMessage::Menu)
+            .view(config, position)
     }
 }
 

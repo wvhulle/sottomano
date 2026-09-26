@@ -247,17 +247,12 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let handle = move || {
-            button(
-                Solid::Sliders
-                    .glyph()
-                    .size(config.font.icon_size_px)
-                    .color(foreground),
-            )
-            .padding(0)
-            .style(flat_button(foreground))
-            .on_press(PanelSettingsMessage::Menu(MenuMessage::Toggle))
-            .into()
+        let face = move || {
+            Solid::Sliders
+                .glyph()
+                .size(config.font.icon_size_px)
+                .color(foreground)
+                .into()
         };
 
         let content = move |_reveal: f32| {
@@ -291,13 +286,11 @@ impl PanelSettingsGroup {
             .align_y(Alignment::Center)
             .into()
         };
-        Some(self.menu.view(
-            config,
-            position,
-            handle,
-            content,
-            PanelSettingsMessage::Menu,
-        ))
+        Some(
+            self.menu
+                .slot(face, content, PanelSettingsMessage::Menu)
+                .view(config, position),
+        )
     }
 }
 

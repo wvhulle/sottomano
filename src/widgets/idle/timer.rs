@@ -7,6 +7,7 @@ use crate::{
     config::Config,
     wayland_layers::tooltip::HoverTarget,
     widgets::{
+        bar_widget::BarWidget,
         confirm_button::{ConfirmButton, Press},
         font_awesome::FontAwesome,
         idle::{
@@ -58,6 +59,10 @@ impl IdleTimer {
             button: ConfirmButton::new(confirms),
             action,
         }
+    }
+
+    pub fn reading(&self) -> &dyn BarWidget {
+        &self.control
     }
 
     pub fn timeout(&self) -> Option<Duration> {
