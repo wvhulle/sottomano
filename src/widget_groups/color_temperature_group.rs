@@ -3,10 +3,7 @@ pub mod sun_follow_toggle;
 
 use std::ops::RangeInclusive;
 
-use iced::{
-    Alignment, Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Alignment, Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::Config,
@@ -21,7 +18,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        flat_button,
+        bar_widget::BarWidget,
         font_awesome::Solid,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
@@ -201,8 +198,8 @@ impl ColorTemperatureGroup {
         let children = move || {
             let mut children: Vec<Element<'a, ColorTemperatureMessage>> = Vec::new();
             if self.gamma.get().is_some() {
-                children.push(self.dim_slider(config));
                 children.push(self.warmth_slider(config));
+                children.push(self.dim_slider(config));
             }
             if let Some(auto) = self
                 .auto
@@ -216,9 +213,11 @@ impl ColorTemperatureGroup {
             children
         };
 
-        if children().is_empty() {
-            return None;
-        }
+        let first_child = self
+            .gamma
+            .get()
+            .map(|_| &self.warmth as &dyn BarWidget)
+            .or_else(|| self.auto.reading())?;
 
         let content = move |_reveal: f32| {
             Row::with_children(children())
@@ -226,26 +225,24 @@ impl ColorTemperatureGroup {
                 .align_y(Alignment::Center)
                 .into()
         };
-        Some(self.menu.view(
-            config,
-            position,
-            move || Self::handle(config),
-            content,
-            ColorTemperatureMessage::Menu,
-        ))
+        Some(
+            self.menu
+                .slot(
+                    move || Self::face(config),
+                    content,
+                    ColorTemperatureMessage::Menu,
+                )
+                .previewed_value(first_child)
+                .view(config, position),
+        )
     }
 
-    fn handle<'a>(config: &Config) -> Element<'a, ColorTemperatureMessage> {
-        button(
-            Solid::Thermometer
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(ColorTemperatureMessage::Menu(MenuMessage::Toggle))
-        .into()
+    fn face<'a>(config: &Config) -> Element<'a, ColorTemperatureMessage> {
+        Solid::Thermometer
+            .glyph()
+            .size(config.font.icon_size_px)
+            .color(config.palette.bar_foreground)
+            .into()
     }
 
     fn dim_slider<'a>(&self, config: &Config) -> Element<'a, ColorTemperatureMessage> {

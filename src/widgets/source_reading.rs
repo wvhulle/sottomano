@@ -19,12 +19,7 @@ pub fn source_reading<'a, Message: 'a>(
     opacity: f32,
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
-    let color = if widget.disabled() {
-        config.palette.inactive
-    } else {
-        level_color(config, widget.level())
-    }
-    .scale_alpha(opacity);
+    let color = reading_color(config, widget).scale_alpha(opacity);
     let icon: Element<Message> = match widget.icon() {
         Glyph::SimpleIcon(mark) => svg(mark.handle())
             .width(config.font.icon_size_px)
@@ -38,40 +33,53 @@ pub fn source_reading<'a, Message: 'a>(
             .into(),
     };
 
+    let reading = match reading_value(config, widget, color) {
+        Some(value) => row![icon, value]
+            .spacing(config.spacing.widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into(),
+        None => icon,
+    };
+
     if widget.failed() {
-        let warning = Solid::TriangleExclamation
-            .glyph()
-            .size(config.font.icon_size_px)
-            .color(color);
+        return Some(reading);
+    }
+    Some(badged(config, reading, widget.badge(), color))
+}
+
+pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {
+    if widget.disabled() {
+        config.palette.inactive
+    } else {
+        level_color(config, widget.level())
+    }
+}
+
+pub fn reading_value<'a, Message: 'a>(
+    config: &Config,
+    widget: &dyn BarWidget,
+    color: Color,
+) -> Option<Element<'a, Message>> {
+    if widget.failed() {
         return Some(
-            row![icon, warning]
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
+            Solid::TriangleExclamation
+                .glyph()
+                .size(config.font.icon_size_px)
+                .color(color)
                 .into(),
         );
     }
-
-    let reading = match widget.value() {
-        Some(value) => row![
-            icon,
+    match widget.value() {
+        Some(value) => Some(
             Gauge::new(value.percent(), color, config.font.icon_size_px)
                 .live(widget.live_fraction())
-        ]
-        .spacing(config.spacing.widget_spacing_px)
-        .align_y(Alignment::Center)
-        .into(),
-        None => match widget.label() {
-            Some(label) if !label.is_empty() => {
-                row![icon, bar_text(&config.font, label).color(color)]
-                    .spacing(config.spacing.widget_spacing_px)
-                    .align_y(Alignment::Center)
-                    .into()
-            }
-            _ => icon,
-        },
-    };
-
-    Some(badged(config, reading, widget.badge(), color))
+                .into(),
+        ),
+        None => widget
+            .label()
+            .filter(|label| !label.is_empty())
+            .map(|label| bar_text(&config.font, label).color(color).into()),
+    }
 }
 
 fn badged<'a, Message: 'a>(

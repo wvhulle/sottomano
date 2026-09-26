@@ -1,7 +1,4 @@
-use iced::{
-    Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Element, Subscription, Task, widget::Row};
 
 pub mod network_throughput_gauge;
 pub mod tailscale_mesh_tooltip;
@@ -22,7 +19,6 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        flat_button,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
@@ -137,18 +133,10 @@ impl InternetGroup {
         let down = self.down.get()?;
         source_reading::<InternetMessage>(config, Some(down as &dyn BarWidget), 1.0)?;
 
-        let handle = move || {
+        let face = move || {
             let reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)
                 .unwrap_or_else(|| Row::new().into());
-            button(hoverable(
-                reading,
-                HoverTarget::InternetDown,
-                InternetMessage::Tooltip,
-            ))
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(InternetMessage::Menu(MenuMessage::Toggle))
-            .into()
+            hoverable(reading, HoverTarget::InternetDown, InternetMessage::Tooltip)
         };
 
         let content = move |reveal: f32| {
@@ -180,7 +168,8 @@ impl InternetGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, InternetMessage::Menu),
+                .slot(face, content, InternetMessage::Menu)
+                .view(config, position),
         )
     }
 }

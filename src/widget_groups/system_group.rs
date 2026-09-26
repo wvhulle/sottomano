@@ -4,10 +4,7 @@ pub mod cpu_temperature_gauge;
 pub mod disk_usage_gauge;
 pub mod memory_usage_gauge;
 
-use iced::{
-    Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Element, Subscription, Task, widget::Row};
 
 use crate::{
     config::Config,
@@ -23,7 +20,6 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        flat_button,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
@@ -115,14 +111,8 @@ impl SystemGroup {
         let cpu = self.cpu.get().map(|w| w as &dyn BarWidget)?;
         hover_reading(config, cpu, 1.0, HoverTarget::Cpu)?;
 
-        let handle = move || {
-            let reading = hover_reading(config, cpu, 1.0, HoverTarget::Cpu)
-                .unwrap_or_else(|| Row::new().into());
-            button(reading)
-                .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
-                .on_press(SystemMessage::Menu(MenuMessage::Toggle))
-                .into()
+        let face = move || {
+            hover_reading(config, cpu, 1.0, HoverTarget::Cpu).unwrap_or_else(|| Row::new().into())
         };
 
         let content = move |reveal: f32| {
@@ -141,7 +131,8 @@ impl SystemGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, SystemMessage::Menu),
+                .slot(face, content, SystemMessage::Menu)
+                .view(config, position),
         )
     }
 }

@@ -1,7 +1,4 @@
-use iced::{
-    Element, Subscription, Task,
-    widget::{Row, button},
-};
+use iced::{Element, Subscription, Task, widget::Row};
 
 pub mod geolocation_fix;
 pub mod pollen_count_gauge;
@@ -16,7 +13,6 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        flat_button,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
@@ -91,18 +87,10 @@ impl WeatherGroup {
         self.location.get()?;
         source_reading::<WeatherMessage>(config, self.temp.display(), 1.0)?;
 
-        let handle = move || {
+        let face = move || {
             let reading = source_reading(config, self.temp.display(), 1.0)
                 .unwrap_or_else(|| Row::new().into());
-            button(hoverable(
-                reading,
-                HoverTarget::WeatherTemp,
-                WeatherMessage::Tooltip,
-            ))
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(WeatherMessage::Menu(MenuMessage::Toggle))
-            .into()
+            hoverable(reading, HoverTarget::WeatherTemp, WeatherMessage::Tooltip)
         };
 
         let content = move |reveal: f32| {
@@ -119,7 +107,8 @@ impl WeatherGroup {
 
         Some(
             self.menu
-                .view(config, position, handle, content, WeatherMessage::Menu),
+                .slot(face, content, WeatherMessage::Menu)
+                .view(config, position),
         )
     }
 }
