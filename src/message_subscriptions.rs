@@ -113,10 +113,6 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         idle_subscription(state),
         locker_subscription(state),
         AudioGroup::subscription().map(Message::Audio),
-        state
-            .power_profile_group
-            .subscription()
-            .map(Message::PowerProfile),
         state.ai_group.subscription().map(Message::Ai),
         WindowGroup::subscription(state.watched_window()).map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),

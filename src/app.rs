@@ -46,7 +46,6 @@ use crate::{
         notification_group::NotificationGroupMessage,
         output_group,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
-        power_profile_group::{PowerProfileGroup, PowerProfileMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
@@ -80,7 +79,6 @@ pub struct Bar {
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
-    pub(crate) power_profile_group: PowerProfileGroup,
     pub(crate) ai_group: AiGroup,
     pub(crate) tray_group: TrayGroup,
     pub(crate) window_group: WindowGroup,
@@ -129,7 +127,6 @@ pub enum Message {
     PanelLoaded(Session),
     SoundThemeLoaded(Option<String>),
     Audio(AudioMessage),
-    PowerProfile(PowerProfileMessage),
     Ai(AiMessage),
     WindowGroup(WindowGroupMessage),
     TrackerLoaded(Buckets),
@@ -182,7 +179,6 @@ impl Bar {
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
-            power_profile_group: PowerProfileGroup::default(),
             ai_group: AiGroup::new(config.secrets.clone()),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
@@ -214,7 +210,6 @@ impl Bar {
             BatteryGroup::probe().map(Message::Battery),
             SystemGroup::probe().map(Message::System),
             InternetGroup::probe().map(Message::Internet),
-            PowerProfileGroup::probe().map(Message::PowerProfile),
             MonitorGroup::probe().map(Message::Monitor),
             bar.color_temperature_group
                 .probe()
@@ -271,10 +266,6 @@ impl Bar {
             Message::SoundThemeLoaded(theme) => self.adopt_sound_theme(theme),
             Message::PanelLoaded(session) => self.apply_saved_panel_settings(session),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
-            Message::PowerProfile(msg) => self
-                .power_profile_group
-                .update(msg)
-                .map(Message::PowerProfile),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
             Message::DismissPressed => {
                 self.dismiss_menus();
@@ -561,7 +552,6 @@ impl Bar {
             .or_else(|| self.journal_group.tooltip_for(target))
             .or_else(|| self.net_interfaces_group.tooltip_for(target))
             .or_else(|| self.audio_group.tooltip_for(target))
-            .or_else(|| self.power_profile_group.tooltip_for(target))
             .or_else(|| self.monitor_group.tooltip_for(target))
             .or_else(|| self.color_temperature_group.tooltip_for(target))
             .or_else(|| self.idle_timeouts_group.tooltip_for(target))
@@ -615,7 +605,7 @@ impl Bar {
             || self.color_temperature_group.is_animating()
             || self.panel_settings_group.is_animating()
             || self.idle_timeouts_group.is_animating()
-            || self.power_profile_group.is_animating()
+            || self.battery_group.is_animating()
     }
 
     fn dismiss_menus(&mut self) {
@@ -630,6 +620,7 @@ impl Bar {
             &mut self.clock_group.menu,
             &mut self.weather_group.menu,
             &mut self.system_group.menu,
+            &mut self.battery_group.menu,
             &mut self.media_group.menu,
             &mut self.idle_timeouts_group.menu,
             &mut self.internet_group.menu,

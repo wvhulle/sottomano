@@ -12,14 +12,10 @@ use crate::{
     },
     message_subscriptions::polling,
     state::power,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
-    widget_groups::power_profile_group::profile_icon::profile_face,
+    wayland_layers::tooltip::{HoverTarget, TooltipMessage},
+    widget_groups::battery_group::power_profile_control::profile_icon::profile_face,
     widgets::{
         last_poll::LastPoll,
-        pager_slot::permanently_inactive_slot,
         slider_control::{Action, ControlMessage, SliderControl},
         tooltip_body::{Tooltip, TooltipBody, row},
     },
@@ -29,7 +25,7 @@ const RANGE: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 50.0;
 const MIN_SAMPLE_W: f64 = 0.5;
 
-pub struct PowerProfileGroup {
+pub struct PowerProfileControl {
     cell: LastPoll<PowerProfile>,
     control: SliderControl,
     profile_models: HashMap<Profile, RegressionState>,
@@ -40,7 +36,7 @@ pub struct PowerProfileGroup {
     daemon: bool,
 }
 
-impl Default for PowerProfileGroup {
+impl Default for PowerProfileControl {
     fn default() -> Self {
         Self {
             cell: LastPoll::default(),
@@ -74,7 +70,7 @@ pub enum PowerProfileMessage {
     Tooltip(TooltipMessage),
 }
 
-impl PowerProfileGroup {
+impl PowerProfileControl {
     pub fn is_animating(&self) -> bool {
         self.control.is_animating()
     }
@@ -198,14 +194,13 @@ impl PowerProfileGroup {
     pub fn view<'a>(
         &self,
         config: &Config,
-        position: Position,
+        opacity: f32,
     ) -> Option<Element<'a, PowerProfileMessage>> {
         self.cell.get()?;
-        let control = self.control.view(config, 1.0).map(|m| match m {
+        Some(self.control.view(config, opacity).map(|m| match m {
             ControlMessage::Tooltip(t) => PowerProfileMessage::Tooltip(t),
             m => PowerProfileMessage::Control(m),
-        });
-        Some(permanently_inactive_slot(control, config, position))
+        }))
     }
 }
 
