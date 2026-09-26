@@ -31,7 +31,6 @@ use crate::{
         media_group::MediaMessage,
         monitor_group::MonitorMessage,
         net_interfaces_group::NetInterfacesMessage,
-        notification_group,
         output_group::{self, OutputMessage},
         panel_settings_group::PanelSettingsMessage,
         system_group::SystemMessage,
@@ -183,11 +182,11 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
         [
             slot(bar.clock_group.view(config, position), Message::Clock),
             slot(
-                notification_group::view(
+                bar.notification_group.view(
                     config,
                     &bar.session.notifications,
                     position,
-                    bar.notifications.is_active(),
+                    bar.notifications.live_count(),
                 ),
                 Message::NotificationGroup,
             ),

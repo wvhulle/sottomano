@@ -43,7 +43,7 @@ use crate::{
         media_group::{MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
-        notification_group::NotificationGroupMessage,
+        notification_group::{NotificationGroup, NotificationGroupMessage},
         output_group,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         system_group::{SystemGroup, SystemMessage},
@@ -71,6 +71,7 @@ pub struct Bar {
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
     pub(crate) clock_group: ClockGroup,
+    pub(crate) notification_group: NotificationGroup,
     pub(crate) journal_group: JournalGroup,
     pub(crate) internet_group: InternetGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
@@ -169,6 +170,7 @@ impl Bar {
             system_group: SystemGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
             clock_group: ClockGroup::default(),
+            notification_group: NotificationGroup::default(),
             journal_group: JournalGroup::default(),
             internet_group: InternetGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
@@ -450,13 +452,21 @@ impl Bar {
     }
 
     fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        let placement = niri::Placement::derive(&self.niri);
-        self.notifications.toggle(
-            msg,
-            &mut self.session.notifications,
-            &placement,
-            &self.config,
-        )
+        match msg {
+            NotificationGroupMessage::Menu(menu) => {
+                self.notification_group.menu.update(menu);
+                Task::none()
+            }
+            NotificationGroupMessage::Toggle(toggle) => {
+                let placement = niri::Placement::derive(&self.niri);
+                self.notifications.toggle(
+                    toggle,
+                    &mut self.session.notifications,
+                    &placement,
+                    &self.config,
+                )
+            }
+        }
     }
 
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
@@ -627,6 +637,7 @@ impl Bar {
             &mut self.window_group.quick_launch.menu,
             &mut self.tray_group.menu,
             &mut self.ai_group.menu,
+            &mut self.notification_group.menu,
         ]
         .map(MenuGroup::close);
     }

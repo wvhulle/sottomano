@@ -32,7 +32,7 @@ use crate::{
     },
     message_subscriptions::niri_action,
     state::{self, NotificationState},
-    widget_groups::notification_group::NotificationGroupMessage,
+    widget_groups::notification_group::NotificationToggle,
     widgets::reveal::reveal_y,
 };
 
@@ -441,26 +441,30 @@ impl NotificationLayer {
         !self.live.is_empty()
     }
 
+    pub fn live_count(&self) -> usize {
+        self.live.len()
+    }
+
     pub fn toggle(
         &mut self,
-        msg: NotificationGroupMessage,
+        toggle: NotificationToggle,
         notif_state: &mut NotificationState,
         placement: &Placement,
         config: &Config,
     ) -> Task<Message> {
-        match msg {
-            NotificationGroupMessage::DoNotDisturb => {
+        match toggle {
+            NotificationToggle::DoNotDisturb => {
                 notif_state.dnd = !notif_state.dnd;
                 Task::batch([
                     self.sync_dnd(placement, config, notif_state),
                     Task::future(state::panel::save_dnd(notif_state.dnd)).discard(),
                 ])
             }
-            NotificationGroupMessage::Sound => {
+            NotificationToggle::Sound => {
                 notif_state.sound = !notif_state.sound;
                 Task::future(state::panel::save_sound(notif_state.sound)).discard()
             }
-            NotificationGroupMessage::SpatialLayout => {
+            NotificationToggle::SpatialLayout => {
                 notif_state.spatial_layout = !notif_state.spatial_layout;
                 Task::batch([
                     self.on_niri_changed(placement, config, notif_state),
