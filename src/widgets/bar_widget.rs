@@ -5,7 +5,7 @@ use iced::Color;
 use crate::{
     config::Config,
     widgets::{
-        font_awesome::{Brands, FontAwesome, Solid},
+        font_awesome::{Brands, FontAwesome, Regular, Solid},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
     },
@@ -78,6 +78,12 @@ impl From<FontAwesome> for Glyph {
 impl From<Solid> for Glyph {
     fn from(icon: Solid) -> Self {
         Glyph::FontAwesome(FontAwesome::Solid(icon))
+    }
+}
+
+impl From<Regular> for Glyph {
+    fn from(icon: Regular) -> Self {
+        Glyph::FontAwesome(FontAwesome::Regular(icon))
     }
 }
 
