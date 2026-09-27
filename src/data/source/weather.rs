@@ -5,8 +5,9 @@ use std::{
     time::Duration,
 };
 
+use chrono::{NaiveDateTime, NaiveTime};
 use iced::futures::{Stream, StreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de::Error as _};
 use situo_client::{Fix, Locate, fix_updates};
 use zbus::Connection as SessionBus;
 
@@ -57,6 +58,24 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+const OPEN_METEO_TIME_FORMAT: &str = "%Y-%m-%dT%H:%M";
+const BUIENRADAR_TIME_FORMAT: &str = "%H:%M";
+
+fn open_meteo_time<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveDateTime, D::Error> {
+    let text = String::deserialize(deserializer)?;
+    NaiveDateTime::parse_from_str(&text, OPEN_METEO_TIME_FORMAT).map_err(D::Error::custom)
+}
+
+fn open_meteo_times<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<NaiveDateTime>, D::Error> {
+    Vec::<String>::deserialize(deserializer)?
+        .iter()
+        .map(|text| NaiveDateTime::parse_from_str(text, OPEN_METEO_TIME_FORMAT))
+        .collect::<Result<_, _>>()
+        .map_err(D::Error::custom)
+}
+
 #[derive(Deserialize)]
 struct TemperatureForecast {
     current: CurrentTemperature,
@@ -66,6 +85,8 @@ struct TemperatureForecast {
 
 #[derive(Deserialize)]
 struct CurrentTemperature {
+    #[serde(deserialize_with = "open_meteo_time")]
+    time: NaiveDateTime,
     temperature_2m: f64,
     apparent_temperature: f64,
     relative_humidity_2m: f64,
@@ -80,26 +101,26 @@ struct DailyTemperature {
 
 #[derive(Deserialize)]
 struct HourlyTemperatures {
-    time: Vec<String>,
+    #[serde(deserialize_with = "open_meteo_times")]
+    time: Vec<NaiveDateTime>,
     temperature_2m: Vec<f64>,
     weather_code: Vec<i64>,
 }
 
 impl HourlyTemperatures {
-    fn forecast(self) -> Vec<HourlyTemperature> {
-        self.time
+    fn split_at(self, now: NaiveDateTime) -> HourlyForecast {
+        let (earlier, later) = self
+            .time
             .into_iter()
             .zip(self.temperature_2m)
             .zip(self.weather_code)
             .map(|((time, temp), weather_code)| HourlyTemperature {
-                hour: time
-                    .split_once('T')
-                    .map_or(time.as_str(), |(_, hour)| hour)
-                    .to_owned(),
+                time,
                 temp,
                 weather_code,
             })
-            .collect()
+            .partition(|entry| entry.time <= now);
+        HourlyForecast { earlier, later }
     }
 }
 
@@ -173,12 +194,18 @@ pub struct Temperature {
     pub temp_min: f64,
     pub temp_max: f64,
     pub humidity: f64,
-    pub hourly: Vec<HourlyTemperature>,
+    pub hourly: HourlyForecast,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HourlyForecast {
+    pub earlier: Vec<HourlyTemperature>,
+    pub later: Vec<HourlyTemperature>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HourlyTemperature {
-    pub hour: String,
+    pub time: NaiveDateTime,
     pub temp: f64,
     pub weather_code: i64,
 }
@@ -194,7 +221,7 @@ impl Source for Temperature {
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
         let geo = located().await?;
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&forecast_hours=12&timezone=auto",
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto",
             geo.latitude, geo.longitude
         );
         let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
@@ -205,7 +232,7 @@ impl Source for Temperature {
             temp_min: today(&forecast.daily.temperature_2m_min)?,
             temp_max: today(&forecast.daily.temperature_2m_max)?,
             humidity: forecast.current.relative_humidity_2m,
-            hourly: forecast.hourly.forecast(),
+            hourly: forecast.hourly.split_at(forecast.current.time),
         })
     }
 }
@@ -254,7 +281,7 @@ pub struct Rain {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Downpour {
     pub mm_per_h: f64,
-    pub at: String,
+    pub at: NaiveTime,
 }
 
 fn buienradar_mm(value: f64) -> f64 {
@@ -269,7 +296,7 @@ fn downpour(line: &str) -> Option<Downpour> {
     let (intensity, at) = line.split_once('|')?;
     Some(Downpour {
         mm_per_h: buienradar_mm(intensity.trim().parse().ok()?),
-        at: at.trim().to_string(),
+        at: NaiveTime::parse_from_str(at.trim(), BUIENRADAR_TIME_FORMAT).ok()?,
     })
 }
 
@@ -404,19 +431,25 @@ mod tests {
     }
 
     #[test]
-    fn hourly_temperatures_keep_only_the_hour() {
+    fn hourly_temperatures_split_around_now() {
         let hourly: HourlyTemperatures = serde_json::from_str(
             r#"{
-                "time": ["2026-09-27T08:00", "2026-09-27T09:00"],
-                "temperature_2m": [13.2, 13.8],
-                "weather_code": [1, 3]
+                "time": ["2026-09-27T08:00", "2026-09-27T09:00", "2026-09-27T10:00"],
+                "temperature_2m": [13.2, 13.8, 15.6],
+                "weather_code": [1, 3, 0]
             }"#,
         )
         .unwrap();
-        let forecast = hourly.forecast();
-        assert_eq!(forecast.len(), 2);
-        assert_eq!(forecast[1].hour, "09:00");
-        assert_eq!(forecast[1].weather_code, 3);
+        let now =
+            NaiveDateTime::parse_from_str("2026-09-27T09:45", OPEN_METEO_TIME_FORMAT).unwrap();
+        let forecast = hourly.split_at(now);
+        assert_eq!(forecast.earlier.len(), 2);
+        assert_eq!(
+            forecast.earlier[1].time.format("%H:%M").to_string(),
+            "09:00"
+        );
+        assert_eq!(forecast.later.len(), 1);
+        assert_eq!(forecast.later[0].weather_code, 0);
     }
 
     #[test]
@@ -425,10 +458,14 @@ mod tests {
             mm_per_h: 0.0,
             peak: Downpour {
                 mm_per_h: 0.0,
-                at: "09:15".to_owned(),
+                at: NaiveTime::from_hms_opt(9, 15, 0).unwrap(),
             },
         };
         assert!(dry.peak.mm_per_h.abs() < f64::EPSILON);
-        assert!(downpour("087|09:10").is_some());
+        assert_eq!(
+            downpour("087|09:10").map(|rain| rain.at),
+            NaiveTime::from_hms_opt(9, 10, 0)
+        );
+        assert!(downpour("087|9h10").is_none());
     }
 }
