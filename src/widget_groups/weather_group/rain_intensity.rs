@@ -31,7 +31,11 @@ impl BarWidget for Rain {
             row("Rain", now),
             row(
                 "Peak",
-                format!("{:.1} mm/h at {}", self.peak.mm_per_h, self.peak.at),
+                format!(
+                    "{:.1} mm/h at {}",
+                    self.peak.mm_per_h,
+                    self.peak.at.format("%H:%M")
+                ),
             ),
         ])
     }

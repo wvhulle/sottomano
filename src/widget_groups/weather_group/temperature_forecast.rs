@@ -31,8 +31,20 @@ impl BarWidget for Temperature {
                 ],
             ),
             section(
-                "Hourly",
-                self.hourly.iter().map(HourlyTemperature::row).collect(),
+                "Earlier",
+                self.hourly
+                    .earlier
+                    .iter()
+                    .map(HourlyTemperature::row)
+                    .collect(),
+            ),
+            section(
+                "Later",
+                self.hourly
+                    .later
+                    .iter()
+                    .map(HourlyTemperature::row)
+                    .collect(),
             ),
         ])
     }
@@ -41,7 +53,7 @@ impl BarWidget for Temperature {
 impl HourlyTemperature {
     fn row(&self) -> Row {
         row(
-            &self.hour,
+            &self.time.format("%H:%M").to_string(),
             format!("{}°C  {}", self.temp, wmo_description(self.weather_code)),
         )
     }
