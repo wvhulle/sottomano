@@ -1,5 +1,5 @@
 use crate::{
-    data::source::weather::Rain,
+    data::source::weather::{Rain, RainOutlook},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         font_awesome::Solid,
@@ -18,6 +18,21 @@ impl BarWidget for Rain {
             Solid::CloudShowersHeavy.into()
         } else {
             Solid::CloudBolt.into()
+        }
+    }
+
+    fn fallback_icon() -> Glyph {
+        Solid::Droplet.into()
+    }
+
+    fn label(&self) -> Option<String> {
+        match self.outlook {
+            RainOutlook::Dry => None,
+            RainOutlook::StartsIn(until_wet) => Some(format!("in {}m", until_wet.num_minutes())),
+            RainOutlook::StopsIn(until_dry) => Some(format!("for {}m", until_dry.num_minutes())),
+            RainOutlook::OutlastsForecast(horizon) => {
+                Some(format!("for {}m+", horizon.num_minutes()))
+            }
         }
     }
 
@@ -43,6 +58,6 @@ impl BarWidget for Rain {
 
 impl Occasional for Rain {
     fn present(&self) -> bool {
-        self.peak.mm_per_h > 0.0
+        self.outlook != RainOutlook::Dry
     }
 }

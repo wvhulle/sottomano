@@ -18,6 +18,10 @@ impl BarWidget for Location {
         }
     }
 
+    fn fallback_icon() -> Glyph {
+        Solid::LocationDot.into()
+    }
+
     fn tooltip(&self) -> TooltipBody {
         let dash = |value: &str| {
             if value.is_empty() {

@@ -12,6 +12,10 @@ impl BarWidget for Temperature {
         wmo_icon(self.weather_code).into()
     }
 
+    fn fallback_icon() -> Glyph {
+        Solid::Thermometer.into()
+    }
+
     fn label(&self) -> Option<String> {
         Some(format!("{}°", self.temp))
     }

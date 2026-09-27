@@ -24,6 +24,10 @@ impl<A: AllergenIcon> BarWidget for Pollen<A> {
         A::ICON.into()
     }
 
+    fn fallback_icon() -> Glyph {
+        A::ICON.into()
+    }
+
     fn level(&self) -> Level {
         let [moderate, high, _] = A::THRESHOLDS;
         if self.value >= high {

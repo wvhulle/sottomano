@@ -102,6 +102,13 @@ impl From<SimpleIcon> for Glyph {
 pub trait BarWidget {
     fn icon(&self) -> Glyph;
 
+    fn fallback_icon() -> Glyph
+    where
+        Self: Sized,
+    {
+        Solid::CircleQuestion.into()
+    }
+
     fn label(&self) -> Option<String> {
         None
     }

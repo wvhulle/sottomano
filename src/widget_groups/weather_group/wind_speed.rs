@@ -33,6 +33,10 @@ impl BarWidget for Wind {
         Solid::Wind.into()
     }
 
+    fn fallback_icon() -> Glyph {
+        Solid::Wind.into()
+    }
+
     fn label(&self) -> Option<String> {
         Some(self.beaufort().to_string())
     }

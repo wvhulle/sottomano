@@ -1,21 +1,20 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
+    hash::{Hash, Hasher},
     marker::PhantomData,
     sync::Arc,
     time::Duration,
 };
 
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDateTime, NaiveTime, TimeDelta};
 use iced::futures::{Stream, StreamExt};
 use serde::{Deserialize, Deserializer, de::Error as _};
-use situo_client::{Fix, Locate, fix_updates};
-use zbus::Connection as SessionBus;
+use situo_client::{Fix, fix_updates};
 
 use crate::data::source::{Source, http};
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    Bus(String),
     Situo(situo_client::Error),
     Fetch(http::Error),
     Decode(Arc<serde_json::Error>),
@@ -25,18 +24,11 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Error::Bus(detail) => write!(f, "session bus: {detail}"),
             Error::Situo(error) => write!(f, "geolocation: {error}"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Malformed => write!(f, "unexpected response shape"),
         }
-    }
-}
-
-impl From<zbus::Error> for Error {
-    fn from(error: zbus::Error) -> Self {
-        Error::Bus(error.to_string())
     }
 }
 
@@ -177,12 +169,25 @@ fn today(values: &[f64]) -> Result<f64, Error> {
     values.first().copied().ok_or(Error::Malformed)
 }
 
-async fn located() -> Result<Fix, Error> {
-    let fix = SessionBus::session().await?.locate().await?;
-    if fix.valid {
-        Ok(fix)
-    } else {
-        Err(situo_client::Error::NoFix.into())
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Coordinates {
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
+impl Hash for Coordinates {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.latitude.to_bits().hash(state);
+        self.longitude.to_bits().hash(state);
+    }
+}
+
+impl From<&Fix> for Coordinates {
+    fn from(fix: &Fix) -> Self {
+        Self {
+            latitude: fix.latitude,
+            longitude: fix.longitude,
+        }
     }
 }
 
@@ -213,13 +218,12 @@ pub struct HourlyTemperature {
 impl Source for Temperature {
     type Error = Error;
 
-    type Key = ();
+    type Key = Coordinates;
 
     const NAME: &'static str = "weather-temp";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        let geo = located().await?;
+    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto",
             geo.latitude, geo.longitude
@@ -247,13 +251,12 @@ pub struct Wind {
 impl Source for Wind {
     type Error = Error;
 
-    type Key = ();
+    type Key = Coordinates;
 
     const NAME: &'static str = "weather-wind";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        let geo = located().await?;
+    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
             geo.latitude, geo.longitude
@@ -276,12 +279,71 @@ impl Source for Wind {
 pub struct Rain {
     pub mm_per_h: f64,
     pub peak: Downpour,
+    pub outlook: RainOutlook,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Downpour {
     pub mm_per_h: f64,
     pub at: NaiveTime,
+}
+
+impl Downpour {
+    fn is_wet(&self) -> bool {
+        self.mm_per_h > 0.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RainOutlook {
+    Dry,
+    StartsIn(TimeDelta),
+    StopsIn(TimeDelta),
+    OutlastsForecast(TimeDelta),
+}
+
+impl RainOutlook {
+    fn of(forecast: &[Downpour]) -> Self {
+        let Some((now, later)) = forecast.split_first() else {
+            return RainOutlook::Dry;
+        };
+        if now.is_wet() {
+            Self::while_raining(now, later)
+        } else {
+            Self::while_dry(now, later)
+        }
+    }
+
+    fn while_dry(now: &Downpour, later: &[Downpour]) -> Self {
+        later
+            .iter()
+            .find(|downpour| downpour.is_wet())
+            .map_or(RainOutlook::Dry, |first_wet| {
+                RainOutlook::StartsIn(time_between(now.at, first_wet.at))
+            })
+    }
+
+    fn while_raining(now: &Downpour, later: &[Downpour]) -> Self {
+        later
+            .iter()
+            .find(|downpour| !downpour.is_wet())
+            .map_or_else(
+                || {
+                    let horizon = later.last().unwrap_or(now);
+                    RainOutlook::OutlastsForecast(time_between(now.at, horizon.at))
+                },
+                |first_dry| RainOutlook::StopsIn(time_between(now.at, first_dry.at)),
+            )
+    }
+}
+
+fn time_between(earlier: NaiveTime, later: NaiveTime) -> TimeDelta {
+    let elapsed = later - earlier;
+    if elapsed < TimeDelta::zero() {
+        elapsed + TimeDelta::days(1)
+    } else {
+        elapsed
+    }
 }
 
 fn buienradar_mm(value: f64) -> f64 {
@@ -303,16 +365,16 @@ fn downpour(line: &str) -> Option<Downpour> {
 impl Source for Rain {
     type Error = Error;
 
-    type Key = ();
+    type Key = Coordinates;
 
     const NAME: &'static str = "weather-rain";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        let geo = located().await?;
+    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
         let url = format!(
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
-            geo.latitude, geo.longitude
+            geo.latitude,
+            geo.longitude
         );
         let body = http::get_text(&url, 5).await?;
         let forecast: Vec<Downpour> = body.lines().filter_map(downpour).collect();
@@ -324,6 +386,7 @@ impl Source for Rain {
         Ok(Rain {
             mm_per_h: forecast.first().map_or(0.0, |now| now.mm_per_h),
             peak,
+            outlook: RainOutlook::of(&forecast),
         })
     }
 }
@@ -369,13 +432,12 @@ pub struct Pollen<A: Allergen> {
 impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<A> {
     type Error = Error;
 
-    type Key = ();
+    type Key = Coordinates;
 
     const NAME: &'static str = A::SOURCE_NAME;
     const INTERVAL: Duration = Duration::from_mins(30);
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        let geo = located().await?;
+    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
         let url = format!(
             "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
             geo.latitude, geo.longitude
@@ -395,6 +457,10 @@ pub struct Location {
 }
 
 impl Location {
+    pub fn coordinates(&self) -> Coordinates {
+        Coordinates::from(&self.geo)
+    }
+
     pub fn published() -> impl Stream<Item = Result<Self, Error>> {
         fix_updates().map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
     }
@@ -454,18 +520,47 @@ mod tests {
 
     #[test]
     fn rain_lines_decode_into_downpours() {
-        let dry = Rain {
-            mm_per_h: 0.0,
-            peak: Downpour {
-                mm_per_h: 0.0,
-                at: NaiveTime::from_hms_opt(9, 15, 0).unwrap(),
-            },
-        };
-        assert!(dry.peak.mm_per_h.abs() < f64::EPSILON);
         assert_eq!(
             downpour("087|09:10").map(|rain| rain.at),
             NaiveTime::from_hms_opt(9, 10, 0)
         );
         assert!(downpour("087|9h10").is_none());
+    }
+
+    fn rain_forecast(lines: &[&str]) -> Vec<Downpour> {
+        lines.iter().copied().filter_map(downpour).collect()
+    }
+
+    #[test]
+    fn dry_spell_counts_down_to_the_first_rain() {
+        let forecast = rain_forecast(&["000|11:00", "000|11:05", "077|11:10", "000|11:15"]);
+        assert_eq!(
+            RainOutlook::of(&forecast),
+            RainOutlook::StartsIn(TimeDelta::minutes(10))
+        );
+    }
+
+    #[test]
+    fn ongoing_rain_counts_down_to_the_first_dry_moment() {
+        let forecast = rain_forecast(&["077|23:50", "077|23:55", "000|00:00"]);
+        assert_eq!(
+            RainOutlook::of(&forecast),
+            RainOutlook::StopsIn(TimeDelta::minutes(10))
+        );
+    }
+
+    #[test]
+    fn rain_through_the_whole_forecast_outlasts_it() {
+        let forecast = rain_forecast(&["077|11:00", "077|11:05"]);
+        assert_eq!(
+            RainOutlook::of(&forecast),
+            RainOutlook::OutlastsForecast(TimeDelta::minutes(5))
+        );
+    }
+
+    #[test]
+    fn no_rain_in_the_forecast_is_dry() {
+        let forecast = rain_forecast(&["000|11:00", "000|11:05"]);
+        assert_eq!(RainOutlook::of(&forecast), RainOutlook::Dry);
     }
 }

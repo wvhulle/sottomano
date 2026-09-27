@@ -4,20 +4,18 @@ use crate::{
     data::source::Source,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Occasional},
-        font_awesome::Solid,
         tooltip_body::{RefreshInfo, Tooltip, TooltipBody, row},
     },
 };
 
 pub struct FailedReading {
-    icon: Option<Glyph>,
+    icon: Glyph,
     message: String,
 }
 
 impl BarWidget for FailedReading {
     fn icon(&self) -> Glyph {
         self.icon
-            .unwrap_or_else(|| Solid::TriangleExclamation.into())
     }
 
     fn level(&self) -> Level {
@@ -86,7 +84,8 @@ impl<S: BarWidget> LastPoll<S> {
                     .data
                     .as_ref()
                     .map(BarWidget::icon)
-                    .or_else(|| self.failure.as_ref().and_then(|failed| failed.icon));
+                    .or_else(|| self.failure.as_ref().map(|failed| failed.icon))
+                    .unwrap_or_else(S::fallback_icon);
                 self.data = None;
                 self.failure = Some(FailedReading {
                     icon,
