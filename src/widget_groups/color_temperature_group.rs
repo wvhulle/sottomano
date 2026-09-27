@@ -213,11 +213,9 @@ impl ColorTemperatureGroup {
             children
         };
 
-        let first_child = self
-            .gamma
-            .get()
-            .map(|_| &self.warmth as &dyn BarWidget)
-            .or_else(|| self.auto.reading())?;
+        if self.gamma.get().is_none() && self.auto.reading().is_none() {
+            return None;
+        }
 
         let content = move |_reveal: f32| {
             Row::with_children(children())
@@ -232,7 +230,6 @@ impl ColorTemperatureGroup {
                     content,
                     ColorTemperatureMessage::Menu,
                 )
-                .previewed_value(first_child)
                 .view(config, position),
         )
     }

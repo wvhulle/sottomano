@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::RangeInclusive};
+use std::{collections::HashMap, ops::RangeInclusive, time::Duration};
 
 use iced::{Element, Subscription, Task};
 
@@ -6,9 +6,12 @@ pub mod profile_icon;
 
 use crate::{
     config::Config,
-    data::source::{
-        Source, bus,
-        power_profile::{self, Estimate, PowerProfile, Profile, RegressionState, estimate},
+    data::{
+        battery_drain::{Estimate, RegressionState, estimate},
+        source::{
+            Source, bus,
+            power_profile::{self, Conditions, PowerProfile, Profile},
+        },
     },
     message_subscriptions::polling,
     state::power,
@@ -17,7 +20,7 @@ use crate::{
     widgets::{
         last_poll::LastPoll,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Tooltip, TooltipBody, row},
+        tooltip_body::{Cell, Tooltip, TooltipBody, cells},
     },
 };
 
@@ -116,21 +119,9 @@ impl PowerProfileControl {
                         Task::future(power::load(battery_id)).map(PowerProfileMessage::Loaded),
                     );
                 }
-                if self.loaded
-                    && discharging
-                    && let Some(draw) = draw_w.filter(|w| *w > MIN_SAMPLE_W)
-                {
-                    let next = self
-                        .profile_models
-                        .get(&active_profile)
-                        .copied()
-                        .unwrap_or_else(|| RegressionState::seed(draw))
-                        .observe(conditions, draw);
-                    self.profile_models.insert(active_profile, next);
-                    tasks.push(
-                        Task::future(power::save(self.battery_id.clone(), active_profile, next))
-                            .discard(),
-                    );
+                if self.loaded {
+                    let sample = draw_w.filter(|w| discharging && *w > MIN_SAMPLE_W);
+                    tasks.extend(self.learn(active_profile, conditions, sample));
                 }
                 self.recompute();
                 Task::batch(tasks)
@@ -153,6 +144,30 @@ impl PowerProfileControl {
             },
             PowerProfileMessage::Tooltip(_) => Task::none(),
         }
+    }
+
+    fn learn(
+        &mut self,
+        active_profile: Profile,
+        conditions: Conditions,
+        sample: Option<f64>,
+    ) -> Option<Task<PowerProfileMessage>> {
+        let continued = self.profile_models.remove(&active_profile);
+        for model in self.profile_models.values_mut() {
+            *model = model.interrupted();
+        }
+        let Some(draw) = sample else {
+            if let Some(model) = continued {
+                self.profile_models
+                    .insert(active_profile, model.interrupted());
+            }
+            return None;
+        };
+        let next = continued
+            .unwrap_or_else(|| RegressionState::seed(draw))
+            .observe(conditions, draw);
+        self.profile_models.insert(active_profile, next);
+        Some(Task::future(power::save(self.battery_id.clone(), active_profile, next)).discard())
     }
 
     fn recompute(&mut self) {
@@ -182,13 +197,16 @@ impl PowerProfileControl {
                 } else {
                     profile.title().to_string()
                 };
-                row(
+                cells(
                     &key,
-                    estimate_text(self.estimates.get(&profile).copied().flatten()),
+                    estimate_cells(self.estimates.get(&profile).copied().flatten()),
                 )
             })
             .collect();
-        self.cell.tooltip_with(TooltipBody::rows(rows))
+        self.cell.tooltip_with(TooltipBody::columns(
+            &["Median", "Earliest", "Latest"],
+            rows,
+        ))
     }
 
     pub fn view<'a>(
@@ -204,14 +222,19 @@ impl PowerProfileControl {
     }
 }
 
-fn estimate_text(estimate: Option<Estimate>) -> String {
+fn duration_cell(duration: Duration) -> Cell {
+    Cell::Text(humantime::format_duration(duration).to_string())
+}
+
+fn estimate_cells(estimate: Option<Estimate>) -> Vec<Cell> {
     let Some(estimate) = estimate else {
-        return "—".to_string();
+        return vec![Cell::Text("—".to_string())];
     };
-    let time = humantime::format_duration(estimate.time);
-    if estimate.band.as_secs() < 30 {
-        time.to_string()
-    } else {
-        format!("{time} ±{}", humantime::format_duration(estimate.band))
-    }
+    vec![
+        duration_cell(estimate.time),
+        duration_cell(estimate.earliest),
+        estimate
+            .latest
+            .map_or_else(|| Cell::Text("∞".to_string()), duration_cell),
+    ]
 }

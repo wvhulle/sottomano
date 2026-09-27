@@ -3,11 +3,14 @@ use std::collections::HashMap;
 use nalgebra::{Matrix3, Vector3};
 
 use crate::{
-    data::source::power_profile::{Profile, RegressionState},
+    data::{
+        battery_drain::{RegressionState, ResidualProcess},
+        source::power_profile::Profile,
+    },
     state::{Columns, StoreError, open},
 };
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS power_model (
+pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (
     battery TEXT NOT NULL,
     profile TEXT NOT NULL,
     base_w REAL NOT NULL,
@@ -22,12 +25,15 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS power_model (
     cov_20 REAL NOT NULL,
     cov_21 REAL NOT NULL,
     cov_22 REAL NOT NULL,
+    residual_variance REAL NOT NULL,
+    residual_lag_covariance REAL NOT NULL,
     PRIMARY KEY (battery, profile)
 )";
 
-pub(crate) const DROP_LEGACY_TABLES: [&str; 2] = [
+pub(crate) const DROP_LEGACY_TABLES: [&str; 3] = [
     "DROP TABLE IF EXISTS power_profile",
     "DROP TABLE IF EXISTS power_regression",
+    "DROP TABLE IF EXISTS power_model",
 ];
 
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
@@ -55,8 +61,9 @@ async fn read_models(
     let mut rows = conn
         .query(
             "SELECT profile, base_w, k_bright, k_load,
-                    cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22
-             FROM power_model WHERE battery = ?1",
+                    cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22,
+                    residual_variance, residual_lag_covariance
+             FROM battery_draw_model WHERE battery = ?1",
             (battery.to_string(),),
         )
         .await?;
@@ -85,6 +92,11 @@ async fn read_models(
                     columns.real(&row, "cov_21")?,
                     columns.real(&row, "cov_22")?,
                 ),
+                residuals: ResidualProcess {
+                    variance: columns.real(&row, "residual_variance")?,
+                    lag_covariance: columns.real(&row, "residual_lag_covariance")?,
+                    previous: None,
+                },
             },
         );
     }
@@ -107,14 +119,16 @@ async fn write_model(
     state: RegressionState,
 ) -> Result<(), StoreError> {
     conn.execute(
-        "INSERT INTO power_model (battery, profile, base_w, k_bright, k_load,
-             cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+        "INSERT INTO battery_draw_model (battery, profile, base_w, k_bright, k_load,
+             cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22,
+             residual_variance, residual_lag_covariance)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT(battery, profile)
          DO UPDATE SET base_w = ?3, k_bright = ?4, k_load = ?5,
              cov_00 = ?6, cov_01 = ?7, cov_02 = ?8,
              cov_10 = ?9, cov_11 = ?10, cov_12 = ?11,
-             cov_20 = ?12, cov_21 = ?13, cov_22 = ?14",
+             cov_20 = ?12, cov_21 = ?13, cov_22 = ?14,
+             residual_variance = ?15, residual_lag_covariance = ?16",
         (
             battery.to_string(),
             profile.name().to_string(),
@@ -130,6 +144,8 @@ async fn write_model(
             state.covariance[(2, 0)],
             state.covariance[(2, 1)],
             state.covariance[(2, 2)],
+            state.residuals.variance,
+            state.residuals.lag_covariance,
         ),
     )
     .await?;
@@ -140,7 +156,9 @@ async fn write_model(
 mod tests {
     use nalgebra::{Matrix3, Vector3};
 
-    use super::{CREATE_TABLE, Profile, RegressionState, read_models, write_model};
+    use super::{
+        CREATE_TABLE, Profile, RegressionState, ResidualProcess, read_models, write_model,
+    };
 
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
@@ -153,6 +171,11 @@ mod tests {
         RegressionState {
             coefficients: Vector3::new(1.5, 2.5, 3.5),
             covariance: Matrix3::new(11.0, 12.0, 13.0, 21.0, 22.0, 23.0, 31.0, 32.0, 33.0),
+            residuals: ResidualProcess {
+                variance: 4.5,
+                lag_covariance: 5.5,
+                previous: None,
+            },
         }
     }
 
