@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::{iter::once, time::SystemTime};
 
 use iced::{
     Color, Element, Font, Padding,
@@ -20,9 +20,10 @@ use crate::{
         copyable::copyable,
         favicon::Favicons,
         section_column::section_column,
-        text::bar_text,
+        text::{LINE_HEIGHT, bar_text},
         tooltip_body::{
-            LogEntry, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
+            Cell, LogEntry, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody,
+            TrayMenuBody,
         },
     },
 };
@@ -184,12 +185,12 @@ impl<'a> TooltipContent<'a> {
             move |entry: LogEntry| {
                 cell(&key_font, relative(entry.at, now), dim, value_width).into()
             },
-            move |entry: LogEntry| {
+            [value_column(move |entry: LogEntry| {
                 let color = level_color(config, entry.level).scale_alpha(opacity);
                 let text = entry.message;
                 let value = cell(&value_font, text.clone(), color, value_width);
                 copyable(value, text, Message::CopyText, flash)
-            },
+            })],
         )
     }
 
@@ -253,45 +254,65 @@ impl<'a> TooltipContent<'a> {
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
         let dim = self.dim();
-        let foreground = self.foreground();
-        let flash = self.flash();
         let key_font = self.config.font.clone();
-        let value_font = self.config.font.clone();
         let value_width = self.config.widgets.tooltip_value_width_px;
+        let widest = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
 
         key_value_table(
             rows.iter().cloned(),
             move |entry: Row| cell(&key_font, entry.key, dim, value_width).into(),
-            move |entry: Row| {
-                let text = entry.value;
-                let value = cell(&value_font, text.clone(), foreground, value_width);
-                if text.trim().is_empty() {
-                    return value.into();
-                }
-                copyable(value, text, Message::CopyText, flash)
-            },
+            (0..widest).map(|position| self.cell_column(position)),
         )
+    }
+
+    fn cell_column(&self, position: usize) -> table::Column<'static, 'static, Row, Message> {
+        let foreground = self.foreground();
+        let flash = self.flash();
+        let font = self.config.font.clone();
+        let value_width = self.config.widgets.tooltip_value_width_px;
+
+        value_column(move |mut entry: Row| {
+            if position >= entry.cells.len() {
+                return Space::new().into();
+            }
+            match entry.cells.swap_remove(position) {
+                Cell::Glyph(icon) => icon
+                    .glyph()
+                    .size(font.text_size_px)
+                    .line_height(LINE_HEIGHT)
+                    .color(foreground)
+                    .into(),
+                Cell::Text(text) => {
+                    let value = cell(&font, text.clone(), foreground, value_width);
+                    if text.trim().is_empty() {
+                        return value.into();
+                    }
+                    copyable(value, text, Message::CopyText, flash)
+                }
+            }
+        })
     }
 }
 
 fn key_value_table<'b, T: Clone + 'static>(
     rows: impl IntoIterator<Item = T>,
     key: impl Fn(T) -> Element<'static, Message> + 'b,
-    value: impl Fn(T) -> Element<'static, Message> + 'b,
+    values: impl IntoIterator<Item = table::Column<'static, 'b, T, Message>>,
 ) -> Element<'static, Message> {
-    table::table(
-        [
-            table::column(Space::new(), key)
-                .align_x(Horizontal::Right)
-                .align_y(Vertical::Top),
-            table::column(Space::new(), value).align_y(Vertical::Top),
-        ],
-        rows,
-    )
-    .separator(0.0)
-    .padding_x(COLUMN_GAP_PX / 2.0)
-    .padding_y(ROW_SPACING_PX / 2.0)
-    .into()
+    let key_column = table::column(Space::new(), key)
+        .align_x(Horizontal::Right)
+        .align_y(Vertical::Top);
+    table::table(once(key_column).chain(values), rows)
+        .separator(0.0)
+        .padding_x(COLUMN_GAP_PX / 2.0)
+        .padding_y(ROW_SPACING_PX / 2.0)
+        .into()
+}
+
+fn value_column<'b, T: 'static>(
+    view: impl Fn(T) -> Element<'static, Message> + 'b,
+) -> table::Column<'static, 'b, T, Message> {
+    table::column(Space::new(), view).align_y(Vertical::Top)
 }
 
 fn cell(

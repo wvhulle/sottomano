@@ -8,19 +8,29 @@ use iced::Size;
 
 use crate::{
     data::source::{process::Process, tray::MenuNode},
-    widgets::{bar_widget::Level, window_title::TitleRun},
+    widgets::{bar_widget::Level, font_awesome::FontAwesome, window_title::TitleRun},
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Cell {
+    Text(String),
+    Glyph(FontAwesome),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
     pub key: String,
-    pub value: String,
+    pub cells: Vec<Cell>,
 }
 
 pub fn row(key: &str, value: impl Into<String>) -> Row {
+    cells(key, vec![Cell::Text(value.into())])
+}
+
+pub fn cells(key: &str, cells: Vec<Cell>) -> Row {
     Row {
         key: key.to_string(),
-        value: value.into(),
+        cells,
     }
 }
 
