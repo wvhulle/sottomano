@@ -50,6 +50,7 @@ pub enum HoverTarget {
     Tailscale,
     Wireguard(String),
     WeatherTemp,
+    WeatherWind,
     WeatherRain,
     PollenBirch,
     PollenGrass,
