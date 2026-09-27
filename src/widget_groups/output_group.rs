@@ -97,7 +97,7 @@ mod tests {
             TooltipBody::Sections(sections) => sections
                 .iter()
                 .filter_map(|section| match &section.body {
-                    SectionBody::Rows(rows) => Some(rows),
+                    SectionBody::Rows(rows) | SectionBody::Columns { rows, .. } => Some(rows),
                     SectionBody::Tree(_) => None,
                 })
                 .flatten()

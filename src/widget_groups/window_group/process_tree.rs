@@ -3,7 +3,7 @@ use std::{iter, time::Duration};
 use iced::{
     Color, Element, Font, Padding,
     alignment::{Horizontal, Vertical},
-    font::{Style as FontStyle, Weight},
+    font::Weight,
     widget::{container, table},
 };
 
@@ -11,7 +11,10 @@ use crate::{
     app::Message,
     config::Config,
     data::source::process::Process,
-    widgets::{copyable::copyable, text::bar_text},
+    widgets::{
+        copyable::copyable,
+        text::{bar_text, column_heading},
+    },
 };
 
 const INDENT_PX: f32 = 12.0;
@@ -99,14 +102,12 @@ impl<'a> ProcessTree<'a> {
     }
 
     fn heading(&self, title: &str) -> Element<'static, Message> {
-        let italic = Font {
-            style: FontStyle::Italic,
-            ..self.config.font.iced_font
-        };
-        bar_text(&self.config.font, title.to_owned())
-            .font(italic)
-            .color(self.config.palette.inactive.scale_alpha(self.opacity))
-            .into()
+        column_heading(
+            &self.config.font,
+            title.to_owned(),
+            self.config.palette.inactive.scale_alpha(self.opacity),
+        )
+        .into()
     }
 
     fn number(

@@ -17,6 +17,19 @@ use crate::{
 
 pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Relative(1.1);
 
+pub fn column_heading<'a>(
+    font: &FontConfig,
+    title: impl IntoFragment<'a>,
+    color: Color,
+) -> Text<'a, iced::Theme, iced::Renderer> {
+    bar_text(font, title)
+        .font(Font {
+            style: iced::font::Style::Italic,
+            ..font.iced_font
+        })
+        .color(color)
+}
+
 pub fn bar_text<'a>(
     font: &FontConfig,
     content: impl IntoFragment<'a>,

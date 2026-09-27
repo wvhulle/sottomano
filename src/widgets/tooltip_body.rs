@@ -37,13 +37,17 @@ pub fn cells(key: &str, cells: Vec<Cell>) -> Row {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
     Rows(Vec<Row>),
+    Columns {
+        headings: Vec<String>,
+        rows: Vec<Row>,
+    },
     Tree(Process),
 }
 
 impl SectionBody {
     pub fn is_empty(&self) -> bool {
         match self {
-            SectionBody::Rows(rows) => rows.is_empty(),
+            SectionBody::Rows(rows) | SectionBody::Columns { rows, .. } => rows.is_empty(),
             SectionBody::Tree(_) => false,
         }
     }
@@ -124,6 +128,16 @@ pub struct TrayMenuBody {
 impl TooltipBody {
     pub fn rows(rows: Vec<Row>) -> Self {
         TooltipBody::Sections(vec![untitled(rows)])
+    }
+
+    pub fn columns(headings: &[&str], rows: Vec<Row>) -> Self {
+        TooltipBody::Sections(vec![Section {
+            title: None,
+            body: SectionBody::Columns {
+                headings: headings.iter().map(ToString::to_string).collect(),
+                rows,
+            },
+        }])
     }
 
     fn is_empty(&self) -> bool {
