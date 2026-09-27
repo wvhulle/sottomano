@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use iced::{
     Color, Font, Task,
     advanced::text as advanced_text,
+    font::Style,
     task::Handle,
     widget::{
         Text, span, text,
@@ -24,7 +25,7 @@ pub fn column_heading<'a>(
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     bar_text(font, title)
         .font(Font {
-            style: iced::font::Style::Italic,
+            style: Style::Italic,
             ..font.iced_font
         })
         .color(color)
