@@ -47,14 +47,18 @@ pub enum WeatherMessage {
 }
 
 impl WeatherGroup {
-    pub fn subscription() -> Subscription<WeatherMessage> {
+    pub fn subscription(&self) -> Subscription<WeatherMessage> {
+        let location = Subscription::run(Location::published).map(WeatherMessage::Location);
+        let Some(here) = self.location.get().map(Location::coordinates) else {
+            return location;
+        };
         Subscription::batch([
-            polling::<Temperature>(()).map(WeatherMessage::Temp),
-            polling::<Wind>(()).map(WeatherMessage::Wind),
-            polling::<Rain>(()).map(WeatherMessage::Rain),
-            polling::<Pollen<Birch>>(()).map(WeatherMessage::Birch),
-            polling::<Pollen<Grass>>(()).map(WeatherMessage::Grass),
-            Subscription::run(Location::published).map(WeatherMessage::Location),
+            location,
+            polling::<Temperature>(here).map(WeatherMessage::Temp),
+            polling::<Wind>(here).map(WeatherMessage::Wind),
+            polling::<Rain>(here).map(WeatherMessage::Rain),
+            polling::<Pollen<Birch>>(here).map(WeatherMessage::Birch),
+            polling::<Pollen<Grass>>(here).map(WeatherMessage::Grass),
         ])
     }
 
