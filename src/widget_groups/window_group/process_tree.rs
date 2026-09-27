@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{iter, time::Duration};
 
 use iced::{
     Color, Element, Font, Padding,
@@ -18,7 +18,7 @@ const INDENT_PX: f32 = 12.0;
 const NAME_WIDTH_PX: f32 = 220.0;
 const COLUMN_GAP_PX: f32 = 12.0;
 const ROW_GAP_PX: f32 = 3.0;
-const MAX_NODES: usize = 40;
+const MAX_PROCESSES: usize = 20;
 const DIM_ALPHA: f32 = 0.7;
 
 #[derive(Clone)]
@@ -52,12 +52,13 @@ impl<'a> ProcessTree<'a> {
     }
 
     pub fn view(self) -> Element<'static, Message> {
-        let mut branches = Vec::new();
-        flatten(self.root, 0, &mut branches);
-        let hidden = self.root.count().saturating_sub(branches.len());
-        if hidden > 0 {
-            branches.push(elision(hidden));
-        }
+        let branches = if self.root.count() <= MAX_PROCESSES {
+            let mut branches = Vec::new();
+            flatten(self.root, 0, &mut branches);
+            branches
+        } else {
+            top_level(self.root)
+        };
 
         let foreground = self.foreground();
         let flash = self.flash();
@@ -145,21 +146,49 @@ impl<'a> ProcessTree<'a> {
     }
 }
 
-fn flatten(node: &Process, depth: usize, branches: &mut Vec<Branch>) {
-    if branches.len() >= MAX_NODES {
-        return;
+impl Branch {
+    fn of(node: &Process, depth: usize) -> Self {
+        Self {
+            depth,
+            name: node.name.clone(),
+            pid: node.pid.to_string(),
+            memory: node.memory.display().iec().to_string(),
+            threads: format!("{} thr", node.threads),
+            age: age(node.uptime),
+        }
     }
-    branches.push(Branch {
-        depth,
-        name: node.name.clone(),
-        pid: node.pid.to_string(),
-        memory: node.memory.display().iec().to_string(),
-        threads: format!("{} thr", node.threads),
-        age: age(node.uptime),
-    });
+
+    fn collapsed(node: &Process, depth: usize) -> Self {
+        let branch = Self::of(node, depth);
+        match node.count() - 1 {
+            0 => branch,
+            descendants => Self {
+                name: format!("{} +{descendants}", branch.name),
+                ..branch
+            },
+        }
+    }
+}
+
+fn flatten(node: &Process, depth: usize, branches: &mut Vec<Branch>) {
+    branches.push(Branch::of(node, depth));
     for child in &node.children {
         flatten(child, depth + 1, branches);
     }
+}
+
+fn top_level(root: &Process) -> Vec<Branch> {
+    let shown_children = MAX_PROCESSES - 1;
+    let hidden_children = root.children.len().saturating_sub(shown_children);
+    iter::once(Branch::of(root, 0))
+        .chain(
+            root.children
+                .iter()
+                .take(shown_children)
+                .map(|child| Branch::collapsed(child, 1)),
+        )
+        .chain((hidden_children > 0).then(|| elision(hidden_children)))
+        .collect()
 }
 
 fn elision(hidden: usize) -> Branch {
