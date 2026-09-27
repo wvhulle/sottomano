@@ -441,6 +441,13 @@ impl NotificationLayer {
         !self.live.is_empty()
     }
 
+    pub fn is_transitioning(&self) -> bool {
+        let now = Instant::now();
+        self.live
+            .iter()
+            .any(|n| n.is_animating(now) || n.is_withdrawing())
+    }
+
     pub fn live_count(&self) -> usize {
         self.live.len()
     }

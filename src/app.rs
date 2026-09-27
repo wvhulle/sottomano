@@ -434,9 +434,12 @@ impl Bar {
             window_group::Action::ToggleWindowAudio(pid) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
             }
-            window_group::Action::RefreshWindowList => {
-                Task::batch([self.refresh_window_assets(), self.resolve_icons()])
-            }
+            window_group::Action::RefreshWindowList => Task::batch([
+                self.favicons
+                    .retry_unresolved()
+                    .map(Message::FaviconsResolved),
+                self.resolve_icons(),
+            ]),
             window_group::Action::None => Task::none(),
         }
     }
@@ -577,8 +580,8 @@ impl Bar {
             .unwrap_or_else(Tooltip::empty)
     }
 
-    pub fn any_notification_live(&self) -> bool {
-        self.notifications.is_active()
+    pub fn any_notification_transitioning(&self) -> bool {
+        self.notifications.is_transitioning()
     }
 
     pub fn any_notification_expiring(&self) -> bool {
@@ -724,7 +727,7 @@ impl Bar {
         let titles = niri::all_windows(&self.niri);
         Task::batch([
             self.favicons
-                .poll(&self.niri)
+                .track_titles(&self.niri)
                 .map(Message::FaviconsResolved),
             self.font_fallbacks
                 .resolve_missing(
