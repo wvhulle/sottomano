@@ -53,24 +53,64 @@ impl From<serde_json::Error> for Error {
 }
 
 #[derive(Deserialize)]
-struct Forecast {
-    current: CurrentWeather,
-    daily: DailyWeather,
+struct TemperatureForecast {
+    current: CurrentTemperature,
+    daily: DailyTemperature,
+    hourly: HourlyTemperatures,
 }
 
 #[derive(Deserialize)]
-struct CurrentWeather {
+struct CurrentTemperature {
     temperature_2m: f64,
     apparent_temperature: f64,
     relative_humidity_2m: f64,
-    wind_speed_10m: f64,
     weather_code: i64,
 }
 
 #[derive(Deserialize)]
-struct DailyWeather {
+struct DailyTemperature {
     temperature_2m_max: Vec<f64>,
     temperature_2m_min: Vec<f64>,
+}
+
+#[derive(Deserialize)]
+struct HourlyTemperatures {
+    time: Vec<String>,
+    temperature_2m: Vec<f64>,
+    weather_code: Vec<i64>,
+}
+
+impl HourlyTemperatures {
+    fn forecast(self) -> Vec<HourlyTemperature> {
+        self.time
+            .into_iter()
+            .zip(self.temperature_2m)
+            .zip(self.weather_code)
+            .map(|((time, temp), weather_code)| HourlyTemperature {
+                hour: time
+                    .split_once('T')
+                    .map_or(time.as_str(), |(_, hour)| hour)
+                    .to_owned(),
+                temp,
+                weather_code,
+            })
+            .collect()
+    }
+}
+
+#[derive(Deserialize)]
+struct WindForecast {
+    current: CurrentWind,
+}
+
+#[derive(Deserialize)]
+struct CurrentWind {
+    #[serde(rename = "wind_speed_10m")]
+    speed: f64,
+    #[serde(rename = "wind_gusts_10m")]
+    gusts: f64,
+    #[serde(rename = "wind_direction_10m")]
+    direction: f64,
 }
 
 #[derive(Deserialize)]
@@ -132,7 +172,14 @@ pub struct Temperature {
     pub temp_min: f64,
     pub temp_max: f64,
     pub humidity: f64,
-    pub wind: f64,
+    pub hourly: Vec<HourlyTemperature>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HourlyTemperature {
+    pub hour: String,
+    pub temp: f64,
+    pub weather_code: i64,
 }
 
 impl Source for Temperature {
@@ -146,10 +193,10 @@ impl Source for Temperature {
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
         let geo = located().await?;
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto",
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&forecast_hours=12&timezone=auto",
             geo.latitude, geo.longitude
         );
-        let forecast: Forecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         Ok(Temperature {
             weather_code: forecast.current.weather_code,
             temp: forecast.current.temperature_2m,
@@ -157,7 +204,42 @@ impl Source for Temperature {
             temp_min: today(&forecast.daily.temperature_2m_min)?,
             temp_max: today(&forecast.daily.temperature_2m_max)?,
             humidity: forecast.current.relative_humidity_2m,
-            wind: forecast.current.wind_speed_10m,
+            hourly: forecast.hourly.forecast(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Wind {
+    pub speed: f64,
+    pub gusts: f64,
+    pub direction: f64,
+}
+
+impl Source for Wind {
+    type Error = Error;
+
+    type Key = ();
+
+    const NAME: &'static str = "weather-wind";
+    const INTERVAL: Duration = Duration::from_secs(300);
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        let geo = located().await?;
+        let url = format!(
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
+            geo.latitude, geo.longitude
+        );
+        let forecast: WindForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let CurrentWind {
+            speed,
+            gusts,
+            direction,
+        } = forecast.current;
+        Ok(Wind {
+            speed,
+            gusts,
+            direction,
         })
     }
 }
@@ -327,6 +409,22 @@ mod tests {
             allergen: PhantomData,
         };
         assert!(birch.value.abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn hourly_temperatures_keep_only_the_hour() {
+        let hourly: HourlyTemperatures = serde_json::from_str(
+            r#"{
+                "time": ["2026-09-27T08:00", "2026-09-27T09:00"],
+                "temperature_2m": [13.2, 13.8],
+                "weather_code": [1, 3]
+            }"#,
+        )
+        .unwrap();
+        let forecast = hourly.forecast();
+        assert_eq!(forecast.len(), 2);
+        assert_eq!(forecast[1].hour, "09:00");
+        assert_eq!(forecast[1].weather_code, 3);
     }
 
     #[test]

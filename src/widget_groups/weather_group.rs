@@ -2,11 +2,13 @@ use iced::{Element, Subscription, Task, widget::Row};
 
 pub mod geolocation_fix;
 pub mod pollen_count_gauge;
-pub mod weather_conditions;
+pub mod rain_intensity;
+pub mod temperature_forecast;
+pub mod wind_speed;
 
 use crate::{
     config::Config,
-    data::source::weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature},
+    data::source::weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature, Wind},
     message_subscriptions::polling,
     wayland_layers::{
         surface::Position,
@@ -24,6 +26,7 @@ use crate::{
 #[derive(Default)]
 pub struct WeatherGroup {
     temp: LastPoll<Temperature>,
+    wind: LastPoll<Wind>,
     rain: LastPoll<Rain>,
     birch: LastPoll<Pollen<Birch>>,
     grass: LastPoll<Pollen<Grass>>,
@@ -34,6 +37,7 @@ pub struct WeatherGroup {
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
     Temp(Result<Temperature, weather::Error>),
+    Wind(Result<Wind, weather::Error>),
     Rain(Result<Rain, weather::Error>),
     Birch(Result<Pollen<Birch>, weather::Error>),
     Grass(Result<Pollen<Grass>, weather::Error>),
@@ -46,6 +50,7 @@ impl WeatherGroup {
     pub fn subscription() -> Subscription<WeatherMessage> {
         Subscription::batch([
             polling::<Temperature>(()).map(WeatherMessage::Temp),
+            polling::<Wind>(()).map(WeatherMessage::Wind),
             polling::<Rain>(()).map(WeatherMessage::Rain),
             polling::<Pollen<Birch>>(()).map(WeatherMessage::Birch),
             polling::<Pollen<Grass>>(()).map(WeatherMessage::Grass),
@@ -56,6 +61,7 @@ impl WeatherGroup {
     pub fn update(&mut self, msg: WeatherMessage) -> Task<WeatherMessage> {
         match msg {
             WeatherMessage::Temp(reading) => self.temp.receive(reading),
+            WeatherMessage::Wind(reading) => self.wind.receive(reading),
             WeatherMessage::Rain(reading) => self.rain.receive(reading),
             WeatherMessage::Birch(reading) => self.birch.receive(reading),
             WeatherMessage::Grass(reading) => self.grass.receive(reading),
@@ -71,6 +77,7 @@ impl WeatherGroup {
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::WeatherTemp => self.temp.tooltip(),
+            HoverTarget::WeatherWind => self.wind.tooltip(),
             HoverTarget::WeatherRain => self.rain.tooltip(),
             HoverTarget::PollenBirch => self.birch.tooltip(),
             HoverTarget::PollenGrass => self.grass.tooltip(),
@@ -96,10 +103,11 @@ impl WeatherGroup {
         let content = move |reveal: f32| {
             ReadingRow::new()
                 .opacity(reveal)
-                .push(Reading::new(self.location.display(), HoverTarget::Location))
+                .push(Reading::new(self.wind.display(), HoverTarget::WeatherWind))
                 .push(Reading::new(self.rain.present(), HoverTarget::WeatherRain))
                 .push(Reading::new(self.birch.present(), HoverTarget::PollenBirch))
                 .push(Reading::new(self.grass.present(), HoverTarget::PollenGrass))
+                .push(Reading::new(self.location.display(), HoverTarget::Location))
                 .row(config, WeatherMessage::Tooltip)
                 .unwrap_or_else(Row::new)
                 .into()

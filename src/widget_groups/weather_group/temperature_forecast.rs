@@ -1,9 +1,9 @@
 use crate::{
-    data::source::weather::{Rain, Temperature},
+    data::source::weather::{HourlyTemperature, Temperature},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         font_awesome::{FontAwesome, Solid},
-        tooltip_body::{TooltipBody, row, section, untitled},
+        tooltip_body::{Row, TooltipBody, row, section, untitled},
     },
 };
 
@@ -27,52 +27,23 @@ impl BarWidget for Temperature {
                         "Today",
                         format!("{}°C – {}°C", self.temp_min, self.temp_max),
                     ),
+                    row("Humidity", format!("{}%", self.humidity)),
                 ],
             ),
             section(
-                "Air",
-                vec![
-                    row("Humidity", format!("{}%", self.humidity)),
-                    row("Wind", format!("{} km/h", self.wind)),
-                ],
+                "Hourly",
+                self.hourly.iter().map(HourlyTemperature::row).collect(),
             ),
         ])
     }
 }
 
-impl BarWidget for Rain {
-    fn icon(&self) -> Glyph {
-        let peak = self.peak.mm_per_h;
-        if peak < 0.5 {
-            Solid::Droplet.into()
-        } else if peak < 2.5 {
-            Solid::CloudRain.into()
-        } else if peak < 7.5 {
-            Solid::CloudShowersHeavy.into()
-        } else {
-            Solid::CloudBolt.into()
-        }
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        let now = if self.mm_per_h <= 0.0 {
-            "none right now".to_string()
-        } else {
-            format!("{:.1} mm/h", self.mm_per_h)
-        };
-        TooltipBody::rows(vec![
-            row("Rain", now),
-            row(
-                "Peak",
-                format!("{:.1} mm/h at {}", self.peak.mm_per_h, self.peak.at),
-            ),
-        ])
-    }
-}
-
-impl Occasional for Rain {
-    fn present(&self) -> bool {
-        self.peak.mm_per_h > 0.0
+impl HourlyTemperature {
+    fn row(&self) -> Row {
+        row(
+            &self.hour,
+            format!("{}°C  {}", self.temp, wmo_description(self.weather_code)),
+        )
     }
 }
 
