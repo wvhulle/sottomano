@@ -174,6 +174,7 @@ fn capture(
     let mut props = properties! {
         *keys::MEDIA_TYPE => "Audio",
         *keys::MEDIA_CATEGORY => "Capture",
+        *keys::NODE_PASSIVE => "true",
     };
     if direction == Direction::Output {
         props.insert(*keys::STREAM_CAPTURE_SINK, "true");

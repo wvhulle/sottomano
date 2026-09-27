@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem::take, sync::Arc};
+use std::collections::HashMap;
 
 use iced::{
     Element, Task,
@@ -14,7 +14,6 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Favicon {
-    bytes: Arc<[u8]>,
     handle: FaviconHandle,
 }
 
@@ -27,19 +26,10 @@ enum FaviconHandle {
 impl Favicon {
     fn new(raw: RawFavicon) -> Self {
         let handle = match raw.kind {
-            FaviconKind::Raster => {
-                FaviconHandle::Raster(image::Handle::from_bytes(raw.bytes.clone()))
-            }
-            FaviconKind::Svg => FaviconHandle::Svg(svg::Handle::from_memory(raw.bytes.clone())),
+            FaviconKind::Raster => FaviconHandle::Raster(image::Handle::from_bytes(raw.bytes)),
+            FaviconKind::Svg => FaviconHandle::Svg(svg::Handle::from_memory(raw.bytes)),
         };
-        Self {
-            bytes: Arc::from(raw.bytes),
-            handle,
-        }
-    }
-
-    fn is(&self, raw: &RawFavicon) -> bool {
-        *self.bytes == *raw.bytes
+        Self { handle }
     }
 
     pub fn view<'a, Message: 'a>(&self, side: f32, opacity: f32) -> Element<'a, Message> {
@@ -61,6 +51,7 @@ impl Favicon {
 #[derive(Default)]
 pub struct Favicons {
     cached: HashMap<String, Favicon>,
+    titles: Vec<String>,
     poll: Option<Handle>,
 }
 
@@ -70,22 +61,39 @@ impl Favicons {
     }
 
     pub fn merge(&mut self, raw: HashMap<String, RawFavicon>) {
-        let previous = take(&mut self.cached);
-        self.cached = raw
-            .into_iter()
-            .map(|(title, raw)| {
-                let favicon = match previous.get(&title) {
-                    Some(existing) if existing.is(&raw) => existing.clone(),
-                    _ => Favicon::new(raw),
-                };
-                (title, favicon)
-            })
-            .collect();
+        self.cached.extend(
+            raw.into_iter()
+                .filter(|(title, _)| self.titles.binary_search(title).is_ok())
+                .map(|(title, raw)| (title, Favicon::new(raw))),
+        );
     }
 
-    pub fn poll(&mut self, niri_state: &EventStreamState) -> Task<HashMap<String, RawFavicon>> {
-        let keys = favicons::firefox_keys(niri_state);
-        let (task, handle) = blocking("favicons", move || favicons::resolve(keys)).abortable();
+    pub fn track_titles(
+        &mut self,
+        niri_state: &EventStreamState,
+    ) -> Task<HashMap<String, RawFavicon>> {
+        let titles = favicons::firefox_keys(niri_state);
+        if titles == self.titles {
+            return Task::none();
+        }
+        self.cached
+            .retain(|title, _| titles.binary_search(title).is_ok());
+        self.titles = titles;
+        self.retry_unresolved()
+    }
+
+    pub fn retry_unresolved(&mut self) -> Task<HashMap<String, RawFavicon>> {
+        let unresolved: Vec<String> = self
+            .titles
+            .iter()
+            .filter(|title| !self.cached.contains_key(*title))
+            .cloned()
+            .collect();
+        if unresolved.is_empty() {
+            return Task::none();
+        }
+        let (task, handle) =
+            blocking("favicons", move || favicons::resolve(unresolved)).abortable();
         self.poll = Some(handle.abort_on_drop());
         task
     }
