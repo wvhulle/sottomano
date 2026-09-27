@@ -399,6 +399,7 @@ fn bottom_row<'a>(
         Zone::BottomEnd,
     );
     row![start, middle, end]
+        .spacing(config.spacing.group_spacing_px)
         .align_y(Alignment::Center)
         .padding([0.0, config.spacing.group_padding_px])
         .into()
