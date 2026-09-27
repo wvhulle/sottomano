@@ -3,6 +3,7 @@ pub mod audio_group;
 pub mod battery_group;
 pub mod clock_group;
 pub mod color_temperature_group;
+pub mod dark_mode_group;
 pub mod idle_timeouts_group;
 pub mod internet_group;
 pub mod journal_group;

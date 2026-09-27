@@ -1,6 +1,5 @@
 pub mod backlight_display;
 pub mod clight_auto_brightness;
-pub mod umbra_dark_mode;
 
 use std::{collections::BTreeMap, ops::RangeInclusive};
 
@@ -11,7 +10,6 @@ use crate::{
     data::source::{
         backlight::{self, Backlight},
         clight::Clight,
-        umbra::Umbra,
     },
     message_subscriptions::blocking,
     wayland_layers::{
@@ -36,7 +34,6 @@ pub struct MonitorGroup {
     backlights: Vec<Backlight>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<Clight>,
-    umbra: ToggleControl<Umbra>,
     pub(crate) menu: MenuGroup,
 }
 
@@ -46,23 +43,18 @@ pub enum MonitorMessage {
     Backlights(Vec<Backlight>),
     Backlight(String, ControlMessage),
     Clight(ToggleMessage<Clight>),
-    Umbra(ToggleMessage<Umbra>),
     Tooltip(TooltipMessage),
 }
 
 impl MonitorGroup {
     pub fn probe() -> Task<MonitorMessage> {
-        Task::batch([
-            ToggleControl::<Clight>::probe(()).map(MonitorMessage::Clight),
-            ToggleControl::<Umbra>::probe(()).map(MonitorMessage::Umbra),
-        ])
+        ToggleControl::<Clight>::probe(()).map(MonitorMessage::Clight)
     }
 
     pub fn subscription(&self) -> Subscription<MonitorMessage> {
         Subscription::batch([
             backlight::subscription().map(MonitorMessage::Backlights),
             self.clight.subscription(()).map(MonitorMessage::Clight),
-            self.umbra.subscription(()).map(MonitorMessage::Umbra),
         ])
     }
 
@@ -110,7 +102,6 @@ impl MonitorGroup {
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
             MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
-            MonitorMessage::Umbra(m) => self.umbra.update(m).map(MonitorMessage::Umbra),
             MonitorMessage::Tooltip(_) => Task::none(),
         }
     }
@@ -158,7 +149,6 @@ impl MonitorGroup {
                 )))
             }
             HoverTarget::ClightAuto => self.clight.tooltip(),
-            HoverTarget::DarkMode => self.umbra.tooltip(),
             _ => None,
         }
     }
@@ -181,12 +171,6 @@ impl MonitorGroup {
                     m => MonitorMessage::Clight(m),
                 }));
             }
-            if let Some(umbra) = self.umbra.view(config, HoverTarget::DarkMode, 1.0) {
-                children.push(umbra.map(|m| match m {
-                    ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-                    m => MonitorMessage::Umbra(m),
-                }));
-            }
             children
         };
 
@@ -196,7 +180,6 @@ impl MonitorGroup {
             .filter_map(|backlight| self.sliders.get(&backlight.serial))
             .map(|slider| slider as &dyn BarWidget)
             .chain(self.clight.reading())
-            .chain(self.umbra.reading())
             .next()?;
 
         let content = move |_reveal: f32| {

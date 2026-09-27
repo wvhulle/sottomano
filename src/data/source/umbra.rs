@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use crate::data::source::{Source, command};
+use crate::data::{
+    source::{Source, command},
+    sun_schedule::ColorMode,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Umbra {
@@ -28,4 +31,8 @@ impl Source for Umbra {
 
 pub fn toggle_mode() -> bool {
     command::blocking::run("umbra", &["toggle"])
+}
+
+pub fn set_mode(mode: ColorMode) -> bool {
+    command::blocking::run("umbra", &["set", mode.umbra_name()])
 }

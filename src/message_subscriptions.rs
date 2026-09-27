@@ -108,6 +108,7 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
             .color_temperature_group
             .subscription()
             .map(Message::ColorTemperature),
+        state.dark_mode_group.subscription().map(Message::DarkMode),
         MediaGroup::subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         idle_subscription(state),

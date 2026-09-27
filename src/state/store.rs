@@ -2,7 +2,7 @@ use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, tim
 
 use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
-use super::{idle, launches, panel, power, rate_limit};
+use super::{dark_mode, idle, launches, panel, power, rate_limit};
 
 #[derive(Debug)]
 pub(crate) enum StoreError {
@@ -112,6 +112,7 @@ pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), S
     connection.execute(launches::CREATE_TABLE, ()).await?;
     connection.execute(panel::CREATE_TABLE, ()).await?;
     connection.execute(idle::CREATE_TABLE, ()).await?;
+    connection.execute(dark_mode::CREATE_TABLE, ()).await?;
     for statement in power::DROP_LEGACY_TABLES {
         connection.execute(statement, ()).await?;
     }

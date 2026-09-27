@@ -1,3 +1,4 @@
+pub mod dark_mode;
 pub mod idle;
 pub mod launches;
 pub mod panel;

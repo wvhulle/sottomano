@@ -90,14 +90,32 @@ impl<S: Toggle> ToggleControl<S> {
         opacity: f32,
     ) -> Option<Element<'a, ToggleMessage<S>>> {
         let display = self.cell.get()?;
-        let reading = source_reading(config, Some(display as &dyn BarWidget), opacity)?;
-        let hover = hoverable(reading, target, ToggleMessage::Tooltip);
-        Some(
-            button(hover)
-                .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
-                .on_press(ToggleMessage::Press)
-                .into(),
+        toggle_button(
+            config,
+            display,
+            target,
+            opacity,
+            ToggleMessage::Press,
+            ToggleMessage::Tooltip,
         )
     }
+}
+
+pub fn toggle_button<'a, M: Clone + 'a>(
+    config: &Config,
+    display: &dyn BarWidget,
+    target: HoverTarget,
+    opacity: f32,
+    on_press: M,
+    on_tooltip: fn(TooltipMessage) -> M,
+) -> Option<Element<'a, M>> {
+    let reading = source_reading(config, Some(display), opacity)?;
+    let hover = hoverable(reading, target, on_tooltip);
+    Some(
+        button(hover)
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(on_press)
+            .into(),
+    )
 }

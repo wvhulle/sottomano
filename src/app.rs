@@ -37,6 +37,7 @@ use crate::{
         battery_group::{BatteryGroup, BatteryMessage},
         clock_group::{ClockGroup, ClockMessage},
         color_temperature_group::{ColorTemperatureGroup, ColorTemperatureMessage},
+        dark_mode_group::{DarkModeGroup, DarkModeMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
@@ -77,6 +78,7 @@ pub struct Bar {
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) monitor_group: MonitorGroup,
     pub(crate) color_temperature_group: ColorTemperatureGroup,
+    pub(crate) dark_mode_group: DarkModeGroup,
     pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
     pub(crate) media_group: MediaGroup,
     pub(crate) audio_group: AudioGroup,
@@ -122,6 +124,7 @@ pub enum Message {
     NetInterfaces(NetInterfacesMessage),
     Monitor(MonitorMessage),
     ColorTemperature(ColorTemperatureMessage),
+    DarkMode(DarkModeMessage),
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
@@ -178,6 +181,7 @@ impl Bar {
             color_temperature_group: ColorTemperatureGroup::new(
                 config.color_temperature_unit.clone(),
             ),
+            dark_mode_group: DarkModeGroup::default(),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
@@ -213,6 +217,7 @@ impl Bar {
             SystemGroup::probe().map(Message::System),
             InternetGroup::probe().map(Message::Internet),
             MonitorGroup::probe().map(Message::Monitor),
+            DarkModeGroup::probe().map(Message::DarkMode),
             bar.color_temperature_group
                 .probe()
                 .map(Message::ColorTemperature),
@@ -262,6 +267,7 @@ impl Bar {
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
             Message::ColorTemperature(msg) => self.update_color_temperature(msg),
+            Message::DarkMode(msg) => self.dark_mode_group.update(msg).map(Message::DarkMode),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
@@ -567,6 +573,7 @@ impl Bar {
             .or_else(|| self.audio_group.tooltip_for(target))
             .or_else(|| self.monitor_group.tooltip_for(target))
             .or_else(|| self.color_temperature_group.tooltip_for(target))
+            .or_else(|| self.dark_mode_group.tooltip_for(target))
             .or_else(|| self.idle_timeouts_group.tooltip_for(target))
             .or_else(|| self.internet_group.tooltip_for(target))
             .or_else(|| self.weather_group.tooltip_for(target))
@@ -616,6 +623,7 @@ impl Bar {
         self.audio_group.is_animating()
             || self.monitor_group.is_animating()
             || self.color_temperature_group.is_animating()
+            || self.dark_mode_group.is_animating()
             || self.panel_settings_group.is_animating()
             || self.idle_timeouts_group.is_animating()
             || self.battery_group.is_animating()
@@ -628,6 +636,7 @@ impl Bar {
         self.panel_settings_group.close_menu();
         self.monitor_group.close_menu();
         self.color_temperature_group.close_menu();
+        self.dark_mode_group.close_menu();
         let _ = [
             &mut self.wallpaper_group.menu,
             &mut self.clock_group.menu,
