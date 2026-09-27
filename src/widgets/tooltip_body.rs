@@ -23,6 +23,52 @@ pub struct Row {
     pub cells: Vec<Cell>,
 }
 
+impl From<String> for Cell {
+    fn from(text: String) -> Self {
+        Cell::Text(text)
+    }
+}
+
+impl From<&str> for Cell {
+    fn from(text: &str) -> Self {
+        Cell::Text(text.to_string())
+    }
+}
+
+impl From<FontAwesome> for Cell {
+    fn from(glyph: FontAwesome) -> Self {
+        Cell::Glyph(glyph)
+    }
+}
+
+pub trait TableRow {
+    const HEADINGS: &'static [&'static str];
+    fn key(&self) -> String;
+    fn cells(&self) -> Vec<Cell>;
+}
+
+impl<R: TableRow> TableRow for &R {
+    const HEADINGS: &'static [&'static str] = R::HEADINGS;
+
+    fn key(&self) -> String {
+        (*self).key()
+    }
+
+    fn cells(&self) -> Vec<Cell> {
+        (*self).cells()
+    }
+}
+
+fn columns<R: TableRow>(rows: impl IntoIterator<Item = R>) -> SectionBody {
+    SectionBody::Columns {
+        headings: R::HEADINGS.iter().map(ToString::to_string).collect(),
+        rows: rows
+            .into_iter()
+            .map(|table_row| cells(&table_row.key(), table_row.cells()))
+            .collect(),
+    }
+}
+
 pub fn row(key: &str, value: impl Into<String>) -> Row {
     cells(key, vec![Cell::Text(value.into())])
 }
@@ -70,6 +116,16 @@ pub fn untitled(rows: Vec<Row>) -> Section {
     Section {
         title: None,
         body: SectionBody::Rows(rows),
+    }
+}
+
+pub fn table_section<R: TableRow>(
+    title: impl Into<String>,
+    rows: impl IntoIterator<Item = R>,
+) -> Section {
+    Section {
+        title: Some(title.into()),
+        body: columns(rows),
     }
 }
 
@@ -130,13 +186,10 @@ impl TooltipBody {
         TooltipBody::Sections(vec![untitled(rows)])
     }
 
-    pub fn columns(headings: &[&str], rows: Vec<Row>) -> Self {
+    pub fn table<R: TableRow>(rows: impl IntoIterator<Item = R>) -> Self {
         TooltipBody::Sections(vec![Section {
             title: None,
-            body: SectionBody::Columns {
-                headings: headings.iter().map(ToString::to_string).collect(),
-                rows,
-            },
+            body: columns(rows),
         }])
     }
 
@@ -184,5 +237,54 @@ impl Tooltip {
 
     pub fn is_empty(&self) -> bool {
         self.body.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Planet {
+        name: &'static str,
+        moons: u32,
+    }
+
+    impl TableRow for Planet {
+        const HEADINGS: &'static [&'static str] = &["Moons", ""];
+
+        fn key(&self) -> String {
+            self.name.to_string()
+        }
+
+        fn cells(&self) -> Vec<Cell> {
+            vec![self.moons.to_string().into(), "".into()]
+        }
+    }
+
+    #[test]
+    fn table_pairs_headings_with_each_rows_cells() {
+        let planets = [
+            Planet {
+                name: "Mars",
+                moons: 2,
+            },
+            Planet {
+                name: "Venus",
+                moons: 0,
+            },
+        ];
+        let TooltipBody::Sections(sections) = TooltipBody::table(&planets) else {
+            panic!("expected sections");
+        };
+        assert_eq!(
+            sections[0].body,
+            SectionBody::Columns {
+                headings: vec!["Moons".to_string(), String::new()],
+                rows: vec![
+                    cells("Mars", vec!["2".into(), "".into()]),
+                    cells("Venus", vec!["0".into(), "".into()]),
+                ],
+            }
+        );
     }
 }

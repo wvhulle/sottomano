@@ -20,7 +20,7 @@ use crate::{
     widgets::{
         last_poll::LastPoll,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, Tooltip, TooltipBody, cells},
+        tooltip_body::{Cell, TableRow, Tooltip, TooltipBody},
     },
 };
 
@@ -189,24 +189,14 @@ impl PowerProfileControl {
             return None;
         }
         let active_profile = Profile::from_position(self.control.current());
-        let rows = Profile::ALL
-            .into_iter()
-            .map(|profile| {
-                let key = if profile == active_profile {
-                    format!("{} (active)", profile.title())
-                } else {
-                    profile.title().to_string()
-                };
-                cells(
-                    &key,
-                    estimate_cells(self.estimates.get(&profile).copied().flatten()),
-                )
-            })
-            .collect();
-        self.cell.tooltip_with(TooltipBody::columns(
-            &["Median", "Earliest", "Latest"],
-            rows,
-        ))
+        self.cell
+            .tooltip_with(TooltipBody::table(Profile::ALL.map(|profile| {
+                ProfileLife {
+                    profile,
+                    active: profile == active_profile,
+                    estimate: self.estimates.get(&profile).copied().flatten(),
+                }
+            })))
     }
 
     pub fn view<'a>(
@@ -226,15 +216,31 @@ fn duration_cell(duration: Duration) -> Cell {
     Cell::Text(humantime::format_duration(duration).to_string())
 }
 
-fn estimate_cells(estimate: Option<Estimate>) -> Vec<Cell> {
-    let Some(estimate) = estimate else {
-        return vec![Cell::Text("—".to_string())];
-    };
-    vec![
-        duration_cell(estimate.time),
-        duration_cell(estimate.earliest),
-        estimate
-            .latest
-            .map_or_else(|| Cell::Text("∞".to_string()), duration_cell),
-    ]
+struct ProfileLife {
+    profile: Profile,
+    active: bool,
+    estimate: Option<Estimate>,
+}
+
+impl TableRow for ProfileLife {
+    const HEADINGS: &'static [&'static str] = &["Median", "Earliest", "Latest"];
+
+    fn key(&self) -> String {
+        if self.active {
+            format!("{} (active)", self.profile.title())
+        } else {
+            self.profile.title().to_string()
+        }
+    }
+
+    fn cells(&self) -> Vec<Cell> {
+        let Some(estimate) = self.estimate else {
+            return vec!["—".into()];
+        };
+        vec![
+            duration_cell(estimate.time),
+            duration_cell(estimate.earliest),
+            estimate.latest.map_or_else(|| "∞".into(), duration_cell),
+        ]
+    }
 }

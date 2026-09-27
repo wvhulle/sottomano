@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         font_awesome::{FontAwesome, Solid},
-        tooltip_body::{Cell, Row, TooltipBody, cells, row, section, untitled},
+        tooltip_body::{Cell, TableRow, TooltipBody, cells, row, section, table_section, untitled},
     },
 };
 
@@ -40,36 +40,25 @@ impl BarWidget for Temperature {
                     row("Humidity", format!("{}%", self.humidity)),
                 ],
             ),
-            section(
-                "Earlier",
-                self.hourly
-                    .earlier
-                    .iter()
-                    .map(HourlyTemperature::row)
-                    .collect(),
-            ),
-            section(
-                "Later",
-                self.hourly
-                    .later
-                    .iter()
-                    .map(HourlyTemperature::row)
-                    .collect(),
-            ),
+            table_section("Earlier", &self.hourly.earlier),
+            table_section("Later", &self.hourly.later),
         ])
     }
 }
 
-impl HourlyTemperature {
-    fn row(&self) -> Row {
-        cells(
-            &self.time.format("%H:%M").to_string(),
-            vec![
-                Cell::Text(format!("{}°C", self.temp)),
-                Cell::Glyph(wmo_icon(self.weather_code)),
-                Cell::Text(wmo_description(self.weather_code).into()),
-            ],
-        )
+impl TableRow for HourlyTemperature {
+    const HEADINGS: &'static [&'static str] = &["Temp", "", "Conditions"];
+
+    fn key(&self) -> String {
+        self.time.format("%H:%M").to_string()
+    }
+
+    fn cells(&self) -> Vec<Cell> {
+        vec![
+            format!("{}°C", self.temp).into(),
+            wmo_icon(self.weather_code).into(),
+            wmo_description(self.weather_code).into(),
+        ]
     }
 }
 
