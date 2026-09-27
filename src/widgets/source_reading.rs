@@ -51,7 +51,7 @@ pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {
     if widget.disabled() {
         config.palette.inactive
     } else {
-        level_color(config, widget.level())
+        level_color(&config.palette, widget.level())
     }
 }
 

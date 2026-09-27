@@ -55,10 +55,7 @@ use crate::{
         workspaces_group::workspace_tooltip,
     },
     widgets::{
-        favicon::Favicons,
-        menu_group::MenuGroup,
-        text::FontFallbacks,
-        tooltip_body::{Tooltip, TooltipBody},
+        favicon::Favicons, menu_group::MenuGroup, text::FontFallbacks, tooltip_body::Tooltip,
     },
 };
 
@@ -607,10 +604,9 @@ impl Bar {
     }
 
     pub fn tooltip_has_relative_time(&self) -> bool {
-        self.tooltip.target().is_some_and(|target| {
-            let tooltip = self.tooltip_for(target);
-            tooltip.footer.is_some() || matches!(tooltip.body, TooltipBody::Log(_))
-        })
+        self.tooltip
+            .target()
+            .is_some_and(|target| self.tooltip_for(target).footer.is_some())
     }
 
     fn update_color_temperature(&mut self, msg: ColorTemperatureMessage) -> Task<Message> {
@@ -651,6 +647,7 @@ impl Bar {
             &mut self.tray_group.menu,
             &mut self.ai_group.menu,
             &mut self.notification_group.menu,
+            &mut self.journal_group.menu,
         ]
         .map(MenuGroup::close);
     }

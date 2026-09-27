@@ -8,7 +8,7 @@ use iced::futures::{
     stream::{self, BoxStream},
 };
 use serde::Deserialize;
-use systemd::journal::{Journal, OpenOptions};
+use systemd::journal::{Journal, JournalRecord, OpenOptions};
 use tokio::{sync::mpsc, task::spawn_blocking};
 use zbus::{
     blocking, message, proxy,
@@ -18,13 +18,31 @@ use zbus::{
 
 const HORIZON: Duration = Duration::from_secs(3600);
 const AGE_OUT_RECHECK: Duration = Duration::from_secs(60);
-const ERR_PRIORITY: u8 = 3;
+const WARNING_PRIORITY: u8 = 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum KernelSeverity {
+    Critical,
+    Error,
+    Warning,
+}
+
+impl KernelSeverity {
+    fn from_priority(priority: u8) -> Option<Self> {
+        match priority {
+            0..=2 => Some(KernelSeverity::Critical),
+            3 => Some(KernelSeverity::Error),
+            WARNING_PRIORITY => Some(KernelSeverity::Warning),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct KernelEntry {
     pub at: SystemTime,
     pub message: String,
-    pub priority: u8,
+    pub severity: KernelSeverity,
 }
 
 pub fn kernel_errors() -> mpsc::Receiver<Vec<KernelEntry>> {
@@ -57,7 +75,7 @@ pub fn kernel_errors() -> mpsc::Receiver<Vec<KernelEntry>> {
 fn open_kernel_journal() -> Option<Journal> {
     let mut journal = OpenOptions::default().system(true).open().ok()?;
     journal.match_add("_TRANSPORT", "kernel").ok()?;
-    for priority in 0..=ERR_PRIORITY {
+    for priority in 0..=WARNING_PRIORITY {
         journal.match_add("PRIORITY", priority.to_string()).ok()?;
     }
     Some(journal)
@@ -72,21 +90,22 @@ fn scan_kernel_errors(journal: &mut Journal) -> Vec<KernelEntry> {
     }
     let mut entries = Vec::new();
     while let Ok(Some(record)) = journal.next_entry() {
-        let (Some(priority), Some(message)) = (
-            record
-                .get("PRIORITY")
-                .and_then(|priority| priority.parse().ok()),
-            record.get("MESSAGE"),
-        ) else {
-            continue;
-        };
-        entries.push(KernelEntry {
-            at: journal.timestamp().unwrap_or_else(|_| SystemTime::now()),
-            message: message.clone(),
-            priority,
-        });
+        let at = journal.timestamp().unwrap_or_else(|_| SystemTime::now());
+        entries.extend(kernel_entry(&record, at));
     }
     entries
+}
+
+fn kernel_entry(record: &JournalRecord, at: SystemTime) -> Option<KernelEntry> {
+    let severity = record
+        .get("PRIORITY")
+        .and_then(|priority| priority.parse().ok())
+        .and_then(KernelSeverity::from_priority)?;
+    Some(KernelEntry {
+        at,
+        message: record.get("MESSAGE")?.clone(),
+        severity,
+    })
 }
 
 fn horizon_cutoff_usec() -> Option<u64> {

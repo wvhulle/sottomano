@@ -22,9 +22,13 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        bar_widget::BarWidget, flat_button, last_poll::LastPoll,
-        pager_slot::permanently_inactive_slot, source_reading::source_reading,
-        tooltip_body::Tooltip,
+        bar_widget::{BarWidget, Glyph, Level},
+        flat_button,
+        font_awesome::Solid,
+        last_poll::LastPoll,
+        menu_group::{MenuGroup, MenuMessage},
+        source_reading::source_reading,
+        tooltip_body::{Tooltip, TooltipBody},
     },
 };
 
@@ -33,6 +37,7 @@ pub struct JournalGroup {
     system: LastPoll<Failed<System>>,
     user: LastPoll<Failed<User>>,
     kernel: LastPoll<KernelErrors>,
+    pub(crate) menu: MenuGroup,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +46,7 @@ pub enum JournalMessage {
     User(Option<Failed<User>>),
     Kernel(Option<KernelErrors>),
     OpenLog(Vec<String>),
+    Menu(MenuMessage),
     Tooltip(TooltipMessage),
 }
 
@@ -64,6 +70,9 @@ impl JournalGroup {
                 })
                 .discard();
             }
+            JournalMessage::Menu(msg) => {
+                self.menu.update(msg);
+            }
             JournalMessage::Tooltip(_) => {}
         }
         Task::none()
@@ -80,25 +89,47 @@ impl JournalGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, JournalMessage>> {
-        let indicators: Vec<Element<'a, JournalMessage>> = [
+        if self.indicators(config, 1.0).is_empty() {
+            return None;
+        }
+        let content = move |reveal: f32| {
+            Row::with_children(self.indicators(config, reveal))
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
+        };
+        let face =
+            move || source_reading(config, Some(self), 1.0).unwrap_or_else(|| Row::new().into());
+        Some(
+            self.menu
+                .slot(face, content, JournalMessage::Menu)
+                .view(config, position),
+        )
+    }
+
+    fn indicators<'a>(&self, config: &Config, opacity: f32) -> Vec<Element<'a, JournalMessage>> {
+        [
             indicator(
                 config,
+                opacity,
                 self.system.get().map(|w| w as &dyn BarWidget),
                 HoverTarget::JournalSystem,
                 self.system.get().map(Failed::follow_log_args),
             ),
             indicator(
                 config,
+                opacity,
                 self.user.get().map(|w| w as &dyn BarWidget),
                 HoverTarget::JournalUser,
                 self.user.get().map(Failed::follow_log_args),
             ),
             indicator(
                 config,
+                opacity,
                 self.kernel.get().map(|w| w as &dyn BarWidget),
                 HoverTarget::JournalKernel,
                 self.kernel.get().map(|_| KernelErrors::follow_log_args()),
@@ -106,18 +137,44 @@ impl JournalGroup {
         ]
         .into_iter()
         .flatten()
-        .collect();
-        if indicators.is_empty() {
-            return None;
-        }
-        Some(permanently_inactive_slot(
-            Row::with_children(indicators)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into(),
-            config,
-            position,
-        ))
+        .collect()
+    }
+
+    fn scopes(&self) -> [Option<&dyn BarWidget>; 3] {
+        [
+            self.system.get().map(|w| w as &dyn BarWidget),
+            self.user.get().map(|w| w as &dyn BarWidget),
+            self.kernel.get().map(|w| w as &dyn BarWidget),
+        ]
+    }
+}
+
+impl BarWidget for JournalGroup {
+    fn icon(&self) -> Glyph {
+        Solid::HeartPulse.into()
+    }
+
+    fn badge(&self) -> Option<u32> {
+        let total: u32 = self
+            .scopes()
+            .into_iter()
+            .flatten()
+            .filter_map(BarWidget::badge)
+            .sum();
+        (total > 0).then_some(total)
+    }
+
+    fn level(&self) -> Level {
+        self.scopes()
+            .into_iter()
+            .flatten()
+            .map(BarWidget::level)
+            .max()
+            .unwrap_or_default()
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        TooltipBody::rows(Vec::new())
     }
 }
 
@@ -139,11 +196,12 @@ fn failed_subscription<S: JournalScope + 'static>(
 
 fn indicator<'a>(
     config: &Config,
+    opacity: f32,
     widget: Option<&dyn BarWidget>,
     target: HoverTarget,
     journalctl_args: Option<Vec<String>>,
 ) -> Option<Element<'a, JournalMessage>> {
-    let reading = source_reading(config, widget, 1.0)?;
+    let reading = source_reading(config, widget, opacity)?;
     let hover = hoverable(reading, target, JournalMessage::Tooltip);
     let open_log = JournalMessage::OpenLog(
         config

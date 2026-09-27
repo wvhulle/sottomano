@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 use iced::Color;
 
 use crate::{
-    config::Config,
+    config::palette::Palette,
     widgets::{
         font_awesome::{Brands, FontAwesome, Regular, Solid},
         simple_icons::SimpleIcon,
@@ -55,11 +55,11 @@ impl Value {
     }
 }
 
-pub fn level_color(config: &Config, level: Level) -> Color {
+pub fn level_color(palette: &Palette, level: Level) -> Color {
     match level {
-        Level::Ok => config.palette.bar_foreground,
-        Level::Warning => config.palette.warning,
-        Level::Critical => config.palette.urgent,
+        Level::Ok => palette.bar_foreground,
+        Level::Warning => palette.warning,
+        Level::Critical => palette.urgent,
     }
 }
 

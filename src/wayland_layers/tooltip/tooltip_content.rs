@@ -22,8 +22,7 @@ use crate::{
         section_column::section_column,
         text::{LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
-            Cell, LogEntry, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody,
-            TrayMenuBody,
+            Cell, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
         },
     },
 };
@@ -135,7 +134,6 @@ impl<'a> TooltipContent<'a> {
                 .spacing(SECTION_GAP_PX)
                 .into(),
             ),
-            TooltipBody::Log(entries) => inset(self.log(entries)),
             TooltipBody::Text { title, body } => inset(self.text(title, body)),
             TooltipBody::TrayMenu(menu) => self.tray_menu(menu),
         }
@@ -168,30 +166,6 @@ impl<'a> TooltipContent<'a> {
         column
             .push(container(entries).width(TRAY_MENU_WIDTH_PX))
             .into()
-    }
-
-    fn log(&self, entries: &[LogEntry]) -> Element<'static, Message> {
-        let dim = self.dim();
-        let flash = self.flash();
-        let opacity = self.opacity;
-        let key_font = self.config.font.clone();
-        let value_font = self.config.font.clone();
-        let value_width = self.config.widgets.tooltip_value_width_px;
-        let config = self.config;
-        let now = self.now;
-
-        key_value_table(
-            entries.iter().cloned(),
-            move |entry: LogEntry| {
-                cell(&key_font, relative(entry.at, now), dim, value_width).into()
-            },
-            [value_column(Space::new().into(), move |entry: LogEntry| {
-                let color = level_color(config, entry.level).scale_alpha(opacity);
-                let text = entry.message;
-                let value = cell(&value_font, text.clone(), color, value_width);
-                copyable(value, text, Message::CopyText, flash)
-            })],
-        )
     }
 
     fn text(&self, title: &str, body: &str) -> Element<'static, Message> {
@@ -297,7 +271,8 @@ impl<'a> TooltipContent<'a> {
         position: usize,
         heading: Element<'static, Message>,
     ) -> table::Column<'static, 'static, Row, Message> {
-        let foreground = self.foreground();
+        let palette = self.config.palette.clone();
+        let opacity = self.opacity;
         let flash = self.flash();
         let font = self.config.font.clone();
         let value_width = self.config.widgets.tooltip_value_width_px;
@@ -306,6 +281,7 @@ impl<'a> TooltipContent<'a> {
             if position >= entry.cells.len() {
                 return Space::new().into();
             }
+            let foreground = level_color(&palette, entry.level).scale_alpha(opacity);
             match entry.cells.swap_remove(position) {
                 Cell::Glyph(icon) => icon
                     .glyph()
