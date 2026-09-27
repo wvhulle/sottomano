@@ -1,6 +1,5 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
-    hash::{Hash, Hasher},
     marker::PhantomData,
     sync::Arc,
     time::Duration,
@@ -9,7 +8,7 @@ use std::{
 use chrono::{NaiveDateTime, NaiveTime, TimeDelta};
 use iced::futures::{Stream, StreamExt};
 use serde::{Deserialize, Deserializer, de::Error as _};
-use situo_client::{Fix, fix_updates};
+use situo_client::{Fix, Position, fix_updates};
 
 use crate::data::source::{Source, http};
 
@@ -169,28 +168,6 @@ fn today(values: &[f64]) -> Result<f64, Error> {
     values.first().copied().ok_or(Error::Malformed)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Coordinates {
-    pub latitude: f64,
-    pub longitude: f64,
-}
-
-impl Hash for Coordinates {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.latitude.to_bits().hash(state);
-        self.longitude.to_bits().hash(state);
-    }
-}
-
-impl From<&Fix> for Coordinates {
-    fn from(fix: &Fix) -> Self {
-        Self {
-            latitude: fix.latitude,
-            longitude: fix.longitude,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub weather_code: i64,
@@ -218,15 +195,15 @@ pub struct HourlyTemperature {
 impl Source for Temperature {
     type Error = Error;
 
-    type Key = Coordinates;
+    type Key = Position;
 
     const NAME: &'static str = "weather-temp";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
+    async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto",
-            geo.latitude, geo.longitude
+            here.latitude, here.longitude
         );
         let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         Ok(Temperature {
@@ -251,15 +228,15 @@ pub struct Wind {
 impl Source for Wind {
     type Error = Error;
 
-    type Key = Coordinates;
+    type Key = Position;
 
     const NAME: &'static str = "weather-wind";
     const INTERVAL: Duration = Duration::from_secs(300);
 
-    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
+    async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
-            geo.latitude, geo.longitude
+            here.latitude, here.longitude
         );
         let forecast: WindForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         let CurrentWind {
@@ -365,16 +342,15 @@ fn downpour(line: &str) -> Option<Downpour> {
 impl Source for Rain {
     type Error = Error;
 
-    type Key = Coordinates;
+    type Key = Position;
 
     const NAME: &'static str = "weather-rain";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
+    async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
-            geo.latitude,
-            geo.longitude
+            here.latitude, here.longitude
         );
         let body = http::get_text(&url, 5).await?;
         let forecast: Vec<Downpour> = body.lines().filter_map(downpour).collect();
@@ -432,15 +408,15 @@ pub struct Pollen<A: Allergen> {
 impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<A> {
     type Error = Error;
 
-    type Key = Coordinates;
+    type Key = Position;
 
     const NAME: &'static str = A::SOURCE_NAME;
     const INTERVAL: Duration = Duration::from_mins(30);
 
-    async fn poll(geo: Coordinates) -> Result<Self, Self::Error> {
+    async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
             "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
-            geo.latitude, geo.longitude
+            here.latitude, here.longitude
         );
         let air: AirQuality = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         Ok(Pollen {
@@ -457,8 +433,8 @@ pub struct Location {
 }
 
 impl Location {
-    pub fn coordinates(&self) -> Coordinates {
-        Coordinates::from(&self.geo)
+    pub const fn position(&self) -> Position {
+        self.geo.position
     }
 
     pub fn published() -> impl Stream<Item = Result<Self, Error>> {

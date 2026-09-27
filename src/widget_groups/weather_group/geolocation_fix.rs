@@ -1,20 +1,19 @@
-use situo_client::Source as FixSource;
+use situo_client::{Estimate, Origin, Place, Position};
 
 use crate::{
     data::source::weather::Location,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         font_awesome::Solid,
-        tooltip_body::{TooltipBody, row},
+        tooltip_body::{Row, TooltipBody, row},
     },
 };
 
 impl BarWidget for Location {
     fn icon(&self) -> Glyph {
-        if self.geo.source == FixSource::Manual {
-            Solid::LocationPinLock.into()
-        } else {
-            Solid::LocationDot.into()
+        match self.geo.origin {
+            Origin::Manual => Solid::LocationPinLock.into(),
+            Origin::Estimated(_) => Solid::LocationDot.into(),
         }
     }
 
@@ -22,39 +21,64 @@ impl BarWidget for Location {
         Solid::LocationDot.into()
     }
 
+    fn label(&self) -> Option<String> {
+        self.geo.place.as_ref().map(|place| place.name.clone())
+    }
+
     fn tooltip(&self) -> TooltipBody {
-        let dash = |value: &str| {
-            if value.is_empty() {
-                "—".to_string()
-            } else {
-                value.to_string()
-            }
+        let place = self.geo.place.iter().flat_map(place_rows);
+        let estimate = match &self.geo.origin {
+            Origin::Manual => Vec::new(),
+            Origin::Estimated(estimate) => estimate_rows(estimate),
         };
-        TooltipBody::rows(vec![
-            row("Place", dash(&self.geo.place_name)),
-            row("Country", dash(&self.geo.place_country)),
-            row("Distance", distance(self.geo.place_distance_km)),
-            row("Latitude", format!("{:.4}", self.geo.latitude)),
-            row("Longitude", format!("{:.4}", self.geo.longitude)),
-            row("Accuracy", accuracy(self.geo.accuracy)),
-            row("Source", dash(self.geo.source.as_str())),
-            row("Method", dash(&self.geo.description)),
-        ])
+        TooltipBody::rows(
+            place
+                .chain(position_rows(self.geo.position))
+                .chain(estimate)
+                .chain([row("Source", self.geo.origin.to_string())])
+                .collect(),
+        )
     }
 }
 
-fn distance(km: f64) -> String {
-    if km.is_nan() {
-        "—".to_string()
-    } else {
-        format!("{km:.2} km")
-    }
+fn place_rows(place: &Place) -> [Row; 3] {
+    [
+        row("Place", place.name.clone()),
+        row("Country", place.country.clone()),
+        row("Distance", format!("{:.2} km", place.distance_km)),
+    ]
+}
+
+fn position_rows(position: Position) -> [Row; 2] {
+    [
+        row("Latitude", format!("{:.4}", position.latitude)),
+        row("Longitude", format!("{:.4}", position.longitude)),
+    ]
+}
+
+fn estimate_rows(estimate: &Estimate) -> Vec<Row> {
+    let observations = estimate.observations;
+    vec![
+        row("Accuracy", accuracy(estimate.accuracy_metres)),
+        row(
+            "Access points",
+            format!(
+                "{} seen, {} submitted",
+                observations.access_points_seen, observations.access_points_submitted
+            ),
+        ),
+        row(
+            "Cells",
+            format!(
+                "{} seen, {} submitted",
+                observations.cells_seen, observations.cells_submitted
+            ),
+        ),
+    ]
 }
 
 fn accuracy(metres: f64) -> String {
-    if metres.is_nan() {
-        "—".to_string()
-    } else if metres < 1000.0 {
+    if metres < 1000.0 {
         format!("{metres:.0} m")
     } else {
         format!("{:.1} km", metres / 1000.0)
