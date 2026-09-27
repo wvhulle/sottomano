@@ -54,7 +54,7 @@ impl WeatherGroup {
             polling::<Rain>(()).map(WeatherMessage::Rain),
             polling::<Pollen<Birch>>(()).map(WeatherMessage::Birch),
             polling::<Pollen<Grass>>(()).map(WeatherMessage::Grass),
-            polling::<Location>(()).map(WeatherMessage::Location),
+            Subscription::run(Location::published).map(WeatherMessage::Location),
         ])
     }
 
@@ -81,7 +81,7 @@ impl WeatherGroup {
             HoverTarget::WeatherRain => self.rain.tooltip(),
             HoverTarget::PollenBirch => self.birch.tooltip(),
             HoverTarget::PollenGrass => self.grass.tooltip(),
-            HoverTarget::Location => self.location.tooltip(),
+            HoverTarget::Location => self.location.live_tooltip(),
             _ => None,
         }
     }
