@@ -14,6 +14,7 @@ pub mod gauge;
 pub mod idle;
 pub mod inline_slider;
 pub mod last_poll;
+pub mod localized_time;
 pub mod menu_group;
 pub mod native_icon;
 pub mod overlay_shadow;

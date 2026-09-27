@@ -4,12 +4,14 @@ use std::{
     process,
 };
 
+use chrono::Locale;
 use serde::Deserialize;
 use toml::de;
 
 use super::{
     chrome::Chrome,
     font::{self, FontConfig, UserFont},
+    locale,
     locker::Locker,
     notifications::NotificationConfig,
     palette::Palette,
@@ -32,6 +34,7 @@ pub struct Config {
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_unit: String,
     pub locker: Locker,
+    pub locale: Locale,
     pub secrets: SecretPaths,
 }
 
@@ -57,6 +60,7 @@ struct UserConfig {
     terminal: Vec<String>,
     color_temperature_unit: String,
     locker: Locker,
+    locale: Option<String>,
 }
 
 impl Default for UserConfig {
@@ -73,6 +77,7 @@ impl Default for UserConfig {
             terminal: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_unit: String::from("screen-temperature.service"),
             locker: Locker::default(),
+            locale: None,
         }
     }
 }
@@ -131,6 +136,18 @@ pub fn load() -> Config {
         }
     };
     let secrets = config_home().map(|dir| dir.join("vetrata"));
+    let locale = match user.locale.as_deref().map(str::parse::<Locale>) {
+        None => locale::from_environment(),
+        Some(Ok(configured)) => configured,
+        Some(Err(_)) => {
+            tracing::warn!(
+                "invalid configuration {}: unknown locale {:?}",
+                path.display(),
+                user.locale
+            );
+            process::exit(1);
+        }
+    };
     Config {
         palette: user.palette,
         chrome: user.chrome,
@@ -143,6 +160,7 @@ pub fn load() -> Config {
         terminal_command_prefix: user.terminal,
         color_temperature_unit: user.color_temperature_unit,
         locker: user.locker,
+        locale,
         secrets: SecretPaths {
             openrouter_management: secrets
                 .as_ref()

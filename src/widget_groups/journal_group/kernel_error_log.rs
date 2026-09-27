@@ -1,5 +1,3 @@
-use chrono::{DateTime, Local};
-
 use crate::{
     data::source::{
         journal::KernelSeverity,
@@ -8,6 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
         font_awesome::Brands,
+        localized_time::TimePart,
         tooltip_body::{Cell, TableRow, TooltipBody, row, section},
     },
 };
@@ -31,10 +30,11 @@ impl KernelSeverity {
 impl TableRow for KernelOccurrence {
     const HEADINGS: &'static [&'static str] = &[];
 
-    fn key(&self) -> String {
-        DateTime::<Local>::from(self.latest)
-            .format("%H:%M:%S")
-            .to_string()
+    fn key(&self) -> Cell {
+        Cell::Time {
+            at: self.latest.into(),
+            part: TimePart::TimeOfDay,
+        }
     }
 
     fn cells(&self) -> Vec<Cell> {

@@ -3,7 +3,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         font_awesome::Solid,
-        tooltip_body::{TooltipBody, row},
+        localized_time::TimePart,
+        tooltip_body::{Cell, TooltipBody, cells, row},
     },
 };
 
@@ -44,13 +45,15 @@ impl BarWidget for Rain {
         };
         TooltipBody::rows(vec![
             row("Rain", now),
-            row(
+            cells(
                 "Peak",
-                format!(
-                    "{:.1} mm/h at {}",
-                    self.peak.mm_per_h,
-                    self.peak.at.format("%H:%M")
-                ),
+                vec![
+                    format!("{:.1} mm/h", self.peak.mm_per_h).into(),
+                    Cell::Time {
+                        at: self.peak.at.to_utc(),
+                        part: TimePart::TimeOfDay,
+                    },
+                ],
             ),
         ])
     }

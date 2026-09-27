@@ -3,6 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         font_awesome::{FontAwesome, Solid},
+        localized_time::TimePart,
         tooltip_body::{Cell, TableRow, TooltipBody, cells, row, section, table_section, untitled},
     },
 };
@@ -49,8 +50,11 @@ impl BarWidget for Temperature {
 impl TableRow for HourlyTemperature {
     const HEADINGS: &'static [&'static str] = &["Temp", "", "Conditions"];
 
-    fn key(&self) -> String {
-        self.time.format("%H:%M").to_string()
+    fn key(&self) -> Cell {
+        Cell::Time {
+            at: self.time,
+            part: TimePart::TimeOfDay,
+        }
     }
 
     fn cells(&self) -> Vec<Cell> {

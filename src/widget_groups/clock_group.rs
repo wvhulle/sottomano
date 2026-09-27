@@ -10,17 +10,16 @@ use crate::{
     config::Config,
     wayland_layers::surface::Position,
     widgets::{
+        localized_time::TimePart,
         menu_group::{MenuGroup, MenuMessage},
         text::bar_text,
     },
 };
 
-const TIME_FORMAT: &str = "%H:%M:%S";
-const DATE_FORMAT: &str = "%a %d %b";
+const TICK: Duration = Duration::from_secs(1);
 
 pub struct ClockGroup {
-    time_text: String,
-    date_text: String,
+    now: DateTime<Local>,
     pub(crate) menu: MenuGroup,
 }
 
@@ -32,10 +31,8 @@ pub enum ClockMessage {
 
 impl Default for ClockGroup {
     fn default() -> Self {
-        let now = Local::now();
         Self {
-            time_text: now.format(TIME_FORMAT).to_string(),
-            date_text: now.format(DATE_FORMAT).to_string(),
+            now: Local::now(),
             menu: MenuGroup::default(),
         }
     }
@@ -44,10 +41,7 @@ impl Default for ClockGroup {
 impl ClockGroup {
     pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Tick(now) => {
-                self.time_text = now.format(TIME_FORMAT).to_string();
-                self.date_text = now.format(DATE_FORMAT).to_string();
-            }
+            ClockMessage::Tick(now) => self.now = now,
             ClockMessage::Menu(m) => {
                 self.menu.update(m);
             }
@@ -60,7 +54,7 @@ impl ClockGroup {
         Subscription::run(|| {
             stream::channel(1, |mut output: Sender<ClockMessage>| async move {
                 loop {
-                    sleep(until_next_boundary(Local::now(), period(TIME_FORMAT))).await;
+                    sleep(until_next_boundary(Local::now(), TICK)).await;
                     if output.send(ClockMessage::Tick(Local::now())).await.is_err() {
                         return;
                     }
@@ -70,11 +64,20 @@ impl ClockGroup {
     }
 
     pub fn view<'a>(&'a self, config: &'a Config, position: Position) -> Element<'a, ClockMessage> {
-        let face = move || bar_text(&config.font, self.time_text.clone()).into();
+        let face = move || {
+            bar_text(
+                &config.font,
+                TimePart::TimeOfDay.format(&self.now, config.locale),
+            )
+            .into()
+        };
 
         let content = move |_reveal: f32| {
             Row::new()
-                .push(bar_text(&config.font, self.date_text.clone()))
+                .push(bar_text(
+                    &config.font,
+                    TimePart::Date.format(&self.now, config.locale),
+                ))
                 .spacing(config.spacing.widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into()
@@ -83,17 +86,6 @@ impl ClockGroup {
         self.menu
             .slot(face, content, ClockMessage::Menu)
             .view(config, position)
-    }
-}
-
-fn period(format: &str) -> Duration {
-    let has_seconds = ["%S", "%T", "%X", "%r", "%s"]
-        .iter()
-        .any(|spec| format.contains(spec));
-    if has_seconds {
-        Duration::from_secs(1)
-    } else {
-        Duration::from_secs(60)
     }
 }
 

@@ -1,5 +1,9 @@
-use std::{iter::once, time::SystemTime};
+use std::{
+    iter::once,
+    time::{Duration, SystemTime},
+};
 
+use chrono::Locale;
 use iced::{
     Color, Element, Font, Padding,
     alignment::{Horizontal, Vertical},
@@ -19,6 +23,7 @@ use crate::{
         context_menu::context_menu,
         copyable::copyable,
         favicon::Favicons,
+        font_awesome::FontAwesome,
         section_column::section_column,
         text::{LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
@@ -227,23 +232,30 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
+    fn cell_view(&self) -> CellView {
+        CellView {
+            font: self.config.font.clone(),
+            max_width: self.config.widgets.tooltip_value_width_px,
+            locale: self.config.locale,
+            flash: self.flash(),
+        }
+    }
+
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
         let dim = self.dim();
-        let key_font = self.config.font.clone();
-        let value_width = self.config.widgets.tooltip_value_width_px;
+        let cell_view = self.cell_view();
         let widest = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
 
         key_value_table(
             rows.iter().cloned(),
-            move |entry: Row| cell(&key_font, entry.key, dim, value_width).into(),
+            move |entry: Row| cell_view.key(entry.key, dim),
             (0..widest).map(|position| self.cell_column(position, Space::new().into())),
         )
     }
 
     fn headed_table(&self, headings: &[String], rows: &[Row]) -> Element<'static, Message> {
         let dim = self.dim();
-        let key_font = self.config.font.clone();
-        let value_width = self.config.widgets.tooltip_value_width_px;
+        let cell_view = self.cell_view();
         let widest = rows
             .iter()
             .map(|row| row.cells.len())
@@ -254,7 +266,7 @@ impl<'a> TooltipContent<'a> {
 
         key_value_table(
             rows.iter().cloned(),
-            move |entry: Row| cell(&key_font, entry.key, dim, value_width).into(),
+            move |entry: Row| cell_view.key(entry.key, dim),
             (0..widest).map(|position| {
                 let heading = headings.get(position).cloned().unwrap_or_default();
                 self.cell_column(
@@ -273,31 +285,62 @@ impl<'a> TooltipContent<'a> {
     ) -> table::Column<'static, 'static, Row, Message> {
         let palette = self.config.palette.clone();
         let opacity = self.opacity;
-        let flash = self.flash();
-        let font = self.config.font.clone();
-        let value_width = self.config.widgets.tooltip_value_width_px;
+        let cell_view = self.cell_view();
 
         value_column(heading, move |mut entry: Row| {
             if position >= entry.cells.len() {
                 return Space::new().into();
             }
             let foreground = level_color(&palette, entry.level).scale_alpha(opacity);
-            match entry.cells.swap_remove(position) {
-                Cell::Glyph(icon) => icon
-                    .glyph()
-                    .size(font.text_size_px)
-                    .line_height(LINE_HEIGHT)
-                    .color(foreground)
-                    .into(),
-                Cell::Text(text) => {
-                    let value = cell(&font, text.clone(), foreground, value_width);
-                    if text.trim().is_empty() {
-                        return value.into();
-                    }
-                    copyable(value, text, Message::CopyText, flash)
-                }
-            }
+            cell_view.value(entry.cells.swap_remove(position), foreground)
         })
+    }
+}
+
+struct CellView {
+    font: FontConfig,
+    max_width: f32,
+    locale: Locale,
+    flash: Color,
+}
+
+impl CellView {
+    fn key(&self, key: Cell, color: Color) -> Element<'static, Message> {
+        match key {
+            Cell::Glyph(icon) => self.glyph(icon, color),
+            Cell::Text(text) => cell(&self.font, text, color, self.max_width).into(),
+            Cell::Time { at, part } => cell(
+                &self.font,
+                part.format(&at, self.locale),
+                color,
+                self.max_width,
+            )
+            .into(),
+        }
+    }
+
+    fn value(&self, value: Cell, color: Color) -> Element<'static, Message> {
+        match value {
+            Cell::Glyph(icon) => self.glyph(icon, color),
+            Cell::Text(text) => self.copyable_text(text, color),
+            Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
+        }
+    }
+
+    fn glyph(&self, icon: FontAwesome, color: Color) -> Element<'static, Message> {
+        icon.glyph()
+            .size(self.font.text_size_px)
+            .line_height(LINE_HEIGHT)
+            .color(color)
+            .into()
+    }
+
+    fn copyable_text(&self, text: String, color: Color) -> Element<'static, Message> {
+        let value = cell(&self.font, text.clone(), color, self.max_width);
+        if text.trim().is_empty() {
+            return value.into();
+        }
+        copyable(value, text, Message::CopyText, self.flash)
     }
 }
 
@@ -345,43 +388,27 @@ fn footer_text(info: RefreshInfo, now: SystemTime) -> String {
 }
 
 pub fn relative(at: SystemTime, now: SystemTime) -> String {
-    let secs = now.duration_since(at).map_or(0, |d| d.as_secs());
-    match secs {
-        0..=4 => "just now".to_string(),
-        5..=59 => format!("{secs} s ago"),
-        60..=3599 => format!("{} min ago", secs / 60),
-        3600..=86_399 => format!("{} h ago", secs / 3600),
-        _ => format!("{} d ago", secs / 86_400),
-    }
+    let whole_seconds = now.duration_since(at).map_or(0, |age| age.as_secs());
+    format!(
+        "{} ago",
+        humantime::format_duration(Duration::from_secs(whole_seconds))
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
 
-    fn ago(secs: u64) -> String {
+    #[test]
+    fn relative_time_drops_subsecond_precision() {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-        relative(now - Duration::from_secs(secs), now)
+        let at = now - Duration::from_millis(3_723_400);
+        assert_eq!(relative(at, now), "1h 2m 3s ago");
     }
 
     #[test]
-    fn relative_time_buckets() {
-        assert_eq!(ago(0), "just now");
-        assert_eq!(ago(4), "just now");
-        assert_eq!(ago(5), "5 s ago");
-        assert_eq!(ago(59), "59 s ago");
-        assert_eq!(ago(60), "1 min ago");
-        assert_eq!(ago(3599), "59 min ago");
-        assert_eq!(ago(3600), "1 h ago");
-        assert_eq!(ago(86_399), "23 h ago");
-        assert_eq!(ago(86_400), "1 d ago");
-    }
-
-    #[test]
-    fn future_timestamp_is_just_now() {
+    fn future_timestamp_is_zero_seconds_ago() {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-        assert_eq!(relative(now + Duration::from_secs(60), now), "just now");
+        assert_eq!(relative(now + Duration::from_secs(60), now), "0s ago");
     }
 }
