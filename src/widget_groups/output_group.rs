@@ -74,7 +74,7 @@ fn geometry_rows(info: &OutputInfo) -> Vec<Row> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::tooltip_body::{SectionBody, TooltipBody};
+    use crate::widgets::tooltip_body::{Row, SectionBody, TooltipBody, row};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(
@@ -92,7 +92,7 @@ mod tests {
         )])
     }
 
-    fn labelled(tooltip: &Tooltip) -> Vec<(String, String)> {
+    fn labelled(tooltip: &Tooltip) -> Vec<Row> {
         match &tooltip.body {
             TooltipBody::Sections(sections) => sections
                 .iter()
@@ -101,7 +101,7 @@ mod tests {
                     SectionBody::Tree(_) => None,
                 })
                 .flatten()
-                .map(|r| (r.key.clone(), r.value.clone()))
+                .cloned()
                 .collect(),
             _ => panic!("expected sections"),
         }
@@ -110,15 +110,15 @@ mod tests {
     #[test]
     fn placeholder_model_is_not_shown() {
         let rows = labelled(&tooltip(&laptop_panel(), "eDP-1"));
-        assert!(rows.iter().all(|(key, _)| key != "Model"));
+        assert!(rows.iter().all(|row| row.key != "Model"));
         assert_eq!(
             rows,
             [
-                ("Output".to_owned(), "eDP-1".to_owned()),
-                ("Make".to_owned(), "LG Display".to_owned()),
-                ("Resolution".to_owned(), "1920x1200".to_owned()),
-                ("Refresh".to_owned(), "60.00 Hz".to_owned()),
-                ("Scale".to_owned(), "1.20".to_owned()),
+                row("Output", "eDP-1"),
+                row("Make", "LG Display"),
+                row("Resolution", "1920x1200"),
+                row("Refresh", "60.00 Hz"),
+                row("Scale", "1.20"),
             ]
         );
     }
@@ -126,6 +126,6 @@ mod tests {
     #[test]
     fn unknown_output_still_names_the_connector() {
         let rows = labelled(&tooltip(&HashMap::new(), "DP-2"));
-        assert_eq!(rows, [("Output".to_owned(), "DP-2".to_owned())]);
+        assert_eq!(rows, [row("Output", "DP-2")]);
     }
 }

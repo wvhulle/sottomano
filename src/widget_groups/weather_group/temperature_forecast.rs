@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         font_awesome::{FontAwesome, Solid},
-        tooltip_body::{Row, TooltipBody, row, section, untitled},
+        tooltip_body::{Cell, Row, TooltipBody, cells, row, section, untitled},
     },
 };
 
@@ -22,7 +22,13 @@ impl BarWidget for Temperature {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::Sections(vec![
-            untitled(vec![row("Conditions", wmo_description(self.weather_code))]),
+            untitled(vec![cells(
+                "Conditions",
+                vec![
+                    Cell::Glyph(wmo_icon(self.weather_code)),
+                    Cell::Text(wmo_description(self.weather_code).into()),
+                ],
+            )]),
             section(
                 "Temperature",
                 vec![
@@ -56,9 +62,13 @@ impl BarWidget for Temperature {
 
 impl HourlyTemperature {
     fn row(&self) -> Row {
-        row(
+        cells(
             &self.time.format("%H:%M").to_string(),
-            format!("{}°C  {}", self.temp, wmo_description(self.weather_code)),
+            vec![
+                Cell::Text(format!("{}°C", self.temp)),
+                Cell::Glyph(wmo_icon(self.weather_code)),
+                Cell::Text(wmo_description(self.weather_code).into()),
+            ],
         )
     }
 }
