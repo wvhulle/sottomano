@@ -4,22 +4,27 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use chrono::{DateTime, Utc};
 use iced::Size;
 
 use crate::{
     data::source::{process::Process, tray::MenuNode},
-    widgets::{bar_widget::Level, font_awesome::FontAwesome, window_title::TitleRun},
+    widgets::{
+        bar_widget::Level, font_awesome::FontAwesome, localized_time::TimePart,
+        window_title::TitleRun,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cell {
     Text(String),
     Glyph(FontAwesome),
+    Time { at: DateTime<Utc>, part: TimePart },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
-    pub key: String,
+    pub key: Cell,
     pub cells: Vec<Cell>,
     pub level: Level,
 }
@@ -44,7 +49,7 @@ impl From<FontAwesome> for Cell {
 
 pub trait TableRow {
     const HEADINGS: &'static [&'static str];
-    fn key(&self) -> String;
+    fn key(&self) -> Cell;
     fn cells(&self) -> Vec<Cell>;
 
     fn level(&self) -> Level {
@@ -63,7 +68,7 @@ pub trait TableRow {
 impl<R: TableRow> TableRow for &R {
     const HEADINGS: &'static [&'static str] = R::HEADINGS;
 
-    fn key(&self) -> String {
+    fn key(&self) -> Cell {
         (*self).key()
     }
 
@@ -89,10 +94,14 @@ pub fn row(key: &str, value: impl Into<String>) -> Row {
 
 pub fn cells(key: &str, cells: Vec<Cell>) -> Row {
     Row {
-        key: key.to_string(),
+        key: key.into(),
         cells,
         level: Level::Ok,
     }
+}
+
+pub fn time_row(key: &str, at: DateTime<Utc>, part: TimePart) -> Row {
+    cells(key, vec![Cell::Time { at, part }])
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -258,8 +267,8 @@ mod tests {
     impl TableRow for Planet {
         const HEADINGS: &'static [&'static str] = &["Moons", ""];
 
-        fn key(&self) -> String {
-            self.name.to_string()
+        fn key(&self) -> Cell {
+            self.name.into()
         }
 
         fn cells(&self) -> Vec<Cell> {

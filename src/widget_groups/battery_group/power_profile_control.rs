@@ -225,11 +225,11 @@ struct ProfileLife {
 impl TableRow for ProfileLife {
     const HEADINGS: &'static [&'static str] = &["Median", "Earliest", "Latest"];
 
-    fn key(&self) -> String {
+    fn key(&self) -> Cell {
         if self.active {
-            format!("{} (active)", self.profile.title())
+            format!("{} (active)", self.profile.title()).into()
         } else {
-            self.profile.title().to_string()
+            self.profile.title().into()
         }
     }
 

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeDelta, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use situo_client::Position;
 
 use crate::{
@@ -7,7 +7,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         font_awesome::Solid,
-        tooltip_body::{TooltipBody, row},
+        localized_time::TimePart,
+        tooltip_body::{TooltipBody, row, time_row},
     },
 };
 
@@ -144,19 +145,17 @@ impl BarWidget for AutoSwitchToggle {
             .offset_for_mode(switch.target_mode);
         TooltipBody::rows(vec![
             auto,
-            row(
+            time_row(
                 switch.target_mode.sun_event_label(),
-                format_local_clock_time(switch.switch_time - offset),
+                switch.switch_time - offset,
+                TimePart::TimeOfDay,
             ),
             row("Offset", format_offset_minutes(offset)),
-            row(
+            time_row(
                 &format!("Switch to {}", switch.target_mode.umbra_name()),
-                format_local_clock_time(switch.switch_time),
+                switch.switch_time,
+                TimePart::TimeOfDay,
             ),
         ])
     }
-}
-
-fn format_local_clock_time(at: DateTime<Utc>) -> String {
-    at.with_timezone(&Local).format("%H:%M").to_string()
 }

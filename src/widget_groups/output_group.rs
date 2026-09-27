@@ -74,7 +74,7 @@ fn geometry_rows(info: &OutputInfo) -> Vec<Row> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::tooltip_body::{Row, SectionBody, TooltipBody, row};
+    use crate::widgets::tooltip_body::{Cell, Row, SectionBody, TooltipBody, row};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn placeholder_model_is_not_shown() {
         let rows = labelled(&tooltip(&laptop_panel(), "eDP-1"));
-        assert!(rows.iter().all(|row| row.key != "Model"));
+        assert!(rows.iter().all(|row| row.key != Cell::from("Model")));
         assert_eq!(
             rows,
             [

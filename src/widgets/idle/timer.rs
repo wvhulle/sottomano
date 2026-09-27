@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Utc};
 use iced::{Alignment, Element, widget::Row};
 
 use crate::{
@@ -13,15 +13,16 @@ use crate::{
         idle::{
             IdleAction, IdleTrigger, MAX_POSITION, from_position, label_at, label_for, position,
         },
+        localized_time::TimePart,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Tooltip, row},
+        tooltip_body::{Tooltip, row, time_row},
     },
 };
 
 const READOUT_WIDTH: f32 = 30.0;
 
-fn fire_time(timeout: Duration) -> DateTime<Local> {
-    Local::now() + chrono::Duration::from_std(timeout).unwrap_or_default()
+fn fire_time(timeout: Duration) -> DateTime<Utc> {
+    Utc::now() + chrono::Duration::from_std(timeout).unwrap_or_default()
 }
 
 #[derive(Debug, Clone)]
@@ -122,9 +123,10 @@ impl IdleTimer {
     pub fn tooltip(&self) -> Tooltip {
         let when = match from_position(self.control.current()) {
             None => row("State", "disabled"),
-            Some(timeout) => row(
+            Some(timeout) => time_row(
                 &format!("{} at", self.action.verb()),
-                fire_time(timeout).format("%H:%M").to_string(),
+                fire_time(timeout),
+                TimePart::TimeOfDay,
             ),
         };
         Tooltip::table(vec![when, row("Via", self.action.mechanism())])

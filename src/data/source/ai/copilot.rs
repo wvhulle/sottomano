@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::DateTime;
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
 
 use crate::data::source::{
@@ -154,7 +154,7 @@ pub struct CopilotMetered {
     pub limit: i64,
     pub remaining: i64,
     pub percent_used: i64,
-    pub reset: Option<String>,
+    pub reset: Option<DateTime<Utc>>,
 }
 
 impl Source for CopilotMetered {
@@ -188,7 +188,7 @@ pub struct CopilotFree {
     pub plan: String,
     pub chat: i64,
     pub completions: i64,
-    pub reset: Option<String>,
+    pub reset: Option<DateTime<Utc>>,
 }
 
 impl Source for CopilotFree {
@@ -212,7 +212,7 @@ impl Source for CopilotFree {
             reset: info
                 .limited_user_reset_date
                 .filter(|epoch| *epoch > 0)
-                .and_then(format_epoch),
+                .and_then(|epoch| DateTime::from_timestamp(epoch, 0)),
         })
     }
 }
@@ -251,15 +251,15 @@ impl Source for CopilotCcusage {
     }
 }
 
-fn quota_reset(info: &UserInfo) -> Option<String> {
-    [
-        info.quota_reset_date_utc.as_ref(),
-        info.quota_reset_date.as_ref(),
-    ]
-    .into_iter()
-    .flatten()
-    .find(|date| !date.is_empty())
-    .map(ToOwned::to_owned)
+fn quota_reset(info: &UserInfo) -> Option<DateTime<Utc>> {
+    let instant = info
+        .quota_reset_date_utc
+        .as_deref()
+        .and_then(|at| at.parse().ok());
+    instant.or_else(|| {
+        let date: NaiveDate = info.quota_reset_date.as_deref()?.parse().ok()?;
+        Some(date.and_time(NaiveTime::MIN).and_utc())
+    })
 }
 
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {
@@ -275,10 +275,6 @@ async fn user_info(key: &Path) -> Result<UserInfo, Error> {
         10,
     )
     .await?)
-}
-
-fn format_epoch(epoch: i64) -> Option<String> {
-    DateTime::from_timestamp(epoch, 0).map(|at| at.format("%Y-%m-%d").to_string())
 }
 
 #[cfg(test)]
@@ -322,7 +318,10 @@ mod tests {
         assert_eq!(label, "Chat");
         assert_eq!(snapshot.entitlement, 200);
         assert_eq!(snapshot.percent_used(), 25);
-        assert_eq!(quota_reset(&info).as_deref(), Some("2026-09-01T00:00:00Z"));
+        assert_eq!(
+            quota_reset(&info),
+            "2026-09-01T00:00:00Z".parse::<DateTime<Utc>>().ok()
+        );
     }
 
     #[test]

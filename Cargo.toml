@@ -15,6 +15,7 @@ needless_for_each = "allow"
 chrono = { version = "0.4", default-features = false, features = [
   "clock",
   "std",
+  "unstable-locales",
 ] }
 form_urlencoded = "1.2"
 color = { version = "0.3.3", features = ["serde"] }

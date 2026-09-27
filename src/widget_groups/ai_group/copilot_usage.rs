@@ -1,10 +1,13 @@
+use chrono::{DateTime, Utc};
+
 use crate::{
     data::source::ai::copilot::{CopilotCcusage, CopilotFree, CopilotMetered},
     widget_groups::ai_group::spend_to_level::{level_from_cost, level_from_used},
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Occasional, Unit, Value},
+        localized_time::TimePart,
         simple_icons::SimpleIcon,
-        tooltip_body::{Row, TooltipBody, row},
+        tooltip_body::{Row, TooltipBody, row, time_row},
     },
 };
 
@@ -35,7 +38,7 @@ impl BarWidget for CopilotMetered {
             row("Limit", self.limit.to_string()),
             row("Remaining", self.remaining.to_string()),
         ];
-        rows.extend(reset_row(self.reset.as_ref()));
+        rows.extend(reset_row(self.reset));
         TooltipBody::rows(rows)
     }
 }
@@ -72,7 +75,7 @@ impl BarWidget for CopilotFree {
             row("Chat", self.chat.to_string()),
             row("Completions", self.completions.to_string()),
         ];
-        rows.extend(reset_row(self.reset.as_ref()));
+        rows.extend(reset_row(self.reset));
         TooltipBody::rows(rows)
     }
 }
@@ -115,6 +118,6 @@ impl Occasional for CopilotCcusage {
     }
 }
 
-fn reset_row(reset: Option<&String>) -> Option<Row> {
-    reset.map(|reset| row("Resets", reset.clone()))
+fn reset_row(reset: Option<DateTime<Utc>>) -> Option<Row> {
+    reset.map(|reset| time_row("Resets", reset, TimePart::Date))
 }

@@ -5,13 +5,14 @@ use std::{
 
 use iced::futures::{
     Stream, StreamExt,
+    future::join_all,
     stream::{self, BoxStream},
 };
 use serde::Deserialize;
 use systemd::journal::{Journal, JournalRecord, OpenOptions};
-use tokio::{sync::mpsc, task::spawn_blocking};
+use tokio::sync::mpsc;
 use zbus::{
-    blocking, message, proxy,
+    message, proxy,
     proxy::CacheProperties,
     zvariant::{OwnedObjectPath, Type},
 };
@@ -116,7 +117,8 @@ fn horizon_cutoff_usec() -> Option<u64> {
 #[proxy(
     interface = "org.freedesktop.systemd1.Manager",
     default_service = "org.freedesktop.systemd1",
-    default_path = "/org/freedesktop/systemd1"
+    default_path = "/org/freedesktop/systemd1",
+    gen_blocking = false
 )]
 trait Manager {
     fn list_units_filtered(&self, states: &[&str]) -> zbus::Result<Vec<UnitRow>>;
@@ -125,7 +127,8 @@ trait Manager {
 
 #[proxy(
     interface = "org.freedesktop.systemd1.Unit",
-    default_service = "org.freedesktop.systemd1"
+    default_service = "org.freedesktop.systemd1",
+    gen_blocking = false
 )]
 trait Unit {
     #[zbus(property)]
@@ -134,7 +137,8 @@ trait Unit {
 
 #[proxy(
     interface = "org.freedesktop.systemd1.Service",
-    default_service = "org.freedesktop.systemd1"
+    default_service = "org.freedesktop.systemd1",
+    gen_blocking = false
 )]
 trait Service {
     #[zbus(property)]
@@ -178,9 +182,14 @@ async fn watch_failed(user: bool) -> BoxStream<'static, Vec<FailedUnitInfo>> {
             return stream::empty().boxed();
         }
     };
-    if let Ok(manager) = ManagerProxy::new(&connection).await
-        && let Err(e) = manager.subscribe().await
-    {
+    let manager = match ManagerProxy::new(&connection).await {
+        Ok(manager) => manager,
+        Err(e) => {
+            tracing::warn!("journal: systemd manager proxy failed: {e}");
+            return stream::empty().boxed();
+        }
+    };
+    if let Err(e) = manager.subscribe().await {
         tracing::warn!("journal: systemd subscribe failed: {e}");
     }
     let signals = match systemd_signals(&connection).await {
@@ -190,8 +199,8 @@ async fn watch_failed(user: bool) -> BoxStream<'static, Vec<FailedUnitInfo>> {
             return stream::empty().boxed();
         }
     };
-    let initial = stream::once(failed_units_off_thread(user));
-    let updates = signals.then(move |()| failed_units_off_thread(user));
+    let initial = stream::once(failed_units(manager.clone()));
+    let updates = signals.then(move |()| failed_units(manager.clone()));
     initial.chain(updates).boxed()
 }
 
@@ -214,36 +223,22 @@ async fn systemd_signals(
     Ok(stream.ready_chunks(64).map(|_| ()))
 }
 
-async fn failed_units_off_thread(user: bool) -> Vec<FailedUnitInfo> {
-    spawn_blocking(move || failed_units(user))
-        .await
-        .unwrap_or_default()
-}
-
-fn failed_units(user: bool) -> Vec<FailedUnitInfo> {
-    let connection = if user {
-        blocking::Connection::session()
-    } else {
-        blocking::Connection::system()
-    };
-    let Ok(connection) = connection else {
-        return Vec::new();
-    };
-    let Ok(manager) = ManagerProxyBlocking::new(&connection) else {
-        return Vec::new();
-    };
-    let Ok(rows) = manager.list_units_filtered(&["failed"]) else {
+async fn failed_units(manager: ManagerProxy<'static>) -> Vec<FailedUnitInfo> {
+    let Ok(rows) = manager.list_units_filtered(&["failed"]).await else {
         return Vec::new();
     };
     let uptime = uptime();
     let now = SystemTime::now();
-    rows.into_iter()
-        .map(|row| failed_unit(&connection, row, uptime, now))
-        .collect()
+    let connection = manager.inner().connection();
+    join_all(
+        rows.into_iter()
+            .map(|row| failed_unit(connection, row, uptime, now)),
+    )
+    .await
 }
 
-fn failed_unit(
-    connection: &blocking::Connection,
+async fn failed_unit(
+    connection: &zbus::Connection,
     row: UnitRow,
     uptime: Option<Duration>,
     now: SystemTime,
@@ -252,7 +247,9 @@ fn failed_unit(
         result,
         status,
         changed_us,
-    } = details(connection, &row.unit_path);
+    } = details(connection, row.unit_path)
+        .await
+        .unwrap_or_else(|_| UnitDetails::unknown());
     FailedUnitInfo {
         name: row.name,
         result,
@@ -275,30 +272,39 @@ struct UnitDetails {
     changed_us: u64,
 }
 
-fn details(connection: &blocking::Connection, path: &OwnedObjectPath) -> UnitDetails {
-    let unit = UnitProxyBlocking::builder(connection)
-        .path(path.clone())
-        .ok()
-        .and_then(|builder| builder.cache_properties(CacheProperties::No).build().ok());
-    let service = ServiceProxyBlocking::builder(connection)
-        .path(path.clone())
-        .ok()
-        .and_then(|builder| builder.cache_properties(CacheProperties::No).build().ok());
-    let changed_us = unit
-        .and_then(|unit| unit.state_change_timestamp_monotonic().ok())
-        .unwrap_or(0);
-    let result = service
-        .as_ref()
-        .and_then(|service| service.result().ok())
-        .unwrap_or_else(|| "failed".to_string());
-    let status = service
-        .and_then(|service| service.exec_main_status().ok())
-        .unwrap_or(0);
-    UnitDetails {
-        result,
-        status,
-        changed_us,
+impl UnitDetails {
+    fn unknown() -> Self {
+        Self {
+            result: "failed".to_string(),
+            status: 0,
+            changed_us: 0,
+        }
     }
+}
+
+async fn details(
+    connection: &zbus::Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<UnitDetails> {
+    let unit = UnitProxy::builder(connection)
+        .path(path.clone())?
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let service = ServiceProxy::builder(connection)
+        .path(path)?
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let unknown = UnitDetails::unknown();
+    Ok(UnitDetails {
+        result: service.result().await.unwrap_or(unknown.result),
+        status: service.exec_main_status().await.unwrap_or(unknown.status),
+        changed_us: unit
+            .state_change_timestamp_monotonic()
+            .await
+            .unwrap_or(unknown.changed_us),
+    })
 }
 
 fn uptime() -> Option<Duration> {

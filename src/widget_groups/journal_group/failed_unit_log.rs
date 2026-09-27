@@ -1,14 +1,14 @@
-use std::{cmp::Reverse, time::SystemTime};
+use std::cmp::Reverse;
 
 use crate::{
     data::source::{
         journal::FailedUnitInfo,
         systemd_failed::{Failed, JournalScope, System, User},
     },
-    wayland_layers::tooltip::relative,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
         font_awesome::Solid,
+        localized_time::TimePart,
         tooltip_body::{Cell, TableRow, TooltipBody, table_section},
     },
 };
@@ -78,18 +78,21 @@ struct FailedUnitRow<'a> {
 impl TableRow for FailedUnitRow<'_> {
     const HEADINGS: &'static [&'static str] = &["Reason", "Failed"];
 
-    fn key(&self) -> String {
-        self.unit.name.clone()
+    fn key(&self) -> Cell {
+        self.unit.name.clone().into()
     }
 
     fn cells(&self) -> Vec<Cell> {
         let failed = self.unit.at.map_or_else(
-            || "unknown".to_string(),
-            |at| relative(at, SystemTime::now()),
+            || "unknown".into(),
+            |at| Cell::Time {
+                at: at.into(),
+                part: TimePart::DateAndTime,
+            },
         );
         vec![
             describe_failure(&self.unit.result, self.unit.status).into(),
-            failed.into(),
+            failed,
         ]
     }
 
@@ -114,7 +117,7 @@ fn describe_failure(result: &str, status: i32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     use super::*;
     use crate::widgets::tooltip_body::{Section, SectionBody};
@@ -128,11 +131,11 @@ mod tests {
         }
     }
 
-    fn section_keys(section: &Section) -> Vec<&str> {
+    fn section_keys(section: &Section) -> Vec<Cell> {
         let SectionBody::Columns { rows, .. } = &section.body else {
             panic!("expected a table");
         };
-        rows.iter().map(|row| row.key.as_str()).collect()
+        rows.iter().map(|row| row.key.clone()).collect()
     }
 
     #[test]
@@ -158,6 +161,7 @@ mod tests {
                 "older.service",
                 "undated.service"
             ]
+            .map(Cell::from)
         );
     }
 }

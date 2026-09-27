@@ -5,9 +5,9 @@ use std::{
     time::Duration,
 };
 
-use chrono::{NaiveDateTime, NaiveTime, TimeDelta};
+use chrono::{DateTime, Local, NaiveTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt};
-use serde::{Deserialize, Deserializer, de::Error as _};
+use serde::{Deserialize, Deserializer, de::Error as DeserializeError};
 use situo_client::{Fix, Position, fix_updates};
 
 use crate::data::source::{Source, http};
@@ -49,22 +49,23 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-const OPEN_METEO_TIME_FORMAT: &str = "%Y-%m-%dT%H:%M";
 const BUIENRADAR_TIME_FORMAT: &str = "%H:%M";
 
-fn open_meteo_time<'de, D: Deserializer<'de>>(deserializer: D) -> Result<NaiveDateTime, D::Error> {
-    let text = String::deserialize(deserializer)?;
-    NaiveDateTime::parse_from_str(&text, OPEN_METEO_TIME_FORMAT).map_err(D::Error::custom)
+fn unix_instant<E: DeserializeError>(seconds: i64) -> Result<DateTime<Utc>, E> {
+    DateTime::from_timestamp(seconds, 0).ok_or_else(|| E::custom("timestamp out of range"))
+}
+
+fn open_meteo_time<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>, D::Error> {
+    unix_instant(i64::deserialize(deserializer)?)
 }
 
 fn open_meteo_times<'de, D: Deserializer<'de>>(
     deserializer: D,
-) -> Result<Vec<NaiveDateTime>, D::Error> {
-    Vec::<String>::deserialize(deserializer)?
-        .iter()
-        .map(|text| NaiveDateTime::parse_from_str(text, OPEN_METEO_TIME_FORMAT))
-        .collect::<Result<_, _>>()
-        .map_err(D::Error::custom)
+) -> Result<Vec<DateTime<Utc>>, D::Error> {
+    Vec::<i64>::deserialize(deserializer)?
+        .into_iter()
+        .map(unix_instant)
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -77,7 +78,7 @@ struct TemperatureForecast {
 #[derive(Deserialize)]
 struct CurrentTemperature {
     #[serde(deserialize_with = "open_meteo_time")]
-    time: NaiveDateTime,
+    time: DateTime<Utc>,
     temperature_2m: f64,
     apparent_temperature: f64,
     relative_humidity_2m: f64,
@@ -93,13 +94,13 @@ struct DailyTemperature {
 #[derive(Deserialize)]
 struct HourlyTemperatures {
     #[serde(deserialize_with = "open_meteo_times")]
-    time: Vec<NaiveDateTime>,
+    time: Vec<DateTime<Utc>>,
     temperature_2m: Vec<f64>,
     weather_code: Vec<i64>,
 }
 
 impl HourlyTemperatures {
-    fn split_at(self, now: NaiveDateTime) -> HourlyForecast {
+    fn split_at(self, now: DateTime<Utc>) -> HourlyForecast {
         let (earlier, later) = self
             .time
             .into_iter()
@@ -187,7 +188,7 @@ pub struct HourlyForecast {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HourlyTemperature {
-    pub time: NaiveDateTime,
+    pub time: DateTime<Utc>,
     pub temp: f64,
     pub weather_code: i64,
 }
@@ -202,7 +203,7 @@ impl Source for Temperature {
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto",
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
             here.latitude, here.longitude
         );
         let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
@@ -262,7 +263,7 @@ pub struct Rain {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Downpour {
     pub mm_per_h: f64,
-    pub at: NaiveTime,
+    pub at: DateTime<Local>,
 }
 
 impl Downpour {
@@ -296,7 +297,7 @@ impl RainOutlook {
             .iter()
             .find(|downpour| downpour.is_wet())
             .map_or(RainOutlook::Dry, |first_wet| {
-                RainOutlook::StartsIn(time_between(now.at, first_wet.at))
+                RainOutlook::StartsIn(first_wet.at - now.at)
             })
     }
 
@@ -307,20 +308,19 @@ impl RainOutlook {
             .map_or_else(
                 || {
                     let horizon = later.last().unwrap_or(now);
-                    RainOutlook::OutlastsForecast(time_between(now.at, horizon.at))
+                    RainOutlook::OutlastsForecast(horizon.at - now.at)
                 },
-                |first_dry| RainOutlook::StopsIn(time_between(now.at, first_dry.at)),
+                |first_dry| RainOutlook::StopsIn(first_dry.at - now.at),
             )
     }
 }
 
-fn time_between(earlier: NaiveTime, later: NaiveTime) -> TimeDelta {
-    let elapsed = later - earlier;
-    if elapsed < TimeDelta::zero() {
-        elapsed + TimeDelta::days(1)
-    } else {
-        elapsed
-    }
+fn nearest_occurrence(clock: NaiveTime, now: DateTime<Local>) -> Option<DateTime<Local>> {
+    [-1, 0, 1]
+        .into_iter()
+        .filter_map(|days| now.date_naive().checked_add_signed(TimeDelta::days(days)))
+        .filter_map(|date| date.and_time(clock).and_local_timezone(Local).earliest())
+        .min_by_key(|candidate| (*candidate - now).abs())
 }
 
 fn buienradar_mm(value: f64) -> f64 {
@@ -331,11 +331,12 @@ fn buienradar_mm(value: f64) -> f64 {
     }
 }
 
-fn downpour(line: &str) -> Option<Downpour> {
-    let (intensity, at) = line.split_once('|')?;
+fn downpour(line: &str, now: DateTime<Local>) -> Option<Downpour> {
+    let (intensity, clock) = line.split_once('|')?;
+    let clock = NaiveTime::parse_from_str(clock.trim(), BUIENRADAR_TIME_FORMAT).ok()?;
     Some(Downpour {
         mm_per_h: buienradar_mm(intensity.trim().parse().ok()?),
-        at: NaiveTime::parse_from_str(at.trim(), BUIENRADAR_TIME_FORMAT).ok()?,
+        at: nearest_occurrence(clock, now)?,
     })
 }
 
@@ -353,7 +354,11 @@ impl Source for Rain {
             here.latitude, here.longitude
         );
         let body = http::get_text(&url, 5).await?;
-        let forecast: Vec<Downpour> = body.lines().filter_map(downpour).collect();
+        let now = Local::now();
+        let forecast: Vec<Downpour> = body
+            .lines()
+            .filter_map(|line| downpour(line, now))
+            .collect();
         let peak = forecast
             .iter()
             .max_by(|earlier, later| earlier.mm_per_h.total_cmp(&later.mm_per_h))
@@ -443,6 +448,8 @@ impl Location {
 }
 #[cfg(test)]
 mod tests {
+    use chrono::TimeZone;
+
     use super::*;
 
     const AIR_QUALITY: &str = r#"{
@@ -476,40 +483,60 @@ mod tests {
     fn hourly_temperatures_split_around_now() {
         let hourly: HourlyTemperatures = serde_json::from_str(
             r#"{
-                "time": ["2026-09-27T08:00", "2026-09-27T09:00", "2026-09-27T10:00"],
+                "time": [1790496000, 1790499600, 1790503200],
                 "temperature_2m": [13.2, 13.8, 15.6],
                 "weather_code": [1, 3, 0]
             }"#,
         )
         .unwrap();
-        let now =
-            NaiveDateTime::parse_from_str("2026-09-27T09:45", OPEN_METEO_TIME_FORMAT).unwrap();
+        let now = "2026-09-27T09:45:00Z".parse().unwrap();
         let forecast = hourly.split_at(now);
         assert_eq!(forecast.earlier.len(), 2);
         assert_eq!(
-            forecast.earlier[1].time.format("%H:%M").to_string(),
-            "09:00"
+            forecast.earlier[1].time,
+            "2026-09-27T09:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
         assert_eq!(forecast.later.len(), 1);
         assert_eq!(forecast.later[0].weather_code, 0);
     }
 
-    #[test]
-    fn rain_lines_decode_into_downpours() {
-        assert_eq!(
-            downpour("087|09:10").map(|rain| rain.at),
-            NaiveTime::from_hms_opt(9, 10, 0)
-        );
-        assert!(downpour("087|9h10").is_none());
+    fn september_27_at(hour: u32, minute: u32) -> DateTime<Local> {
+        Local
+            .with_ymd_and_hms(2026, 9, 27, hour, minute, 0)
+            .single()
+            .unwrap()
     }
 
-    fn rain_forecast(lines: &[&str]) -> Vec<Downpour> {
-        lines.iter().copied().filter_map(downpour).collect()
+    #[test]
+    fn rain_lines_decode_into_downpours() {
+        let now = september_27_at(9, 5);
+        assert_eq!(
+            downpour("087|09:10", now).map(|rain| rain.at),
+            Some(september_27_at(9, 10))
+        );
+        assert!(downpour("087|9h10", now).is_none());
+    }
+
+    #[test]
+    fn clock_times_past_midnight_belong_to_the_next_day() {
+        let now = september_27_at(23, 55);
+        let after_midnight = downpour("000|00:05", now).unwrap().at;
+        assert_eq!(after_midnight - now, TimeDelta::minutes(10));
+    }
+
+    fn rain_forecast(now: DateTime<Local>, lines: &[&str]) -> Vec<Downpour> {
+        lines
+            .iter()
+            .filter_map(|line| downpour(line, now))
+            .collect()
     }
 
     #[test]
     fn dry_spell_counts_down_to_the_first_rain() {
-        let forecast = rain_forecast(&["000|11:00", "000|11:05", "077|11:10", "000|11:15"]);
+        let forecast = rain_forecast(
+            september_27_at(11, 0),
+            &["000|11:00", "000|11:05", "077|11:10", "000|11:15"],
+        );
         assert_eq!(
             RainOutlook::of(&forecast),
             RainOutlook::StartsIn(TimeDelta::minutes(10))
@@ -518,7 +545,10 @@ mod tests {
 
     #[test]
     fn ongoing_rain_counts_down_to_the_first_dry_moment() {
-        let forecast = rain_forecast(&["077|23:50", "077|23:55", "000|00:00"]);
+        let forecast = rain_forecast(
+            september_27_at(23, 50),
+            &["077|23:50", "077|23:55", "000|00:00"],
+        );
         assert_eq!(
             RainOutlook::of(&forecast),
             RainOutlook::StopsIn(TimeDelta::minutes(10))
@@ -527,7 +557,7 @@ mod tests {
 
     #[test]
     fn rain_through_the_whole_forecast_outlasts_it() {
-        let forecast = rain_forecast(&["077|11:00", "077|11:05"]);
+        let forecast = rain_forecast(september_27_at(11, 0), &["077|11:00", "077|11:05"]);
         assert_eq!(
             RainOutlook::of(&forecast),
             RainOutlook::OutlastsForecast(TimeDelta::minutes(5))
@@ -536,7 +566,7 @@ mod tests {
 
     #[test]
     fn no_rain_in_the_forecast_is_dry() {
-        let forecast = rain_forecast(&["000|11:00", "000|11:05"]);
+        let forecast = rain_forecast(september_27_at(11, 0), &["000|11:00", "000|11:05"]);
         assert_eq!(RainOutlook::of(&forecast), RainOutlook::Dry);
     }
 }
