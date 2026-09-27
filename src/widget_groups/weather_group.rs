@@ -49,7 +49,7 @@ pub enum WeatherMessage {
 impl WeatherGroup {
     pub fn subscription(&self) -> Subscription<WeatherMessage> {
         let location = Subscription::run(Location::published).map(WeatherMessage::Location);
-        let Some(here) = self.location.get().map(Location::coordinates) else {
+        let Some(here) = self.location.get().map(Location::position) else {
             return location;
         };
         Subscription::batch([
