@@ -5,8 +5,9 @@ use std::{
     time::Duration,
 };
 
+use iced::futures::{Stream, StreamExt};
 use serde::Deserialize;
-use situo_client::{Fix, Locate};
+use situo_client::{Fix, Locate, fix_updates};
 use zbus::Connection as SessionBus;
 
 use crate::data::source::{Source, http};
@@ -14,8 +15,7 @@ use crate::data::source::{Source, http};
 #[derive(Debug, Clone)]
 pub enum Error {
     Bus(String),
-    Locate(String),
-    NoFix,
+    Situo(situo_client::Error),
     Fetch(http::Error),
     Decode(Arc<serde_json::Error>),
     Malformed,
@@ -25,8 +25,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Error::Bus(detail) => write!(f, "session bus: {detail}"),
-            Error::Locate(detail) => write!(f, "geolocation: {detail}"),
-            Error::NoFix => write!(f, "no location fix"),
+            Error::Situo(error) => write!(f, "geolocation: {error}"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Malformed => write!(f, "unexpected response shape"),
@@ -37,6 +36,12 @@ impl Display for Error {
 impl From<zbus::Error> for Error {
     fn from(error: zbus::Error) -> Self {
         Error::Bus(error.to_string())
+    }
+}
+
+impl From<situo_client::Error> for Error {
+    fn from(error: situo_client::Error) -> Self {
+        Error::Situo(error)
     }
 }
 
@@ -152,15 +157,11 @@ fn today(values: &[f64]) -> Result<f64, Error> {
 }
 
 async fn located() -> Result<Fix, Error> {
-    let fix = SessionBus::session()
-        .await?
-        .locate()
-        .await
-        .map_err(|error| Error::Locate(error.to_string()))?;
+    let fix = SessionBus::session().await?.locate().await?;
     if fix.valid {
         Ok(fix)
     } else {
-        Err(Error::NoFix)
+        Err(situo_client::Error::NoFix.into())
     }
 }
 
@@ -366,18 +367,9 @@ pub struct Location {
     pub geo: Fix,
 }
 
-impl Source for Location {
-    type Error = Error;
-
-    type Key = ();
-
-    const NAME: &'static str = "geolocation";
-    const INTERVAL: Duration = Duration::from_mins(30);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        Ok(Location {
-            geo: located().await?,
-        })
+impl Location {
+    pub fn published() -> impl Stream<Item = Result<Self, Error>> {
+        fix_updates().map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
     }
 }
 #[cfg(test)]
