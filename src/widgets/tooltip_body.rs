@@ -21,6 +21,7 @@ pub enum Cell {
 pub struct Row {
     pub key: String,
     pub cells: Vec<Cell>,
+    pub level: Level,
 }
 
 impl From<String> for Cell {
@@ -45,6 +46,18 @@ pub trait TableRow {
     const HEADINGS: &'static [&'static str];
     fn key(&self) -> String;
     fn cells(&self) -> Vec<Cell>;
+
+    fn level(&self) -> Level {
+        Level::Ok
+    }
+
+    fn row(&self) -> Row {
+        Row {
+            key: self.key(),
+            cells: self.cells(),
+            level: self.level(),
+        }
+    }
 }
 
 impl<R: TableRow> TableRow for &R {
@@ -57,15 +70,16 @@ impl<R: TableRow> TableRow for &R {
     fn cells(&self) -> Vec<Cell> {
         (*self).cells()
     }
+
+    fn level(&self) -> Level {
+        (*self).level()
+    }
 }
 
 fn columns<R: TableRow>(rows: impl IntoIterator<Item = R>) -> SectionBody {
     SectionBody::Columns {
         headings: R::HEADINGS.iter().map(ToString::to_string).collect(),
-        rows: rows
-            .into_iter()
-            .map(|table_row| cells(&table_row.key(), table_row.cells()))
-            .collect(),
+        rows: rows.into_iter().map(|table_row| table_row.row()).collect(),
     }
 }
 
@@ -77,6 +91,7 @@ pub fn cells(key: &str, cells: Vec<Cell>) -> Row {
     Row {
         key: key.to_string(),
         cells,
+        level: Level::Ok,
     }
 }
 
@@ -136,13 +151,6 @@ pub fn tree_section(title: impl Into<String>, root: Process) -> Section {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LogEntry {
-    pub at: SystemTime,
-    pub message: String,
-    pub level: Level,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreviewTile {
     pub window: u64,
@@ -165,7 +173,6 @@ pub struct WorkspacePreview {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TooltipBody {
     Sections(Vec<Section>),
-    Log(Vec<LogEntry>),
     Text { title: String, body: String },
     Workspace(WorkspacePreview),
     TrayMenu(TrayMenuBody),
@@ -198,7 +205,6 @@ impl TooltipBody {
             TooltipBody::Sections(sections) => {
                 sections.iter().all(|section| section.body.is_empty())
             }
-            TooltipBody::Log(entries) => entries.is_empty(),
             TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),
             TooltipBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
@@ -259,6 +265,14 @@ mod tests {
         fn cells(&self) -> Vec<Cell> {
             vec![self.moons.to_string().into(), "".into()]
         }
+
+        fn level(&self) -> Level {
+            if self.moons == 0 {
+                Level::Warning
+            } else {
+                Level::Ok
+            }
+        }
     }
 
     #[test]
@@ -282,7 +296,10 @@ mod tests {
                 headings: vec!["Moons".to_string(), String::new()],
                 rows: vec![
                     cells("Mars", vec!["2".into(), "".into()]),
-                    cells("Venus", vec!["0".into(), "".into()]),
+                    Row {
+                        level: Level::Warning,
+                        ..cells("Venus", vec!["0".into(), "".into()])
+                    },
                 ],
             }
         );

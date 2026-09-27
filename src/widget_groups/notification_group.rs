@@ -113,8 +113,8 @@ impl BarWidget for NotificationStatus {
         }
     }
 
-    fn label(&self) -> Option<String> {
-        (self.live > 0).then(|| self.live.to_string())
+    fn badge(&self) -> Option<u32> {
+        u32::try_from(self.live).ok().filter(|live| *live > 0)
     }
 
     fn disabled(&self) -> bool {

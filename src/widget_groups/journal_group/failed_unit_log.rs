@@ -5,21 +5,24 @@ use crate::{
         journal::FailedUnitInfo,
         systemd_failed::{Failed, JournalScope, System, User},
     },
+    wayland_layers::tooltip::relative,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
         font_awesome::Solid,
-        tooltip_body::{LogEntry, TooltipBody},
+        tooltip_body::{Cell, TableRow, TooltipBody, table_section},
     },
 };
 
 pub trait ScopeAppearance: JournalScope {
     const ICON: Solid;
+    const LABEL: &'static str;
 
     fn severity(recent: bool) -> Level;
 }
 
 impl ScopeAppearance for User {
     const ICON: Solid = Solid::User;
+    const LABEL: &'static str = "Failed user units";
 
     fn severity(_recent: bool) -> Level {
         Level::Warning
@@ -28,6 +31,7 @@ impl ScopeAppearance for User {
 
 impl ScopeAppearance for System {
     const ICON: Solid = Solid::Server;
+    const LABEL: &'static str = "Failed system units";
 
     fn severity(recent: bool) -> Level {
         if recent {
@@ -56,20 +60,41 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn tooltip(&self) -> TooltipBody {
         let mut units: Vec<&FailedUnitInfo> = self.units.iter().collect();
         units.sort_by_key(|unit| Reverse(unit.at));
-        TooltipBody::Log(
-            units
-                .into_iter()
-                .map(|unit| LogEntry {
-                    at: unit.at.unwrap_or_else(SystemTime::now),
-                    message: format!(
-                        "{} ({})",
-                        unit.name,
-                        describe_failure(&unit.result, unit.status)
-                    ),
-                    level: S::severity(Failed::<S>::recent(unit)),
-                })
-                .collect(),
-        )
+        TooltipBody::Sections(vec![table_section(
+            S::LABEL,
+            units.into_iter().map(|unit| FailedUnitRow {
+                unit,
+                level: S::severity(Failed::<S>::recent(unit)),
+            }),
+        )])
+    }
+}
+
+struct FailedUnitRow<'a> {
+    unit: &'a FailedUnitInfo,
+    level: Level,
+}
+
+impl TableRow for FailedUnitRow<'_> {
+    const HEADINGS: &'static [&'static str] = &["Reason", "Failed"];
+
+    fn key(&self) -> String {
+        self.unit.name.clone()
+    }
+
+    fn cells(&self) -> Vec<Cell> {
+        let failed = self.unit.at.map_or_else(
+            || "unknown".to_string(),
+            |at| relative(at, SystemTime::now()),
+        );
+        vec![
+            describe_failure(&self.unit.result, self.unit.status).into(),
+            failed.into(),
+        ]
+    }
+
+    fn level(&self) -> Level {
+        self.level
     }
 }
 
@@ -84,5 +109,55 @@ fn describe_failure(result: &str, status: i32) -> String {
         "start-limit-hit" => "too many restarts".to_string(),
         "resources" => "could not start (resources)".to_string(),
         other => other.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+    use crate::widgets::tooltip_body::{Section, SectionBody};
+
+    fn failed(name: &str, age: Option<Duration>) -> FailedUnitInfo {
+        FailedUnitInfo {
+            name: name.to_string(),
+            result: "exit-code".to_string(),
+            status: 1,
+            at: age.map(|age| SystemTime::now() - age),
+        }
+    }
+
+    fn section_keys(section: &Section) -> Vec<&str> {
+        let SectionBody::Columns { rows, .. } = &section.body else {
+            panic!("expected a table");
+        };
+        rows.iter().map(|row| row.key.as_str()).collect()
+    }
+
+    #[test]
+    fn units_list_newest_first_with_unknown_times_last() {
+        let minutes = |count: u64| Some(Duration::from_secs(count * 60));
+        let units = Failed::<System>::from_units(vec![
+            failed("undated.service", None),
+            failed("old.service", minutes(180)),
+            failed("fresh.service", minutes(1)),
+            failed("older.service", minutes(300)),
+            failed("recent.service", minutes(20)),
+        ])
+        .expect("units present");
+        let TooltipBody::Sections(sections) = units.tooltip() else {
+            panic!("expected sections");
+        };
+        assert_eq!(
+            section_keys(&sections[0]),
+            [
+                "fresh.service",
+                "recent.service",
+                "old.service",
+                "older.service",
+                "undated.service"
+            ]
+        );
     }
 }

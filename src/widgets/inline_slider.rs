@@ -29,7 +29,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let accent = match level {
         Level::Ok => config.palette.focus,
-        _ => level_color(config, level),
+        _ => level_color(&config.palette, level),
     };
     let face = SliderFace {
         range: range.clone(),
