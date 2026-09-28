@@ -4,6 +4,7 @@ pub mod sun_follow_toggle;
 use std::ops::RangeInclusive;
 
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
+use uom::si::thermodynamic_temperature::kelvin;
 
 use crate::{
     config::Config,
@@ -134,8 +135,9 @@ impl ColorTemperatureGroup {
                 if let Some(gamma) = self.gamma.get() {
                     self.dim
                         .update(ControlMessage::Reading(percent_f(gamma.brightness)));
-                    self.warmth
-                        .update(ControlMessage::Reading(f32::from(gamma.temperature)));
+                    self.warmth.update(ControlMessage::Reading(
+                        gamma.temperature.get::<kelvin>() as f32
+                    ));
                 }
                 Task::none()
             }

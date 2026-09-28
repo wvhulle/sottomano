@@ -4,6 +4,7 @@ use std::{
 };
 
 use iced::{Element, Subscription, Task, widget::Row};
+use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
     config::{Config, SecretPaths},
@@ -89,8 +90,18 @@ impl BarWidget for Place {
         let mut rows = vec![row("Where", self.name.clone())];
         if let Some(position) = self.position {
             rows.push(row(
-                "Coordinates",
-                format!("{:.5}, {:.5}", position.latitude, position.longitude),
+                "Latitude",
+                format!(
+                    "{:.5}",
+                    position.latitude.into_format_args(degree, Abbreviation)
+                ),
+            ));
+            rows.push(row(
+                "Longitude",
+                format!(
+                    "{:.5}",
+                    position.longitude.into_format_args(degree, Abbreviation)
+                ),
             ));
         }
         TooltipBody::rows(rows)

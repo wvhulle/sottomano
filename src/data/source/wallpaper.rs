@@ -15,6 +15,7 @@ use icu_locale_core::Locale;
 use inotify::{EventMask, Inotify, WatchMask};
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
+use uom::si::{angle::degree, f64::Angle};
 
 use crate::data::source::{ai::read_secret, command, http};
 
@@ -34,8 +35,8 @@ const FALLBACK_LANGUAGE: &str = "en";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
-    pub latitude: f64,
-    pub longitude: f64,
+    pub latitude: Angle,
+    pub longitude: Angle,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -347,11 +348,12 @@ async fn describe_photo(file_name: String, id: &str, secret: &str) -> Result<Wal
 fn fix(reported: Option<&ReportedPosition>) -> Option<Position> {
     let reported = reported?;
     let position = Position {
-        latitude: reported.latitude?,
-        longitude: reported.longitude?,
+        latitude: Angle::new::<degree>(reported.latitude?),
+        longitude: Angle::new::<degree>(reported.longitude?),
     };
-    (position.latitude.abs() >= f64::EPSILON || position.longitude.abs() >= f64::EPSILON)
-        .then_some(position)
+    let at_null_island =
+        position.latitude == Angle::default() && position.longitude == Angle::default();
+    (!at_null_island).then_some(position)
 }
 
 async fn nearby_article(
@@ -364,8 +366,10 @@ async fn nearby_article(
         longitude,
     } = position;
     let search = format!(
-        "{} nearcoord:{ARTICLE_SEARCH_RADIUS_KM}km,{latitude},{longitude}",
-        place.unwrap_or_default()
+        "{} nearcoord:{ARTICLE_SEARCH_RADIUS_KM}km,{},{}",
+        place.unwrap_or_default(),
+        latitude.get::<degree>(),
+        longitude.get::<degree>()
     );
     let query = form_urlencoded::Serializer::new(String::new())
         .append_pair("action", "query")

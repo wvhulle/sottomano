@@ -1,6 +1,7 @@
 use std::{ops::RangeInclusive, time::Duration};
 
 use tokio::task::spawn_blocking;
+use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{Source, bus, bus::Error};
@@ -26,7 +27,7 @@ pub const TEMP_RANGE: RangeInclusive<u16> = 3000..=6500;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Gamma {
     pub brightness: i64,
-    pub temperature: u16,
+    pub temperature: ThermodynamicTemperature,
 }
 
 impl Source for Gamma {
@@ -59,7 +60,9 @@ fn read_gamma() -> Result<Gamma, Error> {
     #[allow(clippy::cast_possible_truncation)]
     Ok(Gamma {
         brightness: (brightness * 100.0).round() as i64,
-        temperature,
+        temperature: ThermodynamicTemperature::new::<thermodynamic_temperature::kelvin>(f64::from(
+            temperature,
+        )),
     })
 }
 
