@@ -1,4 +1,12 @@
 use iced::Task;
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{
+        f64::{Power, Ratio},
+        power::watt,
+        ratio::percent,
+    },
+};
 
 use crate::{
     data::{
@@ -32,9 +40,9 @@ impl BatteryTimeReading {
         let Some(curve) = self.curve.take() else {
             return self.start_loading(&battery.serial);
         };
-        let sample = battery.charging_sample(MIN_SAMPLE_W);
+        let sample = battery.charging_sample(Power::new::<watt>(MIN_SAMPLE_W));
         let curve = match sample {
-            Some(sample) => curve.observe(sample.state_of_charge, sample.power_w),
+            Some(sample) => curve.observe(sample.state_of_charge, sample.power),
             None => curve.interrupted(),
         };
         let save = sample.map_or_else(Task::none, |sample| {
@@ -69,7 +77,7 @@ impl BatteryTimeReading {
         let idle = battery.idle_reason().map(|reason| IdleBattery {
             reason,
             capacity: battery.capacity,
-            limit_percent: battery.limit_percent(),
+            charge_limit: battery.charge_limit,
         });
         idle.map(BatteryTime::Idle)
             .or_else(|| self.countdown(battery, drain).map(BatteryTime::Countdown))
@@ -80,7 +88,7 @@ impl BatteryTimeReading {
             return Some(Countdown::UntilEmpty(drain));
         }
         battery.is_charging().then(|| Countdown::UntilFull {
-            limit_percent: battery.limit_percent(),
+            charge_limit: battery.charge_limit,
             estimate: self
                 .curve
                 .as_ref()
@@ -93,9 +101,13 @@ impl BatteryTimeReading {
 pub(super) enum Countdown {
     UntilEmpty(Option<Estimate>),
     UntilFull {
-        limit_percent: u32,
+        charge_limit: Ratio,
         estimate: Option<Estimate>,
     },
+}
+
+fn percent_text(fraction: Ratio) -> String {
+    format!("{:.0}", fraction.into_format_args(percent, Abbreviation))
 }
 
 impl Countdown {
@@ -112,7 +124,9 @@ impl TableRow for Countdown {
     fn key(&self) -> Cell {
         match self {
             Countdown::UntilEmpty(_) => "Until empty".into(),
-            Countdown::UntilFull { limit_percent, .. } => format!("Until {limit_percent} %").into(),
+            Countdown::UntilFull { charge_limit, .. } => {
+                format!("Until {}", percent_text(*charge_limit)).into()
+            }
         }
     }
 
@@ -124,8 +138,8 @@ impl TableRow for Countdown {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct IdleBattery {
     reason: IdleReason,
-    capacity: u8,
-    limit_percent: u32,
+    capacity: Ratio,
+    charge_limit: Ratio,
 }
 
 impl IdleBattery {
@@ -158,8 +172,8 @@ impl IdleBattery {
     fn tooltip(self) -> TooltipBody {
         TooltipBody::rows(vec![
             row("Status", self.explanation()),
-            row("Charge", format!("{} %", self.capacity)),
-            row("Charge limit", format!("{} %", self.limit_percent)),
+            row("Charge", percent_text(self.capacity)),
+            row("Charge limit", percent_text(self.charge_limit)),
         ])
     }
 }
@@ -200,7 +214,7 @@ mod tests {
     #[test]
     fn row_key_names_the_direction() {
         let until_full = Countdown::UntilFull {
-            limit_percent: 80,
+            charge_limit: Ratio::new::<percent>(80.0),
             estimate: None,
         };
         assert_eq!(Countdown::UntilEmpty(None).key(), "Until empty".into());
@@ -212,8 +226,8 @@ mod tests {
         let idle = |reason| {
             BatteryTime::Idle(IdleBattery {
                 reason,
-                capacity: 99,
-                limit_percent: 100,
+                capacity: Ratio::new::<percent>(99.0),
+                charge_limit: Ratio::new::<percent>(100.0),
             })
             .label()
         };

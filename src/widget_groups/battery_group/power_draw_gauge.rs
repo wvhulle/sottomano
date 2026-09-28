@@ -1,3 +1,10 @@
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{
+        electric_current::ampere, electric_potential::volt, f64::Power, power::watt, ratio::percent,
+    },
+};
+
 use crate::{
     data::source::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerLimit},
     widgets::{
@@ -12,19 +19,19 @@ const POWER_CRITICAL_W: f64 = 20.0;
 const POWER_GAUGE_MAX_W: f64 = 40.0;
 
 pub struct PowerDraw {
-    watts: f64,
+    power: Power,
     status: ChargeStatus,
     charger: Option<ChargerLimit>,
-    expected_laptop_w: Option<f64>,
+    expected_laptop: Option<Power>,
 }
 
 impl PowerDraw {
-    pub fn of(battery: &Battery, expected_laptop_w: Option<f64>) -> Self {
+    pub fn of(battery: &Battery, expected_laptop: Option<Power>) -> Self {
         PowerDraw {
-            watts: battery.power_w,
+            power: battery.power,
             status: battery.status,
             charger: battery.charger,
-            expected_laptop_w,
+            expected_laptop,
         }
     }
 
@@ -38,35 +45,44 @@ impl PowerDraw {
     fn breakdown_on_battery(&self) -> Vec<Section> {
         vec![section(
             "Battery feeds",
-            vec![row("Laptop", watts_text(self.watts))],
+            vec![row("Laptop", power_text(self.power))],
         )]
     }
 
     fn breakdown_on_ac(&self) -> Vec<Section> {
-        let laptop = self.expected_laptop_w.map_or_else(
+        let laptop = self.expected_laptop.map_or_else(
             || row("Laptop", "not measured"),
-            |laptop_w| row("Laptop (estimated)", watts_text(laptop_w)),
+            |laptop| row("Laptop (estimated)", power_text(laptop)),
         );
         let charger = self.charger.map(|limit| {
             section(
                 "Charger",
                 vec![
-                    row("Limit", watts_text(limit.watts())),
-                    row("Voltage", format!("{:.0} V", limit.volts)),
-                    row("Current", format!("{:.2} A", limit.amps)),
+                    row("Limit", power_text(limit.power())),
+                    row(
+                        "Voltage",
+                        format!("{:.0}", limit.voltage.into_format_args(volt, Abbreviation)),
+                    ),
+                    row(
+                        "Current",
+                        format!(
+                            "{:.2}",
+                            limit.current.into_format_args(ampere, Abbreviation)
+                        ),
+                    ),
                 ],
             )
         });
         let feeds = section(
             "Charger feeds",
-            vec![laptop, row("Battery", watts_text(self.watts))],
+            vec![laptop, row("Battery", power_text(self.power))],
         );
         charger.into_iter().chain([feeds]).collect()
     }
 }
 
-fn watts_text(watts: f64) -> String {
-    format!("{watts:.1} W")
+fn power_text(power: Power) -> String {
+    format!("{:.1}", power.into_format_args(watt, Abbreviation))
 }
 
 impl BarWidget for PowerDraw {
@@ -81,9 +97,9 @@ impl BarWidget for PowerDraw {
     fn level(&self) -> Level {
         if self.status != ChargeStatus::Discharging {
             Level::Ok
-        } else if self.watts > POWER_CRITICAL_W {
+        } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
             Level::Critical
-        } else if self.watts > POWER_WARN_W {
+        } else if self.power > Power::new::<watt>(POWER_WARN_W) {
             Level::Warning
         } else {
             Level::Ok
@@ -91,9 +107,9 @@ impl BarWidget for PowerDraw {
     }
 
     fn value(&self) -> Option<Value> {
-        let fraction = (self.watts / POWER_GAUGE_MAX_W * 100.0).clamp(0.0, 100.0);
+        let fraction = self.power / Power::new::<watt>(POWER_GAUGE_MAX_W);
         Some(Value::Gauge {
-            percent: fraction.round() as i64,
+            percent: fraction.get::<percent>().clamp(0.0, 100.0).round() as i64,
             unit: Unit::Watt,
         })
     }
@@ -109,17 +125,19 @@ impl BarWidget for PowerDraw {
 
 #[cfg(test)]
 mod tests {
+    use uom::si::f64::{ElectricCurrent, ElectricPotential};
+
     use super::*;
 
     fn draw(status: ChargeStatus) -> PowerDraw {
         PowerDraw {
-            watts: 19.7,
+            power: Power::new::<watt>(19.7),
             status,
             charger: Some(ChargerLimit {
-                volts: 20.0,
-                amps: 3.25,
+                voltage: ElectricPotential::new::<volt>(20.0),
+                current: ElectricCurrent::new::<ampere>(3.25),
             }),
-            expected_laptop_w: Some(8.9),
+            expected_laptop: Some(Power::new::<watt>(8.9)),
         }
     }
 
