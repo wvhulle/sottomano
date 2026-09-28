@@ -1,21 +1,9 @@
-#![allow(clippy::absolute_paths)]
+pub use phosphor_icons::{Phosphor, Weight};
 
-include!(concat!(env!("OUT_DIR"), "/icons.rs"));
+use crate::widgets::bar_widget::Glyph;
 
-impl Phosphor {
-    pub fn from_brand_or_slug(handle: &str) -> ::core::option::Option<Phosphor> {
-        Phosphor::from_slug(&format!("{handle}-logo")).or_else(|| Phosphor::from_slug(handle))
-    }
-}
-
-impl ::core::convert::From<Phosphor> for crate::widgets::bar_widget::Glyph {
+impl From<Phosphor> for Glyph {
     fn from(icon: Phosphor) -> Self {
-        crate::widgets::bar_widget::Glyph::Phosphor(icon)
-    }
-}
-
-impl ::core::convert::From<Phosphor> for crate::widgets::tooltip_body::Cell {
-    fn from(icon: Phosphor) -> Self {
-        crate::widgets::tooltip_body::Cell::Glyph(icon.into())
+        Glyph::Phosphor(icon)
     }
 }

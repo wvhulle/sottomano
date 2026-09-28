@@ -5,8 +5,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::TimePart,
-        phosphor,
         tooltip_body::{Cell, TooltipBody, cells, row},
+        weather_icons::WeatherIcon,
     },
 };
 
@@ -21,18 +21,16 @@ impl BarWidget for Rain {
     fn icon(&self) -> Glyph {
         let peak = self.peak.intensity;
         if peak < Velocity::new::<millimeter_per_hour>(0.5) {
-            phosphor::Drop::Regular.into()
-        } else if peak < Velocity::new::<millimeter_per_hour>(2.5) {
-            phosphor::CloudRain::Regular.into()
+            WeatherIcon::Raindrop.into()
         } else if peak < Velocity::new::<millimeter_per_hour>(7.5) {
-            phosphor::CloudRain::Regular.into()
+            WeatherIcon::Rain.into()
         } else {
-            phosphor::CloudLightning::Regular.into()
+            WeatherIcon::Thunderstorm.into()
         }
     }
 
     fn fallback_icon() -> Glyph {
-        phosphor::Drop::Regular.into()
+        WeatherIcon::Raindrop.into()
     }
 
     fn label(&self) -> Option<String> {

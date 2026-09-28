@@ -3,8 +3,9 @@ use crate::{
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{Row, Section, TooltipBody, row, section},
+        widget_state::WidgetState,
     },
 };
 
@@ -12,15 +13,15 @@ const CONNECTED: &str = "connected";
 
 impl BarWidget for Mobile {
     fn icon(&self) -> Glyph {
-        phosphor::Broadcast::Regular.into()
+        Phosphor::Broadcast(self.state().weight()).into()
     }
 
-    fn disabled(&self) -> bool {
-        self.state != CONNECTED
-    }
-
-    fn level(&self) -> Level {
-        self.signal.map_or(Level::Ok, signal_level)
+    fn state(&self) -> WidgetState {
+        if self.state == CONNECTED {
+            self.signal.map_or(Level::Ok, signal_level).into()
+        } else {
+            WidgetState::Off
+        }
     }
 
     fn value(&self) -> Option<Value> {

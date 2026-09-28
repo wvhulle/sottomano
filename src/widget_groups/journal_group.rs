@@ -22,13 +22,14 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level},
+        bar_widget::{BarWidget, Glyph},
         flat_button,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::Phosphor,
         source_reading::source_reading,
         tooltip_body::{Tooltip, TooltipBody},
+        widget_state::WidgetState,
     },
 };
 
@@ -151,7 +152,7 @@ impl JournalGroup {
 
 impl BarWidget for JournalGroup {
     fn icon(&self) -> Glyph {
-        phosphor::Heartbeat::Regular.into()
+        Phosphor::Heartbeat(self.state().weight()).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -164,13 +165,14 @@ impl BarWidget for JournalGroup {
         (total > 0).then_some(total)
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         self.scopes()
             .into_iter()
             .flatten()
-            .map(BarWidget::level)
+            .map(|scope| scope.state().severity())
             .max()
             .unwrap_or_default()
+            .into()
     }
 
     fn tooltip(&self) -> TooltipBody {

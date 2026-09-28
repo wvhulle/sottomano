@@ -1,12 +1,12 @@
 use crate::{
     data::source::power_profile::Profile,
-    widgets::phosphor::{self, Phosphor},
+    widgets::phosphor::{Phosphor, Weight},
 };
 
 pub fn profile_face(profile: Profile) -> Phosphor {
     match profile {
-        Profile::PowerSaver => phosphor::Leaf::Regular.into(),
-        Profile::Balanced => phosphor::Scales::Regular.into(),
-        Profile::Performance => phosphor::Rocket::Regular.into(),
+        Profile::PowerSaver => Phosphor::Leaf(Weight::Regular),
+        Profile::Balanced => Phosphor::Scales(Weight::Regular),
+        Profile::Performance => Phosphor::Rocket(Weight::Regular),
     }
 }

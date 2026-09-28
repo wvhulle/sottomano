@@ -12,8 +12,9 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -25,27 +26,32 @@ pub trait DirectionIcon: Direction {
 }
 
 impl DirectionIcon for Upload {
-    const ICON: Phosphor = Phosphor::UploadSimple(phosphor::UploadSimple::Regular);
+    const ICON: Phosphor = Phosphor::UploadSimple(Weight::Regular);
 }
 
 impl DirectionIcon for Download {
-    const ICON: Phosphor = Phosphor::DownloadSimple(phosphor::DownloadSimple::Regular);
+    const ICON: Phosphor = Phosphor::DownloadSimple(Weight::Regular);
+}
+
+fn severity<D: Direction>(throughput: &Throughput<D>) -> Level {
+    if throughput.interfaces.is_empty() {
+        return Level::Critical;
+    }
+    connectivity_level(throughput.connectivity).max(throughput.link_level())
 }
 
 impl<D: DirectionIcon> BarWidget for Throughput<D> {
     fn icon(&self) -> Glyph {
-        D::ICON.into()
+        D::ICON.with_weight(self.state().weight()).into()
     }
 
-    fn disabled(&self) -> bool {
-        self.unused() && self.level() == Level::Ok
-    }
-
-    fn level(&self) -> Level {
-        if self.interfaces.is_empty() {
-            return Level::Critical;
+    fn state(&self) -> WidgetState {
+        let severity = severity(self);
+        if self.unused() && severity == Level::Ok {
+            WidgetState::Off
+        } else {
+            severity.into()
         }
-        connectivity_level(self.connectivity).max(self.link_level())
     }
 
     fn value(&self) -> Option<Value> {

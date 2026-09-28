@@ -3,9 +3,10 @@ use bytesize::ByteSize;
 use crate::{
     data::source::disk::Disk,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        bar_widget::{BarWidget, Glyph, Unit, Value},
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -14,16 +15,16 @@ const FREE_CRITICAL: ByteSize = ByteSize::gb(2);
 
 impl BarWidget for Disk {
     fn icon(&self) -> Glyph {
-        phosphor::HardDrive::Regular.into()
+        Phosphor::HardDrive(self.state().weight()).into()
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         if self.free < FREE_CRITICAL {
-            Level::Critical
+            WidgetState::Critical
         } else if self.free < FREE_WARN {
-            Level::Warning
+            WidgetState::Warning
         } else {
-            Level::Ok
+            WidgetState::Idle
         }
     }
 

@@ -14,9 +14,10 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
+        bar_widget::Glyph,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
-        phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
     },
 };
@@ -170,7 +171,7 @@ impl TrayGroup {
         }
 
         let face = move || {
-            phosphor::DotsThreeVertical::Regular
+            Glyph::from(Phosphor::DotsThreeVertical(Weight::Regular))
                 .view(config.font.icon_size_px, config.palette.bar_foreground)
         };
 
@@ -213,7 +214,7 @@ fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, T
     let side = config.font.icon_size_px;
     let glyph: Element<'a, TrayMessage> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
-        None => phosphor::Question::Regular
+        None => Glyph::from(Phosphor::Question(Weight::Regular))
             .view(side, config.palette.bar_foreground.scale_alpha(reveal)),
     };
 

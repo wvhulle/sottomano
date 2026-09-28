@@ -18,7 +18,7 @@ impl Default for UserFont {
         Self {
             name: None,
             text_size_px: 14.0,
-            icon_size_px: 16.0,
+            icon_size_px: 19.0,
         }
     }
 }

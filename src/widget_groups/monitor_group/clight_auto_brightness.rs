@@ -2,23 +2,24 @@ use crate::{
     data::source::clight::{self, Clight},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::Phosphor,
         toggle_control::Toggle,
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Clight {
     fn icon(&self) -> Glyph {
         if self.auto {
-            phosphor::Eye::Regular.into()
+            Phosphor::Eye(self.state().weight()).into()
         } else {
-            phosphor::EyeSlash::Regular.into()
+            Phosphor::EyeSlash(self.state().weight()).into()
         }
     }
 
-    fn disabled(&self) -> bool {
-        !self.auto
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.auto)
     }
 
     fn tooltip(&self) -> TooltipBody {

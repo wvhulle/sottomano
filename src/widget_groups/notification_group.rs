@@ -11,9 +11,10 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         source_reading::source_reading,
         tooltip_body::TooltipBody,
+        widget_state::WidgetState,
     },
 };
 
@@ -56,29 +57,28 @@ impl NotificationGroup {
         let content = move |_reveal: f32| {
             let do_not_disturb = toggle(
                 config,
-                if dnd {
-                    phosphor::Prohibit::Fill.into()
-                } else {
-                    phosphor::Prohibit::Light.into()
-                },
+                Phosphor::Prohibit(Weight::Regular),
+                WidgetState::of_toggle(dnd),
                 NotificationToggle::DoNotDisturb,
             );
             let sound = toggle(
                 config,
                 if sound {
-                    phosphor::Bell::Fill.into()
+                    Phosphor::Bell(Weight::Regular)
                 } else {
-                    phosphor::BellSlash::Light.into()
+                    Phosphor::BellSlash(Weight::Regular)
                 },
+                WidgetState::of_toggle(sound),
                 NotificationToggle::Sound,
             );
             let spatial_layout = toggle(
                 config,
                 if spatial_layout {
-                    phosphor::TextAlignCenter::Fill.into()
+                    Phosphor::TextAlignCenter(Weight::Regular)
                 } else {
-                    phosphor::TextAlignRight::Light.into()
+                    Phosphor::TextAlignRight(Weight::Regular)
                 },
+                WidgetState::of_toggle(spatial_layout),
                 NotificationToggle::SpatialLayout,
             );
             Row::new()
@@ -105,11 +105,9 @@ struct NotificationStatus {
 impl BarWidget for NotificationStatus {
     fn icon(&self) -> Glyph {
         if self.dnd {
-            phosphor::ChatCircleSlash::Light.into()
-        } else if self.live > 0 {
-            phosphor::ChatCircle::Fill.into()
+            Phosphor::ChatCircleSlash(self.state().weight()).into()
         } else {
-            phosphor::ChatCircle::Regular.into()
+            Phosphor::ChatCircle(self.state().weight()).into()
         }
     }
 
@@ -117,8 +115,14 @@ impl BarWidget for NotificationStatus {
         u32::try_from(self.live).ok().filter(|live| *live > 0)
     }
 
-    fn disabled(&self) -> bool {
-        self.dnd
+    fn state(&self) -> WidgetState {
+        if self.dnd {
+            WidgetState::Off
+        } else if self.live > 0 {
+            WidgetState::On
+        } else {
+            WidgetState::Idle
+        }
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -129,10 +133,11 @@ impl BarWidget for NotificationStatus {
 fn toggle<'a>(
     config: &Config,
     icon: Phosphor,
+    state: WidgetState,
     toggle: NotificationToggle,
 ) -> Element<'a, NotificationGroupMessage> {
-    let color = config.palette.bar_foreground;
-    button(icon.view(config.font.icon_size_px, color))
+    let color = state.color(&config.palette);
+    button(Glyph::from(icon.with_weight(state.weight())).view(config.font.icon_size_px, color))
         .padding(0)
         .style(flat_button(color))
         .on_press(NotificationGroupMessage::Toggle(toggle))

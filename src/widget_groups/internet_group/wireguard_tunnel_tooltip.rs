@@ -2,14 +2,15 @@ use crate::{
     data::source::wireguard::{Peer, Tunnel, Wireguard},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{Row, TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Wireguard {
     fn icon(&self) -> Glyph {
-        phosphor::ShieldCheck::Regular.into()
+        Phosphor::ShieldCheck(self.state().weight()).into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -20,18 +21,18 @@ impl BarWidget for Wireguard {
 impl BarWidget for Tunnel {
     fn icon(&self) -> Glyph {
         if self.server {
-            phosphor::ArrowsInSimple::Regular.into()
+            Phosphor::ArrowsInSimple(self.state().weight()).into()
         } else {
-            phosphor::MapPinLine::Regular.into()
+            Phosphor::MapPinLine(self.state().weight()).into()
         }
     }
 
-    fn disabled(&self) -> bool {
-        if self.server {
-            self.connected_peers() == 0
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(if self.server {
+            self.connected_peers() > 0
         } else {
-            !self.peers.iter().any(Peer::connected)
-        }
+            self.peers.iter().any(Peer::connected)
+        })
     }
 
     fn badge(&self) -> Option<u32> {

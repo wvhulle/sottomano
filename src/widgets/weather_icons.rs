@@ -14,7 +14,7 @@ use crate::{
 
 macro_rules! weather_svg {
     ($name:literal) => {
-        include_bytes!(concat!(env!("OUT_DIR"), "/weather-icons/", $name, ".svg"))
+        include_bytes!(concat!(env!("WEATHER_ICONS_SVG"), "/", $name, ".svg"))
     };
 }
 
@@ -36,11 +36,35 @@ pub enum WeatherIcon {
     StormShowers,
     Hail,
     NotAvailable,
+    Raindrop,
+    Thermometer,
+    Sunrise,
+    Sunset,
+    NightClear,
+    WindBeaufort(usize),
 }
 
 impl WeatherIcon {
-    const fn fitted_svg(self) -> &'static [u8] {
+    const fn svg_data(self) -> &'static [u8] {
         match self {
+            WeatherIcon::Raindrop => weather_svg!("wi-raindrop"),
+            WeatherIcon::Thermometer => weather_svg!("wi-thermometer"),
+            WeatherIcon::Sunrise => weather_svg!("wi-sunrise"),
+            WeatherIcon::Sunset => weather_svg!("wi-sunset"),
+            WeatherIcon::NightClear => weather_svg!("wi-night-clear"),
+            WeatherIcon::WindBeaufort(0) => weather_svg!("wi-wind-beaufort-0"),
+            WeatherIcon::WindBeaufort(1) => weather_svg!("wi-wind-beaufort-1"),
+            WeatherIcon::WindBeaufort(2) => weather_svg!("wi-wind-beaufort-2"),
+            WeatherIcon::WindBeaufort(3) => weather_svg!("wi-wind-beaufort-3"),
+            WeatherIcon::WindBeaufort(4) => weather_svg!("wi-wind-beaufort-4"),
+            WeatherIcon::WindBeaufort(5) => weather_svg!("wi-wind-beaufort-5"),
+            WeatherIcon::WindBeaufort(6) => weather_svg!("wi-wind-beaufort-6"),
+            WeatherIcon::WindBeaufort(7) => weather_svg!("wi-wind-beaufort-7"),
+            WeatherIcon::WindBeaufort(8) => weather_svg!("wi-wind-beaufort-8"),
+            WeatherIcon::WindBeaufort(9) => weather_svg!("wi-wind-beaufort-9"),
+            WeatherIcon::WindBeaufort(10) => weather_svg!("wi-wind-beaufort-10"),
+            WeatherIcon::WindBeaufort(11) => weather_svg!("wi-wind-beaufort-11"),
+            WeatherIcon::WindBeaufort(_) => weather_svg!("wi-wind-beaufort-12"),
             WeatherIcon::DaySunny => weather_svg!("wi-day-sunny"),
             WeatherIcon::DaySunnyOvercast => weather_svg!("wi-day-sunny-overcast"),
             WeatherIcon::DayCloudy => weather_svg!("wi-day-cloudy"),
@@ -61,7 +85,7 @@ impl WeatherIcon {
     }
 
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
-        svg_icon::view(self.fitted_svg(), size, color)
+        svg_icon::view(self.svg_data(), size, color)
     }
 }
 
@@ -105,7 +129,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_fitted_icon_spans_the_width_and_centres_vertically() {
+    fn every_icon_embeds_a_parsable_svg() {
         let icons = [
             WeatherIcon::DaySunny,
             WeatherIcon::DaySunnyOvercast,
@@ -123,21 +147,16 @@ mod tests {
             WeatherIcon::StormShowers,
             WeatherIcon::Hail,
             WeatherIcon::NotAvailable,
+            WeatherIcon::Raindrop,
+            WeatherIcon::Thermometer,
+            WeatherIcon::Sunrise,
+            WeatherIcon::Sunset,
+            WeatherIcon::NightClear,
         ];
-        icons.into_iter().for_each(|icon| {
-            let tree = usvg::Tree::from_data(icon.fitted_svg(), &usvg::Options::default())
+        let beaufort_scale = (0..=13).map(WeatherIcon::WindBeaufort);
+        icons.into_iter().chain(beaufort_scale).for_each(|icon| {
+            usvg::Tree::from_data(icon.svg_data(), &usvg::Options::default())
                 .unwrap_or_else(|error| panic!("{icon:?}: {error}"));
-            let canvas = tree.size();
-            let drawing = tree.root().abs_bounding_box();
-            let top_margin = drawing.top();
-            let bottom_margin = canvas.height() - drawing.bottom();
-            assert!(
-                (drawing.width() - canvas.width()).abs() < 1.0
-                    && drawing.height() < canvas.height()
-                    && (top_margin - bottom_margin).abs() < 1.0,
-                "{icon:?}: drawing {drawing:?} is not centred across the width of canvas \
-                 {canvas:?}"
-            );
         });
     }
 }

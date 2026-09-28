@@ -14,7 +14,7 @@ use crate::{
     },
     widgets::{
         pager_slot::permanently_inactive_slot,
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{Tooltip, row},
     },
@@ -64,7 +64,7 @@ impl Default for AudioGroup {
             sink_control: SliderControl::new(
                 RANGE,
                 HoverTarget::AudioSink,
-                phosphor::SpeakerHigh::Regular.into(),
+                Phosphor::SpeakerHigh(Weight::Regular),
             )
             .scroll_step(SCROLL_STEP)
             .relative_scroll()
@@ -75,7 +75,7 @@ impl Default for AudioGroup {
             source_control: SliderControl::new(
                 RANGE,
                 HoverTarget::AudioSource,
-                phosphor::Microphone::Regular.into(),
+                Phosphor::Microphone(Weight::Regular),
             )
             .scroll_step(SCROLL_STEP)
             .relative_scroll()
@@ -266,17 +266,17 @@ impl AudioGroup {
 
 fn output_glyph(_value: f32, muted: bool) -> Phosphor {
     if muted {
-        phosphor::SpeakerX::Regular.into()
+        Phosphor::SpeakerX(Weight::Regular)
     } else {
-        phosphor::SpeakerHigh::Regular.into()
+        Phosphor::SpeakerHigh(Weight::Regular)
     }
 }
 
 fn input_glyph(_value: f32, muted: bool) -> Phosphor {
     if muted {
-        phosphor::MicrophoneSlash::Regular.into()
+        Phosphor::MicrophoneSlash(Weight::Regular)
     } else {
-        phosphor::Microphone::Regular.into()
+        Phosphor::Microphone(Weight::Regular)
     }
 }
 

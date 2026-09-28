@@ -8,9 +8,10 @@ use uom::{
 use crate::{
     data::source::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerLimit},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        bar_widget::{BarWidget, Glyph, Unit, Value},
+        phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
+        widget_state::WidgetState,
     },
 };
 
@@ -88,21 +89,21 @@ fn power_text(power: Power) -> String {
 impl BarWidget for PowerDraw {
     fn icon(&self) -> Glyph {
         if self.on_battery() {
-            phosphor::Plugs::Regular.into()
+            Phosphor::Plugs(self.state().weight()).into()
         } else {
-            phosphor::PlugsConnected::Regular.into()
+            Phosphor::PlugsConnected(self.state().weight()).into()
         }
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         if self.status != ChargeStatus::Discharging {
-            Level::Ok
+            WidgetState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
-            Level::Critical
+            WidgetState::Critical
         } else if self.power > Power::new::<watt>(POWER_WARN_W) {
-            Level::Warning
+            WidgetState::Warning
         } else {
-            Level::Ok
+            WidgetState::Idle
         }
     }
 

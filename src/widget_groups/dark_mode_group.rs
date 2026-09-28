@@ -31,12 +31,13 @@ use crate::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },
     widgets::{
-        bar_widget::BarWidget,
+        bar_widget::{BarWidget, Glyph},
         menu_group::{MenuGroup, MenuMessage},
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage, toggle_button},
         tooltip_body::{Tooltip, row},
+        weather_icons::WeatherIcon,
     },
 };
 
@@ -71,12 +72,9 @@ impl Default for DarkModeGroup {
             auto_switch_toggle: AutoSwitchToggle::default(),
             sunrise_offset_slider: new_offset_slider(
                 HoverTarget::SunriseOffset,
-                Phosphor::CloudSun(phosphor::CloudSun::Regular),
+                WeatherIcon::Sunrise,
             ),
-            sunset_offset_slider: new_offset_slider(
-                HoverTarget::SunsetOffset,
-                Phosphor::CloudMoon(phosphor::CloudMoon::Regular),
-            ),
+            sunset_offset_slider: new_offset_slider(HoverTarget::SunsetOffset, WeatherIcon::Sunset),
             menu: MenuGroup::default(),
         }
     }
@@ -304,12 +302,13 @@ impl DarkModeGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, DarkModeMessage> {
-        phosphor::CircleHalf::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+        Glyph::from(Phosphor::CircleHalf(Weight::Regular))
+            .view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }
 
-fn new_offset_slider(target: HoverTarget, icon: Phosphor) -> SliderControl {
-    SliderControl::new(OFFSET_MINUTES, target, icon.into())
+fn new_offset_slider(target: HoverTarget, icon: WeatherIcon) -> SliderControl {
+    SliderControl::new(OFFSET_MINUTES, target, icon)
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)
         .readout(|minutes| format_offset_minutes(minutes_to_time_delta(minutes)))

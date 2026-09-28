@@ -6,10 +6,11 @@ use iced::{
 use crate::{
     config::Config,
     widgets::{
-        bar_widget::{BarWidget, level_color},
+        bar_widget::{BarWidget, Glyph},
         gauge::Gauge,
-        phosphor,
+        phosphor::{Phosphor, Weight},
         text::bar_text,
+        widget_state::WidgetState,
     },
 };
 
@@ -30,18 +31,14 @@ pub fn source_reading<'a, Message: 'a>(
         None => icon,
     };
 
-    if widget.failed() {
+    if widget.state() == WidgetState::Failed {
         return Some(reading);
     }
     Some(badged(config, reading, widget.badge(), color))
 }
 
 pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {
-    if widget.disabled() {
-        config.palette.inactive
-    } else {
-        level_color(&config.palette, widget.level())
-    }
+    widget.state().color(&config.palette)
 }
 
 pub fn reading_value<'a, Message: 'a>(
@@ -49,8 +46,10 @@ pub fn reading_value<'a, Message: 'a>(
     widget: &dyn BarWidget,
     color: Color,
 ) -> Option<Element<'a, Message>> {
-    if widget.failed() {
-        return Some(phosphor::Warning::Regular.view(config.font.icon_size_px, color));
+    if widget.state() == WidgetState::Failed {
+        return Some(
+            Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.font.icon_size_px, color),
+        );
     }
     match widget.value() {
         Some(value) => Some(

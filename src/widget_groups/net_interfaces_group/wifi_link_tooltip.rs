@@ -6,25 +6,22 @@ use crate::{
         address_section, dns_section, link_stats_section, signal_level,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        bar_widget::{BarWidget, Glyph, Unit, Value},
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row, section},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Wifi {
     fn icon(&self) -> Glyph {
-        phosphor::WifiHigh::Regular.into()
+        Phosphor::WifiHigh(self.state().weight()).into()
     }
 
-    fn disabled(&self) -> bool {
-        self.link.is_none()
-    }
-
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         self.link
             .as_ref()
-            .map_or(Level::Ok, |link| signal_level(link.signal))
+            .map_or(WidgetState::Off, |link| signal_level(link.signal).into())
     }
 
     fn value(&self) -> Option<Value> {

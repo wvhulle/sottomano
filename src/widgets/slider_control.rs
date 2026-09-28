@@ -23,6 +23,7 @@ use crate::{
         source_reading::source_reading,
         text::bar_text,
         tooltip_body::TooltipBody,
+        widget_state::WidgetState,
     },
 };
 
@@ -67,7 +68,7 @@ pub struct SliderControl {
     readout: fn(f32) -> String,
     gauge: bool,
     label: Option<fn(f32) -> String>,
-    icon: Phosphor,
+    icon: Glyph,
     glyph: Option<fn(f32, bool) -> Phosphor>,
     thresholds: SeverityThresholds,
     target: HoverTarget,
@@ -137,7 +138,7 @@ pub enum Action {
 }
 
 impl SliderControl {
-    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: Phosphor) -> Self {
+    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: impl Into<Glyph>) -> Self {
         Self {
             open: Animation::new(false)
                 .easing(Easing::EaseOutCubic)
@@ -153,7 +154,7 @@ impl SliderControl {
             readout: |value| format!("{value:.0}"),
             gauge: true,
             label: None,
-            icon,
+            icon: icon.into(),
             glyph: None,
             thresholds: SeverityThresholds::default(),
             target,
@@ -247,9 +248,10 @@ impl SliderControl {
         self.thresholds.level(self.current())
     }
 
-    fn effective_icon(&self) -> Phosphor {
-        self.glyph
-            .map_or(self.icon, |glyph| glyph(self.current(), self.disabled))
+    fn effective_icon(&self) -> Glyph {
+        self.glyph.map_or(self.icon, |glyph| {
+            glyph(self.current(), self.disabled).into()
+        })
     }
 
     #[allow(clippy::needless_pass_by_value)]
@@ -309,9 +311,11 @@ impl SliderControl {
     pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
         let expand = self.open.interpolate(0.0, 1.0, Instant::now());
         if expand > 0.0 {
+            let state = self.state();
             let glyph = button(
                 self.effective_icon()
-                    .view(config.font.icon_size_px, config.palette.bar_foreground),
+                    .with_weight(state.weight())
+                    .view(config.font.icon_size_px, state.color(&config.palette)),
             )
             .padding(0)
             .style(flat_button(config.palette.bar_foreground))
@@ -366,15 +370,19 @@ impl SliderControl {
 
 impl BarWidget for SliderControl {
     fn icon(&self) -> Glyph {
-        self.effective_icon().into()
+        self.effective_icon()
     }
 
     fn label(&self) -> Option<String> {
         self.label.map(|format| format(self.current()))
     }
 
-    fn level(&self) -> Level {
-        self.severity()
+    fn state(&self) -> WidgetState {
+        if self.disabled {
+            WidgetState::Off
+        } else {
+            self.severity().into()
+        }
     }
 
     fn value(&self) -> Option<Value> {
@@ -387,10 +395,6 @@ impl BarWidget for SliderControl {
 
     fn live_fraction(&self) -> f32 {
         self.live
-    }
-
-    fn disabled(&self) -> bool {
-        self.disabled
     }
 
     fn tooltip(&self) -> TooltipBody {

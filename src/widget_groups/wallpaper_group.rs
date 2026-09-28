@@ -20,7 +20,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::Phosphor,
         reading_row::{Reading, ReadingRow},
         simple_icons::SimpleIcon,
         source_reading::source_reading,
@@ -48,7 +48,7 @@ impl Display for Failure {
 
 impl BarWidget for Lookup {
     fn icon(&self) -> Glyph {
-        phosphor::Mountains::Regular.into()
+        Phosphor::Mountains(self.state().weight()).into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -79,7 +79,7 @@ pub struct Photo {
 
 impl BarWidget for Place {
     fn icon(&self) -> Glyph {
-        phosphor::MapPin::Regular.into()
+        Phosphor::MapPin(self.state().weight()).into()
     }
 
     fn label(&self) -> Option<String> {

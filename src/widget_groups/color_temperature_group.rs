@@ -19,9 +19,10 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
+        bar_widget::Glyph,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{Tooltip, TooltipBody, row},
@@ -62,14 +63,14 @@ impl ColorTemperatureGroup {
             dim: SliderControl::new(
                 PERCENT,
                 HoverTarget::GammaDim,
-                phosphor::CircleHalf::Regular.into(),
+                Phosphor::CircleHalf(Weight::Regular),
             )
             .scroll_step(DIM_STEP)
             .readout(|value| format!("{}%", as_percent(value))),
             warmth: SliderControl::new(
                 WARMTH_RANGE,
                 HoverTarget::ColorTemperature,
-                phosphor::ThermometerSimple::Regular.into(),
+                Phosphor::ThermometerSimple(Weight::Regular),
             )
             .scroll_step(WARMTH_STEP)
             .slider_step(WARMTH_STEP)
@@ -236,7 +237,8 @@ impl ColorTemperatureGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, ColorTemperatureMessage> {
-        phosphor::Thermometer::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+        Glyph::from(Phosphor::Thermometer(Weight::Regular))
+            .view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 
     fn dim_slider<'a>(&self, config: &Config) -> Element<'a, ColorTemperatureMessage> {

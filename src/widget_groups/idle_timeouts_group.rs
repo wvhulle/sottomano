@@ -11,12 +11,13 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
+        bar_widget::Glyph,
         idle::{
             IdleAction, IdleTrigger, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::Tooltip,
     },
@@ -61,25 +62,25 @@ impl Default for IdleTimeoutsGroup {
     fn default() -> Self {
         Self {
             lock: IdleTimer::new(
-                phosphor::Lock::Regular.into(),
+                Phosphor::Lock(Weight::Regular),
                 HoverTarget::IdleLockUser,
                 IdleAction::Lock,
                 false,
             ),
             screen_off: IdleTimer::new(
-                phosphor::Monitor::Regular.into(),
+                Phosphor::Monitor(Weight::Regular),
                 HoverTarget::IdleScreenOff,
                 IdleAction::ScreenOff,
                 false,
             ),
             standby: IdleTimer::new(
-                phosphor::Bed::Regular.into(),
+                Phosphor::Bed(Weight::Regular),
                 HoverTarget::IdleStandby,
                 IdleAction::Suspend,
                 true,
             ),
             power_down: IdleTimer::new(
-                phosphor::Power::Regular.into(),
+                Phosphor::Power(Weight::Regular),
                 HoverTarget::IdlePowerDown,
                 IdleAction::PowerOff,
                 true,
@@ -207,7 +208,8 @@ impl IdleTimeoutsGroup {
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
         let face = move || {
-            phosphor::Timer::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+            Glyph::from(Phosphor::Timer(Weight::Regular))
+                .view(config.font.icon_size_px, config.palette.bar_foreground)
         };
 
         let content = move |reveal: f32| {

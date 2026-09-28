@@ -6,8 +6,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
         localized_time::TimePart,
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, row, section},
+        widget_state::WidgetState,
     },
 };
 
@@ -53,7 +54,7 @@ impl TableRow for KernelOccurrence {
 
 impl BarWidget for KernelErrors {
     fn icon(&self) -> Glyph {
-        phosphor::LinuxLogo::Regular.into()
+        Phosphor::LinuxLogo(self.state().weight()).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -65,12 +66,13 @@ impl BarWidget for KernelErrors {
         u32::try_from(distinct).ok().filter(|count| *count > 0)
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         self.entries
             .iter()
             .map(|entry| entry.severity.level())
             .max()
             .unwrap_or_default()
+            .into()
     }
 
     fn tooltip(&self) -> TooltipBody {

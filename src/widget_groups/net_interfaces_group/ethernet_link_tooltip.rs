@@ -5,18 +5,19 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Ethernet {
     fn icon(&self) -> Glyph {
-        phosphor::Network::Regular.into()
+        Phosphor::Network(self.state().weight()).into()
     }
 
-    fn disabled(&self) -> bool {
-        self.connected_count() == 0
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.connected_count() > 0)
     }
 
     fn tooltip(&self) -> TooltipBody {

@@ -3,18 +3,15 @@ use crate::{
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Bluetooth {
     fn icon(&self) -> Glyph {
-        phosphor::Bluetooth::Regular.into()
-    }
-
-    fn disabled(&self) -> bool {
-        !self.powered
+        Phosphor::Bluetooth(self.state().weight()).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -26,8 +23,12 @@ impl BarWidget for Bluetooth {
             .filter(|count| *count > 0)
     }
 
-    fn level(&self) -> Level {
-        self.best_signal().map_or(Level::Ok, signal_level)
+    fn state(&self) -> WidgetState {
+        if self.powered {
+            self.best_signal().map_or(Level::Ok, signal_level).into()
+        } else {
+            WidgetState::Off
+        }
     }
 
     fn value(&self) -> Option<Value> {

@@ -36,6 +36,12 @@ impl<Text: Into<String>> From<Text> for Cell {
     }
 }
 
+impl From<Glyph> for Cell {
+    fn from(glyph: Glyph) -> Self {
+        Cell::Glyph(glyph)
+    }
+}
+
 pub trait TableRow {
     const HEADINGS: &'static [&'static str];
     fn key(&self) -> Cell;

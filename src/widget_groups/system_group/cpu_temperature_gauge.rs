@@ -6,9 +6,10 @@ use uom::{
 use crate::{
     data::source::sysfs_sensors::temperature::Temperature,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        bar_widget::{BarWidget, Glyph, Unit, Value},
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -24,17 +25,17 @@ fn celsius_text(temperature: ThermodynamicTemperature) -> String {
 
 impl BarWidget for Temperature {
     fn icon(&self) -> Glyph {
-        phosphor::ThermometerSimple::Regular.into()
+        Phosphor::ThermometerSimple(self.state().weight()).into()
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         let average = self.average();
         if average > ThermodynamicTemperature::new::<degree_celsius>(CRITICAL_CELSIUS) {
-            Level::Critical
+            WidgetState::Critical
         } else if average > ThermodynamicTemperature::new::<degree_celsius>(WARNING_CELSIUS) {
-            Level::Warning
+            WidgetState::Warning
         } else {
-            Level::Ok
+            WidgetState::Idle
         }
     }
 

@@ -20,12 +20,13 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        bar_widget::BarWidget,
+        bar_widget::{BarWidget, Glyph},
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::{Phosphor, Weight},
         reading_row::{Reading, ReadingRow},
         tooltip_body::Tooltip,
+        widget_state::WidgetState,
     },
 };
 
@@ -118,10 +119,11 @@ impl NetInterfacesGroup {
         [self.mobile.display(), self.wifi.display()]
             .into_iter()
             .flatten()
-            .find(|widget| !widget.disabled() && widget.value().is_some())
+            .find(|widget| widget.state() != WidgetState::Off && widget.value().is_some())
     }
 
     fn face<'a>(config: &Config) -> Element<'a, NetInterfacesMessage> {
-        phosphor::Link::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+        Glyph::from(Phosphor::Link(Weight::Regular))
+            .view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }

@@ -2,9 +2,10 @@ use crate::{
     data::source::ai::openrouter::OpenRouter,
     widget_groups::ai_group::spend_to_level::level_from_cost,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Occasional},
+        bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
         tooltip_body::{Row, TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -19,8 +20,8 @@ impl BarWidget for OpenRouter {
         Some(format!("{:.2}", self.spend))
     }
 
-    fn level(&self) -> Level {
-        level_from_cost(self.spend)
+    fn state(&self) -> WidgetState {
+        level_from_cost(self.spend).into()
     }
 
     fn tooltip(&self) -> TooltipBody {
