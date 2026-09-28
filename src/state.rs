@@ -1,3 +1,4 @@
+pub mod charge_power_curve;
 pub mod dark_mode;
 pub mod idle;
 pub mod launches;

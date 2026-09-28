@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::RangeInclusive, time::Duration};
+use std::{collections::HashMap, ops::RangeInclusive};
 
 use iced::{Element, Subscription, Task};
 
@@ -7,20 +7,22 @@ pub mod profile_icon;
 use crate::{
     config::Config,
     data::{
-        battery_drain::{Estimate, RegressionState, estimate},
+        battery_forecast::{Estimate, RegressionState, time_until_empty},
         source::{
-            Source, bus,
-            power_profile::{self, Conditions, PowerProfile, Profile},
+            power_profile::{self, Conditions, Profile},
+            sysfs_sensors::{self, battery::Battery},
         },
     },
     message_subscriptions::polling,
     state::power,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage},
-    widget_groups::battery_group::power_profile_control::profile_icon::profile_face,
+    widget_groups::battery_group::{
+        estimate_columns::{ESTIMATE_HEADINGS, estimate_cells},
+        power_profile_control::profile_icon::profile_face,
+    },
     widgets::{
-        last_poll::LastPoll,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, TableRow, Tooltip, TooltipBody},
+        tooltip_body::{Cell, TableRow, Tooltip, TooltipBody, row},
     },
 };
 
@@ -29,20 +31,19 @@ const STEP: f32 = 50.0;
 const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {
-    cell: LastPoll<PowerProfile>,
     control: SliderControl,
-    profile_models: HashMap<Profile, RegressionState>,
+    active_profile: Option<Profile>,
+    conditions: Option<Conditions>,
+    battery: Option<Battery>,
+    profile_models: Option<HashMap<Profile, RegressionState>>,
     estimates: HashMap<Profile, Option<Estimate>>,
-    battery_id: String,
     load_started: bool,
-    loaded: bool,
     daemon: bool,
 }
 
 impl Default for PowerProfileControl {
     fn default() -> Self {
         Self {
-            cell: LastPoll::default(),
             control: SliderControl::new(
                 RANGE,
                 HoverTarget::PowerProfile,
@@ -54,11 +55,12 @@ impl Default for PowerProfileControl {
             .icon_only()
             .readout(|value| Profile::from_position(value).title().to_string())
             .glyph(|value, _| profile_face(Profile::from_position(value))),
-            profile_models: HashMap::new(),
+            active_profile: None,
+            conditions: None,
+            battery: None,
+            profile_models: None,
             estimates: HashMap::new(),
-            battery_id: String::new(),
             load_started: false,
-            loaded: false,
             daemon: false,
         }
     }
@@ -67,10 +69,17 @@ impl Default for PowerProfileControl {
 #[derive(Debug, Clone)]
 pub enum PowerProfileMessage {
     Daemon(bool),
-    Reading(Result<PowerProfile, bus::Error>),
+    ActiveProfile(Profile),
+    Conditions(Result<Conditions, sysfs_sensors::Error>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
     Tooltip(TooltipMessage),
+}
+
+struct DrainSample {
+    profile: Profile,
+    conditions: Conditions,
+    draw_w: f64,
 }
 
 impl PowerProfileControl {
@@ -79,124 +88,140 @@ impl PowerProfileControl {
     }
 
     pub fn probe() -> Task<PowerProfileMessage> {
-        Task::future(async { PowerProfileMessage::Daemon(PowerProfile::available(&()).await) })
+        Task::future(power_profile::available()).map(PowerProfileMessage::Daemon)
     }
 
     pub fn subscription(&self) -> Subscription<PowerProfileMessage> {
         if !self.daemon {
             return Subscription::none();
         }
-        polling::<PowerProfile>(()).map(PowerProfileMessage::Reading)
+        Subscription::batch([
+            Subscription::run(power_profile::active_profiles)
+                .map(PowerProfileMessage::ActiveProfile),
+            polling::<Conditions>(()).map(PowerProfileMessage::Conditions),
+        ])
     }
 
     pub fn update(&mut self, msg: PowerProfileMessage) -> Task<PowerProfileMessage> {
         match msg {
-            PowerProfileMessage::Daemon(daemon) => {
-                self.daemon = daemon;
-                Task::none()
-            }
-            PowerProfileMessage::Reading(reading) => {
-                self.cell.receive(reading);
-                let Some(PowerProfile {
-                    active_profile,
-                    draw_w,
-                    discharging,
-                    battery_id,
-                    conditions,
-                    ..
-                }) = self.cell.get().cloned()
-                else {
-                    return Task::none();
-                };
+            PowerProfileMessage::Daemon(daemon) => self.daemon = daemon,
+            PowerProfileMessage::ActiveProfile(profile) => {
+                self.active_profile = Some(profile);
                 self.control
-                    .update(ControlMessage::Reading(active_profile.position()));
-
-                let mut tasks = Vec::new();
-                if !self.load_started && !battery_id.is_empty() {
-                    self.load_started = true;
-                    self.battery_id.clone_from(&battery_id);
-                    tasks.push(
-                        Task::future(power::load(battery_id)).map(PowerProfileMessage::Loaded),
-                    );
-                }
-                if self.loaded {
-                    let sample = draw_w.filter(|w| discharging && *w > MIN_SAMPLE_W);
-                    tasks.extend(self.learn(active_profile, conditions, sample));
-                }
+                    .update(ControlMessage::Reading(profile.position()));
                 self.recompute();
-                Task::batch(tasks)
+            }
+            PowerProfileMessage::Conditions(conditions) => {
+                self.conditions = conditions
+                    .inspect_err(|error| tracing::debug!("power conditions: {error}"))
+                    .ok();
             }
             PowerProfileMessage::Loaded(models) => {
-                self.profile_models = models;
-                self.loaded = true;
+                self.profile_models = Some(models);
                 self.recompute();
-                Task::none()
             }
-            PowerProfileMessage::Control(msg) => match self.control.update(msg) {
-                Action::Commit(value) => {
-                    let profile = Profile::from_position(value);
-                    ControlMessage::commit("power profile set", value, move || {
-                        power_profile::set(profile)
-                    })
-                    .map(PowerProfileMessage::Control)
-                }
-                Action::Opened | Action::None | Action::Right | Action::Adjust(_) => Task::none(),
-            },
-            PowerProfileMessage::Tooltip(_) => Task::none(),
+            PowerProfileMessage::Control(msg) => {
+                return match self.control.update(msg) {
+                    Action::Commit(value) => {
+                        let profile = Profile::from_position(value);
+                        ControlMessage::commit("power profile set", value, move || {
+                            power_profile::set(profile)
+                        })
+                        .map(PowerProfileMessage::Control)
+                    }
+                    Action::Opened | Action::None | Action::Right | Action::Adjust(_) => {
+                        Task::none()
+                    }
+                };
+            }
+            PowerProfileMessage::Tooltip(_) => {}
         }
+        Task::none()
     }
 
-    fn learn(
-        &mut self,
-        active_profile: Profile,
-        conditions: Conditions,
-        sample: Option<f64>,
-    ) -> Option<Task<PowerProfileMessage>> {
-        let continued = self.profile_models.remove(&active_profile);
-        for model in self.profile_models.values_mut() {
+    pub fn observe_battery(&mut self, battery: &Battery) -> Task<PowerProfileMessage> {
+        let task = self.learn(battery);
+        self.battery = Some(battery.clone());
+        self.recompute();
+        task
+    }
+
+    fn drain_sample(&self, battery: &Battery) -> Option<DrainSample> {
+        Some(DrainSample {
+            profile: self.active_profile?,
+            conditions: self.conditions?,
+            draw_w: battery
+                .power_w
+                .filter(|w| battery.is_discharging() && *w > MIN_SAMPLE_W)?,
+        })
+    }
+
+    fn learn(&mut self, battery: &Battery) -> Task<PowerProfileMessage> {
+        let sample = self.drain_sample(battery);
+        let Some(models) = self.profile_models.as_mut() else {
+            return self.start_loading(&battery.serial);
+        };
+        let continued = sample
+            .as_ref()
+            .and_then(|sample| models.remove(&sample.profile));
+        for model in models.values_mut() {
             *model = model.interrupted();
         }
-        let Some(draw) = sample else {
-            if let Some(model) = continued {
-                self.profile_models
-                    .insert(active_profile, model.interrupted());
-            }
-            return None;
+        let Some(sample) = sample else {
+            return Task::none();
         };
         let next = continued
-            .unwrap_or_else(|| RegressionState::seed(draw))
-            .observe(conditions, draw);
-        self.profile_models.insert(active_profile, next);
-        Some(Task::future(power::save(self.battery_id.clone(), active_profile, next)).discard())
+            .unwrap_or_else(|| RegressionState::seed(sample.draw_w))
+            .observe(sample.conditions, sample.draw_w);
+        models.insert(sample.profile, next);
+        Task::future(power::save(battery.serial.clone(), sample.profile, next)).discard()
+    }
+
+    fn start_loading(&mut self, serial: &str) -> Task<PowerProfileMessage> {
+        if self.load_started || serial.is_empty() {
+            return Task::none();
+        }
+        self.load_started = true;
+        Task::future(power::load(serial.to_string())).map(PowerProfileMessage::Loaded)
+    }
+
+    fn drain_estimates(&self) -> Option<HashMap<Profile, Option<Estimate>>> {
+        let battery = self
+            .battery
+            .as_ref()
+            .filter(|battery| battery.is_discharging())?;
+        Some(time_until_empty(
+            battery,
+            self.active_profile?,
+            self.conditions?,
+            self.profile_models.as_ref()?,
+        ))
     }
 
     fn recompute(&mut self) {
-        let Some(reading) = self.cell.get().cloned() else {
-            return;
-        };
-        self.estimates = estimate(&reading, &self.profile_models);
-        let caption = self
-            .estimates
-            .get(&reading.active_profile)
-            .copied()
-            .flatten()
-            .map(|e| humantime::format_duration(e.time).to_string());
-        self.control.update(ControlMessage::Caption(caption));
+        self.estimates = self.drain_estimates().unwrap_or_default();
+    }
+
+    pub fn active_estimate(&self) -> Option<Estimate> {
+        self.estimates.get(&self.active_profile?).copied().flatten()
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         if !matches!(target, HoverTarget::PowerProfile) {
             return None;
         }
+        self.active_profile?;
         let active_profile = Profile::from_position(self.control.current());
-        self.cell
-            .tooltip_with(TooltipBody::table(Profile::ALL.map(|profile| {
-                ProfileLife {
-                    profile,
-                    active: profile == active_profile,
-                    estimate: self.estimates.get(&profile).copied().flatten(),
-                }
-            })))
+        let lives = Profile::ALL.map(|profile| ProfileLife {
+            profile,
+            active: profile == active_profile,
+            estimate: self.estimates.get(&profile).copied().flatten(),
+        });
+        Some(Tooltip::of(if self.estimates.is_empty() {
+            TooltipBody::rows(lives.map(|life| row(&life.title(), "")).into())
+        } else {
+            TooltipBody::table(lives)
+        }))
     }
 
     pub fn view<'a>(
@@ -204,16 +229,12 @@ impl PowerProfileControl {
         config: &Config,
         opacity: f32,
     ) -> Option<Element<'a, PowerProfileMessage>> {
-        self.cell.get()?;
+        self.active_profile?;
         Some(self.control.view(config, opacity).map(|m| match m {
             ControlMessage::Tooltip(t) => PowerProfileMessage::Tooltip(t),
             m => PowerProfileMessage::Control(m),
         }))
     }
-}
-
-fn duration_cell(duration: Duration) -> Cell {
-    Cell::Text(humantime::format_duration(duration).to_string())
 }
 
 struct ProfileLife {
@@ -222,25 +243,24 @@ struct ProfileLife {
     estimate: Option<Estimate>,
 }
 
+impl ProfileLife {
+    fn title(&self) -> String {
+        if self.active {
+            format!("{} (active)", self.profile.title())
+        } else {
+            self.profile.title().to_string()
+        }
+    }
+}
+
 impl TableRow for ProfileLife {
-    const HEADINGS: &'static [&'static str] = &["Median", "Earliest", "Latest"];
+    const HEADINGS: &'static [&'static str] = ESTIMATE_HEADINGS;
 
     fn key(&self) -> Cell {
-        if self.active {
-            format!("{} (active)", self.profile.title()).into()
-        } else {
-            self.profile.title().into()
-        }
+        self.title().into()
     }
 
     fn cells(&self) -> Vec<Cell> {
-        let Some(estimate) = self.estimate else {
-            return vec!["—".into()];
-        };
-        vec![
-            duration_cell(estimate.time),
-            duration_cell(estimate.earliest),
-            estimate.latest.map_or_else(|| "∞".into(), duration_cell),
-        ]
+        estimate_cells(self.estimate)
     }
 }

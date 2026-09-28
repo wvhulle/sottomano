@@ -4,7 +4,7 @@ use nalgebra::{Matrix3, Vector3};
 
 use crate::{
     data::{
-        battery_drain::{RegressionState, ResidualProcess},
+        battery_forecast::{RegressionState, ResidualProcess},
         source::power_profile::Profile,
     },
     state::{Columns, StoreError, open},

@@ -1,9 +1,10 @@
 use std::time::Duration;
 
+use iced::futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{Source, bus, bus::Error, sysfs_sensors};
+use crate::data::source::{Source, sysfs_sensors};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Profile {
@@ -108,51 +109,40 @@ impl Conditions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct PowerProfile {
-    pub active_profile: Profile,
-    pub energy_j: Option<f64>,
-    pub draw_w: Option<f64>,
-    pub discharging: bool,
-    pub battery_id: String,
-    pub conditions: Conditions,
-}
-
-impl Source for PowerProfile {
-    type Error = Error;
+impl Source for Conditions {
+    type Error = sysfs_sensors::Error;
 
     type Key = ();
 
-    const NAME: &'static str = "power-profile";
+    const NAME: &'static str = "power-conditions";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn available(_key: &()) -> bool {
-        spawn_blocking(read_power_profile)
-            .await
-            .is_ok_and(|reading| reading.is_ok())
-    }
-
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_power_profile)
+        spawn_blocking(Conditions::current)
             .await
-            .map_err(|_| Error::Panicked)?
+            .map_err(|_| sysfs_sensors::Error::Panicked)
     }
 }
 
-fn read_power_profile() -> Result<PowerProfile, Error> {
-    let connection = Connection::system().map_err(|error| Error::Connect(error.to_string()))?;
-    let daemon = PowerProfilesProxyBlocking::new(&connection)
-        .map_err(|error| Error::Connect(error.to_string()))?;
-    let name = bus::require(daemon.active_profile())?;
-    let active_profile =
-        Profile::from_name(&name).ok_or_else(|| Error::Call(format!("unknown profile {name}")))?;
-    let energy = sysfs_sensors::battery_energy();
-    Ok(PowerProfile {
-        active_profile,
-        energy_j: energy.as_ref().and_then(|e| e.energy_j),
-        draw_w: energy.as_ref().and_then(|e| e.draw_w),
-        discharging: energy.as_ref().is_some_and(|e| e.discharging),
-        battery_id: energy.map(|e| e.serial).unwrap_or_default(),
-        conditions: Conditions::current(),
+pub async fn available() -> bool {
+    spawn_blocking(|| daemon().is_some_and(|daemon| daemon.active_profile().is_ok()))
+        .await
+        .unwrap_or(false)
+}
+
+pub fn active_profiles() -> impl Stream<Item = Profile> + Send {
+    stream::once(async {
+        let connection = zbus::Connection::system().await?;
+        let daemon = PowerProfilesProxy::new(&connection).await?;
+        Ok::<_, zbus::Error>(daemon.receive_active_profile_changed().await)
+    })
+    .flat_map(|changes| match changes {
+        Ok(changes) => changes
+            .filter_map(|change| async move { Profile::from_name(&change.get().await.ok()?) })
+            .left_stream(),
+        Err(error) => {
+            tracing::warn!("power profiles: no active profile stream: {error}");
+            stream::empty().right_stream()
+        }
     })
 }

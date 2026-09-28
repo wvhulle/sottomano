@@ -37,7 +37,6 @@ pub mod battery;
 pub mod cpu_clock;
 pub mod cpu_usage;
 pub mod memory;
-pub mod power;
 pub mod temperature;
 
 pub(super) const CPU_FREQ: &str = "/sys/devices/system/cpu";
@@ -83,40 +82,6 @@ pub(super) fn first_power_supply(prefix: &str) -> Option<PathBuf> {
         .collect();
     entries.sort();
     entries.into_iter().next()
-}
-
-pub struct BatteryEnergy {
-    pub energy_j: Option<f64>,
-    pub draw_w: Option<f64>,
-    pub discharging: bool,
-    pub serial: String,
-}
-
-pub(super) fn energy_wh(dir: &Path) -> Option<f64> {
-    let volts_uv = || read_i64(dir.join("voltage_now")).map(|v| v as f64);
-    read_i64(dir.join("energy_now"))
-        .map(|uwh| uwh as f64 / 1_000_000.0)
-        .or_else(|| Some(read_i64(dir.join("charge_now"))? as f64 * volts_uv()? / 1e12))
-}
-
-pub fn battery_energy() -> Option<BatteryEnergy> {
-    let dir = first_power_supply("BAT")?;
-    let volts_uv = || read_i64(dir.join("voltage_now")).map(|v| v as f64);
-    let energy_j = read_i64(dir.join("energy_now"))
-        .map(|uwh| uwh as f64 * 3600.0 / 1_000_000.0)
-        .or_else(|| Some(read_i64(dir.join("charge_now"))? as f64 * volts_uv()? * 3600.0 / 1e12));
-    let draw_w = read_i64(dir.join("power_now"))
-        .map(|uw| uw as f64 / 1_000_000.0)
-        .or_else(|| Some(read_i64(dir.join("current_now"))? as f64 * volts_uv()? / 1e12));
-    let discharging = read_trimmed(dir.join("status"))
-        .is_some_and(|s| battery::ChargeStatus::parse(&s) == battery::ChargeStatus::Discharging);
-    let serial = read_trimmed(dir.join("serial_number")).unwrap_or_default();
-    Some(BatteryEnergy {
-        energy_j,
-        draw_w,
-        discharging,
-        serial,
-    })
 }
 
 pub fn internal_brightness_frac() -> Option<f64> {

@@ -60,7 +60,6 @@ pub struct SliderControl {
     device_setting: DeviceSetting,
     disabled: bool,
     live: f32,
-    caption: Option<String>,
     range: RangeInclusive<f32>,
     scroll_step: f32,
     slider_step: f32,
@@ -115,7 +114,6 @@ pub enum ControlMessage {
     Reading(f32),
     Level(f32),
     Disabled(bool),
-    Caption(Option<String>),
     Right,
     Tooltip(TooltipMessage),
 }
@@ -148,7 +146,6 @@ impl SliderControl {
             device_setting: DeviceSetting::default(),
             disabled: false,
             live: 1.0,
-            caption: None,
             range,
             scroll_step: 1.0,
             slider_step: 1.0,
@@ -255,6 +252,7 @@ impl SliderControl {
             .map_or(self.icon, |glyph| glyph(self.current(), self.disabled))
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub fn update(&mut self, msg: ControlMessage) -> Action {
         match msg {
             ControlMessage::Press => {
@@ -301,10 +299,6 @@ impl SliderControl {
             }
             ControlMessage::Disabled(disabled) => {
                 self.disabled = disabled;
-                Action::None
-            }
-            ControlMessage::Caption(caption) => {
-                self.caption = caption;
                 Action::None
             }
             ControlMessage::Right => Action::Right,
@@ -378,9 +372,7 @@ impl BarWidget for SliderControl {
     }
 
     fn label(&self) -> Option<String> {
-        self.caption
-            .clone()
-            .or_else(|| self.label.map(|format| format(self.current())))
+        self.label.map(|format| format(self.current()))
     }
 
     fn level(&self) -> Level {

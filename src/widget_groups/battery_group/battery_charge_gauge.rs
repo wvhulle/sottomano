@@ -33,7 +33,7 @@ impl BarWidget for Battery {
             row("Status", self.status.as_str()),
         ];
         rows.extend(
-            self.energy_wh
+            self.energy_wh()
                 .map(|wh| row("Remaining", format!("{wh:.1} Wh"))),
         );
         TooltipBody::rows(rows)

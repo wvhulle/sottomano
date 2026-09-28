@@ -1,5 +1,5 @@
 use crate::{
-    data::source::sysfs_sensors::{battery::ChargeStatus, power::PowerDraw},
+    data::source::sysfs_sensors::battery::{Battery, ChargeStatus},
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
         font_awesome::Solid,
@@ -10,6 +10,20 @@ use crate::{
 const POWER_WARN_W: f64 = 10.0;
 const POWER_CRITICAL_W: f64 = 20.0;
 const POWER_GAUGE_MAX_W: f64 = 40.0;
+
+pub struct PowerDraw {
+    watts: f64,
+    status: ChargeStatus,
+}
+
+impl PowerDraw {
+    pub fn of(battery: &Battery) -> Option<Self> {
+        Some(PowerDraw {
+            watts: battery.power_w?,
+            status: battery.status,
+        })
+    }
+}
 
 impl BarWidget for PowerDraw {
     fn icon(&self) -> Glyph {
