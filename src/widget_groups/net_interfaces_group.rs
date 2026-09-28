@@ -122,10 +122,6 @@ impl NetInterfacesGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, NetInterfacesMessage> {
-        Solid::Link
-            .glyph()
-            .size(config.font.icon_size_px)
-            .color(config.palette.bar_foreground)
-            .into()
+        Solid::Link.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }

@@ -24,7 +24,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         .init();
 
     let config = config::load();
-    widgets::font_awesome::load_fonts();
 
     let mut settings = Settings {
         layer_settings: LayerShellSettings {

@@ -1,5 +1,5 @@
 use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
+    fmt::{Debug, Display, Formatter, Result as FmtResult},
     marker::PhantomData,
     sync::Arc,
     time::Duration,
@@ -106,6 +106,92 @@ fn compass_degrees<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Angle, 
     Ok(Angle::new::<degree>(f64::deserialize(deserializer)?))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Intensity {
+    Light,
+    Moderate,
+    Heavy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeatherCondition {
+    Clear,
+    MainlyClear,
+    PartlyCloudy,
+    Overcast,
+    Fog,
+    RimeFog,
+    Drizzle(Intensity),
+    FreezingDrizzle(Intensity),
+    Rain(Intensity),
+    FreezingRain(Intensity),
+    Snow(Intensity),
+    SnowGrains,
+    RainShowers(Intensity),
+    SnowShowers(Intensity),
+    Thunderstorm,
+    ThunderstormWithHail(Intensity),
+    Unrecognized(i64),
+}
+
+impl Display for WeatherCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        Debug::fmt(self, f)
+    }
+}
+
+impl From<i64> for WeatherCondition {
+    fn from(code: i64) -> Self {
+        use Intensity::{Heavy, Light, Moderate};
+        match code {
+            0 => Self::Clear,
+            1 => Self::MainlyClear,
+            2 => Self::PartlyCloudy,
+            3 => Self::Overcast,
+            45 => Self::Fog,
+            48 => Self::RimeFog,
+            51 => Self::Drizzle(Light),
+            53 => Self::Drizzle(Moderate),
+            55 => Self::Drizzle(Heavy),
+            56 => Self::FreezingDrizzle(Light),
+            57 => Self::FreezingDrizzle(Heavy),
+            61 => Self::Rain(Light),
+            63 => Self::Rain(Moderate),
+            65 => Self::Rain(Heavy),
+            66 => Self::FreezingRain(Light),
+            67 => Self::FreezingRain(Heavy),
+            71 => Self::Snow(Light),
+            73 => Self::Snow(Moderate),
+            75 => Self::Snow(Heavy),
+            77 => Self::SnowGrains,
+            80 => Self::RainShowers(Light),
+            81 => Self::RainShowers(Moderate),
+            82 => Self::RainShowers(Heavy),
+            85 => Self::SnowShowers(Light),
+            86 => Self::SnowShowers(Heavy),
+            95 => Self::Thunderstorm,
+            96 => Self::ThunderstormWithHail(Light),
+            99 => Self::ThunderstormWithHail(Heavy),
+            other => Self::Unrecognized(other),
+        }
+    }
+}
+
+fn weather_condition<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<WeatherCondition, D::Error> {
+    Ok(i64::deserialize(deserializer)?.into())
+}
+
+fn weather_conditions<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<WeatherCondition>, D::Error> {
+    Ok(Vec::<i64>::deserialize(deserializer)?
+        .into_iter()
+        .map(WeatherCondition::from)
+        .collect())
+}
+
 #[derive(Deserialize)]
 struct TemperatureForecast {
     current: CurrentTemperature,
@@ -123,7 +209,8 @@ struct CurrentTemperature {
     apparent_temperature: ThermodynamicTemperature,
     #[serde(deserialize_with = "percent_value")]
     relative_humidity_2m: Ratio,
-    weather_code: i64,
+    #[serde(rename = "weather_code", deserialize_with = "weather_condition")]
+    condition: WeatherCondition,
 }
 
 #[derive(Deserialize)]
@@ -140,7 +227,8 @@ struct HourlyTemperatures {
     time: Vec<DateTime<Utc>>,
     #[serde(deserialize_with = "celsius_series")]
     temperature_2m: Vec<ThermodynamicTemperature>,
-    weather_code: Vec<i64>,
+    #[serde(rename = "weather_code", deserialize_with = "weather_conditions")]
+    conditions: Vec<WeatherCondition>,
 }
 
 impl HourlyTemperatures {
@@ -149,11 +237,11 @@ impl HourlyTemperatures {
             .time
             .into_iter()
             .zip(self.temperature_2m)
-            .zip(self.weather_code)
-            .map(|((time, temp), weather_code)| HourlyTemperature {
+            .zip(self.conditions)
+            .map(|((time, temp), condition)| HourlyTemperature {
                 time,
                 temp,
-                weather_code,
+                condition,
             })
             .partition(|entry| entry.time <= now);
         HourlyForecast { earlier, later }
@@ -215,7 +303,7 @@ fn today(values: &[ThermodynamicTemperature]) -> Result<ThermodynamicTemperature
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
-    pub weather_code: i64,
+    pub condition: WeatherCondition,
     pub temp: ThermodynamicTemperature,
     pub feels: ThermodynamicTemperature,
     pub temp_min: ThermodynamicTemperature,
@@ -234,7 +322,7 @@ pub struct HourlyForecast {
 pub struct HourlyTemperature {
     pub time: DateTime<Utc>,
     pub temp: ThermodynamicTemperature,
-    pub weather_code: i64,
+    pub condition: WeatherCondition,
 }
 
 impl Source for Temperature {
@@ -252,7 +340,7 @@ impl Source for Temperature {
         );
         let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         Ok(Temperature {
-            weather_code: forecast.current.weather_code,
+            condition: forecast.current.condition,
             temp: forecast.current.temperature_2m,
             feels: forecast.current.apparent_temperature,
             temp_min: today(&forecast.daily.temperature_2m_min)?,
@@ -581,7 +669,27 @@ mod tests {
             "2026-09-27T09:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
         assert_eq!(forecast.later.len(), 1);
-        assert_eq!(forecast.later[0].weather_code, 0);
+        assert_eq!(forecast.later[0].condition, WeatherCondition::Clear);
+    }
+
+    #[test]
+    fn documented_codes_decode_into_recognized_conditions() {
+        let documented = [
+            0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82,
+            85, 86, 95, 96, 99,
+        ];
+        assert!(documented.into_iter().all(|code| !matches!(
+            WeatherCondition::from(code),
+            WeatherCondition::Unrecognized(_)
+        )));
+        assert_eq!(
+            WeatherCondition::from(57),
+            WeatherCondition::FreezingDrizzle(Intensity::Heavy)
+        );
+        assert_eq!(
+            WeatherCondition::from(42),
+            WeatherCondition::Unrecognized(42)
+        );
     }
 
     fn september_27_at(hour: u32, minute: u32) -> DateTime<Local> {

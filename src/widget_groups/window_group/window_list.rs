@@ -290,12 +290,7 @@ fn audio_glyph<'a>(
     } else {
         (Solid::VolumeHigh, config.palette.bar_foreground)
     };
-    Some(
-        icon.glyph()
-            .size(config.font.icon_size_px)
-            .color(color.scale_alpha(opacity))
-            .into(),
-    )
+    Some(icon.view(config.font.icon_size_px, color.scale_alpha(opacity)))
 }
 
 fn indicator_line<'a>(

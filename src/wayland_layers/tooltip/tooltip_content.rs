@@ -19,13 +19,12 @@ use crate::{
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
-        bar_widget::level_color,
+        bar_widget::{Glyph, level_color},
         context_menu::context_menu,
         copyable::copyable,
         favicon::Favicons,
-        font_awesome::FontAwesome,
         section_column::section_column,
-        text::{LINE_HEIGHT, bar_text, column_heading},
+        text::{bar_text, column_heading},
         tooltip_body::{
             Cell, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
         },
@@ -327,12 +326,8 @@ impl CellView {
         }
     }
 
-    fn glyph(&self, icon: FontAwesome, color: Color) -> Element<'static, Message> {
-        icon.glyph()
-            .size(self.font.text_size_px)
-            .line_height(LINE_HEIGHT)
-            .color(color)
-            .into()
+    fn glyph(&self, icon: Glyph, color: Color) -> Element<'static, Message> {
+        icon.view(self.font.text_size_px, color)
     }
 
     fn copyable_text(&self, text: String, color: Color) -> Element<'static, Message> {

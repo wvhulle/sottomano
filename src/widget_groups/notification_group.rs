@@ -134,7 +134,7 @@ fn toggle<'a>(
 ) -> Element<'a, NotificationGroupMessage> {
     let opacity = if active { 1.0 } else { DISABLED_ALPHA };
     let color = config.palette.bar_foreground.scale_alpha(opacity);
-    button(icon.glyph().size(config.font.icon_size_px).color(color))
+    button(icon.view(config.font.icon_size_px, color))
         .padding(0)
         .style(flat_button(color))
         .on_press(NotificationGroupMessage::Toggle(toggle))

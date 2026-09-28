@@ -24,11 +24,8 @@ pub enum OutputMessage {
 }
 
 pub fn view<'a>(output: &str, config: &Config, position: Position) -> Element<'a, OutputMessage> {
-    let glyph = Solid::LayerGroup
-        .glyph()
-        .size(config.font.icon_size_px)
-        .color(config.palette.bar_foreground);
-    let pressable = button(permanently_inactive_slot(glyph.into(), config, position))
+    let glyph = Solid::LayerGroup.view(config.font.icon_size_px, config.palette.bar_foreground);
+    let pressable = button(permanently_inactive_slot(glyph, config, position))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
         .on_press(OutputMessage::Clicked);

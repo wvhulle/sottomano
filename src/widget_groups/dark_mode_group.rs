@@ -298,11 +298,7 @@ impl DarkModeGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, DarkModeMessage> {
-        Solid::CircleHalfStroke
-            .glyph()
-            .size(config.font.icon_size_px)
-            .color(config.palette.bar_foreground)
-            .into()
+        Solid::CircleHalfStroke.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }
 
