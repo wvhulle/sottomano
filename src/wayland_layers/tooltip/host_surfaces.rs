@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use iced::{Element, Rectangle, Task, time::Duration, widget::mouse_area, window::Id};
+use iced::{Element, Rectangle, Task, time::Duration, widget::{container, mouse_area}, window::Id};
 use iced_exwlshell::{
     actions::ActionCallback,
     reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings},
@@ -11,7 +11,7 @@ use crate::{
     app::Message,
     config::Config,
     wayland_layers::{
-        surface::{self, Margin, Position, Surface},
+        surface::{self, Position, Surface},
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
@@ -113,7 +113,7 @@ impl TooltipHost {
         )
     }
 
-    pub fn open_surface(&mut self, output: &str, float_offset: i32) -> Task<Message> {
+    pub fn open_surface(&mut self, output: &str) -> Task<Message> {
         if self.surfaces.contains_key(output) {
             return Task::none();
         }
@@ -121,7 +121,7 @@ impl TooltipHost {
         self.surfaces.insert(output.to_string(), id);
         Task::batch([
             Task::done(Message::NewLayerShell {
-                settings: tooltip_settings(output, float_offset),
+                settings: tooltip_settings(output),
                 id,
             }),
             Task::done(input_region(id, Rectangle::default())),
@@ -178,6 +178,7 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
+        float_offset: f32,
         favicons: &'a Favicons,
         content: impl Fn(&HoverTarget) -> Tooltip,
     ) -> Option<Element<'a, Message>> {
@@ -220,15 +221,19 @@ impl TooltipHost {
                     .view(),
             )));
         }
-        Some(anchored_popup(
-            renderings,
-            placement.anchor,
-            placement.position,
-            progress,
-            self.transition.seq(),
-            config,
-            move |bounds| input_region(surface, bounds),
-        ))
+        Some(
+            container(anchored_popup(
+                renderings,
+                placement.anchor,
+                placement.position,
+                progress,
+                self.transition.seq(),
+                config,
+                move |bounds| input_region(surface, bounds),
+            ))
+            .padding(float_offset)
+            .into(),
+        )
     }
 }
 
@@ -255,12 +260,11 @@ fn input_region(surface: Id, bounds: Rectangle) -> Message {
     }
 }
 
-fn tooltip_settings(output: &str, float_offset: i32) -> NewLayerShellSettings {
+fn tooltip_settings(output: &str) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: LayerSize::FILL,
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
-        margin: Some(Margin::uniform(float_offset).edges()),
         layer: Layer::Overlay,
         ..surface::base_settings(Some(output), "vetrata-tooltip")
     }

@@ -275,14 +275,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         viewport: &Rectangle,
     ) {
         let state: &MorphState = tree.state.downcast_ref();
-        let box_bounds = state.current;
+        let bounds = layout.bounds();
+        let origin = Vector::new(bounds.x, bounds.y);
+        let box_bounds = state.current + origin;
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
-        let surface = layout.bounds().size();
         let bar_edge_y = match self.position {
-            Position::Top => self.bar_thickness,
-            Position::Bottom => surface.height - self.bar_thickness,
+            Position::Top => bounds.y + self.bar_thickness,
+            Position::Bottom => bounds.y + bounds.height - self.bar_thickness,
         };
         renderer.fill_quad(
             renderer::Quad {
@@ -299,7 +300,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         );
         if self.is_settled() {
             let notch = notch(
-                self.anchor,
+                self.anchor + origin,
                 bar_edge_y,
                 box_bounds,
                 self.position,
@@ -373,7 +374,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         let live = self.is_live();
         let state: &mut MorphState = tree.state.downcast_mut();
         let interactive = if live {
-            state.current
+            state.current + Vector::new(layout.bounds().x, layout.bounds().y)
         } else {
             Rectangle::default()
         };
