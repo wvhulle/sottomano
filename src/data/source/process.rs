@@ -2,8 +2,9 @@ use std::{
     collections::{HashMap, HashSet},
     future::pending,
     mem::zeroed,
+    ops::Add,
     path::PathBuf,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use bytesize::ByteSize;
@@ -13,22 +14,24 @@ use iced::{
     stream,
 };
 use procfs::{
-    Current, Uptime, WithCurrentSystemInfo,
+    Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
 use tokio::{task::spawn_blocking, time::sleep};
+use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{data::source::nix_store::Provenance, message_subscriptions::emit_changes};
 
 const SCAN_INTERVAL: Duration = Duration::from_millis(500);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Process {
     pub pid: i32,
     pub parent: i32,
     pub name: String,
     pub memory: ByteSize,
+    pub cpu: Ratio,
     pub threads: u64,
     pub uptime: Duration,
     pub children: Vec<Process>,
@@ -39,25 +42,33 @@ impl Process {
         1 + self.children.iter().map(Process::count).sum::<usize>()
     }
 
+    pub fn cpu_total(&self) -> Ratio {
+        self.children
+            .iter()
+            .map(Process::cpu_total)
+            .fold(self.cpu, Add::add)
+    }
+
     fn born(stat: &Stat, booted: f64) -> Duration {
         let started = started_seconds(stat);
         Duration::try_from_secs_f64(booted - started).unwrap_or_default()
     }
 
-    fn of(process: &Proc, stat: Stat, booted: f64) -> Self {
+    fn of(process: &Proc, stat: Stat, uptime: Duration, cpu: Ratio) -> Self {
         Self {
             pid: stat.pid,
             parent: stat.ppid,
             memory: ByteSize::b(stat.rss_bytes().get()),
+            cpu,
             threads: u64::try_from(stat.num_threads).unwrap_or_default(),
-            uptime: Self::born(&stat, booted),
+            uptime,
             name: binary_name(process).unwrap_or(stat.comm),
             children: Vec::new(),
         }
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Forest {
     roots: Vec<Process>,
 }
@@ -75,7 +86,95 @@ fn descend(node: &Process, pid: i32) -> Option<&Process> {
     node.children.iter().find_map(|child| descend(child, pid))
 }
 
-pub fn forest() -> Forest {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Incarnation {
+    pid: i32,
+    started: u64,
+}
+
+impl Incarnation {
+    fn of(stat: &Stat) -> Self {
+        Self {
+            pid: stat.pid,
+            started: stat.starttime,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CpuSamples {
+    taken: Instant,
+    ticks: HashMap<Incarnation, u64>,
+}
+
+impl CpuSamples {
+    fn none_yet() -> Self {
+        Self {
+            taken: Instant::now(),
+            ticks: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CpuCapacity {
+    ticks_per_second: u64,
+}
+
+impl CpuCapacity {
+    fn current() -> Self {
+        let cores = KernelStats::current().map_or(1, |stats| stats.cpu_time.len().max(1));
+        Self {
+            ticks_per_second: ticks_per_second() * cores as u64,
+        }
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn busy_fraction(self, busy_ticks: u64, over: Duration) -> Ratio {
+        let available = self.ticks_per_second as f64 * over.as_secs_f64();
+        let fraction = if available > 0.0 {
+            busy_ticks as f64 / available
+        } else {
+            0.0
+        };
+        Ratio::new::<ratio>(fraction)
+    }
+}
+
+struct CpuWindow<'a> {
+    previous: &'a CpuSamples,
+    elapsed: Duration,
+    capacity: CpuCapacity,
+}
+
+impl CpuWindow<'_> {
+    fn busy_fraction(&self, incarnation: Incarnation, ticks: u64, uptime: Duration) -> Ratio {
+        match self.previous.ticks.get(&incarnation) {
+            Some(before) => self
+                .capacity
+                .busy_fraction(ticks.saturating_sub(*before), self.elapsed),
+            None => self.capacity.busy_fraction(ticks, uptime),
+        }
+    }
+}
+
+struct Sampled {
+    forest: Forest,
+    samples: CpuSamples,
+}
+
+fn sample(previous: &CpuSamples, capacity: CpuCapacity) -> Sampled {
+    let mut samples = CpuSamples::none_yet();
+    let window = CpuWindow {
+        previous,
+        elapsed: samples.taken.duration_since(previous.taken),
+        capacity,
+    };
+    let forest = forest(&window, &mut samples);
+    Sampled { forest, samples }
+}
+
+fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     let Some(booted) = booted() else {
         return Forest::default();
     };
@@ -86,7 +185,12 @@ pub fn forest() -> Forest {
         .filter_map(Result::ok)
         .filter_map(|process| {
             let stat = process.stat().ok()?;
-            Some(Process::of(&process, stat, booted))
+            let incarnation = Incarnation::of(&stat);
+            let ticks = stat.utime + stat.stime;
+            samples.ticks.insert(incarnation, ticks);
+            let uptime = Process::born(&stat, booted);
+            let cpu = window.busy_fraction(incarnation, ticks, uptime);
+            Some(Process::of(&process, stat, uptime, cpu))
         })
         .collect();
     let live: HashSet<i32> = running.iter().map(|node| node.pid).collect();
@@ -111,14 +215,23 @@ pub fn subscription() -> Subscription<Forest> {
 
 fn scan() -> impl Stream<Item = Forest> {
     stream::channel(1, |mut output: Sender<Forest>| async move {
+        let capacity = CpuCapacity::current();
+        let mut samples = CpuSamples::none_yet();
         loop {
-            match spawn_blocking(forest).await {
-                Ok(forest) => {
+            match spawn_blocking(move || sample(&samples, capacity)).await {
+                Ok(Sampled {
+                    forest,
+                    samples: next,
+                }) => {
+                    samples = next;
                     if output.send(forest).await.is_err() {
                         return;
                     }
                 }
-                Err(e) => tracing::warn!("process scan: {e}"),
+                Err(e) => {
+                    tracing::warn!("process scan: {e}");
+                    samples = CpuSamples::none_yet();
+                }
             }
             sleep(SCAN_INTERVAL).await;
         }
@@ -236,6 +349,8 @@ pub fn monotonic() -> Option<Duration> {
 
 #[cfg(test)]
 mod tests {
+    use uom::si::ratio::percent;
+
     use super::*;
 
     fn leaf(pid: i32, parent: i32) -> Process {
@@ -244,6 +359,7 @@ mod tests {
             parent,
             name: format!("proc{pid}"),
             memory: ByteSize::b(0),
+            cpu: Ratio::new::<ratio>(0.0),
             threads: 1,
             uptime: Duration::ZERO,
             children: Vec::new(),
@@ -277,6 +393,44 @@ mod tests {
     #[test]
     fn absent_parent_still_yields_its_child() {
         assert_eq!(shape(&grown(7, [leaf(7, 5), leaf(8, 7)])), vec![7, 8]);
+    }
+
+    fn eight_cores() -> CpuCapacity {
+        CpuCapacity {
+            ticks_per_second: 8 * 100,
+        }
+    }
+
+    #[test]
+    fn one_saturated_core_of_eight_is_an_eighth_of_the_machine() {
+        assert_eq!(
+            eight_cores().busy_fraction(50, Duration::from_millis(500)),
+            Ratio::new::<percent>(12.5)
+        );
+    }
+
+    #[test]
+    fn all_cores_saturated_is_the_whole_machine() {
+        assert_eq!(
+            eight_cores().busy_fraction(400, Duration::from_millis(500)),
+            Ratio::new::<ratio>(1.0)
+        );
+    }
+
+    #[test]
+    fn no_elapsed_time_is_idle() {
+        assert_eq!(
+            eight_cores().busy_fraction(50, Duration::ZERO),
+            Ratio::new::<ratio>(0.0)
+        );
+    }
+
+    #[test]
+    fn cpu_total_sums_descendants() {
+        let mut root = grown(1, [leaf(1, 0), leaf(2, 1), leaf(3, 1)]);
+        root.children[0].cpu = Ratio::new::<percent>(40.0);
+        root.children[1].cpu = Ratio::new::<percent>(60.0);
+        assert_eq!(root.cpu_total(), Ratio::new::<ratio>(1.0));
     }
 
     #[test]

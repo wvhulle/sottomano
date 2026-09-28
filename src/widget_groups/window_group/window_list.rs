@@ -22,6 +22,7 @@ use crate::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
+    widget_groups::window_group::process_tree::Folding,
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
@@ -47,6 +48,7 @@ pub struct WindowList {
     scroll: f32,
     metrics: Metrics,
     processes: Forest,
+    folding: Folding,
     inspected: Option<Inspection>,
 }
 
@@ -59,6 +61,7 @@ pub enum WindowListMessage {
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
     ProcessesScanned(Forest),
+    ProcessFoldToggled(i32),
     ProcessInspected(Inspection),
     IconsBackstopElapsed,
     Scrolled(f32),
@@ -94,6 +97,10 @@ impl WindowList {
         self.processes.subtree(pid)
     }
 
+    pub fn folding(&self) -> &Folding {
+        &self.folding
+    }
+
     pub fn inspection(&self, pid: i32) -> Option<&Inspection> {
         self.inspected.as_ref().filter(|found| found.pid == pid)
     }
@@ -113,7 +120,12 @@ impl WindowList {
             }
             WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::ProcessesScanned(forest) => {
+                self.folding.retain_live(&forest);
                 self.processes = forest;
+                Action::None
+            }
+            WindowListMessage::ProcessFoldToggled(pid) => {
+                self.folding.toggle(pid);
                 Action::None
             }
             WindowListMessage::ProcessInspected(inspected) => {

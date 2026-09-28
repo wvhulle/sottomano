@@ -9,6 +9,7 @@ use iced::Size;
 
 use crate::{
     data::source::{process::Process, tray::MenuNode},
+    widget_groups::window_group::process_tree::Folding,
     widgets::{
         bar_widget::{Glyph, Level},
         localized_time::TimePart,
@@ -106,14 +107,17 @@ pub enum SectionBody {
         headings: Vec<String>,
         rows: Vec<Row>,
     },
-    Tree(Process),
+    Tree {
+        root: Process,
+        folding: Folding,
+    },
 }
 
 impl SectionBody {
     pub fn is_empty(&self) -> bool {
         match self {
             SectionBody::Rows(rows) | SectionBody::Columns { rows, .. } => rows.is_empty(),
-            SectionBody::Tree(_) => false,
+            SectionBody::Tree { .. } => false,
         }
     }
 }
@@ -148,10 +152,10 @@ pub fn table_section<R: TableRow>(
     }
 }
 
-pub fn tree_section(title: impl Into<String>, root: Process) -> Section {
+pub fn tree_section(title: impl Into<String>, root: Process, folding: Folding) -> Section {
     Section {
         title: Some(title.into()),
-        body: SectionBody::Tree(root),
+        body: SectionBody::Tree { root, folding },
     }
 }
 

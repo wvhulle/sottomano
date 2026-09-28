@@ -97,7 +97,7 @@ mod tests {
                 .iter()
                 .filter_map(|section| match &section.body {
                     SectionBody::Rows(rows) | SectionBody::Columns { rows, .. } => Some(rows),
-                    SectionBody::Tree(_) => None,
+                    SectionBody::Tree { .. } => None,
                 })
                 .flatten()
                 .cloned()

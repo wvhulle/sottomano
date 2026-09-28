@@ -225,7 +225,7 @@ impl<'a> TooltipContent<'a> {
         match body {
             SectionBody::Rows(rows) => self.table(rows),
             SectionBody::Columns { headings, rows } => self.headed_table(headings, rows),
-            SectionBody::Tree(root) => ProcessTree::new(root, self.config)
+            SectionBody::Tree { root, folding } => ProcessTree::new(root, folding, self.config)
                 .opacity(self.opacity)
                 .view(),
         }
