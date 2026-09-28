@@ -2,7 +2,7 @@ use crate::{
     data::source::screen_temperature::{self, SunFollow},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         toggle_control::Toggle,
         tooltip_body::{TooltipBody, row},
     },
@@ -11,9 +11,9 @@ use crate::{
 impl BarWidget for SunFollow {
     fn icon(&self) -> Glyph {
         if self.auto {
-            Solid::Sun.into()
+            phosphor::Sun::Regular.into()
         } else {
-            Solid::Ban.into()
+            phosphor::Prohibit::Regular.into()
         }
     }
 

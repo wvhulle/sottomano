@@ -21,9 +21,9 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        font_awesome::Solid,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor,
         reading_row::{Reading, ReadingRow},
         tooltip_body::Tooltip,
     },
@@ -122,6 +122,6 @@ impl NetInterfacesGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, NetInterfacesMessage> {
-        Solid::Link.view(config.font.icon_size_px, config.palette.bar_foreground)
+        phosphor::Link::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }

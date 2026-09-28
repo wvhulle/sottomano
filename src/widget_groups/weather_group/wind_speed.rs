@@ -7,7 +7,7 @@ use crate::{
     data::source::weather::Wind,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
@@ -42,11 +42,11 @@ impl Wind {
 
 impl BarWidget for Wind {
     fn icon(&self) -> Glyph {
-        Solid::Wind.into()
+        phosphor::Wind::Regular.into()
     }
 
     fn fallback_icon() -> Glyph {
-        Solid::Wind.into()
+        phosphor::Wind::Regular.into()
     }
 
     fn label(&self) -> Option<String> {

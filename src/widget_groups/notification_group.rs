@@ -8,11 +8,10 @@ use crate::{
     state::NotificationState,
     wayland_layers::surface::Position,
     widgets::{
-        DISABLED_ALPHA,
         bar_widget::{BarWidget, Glyph},
         flat_button,
-        font_awesome::{FontAwesome, Regular, Solid},
         menu_group::{MenuGroup, MenuMessage},
+        phosphor::{self, Phosphor},
         source_reading::source_reading,
         tooltip_body::TooltipBody,
     },
@@ -57,28 +56,29 @@ impl NotificationGroup {
         let content = move |_reveal: f32| {
             let do_not_disturb = toggle(
                 config,
-                Solid::Ban.into(),
-                dnd,
+                if dnd {
+                    phosphor::Prohibit::Fill.into()
+                } else {
+                    phosphor::Prohibit::Light.into()
+                },
                 NotificationToggle::DoNotDisturb,
             );
             let sound = toggle(
                 config,
                 if sound {
-                    Solid::Bell.into()
+                    phosphor::Bell::Fill.into()
                 } else {
-                    Solid::BellSlash.into()
+                    phosphor::BellSlash::Light.into()
                 },
-                sound,
                 NotificationToggle::Sound,
             );
             let spatial_layout = toggle(
                 config,
                 if spatial_layout {
-                    Solid::AlignCenter.into()
+                    phosphor::TextAlignCenter::Fill.into()
                 } else {
-                    Solid::AlignRight.into()
+                    phosphor::TextAlignRight::Light.into()
                 },
-                spatial_layout,
                 NotificationToggle::SpatialLayout,
             );
             Row::new()
@@ -105,11 +105,11 @@ struct NotificationStatus {
 impl BarWidget for NotificationStatus {
     fn icon(&self) -> Glyph {
         if self.dnd {
-            Solid::CommentSlash.into()
+            phosphor::ChatCircleSlash::Light.into()
         } else if self.live > 0 {
-            Solid::Comment.into()
+            phosphor::ChatCircle::Fill.into()
         } else {
-            Regular::Comment.into()
+            phosphor::ChatCircle::Regular.into()
         }
     }
 
@@ -128,12 +128,10 @@ impl BarWidget for NotificationStatus {
 
 fn toggle<'a>(
     config: &Config,
-    icon: FontAwesome,
-    active: bool,
+    icon: Phosphor,
     toggle: NotificationToggle,
 ) -> Element<'a, NotificationGroupMessage> {
-    let opacity = if active { 1.0 } else { DISABLED_ALPHA };
-    let color = config.palette.bar_foreground.scale_alpha(opacity);
+    let color = config.palette.bar_foreground;
     button(icon.view(config.font.icon_size_px, color))
         .padding(0)
         .style(flat_button(color))

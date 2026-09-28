@@ -2,14 +2,14 @@ use crate::{
     data::source::tailscale::Tailscale,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
 
 impl BarWidget for Tailscale {
     fn icon(&self) -> Glyph {
-        Solid::CircleNodes.into()
+        phosphor::Graph::Regular.into()
     }
 
     fn disabled(&self) -> bool {

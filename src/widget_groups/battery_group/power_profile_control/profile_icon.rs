@@ -1,12 +1,12 @@
 use crate::{
     data::source::power_profile::Profile,
-    widgets::font_awesome::{FontAwesome, Solid},
+    widgets::phosphor::{self, Phosphor},
 };
 
-pub fn profile_face(profile: Profile) -> FontAwesome {
+pub fn profile_face(profile: Profile) -> Phosphor {
     match profile {
-        Profile::PowerSaver => Solid::Leaf.into(),
-        Profile::Balanced => Solid::ScaleBalanced.into(),
-        Profile::Performance => Solid::Rocket.into(),
+        Profile::PowerSaver => phosphor::Leaf::Regular.into(),
+        Profile::Balanced => phosphor::Scales::Regular.into(),
+        Profile::Performance => phosphor::Rocket::Regular.into(),
     }
 }

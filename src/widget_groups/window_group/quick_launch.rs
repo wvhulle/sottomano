@@ -12,8 +12,8 @@ use crate::{
     wayland_layers::surface::Position,
     widgets::{
         flat_button,
-        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor,
     },
 };
 
@@ -77,8 +77,9 @@ impl QuickLaunch {
     ) -> Option<Element<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
-        let face =
-            move || Solid::Rocket.view(config.font.icon_size_px, config.palette.bar_foreground);
+        let face = move || {
+            phosphor::Rocket::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+        };
 
         let content = move |reveal: f32| {
             Row::with_children(

@@ -26,8 +26,8 @@ use crate::{
         activity_line::activity_line,
         flat_button,
         focus_indicator::focus_indicator,
-        font_awesome::Solid,
         pager_slot::PagerSlot,
+        phosphor::{self, Phosphor},
         progress_line::progress_line,
         text::LINE_HEIGHT,
         window_icon::{WindowAssets, window_icon},
@@ -286,9 +286,15 @@ fn audio_glyph<'a>(
         return None;
     }
     let (icon, color) = if audio.muted {
-        (Solid::VolumeXmark, config.palette.inactive)
+        (
+            Phosphor::SpeakerX(phosphor::SpeakerX::Light),
+            config.palette.inactive,
+        )
     } else {
-        (Solid::VolumeHigh, config.palette.bar_foreground)
+        (
+            Phosphor::SpeakerHigh(phosphor::SpeakerHigh::Fill),
+            config.palette.bar_foreground,
+        )
     };
     Some(icon.view(config.font.icon_size_px, color.scale_alpha(opacity)))
 }

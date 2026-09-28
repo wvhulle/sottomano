@@ -11,8 +11,8 @@ use crate::{
     data::source::weather::{HourlyTemperature, Temperature},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
         localized_time::TimePart,
+        phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, cells, row, section, table_section, untitled},
         weather_icons::WeatherIcon,
     },
@@ -24,7 +24,7 @@ impl BarWidget for Temperature {
     }
 
     fn fallback_icon() -> Glyph {
-        Solid::Thermometer.into()
+        phosphor::Thermometer::Regular.into()
     }
 
     fn label(&self) -> Option<String> {

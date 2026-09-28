@@ -11,8 +11,8 @@ use crate::{
     },
     widgets::{
         flat_button,
-        font_awesome::Solid,
         pager_slot::permanently_inactive_slot,
+        phosphor,
         tooltip_body::{Row, Tooltip, row},
     },
 };
@@ -24,7 +24,8 @@ pub enum OutputMessage {
 }
 
 pub fn view<'a>(output: &str, config: &Config, position: Position) -> Element<'a, OutputMessage> {
-    let glyph = Solid::LayerGroup.view(config.font.icon_size_px, config.palette.bar_foreground);
+    let glyph =
+        phosphor::Stack::Regular.view(config.font.icon_size_px, config.palette.bar_foreground);
     let pressable = button(permanently_inactive_slot(glyph, config, position))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))

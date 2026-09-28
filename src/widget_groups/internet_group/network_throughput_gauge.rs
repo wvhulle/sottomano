@@ -12,7 +12,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor::{self, Phosphor},
         tooltip_body::{TooltipBody, row},
     },
 };
@@ -21,15 +21,15 @@ const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
 const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
 
 pub trait DirectionIcon: Direction {
-    const ICON: Solid;
+    const ICON: Phosphor;
 }
 
 impl DirectionIcon for Upload {
-    const ICON: Solid = Solid::Upload;
+    const ICON: Phosphor = Phosphor::UploadSimple(phosphor::UploadSimple::Regular);
 }
 
 impl DirectionIcon for Download {
-    const ICON: Solid = Solid::Download;
+    const ICON: Phosphor = Phosphor::DownloadSimple(phosphor::DownloadSimple::Regular);
 }
 
 impl<D: DirectionIcon> BarWidget for Throughput<D> {

@@ -5,14 +5,14 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
     },
 };
 
 impl BarWidget for Ethernet {
     fn icon(&self) -> Glyph {
-        Solid::Ethernet.into()
+        phosphor::Network::Regular.into()
     }
 
     fn disabled(&self) -> bool {

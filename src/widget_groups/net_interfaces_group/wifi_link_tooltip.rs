@@ -7,14 +7,14 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row, section},
     },
 };
 
 impl BarWidget for Wifi {
     fn icon(&self) -> Glyph {
-        Solid::Wifi.into()
+        phosphor::WifiHigh::Regular.into()
     }
 
     fn disabled(&self) -> bool {

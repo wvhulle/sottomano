@@ -24,9 +24,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
         flat_button,
-        font_awesome::Solid,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor,
         source_reading::source_reading,
         tooltip_body::{Tooltip, TooltipBody},
     },
@@ -151,7 +151,7 @@ impl JournalGroup {
 
 impl BarWidget for JournalGroup {
     fn icon(&self) -> Glyph {
-        Solid::HeartPulse.into()
+        phosphor::Heartbeat::Regular.into()
     }
 
     fn badge(&self) -> Option<u32> {

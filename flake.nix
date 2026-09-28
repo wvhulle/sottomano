@@ -40,6 +40,13 @@
 
       src = craneLib.cleanCargoSource ./.;
 
+      phosphorCore = pkgs.fetchFromGitHub {
+        owner = "phosphor-icons";
+        repo = "core";
+        rev = "2b75f3ad12b420c9504ef05df8d2564a28f8500e";
+        hash = "sha256-aasAz4rTllySAxSvYORu+jIKqbqPIFCDM6s8pkNiW2o=";
+      };
+
       commonArgs = {
         inherit src;
         strictDeps = true;
@@ -57,7 +64,7 @@
           pipewire
         ];
         WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
-        FONT_AWESOME_SVG = "${pkgs.font-awesome.src}/svgs";
+        PHOSPHOR_SVG = "${phosphorCore}/assets";
       };
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -131,7 +138,7 @@
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
         env.vk_wsi_force_bgra8_unorm_first = "true";
         env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
-        env.FONT_AWESOME_SVG = "${pkgs.font-awesome.src}/svgs";
+        env.PHOSPHOR_SVG = "${phosphorCore}/assets";
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
           export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"

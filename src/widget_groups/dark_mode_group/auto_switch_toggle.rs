@@ -7,8 +7,8 @@ use crate::{
     state::dark_mode::DarkModeSchedule,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
         localized_time::TimePart,
+        phosphor,
         tooltip_body::{TooltipBody, row, time_row},
     },
 };
@@ -106,7 +106,7 @@ pub fn format_offset_minutes(offset: TimeDelta) -> String {
 
 impl BarWidget for AutoSwitchToggle {
     fn icon(&self) -> Glyph {
-        Solid::Clock.into()
+        phosphor::Clock::Regular.into()
     }
 
     fn label(&self) -> Option<String> {

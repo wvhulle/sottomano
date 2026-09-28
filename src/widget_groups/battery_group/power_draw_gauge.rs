@@ -9,7 +9,7 @@ use crate::{
     data::source::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerLimit},
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
     },
 };
@@ -88,9 +88,9 @@ fn power_text(power: Power) -> String {
 impl BarWidget for PowerDraw {
     fn icon(&self) -> Glyph {
         if self.on_battery() {
-            Solid::PlugCircleMinus.into()
+            phosphor::Plugs::Regular.into()
         } else {
-            Solid::PlugCirclePlus.into()
+            phosphor::PlugsConnected::Regular.into()
         }
     }
 

@@ -7,7 +7,7 @@ use crate::{
     data::source::sysfs_sensors::temperature::Temperature,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
@@ -24,7 +24,7 @@ fn celsius_text(temperature: ThermodynamicTemperature) -> String {
 
 impl BarWidget for Temperature {
     fn icon(&self) -> Glyph {
-        Solid::TemperatureHalf.into()
+        phosphor::ThermometerSimple::Regular.into()
     }
 
     fn level(&self) -> Level {

@@ -2,14 +2,14 @@ use crate::{
     data::source::sysfs_sensors::cpu_usage::CpuUsage,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
 
 impl BarWidget for CpuUsage {
     fn icon(&self) -> Glyph {
-        Solid::Microchip.into()
+        phosphor::Cpu::Regular.into()
     }
 
     fn level(&self) -> Level {

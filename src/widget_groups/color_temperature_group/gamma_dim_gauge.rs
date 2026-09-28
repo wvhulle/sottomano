@@ -4,14 +4,14 @@ use crate::{
     data::source::gamma::Gamma,
     widgets::{
         bar_widget::{BarWidget, Glyph, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
 
 impl BarWidget for Gamma {
     fn icon(&self) -> Glyph {
-        Solid::CircleHalfStroke.into()
+        phosphor::CircleHalf::Regular.into()
     }
 
     fn value(&self) -> Option<Value> {

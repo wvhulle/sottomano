@@ -11,12 +11,12 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        font_awesome::Solid,
         idle::{
             IdleAction, IdleTrigger, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
         menu_group::{MenuGroup, MenuMessage},
+        phosphor,
         slider_control::ControlMessage,
         tooltip_body::Tooltip,
     },
@@ -61,25 +61,25 @@ impl Default for IdleTimeoutsGroup {
     fn default() -> Self {
         Self {
             lock: IdleTimer::new(
-                Solid::Lock.into(),
+                phosphor::Lock::Regular.into(),
                 HoverTarget::IdleLockUser,
                 IdleAction::Lock,
                 false,
             ),
             screen_off: IdleTimer::new(
-                Solid::Display.into(),
+                phosphor::Monitor::Regular.into(),
                 HoverTarget::IdleScreenOff,
                 IdleAction::ScreenOff,
                 false,
             ),
             standby: IdleTimer::new(
-                Solid::Bed.into(),
+                phosphor::Bed::Regular.into(),
                 HoverTarget::IdleStandby,
                 IdleAction::Suspend,
                 true,
             ),
             power_down: IdleTimer::new(
-                Solid::PowerOff.into(),
+                phosphor::Power::Regular.into(),
                 HoverTarget::IdlePowerDown,
                 IdleAction::PowerOff,
                 true,
@@ -206,8 +206,9 @@ impl IdleTimeoutsGroup {
         config: &'a Config,
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
-        let face =
-            move || Solid::Stopwatch.view(config.font.icon_size_px, config.palette.bar_foreground);
+        let face = move || {
+            phosphor::Timer::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+        };
 
         let content = move |reveal: f32| {
             let controls = self.entries().map(|(kind, timer)| {

@@ -2,7 +2,10 @@ use iced::{Element, widget::button};
 
 use crate::{
     config::Config,
-    widgets::{flat_button, font_awesome::Solid},
+    widgets::{
+        flat_button,
+        phosphor::{self, Phosphor},
+    },
 };
 
 pub enum Press {
@@ -45,11 +48,20 @@ impl ConfirmButton {
         on_press: Message,
     ) -> Element<'a, Message> {
         let (glyph, color) = if self.armed {
-            (Solid::TriangleExclamation, config.palette.urgent)
+            (
+                Phosphor::Warning(phosphor::Warning::Fill),
+                config.palette.urgent,
+            )
         } else if active {
-            (Solid::Bolt, config.palette.bar_foreground)
+            (
+                Phosphor::Lightning(phosphor::Lightning::Fill),
+                config.palette.bar_foreground,
+            )
         } else {
-            (Solid::Bolt, config.palette.inactive)
+            (
+                Phosphor::Lightning(phosphor::Lightning::Light),
+                config.palette.inactive,
+            )
         };
         let color = color.scale_alpha(opacity);
         button(glyph.view(config.font.icon_size_px, color))

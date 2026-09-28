@@ -4,8 +4,8 @@ use crate::{
     data::source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
-        font_awesome::Solid,
         localized_time::TimePart,
+        phosphor,
         tooltip_body::{Cell, TooltipBody, cells, row},
     },
 };
@@ -21,18 +21,18 @@ impl BarWidget for Rain {
     fn icon(&self) -> Glyph {
         let peak = self.peak.intensity;
         if peak < Velocity::new::<millimeter_per_hour>(0.5) {
-            Solid::Droplet.into()
+            phosphor::Drop::Regular.into()
         } else if peak < Velocity::new::<millimeter_per_hour>(2.5) {
-            Solid::CloudRain.into()
+            phosphor::CloudRain::Regular.into()
         } else if peak < Velocity::new::<millimeter_per_hour>(7.5) {
-            Solid::CloudShowersHeavy.into()
+            phosphor::CloudRain::Regular.into()
         } else {
-            Solid::CloudBolt.into()
+            phosphor::CloudLightning::Regular.into()
         }
     }
 
     fn fallback_icon() -> Glyph {
-        Solid::Droplet.into()
+        phosphor::Drop::Regular.into()
     }
 
     fn label(&self) -> Option<String> {
