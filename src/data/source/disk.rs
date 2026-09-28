@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use bytesize::ByteSize;
 use tokio::task::spawn_blocking;
 
 use super::Source;
@@ -25,17 +26,17 @@ impl Display for Error {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Disk {
-    pub total_bytes: u64,
-    pub free_bytes: u64,
+    pub total: ByteSize,
+    pub free: ByteSize,
 }
 
 impl Disk {
     pub fn used_pct(&self) -> i64 {
-        if self.total_bytes == 0 {
+        if self.total == ByteSize::default() {
             return 0;
         }
-        let used = self.total_bytes - self.free_bytes;
-        ((used as f64 * 100.0) / self.total_bytes as f64).round() as i64
+        let used = self.total - self.free;
+        ((used.as_u64() as f64 * 100.0) / self.total.as_u64() as f64).round() as i64
     }
 }
 
@@ -62,8 +63,8 @@ fn read_root_statvfs() -> Result<Disk, Error> {
     }
     let frsize = stat.f_frsize as u64;
     Ok(Disk {
-        total_bytes: stat.f_blocks as u64 * frsize,
-        free_bytes: stat.f_bavail as u64 * frsize,
+        total: ByteSize::b(stat.f_blocks as u64 * frsize),
+        free: ByteSize::b(stat.f_bavail as u64 * frsize),
     })
 }
 

@@ -9,8 +9,8 @@ use crate::{
     },
 };
 
-const FREE_WARN_BYTES: u64 = 100_000_000_000;
-const FREE_CRITICAL_BYTES: u64 = 2_000_000_000;
+const FREE_WARN: ByteSize = ByteSize::gb(100);
+const FREE_CRITICAL: ByteSize = ByteSize::gb(2);
 
 impl BarWidget for Disk {
     fn icon(&self) -> Glyph {
@@ -18,9 +18,9 @@ impl BarWidget for Disk {
     }
 
     fn level(&self) -> Level {
-        if self.free_bytes < FREE_CRITICAL_BYTES {
+        if self.free < FREE_CRITICAL {
             Level::Critical
-        } else if self.free_bytes < FREE_WARN_BYTES {
+        } else if self.free < FREE_WARN {
             Level::Warning
         } else {
             Level::Ok
@@ -38,12 +38,8 @@ impl BarWidget for Disk {
         TooltipBody::rows(vec![
             row("Mount", "/"),
             row("Used", format!("{}%", self.used_pct())),
-            row("Free", bytes(self.free_bytes)),
-            row("Total", bytes(self.total_bytes)),
+            row("Free", self.free.display().iec().to_string()),
+            row("Total", self.total.display().iec().to_string()),
         ])
     }
-}
-
-fn bytes(amount: u64) -> String {
-    ByteSize::b(amount).display().iec().to_string()
 }
