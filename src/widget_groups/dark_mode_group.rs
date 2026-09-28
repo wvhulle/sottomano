@@ -3,13 +3,19 @@ pub mod umbra_dark_mode;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{TimeDelta, Utc};
-use iced::{Alignment, Element, Subscription, Task, time::every, widget::Row};
+use chrono::{DateTime, TimeDelta, Utc};
+use iced::{
+    Alignment, Element, Subscription, Task,
+    futures::{Stream, StreamExt, stream},
+    widget::Row,
+};
+use tokio::time::sleep;
 
 use crate::{
     config::Config,
     data::{
         source::{
+            logind,
             umbra::{self, Umbra},
             weather::{self, Location},
         },
@@ -21,7 +27,9 @@ use crate::{
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
-    widget_groups::dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, format_offset_minutes},
+    widget_groups::dark_mode_group::auto_switch_toggle::{
+        AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
+    },
     widgets::{
         bar_widget::BarWidget,
         font_awesome::Solid,
@@ -34,7 +42,7 @@ use crate::{
 
 const OFFSET_MINUTES: RangeInclusive<f32> = -120.0..=120.0;
 const OFFSET_STEP_MINUTES: f32 = 5.0;
-const SCHEDULE_CHECK: Duration = Duration::from_secs(30);
+const SWITCH_TIMER_MARGIN: Duration = Duration::from_secs(1);
 
 pub struct DarkModeGroup {
     mode_toggle: ToggleControl<Umbra>,
@@ -48,7 +56,7 @@ pub struct DarkModeGroup {
 pub enum DarkModeMessage {
     ScheduleLoaded(DarkModeSchedule),
     LocationFix(Result<Location, weather::Error>),
-    ScheduleTick,
+    SwitchDue,
     ModeToggle(ToggleMessage<Umbra>),
     ToggleAutoSwitch,
     OffsetSlider(ColorMode, ControlMessage),
@@ -77,17 +85,21 @@ impl DarkModeGroup {
     }
 
     pub fn subscription(&self) -> Subscription<DarkModeMessage> {
-        let tick = if self.auto_switch_toggle.is_awaiting_switch() {
-            every(SCHEDULE_CHECK).map(|_| DarkModeMessage::ScheduleTick)
-        } else {
-            Subscription::none()
+        let upcoming_switch = match self.auto_switch_toggle.status_at(Utc::now()) {
+            ScheduleStatus::Following { upcoming, .. } => {
+                Subscription::run_with(upcoming.switch_time, wait_until_switch)
+            }
+            ScheduleStatus::Disarmed
+            | ScheduleStatus::AwaitingLocationFix
+            | ScheduleStatus::NoSunEvents => Subscription::none(),
         };
         Subscription::batch([
             self.mode_toggle
                 .subscription(())
                 .map(DarkModeMessage::ModeToggle),
             Subscription::run(Location::published).map(DarkModeMessage::LocationFix),
-            tick,
+            Subscription::run(logind::resumes).map(|()| DarkModeMessage::SwitchDue),
+            upcoming_switch,
         ])
     }
 
@@ -109,35 +121,33 @@ impl DarkModeGroup {
     pub fn update(&mut self, msg: DarkModeMessage) -> Task<DarkModeMessage> {
         match msg {
             DarkModeMessage::ScheduleLoaded(saved) => {
-                self.auto_switch_toggle
-                    .restore_saved_schedule(saved, Utc::now());
+                self.auto_switch_toggle.saved_schedule = saved;
                 for edge in [ColorMode::Light, ColorMode::Dark] {
                     let minutes =
                         time_delta_to_minutes(saved.sun_event_offsets.offset_for_mode(edge));
                     self.offset_slider_for_mut(edge)
                         .update(ControlMessage::Reading(minutes));
                 }
-                Task::none()
+                self.enforce_wanted_mode(Utc::now())
             }
             DarkModeMessage::LocationFix(reading) => {
                 if let Ok(location) = reading {
-                    self.auto_switch_toggle
-                        .update_location(location.position(), Utc::now());
+                    self.auto_switch_toggle.update_location(location.position());
                 }
-                Task::none()
+                self.enforce_wanted_mode(Utc::now())
             }
-            DarkModeMessage::ScheduleTick => {
-                let crossed = self.auto_switch_toggle.detect_mode_crossing(Utc::now());
-                self.apply_color_mode(crossed)
-            }
+            DarkModeMessage::SwitchDue => self.enforce_wanted_mode(Utc::now()),
             DarkModeMessage::ModeToggle(m) => {
+                if let ToggleMessage::Press = m {
+                    self.auto_switch_toggle.record_manual_choice(Utc::now());
+                }
                 self.mode_toggle.update(m).map(DarkModeMessage::ModeToggle)
             }
             DarkModeMessage::ToggleAutoSwitch => {
-                let current = self.auto_switch_toggle.toggle_auto_switch(Utc::now());
+                self.auto_switch_toggle.toggle_auto_switch();
                 Task::batch([
                     self.persist_saved_schedule(),
-                    self.apply_color_mode(current),
+                    self.enforce_wanted_mode(Utc::now()),
                 ])
             }
             DarkModeMessage::OffsetSlider(edge, m) => self.update_offset_slider(edge, m),
@@ -167,25 +177,27 @@ impl DarkModeGroup {
                     .saved_schedule
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
-                let passed = self
-                    .auto_switch_toggle
-                    .change_sun_event_offsets(offsets, Utc::now());
+                self.auto_switch_toggle.change_sun_event_offsets(offsets);
                 let confirm = Task::future(state::dark_mode::save(
                     self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |ok| {
                     DarkModeMessage::OffsetSlider(edge, ControlMessage::Confirmed { value, ok })
                 });
-                Task::batch([confirm, self.apply_color_mode(passed)])
+                Task::batch([confirm, self.enforce_wanted_mode(Utc::now())])
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
     }
 
-    fn apply_color_mode(&mut self, mode: Option<ColorMode>) -> Task<DarkModeMessage> {
-        let Some(mode) = mode else {
-            return Task::none();
-        };
+    fn enforce_wanted_mode(&mut self, now: DateTime<Utc>) -> Task<DarkModeMessage> {
+        match self.auto_switch_toggle.switch_decision_at(now) {
+            SwitchDecision::Apply(mode) => self.apply_color_mode(mode),
+            SwitchDecision::Hold => Task::none(),
+        }
+    }
+
+    fn apply_color_mode(&mut self, mode: ColorMode) -> Task<DarkModeMessage> {
         self.mode_toggle.assume(Umbra {
             dark: mode == ColorMode::Dark,
         });
@@ -299,6 +311,11 @@ fn new_offset_slider(target: HoverTarget, icon: Solid) -> SliderControl {
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)
         .readout(|minutes| format_offset_minutes(minutes_to_time_delta(minutes)))
+}
+
+fn wait_until_switch(switch_time: &DateTime<Utc>) -> impl Stream<Item = DarkModeMessage> + use<> {
+    let remaining = (*switch_time - Utc::now()).to_std().unwrap_or_default();
+    stream::once(sleep(remaining + SWITCH_TIMER_MARGIN)).map(|()| DarkModeMessage::SwitchDue)
 }
 
 fn minutes_to_time_delta(minutes: f32) -> TimeDelta {

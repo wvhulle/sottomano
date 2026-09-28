@@ -78,19 +78,27 @@ pub struct SolarSwitchSchedule {
     pub sun_event_offsets: SunEventOffsets,
 }
 
-impl SolarSwitchSchedule {
-    pub fn next_switch_after(&self, now: DateTime<Utc>) -> Option<ModeSwitch> {
-        self.switches_around_date(now)
-            .into_iter()
-            .find(|switch| switch.switch_time > now)
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SunOutlook {
+    Alternating {
+        latest: ModeSwitch,
+        upcoming: ModeSwitch,
+    },
+    NoSunEvents,
+}
 
-    pub fn mode_at_time(&self, now: DateTime<Utc>) -> Option<ColorMode> {
-        self.switches_around_date(now)
-            .into_iter()
-            .rev()
-            .find(|switch| switch.switch_time <= now)
-            .map(|switch| switch.target_mode)
+impl SolarSwitchSchedule {
+    pub fn outlook_at(&self, now: DateTime<Utc>) -> SunOutlook {
+        let switches = self.switches_around_date(now);
+        let (earlier, later) =
+            switches.split_at(switches.partition_point(|switch| switch.switch_time <= now));
+        let Some(&latest) = earlier.last() else {
+            return SunOutlook::NoSunEvents;
+        };
+        let Some(&upcoming) = later.first() else {
+            return SunOutlook::NoSunEvents;
+        };
+        SunOutlook::Alternating { latest, upcoming }
     }
 
     fn switches_around_date(&self, now: DateTime<Utc>) -> Vec<ModeSwitch> {

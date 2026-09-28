@@ -13,8 +13,8 @@ impl Default for Spacing {
     fn default() -> Self {
         Self {
             group_padding_px: 5.0,
-            widget_spacing_px: 5.0,
-            group_spacing_px: 12.0,
+            widget_spacing_px: 4.0,
+            group_spacing_px: 11.0,
         }
     }
 }

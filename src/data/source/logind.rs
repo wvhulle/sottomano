@@ -1,6 +1,10 @@
 use std::env;
 
-use iced::futures::{Stream, StreamExt, future::ready, stream::select};
+use iced::futures::{
+    Stream, StreamExt,
+    future::ready,
+    stream::{self, BoxStream, select},
+};
 use tokio::process::Child;
 use zbus::{blocking, proxy, zvariant::OwnedObjectPath};
 
@@ -82,6 +86,32 @@ async fn watch_lock_requests(lock_before_sleep: bool) -> zbus::Result<impl Strea
             ready((lock_before_sleep && entering_sleep).then_some(()))
         });
     Ok(select(locks, sleeps))
+}
+
+pub fn resumes() -> impl Stream<Item = ()> {
+    stream::once(async {
+        match resume_signals().await {
+            Ok(resumes) => resumes.boxed(),
+            Err(e) => {
+                tracing::warn!("resume signal: {e}");
+                stream::empty().boxed()
+            }
+        }
+    })
+    .flatten()
+}
+
+async fn resume_signals() -> zbus::Result<BoxStream<'static, ()>> {
+    let connection = zbus::Connection::system().await?;
+    let manager = ManagerProxy::new(&connection).await?;
+    let resumes = manager
+        .receive_prepare_for_sleep()
+        .await?
+        .filter_map(|signal| {
+            let resumed = signal.args().is_ok_and(|args| !*args.start());
+            ready(resumed.then_some(()))
+        });
+    Ok(resumes.boxed())
 }
 
 async fn spawn_locker_on(requests: impl Stream<Item = ()>, command: &[String]) {
