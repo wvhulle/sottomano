@@ -1,6 +1,10 @@
 use std::{path::Path, time::Duration};
 
 use tokio::task::spawn_blocking;
+use uom::si::{
+    f64::ThermodynamicTemperature,
+    thermodynamic_temperature::{degree_celsius, kelvin},
+};
 
 use super::{Error, list_dir, read_i64, read_trimmed};
 use crate::data::source::Source;
@@ -12,7 +16,7 @@ const TEMP_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 #[derive(Debug, Clone, PartialEq)]
 pub struct TempReading {
     pub chip: String,
-    pub celsius: f64,
+    pub temperature: ThermodynamicTemperature,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,8 +25,24 @@ pub struct Temperature {
 }
 
 impl Temperature {
-    pub fn celsius_samples(&self) -> Vec<f64> {
-        self.readings.iter().map(|r| r.celsius).collect()
+    fn temperatures(&self) -> impl Iterator<Item = ThermodynamicTemperature> + '_ {
+        self.readings.iter().map(|reading| reading.temperature)
+    }
+
+    pub fn average(&self) -> ThermodynamicTemperature {
+        let total_kelvin: f64 = self
+            .temperatures()
+            .map(|temperature| temperature.get::<kelvin>())
+            .sum();
+        ThermodynamicTemperature::new::<kelvin>(total_kelvin / self.readings.len() as f64)
+    }
+
+    pub fn lowest(&self) -> Option<ThermodynamicTemperature> {
+        self.temperatures().reduce(ThermodynamicTemperature::min)
+    }
+
+    pub fn highest(&self) -> Option<ThermodynamicTemperature> {
+        self.temperatures().reduce(ThermodynamicTemperature::max)
     }
 }
 
@@ -99,9 +119,11 @@ fn chip_readings(chip: &Path, name: &str, is_coretemp: bool) -> Vec<TempReading>
     indices
         .iter()
         .filter_map(|i| read_i64(chip.join(format!("temp{i}_input"))))
-        .map(|milli| TempReading {
+        .map(|millidegrees| TempReading {
             chip: name.to_string(),
-            celsius: milli as f64 / 1000.0,
+            temperature: ThermodynamicTemperature::new::<degree_celsius>(
+                millidegrees as f64 / 1000.0,
+            ),
         })
         .collect()
 }

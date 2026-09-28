@@ -1,5 +1,10 @@
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
+};
+
 use crate::{
-    data::source::sysfs_sensors::{favg, fmax, fmin, temperature::Temperature},
+    data::source::sysfs_sensors::temperature::Temperature,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
         font_awesome::Solid,
@@ -7,16 +12,26 @@ use crate::{
     },
 };
 
+const WARNING_CELSIUS: f64 = 70.0;
+const CRITICAL_CELSIUS: f64 = 85.0;
+
+fn celsius_text(temperature: ThermodynamicTemperature) -> String {
+    format!(
+        "{:.0}",
+        temperature.into_format_args(degree_celsius, Abbreviation)
+    )
+}
+
 impl BarWidget for Temperature {
     fn icon(&self) -> Glyph {
         Solid::TemperatureHalf.into()
     }
 
     fn level(&self) -> Level {
-        let average = favg(&self.celsius_samples());
-        if average > 85.0 {
+        let average = self.average();
+        if average > ThermodynamicTemperature::new::<degree_celsius>(CRITICAL_CELSIUS) {
             Level::Critical
-        } else if average > 70.0 {
+        } else if average > ThermodynamicTemperature::new::<degree_celsius>(WARNING_CELSIUS) {
             Level::Warning
         } else {
             Level::Ok
@@ -24,7 +39,7 @@ impl BarWidget for Temperature {
     }
 
     fn value(&self) -> Option<Value> {
-        let average = favg(&self.celsius_samples()).round() as i64;
+        let average = self.average().get::<degree_celsius>().round() as i64;
         Some(Value::Gauge {
             percent: average.min(100),
             unit: Unit::Percent,
@@ -32,15 +47,22 @@ impl BarWidget for Temperature {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let samples = self.celsius_samples();
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
-        TooltipBody::rows(vec![
-            row("Chips", chips.join(", ")),
-            row("Samples", self.readings.len().to_string()),
-            row("Min", format!("{}°C", fmin(&samples).round() as i64)),
-            row("Avg", format!("{}°C", favg(&samples).round() as i64)),
-            row("Max", format!("{}°C", fmax(&samples).round() as i64)),
-        ])
+        let extremes = [
+            self.lowest().map(|lowest| row("Min", celsius_text(lowest))),
+            Some(row("Avg", celsius_text(self.average()))),
+            self.highest()
+                .map(|highest| row("Max", celsius_text(highest))),
+        ];
+        TooltipBody::rows(
+            [
+                row("Chips", chips.join(", ")),
+                row("Samples", self.readings.len().to_string()),
+            ]
+            .into_iter()
+            .chain(extremes.into_iter().flatten())
+            .collect(),
+        )
     }
 }

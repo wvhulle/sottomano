@@ -1,3 +1,8 @@
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{angle::degree, f64::Velocity, velocity::kilometer_per_hour},
+};
+
 use crate::{
     data::source::weather::Wind,
     widgets::{
@@ -13,17 +18,24 @@ const BEAUFORT_LOWER_BOUNDS_KM_PER_H: [f64; 12] = [
 
 const COMPASS_POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
+fn speed_text(speed: Velocity) -> String {
+    format!(
+        "{:.0}",
+        speed.into_format_args(kilometer_per_hour, Abbreviation)
+    )
+}
+
 impl Wind {
     fn beaufort(&self) -> usize {
         BEAUFORT_LOWER_BOUNDS_KM_PER_H
             .iter()
-            .take_while(|&&bound| self.speed >= bound)
+            .take_while(|&&bound| self.speed >= Velocity::new::<kilometer_per_hour>(bound))
             .count()
     }
 
     fn compass_point(&self) -> &'static str {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let sector = (self.direction.rem_euclid(360.0) / 45.0).round() as usize;
+        let sector = (self.direction.get::<degree>().rem_euclid(360.0) / 45.0).round() as usize;
         COMPASS_POINTS[sector % COMPASS_POINTS.len()]
     }
 }
@@ -51,14 +63,16 @@ impl BarWidget for Wind {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::rows(vec![
+            row("Speed", speed_text(self.speed)),
+            row("Beaufort", self.beaufort().to_string()),
+            row("Gusts", speed_text(self.gusts)),
+            row("From", self.compass_point()),
             row(
-                "Speed",
-                format!("{} km/h (Beaufort {})", self.speed, self.beaufort()),
-            ),
-            row("Gusts", format!("{} km/h", self.gusts)),
-            row(
-                "From",
-                format!("{} ({}°)", self.compass_point(), self.direction),
+                "Bearing",
+                format!(
+                    "{:.0}",
+                    self.direction.into_format_args(degree, Abbreviation)
+                ),
             ),
         ])
     }

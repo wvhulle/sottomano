@@ -1,5 +1,7 @@
+use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
+
 use crate::{
-    data::source::weather::{Rain, RainOutlook},
+    data::source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         font_awesome::Solid,
@@ -8,14 +10,21 @@ use crate::{
     },
 };
 
+fn intensity_text(intensity: Velocity) -> String {
+    format!(
+        "{:.1}",
+        intensity.into_format_args(millimeter_per_hour, Abbreviation)
+    )
+}
+
 impl BarWidget for Rain {
     fn icon(&self) -> Glyph {
-        let peak = self.peak.mm_per_h;
-        if peak < 0.5 {
+        let peak = self.peak.intensity;
+        if peak < Velocity::new::<millimeter_per_hour>(0.5) {
             Solid::Droplet.into()
-        } else if peak < 2.5 {
+        } else if peak < Velocity::new::<millimeter_per_hour>(2.5) {
             Solid::CloudRain.into()
-        } else if peak < 7.5 {
+        } else if peak < Velocity::new::<millimeter_per_hour>(7.5) {
             Solid::CloudShowersHeavy.into()
         } else {
             Solid::CloudBolt.into()
@@ -38,17 +47,17 @@ impl BarWidget for Rain {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let now = if self.mm_per_h <= 0.0 {
+        let now = if self.intensity <= Velocity::default() {
             "none right now".to_string()
         } else {
-            format!("{:.1} mm/h", self.mm_per_h)
+            intensity_text(self.intensity)
         };
         TooltipBody::rows(vec![
             row("Rain", now),
             cells(
                 "Peak",
                 vec![
-                    format!("{:.1} mm/h", self.peak.mm_per_h).into(),
+                    intensity_text(self.peak.intensity).into(),
                     Cell::Time {
                         at: self.peak.at.to_utc(),
                         part: TimePart::TimeOfDay,
@@ -62,5 +71,31 @@ impl BarWidget for Rain {
 impl Occasional for Rain {
     fn present(&self) -> bool {
         self.outlook != RainOutlook::Dry
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use uom::si::{
+        f64::{Length, Time},
+        length::millimeter,
+        time::hour,
+    };
+
+    use super::*;
+
+    #[test]
+    fn millimeter_per_hour_is_a_millimeter_each_hour() {
+        let from_unit = Velocity::new::<millimeter_per_hour>(2.5);
+        let from_parts = Length::new::<millimeter>(2.5) / Time::new::<hour>(1.0);
+        assert!((from_unit - from_parts).abs() < Velocity::new::<millimeter_per_hour>(1e-9));
+    }
+
+    #[test]
+    fn intensity_prints_in_millimeters_per_hour() {
+        assert_eq!(
+            intensity_text(Velocity::new::<millimeter_per_hour>(2.5)),
+            "2.5 mm/h"
+        );
     }
 }
