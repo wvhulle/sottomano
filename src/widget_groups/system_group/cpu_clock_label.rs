@@ -8,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Row, TooltipBody, row},
+        tooltip_body::{Row, TooltipBody, row, section},
     },
 };
 
@@ -17,14 +17,14 @@ pub fn frequency_text(frequency: Frequency) -> String {
 }
 
 impl CpuClock {
-    pub fn summary_rows(&self, prefix: &str) -> Vec<Row> {
+    pub fn summary_rows(&self) -> Vec<Row> {
         [
             self.lowest()
-                .map(|lowest| row(format!("{prefix} min"), frequency_text(lowest))),
+                .map(|lowest| row("min", frequency_text(lowest))),
             self.average()
-                .map(|average| row(format!("{prefix} avg"), frequency_text(average))),
+                .map(|average| row("avg", frequency_text(average))),
             self.highest()
-                .map(|highest| row(format!("{prefix} max"), frequency_text(highest))),
+                .map(|highest| row("max", frequency_text(highest))),
         ]
         .into_iter()
         .flatten()
@@ -42,17 +42,19 @@ impl BarWidget for CpuClock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let per_core = self.cores.iter().map(|core| {
-            row(
-                format!("Core {}", core.core),
-                frequency_text(core.frequency),
-            )
-        });
-        TooltipBody::rows(
-            self.summary_rows("Frequency")
-                .into_iter()
-                .chain(per_core)
-                .collect(),
-        )
+        let per_core = self
+            .cores
+            .iter()
+            .map(|core| {
+                row(
+                    format!("Core {}", core.core),
+                    frequency_text(core.frequency),
+                )
+            })
+            .collect();
+        TooltipBody::Sections(vec![
+            section("Frequency", self.summary_rows()),
+            section("Cores", per_core),
+        ])
     }
 }
