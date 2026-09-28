@@ -68,7 +68,7 @@ impl Occasional for ClaudeOauth {
 fn window_rows(label: &str, window: &WindowUsage) -> Vec<Row> {
     vec![
         row(label, format!("{}%", window.used)),
-        row(&format!("{label} resets"), window.resets_in.clone()),
+        row(format!("{label} resets"), window.resets_in.clone()),
     ]
 }
 

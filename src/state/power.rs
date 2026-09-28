@@ -64,7 +64,7 @@ async fn read_models(
                     cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22,
                     residual_variance, residual_lag_covariance
              FROM battery_draw_model WHERE battery = ?1",
-            (battery.to_string(),),
+            (battery,),
         )
         .await?;
     let columns = Columns::of(&rows);
@@ -130,7 +130,7 @@ async fn write_model(
              cov_20 = ?12, cov_21 = ?13, cov_22 = ?14,
              residual_variance = ?15, residual_lag_covariance = ?16",
         (
-            battery.to_string(),
+            battery,
             profile.name().to_string(),
             state.coefficients[0],
             state.coefficients[1],

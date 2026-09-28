@@ -46,7 +46,7 @@ async fn read_curve(conn: &turso::Connection, battery: &str) -> Result<ChargeCur
     let mut bin_rows = conn
         .query(
             "SELECT bin, mean_w, variance FROM battery_charge_curve WHERE battery = ?1",
-            (battery.to_string(),),
+            (battery,),
         )
         .await?;
     let columns = Columns::of(&bin_rows);
@@ -65,7 +65,7 @@ async fn read_curve(conn: &turso::Connection, battery: &str) -> Result<ChargeCur
     let mut residual_rows = conn
         .query(
             "SELECT variance, lag_covariance FROM battery_charge_residual WHERE battery = ?1",
-            (battery.to_string(),),
+            (battery,),
         )
         .await?;
     let columns = Columns::of(&residual_rows);
@@ -90,12 +90,7 @@ async fn write_bin(
             "INSERT INTO battery_charge_curve (battery, bin, mean_w, variance)
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(battery, bin) DO UPDATE SET mean_w = ?3, variance = ?4",
-            (
-                battery.to_string(),
-                i64::from(bin as u32),
-                power.mean_w,
-                power.variance,
-            ),
+            (battery, i64::from(bin as u32), power.mean_w, power.variance),
         )
         .await?;
     }
@@ -104,7 +99,7 @@ async fn write_bin(
          VALUES (?1, ?2, ?3)
          ON CONFLICT(battery) DO UPDATE SET variance = ?2, lag_covariance = ?3",
         (
-            battery.to_string(),
+            battery,
             curve.residuals.variance,
             curve.residuals.lag_covariance,
         ),
