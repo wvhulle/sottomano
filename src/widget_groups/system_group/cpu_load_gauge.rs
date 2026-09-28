@@ -1,6 +1,5 @@
 use crate::{
-    data::source::sysfs_sensors::{cpu_usage::CpuUsage, favg, fmax, fmin},
-    widget_groups::system_group::cpu_clock_label::ghz,
+    data::source::sysfs_sensors::cpu_usage::CpuUsage,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
         font_awesome::Solid,
@@ -29,14 +28,17 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![row("CPU", format!("{}%", self.percent))];
-        if self.freqs_ghz.is_empty() {
-            rows.push(row("Frequency", "unavailable"));
+        let frequencies = self.clock.summary_rows("Frequency");
+        let frequencies = if frequencies.is_empty() {
+            vec![row("Frequency", "unavailable")]
         } else {
-            rows.push(row("Frequency min", ghz(fmin(&self.freqs_ghz))));
-            rows.push(row("Frequency avg", ghz(favg(&self.freqs_ghz))));
-            rows.push(row("Frequency max", ghz(fmax(&self.freqs_ghz))));
-        }
-        TooltipBody::rows(rows)
+            frequencies
+        };
+        TooltipBody::rows(
+            [row("CPU", format!("{}%", self.percent))]
+                .into_iter()
+                .chain(frequencies)
+                .collect(),
+        )
     }
 }

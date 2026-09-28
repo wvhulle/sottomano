@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use tokio::task::spawn_blocking;
+use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, Error, core_freqs};
 use crate::data::source::Source;
@@ -8,7 +9,7 @@ use crate::data::source::Source;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreFreq {
     pub core: u32,
-    pub ghz: f64,
+    pub frequency: Frequency,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,8 +18,27 @@ pub struct CpuClock {
 }
 
 impl CpuClock {
-    pub fn core_ghz(&self) -> Vec<f64> {
-        self.cores.iter().map(|c| c.ghz).collect()
+    fn frequencies(&self) -> impl Iterator<Item = Frequency> + '_ {
+        self.cores.iter().map(|core| core.frequency)
+    }
+
+    pub fn average(&self) -> Option<Frequency> {
+        let count = self.cores.len();
+        (count > 0).then(|| self.frequencies().sum::<Frequency>() / count as f64)
+    }
+
+    pub fn lowest(&self) -> Option<Frequency> {
+        self.frequencies().reduce(Frequency::min)
+    }
+
+    pub fn highest(&self) -> Option<Frequency> {
+        self.frequencies().reduce(Frequency::max)
+    }
+
+    pub(super) fn current() -> Self {
+        CpuClock {
+            cores: core_freqs(),
+        }
     }
 }
 

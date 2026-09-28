@@ -1,4 +1,7 @@
-use bytesize::ByteSize;
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{f64::InformationRate, information_rate::megabit_per_second},
+};
 
 use crate::{
     data::source::net_interfaces::nm::AddressBlock,
@@ -52,22 +55,18 @@ pub fn link_stats_section(
     key: &impl Fn(&str) -> String,
     title: &str,
     rate_label: &str,
-    rate: u32,
+    rate: InformationRate,
     mtu: u32,
 ) -> Section {
-    let rows = match (rate, mtu) {
-        (0, 0) => Vec::new(),
-        (0, mtu) => vec![row("Max Packet Size (MTU)", mtu.to_string())],
-        (rate, 0) => vec![row(rate_label, bitrate(rate))],
-        (rate, mtu) => vec![
-            row(rate_label, bitrate(rate)),
-            row("Max Packet Size (MTU)", mtu.to_string()),
-        ],
-    };
-    section(key(title), rows)
-}
-
-fn bitrate(megabits_per_sec: u32) -> String {
-    let bits_per_sec = u64::from(megabits_per_sec) * 1_000_000;
-    format!("{}/s", ByteSize::b(bits_per_sec / 8).display().si_bits())
+    let rate_row = (rate > InformationRate::default()).then(|| {
+        row(
+            rate_label,
+            format!(
+                "{:.0}",
+                rate.into_format_args(megabit_per_second, Abbreviation)
+            ),
+        )
+    });
+    let mtu_row = (mtu > 0).then(|| row("Max Packet Size (MTU)", mtu.to_string()));
+    section(key(title), rate_row.into_iter().chain(mtu_row).collect())
 }
