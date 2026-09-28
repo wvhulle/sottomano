@@ -132,27 +132,21 @@ impl DarkModeGroup {
                     self.offset_slider_for_mut(edge)
                         .update(ControlMessage::Reading(minutes));
                 }
-                self.enforce_wanted_mode(Utc::now())
+                Task::none()
             }
             DarkModeMessage::LocationFix(reading) => {
                 if let Ok(location) = reading {
                     self.auto_switch_toggle.update_location(location.position());
                 }
-                self.enforce_wanted_mode(Utc::now())
+                Task::none()
             }
-            DarkModeMessage::SwitchDue => self.enforce_wanted_mode(Utc::now()),
+            DarkModeMessage::SwitchDue => self.switch_if_due(Utc::now()),
             DarkModeMessage::ModeToggle(m) => {
-                if let ToggleMessage::Press = m {
-                    self.auto_switch_toggle.record_manual_choice(Utc::now());
-                }
                 self.mode_toggle.update(m).map(DarkModeMessage::ModeToggle)
             }
             DarkModeMessage::ToggleAutoSwitch => {
                 self.auto_switch_toggle.toggle_auto_switch();
-                Task::batch([
-                    self.persist_saved_schedule(),
-                    self.enforce_wanted_mode(Utc::now()),
-                ])
+                self.persist_saved_schedule()
             }
             DarkModeMessage::OffsetSlider(edge, m) => self.update_offset_slider(edge, m),
             DarkModeMessage::Menu(m) => {
@@ -182,20 +176,21 @@ impl DarkModeGroup {
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
                 self.auto_switch_toggle.change_sun_event_offsets(offsets);
-                let confirm = Task::future(state::dark_mode::save(
+                Task::future(state::dark_mode::save(
                     self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |ok| {
                     DarkModeMessage::OffsetSlider(edge, ControlMessage::Confirmed { value, ok })
-                });
-                Task::batch([confirm, self.enforce_wanted_mode(Utc::now())])
+                })
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
     }
 
-    fn enforce_wanted_mode(&mut self, now: DateTime<Utc>) -> Task<DarkModeMessage> {
-        match self.auto_switch_toggle.switch_decision_at(now) {
+    fn switch_if_due(&mut self, now: DateTime<Utc>) -> Task<DarkModeMessage> {
+        let decision = self.auto_switch_toggle.switch_decision_at(now);
+        self.auto_switch_toggle.mark_checked(now);
+        match decision {
             SwitchDecision::Apply(mode) => self.apply_color_mode(mode),
             SwitchDecision::Hold => Task::none(),
         }

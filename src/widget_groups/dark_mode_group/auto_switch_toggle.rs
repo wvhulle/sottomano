@@ -17,7 +17,7 @@ use crate::{
 pub struct AutoSwitchToggle {
     pub saved_schedule: DarkModeSchedule,
     observer: Observer,
-    manual_choice_at: DateTime<Utc>,
+    last_switch_check: DateTime<Utc>,
 }
 
 enum Observer {
@@ -45,7 +45,7 @@ impl Default for AutoSwitchToggle {
         Self {
             saved_schedule: DarkModeSchedule::default(),
             observer: Observer::AwaitingLocationFix,
-            manual_choice_at: DateTime::<Utc>::MIN_UTC,
+            last_switch_check: Utc::now(),
         }
     }
 }
@@ -63,8 +63,8 @@ impl AutoSwitchToggle {
         self.saved_schedule.sun_event_offsets = offsets;
     }
 
-    pub fn record_manual_choice(&mut self, now: DateTime<Utc>) {
-        self.manual_choice_at = now;
+    pub fn mark_checked(&mut self, now: DateTime<Utc>) {
+        self.last_switch_check = now;
     }
 
     pub fn status_at(&self, now: DateTime<Utc>) -> ScheduleStatus {
@@ -89,7 +89,7 @@ impl AutoSwitchToggle {
     pub fn switch_decision_at(&self, now: DateTime<Utc>) -> SwitchDecision {
         match self.status_at(now) {
             ScheduleStatus::Following { latest, .. }
-                if self.manual_choice_at < latest.switch_time =>
+                if self.last_switch_check < latest.switch_time =>
             {
                 SwitchDecision::Apply(latest.target_mode)
             }
