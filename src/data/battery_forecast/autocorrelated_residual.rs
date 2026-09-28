@@ -1,4 +1,4 @@
-use crate::data::battery_drain::normal_draw::NormalDraw;
+use crate::data::battery_forecast::normally_distributed_power::NormalPower;
 
 const SEED_VARIANCE: f64 = 4.0;
 const MIN_VARIANCE: f64 = 0.01;
@@ -61,23 +61,23 @@ impl ResidualProcess {
         }
     }
 
-    pub(super) fn average_over(&self, steps: f64, current: Option<f64>) -> NormalDraw {
+    pub(super) fn average_over(&self, steps: f64, current: Option<f64>) -> NormalPower {
         match current {
             Some(residual) => self.average_given_current(steps, residual),
             None => self.average_unconditionally(steps),
         }
     }
 
-    fn average_given_current(&self, steps: f64, residual: f64) -> NormalDraw {
-        NormalDraw {
+    fn average_given_current(&self, steps: f64, residual: f64) -> NormalPower {
+        NormalPower {
             mean_w: self.persistence(steps) * residual,
             variance: self.unforeseen_variance(steps),
         }
     }
 
-    fn average_unconditionally(&self, steps: f64) -> NormalDraw {
+    fn average_unconditionally(&self, steps: f64) -> NormalPower {
         let persistence = self.persistence(steps);
-        NormalDraw {
+        NormalPower {
             mean_w: 0.0,
             variance: self.unforeseen_variance(steps) + persistence * persistence * self.variance,
         }

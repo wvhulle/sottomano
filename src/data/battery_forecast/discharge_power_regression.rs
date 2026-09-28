@@ -4,15 +4,12 @@ use adskalman::{KalmanFilterNoControl, StateAndCovariance};
 use nalgebra::{Matrix1x3, Matrix3, Vector1, Vector3};
 
 use crate::data::{
-    battery_drain::{
-        kalman_models::{LinearObservation, RandomWalk},
-        normal_draw::NormalDraw,
-        residual_process::ResidualProcess,
+    battery_forecast::{
+        autocorrelated_residual::ResidualProcess,
+        normally_distributed_power::NormalPower,
+        random_walk_kalman_models::{LinearObservation, RandomWalk},
     },
-    source::{
-        Source,
-        power_profile::{Conditions, PowerProfile},
-    },
+    source::{Source, power_profile::Conditions, sysfs_sensors::battery::Battery},
 };
 
 const BASE_DRIFT_W2_PER_S: f64 = 2e-7;
@@ -24,9 +21,9 @@ fn regressors(conditions: Conditions) -> Matrix1x3<f64> {
     Matrix1x3::new(1.0, conditions.brightness_frac, conditions.cpu_busy_frac)
 }
 
-fn coefficient_drift() -> RandomWalk {
+fn coefficient_drift() -> RandomWalk<3> {
     RandomWalk::over(
-        PowerProfile::INTERVAL,
+        Battery::INTERVAL,
         Vector3::new(
             BASE_DRIFT_W2_PER_S,
             COEFFICIENT_DRIFT_W2_PER_S,
@@ -88,9 +85,9 @@ impl RegressionState {
         }
     }
 
-    pub(super) fn fit(&self, conditions: Conditions) -> NormalDraw {
+    pub(super) fn fit(&self, conditions: Conditions) -> NormalPower {
         let row = regressors(conditions);
-        NormalDraw {
+        NormalPower {
             mean_w: (row * self.coefficients)[0],
             variance: (row * self.covariance * row.transpose())[(0, 0)],
         }
@@ -101,9 +98,9 @@ impl RegressionState {
         horizon: Duration,
         conditions: Conditions,
         current_w: Option<f64>,
-    ) -> NormalDraw {
+    ) -> NormalPower {
         let fit = self.fit(conditions);
-        let steps = (horizon.as_secs_f64() / PowerProfile::INTERVAL.as_secs_f64()).max(1.0);
+        let steps = (horizon.as_secs_f64() / Battery::INTERVAL.as_secs_f64()).max(1.0);
         let current_residual = current_w.map(|draw| draw - fit.mean_w);
         fit.plus(self.residuals.average_over(steps, current_residual))
     }
