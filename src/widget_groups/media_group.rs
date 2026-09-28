@@ -256,10 +256,7 @@ fn track_face<'a>(
     } else {
         Solid::Play
     };
-    icon.glyph()
-        .size(side)
-        .color(config.palette.bar_foreground.scale_alpha(opacity))
-        .into()
+    icon.view(side, config.palette.bar_foreground.scale_alpha(opacity))
 }
 
 fn source_icon<'a>(
@@ -287,11 +284,7 @@ fn source_icon<'a>(
                 .into()
         };
     }
-    player_icon(media)
-        .glyph()
-        .size(side)
-        .color(config.palette.bar_foreground.scale_alpha(opacity))
-        .into()
+    player_icon(media).view(side, config.palette.bar_foreground.scale_alpha(opacity))
 }
 
 fn player_icon(media: &Media) -> FontAwesome {
@@ -323,7 +316,7 @@ fn transport<'a>(
 ) -> Element<'a, MediaMessage> {
     let color = config.palette.bar_foreground.scale_alpha(reveal * 0.9);
     let button = |icon: FontAwesome, method: &'static str| {
-        button(icon.glyph().size(config.font.icon_size_px).color(color))
+        button(icon.view(config.font.icon_size_px, color))
             .padding(0)
             .style(flat_button(color))
             .on_press(MediaMessage::Transport(method))

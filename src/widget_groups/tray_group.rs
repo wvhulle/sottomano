@@ -170,11 +170,7 @@ impl TrayGroup {
         }
 
         let face = move || {
-            Solid::EllipsisVertical
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground)
-                .into()
+            Solid::EllipsisVertical.view(config.font.icon_size_px, config.palette.bar_foreground)
         };
 
         let content = move |reveal: f32| {
@@ -216,11 +212,7 @@ fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, T
     let side = config.font.icon_size_px;
     let glyph: Element<'a, TrayMessage> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
-        None => Solid::Question
-            .glyph()
-            .size(side)
-            .color(config.palette.bar_foreground.scale_alpha(reveal))
-            .into(),
+        None => Solid::Question.view(side, config.palette.bar_foreground.scale_alpha(reveal)),
     };
 
     let marked: Element<'a, TrayMessage> = if item.status == Status::NeedsAttention {

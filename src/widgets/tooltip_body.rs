@@ -10,7 +10,8 @@ use iced::Size;
 use crate::{
     data::source::{process::Process, tray::MenuNode},
     widgets::{
-        bar_widget::Level, font_awesome::FontAwesome, localized_time::TimePart,
+        bar_widget::{Glyph, Level},
+        localized_time::TimePart,
         window_title::TitleRun,
     },
 };
@@ -18,7 +19,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cell {
     Text(String),
-    Glyph(FontAwesome),
+    Glyph(Glyph),
     Time { at: DateTime<Utc>, part: TimePart },
 }
 
@@ -32,12 +33,6 @@ pub struct Row {
 impl<Text: Into<String>> From<Text> for Cell {
     fn from(text: Text) -> Self {
         Cell::Text(text.into())
-    }
-}
-
-impl From<FontAwesome> for Cell {
-    fn from(glyph: FontAwesome) -> Self {
-        Cell::Glyph(glyph)
     }
 }
 

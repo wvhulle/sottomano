@@ -247,13 +247,7 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let face = move || {
-            Solid::Sliders
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(foreground)
-                .into()
-        };
+        let face = move || Solid::Sliders.view(config.font.icon_size_px, foreground);
 
         let content = move |_reveal: f32| {
             Row::with_children([
@@ -314,7 +308,7 @@ fn icon_toggle<'a>(
 ) -> Element<'a, PanelSettingsMessage> {
     let opacity = if active { 1.0 } else { DISABLED_ALPHA };
     let color = config.palette.bar_foreground.scale_alpha(opacity);
-    let widget = icon.glyph().size(config.font.icon_size_px).color(color);
+    let widget = icon.view(config.font.icon_size_px, color);
     hoverable(
         button(widget)
             .padding(0)

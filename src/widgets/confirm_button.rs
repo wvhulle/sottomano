@@ -52,7 +52,7 @@ impl ConfirmButton {
             (Solid::Bolt, config.palette.inactive)
         };
         let color = color.scale_alpha(opacity);
-        button(glyph.glyph().size(config.font.icon_size_px).color(color))
+        button(glyph.view(config.font.icon_size_px, color))
             .padding(0)
             .style(flat_button(color))
             .on_press(on_press)

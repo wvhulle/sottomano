@@ -206,13 +206,8 @@ impl IdleTimeoutsGroup {
         config: &'a Config,
         position: Position,
     ) -> Element<'a, IdleTimeoutsMessage> {
-        let face = move || {
-            Solid::Stopwatch
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground)
-                .into()
-        };
+        let face =
+            move || Solid::Stopwatch.view(config.font.icon_size_px, config.palette.bar_foreground);
 
         let content = move |reveal: f32| {
             let controls = self.entries().map(|(kind, timer)| {

@@ -1,12 +1,12 @@
 use iced::{
     Alignment, Color, Element,
-    widget::{Row, row, svg, text},
+    widget::{Row, row, text},
 };
 
 use crate::{
     config::Config,
     widgets::{
-        bar_widget::{BarWidget, Glyph, level_color},
+        bar_widget::{BarWidget, level_color},
         font_awesome::Solid,
         gauge::Gauge,
         text::bar_text,
@@ -20,18 +20,7 @@ pub fn source_reading<'a, Message: 'a>(
 ) -> Option<Element<'a, Message>> {
     let widget = widget?;
     let color = reading_color(config, widget).scale_alpha(opacity);
-    let icon: Element<Message> = match widget.icon() {
-        Glyph::SimpleIcon(mark) => svg(mark.handle())
-            .width(config.font.icon_size_px)
-            .height(config.font.icon_size_px)
-            .style(move |_, _| svg::Style { color: Some(color) })
-            .into(),
-        Glyph::FontAwesome(icon) => icon
-            .glyph()
-            .size(config.font.icon_size_px)
-            .color(color)
-            .into(),
-    };
+    let icon = widget.icon().view(config.font.icon_size_px, color);
 
     let reading = match reading_value(config, widget, color) {
         Some(value) => row![icon, value]
@@ -61,13 +50,7 @@ pub fn reading_value<'a, Message: 'a>(
     color: Color,
 ) -> Option<Element<'a, Message>> {
     if widget.failed() {
-        return Some(
-            Solid::TriangleExclamation
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(color)
-                .into(),
-        );
+        return Some(Solid::TriangleExclamation.view(config.font.icon_size_px, color));
     }
     match widget.value() {
         Some(value) => Some(

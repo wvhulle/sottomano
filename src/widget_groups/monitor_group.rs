@@ -197,11 +197,7 @@ impl MonitorGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, MonitorMessage> {
-        Solid::Lightbulb
-            .glyph()
-            .size(config.font.icon_size_px)
-            .color(config.palette.bar_foreground)
-            .into()
+        Solid::Lightbulb.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }
 

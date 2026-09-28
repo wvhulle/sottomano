@@ -311,9 +311,7 @@ impl SliderControl {
         if expand > 0.0 {
             let glyph = button(
                 self.effective_icon()
-                    .glyph()
-                    .size(config.font.icon_size_px)
-                    .color(config.palette.bar_foreground),
+                    .view(config.font.icon_size_px, config.palette.bar_foreground),
             )
             .padding(0)
             .style(flat_button(config.palette.bar_foreground))

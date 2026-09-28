@@ -236,11 +236,7 @@ impl ColorTemperatureGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, ColorTemperatureMessage> {
-        Solid::Thermometer
-            .glyph()
-            .size(config.font.icon_size_px)
-            .color(config.palette.bar_foreground)
-            .into()
+        Solid::Thermometer.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 
     fn dim_slider<'a>(&self, config: &Config) -> Element<'a, ColorTemperatureMessage> {

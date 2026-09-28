@@ -77,13 +77,8 @@ impl QuickLaunch {
     ) -> Option<Element<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
-        let face = move || {
-            Solid::Rocket
-                .glyph()
-                .size(config.font.icon_size_px)
-                .color(config.palette.bar_foreground)
-                .into()
-        };
+        let face =
+            move || Solid::Rocket.view(config.font.icon_size_px, config.palette.bar_foreground);
 
         let content = move |reveal: f32| {
             Row::with_children(

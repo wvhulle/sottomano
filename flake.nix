@@ -56,6 +56,8 @@
           systemd
           pipewire
         ];
+        WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
+        FONT_AWESOME_SVG = "${pkgs.font-awesome.src}/svgs";
       };
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -128,6 +130,8 @@
           commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
         env.vk_wsi_force_bgra8_unorm_first = "true";
+        env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
+        env.FONT_AWESOME_SVG = "${pkgs.font-awesome.src}/svgs";
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
           export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"

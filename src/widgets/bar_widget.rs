@@ -1,13 +1,14 @@
 use std::fmt::{self, Display, Formatter};
 
-use iced::Color;
+use iced::{Color, Element};
 
 use crate::{
     config::palette::Palette,
     widgets::{
-        font_awesome::{Brands, FontAwesome, Regular, Solid},
+        font_awesome::{FontAwesome, Solid},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
+        weather_icons::WeatherIcon,
     },
 };
 
@@ -67,35 +68,16 @@ pub fn level_color(palette: &Palette, level: Level) -> Color {
 pub enum Glyph {
     FontAwesome(FontAwesome),
     SimpleIcon(SimpleIcon),
+    WeatherIcon(WeatherIcon),
 }
 
-impl From<FontAwesome> for Glyph {
-    fn from(icon: FontAwesome) -> Self {
-        Glyph::FontAwesome(icon)
-    }
-}
-
-impl From<Solid> for Glyph {
-    fn from(icon: Solid) -> Self {
-        Glyph::FontAwesome(FontAwesome::Solid(icon))
-    }
-}
-
-impl From<Regular> for Glyph {
-    fn from(icon: Regular) -> Self {
-        Glyph::FontAwesome(FontAwesome::Regular(icon))
-    }
-}
-
-impl From<Brands> for Glyph {
-    fn from(icon: Brands) -> Self {
-        Glyph::FontAwesome(FontAwesome::Brands(icon))
-    }
-}
-
-impl From<SimpleIcon> for Glyph {
-    fn from(icon: SimpleIcon) -> Self {
-        Glyph::SimpleIcon(icon)
+impl Glyph {
+    pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
+        match self {
+            Glyph::FontAwesome(icon) => icon.view(size, color),
+            Glyph::SimpleIcon(icon) => icon.view(size, color),
+            Glyph::WeatherIcon(icon) => icon.view(size, color),
+        }
     }
 }
 
