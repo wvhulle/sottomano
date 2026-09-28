@@ -1,8 +1,9 @@
 use chrono::{DateTime, TimeDelta, Utc};
+use humantime::format_duration;
 use situo_client::Position;
 
 use crate::{
-    data::sun_schedule::{ColorMode, SolarSwitchSchedule, SunEventOffsets},
+    data::sun_schedule::{ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook},
     state::dark_mode::DarkModeSchedule,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -12,81 +13,89 @@ use crate::{
     },
 };
 
-#[derive(Default)]
 pub struct AutoSwitchToggle {
     pub saved_schedule: DarkModeSchedule,
-    tracked_sun: Option<TrackedSunMode>,
+    observer: Observer,
+    manual_choice_at: DateTime<Utc>,
 }
 
-struct TrackedSunMode {
-    observer_location: Position,
-    sun_mode: ColorMode,
+enum Observer {
+    AwaitingLocationFix,
+    Located(Position),
+}
+
+pub enum ScheduleStatus {
+    Disarmed,
+    AwaitingLocationFix,
+    NoSunEvents,
+    Following {
+        latest: ModeSwitch,
+        upcoming: ModeSwitch,
+    },
+}
+
+pub enum SwitchDecision {
+    Apply(ColorMode),
+    Hold,
+}
+
+impl Default for AutoSwitchToggle {
+    fn default() -> Self {
+        Self {
+            saved_schedule: DarkModeSchedule::default(),
+            observer: Observer::AwaitingLocationFix,
+            manual_choice_at: DateTime::<Utc>::MIN_UTC,
+        }
+    }
 }
 
 impl AutoSwitchToggle {
-    pub fn is_awaiting_switch(&self) -> bool {
-        self.saved_schedule.auto_switch_armed && self.tracked_sun.is_some()
+    pub fn update_location(&mut self, observer_location: Position) {
+        self.observer = Observer::Located(observer_location);
     }
 
-    pub fn restore_saved_schedule(&mut self, saved: DarkModeSchedule, now: DateTime<Utc>) {
-        self.saved_schedule = saved;
-        self.detect_mode_crossing(now);
-    }
-
-    pub fn update_location(&mut self, observer_location: Position, now: DateTime<Utc>) {
-        if self
-            .tracked_sun
-            .as_ref()
-            .is_some_and(|sun| sun.observer_location == observer_location)
-        {
-            return;
-        }
-        self.tracked_sun = self
-            .solar_schedule_at(observer_location)
-            .mode_at_time(now)
-            .map(|sun_mode| TrackedSunMode {
-                observer_location,
-                sun_mode,
-            });
-    }
-
-    pub fn toggle_auto_switch(&mut self, now: DateTime<Utc>) -> Option<ColorMode> {
+    pub fn toggle_auto_switch(&mut self) {
         self.saved_schedule.auto_switch_armed = !self.saved_schedule.auto_switch_armed;
-        self.detect_mode_crossing(now);
-        self.tracked_sun
-            .as_ref()
-            .filter(|_| self.saved_schedule.auto_switch_armed)
-            .map(|sun| sun.sun_mode)
     }
 
-    pub fn change_sun_event_offsets(
-        &mut self,
-        offsets: SunEventOffsets,
-        now: DateTime<Utc>,
-    ) -> Option<ColorMode> {
+    pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets) {
         self.saved_schedule.sun_event_offsets = offsets;
-        self.detect_mode_crossing(now)
     }
 
-    pub fn detect_mode_crossing(&mut self, now: DateTime<Utc>) -> Option<ColorMode> {
-        let sun_event_offsets = self.saved_schedule.sun_event_offsets;
-        let sun = self.tracked_sun.as_mut()?;
-        let current = SolarSwitchSchedule {
-            observer_location: sun.observer_location,
-            sun_event_offsets,
-        }
-        .mode_at_time(now)?;
-        if current == sun.sun_mode {
-            return None;
-        }
-        sun.sun_mode = current;
-        self.saved_schedule.auto_switch_armed.then_some(current)
+    pub fn record_manual_choice(&mut self, now: DateTime<Utc>) {
+        self.manual_choice_at = now;
     }
 
-    fn solar_schedule_at(&self, observer_location: Position) -> SolarSwitchSchedule {
-        SolarSwitchSchedule {
+    pub fn status_at(&self, now: DateTime<Utc>) -> ScheduleStatus {
+        if !self.saved_schedule.auto_switch_armed {
+            return ScheduleStatus::Disarmed;
+        }
+        let Observer::Located(observer_location) = self.observer else {
+            return ScheduleStatus::AwaitingLocationFix;
+        };
+        let schedule = SolarSwitchSchedule {
             observer_location,
             sun_event_offsets: self.saved_schedule.sun_event_offsets,
+        };
+        match schedule.outlook_at(now) {
+            SunOutlook::NoSunEvents => ScheduleStatus::NoSunEvents,
+            SunOutlook::Alternating { latest, upcoming } => {
+                ScheduleStatus::Following { latest, upcoming }
+            }
+        }
+    }
+
+    pub fn switch_decision_at(&self, now: DateTime<Utc>) -> SwitchDecision {
+        match self.status_at(now) {
+            ScheduleStatus::Following { latest, .. }
+                if self.manual_choice_at < latest.switch_time =>
+            {
+                SwitchDecision::Apply(latest.target_mode)
+            }
+            ScheduleStatus::Following { .. }
+            | ScheduleStatus::Disarmed
+            | ScheduleStatus::AwaitingLocationFix
+            | ScheduleStatus::NoSunEvents => SwitchDecision::Hold,
         }
     }
 }
@@ -95,29 +104,22 @@ pub fn format_offset_minutes(offset: TimeDelta) -> String {
     format!("{:+}m", offset.num_minutes())
 }
 
-fn format_time_until(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
-    let minutes = (at - now).num_minutes().max(0);
-    match minutes / 60 {
-        0 => format!("in {minutes}m"),
-        hours => format!("in {hours}h {}m", minutes % 60),
-    }
-}
-
 impl BarWidget for AutoSwitchToggle {
     fn icon(&self) -> Glyph {
         Solid::Clock.into()
     }
 
     fn label(&self) -> Option<String> {
-        let sun = self
-            .tracked_sun
-            .as_ref()
-            .filter(|_| self.saved_schedule.auto_switch_armed)?;
         let now = Utc::now();
-        let switch = self
-            .solar_schedule_at(sun.observer_location)
-            .next_switch_after(now)?;
-        Some(format_time_until(switch.switch_time, now))
+        match self.status_at(now) {
+            ScheduleStatus::Following { upcoming, .. } => {
+                let whole_minutes = TimeDelta::minutes((upcoming.switch_time - now).num_minutes());
+                Some(format_duration(whole_minutes.to_std().unwrap_or_default()).to_string())
+            }
+            ScheduleStatus::Disarmed
+            | ScheduleStatus::AwaitingLocationFix
+            | ScheduleStatus::NoSunEvents => None,
+        }
     }
 
     fn disabled(&self) -> bool {
@@ -125,35 +127,39 @@ impl BarWidget for AutoSwitchToggle {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let auto = row(
-            "Auto-switch",
-            if self.saved_schedule.auto_switch_armed {
-                "on"
-            } else {
-                "off"
-            },
-        );
-        let Some(switch) = self.tracked_sun.as_ref().and_then(|sun| {
-            self.solar_schedule_at(sun.observer_location)
-                .next_switch_after(Utc::now())
-        }) else {
-            return TooltipBody::rows(vec![auto, row("Next", "waiting for a location fix")]);
+        let upcoming = match self.status_at(Utc::now()) {
+            ScheduleStatus::Disarmed => {
+                return TooltipBody::rows(vec![row("Auto-switch", "off")]);
+            }
+            ScheduleStatus::AwaitingLocationFix => {
+                return TooltipBody::rows(vec![
+                    row("Auto-switch", "on"),
+                    row("Next", "waiting for a location fix"),
+                ]);
+            }
+            ScheduleStatus::NoSunEvents => {
+                return TooltipBody::rows(vec![
+                    row("Auto-switch", "on"),
+                    row("Next", "no sunrise or sunset soon"),
+                ]);
+            }
+            ScheduleStatus::Following { upcoming, .. } => upcoming,
         };
         let offset = self
             .saved_schedule
             .sun_event_offsets
-            .offset_for_mode(switch.target_mode);
+            .offset_for_mode(upcoming.target_mode);
         TooltipBody::rows(vec![
-            auto,
+            row("Auto-switch", "on"),
             time_row(
-                switch.target_mode.sun_event_label(),
-                switch.switch_time - offset,
+                upcoming.target_mode.sun_event_label(),
+                upcoming.switch_time - offset,
                 TimePart::TimeOfDay,
             ),
             row("Offset", format_offset_minutes(offset)),
             time_row(
-                &format!("Switch to {}", switch.target_mode.umbra_name()),
-                switch.switch_time,
+                &format!("Switch to {}", upcoming.target_mode.umbra_name()),
+                upcoming.switch_time,
                 TimePart::TimeOfDay,
             ),
         ])
