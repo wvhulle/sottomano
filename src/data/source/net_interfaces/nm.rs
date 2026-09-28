@@ -4,6 +4,11 @@ use std::{
 };
 
 use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
+use uom::si::{
+    f64::{Frequency, InformationRate},
+    frequency::megahertz,
+    information_rate::{kilobit_per_second, megabit_per_second},
+};
 use zbus::{
     Connection, MatchRule, MessageStream,
     message::Type,
@@ -319,28 +324,40 @@ pub async fn mtu(connection: &Connection, device: &OwnedObjectPath) -> zbus::Res
         .await
 }
 
-pub async fn wired_speed(connection: &Connection, device: &OwnedObjectPath) -> zbus::Result<u32> {
-    WiredProxy::builder(connection)
+pub async fn wired_speed(
+    connection: &Connection,
+    device: &OwnedObjectPath,
+) -> zbus::Result<InformationRate> {
+    let megabits_per_second = WiredProxy::builder(connection)
         .path(device.clone())?
         .build()
         .await?
         .speed()
-        .await
+        .await?;
+    Ok(InformationRate::new::<megabit_per_second>(f64::from(
+        megabits_per_second,
+    )))
 }
 
-pub async fn wireless_rate(connection: &Connection, device: &OwnedObjectPath) -> zbus::Result<u32> {
-    WirelessProxy::builder(connection)
+pub async fn wireless_rate(
+    connection: &Connection,
+    device: &OwnedObjectPath,
+) -> zbus::Result<InformationRate> {
+    let kilobits_per_second = WirelessProxy::builder(connection)
         .path(device.clone())?
         .build()
         .await?
         .bitrate()
-        .await
+        .await?;
+    Ok(InformationRate::new::<kilobit_per_second>(f64::from(
+        kilobits_per_second,
+    )))
 }
 
 pub struct ApInfo {
     pub ssid: Option<String>,
     pub signal: i64,
-    pub frequency: Option<String>,
+    pub frequency: Frequency,
     pub security: Option<String>,
 }
 
@@ -371,7 +388,7 @@ pub async fn access_point(
     Ok(Some(ApInfo {
         ssid: non_empty(String::from_utf8_lossy(&ssid).into_owned()),
         signal: i64::from(strength),
-        frequency: Some(format!("{frequency} MHz")),
+        frequency: Frequency::new::<megahertz>(f64::from(frequency)),
         security: security(flags, wpa, rsn),
     }))
 }

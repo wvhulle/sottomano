@@ -1,3 +1,5 @@
+use uom::{fmt::DisplayStyle::Abbreviation, si::frequency::megahertz};
+
 use crate::{
     data::source::net_interfaces::wifi::Wifi,
     widget_groups::net_interfaces_group::interface_sections::{
@@ -49,11 +51,13 @@ impl BarWidget for Wifi {
                 .as_ref()
                 .map(|security| row("Security Type", security.clone())),
         );
-        identity.extend(
-            link.frequency
-                .as_ref()
-                .map(|frequency| row("Frequency Band", frequency.clone())),
-        );
+        identity.push(row(
+            "Frequency Band",
+            format!(
+                "{:.0}",
+                link.frequency.into_format_args(megahertz, Abbreviation)
+            ),
+        ));
         identity.push(row("Interface Name", self.device.clone()));
         identity.extend(link.mac.as_ref().map(|mac| row("MAC Address", mac.clone())));
         TooltipBody::Sections(vec![
@@ -61,7 +65,7 @@ impl BarWidget for Wifi {
             address_section(&key, "IPv4", link.ipv4.as_ref()),
             address_section(&key, "IPv6", link.ipv6.as_ref()),
             dns_section(&key, &link.dns),
-            link_stats_section(&key, "Radio", "Radio Speed", link.bitrate / 1000, link.mtu),
+            link_stats_section(&key, "Radio", "Radio Speed", link.bitrate, link.mtu),
         ])
     }
 }

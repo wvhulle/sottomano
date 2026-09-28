@@ -1,4 +1,5 @@
 use iced::futures::{Stream, future::try_join_all, try_join};
+use uom::si::f64::InformationRate;
 use zbus::Connection;
 
 use crate::data::source::net_interfaces::{nm, nm_readings};
@@ -14,7 +15,7 @@ pub struct Link {
     pub ipv4: Option<nm::AddressBlock>,
     pub ipv6: Option<nm::AddressBlock>,
     pub dns: Vec<String>,
-    pub speed: u32,
+    pub speed: InformationRate,
     pub mtu: u32,
 }
 
@@ -39,7 +40,7 @@ async fn link(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<L
             ipv4: None,
             ipv6: None,
             dns: Vec::new(),
-            speed: 0,
+            speed: InformationRate::default(),
             mtu: 0,
         });
     }

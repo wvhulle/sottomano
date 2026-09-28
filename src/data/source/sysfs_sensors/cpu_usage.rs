@@ -2,7 +2,7 @@ use std::{fs, thread, time::Duration};
 
 use tokio::task::spawn_blocking;
 
-use super::{Error, core_ghz};
+use super::{Error, cpu_clock::CpuClock};
 use crate::data::source::Source;
 
 const CPU_STAT: &str = "/proc/stat";
@@ -10,7 +10,7 @@ const CPU_STAT: &str = "/proc/stat";
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuUsage {
     pub percent: i64,
-    pub freqs_ghz: Vec<f64>,
+    pub clock: CpuClock,
 }
 
 impl Source for CpuUsage {
@@ -32,7 +32,7 @@ fn read_cpu_usage() -> Result<CpuUsage, Error> {
     let busy = cpu_busy_frac().ok_or_else(|| Error::Unreadable(CPU_STAT.to_owned()))?;
     Ok(CpuUsage {
         percent: (busy * 100.0).round() as i64,
-        freqs_ghz: core_ghz(),
+        clock: CpuClock::current(),
     })
 }
 

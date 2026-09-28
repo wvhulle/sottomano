@@ -5,6 +5,8 @@ use std::{
     str::FromStr,
 };
 
+use uom::si::{f64::Frequency, frequency::kilohertz};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Unreadable(String),
@@ -50,16 +52,12 @@ pub(super) fn core_freqs() -> Vec<cpu_clock::CoreFreq> {
             let khz = read_i64(dir.join("cpufreq/scaling_cur_freq"))?;
             Some(cpu_clock::CoreFreq {
                 core,
-                ghz: khz as f64 / 1_000_000.0,
+                frequency: Frequency::new::<kilohertz>(khz as f64),
             })
         })
         .collect();
     cores.sort_by_key(|c| c.core);
     cores
-}
-
-pub(super) fn core_ghz() -> Vec<f64> {
-    core_freqs().iter().map(|c| c.ghz).collect()
 }
 
 fn cpu_core_index(name: &str) -> Option<u32> {
@@ -111,20 +109,4 @@ pub(super) fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {
 
 pub(super) fn read_i64(path: impl AsRef<Path>) -> Option<i64> {
     read_trimmed(path)?.parse().ok()
-}
-
-pub fn favg(xs: &[f64]) -> f64 {
-    if xs.is_empty() {
-        0.0
-    } else {
-        xs.iter().sum::<f64>() / xs.len() as f64
-    }
-}
-
-pub fn fmin(xs: &[f64]) -> f64 {
-    xs.iter().copied().fold(f64::INFINITY, f64::min)
-}
-
-pub fn fmax(xs: &[f64]) -> f64 {
-    xs.iter().copied().fold(f64::NEG_INFINITY, f64::max)
 }

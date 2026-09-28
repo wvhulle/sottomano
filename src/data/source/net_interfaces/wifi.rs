@@ -1,4 +1,5 @@
 use iced::futures::{Stream, try_join};
+use uom::si::f64::{Frequency, InformationRate};
 use zbus::Connection;
 
 use crate::data::source::net_interfaces::{nm, nm_readings};
@@ -9,13 +10,13 @@ pub const NAME: &str = "wifi";
 pub struct Link {
     pub ssid: Option<String>,
     pub signal: i64,
-    pub frequency: Option<String>,
+    pub frequency: Frequency,
     pub security: Option<String>,
     pub mac: Option<String>,
     pub ipv4: Option<nm::AddressBlock>,
     pub ipv6: Option<nm::AddressBlock>,
     pub dns: Vec<String>,
-    pub bitrate: u32,
+    pub bitrate: InformationRate,
     pub mtu: u32,
 }
 
