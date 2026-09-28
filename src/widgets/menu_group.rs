@@ -120,11 +120,12 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
             .padding(0)
             .style(flat_button(config.palette.bar_foreground))
             .on_press(toggle.clone());
-            let inner = Row::with_children([
-                handle.into(),
-                revealed_content(config, reveal, content(reveal)),
-            ])
-            .align_y(Alignment::Center);
+            let inner = Row::new()
+                .push(handle)
+                .extend(
+                    (reveal > 0.0).then(|| revealed_content(config, reveal, content(reveal))),
+                )
+                .align_y(Alignment::Center);
             PagerSlot::new(inner.into(), edge_indicator(config, hovered, reveal))
                 .view(config, position)
         });
@@ -140,16 +141,15 @@ fn collapsing_previewed_value<'a, Message: 'a>(
     previewed_value: Option<&dyn BarWidget>,
     reveal: f32,
 ) -> Element<'a, Message> {
+    let hidden = 1.0 - reveal;
     let Some(value) = previewed_value
+        .filter(|_| hidden > 0.0)
         .and_then(|widget| reading_value(config, widget, reading_color(config, widget)))
     else {
         return Row::new().into();
     };
     let gap = config.spacing.widget_spacing_px;
-    reveal_x(
-        container(value).padding(Padding::ZERO.left(gap)),
-        1.0 - reveal,
-    )
+    reveal_x(container(value).padding(Padding::ZERO.left(gap)), hidden)
 }
 
 fn revealed_content<'a, Message: 'a>(
