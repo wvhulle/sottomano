@@ -49,6 +49,7 @@ impl WindowGroup {
             niri_state,
             window,
             pid.and_then(|pid| self.window_list.process(pid)),
+            self.window_list.folding(),
             pid.and_then(|pid| self.window_list.inspection(pid)),
         )
     }

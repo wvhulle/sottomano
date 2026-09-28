@@ -8,6 +8,7 @@ use crate::{
         process::{self, Inspection, Launch, Process},
     },
     wayland_layers::tooltip::relative,
+    widget_groups::window_group::process_tree::Folding,
     widgets::tooltip_body::{
         Row, Section, Tooltip, TooltipBody, row, section, tree_section, untitled,
     },
@@ -17,6 +18,7 @@ pub fn tooltip(
     niri_state: &EventStreamState,
     window: u64,
     tree: Option<&Process>,
+    folding: &Folding,
     inspected: Option<&Inspection>,
 ) -> Option<Tooltip> {
     let window = niri_state.windows.windows.get(&window)?;
@@ -26,7 +28,7 @@ pub fn tooltip(
         sections.push(section("Command", command(inspected)));
     }
     if let Some(root) = tree {
-        sections.push(tree_section("Process", root.clone()));
+        sections.push(tree_section("Process", root.clone(), folding.clone()));
     }
     Some(Tooltip::of(TooltipBody::Sections(sections)))
 }
