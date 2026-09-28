@@ -28,7 +28,7 @@ use crate::{
         bar::{float_margin, layer_settings, view},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
-        surface::{Margin, Position, Surface},
+        surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
     },
     widget_groups::{
@@ -780,19 +780,12 @@ impl Bar {
 
     fn remargin_surfaces(&self) -> Task<Message> {
         let offset = self.session.chrome.margin_offset_px();
-        let bars = self.surfaces.iter().map(move |(&id, surface)| {
+        Task::batch(self.surfaces.iter().map(move |(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
                 margin: float_margin(surface.position, offset).edges(),
             })
-        });
-        let tooltips = self.tooltip.surfaces().map(move |id| {
-            Task::done(Message::MarginChange {
-                id,
-                margin: Margin::uniform(offset).edges(),
-            })
-        });
-        Task::batch(bars.chain(tooltips))
+        }))
     }
 
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
@@ -833,12 +826,11 @@ impl Bar {
         {
             return Task::none();
         }
-        let offset = self.session.chrome.margin_offset_px();
         let mut opens: Vec<Task<Message>> = Position::ALL
             .into_iter()
             .map(|position| self.open_bar(output, position))
             .collect();
-        opens.push(self.tooltip.open_surface(output, offset));
+        opens.push(self.tooltip.open_surface(output));
         opens.extend(
             Position::ALL
                 .into_iter()
@@ -850,7 +842,12 @@ impl Bar {
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         if let Some(element) = self
             .tooltip
-            .view(window, &self.config, &self.favicons, |target| {
+            .view(
+                window,
+                &self.config,
+                self.session.chrome.float_offset_px,
+                &self.favicons,
+                |target| {
                 self.tooltip_for(target)
             })
         {
