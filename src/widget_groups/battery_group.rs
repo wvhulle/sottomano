@@ -4,7 +4,7 @@ pub mod estimate_columns;
 pub mod power_draw_gauge;
 pub mod power_profile_control;
 
-use battery_time_reading::{BatteryTimeReading, CurveLoaded};
+use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
@@ -35,7 +35,8 @@ use crate::{
 pub struct BatteryGroup {
     battery: LastPoll<Battery>,
     draw: Option<PowerDraw>,
-    time: BatteryTimeReading,
+    time: Option<BatteryTime>,
+    time_reading: BatteryTimeReading,
     installed: bool,
     power_profile: PowerProfileControl,
     pub(crate) menu: MenuGroup,
@@ -88,7 +89,7 @@ impl BatteryGroup {
                 self.observe_battery()
             }
             BatteryMessage::ChargeCurveLoaded(curve) => {
-                self.time.loaded(curve);
+                self.time_reading.loaded(curve);
                 Task::none()
             }
             BatteryMessage::PowerProfile(PowerProfileMessage::Tooltip(_))
@@ -102,19 +103,22 @@ impl BatteryGroup {
                 Task::none()
             }
         };
-        self.time
-            .refresh(self.battery.get(), self.power_profile.active_estimate());
+        let battery = self.battery.get();
+        self.time = battery.and_then(|battery| {
+            self.time_reading
+                .time_for(battery, self.power_profile.active_estimate())
+        });
+        self.draw =
+            battery.map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw_w()));
         task
     }
 
     fn observe_battery(&mut self) -> Task<BatteryMessage> {
         let Some(battery) = self.battery.get() else {
-            self.draw = None;
             return Task::none();
         };
-        self.draw = PowerDraw::of(battery);
         Task::batch([
-            self.time
+            self.time_reading
                 .learn(battery)
                 .map(BatteryMessage::ChargeCurveLoaded),
             self.power_profile
@@ -127,7 +131,7 @@ impl BatteryGroup {
         match target {
             HoverTarget::Battery => self.battery.tooltip(),
             HoverTarget::PowerDraw => self.battery.tooltip_with(self.draw.as_ref()?.tooltip()),
-            HoverTarget::BatteryTime => self.battery.tooltip_with(self.time.tooltip_body()?),
+            HoverTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
             _ => self.power_profile.tooltip_for(target),
         }
     }
@@ -153,7 +157,10 @@ impl BatteryGroup {
                     self.draw.as_ref().map(|draw| draw as &dyn BarWidget),
                     HoverTarget::PowerDraw,
                 ))
-                .push(Reading::new(self.time.display(), HoverTarget::BatteryTime))
+                .push(Reading::new(
+                    self.time.as_ref().map(|time| time as &dyn BarWidget),
+                    HoverTarget::BatteryTime,
+                ))
                 .row(config, BatteryMessage::Tooltip)
                 .map(Element::from);
             let power_profile = self.power_profile.view(config, reveal).map(|element| {

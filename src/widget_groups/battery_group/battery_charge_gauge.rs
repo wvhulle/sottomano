@@ -28,14 +28,10 @@ impl BarWidget for Battery {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![
+        TooltipBody::rows(vec![
             row("Battery", format!("{}%", self.capacity)),
             row("Status", self.status.as_str()),
-        ];
-        rows.extend(
-            self.energy_wh()
-                .map(|wh| row("Remaining", format!("{wh:.1} Wh"))),
-        );
-        TooltipBody::rows(rows)
+            row("Remaining", format!("{:.1} Wh", self.energy_wh())),
+        ])
     }
 }

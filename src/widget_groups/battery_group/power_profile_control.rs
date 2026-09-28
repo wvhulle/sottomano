@@ -147,12 +147,11 @@ impl PowerProfileControl {
     }
 
     fn drain_sample(&self, battery: &Battery) -> Option<DrainSample> {
+        let measurable = battery.is_discharging() && battery.power_w > MIN_SAMPLE_W;
         Some(DrainSample {
             profile: self.active_profile?,
             conditions: self.conditions?,
-            draw_w: battery
-                .power_w
-                .filter(|w| battery.is_discharging() && *w > MIN_SAMPLE_W)?,
+            draw_w: measurable.then_some(battery.power_w)?,
         })
     }
 
@@ -200,6 +199,11 @@ impl PowerProfileControl {
 
     fn recompute(&mut self) {
         self.estimates = self.drain_estimates().unwrap_or_default();
+    }
+
+    pub fn expected_draw_w(&self) -> Option<f64> {
+        let model = self.profile_models.as_ref()?.get(&self.active_profile?)?;
+        Some(model.expected_draw_w(self.conditions?)).filter(|draw_w| *draw_w > 0.0)
     }
 
     pub fn active_estimate(&self) -> Option<Estimate> {
