@@ -1,3 +1,5 @@
+use uom::{fmt::DisplayStyle::Abbreviation, si::thermodynamic_temperature::kelvin};
+
 use crate::{
     data::source::gamma::Gamma,
     widgets::{
@@ -22,7 +24,13 @@ impl BarWidget for Gamma {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::rows(vec![
             row("Dim", format!("{}%", self.brightness)),
-            row("Temperature", format!("{} K", self.temperature)),
+            row(
+                "Temperature",
+                format!(
+                    "{:.0}",
+                    self.temperature.into_format_args(kelvin, Abbreviation)
+                ),
+            ),
         ])
     }
 }
