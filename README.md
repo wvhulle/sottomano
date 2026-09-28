@@ -5,48 +5,107 @@ compositor: two panels in one binary, built on [iced](https://iced.rs) and
 [iced_layershell](https://crates.io/crates/iced_layershell), reading D-Bus with
 `zbus` where a service exists and calling the CLI where one does not.
 
-![The top panel](docs/top-bar.png)
+## A tour
 
-![The bottom panel](docs/bottom-bar.png)
+Both panels are rows of widget groups. A collapsed group is a single icon,
+sometimes with its most important reading next to it and a thin gauge showing
+how full it is. Click the icon and the group slides open to show every reading
+it holds; click it again to fold it back. Hover any reading for a card with the
+details behind it. The card grows out of the group you hovered, and sliding
+along the bar morphs it into the next card instead of popping a new one. Values
+in a card, such as an address, a PID or a network name, go to the clipboard
+when clicked.
 
-## What's different
+Open groups fold back when another window takes focus, unless you switch that
+off in the panel settings group.
 
-### What it shows you
+### Top panel, left: the machine
 
-![The AI, idle, media and volume widget groups](docs/indicators.png)
+![The weather, battery, system, network and transfer groups expanded, the CPU card open](docs/top-bar.png)
 
-- **AI harness usage.** Claude subscription, Copilot quota and OpenRouter spend,
-  tracked while you work.
-- **Media that plays along.** The current MPRIS track, with play/pause and a
-  jump back to the app that owns it.
-- **Systemd health.** Failed units and kernel errors become a widget group that
-  opens the journal for them.
-- **Where your wallpaper was taken.** The current wallpaper's location, with a
-  summary of its Wikipedia article.
+From left to right, all expanded:
 
-### What hovering reveals
+- **Weather.** Temperature, wind, when rain is due and where you are.
+- **Battery.** Charge, power draw, time until empty or full, and the power
+  profile.
+- **System.** CPU load, CPU temperature, memory and disk. The CPU card lists
+  every core's load and clock.
+- **Network interfaces.** Ethernet, Bluetooth, Wi-Fi and the mobile modem, one
+  reading per link.
+- **Transfer.** Download and upload throughput, WireGuard tunnels and the
+  Tailscale mesh with its peer count.
+- **Panel settings.** The panel's own shape: corner radius, float offset,
+  tint, blur, whether groups are separate pills or one bar, and whether they
+  fold back on focus change.
 
-![The tooltip for a window in the window list](docs/window-tooltip.png)
+![The weather group expanded, the location card open](docs/location.png)
 
-- **Cards that grow and morph.** A tooltip expands out of the widget group you
-  hovered, and sliding along the bar morphs that card into the next rather than
-  popping a new one.
-- **Windows explain themselves.** Hover an entry in the window list for its app
-  id, focus age, the command behind it and the nix packages it came from, with a
-  live process tree underneath.
-- **Copyable values.** Click an address, a PID, a network name in a tooltip and
-  it goes to the clipboard.
+The location behind the weather comes from a Wi-Fi fix through BeaconDB. Its
+card shows the place, coordinates, accuracy, and how many access points and
+cells were seen and submitted.
 
-### What you can do from the bar
+### Top panel, right: you and the room
 
-![The workspace widget group, focus marker over the current workspace](docs/workspaces.png)
+![The AI, monitor, media and volume groups expanded, the AI usage card open](docs/indicators.png)
 
-- **The focus marker slides.** Switch workspace or window and the indicator
-  glides to its new place instead of blinking there.
-- **Settings adjust in place.** Idle timers, backlight, volume, colour
-  temperature and the panel's own shape are sliders in the bar itself.
-- **Quick launch knows your workspace.** Each workspace offers the apps you
-  actually start there.
+- **AI usage.** Claude subscription, Copilot quota and OpenRouter spend, tracked
+  while you work. The card shows session and weekly usage, when each resets,
+  and extra spend against its limit.
+- **Monitors.** Backlight of each display and whether automatic brightness is
+  on.
+- **Media.** The current MPRIS track, with previous, play/pause, stop and next,
+  and a jump back to the app that owns it.
+- **Audio.** Microphone and speaker; the speaker opens into a volume slider.
+
+![The dark mode, colour temperature and idle timer groups expanded, the colour temperature slider open](docs/settings.png)
+
+Settings adjust in place. Click a reading in an open group and it turns into a
+slider in the bar itself.
+
+- **Dark mode.** The current mode, whether it switches on its own, the time
+  until the next switch, and offsets from sunrise and sunset.
+- **Colour temperature.** Screen warmth in kelvin, a gamma dim, and whether both
+  follow the sun.
+- **Idle timers.** How long until the session locks, the screen turns off, the
+  machine goes to standby and it powers down. The bolt beside each timer fires
+  its action right away; the drastic ones ask for a second click first. Each
+  card says when that timer will fire.
+
+![The wallpaper group expanded, the Wikipedia card for where it was taken open](docs/wallpaper.png)
+
+- **Wallpaper.** Where the current wallpaper was taken, its Wikipedia article,
+  and the photographer. The article card carries the summary; the photo card
+  links back to Unsplash.
+
+### Bottom panel, left: workspaces
+
+![The workspace group, the card for the hack workspace open](docs/workspaces.png)
+
+Every workspace by index and name, with a mark under each for the windows on
+it. The focus marker slides to the new workspace instead of blinking there.
+Hover a workspace for a card of its windows. The rocket in the middle is quick
+launch, which offers the apps you actually start on the current workspace.
+
+### Bottom panel, right: windows and tray
+
+![The window list and the expanded tray](docs/bottom-bar.png)
+
+The windows on the current workspace, then the tray, open here with every status
+icon showing.
+
+![The card for a window in the window list](docs/window-tooltip.png)
+
+Hover a window for its title, app id, window id and how long ago it had focus;
+the nix package it came from; the profile, binary, command and systemd scope it
+runs under; and a live process tree with CPU, memory, threads and age per
+process.
+
+### Out of sight
+
+- **Systemd health.** Failed units and kernel errors appear as a group of their
+  own, which opens the journal for them. It only shows up when something is
+  wrong.
+- **Notifications.** The speech bubble next to the clock.
 
 ## Run
 
