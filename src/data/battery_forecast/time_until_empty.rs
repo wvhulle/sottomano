@@ -1,8 +1,10 @@
 use std::{collections::HashMap, time::Duration};
 
+use uom::si::f64::{Energy, Power};
+
 use crate::data::{
     battery_forecast::{
-        Estimate, discharge_power_regression::RegressionState,
+        Estimate, discharge_power_regression::RegressionState, duration_of,
         normally_distributed_power::NormalPower, self_consistent_horizon::self_consistent_forecast,
     },
     source::{
@@ -18,15 +20,16 @@ pub fn time_until_empty(
     conditions: Conditions,
     profile_models: &HashMap<Profile, RegressionState>,
 ) -> HashMap<Profile, Option<Estimate>> {
-    let live_w = (battery.is_discharging() && battery.power_w > 0.0).then_some(battery.power_w);
+    let nothing = Power::default();
+    let live = (battery.is_discharging() && battery.power > nothing).then_some(battery.power);
     let learned = |profile: Profile, horizon: Duration| {
         let model = profile_models.get(&profile)?;
-        let current_w = live_w.filter(|_| profile == active_profile);
-        Some(model.average_draw_over(horizon, conditions, current_w))
-            .filter(|draw| draw.mean_w > 0.0)
+        let current = live.filter(|_| profile == active_profile);
+        Some(model.average_draw_over(horizon, conditions, current))
+            .filter(|draw| draw.mean > nothing)
     };
     let active_draw =
-        |horizon| learned(active_profile, horizon).or_else(|| live_w.map(NormalPower::certain));
+        |horizon| learned(active_profile, horizon).or_else(|| live.map(NormalPower::certain));
     Profile::ALL
         .into_iter()
         .map(|profile| {
@@ -35,20 +38,20 @@ pub fn time_until_empty(
                 learned(profile, horizon)
                     .or_else(|| active_draw(horizon).map(|draw| draw.scaled(ratio)))
             };
-            (profile, drain(battery.energy_j, draw))
+            (profile, drain(battery.energy, draw))
         })
         .collect()
 }
 
 fn drain(
-    energy: f64,
+    energy: Energy,
     average_draw_over: impl Fn(Duration) -> Option<NormalPower>,
 ) -> Option<Estimate> {
-    if energy <= 0.0 {
+    if energy <= Energy::default() {
         return None;
     }
     self_consistent_forecast(Battery::INTERVAL, average_draw_over, |draw| {
-        Duration::try_from_secs_f64(energy / draw.mean_w).ok()
+        duration_of(energy / draw.mean)
     })?
     .time_to_move(energy)
 }
@@ -56,6 +59,13 @@ fn drain(
 #[cfg(test)]
 mod tests {
     use std::iter::repeat_n;
+
+    use uom::si::{
+        energy::watt_hour,
+        f64::Ratio,
+        power::watt,
+        ratio::{percent, ratio},
+    };
 
     use super::*;
     use crate::data::{
@@ -66,11 +76,11 @@ mod tests {
     fn on_battery(energy_wh: f64) -> Battery {
         Battery {
             status: ChargeStatus::Discharging,
-            capacity: 50,
-            energy_j: energy_wh * 3600.0,
-            energy_full_j: 60.0 * 3600.0,
-            power_w: 0.0,
-            limit_frac: 1.0,
+            capacity: Ratio::new::<percent>(50.0),
+            energy: Energy::new::<watt_hour>(energy_wh),
+            energy_full: Energy::new::<watt_hour>(60.0),
+            power: Power::new::<watt>(0.0),
+            charge_limit: Ratio::new::<ratio>(1.0),
             charge_behaviour: ChargeBehaviour::Auto,
             charger: None,
             serial: String::new(),
@@ -79,7 +89,7 @@ mod tests {
 
     fn drawing(draw_w: f64) -> Battery {
         Battery {
-            power_w: draw_w,
+            power: Power::new::<watt>(draw_w),
             ..on_battery(50.0)
         }
     }
@@ -108,7 +118,7 @@ mod tests {
 
     #[test]
     fn brighter_screen_shortens_predicted_life() {
-        let true_draw = |c: Conditions| 5.0 + 20.0 * c.brightness_frac;
+        let true_draw = |c: Conditions| Power::new::<watt>(5.0 + 20.0 * c.brightness_frac);
         let dim = Conditions::new(0.1, 0.0);
         let bright = Conditions::new(0.9, 0.0);
         let model = (0..80).fold(RegressionState::seed(true_draw(dim)), |model, _| {
@@ -132,12 +142,12 @@ mod tests {
         let after_one = spread(balanced_life(
             &battery,
             conditions,
-            trained(conditions, [10.0]),
+            trained(conditions, [Power::new::<watt>(10.0)]),
         ));
         let after_many = spread(balanced_life(
             &battery,
             conditions,
-            trained(conditions, repeat_n(10.0, 50)),
+            trained(conditions, repeat_n(Power::new::<watt>(10.0), 50)),
         ));
         assert!(after_many < after_one, "{after_many} vs {after_one}");
     }
@@ -169,7 +179,7 @@ mod tests {
         let life = balanced_life(
             &on_battery(60.0),
             Conditions::new(0.7, 0.4),
-            RegressionState::seed(12.0),
+            RegressionState::seed(Power::new::<watt>(12.0)),
         );
         assert!((hrs(life.time) - 5.0).abs() < 0.01);
     }
@@ -180,7 +190,10 @@ mod tests {
             &on_battery(50.0),
             Profile::Balanced,
             Conditions::new(0.0, 0.0),
-            &HashMap::from([(Profile::Balanced, RegressionState::seed(10.0))]),
+            &HashMap::from([(
+                Profile::Balanced,
+                RegressionState::seed(Power::new::<watt>(10.0)),
+            )]),
         );
         let life = |profile| hrs(estimates[&profile].expect("estimate present").time);
         let saver = life(Profile::PowerSaver);

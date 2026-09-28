@@ -109,7 +109,7 @@ impl BatteryGroup {
                 .time_for(battery, self.power_profile.active_estimate())
         });
         self.draw =
-            battery.map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw_w()));
+            battery.map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw()));
         task
     }
 

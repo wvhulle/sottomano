@@ -14,6 +14,10 @@ pub use charge_power_by_state_of_charge::{CHARGE_BINS, ChargeCurve, PowerBin, bi
 pub use discharge_power_regression::RegressionState;
 pub use time_until_empty::time_until_empty;
 pub use time_until_full::time_until_full;
+use uom::si::{
+    f64::Time,
+    time::{minute, second},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Estimate {
@@ -22,6 +26,10 @@ pub struct Estimate {
     pub latest: Option<Duration>,
 }
 
-fn whole_minutes(seconds: f64) -> Option<Duration> {
-    Duration::try_from_secs_f64((seconds / 60.0).round() * 60.0).ok()
+fn duration_of(time: Time) -> Option<Duration> {
+    Duration::try_from_secs_f64(time.get::<second>()).ok()
+}
+
+fn whole_minutes(time: Time) -> Option<Duration> {
+    duration_of(time.round::<minute>())
 }

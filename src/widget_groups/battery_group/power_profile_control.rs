@@ -1,6 +1,7 @@
 use std::{collections::HashMap, ops::RangeInclusive};
 
 use iced::{Element, Subscription, Task};
+use uom::si::{f64::Power, power::watt};
 
 pub mod profile_icon;
 
@@ -79,7 +80,7 @@ pub enum PowerProfileMessage {
 struct DrainSample {
     profile: Profile,
     conditions: Conditions,
-    draw_w: f64,
+    draw: Power,
 }
 
 impl PowerProfileControl {
@@ -147,11 +148,12 @@ impl PowerProfileControl {
     }
 
     fn drain_sample(&self, battery: &Battery) -> Option<DrainSample> {
-        let measurable = battery.is_discharging() && battery.power_w > MIN_SAMPLE_W;
+        let measurable =
+            battery.is_discharging() && battery.power > Power::new::<watt>(MIN_SAMPLE_W);
         Some(DrainSample {
             profile: self.active_profile?,
             conditions: self.conditions?,
-            draw_w: measurable.then_some(battery.power_w)?,
+            draw: measurable.then_some(battery.power)?,
         })
     }
 
@@ -170,8 +172,8 @@ impl PowerProfileControl {
             return Task::none();
         };
         let next = continued
-            .unwrap_or_else(|| RegressionState::seed(sample.draw_w))
-            .observe(sample.conditions, sample.draw_w);
+            .unwrap_or_else(|| RegressionState::seed(sample.draw))
+            .observe(sample.conditions, sample.draw);
         models.insert(sample.profile, next);
         Task::future(power::save(battery.serial.clone(), sample.profile, next)).discard()
     }
@@ -201,9 +203,9 @@ impl PowerProfileControl {
         self.estimates = self.drain_estimates().unwrap_or_default();
     }
 
-    pub fn expected_draw_w(&self) -> Option<f64> {
+    pub fn expected_draw(&self) -> Option<Power> {
         let model = self.profile_models.as_ref()?.get(&self.active_profile?)?;
-        Some(model.expected_draw_w(self.conditions?)).filter(|draw_w| *draw_w > 0.0)
+        Some(model.expected_draw(self.conditions?)).filter(|draw| *draw > Power::default())
     }
 
     pub fn active_estimate(&self) -> Option<Estimate> {

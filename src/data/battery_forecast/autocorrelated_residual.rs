@@ -1,3 +1,5 @@
+use uom::si::f64::Power;
+
 use crate::data::battery_forecast::normally_distributed_power::NormalPower;
 
 const SEED_VARIANCE: f64 = 4.0;
@@ -61,26 +63,26 @@ impl ResidualProcess {
         }
     }
 
-    pub(super) fn average_over(&self, steps: f64, current: Option<f64>) -> NormalPower {
+    pub(super) fn average_over(&self, steps: f64, current: Option<Power>) -> NormalPower {
         match current {
             Some(residual) => self.average_given_current(steps, residual),
             None => self.average_unconditionally(steps),
         }
     }
 
-    fn average_given_current(&self, steps: f64, residual: f64) -> NormalPower {
+    fn average_given_current(&self, steps: f64, residual: Power) -> NormalPower {
         NormalPower {
-            mean_w: self.persistence(steps) * residual,
-            variance: self.unforeseen_variance(steps),
+            mean: residual * self.persistence(steps),
+            ..NormalPower::from_watts(0.0, self.unforeseen_variance(steps))
         }
     }
 
     fn average_unconditionally(&self, steps: f64) -> NormalPower {
         let persistence = self.persistence(steps);
-        NormalPower {
-            mean_w: 0.0,
-            variance: self.unforeseen_variance(steps) + persistence * persistence * self.variance,
-        }
+        NormalPower::from_watts(
+            0.0,
+            self.unforeseen_variance(steps) + persistence * persistence * self.variance,
+        )
     }
 
     fn persistence(&self, steps: f64) -> f64 {
@@ -102,6 +104,8 @@ fn geometric_sum(ratio: f64, terms: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use uom::si::power::watt;
+
     use super::*;
 
     fn white_noise(variance: f64) -> ResidualProcess {
@@ -114,9 +118,9 @@ mod tests {
 
     #[test]
     fn white_noise_average_has_variance_over_n() {
-        let average = white_noise(4.0).average_over(100.0, Some(3.0));
-        assert!(average.mean_w.abs() < 1e-12);
-        assert!((average.variance - 0.04).abs() < 1e-12);
+        let average = white_noise(4.0).average_over(100.0, Some(Power::new::<watt>(3.0)));
+        assert!(average.mean.get::<watt>().abs() < 1e-12);
+        assert!((average.spread.get::<watt>() - 0.2).abs() < 1e-12);
     }
 
     #[test]
@@ -133,8 +137,8 @@ mod tests {
             previous: None,
         };
         assert!(
-            correlated.average_over(100.0, None).variance
-                > white_noise(4.0).average_over(100.0, None).variance
+            correlated.average_over(100.0, None).spread
+                > white_noise(4.0).average_over(100.0, None).spread
         );
     }
 }

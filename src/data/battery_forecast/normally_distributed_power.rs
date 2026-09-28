@@ -1,47 +1,55 @@
+use uom::si::{
+    f64::{Energy, Power},
+    power::watt,
+};
+
 use crate::data::battery_forecast::{Estimate, whole_minutes};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct NormalPower {
-    pub(super) mean_w: f64,
-    pub(super) variance: f64,
+    pub(super) mean: Power,
+    pub(super) spread: Power,
 }
 
 impl NormalPower {
-    pub(super) fn certain(mean_w: f64) -> Self {
+    pub(super) fn from_watts(mean_w: f64, variance_w2: f64) -> Self {
         NormalPower {
-            mean_w,
-            variance: 0.0,
+            mean: Power::new::<watt>(mean_w),
+            spread: Power::new::<watt>(variance_w2.sqrt()),
+        }
+    }
+
+    pub(super) fn certain(mean: Power) -> Self {
+        NormalPower {
+            mean,
+            spread: Power::new::<watt>(0.0),
         }
     }
 
     pub(super) fn plus(self, other: NormalPower) -> Self {
         NormalPower {
-            mean_w: self.mean_w + other.mean_w,
-            variance: self.variance + other.variance,
+            mean: self.mean + other.mean,
+            spread: (self.spread * self.spread + other.spread * other.spread).sqrt(),
         }
     }
 
     pub(super) fn scaled(self, ratio: f64) -> Self {
         NormalPower {
-            mean_w: self.mean_w * ratio,
-            variance: self.variance * ratio * ratio,
+            mean: self.mean * ratio,
+            spread: self.spread * ratio.abs(),
         }
     }
 
-    pub(super) fn standard_deviation(&self) -> f64 {
-        self.variance.sqrt()
+    pub(super) fn shifted_by_deviations(&self, standard_deviations: f64) -> Power {
+        self.mean + self.spread * standard_deviations
     }
 
-    pub(super) fn shifted_by_deviations(&self, standard_deviations: f64) -> f64 {
-        self.mean_w + standard_deviations * self.standard_deviation()
-    }
-
-    pub(super) fn time_to_move(&self, energy_j: f64) -> Option<Estimate> {
-        let seconds_at = |power_w: f64| (power_w > 0.0).then_some(energy_j / power_w);
+    pub(super) fn time_to_move(&self, energy: Energy) -> Option<Estimate> {
+        let time_at = |power: Power| (power > Power::new::<watt>(0.0)).then(|| energy / power);
         Some(Estimate {
-            time: whole_minutes(seconds_at(self.mean_w)?)?,
-            earliest: whole_minutes(seconds_at(self.shifted_by_deviations(1.0))?)?,
-            latest: seconds_at(self.shifted_by_deviations(-1.0)).and_then(whole_minutes),
+            time: whole_minutes(time_at(self.mean)?)?,
+            earliest: whole_minutes(time_at(self.shifted_by_deviations(1.0))?)?,
+            latest: time_at(self.shifted_by_deviations(-1.0)).and_then(whole_minutes),
         })
     }
 }

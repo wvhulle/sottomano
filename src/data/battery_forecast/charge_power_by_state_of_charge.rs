@@ -3,6 +3,11 @@ use std::iter::repeat_n;
 
 use adskalman::{KalmanFilterNoControl, StateAndCovariance};
 use nalgebra::{Matrix1, SMatrix, Vector1};
+use uom::si::{
+    f64::{Power, Ratio},
+    power::watt,
+    ratio::ratio,
+};
 
 use crate::data::{
     battery_forecast::{
@@ -32,19 +37,17 @@ impl PowerBin {
     }
 
     fn as_normal(self) -> NormalPower {
-        NormalPower {
-            mean_w: self.mean_w,
-            variance: self.variance,
-        }
+        NormalPower::from_watts(self.mean_w, self.variance)
     }
 }
 
-pub fn bin_of(state_of_charge: f64) -> usize {
-    ((state_of_charge.clamp(0.0, 1.0) * CHARGE_BINS as f64) as usize).min(CHARGE_BINS - 1)
+pub fn bin_of(state_of_charge: Ratio) -> usize {
+    let fraction = state_of_charge.get::<ratio>().clamp(0.0, 1.0);
+    ((fraction * CHARGE_BINS as f64) as usize).min(CHARGE_BINS - 1)
 }
 
-pub(super) fn bin_lower_edge(bin: usize) -> f64 {
-    bin as f64 / CHARGE_BINS as f64
+pub(super) fn bin_lower_edge(bin: usize) -> Ratio {
+    Ratio::new::<ratio>(bin as f64 / CHARGE_BINS as f64)
 }
 
 fn bin_drift() -> RandomWalk<1> {
@@ -67,7 +70,8 @@ impl Default for ChargeCurve {
 }
 
 impl ChargeCurve {
-    pub fn observe(self, state_of_charge: f64, observed_w: f64) -> Self {
+    pub fn observe(self, state_of_charge: Ratio, observed: Power) -> Self {
+        let observed_w = observed.get::<watt>();
         let bin = bin_of(state_of_charge);
         let prior = self.bins[bin].unwrap_or_else(|| PowerBin::seeded_at(observed_w));
         let drift = bin_drift();
@@ -103,9 +107,8 @@ impl ChargeCurve {
 
     pub(super) fn power_in(&self, bin: usize) -> Option<NormalPower> {
         self.bins[bin].map(PowerBin::as_normal).or_else(|| {
-            self.nearest_learned(bin).map(|nearest| NormalPower {
-                variance: nearest.variance + SEED_BIN_VARIANCE,
-                ..nearest.as_normal()
+            self.nearest_learned(bin).map(|nearest| {
+                NormalPower::from_watts(nearest.mean_w, nearest.variance + SEED_BIN_VARIANCE)
             })
         })
     }
@@ -120,11 +123,12 @@ impl ChargeCurve {
 }
 
 #[cfg(test)]
-pub(super) fn learned_curve(power_at: impl Fn(f64) -> f64) -> ChargeCurve {
+pub(super) fn learned_curve(power_at: impl Fn(Ratio) -> Power) -> ChargeCurve {
+    let half_bin = Ratio::new::<ratio>(0.5 / CHARGE_BINS as f64);
     (0..CHARGE_BINS).flat_map(|bin| repeat_n(bin, 200)).fold(
         ChargeCurve::default(),
         |curve, bin| {
-            let state_of_charge = bin_lower_edge(bin) + 0.5 / CHARGE_BINS as f64;
+            let state_of_charge = bin_lower_edge(bin) + half_bin;
             curve.observe(state_of_charge, power_at(state_of_charge))
         },
     )
@@ -136,16 +140,28 @@ mod tests {
 
     #[test]
     fn bins_cover_the_whole_range() {
-        assert_eq!(bin_of(0.0), 0);
-        assert_eq!(bin_of(0.049), 0);
-        assert_eq!(bin_of(0.05), 1);
-        assert_eq!(bin_of(1.0), CHARGE_BINS - 1);
+        assert_eq!(bin_of(Ratio::new::<ratio>(0.0)), 0);
+        assert_eq!(bin_of(Ratio::new::<ratio>(0.049)), 0);
+        assert_eq!(bin_of(Ratio::new::<ratio>(0.05)), 1);
+        assert_eq!(bin_of(Ratio::new::<ratio>(1.0)), CHARGE_BINS - 1);
     }
 
     #[test]
     fn learns_a_taper_per_bin() {
-        let curve = learned_curve(|soc| if soc < 0.8 { 30.0 } else { 10.0 });
-        let mean = |soc| curve.power_in(bin_of(soc)).expect("learned").mean_w;
+        let curve = learned_curve(|soc| {
+            if soc < Ratio::new::<ratio>(0.8) {
+                Power::new::<watt>(30.0)
+            } else {
+                Power::new::<watt>(10.0)
+            }
+        });
+        let mean = |fraction| {
+            curve
+                .power_in(bin_of(Ratio::new::<ratio>(fraction)))
+                .expect("learned")
+                .mean
+                .get::<watt>()
+        };
         assert!((mean(0.5) - 30.0).abs() < 0.5, "{}", mean(0.5));
         assert!((mean(0.9) - 10.0).abs() < 0.5, "{}", mean(0.9));
     }
@@ -153,12 +169,16 @@ mod tests {
     #[test]
     fn unobserved_bin_borrows_its_neighbour_with_more_doubt() {
         let curve = ChargeCurve::default()
-            .observe(0.52, 25.0)
-            .observe(0.52, 25.0);
-        let observed = curve.power_in(bin_of(0.52)).expect("observed");
-        let borrowed = curve.power_in(bin_of(0.9)).expect("borrowed");
-        assert!((borrowed.mean_w - observed.mean_w).abs() < 1e-9);
-        assert!(borrowed.variance > observed.variance);
+            .observe(Ratio::new::<ratio>(0.52), Power::new::<watt>(25.0))
+            .observe(Ratio::new::<ratio>(0.52), Power::new::<watt>(25.0));
+        let observed = curve
+            .power_in(bin_of(Ratio::new::<ratio>(0.52)))
+            .expect("observed");
+        let borrowed = curve
+            .power_in(bin_of(Ratio::new::<ratio>(0.9)))
+            .expect("borrowed");
+        assert!((borrowed.mean - observed.mean).get::<watt>().abs() < 1e-9);
+        assert!(borrowed.spread > observed.spread);
     }
 
     #[test]
