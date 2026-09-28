@@ -1,15 +1,15 @@
 use crate::{
     data::source::backlight::{Backlight, Kind},
     widgets::{
-        font_awesome::{FontAwesome, Solid},
+        phosphor::{self, Phosphor},
         tooltip_body::{TooltipBody, row},
     },
 };
 
-pub fn face(backlight: &Backlight) -> FontAwesome {
+pub fn face(backlight: &Backlight) -> Phosphor {
     match backlight.kind {
-        Kind::Internal => Solid::Laptop.into(),
-        Kind::External => Solid::Desktop.into(),
+        Kind::Internal => phosphor::Laptop::Regular.into(),
+        Kind::External => phosphor::Desktop::Regular.into(),
     }
 }
 

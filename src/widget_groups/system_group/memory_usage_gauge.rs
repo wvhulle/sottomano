@@ -2,14 +2,14 @@ use crate::{
     data::source::sysfs_sensors::memory::Memory,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
 
 impl BarWidget for Memory {
     fn icon(&self) -> Glyph {
-        Solid::Memory.into()
+        phosphor::Memory::Regular.into()
     }
 
     fn level(&self) -> Level {

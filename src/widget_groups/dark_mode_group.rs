@@ -32,8 +32,8 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor::{self, Phosphor},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage, toggle_button},
         tooltip_body::{Tooltip, row},
@@ -69,8 +69,14 @@ impl Default for DarkModeGroup {
         Self {
             mode_toggle: ToggleControl::default(),
             auto_switch_toggle: AutoSwitchToggle::default(),
-            sunrise_offset_slider: new_offset_slider(HoverTarget::SunriseOffset, Solid::CloudSun),
-            sunset_offset_slider: new_offset_slider(HoverTarget::SunsetOffset, Solid::CloudMoon),
+            sunrise_offset_slider: new_offset_slider(
+                HoverTarget::SunriseOffset,
+                Phosphor::CloudSun(phosphor::CloudSun::Regular),
+            ),
+            sunset_offset_slider: new_offset_slider(
+                HoverTarget::SunsetOffset,
+                Phosphor::CloudMoon(phosphor::CloudMoon::Regular),
+            ),
             menu: MenuGroup::default(),
         }
     }
@@ -298,11 +304,11 @@ impl DarkModeGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, DarkModeMessage> {
-        Solid::CircleHalfStroke.view(config.font.icon_size_px, config.palette.bar_foreground)
+        phosphor::CircleHalf::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }
 
-fn new_offset_slider(target: HoverTarget, icon: Solid) -> SliderControl {
+fn new_offset_slider(target: HoverTarget, icon: Phosphor) -> SliderControl {
     SliderControl::new(OFFSET_MINUTES, target, icon.into())
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)

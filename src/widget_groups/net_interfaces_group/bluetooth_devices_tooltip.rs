@@ -3,14 +3,14 @@ use crate::{
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Brands,
+        phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
     },
 };
 
 impl BarWidget for Bluetooth {
     fn icon(&self) -> Glyph {
-        Brands::BluetoothB.into()
+        phosphor::Bluetooth::Regular.into()
     }
 
     fn disabled(&self) -> bool {

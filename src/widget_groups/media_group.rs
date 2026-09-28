@@ -20,8 +20,8 @@ use crate::{
     },
     widgets::{
         flat_button,
-        font_awesome::{FontAwesome, Solid},
         menu_group::{MenuGroup, MenuMessage},
+        phosphor::{self, Phosphor},
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, row},
     },
@@ -252,9 +252,9 @@ fn track_face<'a>(
             .into();
     }
     let icon = if status == Status::Playing {
-        Solid::Music
+        Phosphor::MusicNote(phosphor::MusicNote::Regular)
     } else {
-        Solid::Play
+        Phosphor::Play(phosphor::Play::Regular)
     };
     icon.view(side, config.palette.bar_foreground.scale_alpha(opacity))
 }
@@ -287,7 +287,7 @@ fn source_icon<'a>(
     player_icon(media).view(side, config.palette.bar_foreground.scale_alpha(opacity))
 }
 
-fn player_icon(media: &Media) -> FontAwesome {
+fn player_icon(media: &Media) -> Phosphor {
     let mut handles = Vec::new();
     if let Some(desktop) = &media.desktop_entry
         && !desktop.is_empty()
@@ -304,8 +304,8 @@ fn player_icon(media: &Media) -> FontAwesome {
     );
     handles
         .iter()
-        .find_map(|handle| FontAwesome::from_slug(handle))
-        .unwrap_or(Solid::Music.into())
+        .find_map(|handle| Phosphor::from_brand_or_slug(handle))
+        .unwrap_or(phosphor::MusicNote::Regular.into())
 }
 
 fn transport<'a>(
@@ -315,7 +315,7 @@ fn transport<'a>(
     reveal: f32,
 ) -> Element<'a, MediaMessage> {
     let color = config.palette.bar_foreground.scale_alpha(reveal * 0.9);
-    let button = |icon: FontAwesome, method: &'static str| {
+    let button = |icon: Phosphor, method: &'static str| {
         button(icon.view(config.font.icon_size_px, color))
             .padding(0)
             .style(flat_button(color))
@@ -323,19 +323,19 @@ fn transport<'a>(
             .into()
     };
     let toggle_icon = if status == Status::Playing {
-        Solid::Pause.into()
+        phosphor::Pause::Regular.into()
     } else {
-        Solid::Play.into()
+        phosphor::Play::Regular.into()
     };
     let buttons: Vec<Element<'a, MediaMessage>> = [
         media
             .can_prev
-            .then(|| button(Solid::BackwardStep.into(), "Previous")),
+            .then(|| button(phosphor::SkipBack::Regular.into(), "Previous")),
         media.can_toggle.then(|| button(toggle_icon, "PlayPause")),
-        (status != Status::Stopped).then(|| button(Solid::Stop.into(), "Stop")),
+        (status != Status::Stopped).then(|| button(phosphor::Stop::Regular.into(), "Stop")),
         media
             .can_next
-            .then(|| button(Solid::ForwardStep.into(), "Next")),
+            .then(|| button(phosphor::SkipForward::Regular.into(), "Next")),
     ]
     .into_iter()
     .flatten()

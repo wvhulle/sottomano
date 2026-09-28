@@ -7,8 +7,8 @@ use crate::{
     config::Config,
     widgets::{
         bar_widget::{BarWidget, level_color},
-        font_awesome::Solid,
         gauge::Gauge,
+        phosphor,
         text::bar_text,
     },
 };
@@ -50,7 +50,7 @@ pub fn reading_value<'a, Message: 'a>(
     color: Color,
 ) -> Option<Element<'a, Message>> {
     if widget.failed() {
-        return Some(Solid::TriangleExclamation.view(config.font.icon_size_px, color));
+        return Some(phosphor::Warning::Regular.view(config.font.icon_size_px, color));
     }
     match widget.value() {
         Some(value) => Some(

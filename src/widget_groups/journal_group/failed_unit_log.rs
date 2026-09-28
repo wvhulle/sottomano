@@ -7,21 +7,21 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
-        font_awesome::Solid,
         localized_time::TimePart,
+        phosphor::{self, Phosphor},
         tooltip_body::{Cell, TableRow, TooltipBody, table_section},
     },
 };
 
 pub trait ScopeAppearance: JournalScope {
-    const ICON: Solid;
+    const ICON: Phosphor;
     const LABEL: &'static str;
 
     fn severity(recent: bool) -> Level;
 }
 
 impl ScopeAppearance for User {
-    const ICON: Solid = Solid::User;
+    const ICON: Phosphor = Phosphor::User(phosphor::User::Regular);
     const LABEL: &'static str = "Failed user units";
 
     fn severity(_recent: bool) -> Level {
@@ -30,7 +30,7 @@ impl ScopeAppearance for User {
 }
 
 impl ScopeAppearance for System {
-    const ICON: Solid = Solid::Server;
+    const ICON: Phosphor = Phosphor::HardDrives(phosphor::HardDrives::Regular);
     const LABEL: &'static str = "Failed system units";
 
     fn severity(recent: bool) -> Level {

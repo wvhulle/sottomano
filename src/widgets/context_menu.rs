@@ -10,8 +10,11 @@ use crate::{
     config::Config,
     data::source::tray::{MenuKind, MenuNode},
     widgets::{
-        DISABLED_ALPHA, activity_line::activity_line, font_awesome::Solid,
-        native_icon::native_icon, text::bar_text,
+        DISABLED_ALPHA,
+        activity_line::activity_line,
+        native_icon::native_icon,
+        phosphor::{self, Phosphor},
+        text::bar_text,
     },
 };
 
@@ -85,7 +88,8 @@ fn entry<'a, Message: Clone + 'a>(
         .as_ref()
         .map(|source| native_icon(source, icon_size, 1.0))
         .or_else(|| {
-            matches!(node.kind, MenuKind::Toggle(true)).then(|| Solid::Check.view(icon_size, color))
+            matches!(node.kind, MenuKind::Toggle(true))
+                .then(|| phosphor::Check::Regular.view(icon_size, color))
         });
 
     let mut row = Row::new()
@@ -98,9 +102,9 @@ fn entry<'a, Message: Clone + 'a>(
     row = row.push(bar_text(&config.font, node.label.clone()).color(color));
     if matches!(node.kind, MenuKind::Submenu) {
         let chevron = if submenu_open {
-            Solid::ChevronDown
+            Phosphor::CaretDown(phosphor::CaretDown::Regular)
         } else {
-            Solid::ChevronRight
+            Phosphor::CaretRight(phosphor::CaretRight::Regular)
         };
         row = row
             .push(Space::new().width(Length::Fill))

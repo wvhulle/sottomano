@@ -2,14 +2,14 @@ use crate::{
     data::source::wireguard::{Peer, Tunnel, Wireguard},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{Row, TooltipBody, row},
     },
 };
 
 impl BarWidget for Wireguard {
     fn icon(&self) -> Glyph {
-        Solid::ShieldHalved.into()
+        phosphor::ShieldCheck::Regular.into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -20,9 +20,9 @@ impl BarWidget for Wireguard {
 impl BarWidget for Tunnel {
     fn icon(&self) -> Glyph {
         if self.server {
-            Solid::Minimize.into()
+            phosphor::ArrowsInSimple::Regular.into()
         } else {
-            Solid::LocationPinLock.into()
+            phosphor::MapPinLine::Regular.into()
         }
     }
 

@@ -3,7 +3,7 @@ use crate::{
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{Row, Section, TooltipBody, row, section},
     },
 };
@@ -12,7 +12,7 @@ const CONNECTED: &str = "connected";
 
 impl BarWidget for Mobile {
     fn icon(&self) -> Glyph {
-        Solid::TowerCell.into()
+        phosphor::Broadcast::Regular.into()
     }
 
     fn disabled(&self) -> bool {

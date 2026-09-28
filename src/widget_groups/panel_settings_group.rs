@@ -14,9 +14,9 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        DISABLED_ALPHA, flat_button,
-        font_awesome::Solid,
+        flat_button,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor::{self, Phosphor},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         tooltip_body::{Tooltip, row},
     },
@@ -101,7 +101,7 @@ impl Default for PanelSettingsGroup {
             radius: SliderControl::new(
                 RADIUS_RANGE,
                 HoverTarget::CornerRadius,
-                Solid::BorderTopLeft.into(),
+                phosphor::FrameCorners::Regular.into(),
             )
             .icon_only()
             .readout_width(44.0)
@@ -109,15 +109,19 @@ impl Default for PanelSettingsGroup {
             offset: SliderControl::new(
                 OFFSET_RANGE,
                 HoverTarget::FloatOffset,
-                Solid::ArrowsToCircle.into(),
+                phosphor::ArrowsIn::Regular.into(),
             )
             .icon_only()
             .readout_width(44.0)
             .readout(|value| format!("{} px", value.round())),
-            tint: SliderControl::new(TINT_RANGE, HoverTarget::TintChrome, Solid::XRay.into())
-                .icon_only()
-                .readout_width(44.0)
-                .readout(|value| format!("{} %", value.round())),
+            tint: SliderControl::new(
+                TINT_RANGE,
+                HoverTarget::TintChrome,
+                phosphor::DropHalf::Regular.into(),
+            )
+            .icon_only()
+            .readout_width(44.0)
+            .readout(|value| format!("{} %", value.round())),
         }
     }
 }
@@ -247,28 +251,38 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let face = move || Solid::Sliders.view(config.font.icon_size_px, foreground);
+        let face =
+            move || phosphor::SlidersHorizontal::Regular.view(config.font.icon_size_px, foreground);
 
         let content = move |_reveal: f32| {
             Row::with_children([
                 icon_toggle(
                     config,
-                    Solid::Capsules,
-                    chrome.disconnected_groups,
+                    if chrome.disconnected_groups {
+                        phosphor::Pill::Fill.into()
+                    } else {
+                        phosphor::Pill::Light.into()
+                    },
                     PanelSettingsMessage::ToggleDisconnectedGroups,
                     HoverTarget::DisconnectedGroups,
                 ),
                 icon_toggle(
                     config,
-                    Solid::Thumbtack,
-                    !chrome.auto_collapse_groups,
+                    if chrome.auto_collapse_groups {
+                        phosphor::PushPin::Light.into()
+                    } else {
+                        phosphor::PushPin::Fill.into()
+                    },
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
                     HoverTarget::AutoCollapseGroups,
                 ),
                 icon_toggle(
                     config,
-                    Solid::Snowflake,
-                    chrome.blur_background,
+                    if chrome.blur_background {
+                        phosphor::Snowflake::Fill.into()
+                    } else {
+                        phosphor::Snowflake::Light.into()
+                    },
                     PanelSettingsMessage::ToggleBlurBackground,
                     HoverTarget::BlurBackground,
                 ),
@@ -301,13 +315,11 @@ fn slider_element<'a>(
 
 fn icon_toggle<'a>(
     config: &Config,
-    icon: Solid,
-    active: bool,
+    icon: Phosphor,
     press: PanelSettingsMessage,
     target: HoverTarget,
 ) -> Element<'a, PanelSettingsMessage> {
-    let opacity = if active { 1.0 } else { DISABLED_ALPHA };
-    let color = config.palette.bar_foreground.scale_alpha(opacity);
+    let color = config.palette.bar_foreground;
     let widget = icon.view(config.font.icon_size_px, color);
     hoverable(
         button(widget)

@@ -5,7 +5,7 @@ use iced::{Color, Element};
 use crate::{
     config::palette::Palette,
     widgets::{
-        font_awesome::{FontAwesome, Solid},
+        phosphor::{self, Phosphor},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
         weather_icons::WeatherIcon,
@@ -66,7 +66,7 @@ pub fn level_color(palette: &Palette, level: Level) -> Color {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Glyph {
-    FontAwesome(FontAwesome),
+    Phosphor(Phosphor),
     SimpleIcon(SimpleIcon),
     WeatherIcon(WeatherIcon),
 }
@@ -74,7 +74,7 @@ pub enum Glyph {
 impl Glyph {
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
         match self {
-            Glyph::FontAwesome(icon) => icon.view(size, color),
+            Glyph::Phosphor(icon) => icon.view(size, color),
             Glyph::SimpleIcon(icon) => icon.view(size, color),
             Glyph::WeatherIcon(icon) => icon.view(size, color),
         }
@@ -88,7 +88,7 @@ pub trait BarWidget {
     where
         Self: Sized,
     {
-        Solid::CircleQuestion.into()
+        phosphor::Question::Regular.into()
     }
 
     fn label(&self) -> Option<String> {

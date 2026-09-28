@@ -2,7 +2,7 @@ use crate::{
     data::source::clight::{self, Clight},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         toggle_control::Toggle,
         tooltip_body::{TooltipBody, row},
     },
@@ -11,9 +11,9 @@ use crate::{
 impl BarWidget for Clight {
     fn icon(&self) -> Glyph {
         if self.auto {
-            Solid::Eye.into()
+            phosphor::Eye::Regular.into()
         } else {
-            Solid::EyeSlash.into()
+            phosphor::EyeSlash::Regular.into()
         }
     }
 

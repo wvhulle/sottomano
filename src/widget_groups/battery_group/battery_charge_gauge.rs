@@ -7,14 +7,14 @@ use crate::{
     data::source::sysfs_sensors::battery::Battery,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
 
 impl BarWidget for Battery {
     fn icon(&self) -> Glyph {
-        Solid::CarBattery.into()
+        phosphor::BatteryCharging::Regular.into()
     }
 
     fn level(&self) -> Level {

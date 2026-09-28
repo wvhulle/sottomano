@@ -2,9 +2,9 @@ use std::{fs, path::Path};
 
 const INTRINSIC_HEIGHT_EXCEEDING_ANY_ICON_SIZE: f32 = 1000.0;
 
-const FONT_AWESOME_CLOUD_HEIGHT_FRACTION: f32 = 448.0 / 512.0;
+const PHOSPHOR_CLOUD_RAIN_HEIGHT_FRACTION: f32 = 232.0 / 256.0;
 
-pub fn fit_to_font_awesome_cloud(source_dir: &Path, fitted_dir: &Path) {
+pub fn fit_to_phosphor_cloud_rain(source_dir: &Path, fitted_dir: &Path) {
     fs::create_dir_all(fitted_dir).unwrap();
     fs::read_dir(source_dir)
         .unwrap()
@@ -24,7 +24,7 @@ fn fitted_drawing(svg: &[u8]) -> String {
     let drawing = tree.root().abs_bounding_box();
     let normalized = tree.to_string(&usvg::WriteOptions::default());
     let (_, body) = normalized.split_once('>').unwrap();
-    let canvas_height = drawing.height() / FONT_AWESOME_CLOUD_HEIGHT_FRACTION;
+    let canvas_height = drawing.height() / PHOSPHOR_CLOUD_RAIN_HEIGHT_FRACTION;
     let canvas_top = drawing.y() - (canvas_height - drawing.height()) / 2.0;
     let x = drawing.x();
     let width = drawing.width();

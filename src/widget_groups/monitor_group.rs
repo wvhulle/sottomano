@@ -18,8 +18,8 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor,
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
@@ -197,7 +197,7 @@ impl MonitorGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, MonitorMessage> {
-        Solid::Lightbulb.view(config.font.icon_size_px, config.palette.bar_foreground)
+        phosphor::Lightbulb::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }
 

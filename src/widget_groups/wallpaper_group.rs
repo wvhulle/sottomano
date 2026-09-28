@@ -18,9 +18,9 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
+        phosphor,
         reading_row::{Reading, ReadingRow},
         simple_icons::SimpleIcon,
         source_reading::source_reading,
@@ -48,7 +48,7 @@ impl Display for Failure {
 
 impl BarWidget for Lookup {
     fn icon(&self) -> Glyph {
-        Solid::MountainSun.into()
+        phosphor::Mountains::Regular.into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -79,7 +79,7 @@ pub struct Photo {
 
 impl BarWidget for Place {
     fn icon(&self) -> Glyph {
-        Solid::LocationDot.into()
+        phosphor::MapPin::Regular.into()
     }
 
     fn label(&self) -> Option<String> {

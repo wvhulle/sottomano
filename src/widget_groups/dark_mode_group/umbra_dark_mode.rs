@@ -2,7 +2,7 @@ use crate::{
     data::source::umbra::{self, Umbra},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         toggle_control::Toggle,
         tooltip_body::{TooltipBody, row},
     },
@@ -11,9 +11,9 @@ use crate::{
 impl BarWidget for Umbra {
     fn icon(&self) -> Glyph {
         if self.dark {
-            Solid::Moon.into()
+            phosphor::Moon::Regular.into()
         } else {
-            Solid::Sun.into()
+            phosphor::Sun::Regular.into()
         }
     }
 

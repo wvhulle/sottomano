@@ -19,7 +19,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, row},
     },
 };
@@ -145,9 +145,9 @@ pub(super) struct IdleBattery {
 impl IdleBattery {
     fn icon(self) -> Glyph {
         match self.reason {
-            IdleReason::Full | IdleReason::AtLimit => Solid::BatteryFull.into(),
-            IdleReason::Inhibited => Solid::CirclePause.into(),
-            IdleReason::Unexplained => Solid::PlugCircleExclamation.into(),
+            IdleReason::Full | IdleReason::AtLimit => phosphor::BatteryFull::Regular.into(),
+            IdleReason::Inhibited => phosphor::PauseCircle::Regular.into(),
+            IdleReason::Unexplained => phosphor::PlugCharging::Regular.into(),
         }
     }
 
@@ -188,7 +188,7 @@ impl BarWidget for BatteryTime {
     fn icon(&self) -> Glyph {
         match self {
             BatteryTime::Idle(idle) => idle.icon(),
-            BatteryTime::Countdown(_) => Solid::HourglassHalf.into(),
+            BatteryTime::Countdown(_) => phosphor::HourglassMedium::Regular.into(),
         }
     }
 

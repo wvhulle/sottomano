@@ -4,7 +4,7 @@ use crate::{
     data::source::disk::Disk,
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        font_awesome::Solid,
+        phosphor,
         tooltip_body::{TooltipBody, row},
     },
 };
@@ -14,7 +14,7 @@ const FREE_CRITICAL: ByteSize = ByteSize::gb(2);
 
 impl BarWidget for Disk {
     fn icon(&self) -> Glyph {
-        Solid::HardDrive.into()
+        phosphor::HardDrive::Regular.into()
     }
 
     fn level(&self) -> Level {

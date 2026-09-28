@@ -17,8 +17,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
         device_setting::{DeviceSetting, Nudge, Write},
         flat_button,
-        font_awesome::FontAwesome,
         inline_slider::inline_slider,
+        phosphor::Phosphor,
         reveal::reveal_x,
         source_reading::source_reading,
         text::bar_text,
@@ -67,8 +67,8 @@ pub struct SliderControl {
     readout: fn(f32) -> String,
     gauge: bool,
     label: Option<fn(f32) -> String>,
-    icon: FontAwesome,
-    glyph: Option<fn(f32, bool) -> FontAwesome>,
+    icon: Phosphor,
+    glyph: Option<fn(f32, bool) -> Phosphor>,
     thresholds: SeverityThresholds,
     target: HoverTarget,
     right_click: bool,
@@ -137,7 +137,7 @@ pub enum Action {
 }
 
 impl SliderControl {
-    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: FontAwesome) -> Self {
+    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: Phosphor) -> Self {
         Self {
             open: Animation::new(false)
                 .easing(Easing::EaseOutCubic)
@@ -200,7 +200,7 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn glyph(mut self, glyph: fn(f32, bool) -> FontAwesome) -> Self {
+    pub fn glyph(mut self, glyph: fn(f32, bool) -> Phosphor) -> Self {
         self.glyph = Some(glyph);
         self
     }
@@ -247,7 +247,7 @@ impl SliderControl {
         self.thresholds.level(self.current())
     }
 
-    fn effective_icon(&self) -> FontAwesome {
+    fn effective_icon(&self) -> Phosphor {
         self.glyph
             .map_or(self.icon, |glyph| glyph(self.current(), self.disabled))
     }

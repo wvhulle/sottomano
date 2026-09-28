@@ -14,9 +14,9 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
-        font_awesome::Solid,
         menu_group::{MenuGroup, MenuMessage},
         native_icon::native_icon,
+        phosphor,
         tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
     },
 };
@@ -170,7 +170,8 @@ impl TrayGroup {
         }
 
         let face = move || {
-            Solid::EllipsisVertical.view(config.font.icon_size_px, config.palette.bar_foreground)
+            phosphor::DotsThreeVertical::Regular
+                .view(config.font.icon_size_px, config.palette.bar_foreground)
         };
 
         let content = move |reveal: f32| {
@@ -212,7 +213,8 @@ fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, T
     let side = config.font.icon_size_px;
     let glyph: Element<'a, TrayMessage> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
-        None => Solid::Question.view(side, config.palette.bar_foreground.scale_alpha(reveal)),
+        None => phosphor::Question::Regular
+            .view(side, config.palette.bar_foreground.scale_alpha(reveal)),
     };
 
     let marked: Element<'a, TrayMessage> = if item.status == Status::NeedsAttention {

@@ -2,21 +2,21 @@ use crate::{
     data::source::weather::{Allergen, Birch, Grass, Pollen},
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Occasional, Unit, Value},
-        font_awesome::Solid,
+        phosphor::{self, Phosphor},
         tooltip_body::{TooltipBody, row},
     },
 };
 
 pub trait AllergenIcon: Allergen {
-    const ICON: Solid;
+    const ICON: Phosphor;
 }
 
 impl AllergenIcon for Grass {
-    const ICON: Solid = Solid::Seedling;
+    const ICON: Phosphor = Phosphor::Plant(phosphor::Plant::Regular);
 }
 
 impl AllergenIcon for Birch {
-    const ICON: Solid = Solid::Tree;
+    const ICON: Phosphor = Phosphor::Tree(phosphor::Tree::Regular);
 }
 
 impl<A: AllergenIcon> BarWidget for Pollen<A> {
