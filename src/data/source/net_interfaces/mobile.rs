@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bytesize::ByteSize;
 use iced::futures::Stream;
 use zbus::{
     fdo::ManagedObjects,
@@ -27,8 +28,8 @@ pub struct Mobile {
     pub state: String,
     pub ipv4: Option<String>,
     pub ipv6: Option<String>,
-    pub rx: Option<u64>,
-    pub tx: Option<u64>,
+    pub rx: Option<ByteSize>,
+    pub tx: Option<ByteSize>,
     pub failed_reason: Option<String>,
 }
 
@@ -108,8 +109,8 @@ fn technologies(bits: u32) -> Vec<String> {
 struct BearerInfo {
     ipv4: Option<String>,
     ipv6: Option<String>,
-    rx: Option<u64>,
-    tx: Option<u64>,
+    rx: Option<ByteSize>,
+    tx: Option<ByteSize>,
 }
 
 fn bearer_address(config: &HashMap<String, OwnedValue>) -> Option<String> {
@@ -119,11 +120,12 @@ fn bearer_address(config: &HashMap<String, OwnedValue>) -> Option<String> {
         .and_then(|value| String::try_from(value).ok())
 }
 
-fn stat(stats: &HashMap<String, OwnedValue>, key: &str) -> Option<u64> {
+fn transferred(stats: &HashMap<String, OwnedValue>, key: &str) -> Option<ByteSize> {
     stats
         .get(key)
         .and_then(|value| value.try_clone().ok())
         .and_then(|value| u64::try_from(value).ok())
+        .map(ByteSize::b)
 }
 
 fn bearer_info(objects: &ManagedObjects, path: &OwnedObjectPath) -> BearerInfo {
@@ -138,8 +140,12 @@ fn bearer_info(objects: &ManagedObjects, path: &OwnedObjectPath) -> BearerInfo {
         ipv6: prop::<HashMap<String, OwnedValue>>(bearer, "Ip6Config")
             .as_ref()
             .and_then(bearer_address),
-        rx: stats.as_ref().and_then(|stats| stat(stats, "rx-bytes")),
-        tx: stats.as_ref().and_then(|stats| stat(stats, "tx-bytes")),
+        rx: stats
+            .as_ref()
+            .and_then(|stats| transferred(stats, "rx-bytes")),
+        tx: stats
+            .as_ref()
+            .and_then(|stats| transferred(stats, "tx-bytes")),
     }
 }
 

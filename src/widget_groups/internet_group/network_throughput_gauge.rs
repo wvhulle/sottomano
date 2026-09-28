@@ -1,7 +1,15 @@
 use bytesize::ByteSize;
+use uom::si::{
+    f64::{Information, InformationRate, Time},
+    information::byte,
+    information_rate::{kilobyte_per_second, megabyte_per_second},
+    time::second,
+};
 
 use crate::{
-    data::source::throughput::{Connectivity, Direction, Download, SCALE_END, Throughput, Upload},
+    data::source::throughput::{
+        Connectivity, Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph, Level, Unit, Value},
         font_awesome::Solid,
@@ -9,8 +17,8 @@ use crate::{
     },
 };
 
-const HI_RES_AUDIO_STREAM: ByteSize = ByteSize::kb(1_152);
-const HI_RES_VIDEO_STREAM: ByteSize = ByteSize::kb(3_125);
+const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
+const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
 
 pub trait DirectionIcon: Direction {
     const ICON: Solid;
@@ -64,7 +72,12 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
             row("Peak", format_rate(self.peak_rate)),
             row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),
-            row("Capacity", format_rate(SCALE_END)),
+            row(
+                "Capacity",
+                format_rate(InformationRate::new::<megabyte_per_second>(
+                    SCALE_END_MB_PER_S,
+                )),
+            ),
         ])
     }
 }
@@ -74,10 +87,16 @@ impl<D: Direction> Throughput<D> {
         if self.unused() {
             return Level::Ok;
         }
-        match self.peak_rate {
-            peak if peak < HI_RES_AUDIO_STREAM => Level::Critical,
-            peak if peak < HI_RES_VIDEO_STREAM => Level::Warning,
-            _ => Level::Ok,
+        if self.peak_rate
+            < InformationRate::new::<kilobyte_per_second>(HI_RES_AUDIO_STREAM_KB_PER_S)
+        {
+            Level::Critical
+        } else if self.peak_rate
+            < InformationRate::new::<kilobyte_per_second>(HI_RES_VIDEO_STREAM_KB_PER_S)
+        {
+            Level::Warning
+        } else {
+            Level::Ok
         }
     }
 }
@@ -90,11 +109,40 @@ fn connectivity_level(connectivity: Connectivity) -> Level {
     }
 }
 
-fn format_rate(rate: ByteSize) -> String {
-    format!("{}/s", rate.display().iec())
+fn format_rate(rate: InformationRate) -> String {
+    let in_one_second: Information = (rate * Time::new::<second>(1.0)).into();
+    let bytes = ByteSize::b(in_one_second.get::<byte>().round() as u64);
+    format!("{}/s", bytes.display().iec())
 }
 
 #[allow(clippy::cast_possible_truncation)]
 fn percent(fraction: f32) -> i64 {
     (fraction * 100.0).round() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use uom::si::information_rate::{byte_per_second, kibibyte_per_second, mebibyte_per_second};
+
+    use super::*;
+
+    #[test]
+    fn small_rates_keep_their_precision() {
+        assert_eq!(
+            format_rate(InformationRate::new::<byte_per_second>(312.0)),
+            "312 B/s"
+        );
+        assert_eq!(
+            format_rate(InformationRate::new::<kibibyte_per_second>(845.2)),
+            "845.2 KiB/s"
+        );
+    }
+
+    #[test]
+    fn large_rates_switch_prefix() {
+        assert_eq!(
+            format_rate(InformationRate::new::<mebibyte_per_second>(1.8)),
+            "1.8 MiB/s"
+        );
+    }
 }

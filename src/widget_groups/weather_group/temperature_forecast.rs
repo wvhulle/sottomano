@@ -76,7 +76,7 @@ impl TableRow for HourlyTemperature {
 
 fn celsius_text(temperature: ThermodynamicTemperature) -> String {
     format!(
-        "{:.0}",
+        "{:.1}",
         temperature.into_format_args(degree_celsius, Abbreviation)
     )
 }

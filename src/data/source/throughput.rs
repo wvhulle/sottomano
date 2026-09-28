@@ -14,11 +14,18 @@ use iced::{
 };
 use tokio::time::interval;
 use tokio_stream::wrappers::IntervalStream;
+use uom::si::{
+    f64::{Information, InformationRate, Time},
+    information::byte,
+    information_rate::{kilobyte_per_second, megabyte_per_second},
+    ratio::ratio,
+    time::second,
+};
 use zbus::{Connection, proxy};
 
-pub const BACKGROUND_CHATTER: ByteSize = ByteSize::kb(10);
-pub const SCALE_START: ByteSize = ByteSize::kb(100);
-pub const SCALE_END: ByteSize = ByteSize::mb(125);
+const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
+const SCALE_START_KB_PER_S: f64 = 100.0;
+pub const SCALE_END_MB_PER_S: f64 = 125.0;
 
 pub trait Direction {
     const LABEL: &'static str;
@@ -41,8 +48,8 @@ impl Direction for Download {
 #[derive(Debug, Clone)]
 pub struct Throughput<D: Direction> {
     pub interfaces: Vec<String>,
-    pub rate: ByteSize,
-    pub peak_rate: ByteSize,
+    pub rate: InformationRate,
+    pub peak_rate: InformationRate,
     pub connectivity: Connectivity,
     direction: PhantomData<D>,
 }
@@ -75,23 +82,20 @@ impl Connectivity {
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
-fn ratio(quantity: ByteSize, reference: ByteSize) -> f64 {
-    quantity.as_u64() as f64 / reference.as_u64() as f64
-}
-
 #[allow(clippy::cast_possible_truncation)]
-pub fn fraction_of_scale(rate: ByteSize) -> f32 {
-    if rate <= SCALE_START {
+pub fn fraction_of_scale(rate: InformationRate) -> f32 {
+    let scale_start = InformationRate::new::<kilobyte_per_second>(SCALE_START_KB_PER_S);
+    let scale_end = InformationRate::new::<megabyte_per_second>(SCALE_END_MB_PER_S);
+    if rate <= scale_start {
         return 0.0;
     }
-    let log_width_of_scale = ratio(SCALE_END, SCALE_START).ln();
-    let log_position_of_rate = ratio(rate, SCALE_START).ln();
+    let log_width_of_scale = (scale_end / scale_start).get::<ratio>().ln();
+    let log_position_of_rate = (rate / scale_start).get::<ratio>().ln();
     ((log_position_of_rate / log_width_of_scale) as f32).clamp(0.0, 1.0)
 }
 
 impl<D: Direction> Throughput<D> {
-    fn fraction_of_carried(&self, rate: ByteSize) -> f32 {
+    fn fraction_of_carried(&self, rate: InformationRate) -> f32 {
         if self.interfaces.is_empty() {
             return 0.0;
         }
@@ -107,7 +111,7 @@ impl<D: Direction> Throughput<D> {
     }
 
     pub fn unused(&self) -> bool {
-        self.peak_rate <= BACKGROUND_CHATTER
+        self.peak_rate <= InformationRate::new::<kilobyte_per_second>(BACKGROUND_CHATTER_KB_PER_S)
     }
 }
 
@@ -165,12 +169,16 @@ impl Session {
 
 #[derive(Default, Clone, Copy)]
 struct Rates {
-    rx: ByteSize,
-    tx: ByteSize,
+    rx: InformationRate,
+    tx: InformationRate,
 }
 
 impl Rates {
-    fn combine(self, other: Self, join: impl Fn(ByteSize, ByteSize) -> ByteSize) -> Self {
+    fn combine(
+        self,
+        other: Self,
+        join: impl Fn(InformationRate, InformationRate) -> InformationRate,
+    ) -> Self {
         Self {
             rx: join(self.rx, other.rx),
             tx: join(self.tx, other.tx),
@@ -178,7 +186,7 @@ impl Rates {
     }
 
     fn raised_by(self, other: Self) -> Self {
-        self.combine(other, Ord::max)
+        self.combine(other, InformationRate::max)
     }
 }
 
@@ -239,10 +247,9 @@ fn readings(current: &Sample, rates: Rates, peak: Rates, connectivity: Connectiv
     }
 }
 
-fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> ByteSize {
-    let transferred = now.as_u64().saturating_sub(was.as_u64());
-    let bytes_per_second = u128::from(transferred) * 1000 / elapsed.as_millis();
-    ByteSize::b(u64::try_from(bytes_per_second).unwrap_or(u64::MAX))
+fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> InformationRate {
+    let transferred = Information::new::<byte>(now.as_u64().saturating_sub(was.as_u64()) as f64);
+    (transferred / Time::new::<second>(elapsed.as_secs_f64())).into()
 }
 
 fn read_counters(interface: &str) -> Counters {

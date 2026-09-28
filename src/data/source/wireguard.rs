@@ -1,5 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use bytesize::ByteSize;
 use serde_json::Value as Json;
 
 use crate::data::source::{Source, command, command::blocking::run};
@@ -11,8 +12,8 @@ pub struct Peer {
     pub endpoint: String,
     pub allowed_ips: String,
     pub handshake_ago: Option<u64>,
-    pub rx: u64,
-    pub tx: u64,
+    pub rx: ByteSize,
+    pub tx: ByteSize,
 }
 
 impl Peer {
@@ -91,8 +92,8 @@ async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
                     .to_string(),
                 allowed_ips: f.get(3).unwrap_or(&"—").to_string(),
                 handshake_ago: (handshake > 0).then(|| now.saturating_sub(handshake)),
-                rx: f.get(5).and_then(|v| v.parse().ok()).unwrap_or(0),
-                tx: f.get(6).and_then(|v| v.parse().ok()).unwrap_or(0),
+                rx: ByteSize::b(f.get(5).and_then(|v| v.parse().ok()).unwrap_or(0)),
+                tx: ByteSize::b(f.get(6).and_then(|v| v.parse().ok()).unwrap_or(0)),
             }
         })
         .collect();

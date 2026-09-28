@@ -1,5 +1,3 @@
-use bytesize::ByteSize;
-
 use crate::{
     data::source::sysfs_sensors::memory::Memory,
     widgets::{
@@ -32,15 +30,8 @@ impl BarWidget for Memory {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::rows(vec![
             row("Memory", format!("{}%", self.percent())),
-            row("Used", kibibytes(self.used_kb)),
-            row("Total", kibibytes(self.total_kb)),
+            row("Used", self.used.display().iec().to_string()),
+            row("Total", self.total.display().iec().to_string()),
         ])
     }
-}
-
-fn kibibytes(amount: i64) -> String {
-    ByteSize::kib(amount.unsigned_abs())
-        .display()
-        .iec()
-        .to_string()
 }

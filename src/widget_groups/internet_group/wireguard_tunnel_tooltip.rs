@@ -1,5 +1,3 @@
-use bytesize::ByteSize;
-
 use crate::{
     data::source::wireguard::{Peer, Tunnel, Wireguard},
     widgets::{
@@ -90,13 +88,7 @@ fn client_rows(tunnel: &Tunnel) -> Vec<Row> {
         peer.handshake_ago
             .map_or_else(|| "never".to_string(), |ago| format!("{ago}s ago")),
     ));
-    rows.push(row(
-        "transfer",
-        format!(
-            "↓{} ↑{}",
-            ByteSize::b(peer.rx).display().iec(),
-            ByteSize::b(peer.tx).display().iec()
-        ),
-    ));
+    rows.push(row("received", peer.rx.display().iec().to_string()));
+    rows.push(row("sent", peer.tx.display().iec().to_string()));
     rows
 }

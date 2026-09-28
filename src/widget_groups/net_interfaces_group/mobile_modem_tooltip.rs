@@ -1,5 +1,3 @@
-use bytesize::ByteSize;
-
 use crate::{
     data::source::net_interfaces::mobile::Mobile,
     widget_groups::net_interfaces_group::interface_sections::signal_level,
@@ -111,14 +109,14 @@ fn status_section(mobile: &Mobile) -> Section {
 
 fn transfer_rows(mobile: &Mobile) -> Vec<Row> {
     [
-        mobile.rx.map(|rx| row("Received (RX)", bytes(rx))),
-        mobile.tx.map(|tx| row("Sent (TX)", bytes(tx))),
+        mobile
+            .rx
+            .map(|rx| row("Received (RX)", rx.display().iec().to_string())),
+        mobile
+            .tx
+            .map(|tx| row("Sent (TX)", tx.display().iec().to_string())),
     ]
     .into_iter()
     .flatten()
     .collect()
-}
-
-fn bytes(amount: u64) -> String {
-    ByteSize::b(amount).display().iec().to_string()
 }
