@@ -218,7 +218,7 @@ impl PowerProfileControl {
             estimate: self.estimates.get(&profile).copied().flatten(),
         });
         Some(Tooltip::of(if self.estimates.is_empty() {
-            TooltipBody::rows(lives.map(|life| row(&life.title(), "")).into())
+            TooltipBody::rows(lives.map(|life| row(life.title(), "")).into())
         } else {
             TooltipBody::table(lives)
         }))

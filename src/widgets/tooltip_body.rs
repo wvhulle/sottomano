@@ -29,15 +29,9 @@ pub struct Row {
     pub level: Level,
 }
 
-impl From<String> for Cell {
-    fn from(text: String) -> Self {
-        Cell::Text(text)
-    }
-}
-
-impl From<&str> for Cell {
-    fn from(text: &str) -> Self {
-        Cell::Text(text.to_string())
+impl<Text: Into<String>> From<Text> for Cell {
+    fn from(text: Text) -> Self {
+        Cell::Text(text.into())
     }
 }
 
@@ -88,11 +82,11 @@ fn columns<R: TableRow>(rows: impl IntoIterator<Item = R>) -> SectionBody {
     }
 }
 
-pub fn row(key: &str, value: impl Into<String>) -> Row {
+pub fn row(key: impl Into<Cell>, value: impl Into<String>) -> Row {
     cells(key, vec![Cell::Text(value.into())])
 }
 
-pub fn cells(key: &str, cells: Vec<Cell>) -> Row {
+pub fn cells(key: impl Into<Cell>, cells: Vec<Cell>) -> Row {
     Row {
         key: key.into(),
         cells,

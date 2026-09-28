@@ -30,7 +30,7 @@ impl BarWidget for CpuClock {
         rows.extend(
             self.cores
                 .iter()
-                .map(|core| row(&format!("Core {}", core.core), ghz(core.ghz))),
+                .map(|core| row(format!("Core {}", core.core), ghz(core.ghz))),
         );
         TooltipBody::rows(rows)
     }

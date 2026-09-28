@@ -200,8 +200,8 @@ fn read_battery() -> Result<Battery, Error> {
     Ok(Battery {
         status: ChargeStatus::parse(&read_field(&dir.join("status"))?),
         capacity: parse_field(&dir.join("capacity"))?,
-        energy_j: energy_j(&dir, "now"),
-        energy_full_j: energy_j(&dir, "full"),
+        energy_j: energy_j(&dir, "energy_now", "charge_now"),
+        energy_full_j: energy_j(&dir, "energy_full", "charge_full"),
         power_w: power_w(&dir),
         limit_frac: read_i64(dir.join("charge_control_end_threshold"))
             .map_or(1.0, |percent| percent as f64 / 100.0),
@@ -215,11 +215,11 @@ fn microvolts(dir: &Path) -> Option<f64> {
     read_i64(dir.join("voltage_now")).map(|v| v as f64)
 }
 
-fn energy_j(dir: &Path, level: &str) -> Option<f64> {
-    read_i64(dir.join(format!("energy_{level}")))
+fn energy_j(dir: &Path, microwatt_hours_file: &str, microamp_hours_file: &str) -> Option<f64> {
+    read_i64(dir.join(microwatt_hours_file))
         .map(|uwh| uwh as f64 * JOULES_PER_MICROWATT_HOUR)
         .or_else(|| {
-            let micro_amp_hours = read_i64(dir.join(format!("charge_{level}")))? as f64;
+            let micro_amp_hours = read_i64(dir.join(microamp_hours_file))? as f64;
             Some(micro_amp_hours * microvolts(dir)? / MICRO_SQUARED * 3600.0)
         })
 }

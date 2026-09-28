@@ -237,7 +237,7 @@ impl DarkModeGroup {
 
     fn offset_slider_tooltip(&self, edge: ColorMode) -> Tooltip {
         Tooltip::table(vec![row(
-            &format!("{} offset", edge.sun_event_label()),
+            format!("{} offset", edge.sun_event_label()),
             self.offset_slider_for(edge).readout_text(),
         )])
     }
