@@ -8,8 +8,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Level},
         localized_time::TimePart,
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, TableRow, TooltipBody, table_section},
+        widget_state::WidgetState,
     },
 };
 
@@ -21,7 +22,7 @@ pub trait ScopeAppearance: JournalScope {
 }
 
 impl ScopeAppearance for User {
-    const ICON: Phosphor = Phosphor::User(phosphor::User::Regular);
+    const ICON: Phosphor = Phosphor::User(Weight::Regular);
     const LABEL: &'static str = "Failed user units";
 
     fn severity(_recent: bool) -> Level {
@@ -30,7 +31,7 @@ impl ScopeAppearance for User {
 }
 
 impl ScopeAppearance for System {
-    const ICON: Phosphor = Phosphor::HardDrives(phosphor::HardDrives::Regular);
+    const ICON: Phosphor = Phosphor::HardDrives(Weight::Regular);
     const LABEL: &'static str = "Failed system units";
 
     fn severity(recent: bool) -> Level {
@@ -44,7 +45,7 @@ impl ScopeAppearance for System {
 
 impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn icon(&self) -> Glyph {
-        S::ICON.into()
+        S::ICON.with_weight(self.state().weight()).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -53,8 +54,8 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
             .filter(|count| *count > 0)
     }
 
-    fn level(&self) -> Level {
-        S::severity(self.units.iter().any(Self::recent))
+    fn state(&self) -> WidgetState {
+        S::severity(self.units.iter().any(Self::recent)).into()
     }
 
     fn tooltip(&self) -> TooltipBody {

@@ -4,7 +4,7 @@ use crate::{
     data::source::weather::Location,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Row, TooltipBody, row},
     },
 };
@@ -12,13 +12,13 @@ use crate::{
 impl BarWidget for Location {
     fn icon(&self) -> Glyph {
         match self.geo.origin {
-            Origin::Manual => phosphor::MapPinLine::Regular.into(),
-            Origin::Estimated(_) => phosphor::MapPin::Regular.into(),
+            Origin::Manual => Phosphor::MapPinLine(self.state().weight()).into(),
+            Origin::Estimated(_) => Phosphor::MapPin(self.state().weight()).into(),
         }
     }
 
     fn fallback_icon() -> Glyph {
-        phosphor::MapPin::Regular.into()
+        Phosphor::MapPin(Weight::Regular).into()
     }
 
     fn label(&self) -> Option<String> {

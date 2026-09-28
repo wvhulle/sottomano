@@ -1,15 +1,15 @@
 use crate::{
     data::source::backlight::{Backlight, Kind},
     widgets::{
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
     },
 };
 
 pub fn face(backlight: &Backlight) -> Phosphor {
     match backlight.kind {
-        Kind::Internal => phosphor::Laptop::Regular.into(),
-        Kind::External => phosphor::Desktop::Regular.into(),
+        Kind::Internal => Phosphor::Laptop(Weight::Regular),
+        Kind::External => Phosphor::Desktop(Weight::Regular),
     }
 }
 

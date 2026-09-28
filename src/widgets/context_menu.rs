@@ -12,8 +12,9 @@ use crate::{
     widgets::{
         DISABLED_ALPHA,
         activity_line::activity_line,
+        bar_widget::Glyph,
         native_icon::native_icon,
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         text::bar_text,
     },
 };
@@ -89,7 +90,7 @@ fn entry<'a, Message: Clone + 'a>(
         .map(|source| native_icon(source, icon_size, 1.0))
         .or_else(|| {
             matches!(node.kind, MenuKind::Toggle(true))
-                .then(|| phosphor::Check::Regular.view(icon_size, color))
+                .then(|| Glyph::from(Phosphor::Check(Weight::Regular)).view(icon_size, color))
         });
 
     let mut row = Row::new()
@@ -102,13 +103,14 @@ fn entry<'a, Message: Clone + 'a>(
     row = row.push(bar_text(&config.font, node.label.clone()).color(color));
     if matches!(node.kind, MenuKind::Submenu) {
         let chevron = if submenu_open {
-            Phosphor::CaretDown(phosphor::CaretDown::Regular)
+            Phosphor::CaretDown(Weight::Regular)
         } else {
-            Phosphor::CaretRight(phosphor::CaretRight::Regular)
+            Phosphor::CaretRight(Weight::Regular)
         };
-        row = row
-            .push(Space::new().width(Length::Fill))
-            .push(chevron.view(icon_size * CHEVRON_SCALE, color));
+        row = row.push(Space::new().width(Length::Fill)).push(
+            Glyph::from(chevron.with_weight(Weight::Regular))
+                .view(icon_size * CHEVRON_SCALE, color),
+        );
     }
 
     let radius = f32::from(config.chrome.popup_radius_px);

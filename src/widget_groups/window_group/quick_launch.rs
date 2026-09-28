@@ -11,9 +11,10 @@ use crate::{
     message_subscriptions::blocking,
     wayland_layers::surface::Position,
     widgets::{
+        bar_widget::Glyph,
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::{Phosphor, Weight},
     },
 };
 
@@ -78,7 +79,8 @@ impl QuickLaunch {
         let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
 
         let face = move || {
-            phosphor::Rocket::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+            Glyph::from(Phosphor::Rocket(Weight::Regular))
+                .view(config.font.icon_size_px, config.palette.bar_foreground)
         };
 
         let content = move |reveal: f32| {

@@ -2,9 +2,10 @@ use crate::{
     data::source::ai::claude::{ClaudeCcusage, ClaudeOauth, ExtraUsage, WindowUsage},
     widget_groups::ai_group::spend_to_level::{level_from_cost, level_from_used},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Occasional, Unit, Value},
+        bar_widget::{BarWidget, Glyph, Occasional, Unit, Value},
         simple_icons::SimpleIcon,
         tooltip_body::{Row, TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -13,8 +14,8 @@ impl BarWidget for ClaudeCcusage {
         SimpleIcon::Claude.into()
     }
 
-    fn level(&self) -> Level {
-        level_from_cost(self.cost)
+    fn state(&self) -> WidgetState {
+        level_from_cost(self.cost).into()
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -34,8 +35,8 @@ impl BarWidget for ClaudeOauth {
         SimpleIcon::Claude.into()
     }
 
-    fn level(&self) -> Level {
-        level_from_used(self.session_used())
+    fn state(&self) -> WidgetState {
+        level_from_used(self.session_used()).into()
     }
 
     fn value(&self) -> Option<Value> {

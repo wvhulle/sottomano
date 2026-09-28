@@ -1,22 +1,23 @@
 use crate::{
     data::source::sysfs_sensors::memory::Memory,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        bar_widget::{BarWidget, Glyph, Unit, Value},
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Memory {
     fn icon(&self) -> Glyph {
-        phosphor::Memory::Regular.into()
+        Phosphor::Memory(self.state().weight()).into()
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         match self.percent() {
-            p if p > 90 => Level::Critical,
-            p if p > 75 => Level::Warning,
-            _ => Level::Ok,
+            p if p > 90 => WidgetState::Critical,
+            p if p > 75 => WidgetState::Warning,
+            _ => WidgetState::Idle,
         }
     }
 

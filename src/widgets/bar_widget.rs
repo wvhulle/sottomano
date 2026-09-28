@@ -5,10 +5,12 @@ use iced::{Color, Element};
 use crate::{
     config::palette::Palette,
     widgets::{
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
+        svg_icon,
         tooltip_body::TooltipBody,
         weather_icons::WeatherIcon,
+        widget_state::WidgetState,
     },
 };
 
@@ -72,9 +74,17 @@ pub enum Glyph {
 }
 
 impl Glyph {
+    #[must_use]
+    pub const fn with_weight(self, weight: Weight) -> Self {
+        match self {
+            Glyph::Phosphor(icon) => Glyph::Phosphor(icon.with_weight(weight)),
+            Glyph::SimpleIcon(_) | Glyph::WeatherIcon(_) => self,
+        }
+    }
+
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
         match self {
-            Glyph::Phosphor(icon) => icon.view(size, color),
+            Glyph::Phosphor(icon) => svg_icon::view(icon.svg_data(), size, color),
             Glyph::SimpleIcon(icon) => icon.view(size, color),
             Glyph::WeatherIcon(icon) => icon.view(size, color),
         }
@@ -88,15 +98,15 @@ pub trait BarWidget {
     where
         Self: Sized,
     {
-        phosphor::Question::Regular.into()
+        Phosphor::Question(Weight::Regular).into()
     }
 
     fn label(&self) -> Option<String> {
         None
     }
 
-    fn level(&self) -> Level {
-        Level::Ok
+    fn state(&self) -> WidgetState {
+        WidgetState::Idle
     }
 
     fn value(&self) -> Option<Value> {
@@ -109,14 +119,6 @@ pub trait BarWidget {
 
     fn live_fraction(&self) -> f32 {
         1.0
-    }
-
-    fn disabled(&self) -> bool {
-        false
-    }
-
-    fn failed(&self) -> bool {
-        false
     }
 
     fn tooltip(&self) -> TooltipBody;

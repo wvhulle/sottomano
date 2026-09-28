@@ -14,11 +14,13 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        bar_widget::Glyph,
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         tooltip_body::{Tooltip, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -101,7 +103,7 @@ impl Default for PanelSettingsGroup {
             radius: SliderControl::new(
                 RADIUS_RANGE,
                 HoverTarget::CornerRadius,
-                phosphor::FrameCorners::Regular.into(),
+                Phosphor::FrameCorners(Weight::Regular),
             )
             .icon_only()
             .readout_width(44.0)
@@ -109,7 +111,7 @@ impl Default for PanelSettingsGroup {
             offset: SliderControl::new(
                 OFFSET_RANGE,
                 HoverTarget::FloatOffset,
-                phosphor::ArrowsIn::Regular.into(),
+                Phosphor::ArrowsIn(Weight::Regular),
             )
             .icon_only()
             .readout_width(44.0)
@@ -117,7 +119,7 @@ impl Default for PanelSettingsGroup {
             tint: SliderControl::new(
                 TINT_RANGE,
                 HoverTarget::TintChrome,
-                phosphor::DropHalf::Regular.into(),
+                Phosphor::DropHalf(Weight::Regular),
             )
             .icon_only()
             .readout_width(44.0)
@@ -251,38 +253,31 @@ impl PanelSettingsGroup {
         position: Position,
     ) -> Option<Element<'a, PanelSettingsMessage>> {
         let foreground = config.palette.bar_foreground;
-        let face =
-            move || phosphor::SlidersHorizontal::Regular.view(config.font.icon_size_px, foreground);
+        let face = move || {
+            Glyph::from(Phosphor::SlidersHorizontal(Weight::Regular))
+                .view(config.font.icon_size_px, foreground)
+        };
 
         let content = move |_reveal: f32| {
             Row::with_children([
                 icon_toggle(
                     config,
-                    if chrome.disconnected_groups {
-                        phosphor::Pill::Fill.into()
-                    } else {
-                        phosphor::Pill::Light.into()
-                    },
+                    Phosphor::Pill(Weight::Regular),
+                    WidgetState::of_toggle(chrome.disconnected_groups),
                     PanelSettingsMessage::ToggleDisconnectedGroups,
                     HoverTarget::DisconnectedGroups,
                 ),
                 icon_toggle(
                     config,
-                    if chrome.auto_collapse_groups {
-                        phosphor::PushPin::Light.into()
-                    } else {
-                        phosphor::PushPin::Fill.into()
-                    },
+                    Phosphor::PushPin(Weight::Regular),
+                    WidgetState::of_toggle(!chrome.auto_collapse_groups),
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
                     HoverTarget::AutoCollapseGroups,
                 ),
                 icon_toggle(
                     config,
-                    if chrome.blur_background {
-                        phosphor::Snowflake::Fill.into()
-                    } else {
-                        phosphor::Snowflake::Light.into()
-                    },
+                    Phosphor::Snowflake(Weight::Regular),
+                    WidgetState::of_toggle(chrome.blur_background),
                     PanelSettingsMessage::ToggleBlurBackground,
                     HoverTarget::BlurBackground,
                 ),
@@ -316,11 +311,13 @@ fn slider_element<'a>(
 fn icon_toggle<'a>(
     config: &Config,
     icon: Phosphor,
+    state: WidgetState,
     press: PanelSettingsMessage,
     target: HoverTarget,
 ) -> Element<'a, PanelSettingsMessage> {
-    let color = config.palette.bar_foreground;
-    let widget = icon.view(config.font.icon_size_px, color);
+    let color = state.color(&config.palette);
+    let widget =
+        Glyph::from(icon.with_weight(state.weight())).view(config.font.icon_size_px, color);
     hoverable(
         button(widget)
             .padding(0)

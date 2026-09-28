@@ -2,18 +2,18 @@ use crate::{
     data::source::umbra::{self, Umbra},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
         toggle_control::Toggle,
         tooltip_body::{TooltipBody, row},
+        weather_icons::WeatherIcon,
     },
 };
 
 impl BarWidget for Umbra {
     fn icon(&self) -> Glyph {
         if self.dark {
-            phosphor::Moon::Regular.into()
+            WeatherIcon::NightClear.into()
         } else {
-            phosphor::Sun::Regular.into()
+            WeatherIcon::DaySunny.into()
         }
     }
 

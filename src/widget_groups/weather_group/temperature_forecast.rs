@@ -12,7 +12,6 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
-        phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, cells, row, section, table_section, untitled},
         weather_icons::WeatherIcon,
     },
@@ -24,7 +23,7 @@ impl BarWidget for Temperature {
     }
 
     fn fallback_icon() -> Glyph {
-        phosphor::Thermometer::Regular.into()
+        WeatherIcon::Thermometer.into()
     }
 
     fn label(&self) -> Option<String> {

@@ -2,23 +2,25 @@ use crate::{
     data::source::screen_temperature::{self, SunFollow},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::Phosphor,
         toggle_control::Toggle,
         tooltip_body::{TooltipBody, row},
+        weather_icons::WeatherIcon,
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for SunFollow {
     fn icon(&self) -> Glyph {
         if self.auto {
-            phosphor::Sun::Regular.into()
+            WeatherIcon::DaySunny.into()
         } else {
-            phosphor::Prohibit::Regular.into()
+            Phosphor::Prohibit(self.state().weight()).into()
         }
     }
 
-    fn disabled(&self) -> bool {
-        !self.auto
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.auto)
     }
 
     fn tooltip(&self) -> TooltipBody {

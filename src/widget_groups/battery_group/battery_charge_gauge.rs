@@ -6,24 +6,25 @@ use uom::{
 use crate::{
     data::source::sysfs_sensors::battery::Battery,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
-        phosphor,
+        bar_widget::{BarWidget, Glyph, Unit, Value},
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Battery {
     fn icon(&self) -> Glyph {
-        phosphor::BatteryCharging::Regular.into()
+        Phosphor::BatteryCharging(self.state().weight()).into()
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         if self.capacity <= Ratio::new::<percent>(15.0) {
-            Level::Critical
+            WidgetState::Critical
         } else if self.capacity <= Ratio::new::<percent>(30.0) {
-            Level::Warning
+            WidgetState::Warning
         } else {
-            Level::Ok
+            WidgetState::Idle
         }
     }
 

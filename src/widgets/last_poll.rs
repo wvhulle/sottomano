@@ -3,8 +3,9 @@ use std::{fmt::Display, time::SystemTime};
 use crate::{
     data::source::Source,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Occasional},
+        bar_widget::{BarWidget, Glyph, Occasional},
         tooltip_body::{RefreshInfo, Tooltip, TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -18,12 +19,8 @@ impl BarWidget for FailedReading {
         self.icon
     }
 
-    fn level(&self) -> Level {
-        Level::Critical
-    }
-
-    fn failed(&self) -> bool {
-        true
+    fn state(&self) -> WidgetState {
+        WidgetState::Failed
     }
 
     fn tooltip(&self) -> TooltipBody {

@@ -4,10 +4,11 @@ use crate::{
     data::source::ai::copilot::{CopilotCcusage, CopilotFree, CopilotMetered},
     widget_groups::ai_group::spend_to_level::{level_from_cost, level_from_used},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Occasional, Unit, Value},
+        bar_widget::{BarWidget, Glyph, Occasional, Unit, Value},
         localized_time::TimePart,
         simple_icons::SimpleIcon,
         tooltip_body::{Row, TooltipBody, row, time_row},
+        widget_state::WidgetState,
     },
 };
 
@@ -18,8 +19,8 @@ impl BarWidget for CopilotMetered {
         SimpleIcon::GithubCopilot.into()
     }
 
-    fn level(&self) -> Level {
-        level_from_used(self.percent_used)
+    fn state(&self) -> WidgetState {
+        level_from_used(self.percent_used).into()
     }
 
     fn value(&self) -> Option<Value> {
@@ -58,13 +59,13 @@ impl BarWidget for CopilotFree {
         Some(self.chat.to_string())
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         if self.chat <= 5 {
-            Level::Critical
+            WidgetState::Critical
         } else if self.chat <= 20 {
-            Level::Warning
+            WidgetState::Warning
         } else {
-            Level::Ok
+            WidgetState::Idle
         }
     }
 
@@ -95,8 +96,8 @@ impl BarWidget for CopilotCcusage {
         })
     }
 
-    fn level(&self) -> Level {
-        level_from_cost(self.cost)
+    fn state(&self) -> WidgetState {
+        level_from_cost(self.cost).into()
     }
 
     fn tooltip(&self) -> TooltipBody {

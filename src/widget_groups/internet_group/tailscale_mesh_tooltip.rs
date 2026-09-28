@@ -2,18 +2,19 @@ use crate::{
     data::source::tailscale::Tailscale,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
 impl BarWidget for Tailscale {
     fn icon(&self) -> Glyph {
-        phosphor::Graph::Regular.into()
+        Phosphor::Graph(self.state().weight()).into()
     }
 
-    fn disabled(&self) -> bool {
-        !self.running
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.running)
     }
 
     fn badge(&self) -> Option<u32> {

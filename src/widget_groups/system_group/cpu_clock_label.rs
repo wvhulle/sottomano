@@ -7,7 +7,7 @@ use crate::{
     data::source::sysfs_sensors::cpu_clock::CpuClock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{Row, TooltipBody, row},
     },
 };
@@ -34,7 +34,7 @@ impl CpuClock {
 
 impl BarWidget for CpuClock {
     fn icon(&self) -> Glyph {
-        phosphor::Gauge::Regular.into()
+        Phosphor::Gauge(self.state().weight()).into()
     }
 
     fn label(&self) -> Option<String> {

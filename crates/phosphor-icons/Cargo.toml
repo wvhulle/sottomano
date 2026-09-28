@@ -1,0 +1,5 @@
+[package]
+build = "build/main.rs"
+edition = "2024"
+name = "phosphor-icons"
+version = "0.1.0"

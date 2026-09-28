@@ -19,9 +19,10 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        bar_widget::Glyph,
         flat_button,
         menu_group::{MenuGroup, MenuMessage},
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, row},
     },
@@ -252,11 +253,12 @@ fn track_face<'a>(
             .into();
     }
     let icon = if status == Status::Playing {
-        Phosphor::MusicNote(phosphor::MusicNote::Regular)
+        Phosphor::MusicNote(Weight::Regular)
     } else {
-        Phosphor::Play(phosphor::Play::Regular)
+        Phosphor::Play(Weight::Regular)
     };
-    icon.view(side, config.palette.bar_foreground.scale_alpha(opacity))
+    Glyph::from(icon.with_weight(Weight::Regular))
+        .view(side, config.palette.bar_foreground.scale_alpha(opacity))
 }
 
 fn source_icon<'a>(
@@ -284,7 +286,8 @@ fn source_icon<'a>(
                 .into()
         };
     }
-    player_icon(media).view(side, config.palette.bar_foreground.scale_alpha(opacity))
+    Glyph::from(player_icon(media).with_weight(Weight::Regular))
+        .view(side, config.palette.bar_foreground.scale_alpha(opacity))
 }
 
 fn player_icon(media: &Media) -> Phosphor {
@@ -304,8 +307,25 @@ fn player_icon(media: &Media) -> Phosphor {
     );
     handles
         .iter()
-        .find_map(|handle| Phosphor::from_brand_or_slug(handle))
-        .unwrap_or(phosphor::MusicNote::Regular.into())
+        .find_map(|handle| player_brand(handle))
+        .unwrap_or(Phosphor::MusicNote(Weight::Regular))
+}
+
+fn player_brand(handle: &str) -> Option<Phosphor> {
+    match handle {
+        "spotify" => Some(Phosphor::SpotifyLogo(Weight::Regular)),
+        "tidal" | "tidal-hifi" => Some(Phosphor::TidalLogo(Weight::Regular)),
+        "soundcloud" => Some(Phosphor::SoundcloudLogo(Weight::Regular)),
+        "youtube" | "youtube-music" => Some(Phosphor::YoutubeLogo(Weight::Regular)),
+        "twitch" => Some(Phosphor::TwitchLogo(Weight::Regular)),
+        "chromium" | "chrome" | "google-chrome" => {
+            Some(Phosphor::GoogleChromeLogo(Weight::Regular))
+        }
+        "discord" => Some(Phosphor::DiscordLogo(Weight::Regular)),
+        "steam" => Some(Phosphor::SteamLogo(Weight::Regular)),
+        "podcasts" | "apple-podcasts" => Some(Phosphor::ApplePodcastsLogo(Weight::Regular)),
+        _ => None,
+    }
 }
 
 fn transport<'a>(
@@ -316,26 +336,26 @@ fn transport<'a>(
 ) -> Element<'a, MediaMessage> {
     let color = config.palette.bar_foreground.scale_alpha(reveal * 0.9);
     let button = |icon: Phosphor, method: &'static str| {
-        button(icon.view(config.font.icon_size_px, color))
+        button(Glyph::from(icon.with_weight(Weight::Regular)).view(config.font.icon_size_px, color))
             .padding(0)
             .style(flat_button(color))
             .on_press(MediaMessage::Transport(method))
             .into()
     };
     let toggle_icon = if status == Status::Playing {
-        phosphor::Pause::Regular.into()
+        Phosphor::Pause(Weight::Regular)
     } else {
-        phosphor::Play::Regular.into()
+        Phosphor::Play(Weight::Regular)
     };
     let buttons: Vec<Element<'a, MediaMessage>> = [
         media
             .can_prev
-            .then(|| button(phosphor::SkipBack::Regular.into(), "Previous")),
+            .then(|| button(Phosphor::SkipBack(Weight::Regular), "Previous")),
         media.can_toggle.then(|| button(toggle_icon, "PlayPause")),
-        (status != Status::Stopped).then(|| button(phosphor::Stop::Regular.into(), "Stop")),
+        (status != Status::Stopped).then(|| button(Phosphor::Stop(Weight::Regular), "Stop")),
         media
             .can_next
-            .then(|| button(phosphor::SkipForward::Regular.into(), "Next")),
+            .then(|| button(Phosphor::SkipForward(Weight::Regular), "Next")),
     ]
     .into_iter()
     .flatten()

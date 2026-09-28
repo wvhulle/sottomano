@@ -17,9 +17,9 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage},
     },
     widgets::{
-        bar_widget::BarWidget,
+        bar_widget::{BarWidget, Glyph},
         menu_group::{MenuGroup, MenuMessage},
-        phosphor,
+        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
@@ -197,7 +197,8 @@ impl MonitorGroup {
     }
 
     fn face<'a>(config: &Config) -> Element<'a, MonitorMessage> {
-        phosphor::Lightbulb::Regular.view(config.font.icon_size_px, config.palette.bar_foreground)
+        Glyph::from(Phosphor::Lightbulb(Weight::Regular))
+            .view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }
 

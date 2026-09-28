@@ -1,8 +1,10 @@
 [package]
-build = "build/main.rs"
 edition = "2024"
 name = "vetrata"
 version = "0.1.0"
+
+[workspace]
+members = ["crates/phosphor-icons"]
 
 [lints.clippy]
 absolute_paths = "warn"
@@ -23,6 +25,7 @@ color = { version = "0.3.3", features = ["serde"] }
 freedesktop-desktop-entry = "0.8.1"
 freedesktop-icons = "0.4.0"
 freedesktop-sound = "0.1"
+phosphor-icons = { path = "crates/phosphor-icons" }
 humantime = "2.3"
 iced = { version = "0.14.0", features = [
   "advanced",
@@ -86,6 +89,3 @@ uom = { version = "0.38.0", default-features = false, features = [
   "si",
   "std",
 ] }
-
-[build-dependencies]
-usvg = "0.45"

@@ -24,12 +24,14 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
+        bar_widget::Glyph,
         flat_button,
         focus_indicator::focus_indicator,
         pager_slot::PagerSlot,
-        phosphor::{self, Phosphor},
+        phosphor::{Phosphor, Weight},
         progress_line::progress_line,
         text::LINE_HEIGHT,
+        widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
         window_title::{title_runs, title_spans},
@@ -285,18 +287,14 @@ fn audio_glyph<'a>(
     if !audio.playing && !audio.muted {
         return None;
     }
-    let (icon, color) = if audio.muted {
-        (
-            Phosphor::SpeakerX(phosphor::SpeakerX::Light),
-            config.palette.inactive,
-        )
+    let state = WidgetState::of_toggle(!audio.muted);
+    let icon = if audio.muted {
+        Phosphor::SpeakerX(Weight::Regular)
     } else {
-        (
-            Phosphor::SpeakerHigh(phosphor::SpeakerHigh::Fill),
-            config.palette.bar_foreground,
-        )
+        Phosphor::SpeakerHigh(Weight::Regular)
     };
-    Some(icon.view(config.font.icon_size_px, color.scale_alpha(opacity)))
+    let color = state.color(&config.palette).scale_alpha(opacity);
+    Some(Glyph::from(icon.with_weight(state.weight())).view(config.font.icon_size_px, color))
 }
 
 fn indicator_line<'a>(

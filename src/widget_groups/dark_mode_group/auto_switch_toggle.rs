@@ -8,8 +8,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
-        phosphor,
+        phosphor::Phosphor,
         tooltip_body::{TooltipBody, row, time_row},
+        widget_state::WidgetState,
     },
 };
 
@@ -106,7 +107,7 @@ pub fn format_offset_minutes(offset: TimeDelta) -> String {
 
 impl BarWidget for AutoSwitchToggle {
     fn icon(&self) -> Glyph {
-        phosphor::Clock::Regular.into()
+        Phosphor::Clock(self.state().weight()).into()
     }
 
     fn label(&self) -> Option<String> {
@@ -122,8 +123,8 @@ impl BarWidget for AutoSwitchToggle {
         }
     }
 
-    fn disabled(&self) -> bool {
-        !self.saved_schedule.auto_switch_armed
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.saved_schedule.auto_switch_armed)
     }
 
     fn tooltip(&self) -> TooltipBody {

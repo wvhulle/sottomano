@@ -1,9 +1,10 @@
 use crate::{
     data::source::weather::{Allergen, Birch, Grass, Pollen},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Occasional, Unit, Value},
-        phosphor::{self, Phosphor},
+        bar_widget::{BarWidget, Glyph, Occasional, Unit, Value},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
@@ -12,30 +13,30 @@ pub trait AllergenIcon: Allergen {
 }
 
 impl AllergenIcon for Grass {
-    const ICON: Phosphor = Phosphor::Plant(phosphor::Plant::Regular);
+    const ICON: Phosphor = Phosphor::Plant(Weight::Regular);
 }
 
 impl AllergenIcon for Birch {
-    const ICON: Phosphor = Phosphor::Tree(phosphor::Tree::Regular);
+    const ICON: Phosphor = Phosphor::Tree(Weight::Regular);
 }
 
 impl<A: AllergenIcon> BarWidget for Pollen<A> {
     fn icon(&self) -> Glyph {
-        A::ICON.into()
+        A::ICON.with_weight(self.state().weight()).into()
     }
 
     fn fallback_icon() -> Glyph {
         A::ICON.into()
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         let [moderate, high, _] = A::THRESHOLDS;
         if self.value >= high {
-            Level::Critical
+            WidgetState::Critical
         } else if self.value >= moderate {
-            Level::Warning
+            WidgetState::Warning
         } else {
-            Level::Ok
+            WidgetState::Idle
         }
     }
 

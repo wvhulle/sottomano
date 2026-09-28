@@ -6,9 +6,10 @@ use uom::{
 use crate::{
     data::source::weather::Wind,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level},
-        phosphor,
+        bar_widget::{BarWidget, Glyph},
         tooltip_body::{TooltipBody, row},
+        weather_icons::WeatherIcon,
+        widget_state::WidgetState,
     },
 };
 
@@ -42,22 +43,22 @@ impl Wind {
 
 impl BarWidget for Wind {
     fn icon(&self) -> Glyph {
-        phosphor::Wind::Regular.into()
+        WeatherIcon::WindBeaufort(self.beaufort()).into()
     }
 
     fn fallback_icon() -> Glyph {
-        phosphor::Wind::Regular.into()
+        WeatherIcon::WindBeaufort(0).into()
     }
 
     fn label(&self) -> Option<String> {
         Some(self.beaufort().to_string())
     }
 
-    fn level(&self) -> Level {
+    fn state(&self) -> WidgetState {
         match self.beaufort() {
-            0..=6 => Level::Ok,
-            7..=8 => Level::Warning,
-            _ => Level::Critical,
+            0..=6 => WidgetState::Idle,
+            7..=8 => WidgetState::Warning,
+            _ => WidgetState::Critical,
         }
     }
 
