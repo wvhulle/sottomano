@@ -85,6 +85,10 @@ impl RegressionState {
         }
     }
 
+    pub fn expected_draw_w(&self, conditions: Conditions) -> f64 {
+        self.fit(conditions).mean_w
+    }
+
     pub(super) fn fit(&self, conditions: Conditions) -> NormalPower {
         let row = regressors(conditions);
         NormalPower {

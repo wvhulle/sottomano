@@ -13,7 +13,8 @@ use tokio_stream::wrappers::IntervalStream;
 use zbus::{Connection, proxy};
 
 use super::{
-    Error, POWER_SUPPLY, first_power_supply, parse_field, read_field, read_i64, read_trimmed,
+    Error, POWER_SUPPLY, first_power_supply, list_dir, parse_field, read_field, read_i64,
+    read_trimmed,
 };
 use crate::data::source::Source;
 
@@ -84,12 +85,34 @@ impl ChargeStatus {
 pub struct Battery {
     pub status: ChargeStatus,
     pub capacity: u8,
-    pub energy_j: Option<f64>,
-    pub energy_full_j: Option<f64>,
-    pub power_w: Option<f64>,
+    pub energy_j: f64,
+    pub energy_full_j: f64,
+    pub power_w: f64,
     pub limit_frac: f64,
-    pub charge_behaviour: Option<ChargeBehaviour>,
+    pub charge_behaviour: ChargeBehaviour,
+    pub charger: Option<ChargerLimit>,
     pub serial: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChargerLimit {
+    pub volts: f64,
+    pub amps: f64,
+}
+
+impl ChargerLimit {
+    pub fn watts(self) -> f64 {
+        self.volts * self.amps
+    }
+
+    fn of_supply(dir: &Path) -> Option<Self> {
+        let online = read_trimmed(dir.join("online")).is_some_and(|online| online == "1");
+        let limit = ChargerLimit {
+            volts: read_i64(dir.join("voltage_max"))? as f64 / 1_000_000.0,
+            amps: read_i64(dir.join("current_max"))? as f64 / 1_000_000.0,
+        };
+        (online && limit.watts() > 0.0).then_some(limit)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -116,7 +139,7 @@ impl Battery {
     }
 
     fn not_charging_reason(&self) -> IdleReason {
-        if self.charge_behaviour == Some(ChargeBehaviour::InhibitCharge) {
+        if self.charge_behaviour == ChargeBehaviour::InhibitCharge {
             IdleReason::Inhibited
         } else if u32::from(self.capacity) >= self.limit_percent() {
             IdleReason::AtLimit
@@ -125,8 +148,8 @@ impl Battery {
         }
     }
 
-    pub fn energy_wh(&self) -> Option<f64> {
-        self.energy_j.map(|joules| joules / 3600.0)
+    pub fn energy_wh(&self) -> f64 {
+        self.energy_j / 3600.0
     }
 
     pub fn limit_percent(&self) -> u32 {
@@ -134,11 +157,10 @@ impl Battery {
     }
 
     pub fn charging_sample(&self, min_power_w: f64) -> Option<ChargingSample> {
-        Some(ChargingSample {
-            state_of_charge: self.energy_j? / self.energy_full_j.filter(|full| *full > 0.0)?,
-            power_w: self
-                .power_w
-                .filter(|power| self.is_charging() && *power > min_power_w)?,
+        let usable = self.is_charging() && self.power_w > min_power_w && self.energy_full_j > 0.0;
+        usable.then(|| ChargingSample {
+            state_of_charge: self.energy_j / self.energy_full_j,
+            power_w: self.power_w,
         })
     }
 }
@@ -200,13 +222,17 @@ fn read_battery() -> Result<Battery, Error> {
     Ok(Battery {
         status: ChargeStatus::parse(&read_field(&dir.join("status"))?),
         capacity: parse_field(&dir.join("capacity"))?,
-        energy_j: energy_j(&dir, "energy_now", "charge_now"),
-        energy_full_j: energy_j(&dir, "energy_full", "charge_full"),
-        power_w: power_w(&dir),
+        energy_j: energy_j(&dir, "energy_now", "charge_now")?,
+        energy_full_j: energy_j(&dir, "energy_full", "charge_full")?,
+        power_w: power_w(&dir)?,
         limit_frac: read_i64(dir.join("charge_control_end_threshold"))
             .map_or(1.0, |percent| percent as f64 / 100.0),
         charge_behaviour: read_trimmed(dir.join("charge_behaviour"))
-            .and_then(|choices| ChargeBehaviour::selected_in(&choices)),
+            .and_then(|choices| ChargeBehaviour::selected_in(&choices))
+            .unwrap_or(ChargeBehaviour::Auto),
+        charger: list_dir(POWER_SUPPLY)
+            .iter()
+            .find_map(|supply| ChargerLimit::of_supply(supply)),
         serial: read_trimmed(dir.join("serial_number")).unwrap_or_default(),
     })
 }
@@ -215,22 +241,32 @@ fn microvolts(dir: &Path) -> Option<f64> {
     read_i64(dir.join("voltage_now")).map(|v| v as f64)
 }
 
-fn energy_j(dir: &Path, microwatt_hours_file: &str, microamp_hours_file: &str) -> Option<f64> {
+fn unreadable(dir: &Path, file: &str) -> Error {
+    Error::Unreadable(dir.join(file).display().to_string())
+}
+
+fn energy_j(
+    dir: &Path,
+    microwatt_hours_file: &str,
+    microamp_hours_file: &str,
+) -> Result<f64, Error> {
     read_i64(dir.join(microwatt_hours_file))
         .map(|uwh| uwh as f64 * JOULES_PER_MICROWATT_HOUR)
         .or_else(|| {
             let micro_amp_hours = read_i64(dir.join(microamp_hours_file))? as f64;
             Some(micro_amp_hours * microvolts(dir)? / MICRO_SQUARED * 3600.0)
         })
+        .ok_or_else(|| unreadable(dir, microwatt_hours_file))
 }
 
-fn power_w(dir: &Path) -> Option<f64> {
+fn power_w(dir: &Path) -> Result<f64, Error> {
     read_i64(dir.join("power_now"))
         .map(|uw| uw as f64 / 1_000_000.0)
         .or_else(|| {
             Some(read_i64(dir.join("current_now"))? as f64 * microvolts(dir)? / MICRO_SQUARED)
         })
         .map(f64::abs)
+        .ok_or_else(|| unreadable(dir, "power_now"))
 }
 
 #[cfg(test)]
@@ -241,11 +277,12 @@ mod tests {
         Battery {
             status,
             capacity,
-            energy_j: None,
-            energy_full_j: None,
-            power_w: None,
+            energy_j: 0.0,
+            energy_full_j: 50.0 * 3600.0,
+            power_w: 0.0,
             limit_frac,
-            charge_behaviour: Some(ChargeBehaviour::Auto),
+            charge_behaviour: ChargeBehaviour::Auto,
+            charger: None,
             serial: String::new(),
         }
     }
@@ -278,7 +315,7 @@ mod tests {
     #[test]
     fn inhibited_charging_is_reported_as_such() {
         let battery = Battery {
-            charge_behaviour: Some(ChargeBehaviour::InhibitCharge),
+            charge_behaviour: ChargeBehaviour::InhibitCharge,
             ..plugged_in(ChargeStatus::NotCharging, 60, 1.0)
         };
         assert_eq!(battery.idle_reason(), Some(IdleReason::Inhibited));

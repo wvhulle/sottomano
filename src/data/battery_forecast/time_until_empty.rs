@@ -18,9 +18,7 @@ pub fn time_until_empty(
     conditions: Conditions,
     profile_models: &HashMap<Profile, RegressionState>,
 ) -> HashMap<Profile, Option<Estimate>> {
-    let live_w = battery
-        .power_w
-        .filter(|w| battery.is_discharging() && *w > 0.0);
+    let live_w = (battery.is_discharging() && battery.power_w > 0.0).then_some(battery.power_w);
     let learned = |profile: Profile, horizon: Duration| {
         let model = profile_models.get(&profile)?;
         let current_w = live_w.filter(|_| profile == active_profile);
@@ -43,10 +41,12 @@ pub fn time_until_empty(
 }
 
 fn drain(
-    energy_j: Option<f64>,
+    energy: f64,
     average_draw_over: impl Fn(Duration) -> Option<NormalPower>,
 ) -> Option<Estimate> {
-    let energy = energy_j.filter(|e| *e > 0.0)?;
+    if energy <= 0.0 {
+        return None;
+    }
     self_consistent_forecast(Battery::INTERVAL, average_draw_over, |draw| {
         Duration::try_from_secs_f64(energy / draw.mean_w).ok()
     })?
@@ -60,25 +60,26 @@ mod tests {
     use super::*;
     use crate::data::{
         battery_forecast::discharge_power_regression::{slow_wave, trained},
-        source::sysfs_sensors::battery::ChargeStatus,
+        source::sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
     };
 
     fn on_battery(energy_wh: f64) -> Battery {
         Battery {
             status: ChargeStatus::Discharging,
             capacity: 50,
-            energy_j: Some(energy_wh * 3600.0),
-            energy_full_j: None,
-            power_w: None,
+            energy_j: energy_wh * 3600.0,
+            energy_full_j: 60.0 * 3600.0,
+            power_w: 0.0,
             limit_frac: 1.0,
-            charge_behaviour: None,
+            charge_behaviour: ChargeBehaviour::Auto,
+            charger: None,
             serial: String::new(),
         }
     }
 
     fn drawing(draw_w: f64) -> Battery {
         Battery {
-            power_w: Some(draw_w),
+            power_w: draw_w,
             ..on_battery(50.0)
         }
     }

@@ -21,7 +21,6 @@ const MIN_SAMPLE_W: f64 = 0.5;
 #[derive(Default)]
 pub struct BatteryTimeReading {
     curve: Option<ChargeCurve>,
-    time: Option<BatteryTime>,
     load_started: bool,
 }
 
@@ -62,11 +61,11 @@ impl BatteryTimeReading {
         Task::future(charge_power_curve::load(serial.to_string())).map(CurveLoaded)
     }
 
-    pub fn refresh(&mut self, battery: Option<&Battery>, drain: Option<Estimate>) {
-        self.time = battery.and_then(|battery| self.time_for(battery, drain));
-    }
-
-    fn time_for(&self, battery: &Battery, drain: Option<Estimate>) -> Option<BatteryTime> {
+    pub(super) fn time_for(
+        &self,
+        battery: &Battery,
+        drain: Option<Estimate>,
+    ) -> Option<BatteryTime> {
         let idle = battery.idle_reason().map(|reason| IdleBattery {
             reason,
             capacity: battery.capacity,
@@ -88,18 +87,10 @@ impl BatteryTimeReading {
                 .and_then(|curve| time_until_full(battery, curve)),
         })
     }
-
-    pub fn display(&self) -> Option<&dyn BarWidget> {
-        self.time.as_ref().map(|time| time as &dyn BarWidget)
-    }
-
-    pub fn tooltip_body(&self) -> Option<TooltipBody> {
-        Some(self.time.as_ref()?.tooltip())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Countdown {
+pub(super) enum Countdown {
     UntilEmpty(Option<Estimate>),
     UntilFull {
         limit_percent: u32,
@@ -131,7 +122,7 @@ impl TableRow for Countdown {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct IdleBattery {
+pub(super) struct IdleBattery {
     reason: IdleReason,
     capacity: u8,
     limit_percent: u32,
@@ -174,7 +165,7 @@ impl IdleBattery {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum BatteryTime {
+pub(super) enum BatteryTime {
     Idle(IdleBattery),
     Countdown(Countdown),
 }

@@ -23,11 +23,11 @@ struct ChargeTarget {
 
 impl ChargeTarget {
     fn of(battery: &Battery) -> Option<Self> {
-        let capacity_j = battery.energy_full_j.filter(|capacity| *capacity > 0.0)?;
+        let capacity_j = battery.energy_full_j;
         let target_j = capacity_j * battery.limit_frac;
-        Some(ChargeTarget {
+        (capacity_j > 0.0 && battery.energy_j < target_j).then_some(ChargeTarget {
             capacity_j,
-            energy_to_fill: battery.energy_j.filter(|now| *now < target_j)?..target_j,
+            energy_to_fill: battery.energy_j..target_j,
         })
     }
 
@@ -76,10 +76,8 @@ fn samples_within(horizon: Duration) -> f64 {
 
 pub fn time_until_full(battery: &Battery, curve: &ChargeCurve) -> Option<Estimate> {
     let remaining = ChargeTarget::of(battery)?.remaining_bins(curve)?;
-    let current_deviation = battery
-        .power_w
-        .filter(|_| battery.is_charging())
-        .map(|power_w| power_w - remaining[0].power.mean_w);
+    let current_deviation = (battery.is_charging() && battery.power_w > 0.0)
+        .then(|| battery.power_w - remaining[0].power.mean_w);
     let deviation = self_consistent_forecast(
         Battery::INTERVAL,
         |horizon| {
@@ -103,14 +101,14 @@ mod tests {
     use super::*;
     use crate::data::{
         battery_forecast::{ResidualProcess, charge_power_by_state_of_charge::learned_curve},
-        source::sysfs_sensors::battery::ChargeStatus,
+        source::sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
     };
 
     #[test]
     fn momentary_deviation_without_autocorrelation_is_ignored() {
         let curve = learned_curve(constant(30.0));
         let at_power = |power_w| Battery {
-            power_w: Some(power_w),
+            power_w,
             ..charging_at(0.5)
         };
         assert!(
@@ -126,11 +124,12 @@ mod tests {
         Battery {
             status: ChargeStatus::Charging,
             capacity: (state_of_charge * 100.0) as u8,
-            energy_j: Some(state_of_charge * CAPACITY_WH * 3600.0),
-            energy_full_j: Some(CAPACITY_WH * 3600.0),
-            power_w: None,
+            energy_j: state_of_charge * CAPACITY_WH * 3600.0,
+            energy_full_j: CAPACITY_WH * 3600.0,
+            power_w: 0.0,
             limit_frac: 1.0,
-            charge_behaviour: None,
+            charge_behaviour: ChargeBehaviour::Auto,
+            charger: None,
             serial: String::new(),
         }
     }
@@ -194,7 +193,7 @@ mod tests {
             ..learned_curve(constant(30.0))
         };
         let at_power = |power_w| Battery {
-            power_w: Some(power_w),
+            power_w,
             ..charging_at(0.5)
         };
         assert!(median_minutes(&at_power(40.0), &curve) < median_minutes(&at_power(20.0), &curve));
