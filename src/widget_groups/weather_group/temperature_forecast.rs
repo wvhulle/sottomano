@@ -1,3 +1,12 @@
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{
+        f64::{Ratio, ThermodynamicTemperature},
+        ratio::percent,
+        thermodynamic_temperature::degree_celsius,
+    },
+};
+
 use crate::{
     data::source::weather::{HourlyTemperature, Temperature},
     widgets::{
@@ -18,7 +27,7 @@ impl BarWidget for Temperature {
     }
 
     fn label(&self) -> Option<String> {
-        Some(format!("{}°", self.temp))
+        Some(celsius_text(self.temp))
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -33,12 +42,11 @@ impl BarWidget for Temperature {
             section(
                 "Temperature",
                 vec![
-                    row("Now", format!("{}°C (feels {}°C)", self.temp, self.feels)),
-                    row(
-                        "Today",
-                        format!("{}°C – {}°C", self.temp_min, self.temp_max),
-                    ),
-                    row("Humidity", format!("{}%", self.humidity)),
+                    row("Now", celsius_text(self.temp)),
+                    row("Feels like", celsius_text(self.feels)),
+                    row("Today's low", celsius_text(self.temp_min)),
+                    row("Today's high", celsius_text(self.temp_max)),
+                    row("Humidity", percent_text(self.humidity)),
                 ],
             ),
             table_section("Earlier", &self.hourly.earlier),
@@ -59,11 +67,22 @@ impl TableRow for HourlyTemperature {
 
     fn cells(&self) -> Vec<Cell> {
         vec![
-            format!("{}°C", self.temp).into(),
+            celsius_text(self.temp).into(),
             wmo_icon(self.weather_code).into(),
             wmo_description(self.weather_code).into(),
         ]
     }
+}
+
+fn celsius_text(temperature: ThermodynamicTemperature) -> String {
+    format!(
+        "{:.0}",
+        temperature.into_format_args(degree_celsius, Abbreviation)
+    )
+}
+
+fn percent_text(fraction: Ratio) -> String {
+    format!("{:.0}", fraction.into_format_args(percent, Abbreviation))
 }
 
 fn wmo_icon(code: i64) -> FontAwesome {

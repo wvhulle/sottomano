@@ -9,6 +9,13 @@ use chrono::{DateTime, Local, NaiveTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt};
 use serde::{Deserialize, Deserializer, de::Error as DeserializeError};
 use situo_client::{Fix, Position, fix_updates};
+use uom::si::{
+    angle::degree,
+    f64::{Angle, Ratio, ThermodynamicTemperature, Velocity},
+    ratio::percent,
+    thermodynamic_temperature::degree_celsius,
+    velocity::kilometer_per_hour,
+};
 
 use crate::data::source::{Source, http};
 
@@ -68,6 +75,37 @@ fn open_meteo_times<'de, D: Deserializer<'de>>(
         .collect()
 }
 
+fn celsius<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<ThermodynamicTemperature, D::Error> {
+    Ok(ThermodynamicTemperature::new::<degree_celsius>(
+        f64::deserialize(deserializer)?,
+    ))
+}
+
+fn celsius_series<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<ThermodynamicTemperature>, D::Error> {
+    Ok(Vec::<f64>::deserialize(deserializer)?
+        .into_iter()
+        .map(ThermodynamicTemperature::new::<degree_celsius>)
+        .collect())
+}
+
+fn percent_value<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Ratio, D::Error> {
+    Ok(Ratio::new::<percent>(f64::deserialize(deserializer)?))
+}
+
+fn kilometres_per_hour<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Velocity, D::Error> {
+    Ok(Velocity::new::<kilometer_per_hour>(f64::deserialize(
+        deserializer,
+    )?))
+}
+
+fn compass_degrees<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Angle, D::Error> {
+    Ok(Angle::new::<degree>(f64::deserialize(deserializer)?))
+}
+
 #[derive(Deserialize)]
 struct TemperatureForecast {
     current: CurrentTemperature,
@@ -79,23 +117,29 @@ struct TemperatureForecast {
 struct CurrentTemperature {
     #[serde(deserialize_with = "open_meteo_time")]
     time: DateTime<Utc>,
-    temperature_2m: f64,
-    apparent_temperature: f64,
-    relative_humidity_2m: f64,
+    #[serde(deserialize_with = "celsius")]
+    temperature_2m: ThermodynamicTemperature,
+    #[serde(deserialize_with = "celsius")]
+    apparent_temperature: ThermodynamicTemperature,
+    #[serde(deserialize_with = "percent_value")]
+    relative_humidity_2m: Ratio,
     weather_code: i64,
 }
 
 #[derive(Deserialize)]
 struct DailyTemperature {
-    temperature_2m_max: Vec<f64>,
-    temperature_2m_min: Vec<f64>,
+    #[serde(deserialize_with = "celsius_series")]
+    temperature_2m_max: Vec<ThermodynamicTemperature>,
+    #[serde(deserialize_with = "celsius_series")]
+    temperature_2m_min: Vec<ThermodynamicTemperature>,
 }
 
 #[derive(Deserialize)]
 struct HourlyTemperatures {
     #[serde(deserialize_with = "open_meteo_times")]
     time: Vec<DateTime<Utc>>,
-    temperature_2m: Vec<f64>,
+    #[serde(deserialize_with = "celsius_series")]
+    temperature_2m: Vec<ThermodynamicTemperature>,
     weather_code: Vec<i64>,
 }
 
@@ -123,12 +167,12 @@ struct WindForecast {
 
 #[derive(Deserialize)]
 struct CurrentWind {
-    #[serde(rename = "wind_speed_10m")]
-    speed: f64,
-    #[serde(rename = "wind_gusts_10m")]
-    gusts: f64,
-    #[serde(rename = "wind_direction_10m")]
-    direction: f64,
+    #[serde(rename = "wind_speed_10m", deserialize_with = "kilometres_per_hour")]
+    speed: Velocity,
+    #[serde(rename = "wind_gusts_10m", deserialize_with = "kilometres_per_hour")]
+    gusts: Velocity,
+    #[serde(rename = "wind_direction_10m", deserialize_with = "compass_degrees")]
+    direction: Angle,
 }
 
 #[derive(Deserialize)]
@@ -165,18 +209,18 @@ impl PollenReadings {
     }
 }
 
-fn today(values: &[f64]) -> Result<f64, Error> {
+fn today(values: &[ThermodynamicTemperature]) -> Result<ThermodynamicTemperature, Error> {
     values.first().copied().ok_or(Error::Malformed)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub weather_code: i64,
-    pub temp: f64,
-    pub feels: f64,
-    pub temp_min: f64,
-    pub temp_max: f64,
-    pub humidity: f64,
+    pub temp: ThermodynamicTemperature,
+    pub feels: ThermodynamicTemperature,
+    pub temp_min: ThermodynamicTemperature,
+    pub temp_max: ThermodynamicTemperature,
+    pub humidity: Ratio,
     pub hourly: HourlyForecast,
 }
 
@@ -189,7 +233,7 @@ pub struct HourlyForecast {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HourlyTemperature {
     pub time: DateTime<Utc>,
-    pub temp: f64,
+    pub temp: ThermodynamicTemperature,
     pub weather_code: i64,
 }
 
@@ -221,9 +265,9 @@ impl Source for Temperature {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Wind {
-    pub speed: f64,
-    pub gusts: f64,
-    pub direction: f64,
+    pub speed: Velocity,
+    pub gusts: Velocity,
+    pub direction: Angle,
 }
 
 impl Source for Wind {
@@ -253,22 +297,59 @@ impl Source for Wind {
     }
 }
 
+pub mod precipitation {
+    use uom::{
+        Conversion,
+        si::{Unit, velocity},
+    };
+
+    #[allow(non_camel_case_types)]
+    #[derive(Clone, Copy, Debug, Hash)]
+    pub struct millimeter_per_hour;
+
+    impl Unit for millimeter_per_hour {
+        fn abbreviation() -> &'static str {
+            "mm/h"
+        }
+
+        fn singular() -> &'static str {
+            "millimeter per hour"
+        }
+
+        fn plural() -> &'static str {
+            "millimeters per hour"
+        }
+    }
+
+    impl velocity::Unit for millimeter_per_hour {}
+
+    impl Conversion<f64> for millimeter_per_hour {
+        type T = f64;
+
+        fn coefficient() -> f64 {
+            1.0 / 3_600_000.0
+        }
+    }
+
+    impl velocity::Conversion<f64> for millimeter_per_hour {}
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rain {
-    pub mm_per_h: f64,
+    pub intensity: Velocity,
     pub peak: Downpour,
     pub outlook: RainOutlook,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Downpour {
-    pub mm_per_h: f64,
+    pub intensity: Velocity,
     pub at: DateTime<Local>,
 }
 
 impl Downpour {
     fn is_wet(&self) -> bool {
-        self.mm_per_h > 0.0
+        self.intensity > Velocity::default()
     }
 }
 
@@ -323,19 +404,20 @@ fn nearest_occurrence(clock: NaiveTime, now: DateTime<Local>) -> Option<DateTime
         .min_by_key(|candidate| (*candidate - now).abs())
 }
 
-fn buienradar_mm(value: f64) -> f64 {
-    if value > 0.0 {
+fn buienradar_intensity(value: f64) -> Velocity {
+    let millimeters_per_hour = if value > 0.0 {
         10f64.powf((value - 109.0) / 32.0)
     } else {
         0.0
-    }
+    };
+    Velocity::new::<precipitation::millimeter_per_hour>(millimeters_per_hour)
 }
 
 fn downpour(line: &str, now: DateTime<Local>) -> Option<Downpour> {
     let (intensity, clock) = line.split_once('|')?;
     let clock = NaiveTime::parse_from_str(clock.trim(), BUIENRADAR_TIME_FORMAT).ok()?;
     Some(Downpour {
-        mm_per_h: buienradar_mm(intensity.trim().parse().ok()?),
+        intensity: buienradar_intensity(intensity.trim().parse().ok()?),
         at: nearest_occurrence(clock, now)?,
     })
 }
@@ -361,11 +443,13 @@ impl Source for Rain {
             .collect();
         let peak = forecast
             .iter()
-            .max_by(|earlier, later| earlier.mm_per_h.total_cmp(&later.mm_per_h))
+            .max_by(|earlier, later| earlier.intensity.value.total_cmp(&later.intensity.value))
             .cloned()
             .ok_or(Error::Malformed)?;
         Ok(Rain {
-            mm_per_h: forecast.first().map_or(0.0, |now| now.mm_per_h),
+            intensity: forecast
+                .first()
+                .map_or_else(Velocity::default, |now| now.intensity),
             peak,
             outlook: RainOutlook::of(&forecast),
         })
