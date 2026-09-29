@@ -2,7 +2,7 @@ use iced::{
     Color, Element, Length,
     widget::{Space, container},
 };
-use iced_exwlshell::reexport::{Layer, LayerSize, NewLayerShellSettings};
+use iced_exwlshell::reexport::{Layer, NewLayerShellSettings};
 
 use crate::{
     app::Message,
@@ -13,6 +13,7 @@ pub fn namespace(position: Position) -> &'static str {
     match position {
         Position::Top => "vetrata-backdrop-top",
         Position::Bottom => "vetrata-backdrop-bottom",
+        Position::Left => "vetrata-backdrop-left",
     }
 }
 
@@ -21,9 +22,10 @@ pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellS
     let margin = match position {
         Position::Top => (-h, 0, 0, 0),
         Position::Bottom => (0, 0, -h, 0),
+        Position::Left => (0, 0, 0, -h),
     };
     NewLayerShellSettings {
-        size: LayerSize::fill_width(height),
+        size: position.strip_size(height),
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Background,

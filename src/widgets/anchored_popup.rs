@@ -1,5 +1,5 @@
 use iced::{
-    Border, Color, Element, Event, Length, Rectangle, Size, Vector,
+    Border, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         graphics::geometry::Renderer as _,
@@ -55,6 +55,7 @@ pub fn anchored_popup<'a>(
         anchor,
         edge_inset: config.chrome.outer_height_px + config.chrome.popup_gap_px,
         bar_thickness: config.chrome.outer_height_px,
+        popup_gap: config.chrome.popup_gap_px,
         position,
         progress: progress.clamp(0.0, 1.0),
         seq,
@@ -69,6 +70,7 @@ struct AnchoredPopup<'a> {
     anchor: Rectangle,
     edge_inset: f32,
     bar_thickness: f32,
+    popup_gap: f32,
     position: Position,
     progress: f32,
     seq: u64,
@@ -82,27 +84,6 @@ struct MorphState {
     from: Rectangle,
     current: Rectangle,
     published: Option<Rectangle>,
-}
-
-fn resting(
-    anchor: Rectangle,
-    size: Size,
-    surface: Size,
-    position: Position,
-    edge_inset: f32,
-) -> Rectangle {
-    let x =
-        (anchor.center_x() - size.width / 2.0).clamp(0.0, (surface.width - size.width).max(0.0));
-    let y = match position {
-        Position::Top => edge_inset,
-        Position::Bottom => surface.height - edge_inset - size.height,
-    };
-    Rectangle {
-        x,
-        y,
-        width: size.width,
-        height: size.height,
-    }
 }
 
 fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
@@ -128,6 +109,31 @@ struct RenderingViewMut<'t, 'a> {
 }
 
 impl<'a> AnchoredPopup<'a> {
+    fn pill_edge_x(&self) -> f32 {
+        self.anchor.x + self.anchor.width
+    }
+
+    fn resting(&self, size: Size, surface: Size) -> Rectangle {
+        let centered_on_anchor = |anchor_center: f32, extent: f32, room: f32| {
+            (anchor_center - extent / 2.0).clamp(0.0, (room - extent).max(0.0))
+        };
+        let top_left = match self.position {
+            Position::Top => Point::new(
+                centered_on_anchor(self.anchor.center_x(), size.width, surface.width),
+                self.edge_inset,
+            ),
+            Position::Bottom => Point::new(
+                centered_on_anchor(self.anchor.center_x(), size.width, surface.width),
+                surface.height - self.edge_inset - size.height,
+            ),
+            Position::Left => Point::new(
+                self.pill_edge_x() + self.popup_gap,
+                centered_on_anchor(self.anchor.center_y(), size.height, surface.height),
+            ),
+        };
+        Rectangle::new(top_left, size)
+    }
+
     fn views<'t>(
         &'t self,
         tree: &'t Tree,
@@ -235,13 +241,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
             .map(|(_, node)| node.size());
-        let at_anchor = resting(
-            self.anchor,
-            Size::ZERO,
-            surface,
-            self.position,
-            self.edge_inset,
-        );
+        let at_anchor = self.resting(Size::ZERO, surface);
 
         let state: &mut MorphState = tree.state.downcast_mut();
         if state.seq != self.seq {
@@ -252,9 +252,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
                 at_anchor
             };
         }
-        let target = arriving.map_or(at_anchor, |size| {
-            resting(self.anchor, size, surface, self.position, self.edge_inset)
-        });
+        let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
         state.current = lerp(state.from, target, self.progress);
         let origin = state.current.position();
 
@@ -281,9 +279,10 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
-        let bar_edge_y = match self.position {
+        let bar_edge = match self.position {
             Position::Top => bounds.y + self.bar_thickness,
             Position::Bottom => bounds.y + bounds.height - self.bar_thickness,
+            Position::Left => bounds.x + self.pill_edge_x(),
         };
         renderer.fill_quad(
             renderer::Quad {
@@ -301,7 +300,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         if self.is_settled() {
             let notch = notch(
                 self.anchor + origin,
-                bar_edge_y,
+                bar_edge,
                 box_bounds,
                 self.position,
                 self.radius,

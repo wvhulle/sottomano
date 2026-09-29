@@ -553,12 +553,6 @@ pub enum Allergen {
     Ragweed,
 }
 
-pub struct ConcentrationThresholds {
-    pub moderate: f64,
-    pub high: f64,
-    pub gauge_full_scale: f64,
-}
-
 impl Allergen {
     pub const ALL: [Allergen; 6] = [
         Allergen::Alder,
@@ -577,22 +571,6 @@ impl Allergen {
             Allergen::Mugwort => "Mugwort",
             Allergen::Olive => "Olive",
             Allergen::Ragweed => "Ragweed",
-        }
-    }
-
-    pub const fn thresholds(self) -> ConcentrationThresholds {
-        let [moderate, high, gauge_full_scale] = match self {
-            Allergen::Alder => [10.0, 50.0, 100.0],
-            Allergen::Birch => [10.0, 45.0, 100.0],
-            Allergen::Grass => [20.0, 50.0, 80.0],
-            Allergen::Mugwort => [10.0, 30.0, 50.0],
-            Allergen::Olive => [50.0, 200.0, 400.0],
-            Allergen::Ragweed => [5.0, 20.0, 50.0],
-        };
-        ConcentrationThresholds {
-            moderate,
-            high,
-            gauge_full_scale,
         }
     }
 }

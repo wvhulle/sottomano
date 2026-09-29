@@ -77,13 +77,19 @@ slider in the bar itself.
   and the photographer. The article card carries the summary; the photo card
   links back to Unsplash.
 
-### Bottom panel, left: workspaces
+### Left sidebar: workspaces
 
 ![The workspace group, the card for the hack workspace open](docs/workspaces.png)
 
-Every workspace by index and name, with a mark under each for the windows on
-it. The focus marker slides to the new workspace instead of blinking there.
-Hover a workspace for a card of its windows. The rocket in the middle is quick
+A pill floating over the left edge of the screen, above the windows rather than
+beside them, lists every workspace by index and name, one below the other, with
+a mark beside each for the windows on it. The focus marker slides to the new
+workspace instead of blinking there. Hover a workspace for a card of its
+windows.
+
+### Bottom panel, left: display and quick launch
+
+The display icon toggles the overview. The rocket in the middle is quick
 launch, which offers the apps you actually start on the current workspace.
 
 ### Bottom panel, right: windows and tray

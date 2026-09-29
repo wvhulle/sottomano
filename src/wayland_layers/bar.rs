@@ -6,9 +6,7 @@ use iced::{
     widget::{Row, Space, container, mouse_area, row, stack, text},
     window::Id,
 };
-use iced_exwlshell::reexport::{
-    KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
-};
+use iced_exwlshell::reexport::{KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption};
 
 use crate::{
     app::{Bar, Message},
@@ -17,13 +15,11 @@ use crate::{
     wayland_layers::{
         backdrop_shadow,
         blur_caster::{self, Zone},
+        sidebar,
         surface::{Margin, Position},
         tooltip,
     },
-    widget_groups::{
-        output_group::{self, OutputMessage},
-        workspaces_group::{self, WorkspacesMessage},
-    },
+    widget_groups::output_group::{self, OutputMessage},
     widgets::{
         bounds_probe::bounds_probe,
         widget_group::{GroupEvent, WidgetGroup},
@@ -41,27 +37,19 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     let Some(surface) = bar.surfaces.get(&window) else {
         return container(text("")).into();
     };
-    let content = match surface.position {
-        Position::Top => top_row(bar, window, surface.position),
-        Position::Bottom => bottom_row(bar, window, &surface.output, surface.position),
-    };
-    chrome(bar, tooltip::on_surface(window, content))
-}
-
-pub fn float_margin(position: Position, offset_px: i32) -> Margin {
-    match position {
-        Position::Top => Margin {
-            top: offset_px,
-            right: offset_px,
-            bottom: 0,
-            left: offset_px,
-        },
-        Position::Bottom => Margin {
-            top: 0,
-            right: offset_px,
-            bottom: offset_px,
-            left: offset_px,
-        },
+    match surface.position {
+        Position::Top => chrome(
+            bar,
+            tooltip::on_surface(window, top_row(bar, window, surface.position)),
+        ),
+        Position::Bottom => chrome(
+            bar,
+            tooltip::on_surface(
+                window,
+                bottom_row(bar, window, &surface.output, surface.position),
+            ),
+        ),
+        Position::Left => tooltip::on_surface(window, sidebar::view(bar, window, &surface.output)),
     }
 }
 
@@ -72,7 +60,7 @@ pub fn layer_settings(
     margin: Margin,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: LayerSize::fill_width(height),
+        size: position.strip_size(height),
         exclusive_zone: Some(height.cast_signed()),
         anchor: position.anchor(),
         layer: Layer::Top,
@@ -331,29 +319,11 @@ fn slot<'a, M: 'a>(
     element.into().map(|e| e.map(wrap))
 }
 
-fn places<'a>(
-    bar: &'a Bar,
-    output: &'a str,
-    config: &'a Config,
-    position: Position,
-) -> Element<'a, Message> {
-    let display = output_group::view(output, config, position).map(|m| match m {
+fn output_slot<'a>(output: &str, config: &Config, position: Position) -> Element<'a, Message> {
+    output_group::view(output, config, position).map(|m| match m {
         OutputMessage::Clicked => Message::OverviewToggled,
         OutputMessage::Tooltip(t) => Message::Tooltip(t),
-    });
-    let workspaces =
-        workspaces_group::view(&bar.niri_snapshot, output, config, position).map(|e| {
-            e.map(|m| match m {
-                WorkspacesMessage::Clicked { id, is_active } => {
-                    Message::WorkspaceClicked { id, is_active }
-                }
-                WorkspacesMessage::Tooltip(t) => Message::Tooltip(t),
-            })
-        });
-    Row::with_children([Some(display), workspaces].into_iter().flatten())
-        .spacing(config.spacing.widget_spacing_px)
-        .align_y(Alignment::Center)
-        .into()
+    })
 }
 
 fn bottom_row<'a>(
@@ -365,7 +335,7 @@ fn bottom_row<'a>(
     let config = &bar.config;
     let chrome = &bar.session.chrome;
     let start = zone(
-        [Some(places(bar, output, config, position))],
+        [Some(output_slot(output, config, position))],
         config,
         chrome,
     );

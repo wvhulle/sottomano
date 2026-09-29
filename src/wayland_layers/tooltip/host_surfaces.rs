@@ -6,17 +6,14 @@ use iced::{
     widget::{container, mouse_area},
     window::Id,
 };
-use iced_exwlshell::{
-    actions::ActionCallback,
-    reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings},
-};
+use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use tokio::time::sleep;
 
 use crate::{
     app::Message,
     config::Config,
     wayland_layers::{
-        surface::{self, Position, Surface},
+        surface::{self, Position, Surface, input_region},
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
@@ -31,11 +28,21 @@ use crate::{
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
+const SWITCH_INTENT: Duration = Duration::from_millis(180);
+
+pub struct PendingSwitch {
+    pub parent: Surface,
+    pub target: HoverTarget,
+    pub anchor: Rectangle,
+    seq: u64,
+}
 
 #[derive(Default)]
 pub struct TooltipHost {
     surfaces: HashMap<String, Id>,
     transition: TooltipTransition,
+    pending_switch: Option<PendingSwitch>,
+    switch_seq: u64,
 }
 
 impl TooltipHost {
@@ -43,12 +50,44 @@ impl TooltipHost {
         match message {
             TooltipMessage::Exit { target } => self.exit(&target),
             TooltipMessage::EnterTooltip => {
+                self.pending_switch = None;
                 self.transition.cancel_leave();
                 Task::none()
             }
             TooltipMessage::ExitTooltip => self.leave_after_grace(),
-            TooltipMessage::Enter { .. } | TooltipMessage::EnterAnchor { .. } => Task::none(),
+            TooltipMessage::Enter { .. }
+            | TooltipMessage::EnterAnchor { .. }
+            | TooltipMessage::SwitchIntentElapsed { .. } => Task::none(),
         }
+    }
+
+    pub fn defer_switch(
+        &mut self,
+        parent: &Surface,
+        target: &HoverTarget,
+        anchor: Rectangle,
+    ) -> Option<Task<Message>> {
+        let current = self.transition.current()?;
+        if !parent.position.is_vertical() || &current.target == target {
+            return None;
+        }
+        self.transition.cancel_leave();
+        self.switch_seq += 1;
+        let seq = self.switch_seq;
+        self.pending_switch = Some(PendingSwitch {
+            parent: parent.clone(),
+            target: target.clone(),
+            anchor,
+            seq,
+        });
+        Some(
+            Task::future(sleep(SWITCH_INTENT))
+                .map(move |()| Message::Tooltip(TooltipMessage::SwitchIntentElapsed { seq })),
+        )
+    }
+
+    pub fn take_pending_switch(&mut self, seq: u64) -> Option<PendingSwitch> {
+        self.pending_switch.take_if(|pending| pending.seq == seq)
     }
 
     pub fn open(
@@ -58,6 +97,7 @@ impl TooltipHost {
         anchor: Rectangle,
         departing: Option<Departed>,
     ) {
+        self.pending_switch = None;
         self.transition.cancel_leave();
         if self
             .transition
@@ -80,6 +120,13 @@ impl TooltipHost {
     }
 
     fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
+        if self
+            .pending_switch
+            .take_if(|pending| &pending.target == target)
+            .is_some()
+        {
+            return self.leave_after_grace();
+        }
         if !self
             .transition
             .current()
@@ -247,22 +294,6 @@ fn hoverable_content(content: Element<'_, Message>) -> Element<'_, Message> {
         .on_enter(Message::Tooltip(TooltipMessage::EnterTooltip))
         .on_exit(Message::Tooltip(TooltipMessage::ExitTooltip))
         .into()
-}
-
-fn input_region(surface: Id, bounds: Rectangle) -> Message {
-    Message::SetInputRegion {
-        id: surface,
-        callback: ActionCallback::new(move |region| {
-            if bounds.width > 0.0 && bounds.height > 0.0 {
-                region.add(
-                    bounds.x as i32,
-                    bounds.y as i32,
-                    bounds.width as i32,
-                    bounds.height as i32,
-                );
-            }
-        }),
-    }
 }
 
 fn tooltip_settings(output: &str) -> NewLayerShellSettings {

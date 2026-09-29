@@ -7,10 +7,7 @@ use crate::{
     app::Message,
     config::Config,
     state::ChromeState,
-    wayland_layers::{
-        bar::float_margin,
-        surface::{self, Margin, Position, Surface},
-    },
+    wayland_layers::surface::{self, Margin, Position, Surface},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -21,6 +18,7 @@ pub enum Zone {
     BottomStart,
     BottomMiddle,
     BottomEnd,
+    Sidebar,
 }
 
 pub fn strip_namespace() -> &'static str {
@@ -64,17 +62,20 @@ impl BlurCasters {
         self.rects
             .retain(|(window, _), _| bars.contains_key(window));
         if chrome.blur_background {
-            if chrome.disconnected_groups {
-                let rects = self.rects.clone();
-                for ((window, zone), list) in rects {
-                    if let Some(surface) = bars.get(&window) {
-                        tasks.push(self.open_pills(window, zone, &list, surface, config, chrome));
-                    }
+            let rects = self.rects.clone();
+            for ((window, zone), list) in rects {
+                if let Some(surface) = bars
+                    .get(&window)
+                    .filter(|surface| casts_pills(chrome, surface.position))
+                {
+                    tasks.push(self.open_pills(window, zone, &list, surface, config, chrome));
                 }
-            } else {
-                for (&window, surface) in bars {
-                    tasks.push(self.open_strip(window, surface, config, chrome));
-                }
+            }
+            for (&window, surface) in bars
+                .iter()
+                .filter(|(_, surface)| !casts_pills(chrome, surface.position))
+            {
+                tasks.push(self.open_strip(window, surface, config, chrome));
             }
         }
         Task::batch(tasks)
@@ -87,7 +88,7 @@ impl BlurCasters {
         config: &Config,
         chrome: &ChromeState,
     ) -> Task<Message> {
-        if !chrome.blur_background || chrome.disconnected_groups {
+        if !chrome.blur_background || casts_pills(chrome, surface.position) {
             return Task::none();
         }
         self.open_strip(bar, surface, config, chrome)
@@ -103,10 +104,10 @@ impl BlurCasters {
         bars: &BTreeMap<Id, Surface>,
     ) -> Task<Message> {
         self.rects.insert((window, zone), new.to_vec());
-        if !(chrome.blur_background && chrome.disconnected_groups) {
-            return Task::none();
-        }
-        let Some(surface) = bars.get(&window) else {
+        let Some(surface) = bars
+            .get(&window)
+            .filter(|surface| chrome.blur_background && casts_pills(chrome, surface.position))
+        else {
             return Task::none();
         };
         let position = surface.position;
@@ -130,8 +131,8 @@ impl BlurCasters {
                     }));
                     tasks.push(Task::done(Message::LayoutChange {
                         id: *id,
-                        anchor: position.edge() | Anchor::Left,
-                        size: pill_size(*rect, config),
+                        anchor: pill_anchor(position),
+                        size: pill_size(position, *rect, config),
                     }));
                 }
                 Some(_) => {}
@@ -248,8 +249,19 @@ impl BlurCasters {
     }
 }
 
+fn casts_pills(chrome: &ChromeState, position: Position) -> bool {
+    chrome.disconnected_groups || position.is_vertical()
+}
+
 fn active_float_margin(chrome: &ChromeState, position: Position) -> Margin {
-    float_margin(position, chrome.margin_offset_px())
+    position.float_margin(chrome.margin_offset_px())
+}
+
+fn pill_anchor(position: Position) -> Anchor {
+    match position {
+        Position::Top | Position::Left => Anchor::Top | Anchor::Left,
+        Position::Bottom => Anchor::Bottom | Anchor::Left,
+    }
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -260,7 +272,7 @@ fn strip_settings(
     chrome: &ChromeState,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: LayerSize::fill_width(config.chrome.outer_height_px as u32),
+        size: position.strip_size(config.chrome.outer_height_px as u32),
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Bottom,
@@ -279,9 +291,9 @@ fn pill_settings(
 ) -> NewLayerShellSettings {
     let float = active_float_margin(chrome, position);
     NewLayerShellSettings {
-        size: pill_size(rect, config),
+        size: pill_size(position, rect, config),
         exclusive_zone: Some(-1),
-        anchor: position.edge() | Anchor::Left,
+        anchor: pill_anchor(position),
         layer: Layer::Bottom,
         margin: Some(pill_margin(position, float, rect).edges()),
         events_transparent: true,
@@ -305,13 +317,20 @@ fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
             bottom: float.bottom,
             left,
         },
+        Position::Left => Margin {
+            top: float.top + rect.y.round() as i32,
+            right: 0,
+            bottom: 0,
+            left,
+        },
     }
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn pill_size(rect: Rectangle, config: &Config) -> LayerSize {
-    LayerSize::px(
-        rect.width.round().max(1.0) as u32,
-        config.chrome.outer_height_px as u32,
-    )
+fn pill_size(position: Position, rect: Rectangle, config: &Config) -> LayerSize {
+    let height = match position {
+        Position::Top | Position::Bottom => config.chrome.outer_height_px,
+        Position::Left => rect.height.round().max(1.0),
+    };
+    LayerSize::px(rect.width.round().max(1.0) as u32, height as u32)
 }
