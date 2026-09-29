@@ -122,9 +122,7 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
             .on_press(toggle.clone());
             let inner = Row::new()
                 .push(handle)
-                .extend(
-                    (reveal > 0.0).then(|| revealed_content(config, reveal, content(reveal))),
-                )
+                .extend((reveal > 0.0).then(|| revealed_content(config, reveal, content(reveal))))
                 .align_y(Alignment::Center);
             PagerSlot::new(inner.into(), edge_indicator(config, hovered, reveal))
                 .view(config, position)

@@ -6,10 +6,7 @@ use iced::{
     widget::{Slider, canvas, slider, stack},
 };
 
-use crate::{
-    config::Config,
-    widgets::bar_widget::{Level, level_color},
-};
+use crate::{config::Config, widgets::widget_state::Level};
 
 const KNOB_RADIUS: f32 = 5.0;
 const KNOB_RADIUS_DRAG: f32 = 7.0;
@@ -29,7 +26,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let accent = match level {
         Level::Ok => config.palette.focus,
-        _ => level_color(&config.palette, level),
+        _ => level.color(&config.palette),
     };
     let face = SliderFace {
         range: range.clone(),

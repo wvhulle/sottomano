@@ -69,9 +69,8 @@ impl Jiffies {
     fn busy_fraction_since(&self, earlier: &Jiffies) -> Option<Ratio> {
         let total = self.total - earlier.total;
         let idle = self.idle - earlier.idle;
-        (total > 0).then(|| {
-            Ratio::new::<ratio>(((total - idle) as f64 / total as f64).clamp(0.0, 1.0))
-        })
+        (total > 0)
+            .then(|| Ratio::new::<ratio>(((total - idle) as f64 / total as f64).clamp(0.0, 1.0)))
     }
 }
 

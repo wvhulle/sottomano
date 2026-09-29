@@ -1,12 +1,15 @@
 use uom::{
     fmt::DisplayStyle::Abbreviation,
-    si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
+    si::{
+        f64::{Ratio, ThermodynamicTemperature},
+        thermodynamic_temperature::degree_celsius,
+    },
 };
 
 use crate::{
     data::source::sysfs_sensors::temperature::Temperature,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
@@ -15,6 +18,7 @@ use crate::{
 
 const WARNING_CELSIUS: f64 = 70.0;
 const CRITICAL_CELSIUS: f64 = 85.0;
+const GAUGE_FULL_SCALE_CELSIUS: f64 = 100.0;
 
 fn celsius_text(temperature: ThermodynamicTemperature) -> String {
     format!(
@@ -39,12 +43,11 @@ impl BarWidget for Temperature {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        let average = self.average().get::<degree_celsius>().round() as i64;
-        Some(Value::Gauge {
-            percent: average.min(100),
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(
+            self.average()
+                / ThermodynamicTemperature::new::<degree_celsius>(GAUGE_FULL_SCALE_CELSIUS),
+        )
     }
 
     fn tooltip(&self) -> TooltipBody {

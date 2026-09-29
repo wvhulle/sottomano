@@ -1,14 +1,17 @@
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{
-        electric_current::ampere, electric_potential::volt, f64::Power, power::watt, ratio::percent,
+        electric_current::ampere,
+        electric_potential::volt,
+        f64::{Power, Ratio},
+        power::watt,
     },
 };
 
 use crate::{
     data::source::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerLimit},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
         widget_state::WidgetState,
@@ -107,12 +110,8 @@ impl BarWidget for PowerDraw {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        let fraction = self.power / Power::new::<watt>(POWER_GAUGE_MAX_W);
-        Some(Value::Gauge {
-            percent: fraction.get::<percent>().clamp(0.0, 100.0).round() as i64,
-            unit: Unit::Watt,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(self.power / Power::new::<watt>(POWER_GAUGE_MAX_W))
     }
 
     fn tooltip(&self) -> TooltipBody {

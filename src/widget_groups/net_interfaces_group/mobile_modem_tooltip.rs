@@ -1,11 +1,14 @@
+use uom::si::f64::Ratio;
+
 use crate::{
     data::source::net_interfaces::mobile::Mobile,
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{Row, Section, TooltipBody, row, section},
-        widget_state::WidgetState,
+        widget_state::{Level, WidgetState},
     },
 };
 
@@ -24,11 +27,8 @@ impl BarWidget for Mobile {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        self.signal.map(|percent| Value::Gauge {
-            percent,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        self.signal.map(percent_fill)
     }
 
     fn tooltip(&self) -> TooltipBody {

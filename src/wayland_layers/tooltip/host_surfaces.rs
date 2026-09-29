@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
-use iced::{Element, Rectangle, Task, time::Duration, widget::{container, mouse_area}, window::Id};
+use iced::{
+    Element, Rectangle, Task,
+    time::Duration,
+    widget::{container, mouse_area},
+    window::Id,
+};
 use iced_exwlshell::{
     actions::ActionCallback,
     reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings},

@@ -10,10 +10,10 @@ use super::cpu_clock_label::frequency_text;
 use crate::{
     data::source::sysfs_sensors::cpu_usage::CpuUsage,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, row, section, table_section, untitled},
-        widget_state::WidgetState,
+        widget_state::{Level, WidgetState},
     },
 };
 
@@ -85,11 +85,8 @@ impl BarWidget for CpuUsage {
         busy_level(self.busy).into()
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.busy.get::<percent>().round() as i64,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(self.busy)
     }
 
     fn tooltip(&self) -> TooltipBody {

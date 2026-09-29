@@ -1,4 +1,4 @@
-use crate::widgets::bar_widget::Level;
+use crate::widgets::widget_state::Level;
 
 pub fn level_from_used(used: i64) -> Level {
     if used > 90 {

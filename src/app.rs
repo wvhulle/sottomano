@@ -846,17 +846,13 @@ impl Bar {
     }
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
-        if let Some(element) = self
-            .tooltip
-            .view(
-                window,
-                &self.config,
-                self.session.chrome.float_offset_px,
-                &self.favicons,
-                |target| {
-                self.tooltip_for(target)
-            })
-        {
+        if let Some(element) = self.tooltip.view(
+            window,
+            &self.config,
+            self.session.chrome.float_offset_px,
+            &self.favicons,
+            |target| self.tooltip_for(target),
+        ) {
             return element;
         }
         if let Some(element) = self.notifications.view(window, &self.config) {

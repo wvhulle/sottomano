@@ -1,7 +1,10 @@
+use uom::si::f64::Ratio;
+
 use crate::{
     data::source::sysfs_sensors::memory::Memory,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
@@ -21,11 +24,8 @@ impl BarWidget for Memory {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.percent(),
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(percent_fill(self.percent()))
     }
 
     fn tooltip(&self) -> TooltipBody {

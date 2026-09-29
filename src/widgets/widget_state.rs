@@ -1,9 +1,20 @@
 use iced::Color;
 
-use crate::{
-    config::palette::Palette,
-    widgets::{bar_widget::Level, phosphor::Weight},
-};
+use crate::{config::palette::Palette, widgets::phosphor::Weight};
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Level {
+    #[default]
+    Ok,
+    Warning,
+    Critical,
+}
+
+impl Level {
+    pub fn color(self, palette: &Palette) -> Color {
+        WidgetState::from(self).color(palette)
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WidgetState {

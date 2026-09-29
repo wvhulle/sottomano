@@ -19,7 +19,7 @@ use crate::{
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
-        bar_widget::{Glyph, level_color},
+        bar_widget::Glyph,
         context_menu::context_menu,
         copyable::{copyable, openable},
         favicon::Favicons,
@@ -291,7 +291,7 @@ impl<'a> TooltipContent<'a> {
             if position >= entry.cells.len() {
                 return Space::new().into();
             }
-            let foreground = level_color(&palette, entry.level).scale_alpha(opacity);
+            let foreground = entry.level.color(&palette).scale_alpha(opacity);
             cell_view.value(entry.cells.swap_remove(position), foreground)
         })
     }

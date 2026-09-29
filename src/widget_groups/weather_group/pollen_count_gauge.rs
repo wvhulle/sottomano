@@ -1,7 +1,9 @@
+use uom::si::{f64::Ratio, ratio::ratio};
+
 use crate::{
     data::source::weather::{Allergen, Birch, Grass, Pollen},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional, Unit, Value},
+        bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
@@ -40,19 +42,14 @@ impl<A: AllergenIcon> BarWidget for Pollen<A> {
         }
     }
 
-    fn value(&self) -> Option<Value> {
+    fn gauge(&self) -> Option<Ratio> {
         let cap = A::THRESHOLDS[2];
-        let percent = if self.value < 1.0 {
-            0
+        let logarithmic_share = if self.value < 1.0 {
+            0.0
         } else {
-            #[allow(clippy::cast_possible_truncation)]
-            let scaled = (self.value.ln() / cap.ln() * 100.0).round() as i64;
-            scaled.clamp(0, 100)
+            self.value.ln() / cap.ln()
         };
-        Some(Value::Gauge {
-            percent,
-            unit: Unit::Percent,
-        })
+        Some(Ratio::new::<ratio>(logarithmic_share))
     }
 
     fn tooltip(&self) -> TooltipBody {

@@ -1,70 +1,14 @@
-use std::fmt::{self, Display, Formatter};
-
 use iced::{Color, Element};
+use uom::si::f64::Ratio;
 
-use crate::{
-    config::palette::Palette,
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        svg_icon,
-        tooltip_body::TooltipBody,
-        weather_icons::WeatherIcon,
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    phosphor::{Phosphor, Weight},
+    simple_icons::SimpleIcon,
+    svg_icon,
+    tooltip_body::TooltipBody,
+    weather_icons::WeatherIcon,
+    widget_state::WidgetState,
 };
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Level {
-    #[default]
-    Ok,
-    Warning,
-    Critical,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Unit {
-    Percent,
-    Watt,
-}
-
-impl Display for Unit {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Unit::Percent => "%",
-            Unit::Watt => "W",
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Value {
-    Gauge {
-        percent: i64,
-        unit: Unit,
-    },
-    #[allow(dead_code)]
-    Slider {
-        percent: i64,
-        unit: Unit,
-    },
-}
-
-impl Value {
-    pub fn percent(self) -> i64 {
-        match self {
-            Value::Gauge { percent, .. } | Value::Slider { percent, .. } => percent,
-        }
-    }
-}
-
-pub fn level_color(palette: &Palette, level: Level) -> Color {
-    match level {
-        Level::Ok => palette.bar_foreground,
-        Level::Warning => palette.warning,
-        Level::Critical => palette.urgent,
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Glyph {
@@ -109,7 +53,7 @@ pub trait BarWidget {
         WidgetState::Idle
     }
 
-    fn value(&self) -> Option<Value> {
+    fn gauge(&self) -> Option<Ratio> {
         None
     }
 
@@ -117,8 +61,8 @@ pub trait BarWidget {
         None
     }
 
-    fn live_fraction(&self) -> f32 {
-        1.0
+    fn live_gauge(&self) -> Option<Ratio> {
+        self.gauge()
     }
 
     fn tooltip(&self) -> TooltipBody;

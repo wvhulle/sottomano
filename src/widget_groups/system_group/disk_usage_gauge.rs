@@ -1,9 +1,11 @@
 use bytesize::ByteSize;
+use uom::si::f64::Ratio;
 
 use crate::{
     data::source::disk::Disk,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
@@ -28,11 +30,8 @@ impl BarWidget for Disk {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.used_pct(),
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(percent_fill(self.used_pct()))
     }
 
     fn tooltip(&self) -> TooltipBody {

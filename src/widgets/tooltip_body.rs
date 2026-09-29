@@ -11,9 +11,7 @@ use crate::{
     data::source::{process::Process, tray::MenuNode},
     widget_groups::window_group::process_tree::Folding,
     widgets::{
-        bar_widget::{Glyph, Level},
-        localized_time::TimePart,
-        window_title::TitleRun,
+        bar_widget::Glyph, localized_time::TimePart, widget_state::Level, window_title::TitleRun,
     },
 };
 

@@ -19,10 +19,11 @@ use crate::{
     data::source::process::{Forest, Process},
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
-        bar_widget::{Glyph, Level, level_color},
+        bar_widget::Glyph,
         copyable::copyable,
         phosphor::{self, Phosphor},
         text::{bar_text, column_heading},
+        widget_state::Level,
     },
 };
 
@@ -241,8 +242,8 @@ impl<'a> ProcessTree<'a> {
     fn tint(&self) -> Tint {
         let palette = &self.config.palette;
         Tint {
-            warning: level_color(palette, Level::Warning).scale_alpha(self.opacity),
-            critical: level_color(palette, Level::Critical).scale_alpha(self.opacity),
+            warning: Level::Warning.color(palette).scale_alpha(self.opacity),
+            critical: Level::Critical.color(palette).scale_alpha(self.opacity),
         }
     }
 
