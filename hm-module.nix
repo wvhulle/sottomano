@@ -190,8 +190,10 @@ in
         type = lib.types.nullOr lib.types.path;
         default = null;
         description = ''
-          Path to a file holding a bare `gho_` GitHub OAuth token. The Copilot
-          usage pills read it and call `/copilot_internal/user` directly.
+          Path to a file holding a bare `gho_` GitHub OAuth token, such as the
+          output of `gh auth token` after `gh auth login` stored as an agenix
+          secret. The Copilot usage pills read it and call
+          `/copilot_internal/user` directly.
           Symlinked into ~/.config/vetrata/. When unset, the Copilot quota pills
           are hidden (the local-`ccusage` Copilot pill needs no token and still
           shows if `ccusage` is installed).
