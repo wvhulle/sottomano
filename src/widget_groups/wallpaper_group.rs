@@ -24,7 +24,7 @@ use crate::{
         reading_row::{Reading, ReadingRow},
         simple_icons::SimpleIcon,
         source_reading::source_reading,
-        tooltip_body::{Tooltip, TooltipBody, row, section},
+        tooltip_body::{Tooltip, TooltipBody, link, row, section},
     },
 };
 
@@ -122,7 +122,7 @@ impl BarWidget for Article {
             "Wikipedia",
             vec![
                 row("Article", self.title.clone()),
-                row("Link", self.url.clone()),
+                link("Link", self.url.clone()),
             ],
         )];
         if let Some(summary) = &self.summary {
@@ -146,7 +146,7 @@ impl BarWidget for Photo {
         if let Some(photographer) = &self.photographer {
             credit.push(row("Photographer", photographer.clone()));
         }
-        credit.push(row("Unsplash", self.url.clone()));
+        credit.push(link("Unsplash", self.url.clone()));
         let mut sections = vec![section("Photo", credit)];
         if let Some(caption) = &self.caption {
             sections.push(section("Caption", vec![row(" ", caption.clone())]));

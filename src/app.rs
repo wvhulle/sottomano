@@ -14,6 +14,7 @@ use crate::{
         sink::{clipboard, sound},
         source::{
             app_icon::{self, DesktopEntries},
+            command::blocking::run,
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
             launch_tracker::{Buckets, LaunchTracker},
@@ -146,6 +147,7 @@ pub enum Message {
     WindowClosed(Id),
     PointerLeft,
     CopyText(String),
+    OpenUrl(String),
     FocusWindow(u64),
     TooltipTick,
     TooltipHideElapsed,
@@ -295,6 +297,10 @@ impl Bar {
             Message::CopyText(text) => {
                 blocking("clipboard", move || clipboard::write(&text)).discard()
             }
+            Message::OpenUrl(url) => Task::batch([
+                self.dismiss_tooltip(),
+                blocking("open url", move || run("xdg-open", &[&url])).discard(),
+            ]),
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_tooltip(),
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),

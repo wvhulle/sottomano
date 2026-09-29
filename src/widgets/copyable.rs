@@ -34,16 +34,33 @@ pub fn copyable<'a, Message: 'a>(
     Element::new(Copyable {
         content: content.into(),
         text,
-        on_copy: Box::new(on_copy),
+        on_press: Box::new(on_copy),
         accent,
+        interaction: Interaction::Copy,
+    })
+}
+
+pub fn openable<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    url: String,
+    on_open: impl Fn(String) -> Message + 'a,
+    accent: Color,
+) -> Element<'a, Message> {
+    Element::new(Copyable {
+        content: content.into(),
+        text: url,
+        on_press: Box::new(on_open),
+        accent,
+        interaction: Interaction::Pointer,
     })
 }
 
 struct Copyable<'a, Message> {
     content: Element<'a, Message>,
     text: String,
-    on_copy: Box<dyn Fn(String) -> Message + 'a>,
+    on_press: Box<dyn Fn(String) -> Message + 'a>,
     accent: Color,
+    interaction: Interaction,
 }
 
 #[derive(Default)]
@@ -128,7 +145,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
         }
         let now = Instant::now();
         state.copied_at = Some(now);
-        shell.publish((self.on_copy)(self.text.clone()));
+        shell.publish((self.on_press)(self.text.clone()));
         shell.capture_event();
         shell.request_redraw();
         shell.request_redraw_at(now + HOLD);
@@ -186,7 +203,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
         renderer: &iced::Renderer,
     ) -> Interaction {
         if cursor.is_over(layout.bounds()) {
-            return Interaction::Copy;
+            return self.interaction;
         }
         self.content.as_widget().mouse_interaction(
             &tree.children[0],
