@@ -80,10 +80,32 @@ impl<M> GroupEvent<M> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum GroupIcon<'a> {
+    Plain(Glyph),
+    ColoredByWidget {
+        glyph: Glyph,
+        widget: &'a dyn BarWidget,
+    },
+}
+
+impl GroupIcon<'_> {
+    fn view<'a, M: 'a>(self, config: &Config) -> Element<'a, M> {
+        match self {
+            GroupIcon::Plain(glyph) => {
+                glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
+            }
+            GroupIcon::ColoredByWidget { glyph, widget } => {
+                glyph.view(config.font.icon_size_px, reading_color(config, widget))
+            }
+        }
+    }
+}
+
 pub struct WidgetGroup<'a, M> {
     expansion: &'a GroupExpansion,
     on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
-    icon: Option<Glyph>,
+    icon: Option<GroupIcon<'a>>,
     items: Vec<GroupItem<'a, M>>,
     previewed_value: Option<&'a dyn BarWidget>,
 }
@@ -104,7 +126,16 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
 
     #[must_use]
     pub fn icon(mut self, icon: impl Into<Glyph>) -> Self {
-        self.icon = Some(icon.into());
+        self.icon = Some(GroupIcon::Plain(icon.into()));
+        self
+    }
+
+    #[must_use]
+    pub fn icon_colored_by(mut self, icon: impl Into<Glyph>, widget: &'a dyn BarWidget) -> Self {
+        self.icon = Some(GroupIcon::ColoredByWidget {
+            glyph: icon.into(),
+            widget,
+        });
         self
     }
 
@@ -189,9 +220,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         let mut items = items.into_iter().peekable();
         items.peek()?;
         let face = match icon {
-            Some(icon) => GroupItem::element(move |_| {
-                icon.view(config.font.icon_size_px, config.palette.bar_foreground)
-            }),
+            Some(icon) => GroupItem::element(move |_| icon.view(config)),
             None => items.next()?,
         };
         let content: Vec<GroupItem<'a, M>> = items.collect();

@@ -5,7 +5,7 @@ use iced::{Subscription, Task};
 use crate::{
     config::Config,
     data::source::audio::{
-        self, AudioEvent, AudioState, Commands, Peaks, Reading, Target, WindowAudio,
+        self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
     },
     message_subscriptions::blocking,
     wayland_layers::tooltip::HoverTarget,
@@ -71,7 +71,6 @@ impl Default for AudioGroup {
             .relative_scroll()
             .right_click(true)
             .readout(|value| format!("{}%", as_percent(value)))
-            .glyph(output_glyph)
             .thresholds(80.0, 95.0, true),
             source_control: SliderControl::new(
                 RANGE,
@@ -129,6 +128,9 @@ impl AudioGroup {
                 self.windows = state.windows;
                 feed(&mut self.sink_control, self.sink.as_ref());
                 feed(&mut self.source_control, self.source.as_ref());
+                let muted = self.sink.as_ref().is_some_and(|sink| sink.muted);
+                self.sink_control
+                    .set_icon(output_icon(state.output_kind, muted));
                 Task::none()
             }
             AudioMessage::Peaks(peaks) => {
@@ -236,7 +238,7 @@ impl AudioGroup {
 
     pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, AudioMessage> {
         WidgetGroup::new(&self.expansion, AudioMessage::Expansion)
-            .icon(Phosphor::SpeakerHigh(Weight::Regular))
+            .icon_colored_by(Phosphor::Faders(Weight::Regular), &self.sink_control)
             .previewed_value(
                 self.sink
                     .as_ref()
@@ -266,11 +268,13 @@ impl AudioGroup {
     }
 }
 
-fn output_glyph(_value: f32, muted: bool) -> Phosphor {
-    if muted {
-        Phosphor::SpeakerX(Weight::Regular)
-    } else {
-        Phosphor::SpeakerHigh(Weight::Regular)
+fn output_icon(kind: OutputKind, muted: bool) -> Phosphor {
+    match kind {
+        OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
+        OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
+        OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
+        OutputKind::Headset => Phosphor::Headset(Weight::Regular),
+        OutputKind::Display => Phosphor::Television(Weight::Regular),
     }
 }
 

@@ -236,6 +236,10 @@ impl SliderControl {
         &self.target
     }
 
+    pub fn set_icon(&mut self, icon: impl Into<Glyph>) {
+        self.icon = icon.into();
+    }
+
     pub fn current(&self) -> f32 {
         self.device_setting.wanted_value()
     }

@@ -63,10 +63,53 @@ pub struct WindowAudio {
     pub muted: bool,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OutputKind {
+    #[default]
+    Speaker,
+    Headphones,
+    Headset,
+    Display,
+}
+
+impl OutputKind {
+    fn of_node(form_factor: Option<&str>, node_name: &str) -> Self {
+        form_factor
+            .and_then(Self::of_form_factor)
+            .unwrap_or_else(|| Self::of_node_name(node_name))
+    }
+
+    fn of_form_factor(form_factor: &str) -> Option<Self> {
+        match form_factor {
+            "headphone" => Some(Self::Headphones),
+            "headset" | "hands-free" | "handset" => Some(Self::Headset),
+            "tv" | "monitor" => Some(Self::Display),
+            "speaker" | "internal" | "computer" | "portable" | "hifi" | "car" => {
+                Some(Self::Speaker)
+            }
+            _ => None,
+        }
+    }
+
+    fn of_node_name(node_name: &str) -> Self {
+        let name = node_name.to_ascii_lowercase();
+        if name.contains("headphone") {
+            Self::Headphones
+        } else if name.contains("headset") {
+            Self::Headset
+        } else if name.contains("hdmi") || name.contains("displayport") {
+            Self::Display
+        } else {
+            Self::Speaker
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioState {
     pub sink: Option<Reading>,
     pub source: Option<Reading>,
+    pub output_kind: OutputKind,
     pub windows: Arc<HashMap<i32, WindowAudio>>,
 }
 
@@ -237,6 +280,7 @@ struct AudioNode {
     direction: Direction,
     name: String,
     description: String,
+    output_kind: OutputKind,
     serial: u64,
     placement: Option<RoutePlacement>,
     levels: Levels,
@@ -422,10 +466,20 @@ fn reading(graph: &Graph, name: Option<&str>) -> Option<Reading> {
     })
 }
 
+fn default_output_kind(graph: &Graph) -> OutputKind {
+    graph
+        .default_sink
+        .as_deref()
+        .and_then(|name| graph.nodes.get(&node_id_by_name(graph, name)?))
+        .map(|node| node.output_kind)
+        .unwrap_or_default()
+}
+
 fn snapshot(graph: &Graph) -> AudioState {
     AudioState {
         sink: reading(graph, graph.default_sink.as_deref()),
         source: reading(graph, graph.default_source.as_deref()),
+        output_kind: default_output_kind(graph),
         windows: Arc::new(window_audio(graph)),
     }
 }
@@ -1011,14 +1065,16 @@ fn stream_from_props(props: &DictRef) -> AppStream {
 }
 
 fn node_from_props(props: &DictRef, direction: Direction) -> AudioNode {
+    let name = props.get("node.name").unwrap_or_default();
     AudioNode {
         direction,
-        name: props.get("node.name").unwrap_or_default().to_owned(),
+        name: name.to_owned(),
         description: props
             .get("node.nick")
             .or_else(|| props.get("node.description"))
             .unwrap_or_default()
             .to_owned(),
+        output_kind: OutputKind::of_node(props.get("device.form-factor"), name),
         serial: props
             .get("object.serial")
             .and_then(|serial| serial.parse().ok())
@@ -1171,6 +1227,7 @@ mod tests {
             direction,
             name: name.to_owned(),
             description: name.to_owned(),
+            output_kind: OutputKind::default(),
             serial: 0,
             placement: None,
             levels: Levels {
@@ -1438,6 +1495,31 @@ mod tests {
                 .unwrap()
                 .percent,
             100
+        );
+    }
+
+    #[test]
+    fn output_kind_comes_from_form_factor_then_node_name() {
+        let ucm = "alsa_output.pci-0000_00_1f.3-platform-sof_sdw.HiFi__";
+        assert_eq!(
+            OutputKind::of_node(None, &format!("{ucm}Headphones__sink")),
+            OutputKind::Headphones
+        );
+        assert_eq!(
+            OutputKind::of_node(None, &format!("{ucm}HDMI1__sink")),
+            OutputKind::Display
+        );
+        assert_eq!(
+            OutputKind::of_node(None, &format!("{ucm}Speaker__sink")),
+            OutputKind::Speaker
+        );
+        assert_eq!(
+            OutputKind::of_node(Some("headset"), "bluez_output.00_11_22.1"),
+            OutputKind::Headset
+        );
+        assert_eq!(
+            OutputKind::of_node(Some("unheard-of"), "bluez_output.00_11_22.1"),
+            OutputKind::Speaker
         );
     }
 }
