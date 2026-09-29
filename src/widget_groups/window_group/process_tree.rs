@@ -251,7 +251,7 @@ impl<'a> ProcessTree<'a> {
     }
 
     fn flash(&self) -> Color {
-        self.config.palette.focus.scale_alpha(self.opacity)
+        self.config.palette.success.scale_alpha(self.opacity)
     }
 
     fn dim(&self) -> Color {

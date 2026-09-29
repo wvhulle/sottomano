@@ -319,7 +319,7 @@ fn action_tint(key: &str, palette: &Palette) -> Color {
     match key {
         "quit" | "deny" | "end" | "reject" => palette.urgent,
         "stop" | "cancel" | "later" | "snooze" => palette.warning,
-        _ => palette.focus,
+        _ => palette.success,
     }
 }
 

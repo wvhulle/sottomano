@@ -22,6 +22,7 @@ pub enum Cell {
     Text(String),
     Glyph(Glyph),
     Time { at: DateTime<Utc>, part: TimePart },
+    Link(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +87,10 @@ fn columns<R: TableRow>(rows: impl IntoIterator<Item = R>) -> SectionBody {
 
 pub fn row(key: impl Into<Cell>, value: impl Into<String>) -> Row {
     cells(key, vec![Cell::Text(value.into())])
+}
+
+pub fn link(key: impl Into<Cell>, url: impl Into<String>) -> Row {
+    cells(key, vec![Cell::Link(url.into())])
 }
 
 pub fn cells(key: impl Into<Cell>, cells: Vec<Cell>) -> Row {

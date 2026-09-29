@@ -19,6 +19,8 @@ let
     urgent = p.base08;
     warning = p.base0A;
     focus = p.base0C;
+    success = p.base0B;
+    info = p.base0D;
   };
 
   variantToml =

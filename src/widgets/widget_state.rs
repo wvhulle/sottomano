@@ -41,8 +41,8 @@ impl WidgetState {
         match self {
             WidgetState::Failed | WidgetState::Critical => palette.urgent,
             WidgetState::Off => palette.inactive,
-            WidgetState::Idle | WidgetState::Pending | WidgetState::On => palette.bar_foreground,
-            WidgetState::Warning => palette.warning,
+            WidgetState::Idle | WidgetState::On => palette.bar_foreground,
+            WidgetState::Pending | WidgetState::Warning => palette.warning,
         }
     }
 

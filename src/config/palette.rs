@@ -17,6 +17,10 @@ pub struct Palette {
     #[serde(with = "css_color")]
     pub focus: Color,
     #[serde(with = "css_color")]
+    pub success: Color,
+    #[serde(with = "css_color")]
+    pub info: Color,
+    #[serde(with = "css_color")]
     pub dim: Color,
     #[serde(with = "css_color")]
     pub surface_raised: Color,
@@ -31,6 +35,8 @@ impl Default for Palette {
             urgent: css("#f07178"),
             warning: css("#ffb454"),
             focus: css("#95e6cb"),
+            success: css("#aad94c"),
+            info: css("#59c2ff"),
             dim: css("#3e4b59"),
             surface_raised: css("#202229"),
         }
@@ -45,7 +51,7 @@ impl From<&Palette> for Theme {
                 background: palette.surface,
                 text: palette.bar_foreground,
                 primary: palette.focus,
-                success: palette.focus,
+                success: palette.success,
                 warning: palette.warning,
                 danger: palette.urgent,
             },

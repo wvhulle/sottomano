@@ -21,7 +21,7 @@ use crate::{
     widgets::{
         bar_widget::{Glyph, level_color},
         context_menu::context_menu,
-        copyable::copyable,
+        copyable::{copyable, openable},
         favicon::Favicons,
         section_column::section_column,
         text::{bar_text, column_heading},
@@ -99,7 +99,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn flash(&self) -> Color {
-        self.config.palette.focus.scale_alpha(self.opacity)
+        self.config.palette.success.scale_alpha(self.opacity)
     }
 
     fn dim(&self) -> Color {
@@ -237,6 +237,7 @@ impl<'a> TooltipContent<'a> {
             max_width: self.config.widgets.tooltip_value_width_px,
             locale: self.config.locale,
             flash: self.flash(),
+            link: self.config.palette.info.scale_alpha(self.opacity),
         }
     }
 
@@ -301,13 +302,16 @@ struct CellView {
     max_width: f32,
     locale: Locale,
     flash: Color,
+    link: Color,
 }
 
 impl CellView {
     fn key(&self, key: Cell, color: Color) -> Element<'static, Message> {
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) => cell(&self.font, text, color, self.max_width).into(),
+            Cell::Text(text) | Cell::Link(text) => {
+                cell(&self.font, text, color, self.max_width).into()
+            }
             Cell::Time { at, part } => cell(
                 &self.font,
                 part.format(&at, self.locale),
@@ -323,7 +327,13 @@ impl CellView {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) => self.copyable_text(text, color),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
+            Cell::Link(url) => self.openable_link(url),
         }
+    }
+
+    fn openable_link(&self, url: String) -> Element<'static, Message> {
+        let value = cell(&self.font, url.clone(), self.link, self.max_width);
+        openable(value, url, Message::OpenUrl, self.link)
     }
 
     fn glyph(&self, icon: Glyph, color: Color) -> Element<'static, Message> {
