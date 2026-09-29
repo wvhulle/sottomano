@@ -2,6 +2,7 @@ pub mod body_markup;
 pub mod expiry_countdown;
 pub mod output_surfaces;
 pub mod placement_policy;
+pub mod reading_alert_reconciliation;
 pub mod toast_anchor;
 pub mod toast_card;
 pub mod toast_field;
@@ -16,10 +17,15 @@ use iced::{
     window::Id,
 };
 use iced_exwlshell::{actions::ActionCallback, reexport::ActivationTokenSink};
+use niri_ipc::state::EventStreamState;
 use output_surfaces::ToastSurfaces;
 use placement_policy::{placement_for, resolve_window_id};
+use reading_alert_reconciliation::{
+    DismissedReadingAlert, ReadingAlertToastChanges, ShownReadingAlertToast, ToastSlotForAlert,
+    plan_reading_alert_toast_changes,
+};
 use toast_anchor::ToastSlot;
-pub use toast_lifecycle::{Notification, NotificationMessage};
+pub use toast_lifecycle::{Notification, NotificationMessage, ToastOrigin};
 use tokio::{sync::mpsc, time::timeout};
 
 use crate::{
@@ -33,7 +39,7 @@ use crate::{
     message_subscriptions::niri_action,
     state::{self, NotificationState},
     widget_groups::notification_group::NotificationToggle,
-    widgets::reveal::reveal_y,
+    widgets::{active_reading_alert::ActiveReadingAlert, reveal::reveal_y},
 };
 
 const DEFAULT_ACTION: &str = "default";
@@ -56,6 +62,7 @@ pub struct NotificationLayer {
     surfaces: ToastSurfaces,
     next_seq: u64,
     hovered: Option<u32>,
+    dismissed_reading_alerts: Vec<DismissedReadingAlert>,
 }
 
 impl NotificationLayer {
@@ -76,9 +83,14 @@ impl NotificationLayer {
                 self.handle = Some(handle);
                 Task::none()
             }
-            NotificationMessage::Served(data) => {
-                self.serve(data, placement, entries, config, notif_state)
-            }
+            NotificationMessage::Served(data) => self.serve(
+                data,
+                ToastOrigin::DbusClient,
+                placement,
+                entries,
+                config,
+                notif_state,
+            ),
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, placement, config, notif_state)
             }
@@ -92,6 +104,7 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Dismiss(id) => {
+                self.remember_dismissed_reading_alert(id);
                 self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state)
             }
             NotificationMessage::ActionClicked { id, key } => {
@@ -124,9 +137,112 @@ impl NotificationLayer {
         }
     }
 
+    pub fn show_reading_alerts(
+        &mut self,
+        active_alerts: &[ActiveReadingAlert<Message>],
+        niri: &EventStreamState,
+        entries: Option<&DesktopEntries>,
+        config: &Config,
+        notif_state: &NotificationState,
+    ) -> Task<Message> {
+        if notif_state.dnd {
+            return Task::none();
+        }
+        let changes = self.plan_reading_alert_toasts(active_alerts);
+        if changes.is_empty() {
+            return Task::none();
+        }
+        let placement = Placement::derive(niri);
+        self.apply_reading_alert_toast_changes(changes, &placement, entries, config, notif_state)
+    }
+
+    fn plan_reading_alert_toasts(
+        &self,
+        active_alerts: &[ActiveReadingAlert<Message>],
+    ) -> ReadingAlertToastChanges<Message> {
+        let shown_toasts: Vec<ShownReadingAlertToast<'_>> = self
+            .showing()
+            .filter_map(|n| {
+                n.active_reading_alert()
+                    .map(|alert| ShownReadingAlertToast {
+                        toast_id: n.data.id,
+                        hover_target: &alert.hover_target,
+                        severity: alert.severity,
+                    })
+            })
+            .collect();
+        plan_reading_alert_toast_changes(
+            active_alerts,
+            &shown_toasts,
+            &self.dismissed_reading_alerts,
+        )
+    }
+
+    fn apply_reading_alert_toast_changes(
+        &mut self,
+        changes: ReadingAlertToastChanges<Message>,
+        placement: &Placement,
+        entries: Option<&DesktopEntries>,
+        config: &Config,
+        notif_state: &NotificationState,
+    ) -> Task<Message> {
+        self.dismissed_reading_alerts.retain(|dismissed| {
+            !changes
+                .dismissals_to_forget
+                .contains(&dismissed.hover_target)
+        });
+        let mut tasks =
+            vec![self.close_all(changes.toast_ids_to_close, close_reason::CLOSED_BY_CALL)];
+        tasks.extend(changes.alerts_to_show.into_iter().map(|to_show| {
+            let toast_id = match to_show.toast_slot {
+                ToastSlotForAlert::ReplaceShownToast(toast_id) => toast_id,
+                ToastSlotForAlert::OpenNewToast => self.fresh_reading_alert_toast_id(),
+            };
+            self.serve(
+                Box::new(to_show.alert.toast_notification_data(toast_id)),
+                ToastOrigin::ActiveReadingAlert(Box::new(to_show.alert)),
+                placement,
+                entries,
+                config,
+                notif_state,
+            )
+        }));
+        tasks.push(self.reconcile(placement, config, notif_state));
+        Task::batch(tasks)
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn fresh_reading_alert_toast_id(&self) -> u32 {
+        u32::MAX.wrapping_sub(self.next_seq as u32)
+    }
+
+    fn remember_dismissed_reading_alert(&mut self, toast_id: u32) {
+        let dismissed = self
+            .showing()
+            .find(|n| n.data.id == toast_id)
+            .and_then(Notification::active_reading_alert)
+            .map(|alert| DismissedReadingAlert {
+                hover_target: alert.hover_target.clone(),
+                dismissed_at_severity: alert.severity,
+            });
+        self.dismissed_reading_alerts.extend(dismissed);
+    }
+
+    fn reading_alert_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
+        let alert = self
+            .showing()
+            .find(|n| n.data.id == toast_id)?
+            .active_reading_alert()?;
+        if action_key == DEFAULT_ACTION {
+            return Some(alert.on_body_clicked.clone());
+        }
+        alert.action_button_pressed(action_key).cloned()
+    }
+
     fn serve(
         &mut self,
         data: Box<NotificationData>,
+        origin: ToastOrigin,
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
@@ -153,12 +269,15 @@ impl NotificationLayer {
         let seq = self.next_seq;
         self.next_seq += 1;
         let now = Instant::now();
-        let countdown =
-            expiry_countdown::lifetime(data.expire_timeout, data.urgency, &config.notifications)
-                .map(|remaining| Countdown::started(remaining, now));
+        let countdown = expiry_countdown::lifetime(
+            data.expire_timeout,
+            data.severity,
+            &config.notifications.lifetime,
+        )
+        .map(|remaining| Countdown::started(remaining, now));
         let place = placement_for(&data, placement, notif_state, config);
         self.live.push(Notification::appearing(
-            *data, icons, countdown, seq, place, now,
+            *data, origin, icons, countdown, seq, place, now,
         ));
         self.sync_countdowns(now);
         tasks.push(self.reconcile(placement, config, notif_state));
@@ -256,9 +375,16 @@ impl NotificationLayer {
         let closed = self
             .withdraw_all(candidates)
             .into_iter()
+            .filter(|id| self.sent_by_dbus_client(*id))
             .map(|id| Outbound::Closed { id, reason })
             .collect();
         self.emit(closed)
+    }
+
+    fn sent_by_dbus_client(&self, id: u32) -> bool {
+        self.live
+            .iter()
+            .any(|n| n.data.id == id && n.sent_by_dbus_client())
     }
 
     fn prune_hover(&mut self) {
@@ -291,6 +417,13 @@ impl NotificationLayer {
         config: &Config,
         notif_state: &NotificationState,
     ) -> Task<Message> {
+        if let Some(reading_alert_message) = self.reading_alert_message_for(id, key) {
+            self.remember_dismissed_reading_alert(id);
+            return Task::batch([
+                Task::done(reading_alert_message),
+                self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
+            ]);
+        }
         if key == DEFAULT_ACTION && self.declares_default_action(id) {
             return self.request_activation_token(id);
         }

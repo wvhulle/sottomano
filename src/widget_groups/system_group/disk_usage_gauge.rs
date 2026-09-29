@@ -2,9 +2,9 @@ use bytesize::ByteSize;
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::source::disk::Disk,
+    data::{severity::Severity, source::disk::Disk},
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
@@ -27,6 +27,13 @@ impl BarWidget for Disk {
             WidgetState::Warning
         } else {
             WidgetState::Idle
+        }
+    }
+
+    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
+        ReadingAlertThreshold::NotifyFromSeverity {
+            minimum_severity: Severity::Critical,
+            summary_text: "Disk almost full",
         }
     }
 

@@ -1,16 +1,8 @@
 use iced::Color;
 
-use crate::{config::palette::Palette, widgets::phosphor::Weight};
+use crate::{config::palette::Palette, data::severity::Severity, widgets::phosphor::Weight};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Level {
-    #[default]
-    Ok,
-    Warning,
-    Critical,
-}
-
-impl Level {
+impl Severity {
     pub fn color(self, palette: &Palette) -> Color {
         WidgetState::from(self).color(palette)
     }
@@ -57,23 +49,24 @@ impl WidgetState {
         }
     }
 
-    pub const fn severity(self) -> Level {
+    pub const fn severity(self) -> Severity {
         match self {
-            WidgetState::Failed | WidgetState::Critical => Level::Critical,
-            WidgetState::Warning => Level::Warning,
+            WidgetState::Failed | WidgetState::Critical => Severity::Critical,
+            WidgetState::Warning => Severity::Warning,
             WidgetState::Off | WidgetState::Idle | WidgetState::Pending | WidgetState::On => {
-                Level::Ok
+                Severity::Normal
             }
         }
     }
 }
 
-impl From<Level> for WidgetState {
-    fn from(level: Level) -> Self {
-        match level {
-            Level::Ok => WidgetState::Idle,
-            Level::Warning => WidgetState::Warning,
-            Level::Critical => WidgetState::Critical,
+impl From<Severity> for WidgetState {
+    fn from(severity: Severity) -> Self {
+        match severity {
+            Severity::Low => WidgetState::Off,
+            Severity::Normal => WidgetState::Idle,
+            Severity::Warning => WidgetState::Warning,
+            Severity::Critical => WidgetState::Critical,
         }
     }
 }

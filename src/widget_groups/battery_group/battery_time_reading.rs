@@ -13,6 +13,7 @@ use uom::{
 use crate::{
     data::{
         battery_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
+        severity::Severity,
         source::sysfs_sensors::battery::{Battery, IdleReason},
     },
     state::charge_power_curve,
@@ -20,7 +21,7 @@ use crate::{
         ESTIMATE_HEADINGS, duration_text, estimate_cells,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, TableRow, TooltipBody, row},
         widget_state::WidgetState,
@@ -217,6 +218,13 @@ impl BarWidget for BatteryTime {
                 WidgetState::Warning
             }
             BatteryTime::Idle(_) | BatteryTime::Countdown(_) => WidgetState::Idle,
+        }
+    }
+
+    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
+        ReadingAlertThreshold::NotifyFromSeverity {
+            minimum_severity: Severity::Warning,
+            summary_text: "Battery running out",
         }
     }
 

@@ -1,13 +1,16 @@
 use iced::{Color, Element};
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    phosphor::{Phosphor, Weight},
-    simple_icons::SimpleIcon,
-    svg_icon,
-    tooltip_body::TooltipBody,
-    weather_icons::WeatherIcon,
-    widget_state::WidgetState,
+use crate::{
+    data::severity::Severity,
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+        svg_icon,
+        tooltip_body::TooltipBody,
+        weather_icons::WeatherIcon,
+        widget_state::WidgetState,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +38,15 @@ impl Glyph {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadingAlertThreshold {
+    NeverNotify,
+    NotifyFromSeverity {
+        minimum_severity: Severity,
+        summary_text: &'static str,
+    },
+}
+
 pub trait BarWidget {
     fn icon(&self) -> Glyph;
 
@@ -51,6 +63,10 @@ pub trait BarWidget {
 
     fn state(&self) -> WidgetState {
         WidgetState::Idle
+    }
+
+    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
+        ReadingAlertThreshold::NeverNotify
     }
 
     fn gauge(&self) -> Option<Ratio> {

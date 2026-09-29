@@ -1,16 +1,19 @@
 use std::cmp::Reverse;
 
 use crate::{
-    data::source::{
-        journal::FailedUnitInfo,
-        systemd_failed::{Failed, JournalScope, System, User},
+    data::{
+        severity::Severity,
+        source::{
+            journal::FailedUnitInfo,
+            systemd_failed::{Failed, JournalScope, System, User},
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, TableRow, TooltipBody, table_section},
-        widget_state::{Level, WidgetState},
+        widget_state::WidgetState,
     },
 };
 
@@ -18,15 +21,15 @@ pub trait ScopeAppearance: JournalScope {
     const ICON: Phosphor;
     const LABEL: &'static str;
 
-    fn severity(recent: bool) -> Level;
+    fn severity(recent: bool) -> Severity;
 }
 
 impl ScopeAppearance for User {
     const ICON: Phosphor = Phosphor::User(Weight::Regular);
     const LABEL: &'static str = "Failed user units";
 
-    fn severity(_recent: bool) -> Level {
-        Level::Warning
+    fn severity(_recent: bool) -> Severity {
+        Severity::Warning
     }
 }
 
@@ -34,11 +37,11 @@ impl ScopeAppearance for System {
     const ICON: Phosphor = Phosphor::HardDrives(Weight::Regular);
     const LABEL: &'static str = "Failed system units";
 
-    fn severity(recent: bool) -> Level {
+    fn severity(recent: bool) -> Severity {
         if recent {
-            Level::Critical
+            Severity::Critical
         } else {
-            Level::Warning
+            Severity::Warning
         }
     }
 }
@@ -73,7 +76,7 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
 
 struct FailedUnitRow<'a> {
     unit: &'a FailedUnitInfo,
-    level: Level,
+    level: Severity,
 }
 
 impl TableRow for FailedUnitRow<'_> {
@@ -97,7 +100,7 @@ impl TableRow for FailedUnitRow<'_> {
         ]
     }
 
-    fn level(&self) -> Level {
+    fn level(&self) -> Severity {
         self.level
     }
 }

@@ -3,14 +3,7 @@ use std::{fmt, time::Duration};
 use iced::widget::image;
 use tokio::sync::mpsc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Urgency {
-    Low,
-    #[default]
-    Normal,
-    Warning,
-    Critical,
-}
+use crate::data::severity::Severity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpireTimeout {
@@ -50,7 +43,7 @@ pub struct NotificationData {
     pub summary: String,
     pub body: String,
     pub actions: Vec<NotifAction>,
-    pub urgency: Urgency,
+    pub severity: Severity,
     pub expire_timeout: ExpireTimeout,
     pub window_id_hint: Option<u64>,
     pub desktop_entry: Option<String>,

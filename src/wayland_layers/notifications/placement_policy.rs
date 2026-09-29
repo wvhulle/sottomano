@@ -33,12 +33,12 @@ pub fn placement_for(
         .filter(|&id| placement.workspace_of_window(id).is_some());
 
     let Some(id) = id else {
-        let edges = config.notifications.fallback_position.edges();
+        let fallback_corner = config.notifications.placement.fallback_corner;
         return ToastPlacement {
             output: fallback_output(placement),
             anchor: ToastAnchor::Edge {
-                vertical: edges.vertical,
-                horizontal: edges.horizontal,
+                vertical: fallback_corner.vertical_edge(),
+                horizontal: fallback_corner.horizontal_edge(),
             },
         };
     };

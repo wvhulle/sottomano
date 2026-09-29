@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    config::NotificationConfig,
-    data::notifications::model::{ExpireTimeout, Urgency},
+    config::notifications::ToastLifetimeConfig,
+    data::{notifications::model::ExpireTimeout, severity::Severity},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -48,20 +48,13 @@ impl Countdown {
 
 pub fn lifetime(
     expire_timeout: ExpireTimeout,
-    urgency: Urgency,
-    config: &NotificationConfig,
+    severity: Severity,
+    config: &ToastLifetimeConfig,
 ) -> Option<Duration> {
     match expire_timeout {
         ExpireTimeout::Never => None,
         ExpireTimeout::After(requested) => Some(requested),
-        ExpireTimeout::ServerDefault => {
-            let configured_millis = match urgency {
-                Urgency::Low => config.low_timeout_ms,
-                Urgency::Normal | Urgency::Warning => config.normal_timeout_ms,
-                Urgency::Critical => config.critical_timeout_ms,
-            };
-            (configured_millis > 0).then(|| Duration::from_millis(configured_millis))
-        }
+        ExpireTimeout::ServerDefault => config.default_timeout_for(severity),
     }
 }
 
@@ -69,46 +62,45 @@ pub fn lifetime(
 mod tests {
     use super::*;
 
-    fn config() -> NotificationConfig {
-        NotificationConfig {
-            low_timeout_ms: 8_000,
-            normal_timeout_ms: 12_000,
-            critical_timeout_ms: 0,
-            ..NotificationConfig::default()
+    fn config() -> ToastLifetimeConfig {
+        ToastLifetimeConfig {
+            low_severity_timeout_ms: 8_000,
+            normal_severity_timeout_ms: 12_000,
+            critical_severity_timeout_ms: 0,
         }
     }
 
     #[test]
     fn explicit_zero_never_expires() {
-        for urgency in [Urgency::Low, Urgency::Normal, Urgency::Critical] {
-            assert_eq!(lifetime(ExpireTimeout::Never, urgency, &config()), None);
+        for severity in [Severity::Low, Severity::Normal, Severity::Critical] {
+            assert_eq!(lifetime(ExpireTimeout::Never, severity, &config()), None);
         }
     }
 
     #[test]
-    fn explicit_timeout_wins_over_urgency_default() {
+    fn explicit_timeout_wins_over_severity_default() {
         let requested = Duration::from_millis(4_000);
-        for urgency in [Urgency::Low, Urgency::Normal, Urgency::Critical] {
+        for severity in [Severity::Low, Severity::Normal, Severity::Critical] {
             assert_eq!(
-                lifetime(ExpireTimeout::After(requested), urgency, &config()),
+                lifetime(ExpireTimeout::After(requested), severity, &config()),
                 Some(requested)
             );
         }
     }
 
     #[test]
-    fn server_default_follows_urgency() {
+    fn server_default_follows_severity() {
         let config = config();
         assert_eq!(
-            lifetime(ExpireTimeout::ServerDefault, Urgency::Low, &config),
+            lifetime(ExpireTimeout::ServerDefault, Severity::Low, &config),
             Some(Duration::from_secs(8))
         );
         assert_eq!(
-            lifetime(ExpireTimeout::ServerDefault, Urgency::Normal, &config),
+            lifetime(ExpireTimeout::ServerDefault, Severity::Normal, &config),
             Some(Duration::from_secs(12))
         );
         assert_eq!(
-            lifetime(ExpireTimeout::ServerDefault, Urgency::Critical, &config),
+            lifetime(ExpireTimeout::ServerDefault, Severity::Critical, &config),
             None
         );
     }

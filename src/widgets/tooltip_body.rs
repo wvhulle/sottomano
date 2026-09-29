@@ -8,11 +8,12 @@ use chrono::{DateTime, Utc};
 use iced::Size;
 
 use crate::{
-    data::source::{process::Process, tray::MenuNode},
-    widget_groups::window_group::process_tree::Folding,
-    widgets::{
-        bar_widget::Glyph, localized_time::TimePart, widget_state::Level, window_title::TitleRun,
+    data::{
+        severity::Severity,
+        source::{process::Process, tray::MenuNode},
     },
+    widget_groups::window_group::process_tree::Folding,
+    widgets::{bar_widget::Glyph, localized_time::TimePart, window_title::TitleRun},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,7 +28,7 @@ pub enum Cell {
 pub struct Row {
     pub key: Cell,
     pub cells: Vec<Cell>,
-    pub level: Level,
+    pub level: Severity,
 }
 
 impl<Text: Into<String>> From<Text> for Cell {
@@ -47,8 +48,8 @@ pub trait TableRow {
     fn key(&self) -> Cell;
     fn cells(&self) -> Vec<Cell>;
 
-    fn level(&self) -> Level {
-        Level::Ok
+    fn level(&self) -> Severity {
+        Severity::Normal
     }
 
     fn row(&self) -> Row {
@@ -71,7 +72,7 @@ impl<R: TableRow> TableRow for &R {
         (*self).cells()
     }
 
-    fn level(&self) -> Level {
+    fn level(&self) -> Severity {
         (*self).level()
     }
 }
@@ -95,7 +96,7 @@ pub fn cells(key: impl Into<Cell>, cells: Vec<Cell>) -> Row {
     Row {
         key: key.into(),
         cells,
-        level: Level::Ok,
+        level: Severity::Normal,
     }
 }
 
@@ -277,11 +278,11 @@ mod tests {
             vec![self.moons.to_string().into(), "".into()]
         }
 
-        fn level(&self) -> Level {
+        fn level(&self) -> Severity {
             if self.moons == 0 {
-                Level::Warning
+                Severity::Warning
             } else {
-                Level::Ok
+                Severity::Normal
             }
         }
     }
@@ -308,7 +309,7 @@ mod tests {
                 rows: vec![
                     cells("Mars", vec!["2".into(), "".into()]),
                     Row {
-                        level: Level::Warning,
+                        level: Severity::Warning,
                         ..cells("Venus", vec!["0".into(), "".into()])
                     },
                 ],

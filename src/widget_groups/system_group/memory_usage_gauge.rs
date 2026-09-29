@@ -1,9 +1,9 @@
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::source::sysfs_sensors::memory::Memory,
+    data::{severity::Severity, source::sysfs_sensors::memory::Memory},
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
@@ -21,6 +21,13 @@ impl BarWidget for Memory {
             p if p > 90 => WidgetState::Critical,
             p if p > 75 => WidgetState::Warning,
             _ => WidgetState::Idle,
+        }
+    }
+
+    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
+        ReadingAlertThreshold::NotifyFromSeverity {
+            minimum_severity: Severity::Critical,
+            summary_text: "Memory almost full",
         }
     }
 

@@ -7,9 +7,9 @@ use uom::{
 };
 
 use crate::{
-    data::source::sysfs_sensors::temperature::Temperature,
+    data::{severity::Severity, source::sysfs_sensors::temperature::Temperature},
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
@@ -40,6 +40,13 @@ impl BarWidget for Temperature {
             WidgetState::Warning
         } else {
             WidgetState::Idle
+        }
+    }
+
+    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
+        ReadingAlertThreshold::NotifyFromSeverity {
+            minimum_severity: Severity::Critical,
+            summary_text: "CPU overheating",
         }
     }
 

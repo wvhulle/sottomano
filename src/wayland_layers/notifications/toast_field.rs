@@ -276,7 +276,10 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let surface = limits.max();
-        let card_limits = Limits::new(Size::ZERO, Size::new(self.config.card_width, f32::INFINITY));
+        let card_limits = Limits::new(
+            Size::ZERO,
+            Size::new(self.config.card_size.card_width_px, f32::INFINITY),
+        );
         let nodes: Vec<Node> = self
             .cards
             .iter_mut()
@@ -284,7 +287,8 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
             .map(|(card, child)| card.as_widget_mut().layout(child, renderer, &card_limits))
             .collect();
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
-        let targets = slot_geometry::origins(&self.anchors, &sizes, surface, &self.config);
+        let targets =
+            slot_geometry::origins(&self.anchors, &sizes, surface, &self.config.placement);
         let positions = tree
             .state
             .downcast_mut::<FieldState>()

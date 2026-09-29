@@ -56,7 +56,8 @@ use crate::{
         workspaces_group::workspace_tooltip,
     },
     widgets::{
-        favicon::Favicons, menu_group::MenuGroup, text::FontFallbacks, tooltip_body::Tooltip,
+        active_reading_alert::ActiveReadingAlert, favicon::Favicons, menu_group::MenuGroup,
+        text::FontFallbacks, tooltip_body::Tooltip,
     },
 };
 
@@ -231,6 +232,32 @@ impl Bar {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        let dispatched = self.dispatch_message(message);
+        let alert_toasts = self.notifications.show_reading_alerts(
+            &self.active_reading_alerts(),
+            &self.niri,
+            self.desktop_entries.get(),
+            &self.config,
+            &self.session.notifications,
+        );
+        Task::batch([dispatched, alert_toasts])
+    }
+
+    fn active_reading_alerts(&self) -> Vec<ActiveReadingAlert<Message>> {
+        let battery_alerts = self
+            .battery_group
+            .active_reading_alerts()
+            .into_iter()
+            .map(|alert| alert.map_messages(Message::Battery));
+        let system_alerts = self
+            .system_group
+            .active_reading_alerts()
+            .into_iter()
+            .map(|alert| alert.map_messages(Message::System));
+        battery_alerts.chain(system_alerts).collect()
+    }
+
+    fn dispatch_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Output(change) => self.apply_output_change(change),
             Message::WindowGroup(msg) => self.update_window_group(msg),
@@ -253,9 +280,7 @@ impl Bar {
             }
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
             Message::Wallpaper(msg) => self.wallpaper_group.update(msg).map(Message::Wallpaper),
-            Message::Notification(msg) | Message::Battery(BatteryMessage::Notification(msg)) => {
-                self.update_notification(msg)
-            }
+            Message::Notification(msg) => self.update_notification(msg),
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
