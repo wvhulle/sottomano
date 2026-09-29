@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env, ops::RangeInclusive, sync::Arc, thread, time::Duration};
 
-use iced::{Alignment, Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 
 use crate::{
     config::Config,
@@ -8,15 +8,14 @@ use crate::{
         self, AudioEvent, AudioState, Commands, Peaks, Reading, Target, WindowAudio,
     },
     message_subscriptions::blocking,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
-        pager_slot::permanently_inactive_slot,
+        bar_widget::BarWidget,
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{Tooltip, row},
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -52,6 +51,7 @@ pub struct AudioGroup {
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
+    pub(crate) expansion: GroupExpansion,
 }
 
 impl Default for AudioGroup {
@@ -61,6 +61,7 @@ impl Default for AudioGroup {
             source: None,
             windows: Arc::default(),
             commands: None,
+            expansion: GroupExpansion::default(),
             sink_control: SliderControl::new(
                 RANGE,
                 HoverTarget::AudioSink,
@@ -103,7 +104,7 @@ pub enum AudioMessage {
     State(AudioState),
     Peaks(Peaks),
     Control(ControlKind, ControlMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl AudioGroup {
@@ -135,7 +136,12 @@ impl AudioGroup {
                 Task::none()
             }
             AudioMessage::Control(kind, m) => self.update_control(kind, m),
-            AudioMessage::Tooltip(_) => Task::none(),
+            AudioMessage::Expansion(m) => {
+                if self.expansion.update(m) {
+                    self.close_sliders();
+                }
+                Task::none()
+            }
         }
     }
 
@@ -228,35 +234,35 @@ impl AudioGroup {
         Some(Tooltip::table(rows))
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, AudioMessage>> {
-        let source = self.source.as_ref().map(|_| {
-            self.source_control
-                .view(config, 1.0)
-                .map(tag(ControlKind::Source))
-        });
-        let sink = self.sink.as_ref().map(|_| {
-            self.sink_control
-                .view(config, 1.0)
-                .map(tag(ControlKind::Sink))
-        });
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, AudioMessage> {
+        WidgetGroup::new(&self.expansion, AudioMessage::Expansion)
+            .icon(Phosphor::SpeakerHigh(Weight::Regular))
+            .previewed_value(
+                self.sink
+                    .as_ref()
+                    .map(|_| &self.sink_control as &dyn BarWidget),
+            )
+            .item(self.sink.as_ref().map(|_| {
+                GroupItem::slider(&self.sink_control, config, |m| {
+                    AudioMessage::Control(ControlKind::Sink, m)
+                })
+            }))
+            .item(self.source.as_ref().map(|_| {
+                GroupItem::slider(&self.source_control, config, |m| {
+                    AudioMessage::Control(ControlKind::Source, m)
+                })
+            }))
+    }
 
-        let widgets: Vec<Element<'a, AudioMessage>> =
-            [source, sink].into_iter().flatten().collect();
-        if widgets.is_empty() {
-            return None;
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
+            self.close_sliders();
         }
-        Some(permanently_inactive_slot(
-            Row::with_children(widgets)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into(),
-            config,
-            position,
-        ))
+    }
+
+    fn close_sliders(&mut self) {
+        self.sink_control.close();
+        self.source_control.close();
     }
 }
 
@@ -280,13 +286,6 @@ fn feed(control: &mut SliderControl, reading: Option<&Reading>) {
     if let Some(reading) = reading {
         control.update(ControlMessage::Reading(percent_f(reading.percent)));
         control.update(ControlMessage::Disabled(reading.muted));
-    }
-}
-
-fn tag(kind: ControlKind) -> impl Fn(ControlMessage) -> AudioMessage {
-    move |m| match m {
-        ControlMessage::Tooltip(t) => AudioMessage::Tooltip(t),
-        m => AudioMessage::Control(kind, m),
     }
 }
 

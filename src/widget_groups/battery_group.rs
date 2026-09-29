@@ -5,7 +5,7 @@ pub mod power_draw_gauge;
 pub mod power_profile_control;
 
 use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
-use iced::{Alignment, Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 
@@ -18,17 +18,13 @@ use crate::{
             battery::{self, Battery},
         },
     },
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
-        active_reading_alert::{ActiveReadingAlert, highest_active_alert_severity},
         bar_widget::BarWidget,
+        group_item::GroupItem,
         last_poll::LastPoll,
-        menu_group::{MenuGroup, MenuMessage},
-        reading_row::{Reading, ReadingRow},
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -40,7 +36,7 @@ pub struct BatteryGroup {
     time_reading: BatteryTimeReading,
     installed: bool,
     power_profile: PowerProfileControl,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -49,35 +45,14 @@ pub enum BatteryMessage {
     Battery(Result<Battery, sysfs_sensors::Error>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
-    Menu(MenuMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl BatteryGroup {
-    pub fn close_menu(&mut self) {
-        if self.menu.close() {
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
             self.power_profile.close();
         }
-    }
-
-    pub fn active_reading_alerts(&self) -> Vec<ActiveReadingAlert<BatteryMessage>> {
-        ActiveReadingAlert::from_widget_state(
-            HoverTarget::BatteryTime,
-            self.time_widget(),
-            BatteryMessage::Menu(MenuMessage::ExpandGroup),
-        )
-        .map(|alert| {
-            self.power_profile
-                .profiles_saving_more_power()
-                .fold(alert, |alert, profile| {
-                    alert.with_action_button(
-                        profile.title(),
-                        BatteryMessage::PowerProfile(PowerProfileMessage::SwitchToProfile(profile)),
-                    )
-                })
-        })
-        .into_iter()
-        .collect()
     }
 
     pub fn probe() -> Task<BatteryMessage> {
@@ -115,14 +90,12 @@ impl BatteryGroup {
                 self.time_reading.loaded(curve);
                 Task::none()
             }
-            BatteryMessage::PowerProfile(PowerProfileMessage::Tooltip(_))
-            | BatteryMessage::Tooltip(_) => Task::none(),
             BatteryMessage::PowerProfile(msg) => self
                 .power_profile
                 .update(msg)
                 .map(BatteryMessage::PowerProfile),
-            BatteryMessage::Menu(msg) => {
-                if self.menu.update(msg) {
+            BatteryMessage::Expansion(msg) => {
+                if self.expansion.update(msg) {
                     self.power_profile.close();
                 }
                 Task::none()
@@ -165,49 +138,35 @@ impl BatteryGroup {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, BatteryMessage>> {
-        let charge_reading = move || {
-            ReadingRow::new()
-                .push(Reading::new(self.battery.display(), HoverTarget::Battery))
-                .row(config, BatteryMessage::Tooltip)
-        };
-        charge_reading()?;
-
-        let face = move || charge_reading().unwrap_or_else(Row::new).into();
-
-        let content = move |reveal: f32| {
-            let draw = ReadingRow::new()
-                .opacity(reveal)
-                .push(Reading::new(
-                    self.draw.as_ref().map(|draw| draw as &dyn BarWidget),
-                    HoverTarget::PowerDraw,
-                ))
-                .push(Reading::new(self.time_widget(), HoverTarget::BatteryTime))
-                .row(config, BatteryMessage::Tooltip)
-                .map(Element::from);
-            let power_profile = self.power_profile.view(config, reveal).map(|element| {
-                element.map(|m| match m {
-                    PowerProfileMessage::Tooltip(t) => BatteryMessage::Tooltip(t),
-                    m => BatteryMessage::PowerProfile(m),
-                })
-            });
-            Row::with_children(draw.into_iter().chain(power_profile))
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, BatteryMessage::Menu)
-                .edge_indicator_alert_severity(highest_active_alert_severity(
-                    &self.active_reading_alerts(),
-                ))
-                .view(config, position),
-        )
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, BatteryMessage> {
+        let time_item = self.time_widget().map(|time| {
+            self.power_profile.profiles_saving_more_power().fold(
+                GroupItem::reading(time, HoverTarget::BatteryTime),
+                |item, profile| {
+                    item.alert_action_button(
+                        profile.title(),
+                        BatteryMessage::PowerProfile(PowerProfileMessage::SwitchToProfile(profile)),
+                    )
+                },
+            )
+        });
+        let power_profile_item = self.power_profile.slider().map(|slider| {
+            GroupItem::slider(slider, config, |m| {
+                BatteryMessage::PowerProfile(PowerProfileMessage::Control(m))
+            })
+        });
+        WidgetGroup::new(&self.expansion, BatteryMessage::Expansion)
+            .item(
+                self.battery
+                    .display()
+                    .map(|charge| GroupItem::reading(charge, HoverTarget::Battery)),
+            )
+            .item(
+                self.draw
+                    .as_ref()
+                    .map(|draw| GroupItem::reading(draw as &dyn BarWidget, HoverTarget::PowerDraw)),
+            )
+            .item(time_item)
+            .item(power_profile_item)
     }
 }

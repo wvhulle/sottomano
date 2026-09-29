@@ -1,15 +1,27 @@
-use iced::{Element, Subscription, Task, widget::button};
+use iced::{Element, Subscription, Task};
 
 use crate::{
     config::Config,
     data::source::Source,
     message_subscriptions::{blocking, polling},
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
-        bar_widget::BarWidget, flat_button, last_poll::LastPoll, source_reading::source_reading,
+        bar_widget::{BarWidget, Glyph},
+        last_poll::LastPoll,
+        phosphor::Phosphor,
         tooltip_body::Tooltip,
+        widget_state::WidgetState,
     },
 };
+
+pub fn icon_toggle_glyph<'a, M: 'a>(
+    config: &Config,
+    icon: Phosphor,
+    enabled: bool,
+) -> Element<'a, M> {
+    let state = WidgetState::of_toggle(enabled);
+    Glyph::from(icon.with_weight(state.weight()))
+        .view(config.font.icon_size_px, state.color(&config.palette))
+}
 
 pub trait Toggle: Source + BarWidget {
     fn toggled(&self) -> Self;
@@ -35,7 +47,6 @@ pub enum ToggleMessage<S: Toggle> {
     Available(bool),
     Reading(Result<S, S::Error>),
     Press,
-    Tooltip(TooltipMessage),
 }
 
 impl<S: Toggle> ToggleControl<S> {
@@ -67,7 +78,6 @@ impl<S: Toggle> ToggleControl<S> {
                 }
                 None => Task::none(),
             },
-            ToggleMessage::Tooltip(_) => Task::none(),
         }
     }
 
@@ -82,40 +92,4 @@ impl<S: Toggle> ToggleControl<S> {
     pub fn reading(&self) -> Option<&dyn BarWidget> {
         self.cell.get().map(|display| display as &dyn BarWidget)
     }
-
-    pub fn view<'a>(
-        &self,
-        config: &Config,
-        target: HoverTarget,
-        opacity: f32,
-    ) -> Option<Element<'a, ToggleMessage<S>>> {
-        let display = self.cell.get()?;
-        toggle_button(
-            config,
-            display,
-            target,
-            opacity,
-            ToggleMessage::Press,
-            ToggleMessage::Tooltip,
-        )
-    }
-}
-
-pub fn toggle_button<'a, M: Clone + 'a>(
-    config: &Config,
-    display: &dyn BarWidget,
-    target: HoverTarget,
-    opacity: f32,
-    on_press: M,
-    on_tooltip: fn(TooltipMessage) -> M,
-) -> Option<Element<'a, M>> {
-    let reading = source_reading(config, Some(display), opacity)?;
-    let hover = hoverable(reading, target, on_tooltip);
-    Some(
-        button(hover)
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(on_press)
-            .into(),
-    )
 }

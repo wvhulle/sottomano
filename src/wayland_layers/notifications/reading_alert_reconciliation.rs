@@ -1,6 +1,6 @@
 use crate::{
     data::severity::Severity, wayland_layers::tooltip::HoverTarget,
-    widgets::active_reading_alert::ActiveReadingAlert,
+    widgets::reading_alert::ReadingAlert,
 };
 
 pub struct ShownReadingAlertToast<'a> {
@@ -22,7 +22,7 @@ pub enum ToastSlotForAlert {
 }
 
 pub struct ReadingAlertToShow<Message> {
-    pub alert: ActiveReadingAlert<Message>,
+    pub alert: ReadingAlert<Message>,
     pub toast_slot: ToastSlotForAlert,
 }
 
@@ -41,16 +41,16 @@ impl<Message> ReadingAlertToastChanges<Message> {
 }
 
 fn alert_for<'a, Message>(
-    active_alerts: &'a [ActiveReadingAlert<Message>],
+    active_alerts: &'a [ReadingAlert<Message>],
     hover_target: &HoverTarget,
-) -> Option<&'a ActiveReadingAlert<Message>> {
+) -> Option<&'a ReadingAlert<Message>> {
     active_alerts
         .iter()
         .find(|alert| alert.hover_target == *hover_target)
 }
 
 fn toast_slot_for<Message>(
-    alert: &ActiveReadingAlert<Message>,
+    alert: &ReadingAlert<Message>,
     shown_toasts: &[ShownReadingAlertToast<'_>],
 ) -> Option<ToastSlotForAlert> {
     match shown_toasts
@@ -64,7 +64,7 @@ fn toast_slot_for<Message>(
 }
 
 fn still_dismissed<Message>(
-    alert: &ActiveReadingAlert<Message>,
+    alert: &ReadingAlert<Message>,
     dismissed_alerts: &[DismissedReadingAlert],
 ) -> bool {
     dismissed_alerts.iter().any(|dismissed| {
@@ -74,7 +74,7 @@ fn still_dismissed<Message>(
 }
 
 pub fn plan_reading_alert_toast_changes<Message: Clone>(
-    active_alerts: &[ActiveReadingAlert<Message>],
+    active_alerts: &[ReadingAlert<Message>],
     shown_toasts: &[ShownReadingAlertToast<'_>],
     dismissed_alerts: &[DismissedReadingAlert],
 ) -> ReadingAlertToastChanges<Message> {
@@ -109,8 +109,8 @@ pub fn plan_reading_alert_toast_changes<Message: Clone>(
 mod tests {
     use super::*;
 
-    fn active(severity: Severity) -> ActiveReadingAlert<()> {
-        ActiveReadingAlert {
+    fn active(severity: Severity) -> ReadingAlert<()> {
+        ReadingAlert {
             hover_target: HoverTarget::BatteryTime,
             severity,
             summary_text: "",

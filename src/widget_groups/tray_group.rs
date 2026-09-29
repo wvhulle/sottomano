@@ -2,23 +2,21 @@ use std::collections::HashSet;
 
 use iced::{
     Alignment, Element,
-    widget::{Column, Row, mouse_area},
+    widget::{Column, mouse_area},
 };
 
 use crate::{
     config::{Config, tray::ClickAction},
     data::source::tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
+    wayland_layers::tooltip::{HoverTarget, hoverable},
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
-        menu_group::{MenuGroup, MenuMessage},
+        group_item::GroupItem,
         native_icon::native_icon,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
+        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -27,13 +25,13 @@ pub struct TrayGroup {
     items: Vec<TrayItem>,
     handle: Option<TrayHandle>,
     open_submenus: HashSet<i32>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum TrayMessage {
     Update(TrayUpdate),
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Activate(String),
     Secondary(String),
     FocusWindow {
@@ -46,7 +44,6 @@ pub enum TrayMessage {
         id: i32,
     },
     ToggleSubmenu(i32),
-    Tooltip(TooltipMessage),
 }
 
 pub enum Action {
@@ -56,7 +53,6 @@ pub enum Action {
         window_app_id: String,
         item_id: String,
     },
-    Tooltip(TooltipMessage),
 }
 
 impl TrayGroup {
@@ -74,8 +70,8 @@ impl TrayGroup {
                 self.items = items;
                 Action::None
             }
-            TrayMessage::Menu(m) => {
-                self.menu.update(m);
+            TrayMessage::Expansion(m) => {
+                self.expansion.update(m);
                 Action::None
             }
             TrayMessage::Activate(address) => {
@@ -112,7 +108,6 @@ impl TrayGroup {
                 }
                 Action::None
             }
-            TrayMessage::Tooltip(message) => Action::Tooltip(message),
         }
     }
 
@@ -160,37 +155,12 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, TrayMessage>> {
-        let visible = self.visible(config);
-        if visible.is_empty() {
-            return None;
-        }
-
-        let face = move || {
-            Glyph::from(Phosphor::DotsThreeVertical(Weight::Regular))
-                .view(config.font.icon_size_px, config.palette.bar_foreground)
-        };
-
-        let content = move |reveal: f32| {
-            let icons = self
-                .visible(config)
-                .into_iter()
-                .map(|item| item_view(config, item, reveal));
-            Row::with_children(icons)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, TrayMessage::Menu)
-                .view(config, position),
-        )
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, TrayMessage> {
+        WidgetGroup::new(&self.expansion, TrayMessage::Expansion)
+            .icon(Phosphor::DotsThreeVertical(Weight::Regular))
+            .items(self.visible(config).into_iter().map(|item| {
+                GroupItem::hoverable_element(move |reveal| item_view(config, item, reveal))
+            }))
     }
 }
 
@@ -210,15 +180,19 @@ fn click_message(
     }
 }
 
-fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, TrayMessage> {
+fn item_view<'a>(
+    config: &Config,
+    item: &TrayItem,
+    reveal: f32,
+) -> Element<'a, GroupEvent<TrayMessage>> {
     let side = config.font.icon_size_px;
-    let glyph: Element<'a, TrayMessage> = match &item.icon {
+    let glyph: Element<'a, GroupEvent<TrayMessage>> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
         None => Glyph::from(Phosphor::Question(Weight::Regular))
             .view(side, config.palette.bar_foreground.scale_alpha(reveal)),
     };
 
-    let marked: Element<'a, TrayMessage> = if item.status == Status::NeedsAttention {
+    let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
             activity_line(
@@ -237,19 +211,19 @@ fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, T
     let hover = hoverable(
         marked,
         HoverTarget::Tray(item.address.clone()),
-        TrayMessage::Tooltip,
+        GroupEvent::Tooltip,
     );
     let rule = config.tray.rule(&item.id);
     let app_id = rule.window_app_id.as_ref();
     let mut clickable = mouse_area(hover);
     if let Some(message) = click_message(rule.left_click, app_id, item) {
-        clickable = clickable.on_press(message);
+        clickable = clickable.on_press(GroupEvent::Group(message));
     }
     if let Some(message) = click_message(rule.middle_click, app_id, item) {
-        clickable = clickable.on_middle_press(message);
+        clickable = clickable.on_middle_press(GroupEvent::Group(message));
     }
     if let Some(message) = click_message(rule.right_click, app_id, item) {
-        clickable = clickable.on_right_press(message);
+        clickable = clickable.on_right_press(GroupEvent::Group(message));
     }
     clickable.into()
 }

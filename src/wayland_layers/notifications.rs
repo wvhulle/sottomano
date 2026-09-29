@@ -39,7 +39,7 @@ use crate::{
     message_subscriptions::niri_action,
     state::{self, NotificationState},
     widget_groups::notification_group::NotificationToggle,
-    widgets::{active_reading_alert::ActiveReadingAlert, reveal::reveal_y},
+    widgets::{reading_alert::ReadingAlert, reveal::reveal_y},
 };
 
 const DEFAULT_ACTION: &str = "default";
@@ -139,7 +139,7 @@ impl NotificationLayer {
 
     pub fn show_reading_alerts(
         &mut self,
-        active_alerts: &[ActiveReadingAlert<Message>],
+        active_alerts: &[ReadingAlert<Message>],
         niri: &EventStreamState,
         entries: Option<&DesktopEntries>,
         config: &Config,
@@ -158,17 +158,16 @@ impl NotificationLayer {
 
     fn plan_reading_alert_toasts(
         &self,
-        active_alerts: &[ActiveReadingAlert<Message>],
+        active_alerts: &[ReadingAlert<Message>],
     ) -> ReadingAlertToastChanges<Message> {
         let shown_toasts: Vec<ShownReadingAlertToast<'_>> = self
             .showing()
             .filter_map(|n| {
-                n.active_reading_alert()
-                    .map(|alert| ShownReadingAlertToast {
-                        toast_id: n.data.id,
-                        hover_target: &alert.hover_target,
-                        severity: alert.severity,
-                    })
+                n.reading_alert().map(|alert| ShownReadingAlertToast {
+                    toast_id: n.data.id,
+                    hover_target: &alert.hover_target,
+                    severity: alert.severity,
+                })
             })
             .collect();
         plan_reading_alert_toast_changes(
@@ -200,7 +199,7 @@ impl NotificationLayer {
             };
             self.serve(
                 Box::new(to_show.alert.toast_notification_data(toast_id)),
-                ToastOrigin::ActiveReadingAlert(Box::new(to_show.alert)),
+                ToastOrigin::ReadingAlert(Box::new(to_show.alert)),
                 placement,
                 entries,
                 config,
@@ -220,7 +219,7 @@ impl NotificationLayer {
         let dismissed = self
             .showing()
             .find(|n| n.data.id == toast_id)
-            .and_then(Notification::active_reading_alert)
+            .and_then(Notification::reading_alert)
             .map(|alert| DismissedReadingAlert {
                 hover_target: alert.hover_target.clone(),
                 dismissed_at_severity: alert.severity,
@@ -232,7 +231,7 @@ impl NotificationLayer {
         let alert = self
             .showing()
             .find(|n| n.data.id == toast_id)?
-            .active_reading_alert()?;
+            .reading_alert()?;
         if action_key == DEFAULT_ACTION {
             return Some(alert.on_body_clicked.clone());
         }

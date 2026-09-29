@@ -3,7 +3,7 @@ pub mod clight_auto_brightness;
 
 use std::{collections::BTreeMap, ops::RangeInclusive};
 
-use iced::{Alignment, Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 
 use crate::{
     config::Config,
@@ -12,17 +12,15 @@ use crate::{
         clight::Clight,
     },
     message_subscriptions::blocking,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
-        menu_group::{MenuGroup, MenuMessage},
+        bar_widget::BarWidget,
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -34,16 +32,15 @@ pub struct MonitorGroup {
     backlights: Vec<Backlight>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<Clight>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum MonitorMessage {
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Backlights(Vec<Backlight>),
     Backlight(String, ControlMessage),
     Clight(ToggleMessage<Clight>),
-    Tooltip(TooltipMessage),
 }
 
 impl MonitorGroup {
@@ -62,16 +59,16 @@ impl MonitorGroup {
         self.close_backlight_sliders(None);
     }
 
-    pub fn close_menu(&mut self) {
-        if self.menu.close() {
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
             self.close_controls();
         }
     }
 
     pub fn update(&mut self, msg: MonitorMessage) -> Task<MonitorMessage> {
         match msg {
-            MonitorMessage::Menu(m) => {
-                if self.menu.update(m) {
+            MonitorMessage::Expansion(m) => {
+                if self.expansion.update(m) {
                     self.close_controls();
                 }
                 Task::none()
@@ -98,7 +95,6 @@ impl MonitorGroup {
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
             MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
-            MonitorMessage::Tooltip(_) => Task::none(),
         }
     }
 
@@ -149,63 +145,30 @@ impl MonitorGroup {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, MonitorMessage>> {
-        let children = move || {
-            let mut children: Vec<Element<'a, MonitorMessage>> = Vec::new();
-            for backlight in &self.backlights {
-                if let Some(control) = self.sliders.get(&backlight.serial) {
-                    children.push(backlight_slider(config, control, &backlight.serial));
-                }
-            }
-            if let Some(clight) = self.clight.view(config, HoverTarget::ClightAuto, 1.0) {
-                children.push(clight.map(|m| match m {
-                    ToggleMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-                    m => MonitorMessage::Clight(m),
-                }));
-            }
-            children
-        };
-
-        let first_child = self
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, MonitorMessage> {
+        let backlight_sliders: Vec<&'a SliderControl> = self
             .backlights
             .iter()
             .filter_map(|backlight| self.sliders.get(&backlight.serial))
-            .map(|slider| slider as &dyn BarWidget)
-            .chain(self.clight.reading())
-            .next()?;
-
-        let content = move |_reveal: f32| {
-            Row::with_children(children())
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
-        };
-        Some(
-            self.menu
-                .slot(move || Self::face(config), content, MonitorMessage::Menu)
-                .previewed_value(first_child)
-                .view(config, position),
-        )
+            .collect();
+        let previewed_value = backlight_sliders
+            .first()
+            .map(|slider| *slider as &dyn BarWidget)
+            .or(self.clight.reading());
+        WidgetGroup::new(&self.expansion, MonitorMessage::Expansion)
+            .icon(Phosphor::Lightbulb(Weight::Regular))
+            .previewed_value(previewed_value)
+            .items(self.backlights.iter().filter_map(|backlight| {
+                let slider = self.sliders.get(&backlight.serial)?;
+                let serial = backlight.serial.clone();
+                Some(GroupItem::slider(slider, config, move |m| {
+                    MonitorMessage::Backlight(serial.clone(), m)
+                }))
+            }))
+            .item(GroupItem::toggle(
+                &self.clight,
+                HoverTarget::ClightAuto,
+                MonitorMessage::Clight,
+            ))
     }
-
-    fn face<'a>(config: &Config) -> Element<'a, MonitorMessage> {
-        Glyph::from(Phosphor::Lightbulb(Weight::Regular))
-            .view(config.font.icon_size_px, config.palette.bar_foreground)
-    }
-}
-
-fn backlight_slider<'a>(
-    config: &'a Config,
-    control: &'a SliderControl,
-    serial: &str,
-) -> Element<'a, MonitorMessage> {
-    let serial = serial.to_string();
-    control.view(config, 1.0).map(move |m| match m {
-        ControlMessage::Tooltip(t) => MonitorMessage::Tooltip(t),
-        m => MonitorMessage::Backlight(serial.clone(), m),
-    })
 }

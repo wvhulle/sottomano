@@ -1,4 +1,4 @@
-use iced::{Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 
 pub mod bluetooth_devices_tooltip;
 pub mod ethernet_link_tooltip;
@@ -7,7 +7,6 @@ pub mod mobile_modem_tooltip;
 pub mod wifi_link_tooltip;
 
 use crate::{
-    config::Config,
     data::source::net_interfaces::{
         bluetooth::{self, Bluetooth},
         ethernet::{self, Ethernet},
@@ -15,17 +14,13 @@ use crate::{
         wifi::{self, Wifi},
     },
     message_subscriptions::dbus,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::BarWidget,
         last_poll::LastPoll,
-        menu_group::{MenuGroup, MenuMessage},
         phosphor::{Phosphor, Weight},
-        reading_row::{Reading, ReadingRow},
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -36,7 +31,7 @@ pub struct NetInterfacesGroup {
     ethernet: LastPoll<Ethernet>,
     wifi: LastPoll<Wifi>,
     mobile: LastPoll<Mobile>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -45,8 +40,7 @@ pub enum NetInterfacesMessage {
     Ethernet(Option<Ethernet>),
     Wifi(Option<Wifi>),
     Mobile(Option<Mobile>),
-    Menu(MenuMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl NetInterfacesGroup {
@@ -65,10 +59,9 @@ impl NetInterfacesGroup {
             NetInterfacesMessage::Ethernet(reading) => self.ethernet.load(reading),
             NetInterfacesMessage::Wifi(reading) => self.wifi.load(reading),
             NetInterfacesMessage::Mobile(reading) => self.mobile.load(reading),
-            NetInterfacesMessage::Menu(msg) => {
-                self.menu.update(msg);
+            NetInterfacesMessage::Expansion(msg) => {
+                self.expansion.update(msg);
             }
-            NetInterfacesMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -83,36 +76,14 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, NetInterfacesMessage>> {
-        let readings = move |reveal: f32| {
-            ReadingRow::new()
-                .opacity(reveal)
-                .push(Reading::new(
-                    self.bluetooth.display(),
-                    HoverTarget::Bluetooth,
-                ))
-                .push(Reading::new(self.ethernet.display(), HoverTarget::Ethernet))
-                .push(Reading::new(self.wifi.display(), HoverTarget::Wifi))
-                .push(Reading::new(self.mobile.display(), HoverTarget::Mobile))
-                .row(config, NetInterfacesMessage::Tooltip)
-        };
-        readings(1.0)?;
-
-        let content = move |reveal: f32| readings(reveal).unwrap_or_else(Row::new).into();
-        let slot = self.menu.slot(
-            move || Self::face(config),
-            content,
-            NetInterfacesMessage::Menu,
-        );
-        let slot = match self.preferred_uplink() {
-            Some(widget) => slot.previewed_value(widget),
-            None => slot,
-        };
-        Some(slot.view(config, position))
+    pub fn widget_group(&self) -> WidgetGroup<'_, NetInterfacesMessage> {
+        WidgetGroup::new(&self.expansion, NetInterfacesMessage::Expansion)
+            .icon(Phosphor::Link(Weight::Regular))
+            .previewed_value(self.preferred_uplink())
+            .reading(self.bluetooth.display(), HoverTarget::Bluetooth)
+            .reading(self.ethernet.display(), HoverTarget::Ethernet)
+            .reading(self.wifi.display(), HoverTarget::Wifi)
+            .reading(self.mobile.display(), HoverTarget::Mobile)
     }
 
     fn preferred_uplink(&self) -> Option<&dyn BarWidget> {
@@ -120,10 +91,5 @@ impl NetInterfacesGroup {
             .into_iter()
             .flatten()
             .find(|widget| widget.state() != WidgetState::Off && widget.gauge().is_some())
-    }
-
-    fn face<'a>(config: &Config) -> Element<'a, NetInterfacesMessage> {
-        Glyph::from(Phosphor::Link(Weight::Regular))
-            .view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 }

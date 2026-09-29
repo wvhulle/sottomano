@@ -26,7 +26,7 @@ use crate::{
     state::{self, Session},
     wayland_layers::{
         backdrop_shadow,
-        bar::{float_margin, layer_settings, view},
+        bar::{float_margin, layer_settings, view, widget_groups},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
         surface::{Position, Surface},
@@ -56,8 +56,8 @@ use crate::{
         workspaces_group::workspace_tooltip,
     },
     widgets::{
-        active_reading_alert::ActiveReadingAlert, favicon::Favicons, menu_group::MenuGroup,
-        text::FontFallbacks, tooltip_body::Tooltip,
+        favicon::Favicons, reading_alert::ReadingAlert, text::FontFallbacks, tooltip_body::Tooltip,
+        widget_group::GroupExpansion,
     },
 };
 
@@ -164,6 +164,12 @@ pub enum Message {
     },
 }
 
+impl From<TooltipMessage> for Message {
+    fn from(message: TooltipMessage) -> Self {
+        Message::Tooltip(message)
+    }
+}
+
 impl Bar {
     pub fn new(config: Config) -> (Self, Task<Message>) {
         let bar = Self {
@@ -234,7 +240,7 @@ impl Bar {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let dispatched = self.dispatch_message(message);
         let alert_toasts = self.notifications.show_reading_alerts(
-            &self.active_reading_alerts(),
+            &self.reading_alerts(),
             &self.niri,
             self.desktop_entries.get(),
             &self.config,
@@ -243,18 +249,10 @@ impl Bar {
         Task::batch([dispatched, alert_toasts])
     }
 
-    fn active_reading_alerts(&self) -> Vec<ActiveReadingAlert<Message>> {
-        let battery_alerts = self
-            .battery_group
-            .active_reading_alerts()
-            .into_iter()
-            .map(|alert| alert.map_messages(Message::Battery));
-        let system_alerts = self
-            .system_group
-            .active_reading_alerts()
-            .into_iter()
-            .map(|alert| alert.map_messages(Message::System));
-        battery_alerts.chain(system_alerts).collect()
+    fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {
+        widget_groups(self)
+            .flat_map(|group| group.alerts())
+            .collect()
     }
 
     fn dispatch_message(&mut self, message: Message) -> Task<Message> {
@@ -303,7 +301,7 @@ impl Bar {
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
             Message::DismissPressed => {
-                self.dismiss_menus();
+                self.collapse_groups();
                 Task::none()
             }
             Message::WorkspaceClicked {
@@ -492,8 +490,8 @@ impl Bar {
 
     fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
         match msg {
-            NotificationGroupMessage::Menu(menu) => {
-                self.notification_group.menu.update(menu);
+            NotificationGroupMessage::Expansion(menu) => {
+                self.notification_group.expansion.update(menu);
                 Task::none()
             }
             NotificationGroupMessage::Toggle(toggle) => {
@@ -516,7 +514,6 @@ impl Bar {
                 window_app_id,
                 item_id,
             } => self.focus_tray_window(&window_app_id, &item_id),
-            tray_group::Action::Tooltip(message) => self.update_tooltip(message),
         }
     }
 
@@ -648,31 +645,32 @@ impl Bar {
             .map(Message::ColorTemperature)
     }
 
-    fn dismiss_menus(&mut self) {
+    fn collapse_groups(&mut self) {
         if !self.session.chrome.auto_collapse_groups {
             return;
         }
-        self.panel_settings_group.close_menu();
-        self.monitor_group.close_menu();
-        self.color_temperature_group.close_menu();
-        self.dark_mode_group.close_menu();
-        self.battery_group.close_menu();
-        self.idle_timeouts_group.close_menu();
+        self.panel_settings_group.collapse();
+        self.monitor_group.collapse();
+        self.color_temperature_group.collapse();
+        self.dark_mode_group.collapse();
+        self.battery_group.collapse();
+        self.idle_timeouts_group.collapse();
+        self.audio_group.collapse();
         let _ = [
-            &mut self.wallpaper_group.menu,
-            &mut self.clock_group.menu,
-            &mut self.weather_group.menu,
-            &mut self.system_group.menu,
-            &mut self.media_group.menu,
-            &mut self.internet_group.menu,
-            &mut self.net_interfaces_group.menu,
-            &mut self.window_group.quick_launch.menu,
-            &mut self.tray_group.menu,
-            &mut self.ai_group.menu,
-            &mut self.notification_group.menu,
-            &mut self.journal_group.menu,
+            &mut self.wallpaper_group.expansion,
+            &mut self.clock_group.expansion,
+            &mut self.weather_group.expansion,
+            &mut self.system_group.expansion,
+            &mut self.media_group.expansion,
+            &mut self.internet_group.expansion,
+            &mut self.net_interfaces_group.expansion,
+            &mut self.window_group.quick_launch.expansion,
+            &mut self.tray_group.expansion,
+            &mut self.ai_group.expansion,
+            &mut self.notification_group.expansion,
+            &mut self.journal_group.expansion,
         ]
-        .map(MenuGroup::close);
+        .map(GroupExpansion::collapse);
     }
 
     fn apply_niri_events(&mut self, events: Vec<niri_ipc::Event>) -> Task<Message> {
@@ -700,7 +698,7 @@ impl Bar {
         }
         self.rederive_snapshot();
         if focus_change {
-            self.dismiss_menus();
+            self.collapse_groups();
         }
         if window_change {
             tasks.push(self.refresh_window_assets());

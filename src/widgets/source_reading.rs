@@ -26,7 +26,7 @@ pub fn source_reading<'a, Message: 'a>(
 
     let reading = match reading_value(config, widget, color) {
         Some(value) => row![icon, value]
-            .spacing(config.spacing.widget_spacing_px / 2.0)
+            .spacing(icon_value_gap(config))
             .align_y(Alignment::Center)
             .into(),
         None => icon,
@@ -36,6 +36,10 @@ pub fn source_reading<'a, Message: 'a>(
         return Some(reading);
     }
     Some(badged(config, reading, widget.badge(), color))
+}
+
+pub fn icon_value_gap(config: &Config) -> f32 {
+    config.spacing.widget_spacing_px / 2.0
 }
 
 pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {

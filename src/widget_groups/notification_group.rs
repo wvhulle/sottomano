@@ -1,19 +1,16 @@
-use iced::{
-    Alignment, Element,
-    widget::{Row, button},
-};
+use iced::widget::Row;
 
 use crate::{
     config::Config,
     state::NotificationState,
-    wayland_layers::surface::Position,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        flat_button,
-        menu_group::{MenuGroup, MenuMessage},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         source_reading::source_reading,
+        toggle_control::icon_toggle_glyph,
         tooltip_body::TooltipBody,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -27,72 +24,58 @@ pub enum NotificationToggle {
 
 #[derive(Debug, Clone, Copy)]
 pub enum NotificationGroupMessage {
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Toggle(NotificationToggle),
 }
 
 #[derive(Default)]
 pub struct NotificationGroup {
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 impl NotificationGroup {
-    pub fn view<'a>(
-        &self,
+    pub fn widget_group<'a>(
+        &'a self,
         config: &'a Config,
         notif_state: &NotificationState,
-        position: Position,
         live: usize,
-    ) -> Element<'a, NotificationGroupMessage> {
+    ) -> WidgetGroup<'a, NotificationGroupMessage> {
         let status = NotificationStatus {
             dnd: notif_state.dnd,
             live,
         };
-        let dnd = notif_state.dnd;
-        let sound = notif_state.sound;
-        let spatial_layout = notif_state.spatial_layout;
-
-        let face =
-            move || source_reading(config, Some(&status), 1.0).unwrap_or_else(|| Row::new().into());
-        let content = move |_reveal: f32| {
-            let do_not_disturb = toggle(
+        let sound_icon = if notif_state.sound {
+            Phosphor::Bell(Weight::Regular)
+        } else {
+            Phosphor::BellSlash(Weight::Regular)
+        };
+        let spatial_layout_icon = if notif_state.spatial_layout {
+            Phosphor::TextAlignCenter(Weight::Regular)
+        } else {
+            Phosphor::TextAlignRight(Weight::Regular)
+        };
+        WidgetGroup::new(&self.expansion, NotificationGroupMessage::Expansion)
+            .item(GroupItem::element(move |reveal| {
+                source_reading(config, Some(&status), reveal).unwrap_or_else(|| Row::new().into())
+            }))
+            .item(toggle_item(
                 config,
                 Phosphor::Prohibit(Weight::Regular),
-                WidgetState::of_toggle(dnd),
+                notif_state.dnd,
                 NotificationToggle::DoNotDisturb,
-            );
-            let sound = toggle(
+            ))
+            .item(toggle_item(
                 config,
-                if sound {
-                    Phosphor::Bell(Weight::Regular)
-                } else {
-                    Phosphor::BellSlash(Weight::Regular)
-                },
-                WidgetState::of_toggle(sound),
+                sound_icon,
+                notif_state.sound,
                 NotificationToggle::Sound,
-            );
-            let spatial_layout = toggle(
+            ))
+            .item(toggle_item(
                 config,
-                if spatial_layout {
-                    Phosphor::TextAlignCenter(Weight::Regular)
-                } else {
-                    Phosphor::TextAlignRight(Weight::Regular)
-                },
-                WidgetState::of_toggle(spatial_layout),
+                spatial_layout_icon,
+                notif_state.spatial_layout,
                 NotificationToggle::SpatialLayout,
-            );
-            Row::new()
-                .push(do_not_disturb)
-                .push(sound)
-                .push(spatial_layout)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
-        };
-
-        self.menu
-            .slot(face, content, NotificationGroupMessage::Menu)
-            .view(config, position)
+            ))
     }
 }
 
@@ -130,16 +113,12 @@ impl BarWidget for NotificationStatus {
     }
 }
 
-fn toggle<'a>(
+fn toggle_item(
     config: &Config,
     icon: Phosphor,
-    state: WidgetState,
+    enabled: bool,
     toggle: NotificationToggle,
-) -> Element<'a, NotificationGroupMessage> {
-    let color = state.color(&config.palette);
-    button(Glyph::from(icon.with_weight(state.weight())).view(config.font.icon_size_px, color))
-        .padding(0)
-        .style(flat_button(color))
+) -> GroupItem<'_, NotificationGroupMessage> {
+    GroupItem::element(move |_| icon_toggle_glyph(config, icon, enabled))
         .on_press(NotificationGroupMessage::Toggle(toggle))
-        .into()
 }

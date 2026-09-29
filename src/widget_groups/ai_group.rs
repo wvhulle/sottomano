@@ -7,10 +7,10 @@ pub mod copilot_quota_gauge;
 pub mod openrouter_credit_spend;
 pub mod spend_to_level;
 
-use iced::{Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 
 use crate::{
-    config::{Config, SecretPaths},
+    config::SecretPaths,
     data::source::{
         Source,
         ai::{
@@ -20,15 +20,11 @@ use crate::{
         },
     },
     message_subscriptions::polling,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
         last_poll::LastPoll,
-        menu_group::{MenuGroup, MenuMessage},
-        reading_row::{Reading, ReadingRow},
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -41,7 +37,7 @@ pub struct AiGroup {
     copilot_cli: LastPoll<CopilotCcusage>,
     secrets: SecretPaths,
     available: Available,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -72,8 +68,7 @@ pub enum AiMessage {
     CopilotMetered(Result<CopilotMetered, copilot::Error>),
     CopilotFree(Result<CopilotFree, copilot::Error>),
     CopilotCli(Result<CopilotCcusage, copilot::Error>),
-    Menu(MenuMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl AiGroup {
@@ -87,7 +82,7 @@ impl AiGroup {
             copilot_cli: LastPoll::default(),
             secrets,
             available: Available::default(),
-            menu: MenuGroup::default(),
+            expansion: GroupExpansion::default(),
         }
     }
 
@@ -159,10 +154,9 @@ impl AiGroup {
             AiMessage::CopilotMetered(reading) => self.copilot_metered.receive(reading),
             AiMessage::CopilotFree(reading) => self.copilot_free.receive(reading),
             AiMessage::CopilotCli(reading) => self.copilot_cli.receive(reading),
-            AiMessage::Menu(menu) => {
-                self.menu.update(menu);
+            AiMessage::Expansion(menu) => {
+                self.expansion.update(menu);
             }
-            AiMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -179,50 +173,16 @@ impl AiGroup {
         }
     }
 
-    fn readings(&self) -> [Reading<'_, AiMessage>; 6] {
-        [
-            Reading::new(self.claude_oauth.present(), HoverTarget::AiClaudeOauth),
-            Reading::new(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage),
-            Reading::new(
+    pub fn widget_group(&self) -> WidgetGroup<'_, AiMessage> {
+        WidgetGroup::new(&self.expansion, AiMessage::Expansion)
+            .reading(self.claude_oauth.present(), HoverTarget::AiClaudeOauth)
+            .reading(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage)
+            .reading(
                 self.copilot_metered.present(),
                 HoverTarget::AiCopilotMetered,
-            ),
-            Reading::new(self.copilot_free.display(), HoverTarget::AiCopilotFree),
-            Reading::new(self.copilot_cli.present(), HoverTarget::AiCopilotCli),
-            Reading::new(self.openrouter.present(), HoverTarget::AiOpenRouter),
-        ]
-    }
-
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, AiMessage>> {
-        let face_index = self.readings().iter().position(Reading::is_present)?;
-
-        let face = move || {
-            self.readings()
-                .into_iter()
-                .skip(face_index)
-                .take(1)
-                .fold(ReadingRow::new(), ReadingRow::push)
-                .row(config, AiMessage::Tooltip)
-                .unwrap_or_else(Row::new)
-                .into()
-        };
-        let content = move |reveal: f32| {
-            self.readings()
-                .into_iter()
-                .skip(face_index + 1)
-                .fold(ReadingRow::new().opacity(reveal), ReadingRow::push)
-                .row(config, AiMessage::Tooltip)
-                .unwrap_or_else(Row::new)
-                .into()
-        };
-        Some(
-            self.menu
-                .slot(face, content, AiMessage::Menu)
-                .view(config, position),
-        )
+            )
+            .reading(self.copilot_free.display(), HoverTarget::AiCopilotFree)
+            .reading(self.copilot_cli.present(), HoverTarget::AiCopilotCli)
+            .reading(self.openrouter.present(), HoverTarget::AiOpenRouter)
     }
 }

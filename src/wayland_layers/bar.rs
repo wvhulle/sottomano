@@ -21,27 +21,14 @@ use crate::{
         tooltip,
     },
     widget_groups::{
-        ai_group::AiMessage,
-        audio_group::AudioMessage,
-        battery_group::BatteryMessage,
-        color_temperature_group::ColorTemperatureMessage,
-        dark_mode_group::DarkModeMessage,
-        idle_timeouts_group::IdleTimeoutsMessage,
-        internet_group::InternetMessage,
-        journal_group::JournalMessage,
-        media_group::MediaMessage,
-        monitor_group::MonitorMessage,
-        net_interfaces_group::NetInterfacesMessage,
         output_group::{self, OutputMessage},
-        panel_settings_group::PanelSettingsMessage,
-        system_group::SystemMessage,
-        tray_group::TrayMessage,
-        wallpaper_group::WallpaperMessage,
-        weather_group::WeatherMessage,
-        window_group::{WindowGroupMessage, window_list::WindowListMessage},
         workspaces_group::{self, WorkspacesMessage},
     },
-    widgets::{bounds_probe::bounds_probe, window_icon::WindowAssets},
+    widgets::{
+        bounds_probe::bounds_probe,
+        widget_group::{GroupEvent, WidgetGroup},
+        window_icon::WindowAssets,
+    },
 };
 
 pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
@@ -130,121 +117,144 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .into()
 }
 
-fn top_start(bar: &Bar, position: Position) -> Element<'_, Message> {
+fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 7] {
     let config = &bar.config;
-    zone(
-        [
-            slot(bar.weather_group.view(config, position), |m| match m {
-                WeatherMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Weather(m),
-            }),
-            slot(bar.battery_group.view(config, position), |m| match m {
-                BatteryMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Battery(m),
-            }),
-            slot(bar.system_group.view(config, position), |m| match m {
-                SystemMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::System(m),
-            }),
-            slot(
-                bar.net_interfaces_group.view(config, position),
-                |m| match m {
-                    NetInterfacesMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::NetInterfaces(m),
-                },
-            ),
-            slot(bar.journal_group.view(config, position), |m| match m {
-                JournalMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Journal(m),
-            }),
-            slot(bar.internet_group.view(config, position), |m| match m {
-                InternetMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Internet(m),
-            }),
-            slot(
-                bar.panel_settings_group
-                    .view(config, &bar.session.chrome, position),
-                |m| match m {
-                    PanelSettingsMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::PanelSettings(m),
-                },
-            ),
-        ],
-        config,
-        &bar.session.chrome,
-    )
+    [
+        bar.weather_group
+            .widget_group()
+            .map_messages(Message::Weather),
+        bar.battery_group
+            .widget_group(config)
+            .map_messages(Message::Battery),
+        bar.system_group
+            .widget_group()
+            .map_messages(Message::System),
+        bar.net_interfaces_group
+            .widget_group()
+            .map_messages(Message::NetInterfaces),
+        bar.journal_group
+            .widget_group(config)
+            .map_messages(Message::Journal),
+        bar.internet_group
+            .widget_group()
+            .map_messages(Message::Internet),
+        bar.panel_settings_group
+            .widget_group(config, &bar.session.chrome)
+            .map_messages(Message::PanelSettings),
+    ]
+}
+
+fn top_center_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 2] {
+    let config = &bar.config;
+    [
+        bar.clock_group
+            .widget_group(config)
+            .map_messages(Message::Clock),
+        bar.notification_group
+            .widget_group(
+                config,
+                &bar.session.notifications,
+                bar.notifications.live_count(),
+            )
+            .map_messages(Message::NotificationGroup),
+    ]
+}
+
+fn top_end_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 8] {
+    let config = &bar.config;
+    [
+        bar.ai_group.widget_group().map_messages(Message::Ai),
+        bar.monitor_group
+            .widget_group(config)
+            .map_messages(Message::Monitor),
+        bar.dark_mode_group
+            .widget_group(config)
+            .map_messages(Message::DarkMode),
+        bar.color_temperature_group
+            .widget_group(config)
+            .map_messages(Message::ColorTemperature),
+        bar.idle_timeouts_group
+            .widget_group(config)
+            .map_messages(Message::IdleTimeouts),
+        bar.wallpaper_group
+            .widget_group()
+            .map_messages(Message::Wallpaper),
+        bar.media_group
+            .widget_group(config, &bar.desktop_entries)
+            .map_messages(Message::Media),
+        bar.audio_group
+            .widget_group(config)
+            .map_messages(Message::Audio),
+    ]
+}
+
+fn bottom_end_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 1] {
+    [bar.tray_group
+        .widget_group(&bar.config)
+        .map_messages(Message::Tray)]
+}
+
+pub fn widget_groups(bar: &Bar) -> impl Iterator<Item = WidgetGroup<'_, Message>> {
+    top_start_groups(bar)
+        .into_iter()
+        .chain(top_center_groups(bar))
+        .chain(top_end_groups(bar))
+        .chain(bottom_end_groups(bar))
+}
+
+fn routed(event: GroupEvent<Message>) -> Message {
+    match event {
+        GroupEvent::Group(message) => message,
+        GroupEvent::Tooltip(tooltip) => Message::Tooltip(tooltip),
+    }
 }
 
 fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
     let chrome = &bar.session.chrome;
-    let start = measured(top_start(bar, position), chrome, window, Zone::TopStart);
-    let center = zone(
-        [
-            slot(bar.clock_group.view(config, position), Message::Clock),
-            slot(
-                bar.notification_group.view(
-                    config,
-                    &bar.session.notifications,
-                    position,
-                    bar.notifications.live_count(),
-                ),
-                Message::NotificationGroup,
-            ),
-        ],
-        config,
+    let start = measured(
+        zone(
+            rendered(top_start_groups(bar), config, position),
+            config,
+            chrome,
+        ),
         chrome,
+        window,
+        Zone::TopStart,
     );
-    let center = measured(center, chrome, window, Zone::TopCenter);
-    let end = zone(
-        [
-            slot(bar.ai_group.view(config, position), |m| match m {
-                AiMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Ai(m),
-            }),
-            slot(bar.monitor_group.view(config, position), |m| match m {
-                MonitorMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Monitor(m),
-            }),
-            slot(bar.dark_mode_group.view(config, position), |m| match m {
-                DarkModeMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::DarkMode(m),
-            }),
-            slot(
-                bar.color_temperature_group.view(config, position),
-                |m| match m {
-                    ColorTemperatureMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::ColorTemperature(m),
-                },
-            ),
-            slot(
-                bar.idle_timeouts_group.view(config, position),
-                |m| match m {
-                    IdleTimeoutsMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::IdleTimeouts(m),
-                },
-            ),
-            slot(bar.wallpaper_group.view(config, position), |m| match m {
-                WallpaperMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Wallpaper(m),
-            }),
-            slot(
-                bar.media_group.view(config, &bar.desktop_entries, position),
-                |m| match m {
-                    MediaMessage::Tooltip(t) => Message::Tooltip(t),
-                    m => Message::Media(m),
-                },
-            ),
-            slot(bar.audio_group.view(config, position), |m| match m {
-                AudioMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Audio(m),
-            }),
-        ],
-        config,
+    let center = measured(
+        zone(
+            rendered(top_center_groups(bar), config, position),
+            config,
+            chrome,
+        ),
         chrome,
+        window,
+        Zone::TopCenter,
     );
-    let end = measured(end, chrome, window, Zone::TopEnd);
+    let end = measured(
+        zone(
+            rendered(top_end_groups(bar), config, position),
+            config,
+            chrome,
+        ),
+        chrome,
+        window,
+        Zone::TopEnd,
+    );
     bar_row(start, center, end, config)
+}
+
+fn rendered<'a>(
+    groups: impl IntoIterator<Item = WidgetGroup<'a, Message>>,
+    config: &'a Config,
+    position: Position,
+) -> impl Iterator<Item = Option<Element<'a, Message>>> {
+    groups.into_iter().map(move |group| {
+        group
+            .view(config, position)
+            .map(|element| element.map(routed))
+    })
 }
 
 fn measured<'a>(
@@ -375,12 +385,7 @@ fn bottom_row<'a>(
                     config,
                     position,
                 ),
-                |m| match m {
-                    WindowGroupMessage::WindowList(WindowListMessage::Tooltip(t)) => {
-                        Message::Tooltip(t)
-                    }
-                    m => Message::WindowGroup(m),
-                },
+                |event| routed(event.map(Message::WindowGroup)),
             )
             .map(|group| pill(group, config, chrome)),
         )
@@ -392,11 +397,9 @@ fn bottom_row<'a>(
     .center_x(Length::Fill);
     let end = measured(
         Row::with_children(
-            slot(bar.tray_group.view(config, position), |m| match m {
-                TrayMessage::Tooltip(t) => Message::Tooltip(t),
-                m => Message::Tray(m),
-            })
-            .map(|group| pill(group, config, chrome)),
+            rendered(bottom_end_groups(bar), config, position)
+                .flatten()
+                .map(|group| pill(group, config, chrome)),
         )
         .into(),
         chrome,

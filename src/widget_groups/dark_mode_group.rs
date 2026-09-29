@@ -5,9 +5,8 @@ use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{
-    Alignment, Element, Subscription, Task,
+    Subscription, Task,
     futures::{Stream, StreamExt, stream},
-    widget::Row,
 };
 use tokio::time::sleep;
 
@@ -23,21 +22,19 @@ use crate::{
     },
     message_subscriptions::blocking,
     state::{self, dark_mode::DarkModeSchedule},
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
-        menu_group::{MenuGroup, MenuMessage},
+        bar_widget::BarWidget,
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        toggle_control::{ToggleControl, ToggleMessage, toggle_button},
+        toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{Tooltip, row},
         weather_icons::WeatherIcon,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -50,7 +47,7 @@ pub struct DarkModeGroup {
     auto_switch_toggle: AutoSwitchToggle,
     sunrise_offset_slider: SliderControl,
     sunset_offset_slider: SliderControl,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -61,8 +58,7 @@ pub enum DarkModeMessage {
     ModeToggle(ToggleMessage<Umbra>),
     ToggleAutoSwitch,
     OffsetSlider(ColorMode, ControlMessage),
-    Menu(MenuMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl Default for DarkModeGroup {
@@ -75,7 +71,7 @@ impl Default for DarkModeGroup {
                 WeatherIcon::Sunrise,
             ),
             sunset_offset_slider: new_offset_slider(HoverTarget::SunsetOffset, WeatherIcon::Sunset),
-            menu: MenuGroup::default(),
+            expansion: GroupExpansion::default(),
         }
     }
 }
@@ -112,8 +108,8 @@ impl DarkModeGroup {
         self.sunset_offset_slider.close();
     }
 
-    pub fn close_menu(&mut self) {
-        if self.menu.close() {
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
             self.close_controls();
         }
     }
@@ -145,13 +141,12 @@ impl DarkModeGroup {
                 self.persist_saved_schedule()
             }
             DarkModeMessage::OffsetSlider(edge, m) => self.update_offset_slider(edge, m),
-            DarkModeMessage::Menu(m) => {
-                if self.menu.update(m) {
+            DarkModeMessage::Expansion(m) => {
+                if self.expansion.update(m) {
                     self.close_controls();
                 }
                 Task::none()
             }
-            DarkModeMessage::Tooltip(_) => Task::none(),
         }
     }
 
@@ -237,64 +232,35 @@ impl DarkModeGroup {
         )])
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, DarkModeMessage>> {
-        let mode_reading = self.mode_toggle.reading()?;
-
-        let children = move || {
-            let mut children: Vec<Element<'a, DarkModeMessage>> = Vec::new();
-            if let Some(mode) = self.mode_toggle.view(config, HoverTarget::DarkMode, 1.0) {
-                children.push(mode.map(|m| match m {
-                    ToggleMessage::Tooltip(t) => DarkModeMessage::Tooltip(t),
-                    m => DarkModeMessage::ModeToggle(m),
-                }));
-            }
-            children.extend(toggle_button(
-                config,
-                &self.auto_switch_toggle,
-                HoverTarget::DarkModeSchedule,
-                1.0,
-                DarkModeMessage::ToggleAutoSwitch,
-                DarkModeMessage::Tooltip,
-            ));
-            children.push(self.offset_slider_view(config, ColorMode::Light));
-            children.push(self.offset_slider_view(config, ColorMode::Dark));
-            children
-        };
-
-        let content = move |_reveal: f32| {
-            Row::with_children(children())
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
-        };
-        Some(
-            self.menu
-                .slot(move || Self::face(config), content, DarkModeMessage::Menu)
-                .previewed_value(mode_reading)
-                .view(config, position),
-        )
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, DarkModeMessage> {
+        let mode = GroupItem::toggle(
+            &self.mode_toggle,
+            HoverTarget::DarkMode,
+            DarkModeMessage::ModeToggle,
+        );
+        let schedule_items = mode.is_some().then(|| {
+            [
+                GroupItem::reading(&self.auto_switch_toggle, HoverTarget::DarkModeSchedule)
+                    .on_press(DarkModeMessage::ToggleAutoSwitch),
+                self.offset_slider_item(config, ColorMode::Light),
+                self.offset_slider_item(config, ColorMode::Dark),
+            ]
+        });
+        WidgetGroup::new(&self.expansion, DarkModeMessage::Expansion)
+            .icon(Phosphor::CircleHalf(Weight::Regular))
+            .previewed_value(self.mode_toggle.reading())
+            .item(mode)
+            .items(schedule_items.into_iter().flatten())
     }
 
-    fn offset_slider_view<'a>(
+    fn offset_slider_item<'a>(
         &'a self,
         config: &'a Config,
         edge: ColorMode,
-    ) -> Element<'a, DarkModeMessage> {
-        self.offset_slider_for(edge)
-            .view(config, 1.0)
-            .map(move |m| match m {
-                ControlMessage::Tooltip(t) => DarkModeMessage::Tooltip(t),
-                m => DarkModeMessage::OffsetSlider(edge, m),
-            })
-    }
-
-    fn face<'a>(config: &Config) -> Element<'a, DarkModeMessage> {
-        Glyph::from(Phosphor::CircleHalf(Weight::Regular))
-            .view(config.font.icon_size_px, config.palette.bar_foreground)
+    ) -> GroupItem<'a, DarkModeMessage> {
+        GroupItem::slider(self.offset_slider_for(edge), config, move |m| {
+            DarkModeMessage::OffsetSlider(edge, m)
+        })
     }
 }
 

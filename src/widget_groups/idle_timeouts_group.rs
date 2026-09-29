@@ -1,25 +1,22 @@
 use std::{thread, time::Duration};
 
-use iced::{Alignment, Element, Task, widget::Row};
+use iced::Task;
 
 use crate::{
     config::Config,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
-        bar_widget::Glyph,
+        group_item::GroupItem,
         idle::{
             IdleAction, IdleTrigger, perform,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
-        menu_group::{MenuGroup, MenuMessage},
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -47,15 +44,14 @@ pub struct IdleTimeoutsGroup {
     screen_off: IdleTimer,
     standby: IdleTimer,
     power_down: IdleTimer,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Timer(TimerKind, TimerMessage),
-    Tooltip(TooltipMessage),
 }
 
 impl Default for IdleTimeoutsGroup {
@@ -85,7 +81,7 @@ impl Default for IdleTimeoutsGroup {
                 IdleAction::PowerOff,
                 true,
             ),
-            menu: MenuGroup::default(),
+            expansion: GroupExpansion::default(),
         }
     }
 }
@@ -109,8 +105,8 @@ impl IdleTimeoutsGroup {
         ]
     }
 
-    pub fn close_menu(&mut self) {
-        if self.menu.close() {
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
             self.close_all();
         }
     }
@@ -142,8 +138,8 @@ impl IdleTimeoutsGroup {
                 self.power_down.set_timeout(timeouts.power_down);
                 Task::none()
             }
-            IdleTimeoutsMessage::Menu(m) => {
-                if self.menu.update(m) {
+            IdleTimeoutsMessage::Expansion(m) => {
+                if self.expansion.update(m) {
                     self.close_all();
                 }
                 Task::none()
@@ -170,7 +166,6 @@ impl IdleTimeoutsGroup {
                     .discard()
                 }
             },
-            IdleTimeoutsMessage::Tooltip(_) => Task::none(),
         }
     }
 
@@ -197,34 +192,17 @@ impl IdleTimeoutsGroup {
             .collect()
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Element<'a, IdleTimeoutsMessage> {
-        let face = move || {
-            Glyph::from(Phosphor::Timer(Weight::Regular))
-                .view(config.font.icon_size_px, config.palette.bar_foreground)
-        };
-
-        let content = move |reveal: f32| {
-            let controls = self.entries().map(|(kind, timer)| {
-                timer.view(config, reveal).map(move |m| match m {
-                    TimerMessage::Slider(ControlMessage::Tooltip(t)) => {
-                        IdleTimeoutsMessage::Tooltip(t)
-                    }
-                    m => IdleTimeoutsMessage::Timer(kind, m),
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, IdleTimeoutsMessage> {
+        WidgetGroup::new(&self.expansion, IdleTimeoutsMessage::Expansion)
+            .icon(Phosphor::Timer(Weight::Regular))
+            .previewed_value(Some(self.lock.reading()))
+            .items(self.entries().map(|(kind, timer)| {
+                GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
+                    timer.view(config, reveal).map(move |m| match m {
+                        TimerMessage::Slider(ControlMessage::Tooltip(t)) => GroupEvent::Tooltip(t),
+                        m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
+                    })
                 })
-            });
-            Row::with_children(controls)
-                .spacing(config.spacing.widget_spacing_px * 1.5)
-                .align_y(Alignment::Center)
-                .into()
-        };
-
-        self.menu
-            .slot(face, content, IdleTimeoutsMessage::Menu)
-            .previewed_value(self.lock.reading())
-            .view(config, position)
+            }))
     }
 }
