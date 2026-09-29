@@ -25,13 +25,12 @@ use wayland_client::Connection;
 
 use crate::{
     app::{Bar, Message, OutputChange},
-    config::locker::Locker,
     data::{
         notifications::{
             model::{NotifHandle, Outbound, ServerEvent},
             server,
         },
-        source::{Source, desktop_entries, logind, niri},
+        source::{Source, desktop_entries, niri},
     },
     wayland_layers::notifications::NotificationMessage,
     widget_groups::{
@@ -112,7 +111,6 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         MediaGroup::subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         idle_subscription(state),
-        locker_subscription(state),
         AudioGroup::subscription().map(Message::Audio),
         state.ai_group.subscription().map(Message::Ai),
         WindowGroup::subscription(state.watched_window()).map(Message::WindowGroup),
@@ -223,16 +221,6 @@ where
 
 pub(crate) fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     blocking("niri action", move || niri::send_action(&action)).discard()
-}
-
-fn locker_subscription(state: &Bar) -> Subscription<Message> {
-    Subscription::run_with(
-        ("locker", state.config.locker.clone()),
-        |(_, locker): &(&str, Locker)| {
-            let locker = locker.clone();
-            channel(1, |_output: Sender<Message>| logind::run_locker(locker))
-        },
-    )
 }
 
 fn idle_subscription(state: &Bar) -> Subscription<Message> {

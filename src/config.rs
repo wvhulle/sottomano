@@ -2,7 +2,6 @@ pub mod chrome;
 pub mod font;
 pub mod load;
 pub mod locale;
-pub mod locker;
 pub mod notifications;
 pub mod palette;
 pub mod spacing;
