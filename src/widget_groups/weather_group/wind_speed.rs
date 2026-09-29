@@ -43,11 +43,11 @@ impl Wind {
 
 impl BarWidget for Wind {
     fn icon(&self) -> Glyph {
-        WeatherIcon::WindBeaufort(self.beaufort()).into()
+        WeatherIcon::StrongWind.into()
     }
 
     fn fallback_icon() -> Glyph {
-        WeatherIcon::WindBeaufort(0).into()
+        WeatherIcon::StrongWind.into()
     }
 
     fn label(&self) -> Option<String> {
