@@ -12,7 +12,6 @@ use super::{
     chrome::Chrome,
     font::{self, FontConfig, UserFont},
     locale,
-    locker::Locker,
     notifications::NotificationConfig,
     palette::Palette,
     spacing::Spacing,
@@ -33,7 +32,6 @@ pub struct Config {
     pub tray: TrayConfig,
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_unit: String,
-    pub locker: Locker,
     pub locale: Locale,
     pub secrets: SecretPaths,
 }
@@ -59,7 +57,6 @@ struct UserConfig {
     tray: TrayConfig,
     terminal: Vec<String>,
     color_temperature_unit: String,
-    locker: Locker,
     locale: Option<String>,
 }
 
@@ -76,7 +73,6 @@ impl Default for UserConfig {
             tray: TrayConfig::default(),
             terminal: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_unit: String::from("screen-temperature.service"),
-            locker: Locker::default(),
             locale: None,
         }
     }
@@ -159,7 +155,6 @@ pub fn load() -> Config {
         tray: user.tray,
         terminal_command_prefix: user.terminal,
         color_temperature_unit: user.color_temperature_unit,
-        locker: user.locker,
         locale,
         secrets: SecretPaths {
             openrouter_management: secrets
