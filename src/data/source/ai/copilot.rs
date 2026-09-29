@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
 
 use crate::data::source::{
@@ -101,6 +101,12 @@ struct MonthEntry {
     total_tokens: u64,
     total_cost: f64,
     models_used: Vec<String>,
+}
+
+impl MonthlyReport {
+    fn month(self, month: &str) -> Option<MonthEntry> {
+        self.monthly.into_iter().find(|entry| entry.month == month)
+    }
 }
 
 impl UserInfo {
@@ -237,9 +243,16 @@ impl Source for CopilotCcusage {
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
-        let raw = require("ccusage", &["copilot", "monthly", "--json"]).await?;
+        let now = Local::now();
+        let first_of_month = now.format("%Y%m01").to_string();
+        let current_month = now.format("%Y-%m").to_string();
+        let raw = require(
+            "ccusage",
+            &["copilot", "monthly", "--since", &first_of_month, "--json"],
+        )
+        .await?;
         let report: MonthlyReport = serde_json::from_str(&raw)?;
-        let Some(entry) = report.monthly.into_iter().next_back() else {
+        let Some(entry) = report.month(&current_month) else {
             return Ok(CopilotCcusage::default());
         };
         Ok(CopilotCcusage {
@@ -346,12 +359,30 @@ mod tests {
         assert!(!info.free_plan());
     }
 
+    const OLD_MONTH_REPORT: &str = r#"{"monthly":[{
+        "month": "2026-06", "totalTokens": 5000, "totalCost": 1.25,
+        "modelsUsed": ["gpt-5"]
+    }]}"#;
+
     #[test]
     fn empty_monthly_report_yields_no_usage() {
         let report: MonthlyReport = serde_json::from_str(r#"{"monthly":[]}"#).unwrap();
-        assert!(report.monthly.is_empty());
+        assert!(report.month("2026-09").is_none());
         let empty = CopilotCcusage::default();
         assert_eq!(empty.tokens, 0);
         assert!(empty.cost.abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn earlier_month_is_not_reported_as_current() {
+        let report: MonthlyReport = serde_json::from_str(OLD_MONTH_REPORT).unwrap();
+        assert!(report.month("2026-09").is_none());
+    }
+
+    #[test]
+    fn matching_month_is_reported() {
+        let report: MonthlyReport = serde_json::from_str(OLD_MONTH_REPORT).unwrap();
+        let entry = report.month("2026-06").unwrap();
+        assert_eq!(entry.total_tokens, 5000);
     }
 }
