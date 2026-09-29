@@ -6,8 +6,8 @@ use uom::{
 use crate::{
     data::source::net_interfaces::nm::AddressBlock,
     widgets::{
-        bar_widget::Level,
         tooltip_body::{Section, row, section},
+        widget_state::Level,
     },
 };
 

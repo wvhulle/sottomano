@@ -6,11 +6,11 @@ use crate::{
         systemd_failed::{Failed, JournalScope, System, User},
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level},
+        bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, TableRow, TooltipBody, table_section},
-        widget_state::WidgetState,
+        widget_state::{Level, WidgetState},
     },
 };
 

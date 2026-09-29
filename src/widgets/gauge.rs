@@ -2,31 +2,40 @@ use iced::{
     Border, Color, Element,
     widget::{ProgressBar, progress_bar, stack},
 };
+use uom::si::{
+    f64::Ratio,
+    ratio::{percent, ratio},
+};
 
 const TRACK_ALPHA: f32 = 0.27;
 const HEADROOM_ALPHA: f32 = 0.5;
 const GIRTH: f32 = 3.0;
 
+#[allow(clippy::cast_precision_loss)]
+pub fn percent_fill(whole_percent: i64) -> Ratio {
+    Ratio::new::<percent>(whole_percent as f64)
+}
+
 pub struct Gauge {
-    percent: i64,
+    fill: Ratio,
     color: Color,
     height: f32,
-    live: f32,
+    live: Ratio,
 }
 
 impl Gauge {
-    pub fn new(percent: i64, color: Color, height: f32) -> Self {
+    pub fn new(fill: Ratio, color: Color, height: f32) -> Self {
         Self {
-            percent,
+            fill,
             color,
             height,
-            live: 1.0,
+            live: fill,
         }
     }
 
     #[must_use]
-    pub fn live(mut self, fraction: f32) -> Self {
-        self.live = fraction.clamp(0.0, 1.0);
+    pub fn live(mut self, live: Ratio) -> Self {
+        self.live = live;
         self
     }
 
@@ -43,16 +52,22 @@ impl Gauge {
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
+fn bar_reach(fill: Ratio) -> f32 {
+    fill.get::<ratio>().clamp(0.0, 1.0) as f32
+}
+
 impl<'a, Message: 'a> From<Gauge> for Element<'a, Message> {
     fn from(gauge: Gauge) -> Self {
         let track = gauge.color.scale_alpha(TRACK_ALPHA);
-        let reach = gauge.percent as f32 / 100.0;
-        if gauge.live >= 1.0 {
+        let reach = bar_reach(gauge.fill);
+        let live_reach = bar_reach(gauge.live);
+        if live_reach >= reach {
             return gauge.bar(reach, track, gauge.color).into();
         }
         stack![
             gauge.bar(reach, track, gauge.color.scale_alpha(HEADROOM_ALPHA)),
-            gauge.bar(reach * gauge.live, Color::TRANSPARENT, gauge.color),
+            gauge.bar(live_reach, Color::TRANSPARENT, gauge.color),
         ]
         .into()
     }

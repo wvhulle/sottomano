@@ -1,4 +1,7 @@
-use uom::{fmt::DisplayStyle::Abbreviation, si::frequency::megahertz};
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{f64::Ratio, frequency::megahertz},
+};
 
 use crate::{
     data::source::net_interfaces::wifi::Wifi,
@@ -6,7 +9,8 @@ use crate::{
         address_section, dns_section, link_stats_section, signal_level,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row, section},
         widget_state::WidgetState,
@@ -24,11 +28,8 @@ impl BarWidget for Wifi {
             .map_or(WidgetState::Off, |link| signal_level(link.signal).into())
     }
 
-    fn value(&self) -> Option<Value> {
-        self.link.as_ref().map(|link| Value::Gauge {
-            percent: link.signal,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        self.link.as_ref().map(|link| percent_fill(link.signal))
     }
 
     fn tooltip(&self) -> TooltipBody {

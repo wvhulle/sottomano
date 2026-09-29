@@ -1,9 +1,13 @@
-use uom::{fmt::DisplayStyle::Abbreviation, si::thermodynamic_temperature::kelvin};
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{f64::Ratio, thermodynamic_temperature::kelvin},
+};
 
 use crate::{
     data::source::gamma::Gamma,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
     },
@@ -14,11 +18,8 @@ impl BarWidget for Gamma {
         Phosphor::CircleHalf(self.state().weight()).into()
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.brightness,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(percent_fill(self.brightness))
     }
 
     fn tooltip(&self) -> TooltipBody {

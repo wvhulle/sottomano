@@ -6,7 +6,7 @@ use uom::{
 use crate::{
     data::source::sysfs_sensors::battery::Battery,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
@@ -28,11 +28,8 @@ impl BarWidget for Battery {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.capacity.get::<percent>().round() as i64,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(self.capacity)
     }
 
     fn tooltip(&self) -> TooltipBody {

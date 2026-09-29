@@ -52,15 +52,15 @@ pub fn reading_value<'a, Message: 'a>(
             Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.font.icon_size_px, color),
         );
     }
-    match widget.value() {
-        Some(value) => Some(
+    match widget.gauge() {
+        Some(fill) => Some(
             Gauge::new(
-                value.percent(),
+                fill,
                 color,
                 config.font.icon_size_px * PHOSPHOR_INK_FRACTION,
             )
-                .live(widget.live_fraction())
-                .into(),
+            .live(widget.live_gauge().unwrap_or(fill))
+            .into(),
         ),
         None => widget
             .label()

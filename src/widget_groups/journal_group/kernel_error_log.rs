@@ -4,11 +4,11 @@ use crate::{
         kernel_errors::{KernelErrors, KernelOccurrence},
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level},
+        bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, row, section},
-        widget_state::WidgetState,
+        widget_state::{Level, WidgetState},
     },
 };
 

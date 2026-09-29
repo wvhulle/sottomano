@@ -1,10 +1,12 @@
 use chrono::{DateTime, Utc};
+use uom::si::f64::Ratio;
 
 use crate::{
     data::source::ai::copilot::{CopilotCcusage, CopilotFree, CopilotMetered},
     widget_groups::ai_group::spend_to_level::{level_from_cost, level_from_used},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional, Unit, Value},
+        bar_widget::{BarWidget, Glyph, Occasional},
+        gauge::percent_fill,
         localized_time::TimePart,
         simple_icons::SimpleIcon,
         tooltip_body::{Row, TooltipBody, row, time_row},
@@ -23,11 +25,8 @@ impl BarWidget for CopilotMetered {
         level_from_used(self.percent_used).into()
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.percent_used,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(percent_fill(self.percent_used))
     }
 
     fn tooltip(&self) -> TooltipBody {

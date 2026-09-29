@@ -8,13 +8,14 @@ use iced::{
     time::{Duration, Instant},
     widget::{Row, button, container, mouse_area},
 };
+use uom::si::{f64::Ratio, ratio};
 
 use crate::{
     config::Config,
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
         device_setting::{DeviceSetting, Nudge, Write},
         flat_button,
         inline_slider::inline_slider,
@@ -23,7 +24,7 @@ use crate::{
         source_reading::source_reading,
         text::bar_text,
         tooltip_body::TooltipBody,
-        widget_state::WidgetState,
+        widget_state::{Level, WidgetState},
     },
 };
 
@@ -385,16 +386,14 @@ impl BarWidget for SliderControl {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        self.gauge.then(|| Value::Gauge {
-            #[allow(clippy::cast_possible_truncation)]
-            percent: self.current().round() as i64,
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        self.gauge
+            .then(|| Ratio::new::<ratio::percent>(f64::from(self.current())))
     }
 
-    fn live_fraction(&self) -> f32 {
-        self.live
+    fn live_gauge(&self) -> Option<Ratio> {
+        self.gauge()
+            .map(|fill| fill * Ratio::new::<ratio::ratio>(f64::from(self.live)))
     }
 
     fn tooltip(&self) -> TooltipBody {

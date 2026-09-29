@@ -119,7 +119,7 @@ impl NetInterfacesGroup {
         [self.mobile.display(), self.wifi.display()]
             .into_iter()
             .flatten()
-            .find(|widget| widget.state() != WidgetState::Off && widget.value().is_some())
+            .find(|widget| widget.state() != WidgetState::Off && widget.gauge().is_some())
     }
 
     fn face<'a>(config: &Config) -> Element<'a, NetInterfacesMessage> {

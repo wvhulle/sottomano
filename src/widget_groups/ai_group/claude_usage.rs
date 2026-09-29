@@ -1,8 +1,11 @@
+use uom::si::f64::Ratio;
+
 use crate::{
     data::source::ai::claude::{ClaudeCcusage, ClaudeOauth, ExtraUsage, WindowUsage},
     widget_groups::ai_group::spend_to_level::{level_from_cost, level_from_used},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional, Unit, Value},
+        bar_widget::{BarWidget, Glyph, Occasional},
+        gauge::percent_fill,
         simple_icons::SimpleIcon,
         tooltip_body::{Row, TooltipBody, row},
         widget_state::WidgetState,
@@ -39,11 +42,8 @@ impl BarWidget for ClaudeOauth {
         level_from_used(self.session_used()).into()
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: self.session_used(),
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(percent_fill(self.session_used()))
     }
 
     fn tooltip(&self) -> TooltipBody {

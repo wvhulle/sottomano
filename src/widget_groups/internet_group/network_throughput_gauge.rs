@@ -1,8 +1,9 @@
 use bytesize::ByteSize;
 use uom::si::{
-    f64::{Information, InformationRate, Time},
+    f64::{Information, InformationRate, Ratio, Time},
     information::byte,
     information_rate::{kilobyte_per_second, megabyte_per_second},
+    ratio::ratio,
     time::second,
 };
 
@@ -11,10 +12,10 @@ use crate::{
         Connectivity, Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Level, Unit, Value},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
-        widget_state::WidgetState,
+        widget_state::{Level, WidgetState},
     },
 };
 
@@ -54,19 +55,12 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
         }
     }
 
-    fn value(&self) -> Option<Value> {
-        Some(Value::Gauge {
-            percent: percent(self.peak_fraction()),
-            unit: Unit::Percent,
-        })
+    fn gauge(&self) -> Option<Ratio> {
+        Some(Ratio::new::<ratio>(f64::from(self.peak_fraction())))
     }
 
-    fn live_fraction(&self) -> f32 {
-        let peak = self.peak_fraction();
-        if peak <= 0.0 {
-            return 1.0;
-        }
-        (self.current_fraction() / peak).clamp(0.0, 1.0)
+    fn live_gauge(&self) -> Option<Ratio> {
+        Some(Ratio::new::<ratio>(f64::from(self.current_fraction())))
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -119,11 +113,6 @@ fn format_rate(rate: InformationRate) -> String {
     let in_one_second: Information = (rate * Time::new::<second>(1.0)).into();
     let bytes = ByteSize::b(in_one_second.get::<byte>().round() as u64);
     format!("{}/s", bytes.display().iec())
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn percent(fraction: f32) -> i64 {
-    (fraction * 100.0).round() as i64
 }
 
 #[cfg(test)]
