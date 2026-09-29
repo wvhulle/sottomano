@@ -42,7 +42,7 @@ pub fn view<'a>(
         let focus = activity_line(
             config.palette.urgent,
             focus_opacity,
-            config.widgets.focus_underline_thickness_px,
+            config.widgets.indicator_thickness_px,
         );
         let ticks = window_ticks(config, niri, p.id);
 
@@ -77,7 +77,7 @@ pub fn view<'a>(
     };
     Some(
         focus_indicator(row, active, color)
-            .thickness(config.widgets.focus_underline_thickness_px)
+            .thickness(config.widgets.indicator_thickness_px)
             .edge(position)
             .into(),
     )
@@ -88,7 +88,7 @@ fn window_ticks<'a>(
     niri: &niri::Snapshot,
     workspace: u64,
 ) -> Element<'a, WorkspacesMessage> {
-    let thickness = config.widgets.window_segment_thickness_px;
+    let thickness = config.widgets.indicator_thickness_px;
     let segments = niri.windows_on_workspace(workspace).iter().map(|w| {
         let color = if w.is_urgent {
             config.palette.urgent

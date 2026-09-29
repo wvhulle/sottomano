@@ -9,6 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         gauge::Gauge,
         phosphor::{Phosphor, Weight},
+        svg_icon::PHOSPHOR_INK_FRACTION,
         text::bar_text,
         widget_state::WidgetState,
     },
@@ -53,7 +54,11 @@ pub fn reading_value<'a, Message: 'a>(
     }
     match widget.value() {
         Some(value) => Some(
-            Gauge::new(value.percent(), color, config.font.icon_size_px)
+            Gauge::new(
+                value.percent(),
+                color,
+                config.font.icon_size_px * PHOSPHOR_INK_FRACTION,
+            )
                 .live(widget.live_fraction())
                 .into(),
         ),

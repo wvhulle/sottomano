@@ -224,7 +224,7 @@ fn item_view<'a>(config: &Config, item: &TrayItem, reveal: f32) -> Element<'a, T
             activity_line(
                 config.palette.focus,
                 reveal,
-                config.widgets.focus_underline_thickness_px,
+                config.widgets.indicator_thickness_px,
             ),
         ])
         .spacing(1.0)
