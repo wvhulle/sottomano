@@ -17,6 +17,7 @@ needless_for_each = "allow"
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = [
   "clock",
+  "serde",
   "std",
   "unstable-locales",
 ] }

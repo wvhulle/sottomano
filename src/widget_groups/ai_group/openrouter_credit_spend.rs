@@ -1,10 +1,10 @@
 use crate::{
     data::source::ai::openrouter::OpenRouter,
-    widget_groups::ai_group::spend_to_level::level_from_cost,
+    widget_groups::ai_group::{amount_text::to_cents, spend_to_level::level_from_cost},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Row, TooltipBody, row},
+        tooltip_body::{Section, TooltipBody, row, section, untitled},
         widget_state::WidgetState,
     },
 };
@@ -26,16 +26,21 @@ impl BarWidget for OpenRouter {
 
     fn tooltip(&self) -> TooltipBody {
         let remaining = self.credits.total - self.credits.used;
-        let mut rows = vec![
-            row("Today", format!("${} USD", money(self.spend))),
-            row("Credits remaining", format!("${} USD", money(remaining))),
-            row(
-                "Lifetime credits purchased",
-                format!("${} USD", money(self.credits.total)),
+        let mut sections = vec![
+            untitled(vec![row("Today", format!("${} USD", to_cents(self.spend)))]),
+            section(
+                "Credits",
+                vec![
+                    row("Remaining", format!("${} USD", to_cents(remaining))),
+                    row(
+                        "Lifetime Purchased",
+                        format!("${} USD", to_cents(self.credits.total)),
+                    ),
+                ],
             ),
         ];
-        rows.extend(model_rows(&self.models));
-        TooltipBody::rows(rows)
+        sections.extend(model_section(&self.models));
+        TooltipBody::Sections(sections)
     }
 }
 
@@ -45,28 +50,22 @@ impl Occasional for OpenRouter {
     }
 }
 
-fn model_rows(models: &[(String, f64)]) -> Vec<Row> {
+fn model_section(models: &[(String, f64)]) -> Option<Section> {
     if models.is_empty() {
-        return Vec::new();
+        return None;
     }
-    let mut rows = vec![row(" ", "by model (since midnight)")];
-    rows.extend(
-        models
-            .iter()
-            .take(LISTED_MODELS)
-            .map(|(name, cost)| row(name, format!("${}", money(*cost)))),
-    );
+    let mut rows: Vec<_> = models
+        .iter()
+        .take(LISTED_MODELS)
+        .map(|(name, cost)| row(name, format!("${}", to_cents(*cost))))
+        .collect();
     let rest: f64 = models
         .iter()
         .skip(LISTED_MODELS)
         .map(|(_, cost)| cost)
         .sum();
     if rest > 0.0 {
-        rows.push(row("other", format!("${}", money(rest))));
+        rows.push(row("other", format!("${}", to_cents(rest))));
     }
-    rows
-}
-
-fn money(value: f64) -> String {
-    format!("{}", (value * 100.0).round() / 100.0)
+    Some(section("By Model Since Midnight", rows))
 }

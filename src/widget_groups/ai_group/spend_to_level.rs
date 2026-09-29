@@ -1,9 +1,9 @@
 use crate::widgets::widget_state::Level;
 
-pub fn level_from_used(used: i64) -> Level {
-    if used > 90 {
+pub fn level_from_used(used_percent: f64) -> Level {
+    if used_percent > 90.0 {
         Level::Critical
-    } else if used > 75 {
+    } else if used_percent > 75.0 {
         Level::Warning
     } else {
         Level::Ok

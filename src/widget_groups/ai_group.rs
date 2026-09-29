@@ -1,5 +1,9 @@
-pub mod claude_usage;
-pub mod copilot_usage;
+pub mod amount_text;
+pub mod claude_code_daily_spend;
+pub mod claude_subscription_gauge;
+pub mod copilot_cli_monthly_spend;
+pub mod copilot_free_quota_count;
+pub mod copilot_quota_gauge;
 pub mod openrouter_credit_spend;
 pub mod spend_to_level;
 
@@ -42,8 +46,14 @@ pub struct AiGroup {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Available {
-    claude_ccusage: bool,
+    claude: ClaudeAvailable,
     copilot: CopilotAvailable,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ClaudeAvailable {
+    oauth: bool,
+    ccusage: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -84,9 +94,13 @@ impl AiGroup {
     pub fn probe(&self) -> Task<AiMessage> {
         let secrets = self.secrets.clone();
         Task::future(async move {
-            let claude_ccusage = match &secrets.claude_code_oauth {
-                Some(key) => ClaudeCcusage::available(key).await,
+            let subscription = match &secrets.claude_code_oauth {
+                Some(key) => ClaudeOauth::available(key).await,
                 None => false,
+            };
+            let claude = ClaudeAvailable {
+                oauth: subscription,
+                ccusage: !subscription && ClaudeCcusage::available(&()).await,
             };
             let (metered, free) = match &secrets.gh_auth_token {
                 Some(key) => (
@@ -96,7 +110,7 @@ impl AiGroup {
                 None => (false, false),
             };
             AiMessage::Available(Available {
-                claude_ccusage,
+                claude,
                 copilot: CopilotAvailable {
                     metered,
                     free,
@@ -113,11 +127,13 @@ impl AiGroup {
         if let Some(key) = secrets.openrouter_management.clone() {
             subscriptions.push(polling::<OpenRouter>(key).map(AiMessage::OpenRouter));
         }
-        if let Some(key) = secrets.claude_code_oauth.clone() {
-            subscriptions.push(polling::<ClaudeOauth>(key.clone()).map(AiMessage::ClaudeOauth));
-            if available.claude_ccusage {
-                subscriptions.push(polling::<ClaudeCcusage>(key).map(AiMessage::ClaudeCcusage));
-            }
+        if let Some(key) = secrets.claude_code_oauth.clone()
+            && available.claude.oauth
+        {
+            subscriptions.push(polling::<ClaudeOauth>(key).map(AiMessage::ClaudeOauth));
+        }
+        if available.claude.ccusage {
+            subscriptions.push(polling::<ClaudeCcusage>(()).map(AiMessage::ClaudeCcusage));
         }
         if let Some(key) = secrets.gh_auth_token.clone() {
             if available.copilot.metered {

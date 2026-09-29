@@ -1,28 +1,30 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    future::{Future, ready},
+    path::PathBuf,
+    time::Duration,
+};
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{ApiFailure, Error, backoff, percent, plan, read_credentials, time_until_reset};
+use super::{ApiFailure, Error, backoff, plan, read_credentials, subscription_login};
 use crate::data::source::{Source, http};
 
 const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.233";
 
-#[derive(Deserialize)]
-struct Usage {
-    five_hour: Window,
-    seven_day: Window,
-    seven_day_sonnet: Option<Window>,
-    #[serde(rename = "extra_usage")]
-    overage: Option<Overage>,
-}
+const DEFAULT_DECIMAL_PLACES: i32 = 2;
 
 #[derive(Deserialize)]
-struct Window {
-    utilization: f64,
-    resets_at: Option<String>,
+struct Usage {
+    five_hour: WindowUsage,
+    seven_day: WindowUsage,
+    seven_day_sonnet: Option<WindowUsage>,
+    #[serde(rename = "extra_usage")]
+    overage: Option<Overage>,
 }
 
 #[derive(Deserialize)]
@@ -32,19 +34,47 @@ struct Overage {
     used_credits: Option<f64>,
     monthly_limit: Option<f64>,
     utilization: Option<f64>,
+    #[serde(default)]
+    currency: String,
+    decimal_places: Option<i32>,
+    disabled_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct WindowUsage {
+    pub utilization: f64,
+    pub resets_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct WindowUsage {
-    pub used: i64,
-    pub resets_in: String,
+pub struct Money {
+    pub amount: f64,
+    pub currency: String,
+    pub decimal_places: usize,
+}
+
+impl Display for Money {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "{:.*} {}",
+            self.decimal_places, self.amount, self.currency
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExtraStatus {
+    Enabled,
+    Disabled(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExtraUsage {
-    pub spent_credits: Option<f64>,
-    pub monthly_limit: Option<f64>,
-    pub used: Option<i64>,
+    pub status: ExtraStatus,
+    pub spent: Option<Money>,
+    pub monthly_limit: Option<Money>,
+    pub used_percent: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,8 +87,8 @@ pub struct ClaudeOauth {
 }
 
 impl ClaudeOauth {
-    pub fn session_used(&self) -> i64 {
-        self.session.used
+    pub fn session_used(&self) -> f64 {
+        self.session.utilization
     }
 }
 
@@ -68,6 +98,10 @@ impl Source for ClaudeOauth {
 
     const NAME: &'static str = "claude-usage-oauth";
     const INTERVAL: Duration = Duration::from_mins(1);
+
+    fn available(key: &PathBuf) -> impl Future<Output = bool> + Send {
+        ready(subscription_login(key))
+    }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
         let credentials = read_credentials(&key)?;
@@ -102,27 +136,45 @@ impl Source for ClaudeOauth {
         let usage: Usage = serde_json::from_value(body)?;
         Ok(ClaudeOauth {
             plan: plan(oauth),
-            session: window_usage(&usage.five_hour),
-            weekly: window_usage(&usage.seven_day),
-            sonnet: usage.seven_day_sonnet.as_ref().map(window_usage),
-            extra: usage.overage.as_ref().and_then(extra_usage),
+            extra: usage.overage.as_ref().and_then(Overage::extra_usage),
+            session: usage.five_hour,
+            weekly: usage.seven_day,
+            sonnet: usage.seven_day_sonnet,
         })
     }
 }
 
-fn window_usage(window: &Window) -> WindowUsage {
-    WindowUsage {
-        used: percent(window.utilization),
-        resets_in: time_until_reset(window.resets_at.as_ref()),
+impl Overage {
+    fn extra_usage(&self) -> Option<ExtraUsage> {
+        let ever_used = self.used_credits.is_some_and(|credits| credits > 0.0);
+        (self.is_enabled || ever_used).then(|| ExtraUsage {
+            status: self.status(),
+            spent: self.used_credits.map(|minor| self.money(minor)),
+            monthly_limit: self.monthly_limit.map(|minor| self.money(minor)),
+            used_percent: self.utilization,
+        })
     }
-}
 
-fn extra_usage(extra: &Overage) -> Option<ExtraUsage> {
-    extra.is_enabled.then(|| ExtraUsage {
-        spent_credits: extra.used_credits,
-        monthly_limit: extra.monthly_limit,
-        used: extra.utilization.map(percent),
-    })
+    fn status(&self) -> ExtraStatus {
+        if self.is_enabled {
+            return ExtraStatus::Enabled;
+        }
+        ExtraStatus::Disabled(
+            self.disabled_reason
+                .as_deref()
+                .unwrap_or("disabled")
+                .replace('_', " "),
+        )
+    }
+
+    fn money(&self, minor_units: f64) -> Money {
+        let decimal_places = self.decimal_places.unwrap_or(DEFAULT_DECIMAL_PLACES);
+        Money {
+            amount: minor_units / 10f64.powi(decimal_places),
+            currency: self.currency.clone(),
+            decimal_places: usize::try_from(decimal_places).unwrap_or_default(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -143,12 +195,50 @@ mod tests {
         "limits": {}
     }"#;
 
+    const OUT_OF_CREDITS_EXTRA: &str = r#"{
+        "is_enabled": false, "monthly_limit": 3000, "used_credits": 2016.0,
+        "utilization": 67.2, "currency": "EUR", "decimal_places": 2,
+        "disabled_reason": "out_of_credits", "user_disabled": false
+    }"#;
+
     #[test]
     fn usage_windows_decode_with_null_sonnet_and_disabled_overage() {
         let usage: Usage = serde_json::from_str(USAGE).unwrap();
-        assert_eq!(percent(usage.five_hour.utilization), 42);
-        assert_eq!(percent(usage.seven_day.utilization), 49);
+        assert!((usage.five_hour.utilization - 42.0).abs() < f64::EPSILON);
+        assert_eq!(
+            usage.seven_day.resets_at,
+            "2026-09-01T00:00:00Z".parse::<DateTime<Utc>>().ok()
+        );
         assert!(usage.seven_day_sonnet.is_none());
-        assert!(usage.overage.as_ref().and_then(extra_usage).is_none());
+        assert!(
+            usage
+                .overage
+                .as_ref()
+                .and_then(Overage::extra_usage)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn microsecond_offset_reset_times_decode() {
+        let window: WindowUsage = serde_json::from_str(
+            r#"{"utilization": 4.5, "resets_at": "2026-09-29T18:20:00.156123+00:00"}"#,
+        )
+        .unwrap();
+        assert!((window.utilization - 4.5).abs() < f64::EPSILON);
+        assert!(window.resets_at.is_some());
+    }
+
+    #[test]
+    fn exhausted_extra_credits_are_reported_in_their_currency() {
+        let overage: Overage = serde_json::from_str(OUT_OF_CREDITS_EXTRA).unwrap();
+        let extra = overage.extra_usage().unwrap();
+        assert_eq!(
+            extra.status,
+            ExtraStatus::Disabled("out of credits".to_owned())
+        );
+        assert_eq!(extra.spent.unwrap().to_string(), "20.16 EUR");
+        assert_eq!(extra.monthly_limit.unwrap().to_string(), "30.00 EUR");
+        assert_eq!(extra.used_percent, Some(67.2));
     }
 }
