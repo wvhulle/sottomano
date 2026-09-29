@@ -7,10 +7,12 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
-    data::source::weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature, Wind},
+    data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
     message_subscriptions::polling,
     wayland_layers::tooltip::HoverTarget,
     widgets::{
+        bar_widget::BarWidget,
+        group_item::GroupItem,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
@@ -22,8 +24,7 @@ pub struct WeatherGroup {
     temp: LastPoll<Temperature>,
     wind: LastPoll<Wind>,
     rain: LastPoll<Rain>,
-    birch: LastPoll<Pollen<Birch>>,
-    grass: LastPoll<Pollen<Grass>>,
+    pollen: LastPoll<Pollen>,
     location: LastPoll<Location>,
     pub(crate) expansion: GroupExpansion,
 }
@@ -33,8 +34,7 @@ pub enum WeatherMessage {
     Temp(Result<Temperature, weather::Error>),
     Wind(Result<Wind, weather::Error>),
     Rain(Result<Rain, weather::Error>),
-    Birch(Result<Pollen<Birch>, weather::Error>),
-    Grass(Result<Pollen<Grass>, weather::Error>),
+    Pollen(Result<Pollen, weather::Error>),
     Location(Result<Location, weather::Error>),
     Expansion(ExpansionMessage),
 }
@@ -50,8 +50,7 @@ impl WeatherGroup {
             polling::<Temperature>(here).map(WeatherMessage::Temp),
             polling::<Wind>(here).map(WeatherMessage::Wind),
             polling::<Rain>(here).map(WeatherMessage::Rain),
-            polling::<Pollen<Birch>>(here).map(WeatherMessage::Birch),
-            polling::<Pollen<Grass>>(here).map(WeatherMessage::Grass),
+            polling::<Pollen>(here).map(WeatherMessage::Pollen),
         ])
     }
 
@@ -60,8 +59,7 @@ impl WeatherGroup {
             WeatherMessage::Temp(reading) => self.temp.receive(reading),
             WeatherMessage::Wind(reading) => self.wind.receive(reading),
             WeatherMessage::Rain(reading) => self.rain.receive(reading),
-            WeatherMessage::Birch(reading) => self.birch.receive(reading),
-            WeatherMessage::Grass(reading) => self.grass.receive(reading),
+            WeatherMessage::Pollen(reading) => self.pollen.receive(reading),
             WeatherMessage::Location(reading) => self.location.receive(reading),
             WeatherMessage::Expansion(m) => {
                 self.expansion.update(m);
@@ -75,8 +73,10 @@ impl WeatherGroup {
             HoverTarget::WeatherTemp => self.temp.tooltip(),
             HoverTarget::WeatherWind => self.wind.tooltip(),
             HoverTarget::WeatherRain => self.rain.tooltip(),
-            HoverTarget::PollenBirch => self.birch.tooltip(),
-            HoverTarget::PollenGrass => self.grass.tooltip(),
+            HoverTarget::Pollen => self.pollen.tooltip(),
+            HoverTarget::Allergen(allergen) => self
+                .pollen
+                .tooltip_with(self.pollen.get()?.concentration(*allergen)?.tooltip()),
             HoverTarget::Location => self.location.live_tooltip(),
             _ => None,
         }
@@ -87,8 +87,15 @@ impl WeatherGroup {
             .reading(self.temp.display(), HoverTarget::WeatherTemp)
             .reading(self.wind.display(), HoverTarget::WeatherWind)
             .reading(self.rain.present(), HoverTarget::WeatherRain)
-            .reading(self.birch.present(), HoverTarget::PollenBirch)
-            .reading(self.grass.present(), HoverTarget::PollenGrass)
+            .items(self.pollen.get().into_iter().flat_map(|pollen| {
+                pollen.airborne().map(|concentration| {
+                    GroupItem::reading(
+                        concentration as &dyn BarWidget,
+                        HoverTarget::Allergen(concentration.allergen),
+                    )
+                })
+            }))
+            .reading(self.pollen.failure(), HoverTarget::Pollen)
             .reading(self.location.display(), HoverTarget::Location)
     }
 }

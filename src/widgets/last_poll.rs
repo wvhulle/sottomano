@@ -65,6 +65,12 @@ impl<S: BarWidget> LastPoll<S> {
         }
     }
 
+    pub fn failure(&self) -> Option<&dyn BarWidget> {
+        self.failure
+            .as_ref()
+            .map(|failure| failure as &dyn BarWidget)
+    }
+
     pub fn live_tooltip(&self) -> Option<Tooltip> {
         Some(Tooltip::of(self.data.as_ref()?.tooltip()))
     }
