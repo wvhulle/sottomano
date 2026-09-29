@@ -41,7 +41,7 @@ pub enum WeatherIcon {
     Sunrise,
     Sunset,
     NightClear,
-    WindBeaufort(usize),
+    StrongWind,
 }
 
 impl WeatherIcon {
@@ -52,19 +52,7 @@ impl WeatherIcon {
             WeatherIcon::Sunrise => weather_svg!("wi-sunrise"),
             WeatherIcon::Sunset => weather_svg!("wi-sunset"),
             WeatherIcon::NightClear => weather_svg!("wi-night-clear"),
-            WeatherIcon::WindBeaufort(0) => weather_svg!("wi-wind-beaufort-0"),
-            WeatherIcon::WindBeaufort(1) => weather_svg!("wi-wind-beaufort-1"),
-            WeatherIcon::WindBeaufort(2) => weather_svg!("wi-wind-beaufort-2"),
-            WeatherIcon::WindBeaufort(3) => weather_svg!("wi-wind-beaufort-3"),
-            WeatherIcon::WindBeaufort(4) => weather_svg!("wi-wind-beaufort-4"),
-            WeatherIcon::WindBeaufort(5) => weather_svg!("wi-wind-beaufort-5"),
-            WeatherIcon::WindBeaufort(6) => weather_svg!("wi-wind-beaufort-6"),
-            WeatherIcon::WindBeaufort(7) => weather_svg!("wi-wind-beaufort-7"),
-            WeatherIcon::WindBeaufort(8) => weather_svg!("wi-wind-beaufort-8"),
-            WeatherIcon::WindBeaufort(9) => weather_svg!("wi-wind-beaufort-9"),
-            WeatherIcon::WindBeaufort(10) => weather_svg!("wi-wind-beaufort-10"),
-            WeatherIcon::WindBeaufort(11) => weather_svg!("wi-wind-beaufort-11"),
-            WeatherIcon::WindBeaufort(_) => weather_svg!("wi-wind-beaufort-12"),
+            WeatherIcon::StrongWind => weather_svg!("wi-strong-wind"),
             WeatherIcon::DaySunny => weather_svg!("wi-day-sunny"),
             WeatherIcon::DaySunnyOvercast => weather_svg!("wi-day-sunny-overcast"),
             WeatherIcon::DayCloudy => weather_svg!("wi-day-cloudy"),
@@ -152,9 +140,9 @@ mod tests {
             WeatherIcon::Sunrise,
             WeatherIcon::Sunset,
             WeatherIcon::NightClear,
+            WeatherIcon::StrongWind,
         ];
-        let beaufort_scale = (0..=13).map(WeatherIcon::WindBeaufort);
-        icons.into_iter().chain(beaufort_scale).for_each(|icon| {
+        icons.into_iter().for_each(|icon| {
             usvg::Tree::from_data(icon.svg_data(), &usvg::Options::default())
                 .unwrap_or_else(|error| panic!("{icon:?}: {error}"));
         });
