@@ -15,6 +15,7 @@ use crate::{
         pager_slot::PagerSlot,
         reveal::reveal_x,
         source_reading::{reading_color, reading_value},
+        widget_state::Level,
     },
 };
 
@@ -73,6 +74,7 @@ impl MenuGroup {
             content,
             on_event,
             previewed_value: None,
+            alert: Level::Ok,
         }
     }
 }
@@ -84,12 +86,19 @@ pub struct MenuSlot<'a, Face, Content, OnEvent> {
     content: Content,
     on_event: OnEvent,
     previewed_value: Option<&'a dyn BarWidget>,
+    alert: Level,
 }
 
 impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
     #[must_use]
     pub fn previewed_value(mut self, widget: &'a dyn BarWidget) -> Self {
         self.previewed_value = Some(widget);
+        self
+    }
+
+    #[must_use]
+    pub fn alert(mut self, level: Level) -> Self {
+        self.alert = level;
         self
     }
 
@@ -107,6 +116,7 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
             content,
             on_event,
             previewed_value,
+            alert,
         } = self;
         let toggle = on_event(MenuMessage::Toggle);
         let animated = expand_animation(expanded, EXPAND, move |reveal| {
@@ -124,7 +134,7 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
                 .push(handle)
                 .extend((reveal > 0.0).then(|| revealed_content(config, reveal, content(reveal))))
                 .align_y(Alignment::Center);
-            PagerSlot::new(inner.into(), edge_indicator(config, hovered, reveal))
+            PagerSlot::new(inner.into(), edge_indicator(config, alert, hovered, reveal))
                 .view(config, position)
         });
         mouse_area(animated)
@@ -161,12 +171,17 @@ fn revealed_content<'a, Message: 'a>(
 
 fn edge_indicator<'a, Message: 'a>(
     config: &Config,
+    alert: Level,
     hovered: bool,
     reveal: f32,
 ) -> Element<'a, Message> {
     let base = if hovered { 0.5 } else { 0.2 };
+    let color = match alert {
+        Level::Ok => config.palette.focus,
+        Level::Warning | Level::Critical => alert.color(&config.palette),
+    };
     activity_line(
-        config.palette.focus,
+        color,
         base + (1.0 - base) * reveal,
         config.widgets.indicator_thickness_px,
     )

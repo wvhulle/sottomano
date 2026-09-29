@@ -57,7 +57,7 @@ pub fn lifetime(
         ExpireTimeout::ServerDefault => {
             let configured_millis = match urgency {
                 Urgency::Low => config.low_timeout_ms,
-                Urgency::Normal => config.normal_timeout_ms,
+                Urgency::Normal | Urgency::Warning => config.normal_timeout_ms,
                 Urgency::Critical => config.critical_timeout_ms,
             };
             (configured_millis > 0).then(|| Duration::from_millis(configured_millis))

@@ -11,7 +11,7 @@ pub use crate::wayland_layers::tooltip::{
     tooltip_content::relative,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HoverTarget {
     Cpu,
     Memory,
