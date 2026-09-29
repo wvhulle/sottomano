@@ -2,8 +2,8 @@ pub mod workspace_preview;
 pub mod workspace_tooltip;
 
 use iced::{
-    Alignment, Element, Length,
-    widget::{Row, button, row},
+    Alignment, Element,
+    widget::{Column, Row, button, row},
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        activity_line::activity_line, flat_button, focus_indicator::focus_indicator,
+        activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
         pager_slot::PagerSlot, text::bar_text,
     },
 };
@@ -25,48 +25,31 @@ pub enum WorkspacesMessage {
     Tooltip(TooltipMessage),
 }
 
-pub fn view<'a>(
+pub fn slot<'a>(
     niri: &niri::Snapshot,
-    output: &str,
+    p: &niri::WsPill,
     config: &Config,
     position: Position,
-) -> Option<Element<'a, WorkspacesMessage>> {
-    let workspaces = niri.workspaces_for_output(output);
-    if workspaces.is_empty() {
-        return None;
-    }
-    let active = workspaces.iter().position(|p| p.is_active);
-    let slots = workspaces.iter().map(|p| {
-        let label = workspace_label(config, p);
-        let focus_opacity = if p.is_urgent { 1.0 } else { 0.0 };
-        let focus = activity_line(
-            config.palette.urgent,
-            focus_opacity,
-            config.widgets.indicator_thickness_px,
-        );
-        let ticks = window_ticks(config, niri, p.id);
+) -> Element<'a, WorkspacesMessage> {
+    let focus_opacity = if p.is_urgent { 1.0 } else { 0.0 };
+    let focus = edge_activity_line(
+        position,
+        config.palette.urgent,
+        focus_opacity,
+        config.widgets.indicator_thickness_px,
+    );
+    PagerSlot::new(workspace_label(config, p), focus)
+        .ticks(window_ticks(config, niri, p.id, position))
+        .view(config, position)
+}
 
-        let pressable = button(
-            PagerSlot::new(label, focus)
-                .ticks(ticks)
-                .view(config, position),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(WorkspacesMessage::Clicked {
-            id: p.id,
-            is_active: p.is_active,
-        });
-        hoverable(
-            pressable.into(),
-            HoverTarget::Workspace(p.id),
-            WorkspacesMessage::Tooltip,
-        )
-    });
-    let row = Row::with_children(slots)
-        .spacing(config.spacing.widget_spacing_px)
-        .height(Length::Fill)
-        .align_y(Alignment::Center);
+pub fn indicated<'a>(
+    slots: Element<'a, WorkspacesMessage>,
+    workspaces: &[niri::WsPill],
+    config: &Config,
+    position: Position,
+) -> Element<'a, WorkspacesMessage> {
+    let active = workspaces.iter().position(|p| p.is_active);
     let active_is_urgent = active
         .and_then(|i| workspaces.get(i))
         .is_some_and(|p| p.is_urgent);
@@ -75,11 +58,28 @@ pub fn view<'a>(
     } else {
         config.palette.focus
     };
-    Some(
-        focus_indicator(row, active, color)
-            .thickness(config.widgets.indicator_thickness_px)
-            .edge(position)
-            .into(),
+    focus_indicator(slots, active, color)
+        .thickness(config.widgets.indicator_thickness_px)
+        .edge(position)
+        .into()
+}
+
+pub fn hit_area<'a>(
+    p: &niri::WsPill,
+    content: Element<'a, WorkspacesMessage>,
+    config: &Config,
+) -> Element<'a, WorkspacesMessage> {
+    let pressable = button(content)
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
+        .on_press(WorkspacesMessage::Clicked {
+            id: p.id,
+            is_active: p.is_active,
+        });
+    hoverable(
+        pressable.into(),
+        HoverTarget::Workspace(p.id),
+        WorkspacesMessage::Tooltip,
     )
 }
 
@@ -87,6 +87,7 @@ fn window_ticks<'a>(
     config: &Config,
     niri: &niri::Snapshot,
     workspace: u64,
+    position: Position,
 ) -> Element<'a, WorkspacesMessage> {
     let thickness = config.widgets.indicator_thickness_px;
     let segments = niri.windows_on_workspace(workspace).iter().map(|w| {
@@ -97,9 +98,13 @@ fn window_ticks<'a>(
         } else {
             config.palette.inactive
         };
-        activity_line(color, 1.0, thickness)
+        edge_activity_line(position, color, 1.0, thickness)
     });
-    Row::with_children(segments).spacing(1.0).into()
+    if position.is_vertical() {
+        Column::with_children(segments).spacing(1.0).into()
+    } else {
+        Row::with_children(segments).spacing(1.0).into()
+    }
 }
 
 fn workspace_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {

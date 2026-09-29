@@ -94,4 +94,7 @@ pub enum TooltipMessage {
     },
     EnterTooltip,
     ExitTooltip,
+    SwitchIntentElapsed {
+        seq: u64,
+    },
 }

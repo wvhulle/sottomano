@@ -1,11 +1,11 @@
 use iced::{
     Alignment, Element, Length,
-    alignment::Vertical,
-    widget::{Column, Space, container},
+    alignment::{Horizontal, Vertical},
+    widget::{Column, Row, Space, container},
 };
 
 use crate::{
-    config::Config, wayland_layers::surface::Position, widgets::activity_line::activity_line,
+    config::Config, wayland_layers::surface::Position, widgets::activity_line::edge_activity_line,
 };
 
 pub struct PagerSlot<'a, Message> {
@@ -31,25 +31,84 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
 
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
         let band = config.widgets.indicator_thickness_px;
-        let ticks_against = |edge: Vertical| -> Element<'a, Message> {
-            self.ticks.map_or_else(
-                || Space::new().height(band).into(),
-                |ticks| container(ticks).height(band).align_y(edge).into(),
-            )
-        };
-        let label = container(self.content)
-            .height(Length::Fill)
-            .align_y(Vertical::Center);
-        let (top, bottom) = match position {
-            Position::Bottom => (self.indicator, ticks_against(Vertical::Bottom)),
-            Position::Top => (ticks_against(Vertical::Top), self.indicator),
-        };
-        Column::with_children([top, label.into(), bottom])
-            .width(Length::Shrink)
-            .height(Length::Fill)
-            .align_x(Alignment::Center)
-            .into()
+        let Self {
+            content,
+            indicator,
+            ticks,
+        } = self;
+        match position {
+            Position::Bottom => stacked([
+                indicator,
+                stacked_label(content),
+                ticks_across(ticks, band, Vertical::Bottom),
+            ]),
+            Position::Top => stacked([
+                ticks_across(ticks, band, Vertical::Top),
+                stacked_label(content),
+                indicator,
+            ]),
+            Position::Left => Row::with_children([
+                ticks_along(ticks, band),
+                side_label(content, config),
+                indicator,
+            ])
+            .height(config.chrome.outer_height_px)
+            .into(),
+        }
     }
+}
+
+fn stacked<'a, Message: 'a>(bands: [Element<'a, Message>; 3]) -> Element<'a, Message> {
+    Column::with_children(bands)
+        .width(Length::Shrink)
+        .height(Length::Fill)
+        .align_x(Alignment::Center)
+        .into()
+}
+
+fn stacked_label<'a, Message: 'a>(content: Element<'a, Message>) -> Element<'a, Message> {
+    container(content)
+        .height(Length::Fill)
+        .align_y(Vertical::Center)
+        .into()
+}
+
+fn side_label<'a, Message: 'a>(
+    content: Element<'a, Message>,
+    config: &Config,
+) -> Element<'a, Message> {
+    container(content)
+        .height(Length::Fill)
+        .padding([0.0, config.spacing.widget_spacing_px])
+        .align_y(Vertical::Center)
+        .into()
+}
+
+fn ticks_across<'a, Message: 'a>(
+    ticks: Option<Element<'a, Message>>,
+    band: f32,
+    edge: Vertical,
+) -> Element<'a, Message> {
+    ticks.map_or_else(
+        || Space::new().height(band).into(),
+        |ticks| container(ticks).height(band).align_y(edge).into(),
+    )
+}
+
+fn ticks_along<'a, Message: 'a>(
+    ticks: Option<Element<'a, Message>>,
+    band: f32,
+) -> Element<'a, Message> {
+    ticks.map_or_else(
+        || Space::new().width(band).into(),
+        |ticks| {
+            container(ticks)
+                .width(band)
+                .height(Length::Fill)
+                .align_x(Horizontal::Left)
+                .into()
+        },
+    )
 }
 
 pub fn permanently_inactive_slot<'a, Message: 'a>(
@@ -57,7 +116,8 @@ pub fn permanently_inactive_slot<'a, Message: 'a>(
     config: &Config,
     position: Position,
 ) -> Element<'a, Message> {
-    let inactive_indicator = activity_line(
+    let inactive_indicator = edge_activity_line(
+        position,
         config.palette.focus,
         0.0,
         config.widgets.indicator_thickness_px,

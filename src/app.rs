@@ -26,9 +26,10 @@ use crate::{
     state::{self, Session},
     wayland_layers::{
         backdrop_shadow,
-        bar::{float_margin, layer_settings, view, widget_groups},
+        bar::{layer_settings, view, widget_groups},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
+        sidebar,
         surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
     },
@@ -356,14 +357,15 @@ impl Bar {
     }
 
     fn update_pill_bounds(&mut self, window: Id, zone: Zone, rects: &[Rectangle]) -> Task<Message> {
-        self.blur_casters.pill_rects(
+        let blur = self.blur_casters.pill_rects(
             window,
             zone,
             rects,
             &self.config,
             &self.session.chrome,
             &self.surfaces,
-        )
+        );
+        Task::batch([blur, sidebar::pointer_region(window, zone, rects)])
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -529,20 +531,33 @@ impl Bar {
 
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
         let departing = self.tooltip_departure();
-        let TooltipMessage::Enter {
-            surface,
-            target,
-            anchor,
-        } = msg
-        else {
-            return self.tooltip.update(msg);
-        };
-        let content = self.tooltip_for(&target);
-        if let Some(parent) = self.surfaces.get(&surface).filter(|_| !content.is_empty()) {
-            let parent = parent.clone();
-            self.tooltip.open(&parent, target, anchor, departing);
+        match msg {
+            TooltipMessage::Enter {
+                surface,
+                target,
+                anchor,
+            } => {
+                let content = self.tooltip_for(&target);
+                let Some(parent) = self.surfaces.get(&surface).filter(|_| !content.is_empty())
+                else {
+                    return Task::none();
+                };
+                let parent = parent.clone();
+                if let Some(intent) = self.tooltip.defer_switch(&parent, &target, anchor) {
+                    return intent;
+                }
+                self.tooltip.open(&parent, target, anchor, departing);
+                Task::none()
+            }
+            TooltipMessage::SwitchIntentElapsed { seq } => {
+                if let Some(pending) = self.tooltip.take_pending_switch(seq) {
+                    self.tooltip
+                        .open(&pending.parent, pending.target, pending.anchor, departing);
+                }
+                Task::none()
+            }
+            other => self.tooltip.update(other),
         }
-        Task::none()
     }
 
     fn tooltip_departure(&self) -> Option<Departed> {
@@ -804,7 +819,7 @@ impl Bar {
         Task::batch(self.surfaces.iter().map(move |(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
-                margin: float_margin(surface.position, offset).edges(),
+                margin: surface.position.float_margin(offset).edges(),
             })
         }))
     }
@@ -812,7 +827,7 @@ impl Bar {
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
         let height = self.config.chrome.outer_height_px as u32;
         let offset = self.session.chrome.margin_offset_px();
-        let settings = layer_settings(output, position, height, float_margin(position, offset));
+        let settings = layer_settings(output, position, height, position.float_margin(offset));
         let id = Id::unique();
         let surface = Surface {
             output: output.to_string(),
@@ -847,13 +862,18 @@ impl Bar {
         {
             return Task::none();
         }
-        let mut opens: Vec<Task<Message>> = Position::ALL
+        let mut opens: Vec<Task<Message>> = Position::BARS
             .into_iter()
             .map(|position| self.open_bar(output, position))
             .collect();
+        opens.push(sidebar::open(
+            &mut self.surfaces,
+            output,
+            &self.session.chrome,
+        ));
         opens.push(self.tooltip.open_surface(output));
         opens.extend(
-            Position::ALL
+            Position::BARS
                 .into_iter()
                 .map(|position| self.open_backdrop(output, position)),
         );

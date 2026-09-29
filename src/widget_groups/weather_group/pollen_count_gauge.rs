@@ -10,24 +10,67 @@ use crate::{
     },
 };
 
-const fn allergen_icon(allergen: Allergen, weight: Weight) -> Phosphor {
-    match allergen {
-        Allergen::Alder => Phosphor::Leaf(weight),
-        Allergen::Birch => Phosphor::Tree(weight),
-        Allergen::Grass => Phosphor::Plant(weight),
-        Allergen::Mugwort => Phosphor::Clover(weight),
-        Allergen::Olive => Phosphor::TreeEvergreen(weight),
-        Allergen::Ragweed => Phosphor::Flower(weight),
+struct ConcentrationThresholds {
+    moderate: f64,
+    high: f64,
+    gauge_full_scale: f64,
+}
+
+impl AllergenConcentration {
+    const fn thresholds(&self) -> ConcentrationThresholds {
+        match self.allergen {
+            Allergen::Alder => ConcentrationThresholds {
+                moderate: 10.0,
+                high: 50.0,
+                gauge_full_scale: 100.0,
+            },
+            Allergen::Birch => ConcentrationThresholds {
+                moderate: 10.0,
+                high: 45.0,
+                gauge_full_scale: 100.0,
+            },
+            Allergen::Grass => ConcentrationThresholds {
+                moderate: 20.0,
+                high: 50.0,
+                gauge_full_scale: 80.0,
+            },
+            Allergen::Mugwort => ConcentrationThresholds {
+                moderate: 10.0,
+                high: 30.0,
+                gauge_full_scale: 50.0,
+            },
+            Allergen::Olive => ConcentrationThresholds {
+                moderate: 50.0,
+                high: 200.0,
+                gauge_full_scale: 400.0,
+            },
+            Allergen::Ragweed => ConcentrationThresholds {
+                moderate: 5.0,
+                high: 20.0,
+                gauge_full_scale: 50.0,
+            },
+        }
+    }
+
+    const fn species_icon(&self, weight: Weight) -> Phosphor {
+        match self.allergen {
+            Allergen::Alder => Phosphor::Leaf(weight),
+            Allergen::Birch => Phosphor::Tree(weight),
+            Allergen::Grass => Phosphor::Plant(weight),
+            Allergen::Mugwort => Phosphor::Clover(weight),
+            Allergen::Olive => Phosphor::TreeEvergreen(weight),
+            Allergen::Ragweed => Phosphor::Flower(weight),
+        }
     }
 }
 
 impl BarWidget for AllergenConcentration {
     fn icon(&self) -> Glyph {
-        allergen_icon(self.allergen, self.state().weight()).into()
+        self.species_icon(self.state().weight()).into()
     }
 
     fn state(&self) -> WidgetState {
-        let thresholds = self.allergen.thresholds();
+        let thresholds = self.thresholds();
         if self.grains_per_cubic_metre >= thresholds.high {
             WidgetState::Critical
         } else if self.grains_per_cubic_metre >= thresholds.moderate {
@@ -38,13 +81,13 @@ impl BarWidget for AllergenConcentration {
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        let full_scale = self.allergen.thresholds().gauge_full_scale;
+        let full_scale = self.thresholds().gauge_full_scale;
         let logarithmic_share = self.grains_per_cubic_metre.ln_1p() / full_scale.ln_1p();
         Some(Ratio::new::<ratio>(logarithmic_share))
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let thresholds = self.allergen.thresholds();
+        let thresholds = self.thresholds();
         TooltipBody::rows(vec![
             row(
                 self.allergen.name(),
@@ -77,20 +120,24 @@ impl BarWidget for Pollen {
 mod tests {
     use super::*;
 
-    fn gauge_fill(grains_per_cubic_metre: f64) -> f64 {
+    fn grass(grains_per_cubic_metre: f64) -> AllergenConcentration {
         AllergenConcentration {
             allergen: Allergen::Grass,
             grains_per_cubic_metre,
         }
-        .gauge()
-        .expect("allergens always have a gauge")
-        .get::<ratio>()
+    }
+
+    fn gauge_fill(grains_per_cubic_metre: f64) -> f64 {
+        grass(grains_per_cubic_metre)
+            .gauge()
+            .expect("allergens always have a gauge")
+            .get::<ratio>()
     }
 
     #[test]
     fn gauge_is_empty_without_pollen_and_full_at_full_scale() {
         assert!(gauge_fill(0.0).abs() < f64::EPSILON);
-        let full_scale = Allergen::Grass.thresholds().gauge_full_scale;
+        let full_scale = grass(0.0).thresholds().gauge_full_scale;
         assert!((gauge_fill(full_scale) - 1.0).abs() < f64::EPSILON);
     }
 

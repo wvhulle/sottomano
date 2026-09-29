@@ -58,28 +58,53 @@ impl<Message> FocusIndicator<'_, Message> {
         Some(layout.children().nth(self.active?)?.bounds())
     }
 
-    fn band(&self, slot: Rectangle, travelled: Travelled) -> Rectangle {
-        Rectangle {
-            x: travelled.left,
-            y: match self.edge {
-                Position::Bottom => slot.y,
-                Position::Top => slot.y + slot.height - self.thickness,
+    fn span(&self, slot: Rectangle) -> Travelled {
+        if self.edge.is_vertical() {
+            Travelled {
+                start: slot.y,
+                extent: slot.height,
+            }
+        } else {
+            Travelled {
+                start: slot.x,
+                extent: slot.width,
+            }
+        }
+    }
+
+    fn band(&self, slots: Rectangle, slot: Rectangle, travelled: Travelled) -> Rectangle {
+        match self.edge {
+            Position::Bottom => Rectangle {
+                x: travelled.start,
+                y: slot.y,
+                width: travelled.extent,
+                height: self.thickness,
             },
-            width: travelled.width,
-            height: self.thickness,
+            Position::Top => Rectangle {
+                x: travelled.start,
+                y: slot.y + slot.height - self.thickness,
+                width: travelled.extent,
+                height: self.thickness,
+            },
+            Position::Left => Rectangle {
+                x: slots.x + slots.width - self.thickness,
+                y: travelled.start,
+                width: self.thickness,
+                height: travelled.extent,
+            },
         }
     }
 }
 
 #[derive(Clone, Copy)]
 struct Travelled {
-    left: f32,
-    width: f32,
+    start: f32,
+    extent: f32,
 }
 
 struct Travel {
-    left: Animation<f32>,
-    width: Animation<f32>,
+    start: Animation<f32>,
+    extent: Animation<f32>,
 }
 
 fn motion(value: f32) -> Animation<f32> {
@@ -89,26 +114,26 @@ fn motion(value: f32) -> Animation<f32> {
 }
 
 impl Travel {
-    fn resting_at(slot: Rectangle) -> Self {
+    fn resting_at(span: Travelled) -> Self {
         Self {
-            left: motion(slot.x),
-            width: motion(slot.width),
+            start: motion(span.start),
+            extent: motion(span.extent),
         }
     }
 
-    fn aim(&mut self, slot: Rectangle, now: Instant) {
-        self.left.go_mut(slot.x, now);
-        self.width.go_mut(slot.width, now);
+    fn aim(&mut self, span: Travelled, now: Instant) {
+        self.start.go_mut(span.start, now);
+        self.extent.go_mut(span.extent, now);
     }
 
     fn is_animating(&self, now: Instant) -> bool {
-        self.left.is_animating(now) || self.width.is_animating(now)
+        self.start.is_animating(now) || self.extent.is_animating(now)
     }
 
     fn travelled(&self, now: Instant) -> Travelled {
         Travelled {
-            left: self.left.interpolate_with(identity, now),
-            width: self.width.interpolate_with(identity, now),
+            start: self.start.interpolate_with(identity, now),
+            extent: self.extent.interpolate_with(identity, now),
         }
     }
 }
@@ -172,7 +197,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         };
         renderer.fill_quad(
             renderer::Quad {
-                bounds: self.band(slot, travel.travelled(Instant::now())),
+                bounds: self.band(layout.bounds(), slot, travel.travelled(Instant::now())),
                 border: border::rounded(self.thickness / 2.0),
                 snap: false,
                 ..renderer::Quad::default()
@@ -220,9 +245,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         let Some(slot) = self.active_slot(layout) else {
             return;
         };
+        let span = self.span(slot);
         let state = tree.state.downcast_mut::<State>();
-        let travel = state.travel.get_or_insert_with(|| Travel::resting_at(slot));
-        travel.aim(slot, *now);
+        let travel = state.travel.get_or_insert_with(|| Travel::resting_at(span));
+        travel.aim(span, *now);
         if travel.is_animating(*now) {
             shell.request_redraw();
         }

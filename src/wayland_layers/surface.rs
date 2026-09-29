@@ -1,6 +1,10 @@
-use iced_exwlshell::reexport::{
-    Anchor, KeyboardInteractivity, NewLayerShellSettings, OutputOption,
+use iced::{Rectangle, window::Id};
+use iced_exwlshell::{
+    actions::ActionCallback,
+    reexport::{Anchor, KeyboardInteractivity, LayerSize, NewLayerShellSettings, OutputOption},
 };
+
+use crate::app::Message;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Margin {
@@ -20,20 +24,75 @@ impl Margin {
 pub enum Position {
     Top,
     Bottom,
+    Left,
 }
 
 impl Position {
-    pub(crate) const ALL: [Position; 2] = [Position::Top, Position::Bottom];
+    pub(crate) const BARS: [Position; 2] = [Position::Top, Position::Bottom];
 
     pub(crate) fn edge(self) -> Anchor {
         match self {
             Position::Top => Anchor::Top,
             Position::Bottom => Anchor::Bottom,
+            Position::Left => Anchor::Left,
         }
     }
 
     pub(crate) fn anchor(self) -> Anchor {
-        self.edge() | Anchor::Left | Anchor::Right
+        match self {
+            Position::Top | Position::Bottom => self.edge() | Anchor::Left | Anchor::Right,
+            Position::Left => self.edge() | Anchor::Top | Anchor::Bottom,
+        }
+    }
+
+    pub(crate) fn strip_size(self, thickness: u32) -> LayerSize {
+        match self {
+            Position::Top | Position::Bottom => LayerSize::fill_width(thickness),
+            Position::Left => LayerSize::fill_height(thickness),
+        }
+    }
+
+    pub(crate) fn float_margin(self, offset_px: i32) -> Margin {
+        match self {
+            Position::Top => Margin {
+                top: offset_px,
+                right: offset_px,
+                bottom: 0,
+                left: offset_px,
+            },
+            Position::Bottom => Margin {
+                top: 0,
+                right: offset_px,
+                bottom: offset_px,
+                left: offset_px,
+            },
+            Position::Left => Margin {
+                top: offset_px,
+                right: offset_px,
+                bottom: offset_px,
+                left: offset_px,
+            },
+        }
+    }
+
+    pub(crate) fn is_vertical(self) -> bool {
+        matches!(self, Position::Left)
+    }
+}
+
+pub(crate) fn input_region(surface: Id, bounds: Rectangle) -> Message {
+    Message::SetInputRegion {
+        id: surface,
+        callback: ActionCallback::new(move |region| {
+            if bounds.width > 0.0 && bounds.height > 0.0 {
+                region.add(
+                    bounds.x as i32,
+                    bounds.y as i32,
+                    bounds.width as i32,
+                    bounds.height as i32,
+                );
+            }
+        }),
     }
 }
 
