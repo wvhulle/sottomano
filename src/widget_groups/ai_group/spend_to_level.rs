@@ -1,21 +1,21 @@
-use crate::widgets::widget_state::Level;
+use crate::data::severity::Severity;
 
-pub fn level_from_used(used_percent: f64) -> Level {
+pub fn level_from_used(used_percent: f64) -> Severity {
     if used_percent > 90.0 {
-        Level::Critical
+        Severity::Critical
     } else if used_percent > 75.0 {
-        Level::Warning
+        Severity::Warning
     } else {
-        Level::Ok
+        Severity::Normal
     }
 }
 
-pub fn level_from_cost(cost: f64) -> Level {
+pub fn level_from_cost(cost: f64) -> Severity {
     if cost >= 20.0 {
-        Level::Critical
+        Severity::Critical
     } else if cost >= 5.0 {
-        Level::Warning
+        Severity::Warning
     } else {
-        Level::Ok
+        Severity::Normal
     }
 }

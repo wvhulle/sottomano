@@ -8,22 +8,22 @@ use uom::{
 
 use super::cpu_clock_label::frequency_text;
 use crate::{
-    data::source::sysfs_sensors::cpu_usage::CpuUsage,
+    data::{severity::Severity, source::sysfs_sensors::cpu_usage::CpuUsage},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, row, section, table_section, untitled},
-        widget_state::{Level, WidgetState},
+        widget_state::WidgetState,
     },
 };
 
-fn busy_level(busy: Ratio) -> Level {
+fn busy_level(busy: Ratio) -> Severity {
     if busy > Ratio::new::<percent>(90.0) {
-        Level::Critical
+        Severity::Critical
     } else if busy > Ratio::new::<percent>(70.0) {
-        Level::Warning
+        Severity::Warning
     } else {
-        Level::Ok
+        Severity::Normal
     }
 }
 
@@ -71,7 +71,7 @@ impl TableRow for CoreReading {
         ]
     }
 
-    fn level(&self) -> Level {
+    fn level(&self) -> Severity {
         busy_level(self.busy)
     }
 }

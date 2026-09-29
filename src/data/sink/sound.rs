@@ -3,7 +3,7 @@ use std::{path::PathBuf, process::Command};
 use iced::Task;
 
 use crate::{
-    data::notifications::model::{NotificationData, Urgency},
+    data::{notifications::model::NotificationData, severity::Severity},
     message_subscriptions::blocking,
 };
 
@@ -21,7 +21,7 @@ enum Alert {
 
 impl Alert {
     fn of(data: &NotificationData) -> Self {
-        if matches!(data.urgency, Urgency::Critical) {
+        if matches!(data.severity, Severity::Critical) {
             return Self::Critical;
         }
         if !data.actions.is_empty() {

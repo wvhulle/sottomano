@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use iced::{Point, Rectangle, Size};
 
 use crate::{
-    config::NotificationConfig,
+    config::notifications::ToastPlacementConfig,
     data::source::niri::{HEdge, VEdge},
     wayland_layers::notifications::toast_anchor::{AnchorGroup, ToastAnchor},
 };
@@ -14,7 +14,7 @@ pub fn origins(
     anchors: &[ToastAnchor],
     sizes: &[Size],
     surface: Size,
-    config: &NotificationConfig,
+    config: &ToastPlacementConfig,
 ) -> Vec<Point> {
     let slots = share_displaced_top(
         anchors
@@ -70,7 +70,7 @@ impl Slot {
         anchor: ToastAnchor,
         size: Size,
         surface: Size,
-        config: &NotificationConfig,
+        config: &ToastPlacementConfig,
     ) -> Self {
         let ToastAnchor::Window { bounds, .. } = anchor else {
             return Self::Anchored(anchor);
@@ -98,7 +98,7 @@ impl Slot {
         leading: f32,
         extent: f32,
         surface: Size,
-        config: &NotificationConfig,
+        config: &ToastPlacementConfig,
     ) -> Point {
         match self {
             Self::Anchored(anchor) => member_origin(anchor, size, leading, extent, surface, config),
@@ -160,9 +160,9 @@ fn member_origin(
     leading: f32,
     extent: f32,
     surface: Size,
-    config: &NotificationConfig,
+    config: &ToastPlacementConfig,
 ) -> Point {
-    let gap = config.edge_gap;
+    let gap = config.edge_gap_px;
     match anchor {
         ToastAnchor::Edge {
             vertical,
@@ -182,8 +182,8 @@ fn member_origin(
     }
 }
 
-fn edge_x(horizontal: HEdge, size: Size, surface: Size, config: &NotificationConfig) -> f32 {
-    let gap = config.edge_gap;
+fn edge_x(horizontal: HEdge, size: Size, surface: Size, config: &ToastPlacementConfig) -> f32 {
+    let gap = config.edge_gap_px;
     match horizontal {
         HEdge::Left => gap,
         HEdge::Right => surface.width - size.width - gap,
@@ -191,23 +191,23 @@ fn edge_x(horizontal: HEdge, size: Size, surface: Size, config: &NotificationCon
     }
 }
 
-fn window_origin(bounds: Rectangle, size: Size, config: &NotificationConfig) -> Point {
-    let from_right = config.window_right_offset;
+fn window_origin(bounds: Rectangle, size: Size, config: &ToastPlacementConfig) -> Point {
+    let from_right = config.window_right_offset_px;
     let x = if bounds.width >= size.width + 2.0 * from_right {
         bounds.x + bounds.width - size.width - from_right
     } else {
         bounds.center_x() - size.width / 2.0
     };
-    Point::new(x, bounds.y + config.window_top_offset)
+    Point::new(x, bounds.y + config.window_top_offset_px)
 }
 
 fn overflowed_edge(
     x: f32,
     size: Size,
     surface: Size,
-    config: &NotificationConfig,
+    config: &ToastPlacementConfig,
 ) -> Option<HEdge> {
-    let gap = config.edge_gap;
+    let gap = config.edge_gap_px;
     if x < gap {
         Some(HEdge::Left)
     } else if x > surface.width - size.width - gap {
@@ -217,8 +217,8 @@ fn overflowed_edge(
     }
 }
 
-fn clamped(origin: Point, size: Size, surface: Size, config: &NotificationConfig) -> Point {
-    let gap = config.edge_gap;
+fn clamped(origin: Point, size: Size, surface: Size, config: &ToastPlacementConfig) -> Point {
+    let gap = config.edge_gap_px;
     Point::new(
         origin
             .x
@@ -246,7 +246,7 @@ mod tests {
 
     fn placed(anchors: &[ToastAnchor]) -> Vec<Point> {
         let sizes = vec![CARD; anchors.len()];
-        origins(anchors, &sizes, SURFACE, &NotificationConfig::default())
+        origins(anchors, &sizes, SURFACE, &ToastPlacementConfig::default())
     }
 
     fn overlap(a: Point, b: Point) -> bool {

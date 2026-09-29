@@ -1,14 +1,17 @@
 use crate::{
-    data::source::{
-        journal::KernelSeverity,
-        kernel_errors::{KernelErrors, KernelOccurrence},
+    data::{
+        severity::Severity,
+        source::{
+            journal::KernelSeverity,
+            kernel_errors::{KernelErrors, KernelOccurrence},
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
         tooltip_body::{Cell, TableRow, TooltipBody, row, section},
-        widget_state::{Level, WidgetState},
+        widget_state::WidgetState,
     },
 };
 
@@ -16,10 +19,10 @@ const MESSAGE_CAP: usize = 200;
 const TOOLTIP_ROWS: usize = 15;
 
 impl KernelSeverity {
-    fn level(self) -> Level {
+    fn level(self) -> Severity {
         match self {
-            KernelSeverity::Critical | KernelSeverity::Error => Level::Critical,
-            KernelSeverity::Warning => Level::Warning,
+            KernelSeverity::Critical | KernelSeverity::Error => Severity::Critical,
+            KernelSeverity::Warning => Severity::Warning,
         }
     }
 
@@ -47,7 +50,7 @@ impl TableRow for KernelOccurrence {
         vec![text.into()]
     }
 
-    fn level(&self) -> Level {
+    fn level(&self) -> Severity {
         self.severity.level()
     }
 }

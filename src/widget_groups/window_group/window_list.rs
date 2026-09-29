@@ -315,14 +315,14 @@ fn indicator_line<'a>(
     extras: Extras<'_>,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
-    let urgency = if win.is_urgent || extras.is_urgent() {
+    let severity = if win.is_urgent || extras.is_urgent() {
         1.0
     } else {
         0.0
     };
     activity_line(
         config.palette.urgent,
-        urgency * opacity,
+        severity * opacity,
         config.widgets.indicator_thickness_px,
     )
 }

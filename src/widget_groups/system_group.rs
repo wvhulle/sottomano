@@ -19,6 +19,7 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
+        active_reading_alert::{ActiveReadingAlert, highest_active_alert_severity},
         bar_widget::BarWidget,
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
@@ -93,6 +94,33 @@ impl SystemGroup {
         Task::none()
     }
 
+    pub fn active_reading_alerts(&self) -> Vec<ActiveReadingAlert<SystemMessage>> {
+        let alert_expanding_group = |hover_target, widget: Option<&dyn BarWidget>| {
+            ActiveReadingAlert::from_widget_state(
+                hover_target,
+                widget,
+                SystemMessage::Menu(MenuMessage::ExpandGroup),
+            )
+        };
+        [
+            alert_expanding_group(
+                HoverTarget::Temperature,
+                self.temperature.get().map(|w| w as &dyn BarWidget),
+            ),
+            alert_expanding_group(
+                HoverTarget::Memory,
+                self.memory.get().map(|w| w as &dyn BarWidget),
+            ),
+            alert_expanding_group(
+                HoverTarget::Disk,
+                self.disk.get().map(|w| w as &dyn BarWidget),
+            ),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Cpu => self.cpu.tooltip(),
@@ -132,6 +160,9 @@ impl SystemGroup {
         Some(
             self.menu
                 .slot(face, content, SystemMessage::Menu)
+                .edge_indicator_alert_severity(highest_active_alert_severity(
+                    &self.active_reading_alerts(),
+                ))
                 .view(config, position),
         )
     }

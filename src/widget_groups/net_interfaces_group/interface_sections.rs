@@ -4,18 +4,15 @@ use uom::{
 };
 
 use crate::{
-    data::source::net_interfaces::nm::AddressBlock,
-    widgets::{
-        tooltip_body::{Section, row, section},
-        widget_state::Level,
-    },
+    data::{severity::Severity, source::net_interfaces::nm::AddressBlock},
+    widgets::tooltip_body::{Section, row, section},
 };
 
-pub fn signal_level(quality: i64) -> Level {
+pub fn signal_level(quality: i64) -> Severity {
     match quality {
-        ..10 => Level::Critical,
-        10..25 => Level::Warning,
-        _ => Level::Ok,
+        ..10 => Severity::Critical,
+        10..25 => Severity::Warning,
+        _ => Severity::Normal,
     }
 }
 

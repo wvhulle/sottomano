@@ -13,8 +13,9 @@ use zbus::{
 };
 
 use super::model::{
-    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ServerEvent, Urgency,
+    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ServerEvent,
 };
+use crate::data::severity::Severity;
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
@@ -51,7 +52,7 @@ impl NotificationServer {
             summary,
             body,
             actions: parse_actions(&actions),
-            urgency: parse_urgency(&hints),
+            severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::from_millis(expire_timeout),
             window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
             desktop_entry: hint_str(&hints, "desktop-entry"),
@@ -190,14 +191,14 @@ fn parse_actions(actions: &[String]) -> Vec<NotifAction> {
         .collect()
 }
 
-fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Urgency {
+fn parse_urgency(hints: &HashMap<String, OwnedValue>) -> Severity {
     match hints
         .get("urgency")
         .and_then(|v| v.downcast_ref::<u8>().ok())
     {
-        Some(0) => Urgency::Low,
-        Some(2) => Urgency::Critical,
-        _ => Urgency::Normal,
+        Some(0) => Severity::Low,
+        Some(2) => Severity::Critical,
+        _ => Severity::Normal,
     }
 }
 

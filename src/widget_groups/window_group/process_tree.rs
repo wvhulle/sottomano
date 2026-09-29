@@ -16,14 +16,16 @@ use uom::{
 use crate::{
     app::Message,
     config::Config,
-    data::source::process::{Forest, Process},
+    data::{
+        severity::Severity,
+        source::process::{Forest, Process},
+    },
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
         copyable::copyable,
         phosphor::{self, Phosphor},
         text::{bar_text, column_heading},
-        widget_state::Level,
     },
 };
 
@@ -90,7 +92,7 @@ struct Listing {
 }
 
 impl Listing {
-    fn level(&self) -> Level {
+    fn level(&self) -> Severity {
         cpu_level(self.cpu)
     }
 
@@ -109,11 +111,11 @@ struct Tint {
 }
 
 impl Tint {
-    fn or(self, level: Level, calm: Color) -> Color {
+    fn or(self, level: Severity, calm: Color) -> Color {
         match level {
-            Level::Ok => calm,
-            Level::Warning => self.warning,
-            Level::Critical => self.critical,
+            Severity::Low | Severity::Normal => calm,
+            Severity::Warning => self.warning,
+            Severity::Critical => self.critical,
         }
     }
 }
@@ -122,13 +124,13 @@ fn cpu_text(share: Ratio) -> String {
     format!("{:.1}", share.into_format_args(percent, Abbreviation))
 }
 
-fn cpu_level(share: Ratio) -> Level {
+fn cpu_level(share: Ratio) -> Severity {
     if share >= Ratio::new::<percent>(CRITICAL_CPU_PERCENT) {
-        Level::Critical
+        Severity::Critical
     } else if share >= Ratio::new::<percent>(WARNING_CPU_PERCENT) {
-        Level::Warning
+        Severity::Warning
     } else {
-        Level::Ok
+        Severity::Normal
     }
 }
 
@@ -242,8 +244,8 @@ impl<'a> ProcessTree<'a> {
     fn tint(&self) -> Tint {
         let palette = &self.config.palette;
         Tint {
-            warning: Level::Warning.color(palette).scale_alpha(self.opacity),
-            critical: Level::Critical.color(palette).scale_alpha(self.opacity),
+            warning: Severity::Warning.color(palette).scale_alpha(self.opacity),
+            critical: Severity::Critical.color(palette).scale_alpha(self.opacity),
         }
     }
 

@@ -1,14 +1,17 @@
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::source::net_interfaces::bluetooth::{Bluetooth, Device},
+    data::{
+        severity::Severity,
+        source::net_interfaces::bluetooth::{Bluetooth, Device},
+    },
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
-        widget_state::{Level, WidgetState},
+        widget_state::WidgetState,
     },
 };
 
@@ -28,7 +31,9 @@ impl BarWidget for Bluetooth {
 
     fn state(&self) -> WidgetState {
         if self.powered {
-            self.best_signal().map_or(Level::Ok, signal_level).into()
+            self.best_signal()
+                .map_or(Severity::Normal, signal_level)
+                .into()
         } else {
             WidgetState::Off
         }

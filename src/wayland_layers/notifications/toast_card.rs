@@ -9,9 +9,10 @@ use iced::{
 
 use super::{Notification, NotificationMessage, body_markup};
 use crate::{
-    config::{Config, NotificationConfig, Palette, font::FontConfig},
+    config::{Config, Palette, font::FontConfig, notifications::ToastCardSizeConfig},
     data::{
-        notifications::model::{NotifAction, NotifImage, NotificationData, Urgency},
+        notifications::model::{NotifAction, NotifImage, NotificationData},
+        severity::Severity,
         source::app_icon::DesktopEntries,
     },
     wayland_layers::tooltip::relative,
@@ -114,13 +115,19 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
         let mut body_row = Row::new()
             .spacing(BODY_ROW_SPACING)
             .align_y(Alignment::Center);
-        if let Some(icon) = icon_slot(&card.notif.icons, &card.config.notifications, card.reveal) {
+        if let Some(icon) = icon_slot(
+            &card.notif.icons,
+            &card.config.notifications.card_size,
+            card.reveal,
+        ) {
             body_row = body_row.push(icon);
         }
         body_row = body_row.push(card.column(chrome));
 
         let panel = container(body_row)
-            .width(Length::Fixed(card.config.notifications.card_width))
+            .width(Length::Fixed(
+                card.config.notifications.card_size.card_width_px,
+            ))
             .padding(PADDING_PX)
             .style(move |_| container::Style {
                 background: Some(chrome.background.into()),
@@ -151,7 +158,7 @@ struct CardChrome {
 impl Card<'_> {
     fn chrome(&self) -> CardChrome {
         let palette = &self.config.palette;
-        let accent = urgency_accent(self.notif.data.urgency, palette);
+        let accent = severity_accent(self.notif.data.severity, palette);
         let background = mix(palette.surface, accent, URGENCY_TINT_AMOUNT);
         let rest = mix(background, accent, RESTING_BORDER_TINT_AMOUNT);
         let fade = |color: Color| Color {
@@ -172,12 +179,12 @@ impl Card<'_> {
     }
 }
 
-fn urgency_accent(urgency: Urgency, palette: &Palette) -> Color {
-    match urgency {
-        Urgency::Low => palette.inactive,
-        Urgency::Normal => palette.focus,
-        Urgency::Warning => palette.warning,
-        Urgency::Critical => palette.urgent,
+fn severity_accent(severity: Severity, palette: &Palette) -> Color {
+    match severity {
+        Severity::Low => palette.inactive,
+        Severity::Normal => palette.focus,
+        Severity::Warning => palette.warning,
+        Severity::Critical => palette.urgent,
     }
 }
 
@@ -277,16 +284,16 @@ impl Card<'_> {
 
 fn icon_slot<'a>(
     icons: &CardIcons,
-    config: &NotificationConfig,
+    card_size: &ToastCardSizeConfig,
     reveal: f32,
 ) -> Option<Element<'a, NotificationMessage>> {
     match (&icons.image, &icons.badge) {
         (Some(image), badge) => {
-            let main_size = config.image_size;
+            let main_size = card_size.image_size_px;
             let main = icon_widget(image, main_size, reveal);
             Some(match badge {
                 Some(badge) => {
-                    let overlay = container(icon_widget(badge, config.badge_size, reveal))
+                    let overlay = container(icon_widget(badge, card_size.badge_size_px, reveal))
                         .width(main_size)
                         .height(main_size)
                         .align_x(Alignment::Start)
@@ -296,7 +303,7 @@ fn icon_slot<'a>(
                 None => main,
             })
         }
-        (None, Some(badge)) => Some(icon_widget(badge, config.app_icon_size, reveal)),
+        (None, Some(badge)) => Some(icon_widget(badge, card_size.app_icon_size_px, reveal)),
         (None, None) => None,
     }
 }

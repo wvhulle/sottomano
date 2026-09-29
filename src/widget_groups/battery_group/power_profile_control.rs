@@ -74,7 +74,15 @@ pub enum PowerProfileMessage {
     Conditions(Result<Conditions, sysfs_sensors::Error>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
+    SwitchToProfile(Profile),
     Tooltip(TooltipMessage),
+}
+
+fn commit_profile_switch(profile: Profile) -> Task<PowerProfileMessage> {
+    ControlMessage::commit("power profile set", profile.position(), move || {
+        power_profile::set(profile)
+    })
+    .map(PowerProfileMessage::Control)
 }
 
 struct DrainSample {
@@ -123,21 +131,23 @@ impl PowerProfileControl {
             }
             PowerProfileMessage::Control(msg) => {
                 return match self.control.update(msg) {
-                    Action::Commit(value) => {
-                        let profile = Profile::from_position(value);
-                        ControlMessage::commit("power profile set", value, move || {
-                            power_profile::set(profile)
-                        })
-                        .map(PowerProfileMessage::Control)
-                    }
+                    Action::Commit(value) => commit_profile_switch(Profile::from_position(value)),
                     Action::Opened | Action::None | Action::Right | Action::Adjust(_) => {
                         Task::none()
                     }
                 };
             }
+            PowerProfileMessage::SwitchToProfile(profile) => return commit_profile_switch(profile),
             PowerProfileMessage::Tooltip(_) => {}
         }
         Task::none()
+    }
+
+    pub fn profiles_saving_more_power(&self) -> impl Iterator<Item = Profile> {
+        let active_profile = self.active_profile.filter(|_| self.daemon);
+        Profile::ALL.into_iter().filter(move |profile| {
+            active_profile.is_some_and(|active| profile.scale() < active.scale())
+        })
     }
 
     pub fn observe_battery(&mut self, battery: &Battery) -> Task<PowerProfileMessage> {

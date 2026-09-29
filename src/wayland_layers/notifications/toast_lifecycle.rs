@@ -8,9 +8,18 @@ use iced::{
 };
 
 use super::{expiry_countdown::Countdown, toast_anchor::ToastPlacement, toast_card::CardIcons};
-use crate::data::notifications::model::{NotifHandle, NotificationData};
+use crate::{
+    app::Message,
+    data::notifications::model::{NotifHandle, NotificationData},
+    widgets::active_reading_alert::ActiveReadingAlert,
+};
 
 const PRESENCE: Duration = Duration::from_millis(90);
+
+pub enum ToastOrigin {
+    DbusClient,
+    ActiveReadingAlert(Box<ActiveReadingAlert<Message>>),
+}
 
 #[derive(Debug, Clone)]
 pub enum NotificationMessage {
@@ -28,6 +37,7 @@ pub enum NotificationMessage {
 
 pub struct Notification {
     pub data: NotificationData,
+    pub origin: ToastOrigin,
     pub created_at: SystemTime,
     pub icons: CardIcons,
     pub(super) place: ToastPlacement,
@@ -39,6 +49,7 @@ pub struct Notification {
 impl Notification {
     pub(super) fn appearing(
         data: NotificationData,
+        origin: ToastOrigin,
         icons: CardIcons,
         countdown: Option<Countdown>,
         seq: u64,
@@ -47,6 +58,7 @@ impl Notification {
     ) -> Self {
         Self {
             data,
+            origin,
             created_at: SystemTime::now(),
             icons,
             place,
@@ -57,6 +69,17 @@ impl Notification {
                 .duration(PRESENCE)
                 .go(true, now),
         }
+    }
+
+    pub(super) fn active_reading_alert(&self) -> Option<&ActiveReadingAlert<Message>> {
+        match &self.origin {
+            ToastOrigin::ActiveReadingAlert(alert) => Some(alert),
+            ToastOrigin::DbusClient => None,
+        }
+    }
+
+    pub(super) fn sent_by_dbus_client(&self) -> bool {
+        matches!(self.origin, ToastOrigin::DbusClient)
     }
 
     pub(super) fn withdraw(&mut self, now: Instant) {

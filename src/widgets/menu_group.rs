@@ -6,6 +6,7 @@ use iced::{
 
 use crate::{
     config::Config,
+    data::severity::Severity,
     wayland_layers::surface::Position,
     widgets::{
         activity_line::activity_line,
@@ -15,7 +16,6 @@ use crate::{
         pager_slot::PagerSlot,
         reveal::reveal_x,
         source_reading::{reading_color, reading_value},
-        widget_state::Level,
     },
 };
 
@@ -24,6 +24,7 @@ const EXPAND: Duration = Duration::from_millis(90);
 #[derive(Debug, Clone, Copy)]
 pub enum MenuMessage {
     Toggle,
+    ExpandGroup,
     CursorEntered,
     CursorExited,
     Close,
@@ -40,6 +41,7 @@ impl MenuGroup {
         let was_open = self.is_open();
         match msg {
             MenuMessage::Toggle => self.expanded = !self.expanded,
+            MenuMessage::ExpandGroup => self.expanded = true,
             MenuMessage::CursorEntered => self.hovered = true,
             MenuMessage::CursorExited => self.hovered = false,
             MenuMessage::Close => self.expanded = false,
@@ -74,7 +76,7 @@ impl MenuGroup {
             content,
             on_event,
             previewed_value: None,
-            alert: Level::Ok,
+            edge_indicator_alert_severity: Severity::Normal,
         }
     }
 }
@@ -86,7 +88,7 @@ pub struct MenuSlot<'a, Face, Content, OnEvent> {
     content: Content,
     on_event: OnEvent,
     previewed_value: Option<&'a dyn BarWidget>,
-    alert: Level,
+    edge_indicator_alert_severity: Severity,
 }
 
 impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
@@ -97,8 +99,8 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
     }
 
     #[must_use]
-    pub fn alert(mut self, level: Level) -> Self {
-        self.alert = level;
+    pub fn edge_indicator_alert_severity(mut self, level: Severity) -> Self {
+        self.edge_indicator_alert_severity = level;
         self
     }
 
@@ -116,7 +118,7 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
             content,
             on_event,
             previewed_value,
-            alert,
+            edge_indicator_alert_severity,
         } = self;
         let toggle = on_event(MenuMessage::Toggle);
         let animated = expand_animation(expanded, EXPAND, move |reveal| {
@@ -134,8 +136,11 @@ impl<'a, Face, Content, OnEvent> MenuSlot<'a, Face, Content, OnEvent> {
                 .push(handle)
                 .extend((reveal > 0.0).then(|| revealed_content(config, reveal, content(reveal))))
                 .align_y(Alignment::Center);
-            PagerSlot::new(inner.into(), edge_indicator(config, alert, hovered, reveal))
-                .view(config, position)
+            PagerSlot::new(
+                inner.into(),
+                edge_indicator(config, edge_indicator_alert_severity, hovered, reveal),
+            )
+            .view(config, position)
         });
         mouse_area(animated)
             .on_enter(on_event(MenuMessage::CursorEntered))
@@ -171,14 +176,16 @@ fn revealed_content<'a, Message: 'a>(
 
 fn edge_indicator<'a, Message: 'a>(
     config: &Config,
-    alert: Level,
+    edge_indicator_alert_severity: Severity,
     hovered: bool,
     reveal: f32,
 ) -> Element<'a, Message> {
     let base = if hovered { 0.5 } else { 0.2 };
-    let color = match alert {
-        Level::Ok => config.palette.focus,
-        Level::Warning | Level::Critical => alert.color(&config.palette),
+    let color = match edge_indicator_alert_severity {
+        Severity::Low | Severity::Normal => config.palette.focus,
+        Severity::Warning | Severity::Critical => {
+            edge_indicator_alert_severity.color(&config.palette)
+        }
     };
     activity_line(
         color,

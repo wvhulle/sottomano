@@ -8,14 +8,17 @@ use uom::si::{
 };
 
 use crate::{
-    data::source::throughput::{
-        Connectivity, Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload,
+    data::{
+        severity::Severity,
+        source::throughput::{
+            Connectivity, Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload,
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
-        widget_state::{Level, WidgetState},
+        widget_state::WidgetState,
     },
 };
 
@@ -34,9 +37,9 @@ impl DirectionIcon for Download {
     const ICON: Phosphor = Phosphor::DownloadSimple(Weight::Regular);
 }
 
-fn severity<D: Direction>(throughput: &Throughput<D>) -> Level {
+fn severity<D: Direction>(throughput: &Throughput<D>) -> Severity {
     if throughput.interfaces.is_empty() {
-        return Level::Critical;
+        return Severity::Critical;
     }
     connectivity_level(throughput.connectivity).max(throughput.link_level())
 }
@@ -48,7 +51,7 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
 
     fn state(&self) -> WidgetState {
         let severity = severity(self);
-        if self.unused() && severity == Level::Ok {
+        if self.unused() && severity == Severity::Normal {
             WidgetState::Off
         } else {
             severity.into()
@@ -83,29 +86,29 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
 }
 
 impl<D: Direction> Throughput<D> {
-    fn link_level(&self) -> Level {
+    fn link_level(&self) -> Severity {
         if self.unused() {
-            return Level::Ok;
+            return Severity::Normal;
         }
         if self.peak_rate
             < InformationRate::new::<kilobyte_per_second>(HI_RES_AUDIO_STREAM_KB_PER_S)
         {
-            Level::Critical
+            Severity::Critical
         } else if self.peak_rate
             < InformationRate::new::<kilobyte_per_second>(HI_RES_VIDEO_STREAM_KB_PER_S)
         {
-            Level::Warning
+            Severity::Warning
         } else {
-            Level::Ok
+            Severity::Normal
         }
     }
 }
 
-fn connectivity_level(connectivity: Connectivity) -> Level {
+fn connectivity_level(connectivity: Connectivity) -> Severity {
     match connectivity {
-        Connectivity::Full => Level::Ok,
-        Connectivity::Limited | Connectivity::Unknown => Level::Warning,
-        Connectivity::None => Level::Critical,
+        Connectivity::Full => Severity::Normal,
+        Connectivity::Limited | Connectivity::Unknown => Severity::Warning,
+        Connectivity::None => Severity::Critical,
     }
 }
 

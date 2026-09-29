@@ -11,6 +11,7 @@ use uom::si::{f64::Ratio, ratio};
 
 use crate::{
     config::Config,
+    data::severity::Severity,
     message_subscriptions::blocking,
     wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
@@ -24,7 +25,7 @@ use crate::{
         source_reading::source_reading,
         text::bar_text,
         tooltip_body::TooltipBody,
-        widget_state::{Level, WidgetState},
+        widget_state::WidgetState,
     },
 };
 
@@ -85,7 +86,7 @@ struct SeverityThresholds {
 }
 
 impl SeverityThresholds {
-    fn level(&self, value: f32) -> Level {
+    fn level(&self, value: f32) -> Severity {
         let hit = |t: Option<f32>| {
             t.is_some_and(|t| {
                 if self.higher_worse {
@@ -96,11 +97,11 @@ impl SeverityThresholds {
             })
         };
         if hit(self.urgent) {
-            Level::Critical
+            Severity::Critical
         } else if hit(self.warn) {
-            Level::Warning
+            Severity::Warning
         } else {
-            Level::Ok
+            Severity::Normal
         }
     }
 }
@@ -239,7 +240,7 @@ impl SliderControl {
         (self.readout)(self.current())
     }
 
-    fn severity(&self) -> Level {
+    fn severity(&self) -> Severity {
         self.thresholds.level(self.current())
     }
 
