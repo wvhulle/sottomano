@@ -1,41 +1,36 @@
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    data::source::weather::{Allergen, Birch, Grass, Pollen},
+    data::source::weather::{Allergen, AllergenConcentration, Pollen},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
     },
 };
 
-pub trait AllergenIcon: Allergen {
-    const ICON: Phosphor;
-}
-
-impl AllergenIcon for Grass {
-    const ICON: Phosphor = Phosphor::Plant(Weight::Regular);
-}
-
-impl AllergenIcon for Birch {
-    const ICON: Phosphor = Phosphor::Tree(Weight::Regular);
-}
-
-impl<A: AllergenIcon> BarWidget for Pollen<A> {
-    fn icon(&self) -> Glyph {
-        A::ICON.with_weight(self.state().weight()).into()
+const fn allergen_icon(allergen: Allergen, weight: Weight) -> Phosphor {
+    match allergen {
+        Allergen::Alder => Phosphor::Leaf(weight),
+        Allergen::Birch => Phosphor::Tree(weight),
+        Allergen::Grass => Phosphor::Plant(weight),
+        Allergen::Mugwort => Phosphor::Clover(weight),
+        Allergen::Olive => Phosphor::TreeEvergreen(weight),
+        Allergen::Ragweed => Phosphor::Flower(weight),
     }
+}
 
-    fn fallback_icon() -> Glyph {
-        A::ICON.into()
+impl BarWidget for AllergenConcentration {
+    fn icon(&self) -> Glyph {
+        allergen_icon(self.allergen, self.state().weight()).into()
     }
 
     fn state(&self) -> WidgetState {
-        let [moderate, high, _] = A::THRESHOLDS;
-        if self.value >= high {
+        let thresholds = self.allergen.thresholds();
+        if self.grains_per_cubic_metre >= thresholds.high {
             WidgetState::Critical
-        } else if self.value >= moderate {
+        } else if self.grains_per_cubic_metre >= thresholds.moderate {
             WidgetState::Warning
         } else {
             WidgetState::Idle
@@ -43,28 +38,65 @@ impl<A: AllergenIcon> BarWidget for Pollen<A> {
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        let cap = A::THRESHOLDS[2];
-        let logarithmic_share = if self.value < 1.0 {
-            0.0
-        } else {
-            self.value.ln() / cap.ln()
-        };
+        let full_scale = self.allergen.thresholds().gauge_full_scale;
+        let logarithmic_share = self.grains_per_cubic_metre.ln_1p() / full_scale.ln_1p();
         Some(Ratio::new::<ratio>(logarithmic_share))
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut all = self.all.clone();
-        all.sort_by(|a, b| b.1.total_cmp(&a.1));
-        TooltipBody::rows(
-            all.into_iter()
-                .map(|(label, value)| row(label, format!("{value:.0} grains/m³")))
-                .collect(),
-        )
+        let thresholds = self.allergen.thresholds();
+        TooltipBody::rows(vec![
+            row(
+                self.allergen.name(),
+                format!("{:.1} grains/m³", self.grains_per_cubic_metre),
+            ),
+            row(
+                "Moderate from",
+                format!("{} grains/m³", thresholds.moderate),
+            ),
+            row("High from", format!("{} grains/m³", thresholds.high)),
+        ])
     }
 }
 
-impl<A: AllergenIcon + Clone + PartialEq + Send + Sync + 'static> Occasional for Pollen<A> {
-    fn present(&self) -> bool {
-        self.value > 0.0
+impl BarWidget for Pollen {
+    fn icon(&self) -> Glyph {
+        Phosphor::Flower(Weight::Regular).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::Flower(Weight::Regular).into()
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        TooltipBody::rows(Vec::new())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gauge_fill(grains_per_cubic_metre: f64) -> f64 {
+        AllergenConcentration {
+            allergen: Allergen::Grass,
+            grains_per_cubic_metre,
+        }
+        .gauge()
+        .expect("allergens always have a gauge")
+        .get::<ratio>()
+    }
+
+    #[test]
+    fn gauge_is_empty_without_pollen_and_full_at_full_scale() {
+        assert!(gauge_fill(0.0).abs() < f64::EPSILON);
+        let full_scale = Allergen::Grass.thresholds().gauge_full_scale;
+        assert!((gauge_fill(full_scale) - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn trace_amounts_below_one_grain_still_show() {
+        let trace = gauge_fill(0.7);
+        assert!(trace > 0.05 && trace < gauge_fill(2.0));
     }
 }

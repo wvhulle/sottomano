@@ -1,6 +1,5 @@
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
-    marker::PhantomData,
     sync::Arc,
     time::Duration,
 };
@@ -285,15 +284,15 @@ pub struct PollenReadings {
 }
 
 impl PollenReadings {
-    fn all(&self) -> Vec<(&'static str, f64)> {
-        vec![
-            ("Alder", self.alder),
-            ("Birch", self.birch),
-            ("Grass", self.grass),
-            ("Mugwort", self.mugwort),
-            ("Olive", self.olive),
-            ("Ragweed", self.ragweed),
-        ]
+    fn grains_per_cubic_metre(&self, allergen: Allergen) -> f64 {
+        match allergen {
+            Allergen::Alder => self.alder,
+            Allergen::Birch => self.birch,
+            Allergen::Grass => self.grass,
+            Allergen::Mugwort => self.mugwort,
+            Allergen::Olive => self.olive,
+            Allergen::Ragweed => self.ragweed,
+        }
     }
 }
 
@@ -544,50 +543,108 @@ impl Source for Rain {
     }
 }
 
-pub trait Allergen {
-    const SOURCE_NAME: &'static str;
-    const THRESHOLDS: [f64; 3];
-
-    fn concentration(readings: &PollenReadings) -> f64;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Allergen {
+    Alder,
+    Birch,
+    Grass,
+    Mugwort,
+    Olive,
+    Ragweed,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Grass;
+pub struct ConcentrationThresholds {
+    pub moderate: f64,
+    pub high: f64,
+    pub gauge_full_scale: f64,
+}
 
-impl Allergen for Grass {
-    const SOURCE_NAME: &'static str = "pollen-grass";
-    const THRESHOLDS: [f64; 3] = [20.0, 50.0, 80.0];
+impl Allergen {
+    pub const ALL: [Allergen; 6] = [
+        Allergen::Alder,
+        Allergen::Birch,
+        Allergen::Grass,
+        Allergen::Mugwort,
+        Allergen::Olive,
+        Allergen::Ragweed,
+    ];
 
-    fn concentration(readings: &PollenReadings) -> f64 {
-        readings.grass
+    pub const fn name(self) -> &'static str {
+        match self {
+            Allergen::Alder => "Alder",
+            Allergen::Birch => "Birch",
+            Allergen::Grass => "Grass",
+            Allergen::Mugwort => "Mugwort",
+            Allergen::Olive => "Olive",
+            Allergen::Ragweed => "Ragweed",
+        }
+    }
+
+    pub const fn thresholds(self) -> ConcentrationThresholds {
+        let [moderate, high, gauge_full_scale] = match self {
+            Allergen::Alder => [10.0, 50.0, 100.0],
+            Allergen::Birch => [10.0, 45.0, 100.0],
+            Allergen::Grass => [20.0, 50.0, 80.0],
+            Allergen::Mugwort => [10.0, 30.0, 50.0],
+            Allergen::Olive => [50.0, 200.0, 400.0],
+            Allergen::Ragweed => [5.0, 20.0, 50.0],
+        };
+        ConcentrationThresholds {
+            moderate,
+            high,
+            gauge_full_scale,
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Birch;
+pub struct AllergenConcentration {
+    pub allergen: Allergen,
+    pub grains_per_cubic_metre: f64,
+}
 
-impl Allergen for Birch {
-    const SOURCE_NAME: &'static str = "pollen-birch";
-    const THRESHOLDS: [f64; 3] = [10.0, 45.0, 100.0];
-
-    fn concentration(readings: &PollenReadings) -> f64 {
-        readings.birch
+impl AllergenConcentration {
+    pub fn is_airborne(&self) -> bool {
+        self.grains_per_cubic_metre > 0.0
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Pollen<A: Allergen> {
-    pub value: f64,
-    pub all: Vec<(&'static str, f64)>,
-    allergen: PhantomData<A>,
+pub struct Pollen {
+    pub concentrations: Vec<AllergenConcentration>,
 }
 
-impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<A> {
+impl Pollen {
+    fn of(readings: &PollenReadings) -> Self {
+        Self {
+            concentrations: Allergen::ALL
+                .map(|allergen| AllergenConcentration {
+                    allergen,
+                    grains_per_cubic_metre: readings.grains_per_cubic_metre(allergen),
+                })
+                .to_vec(),
+        }
+    }
+
+    pub fn concentration(&self, allergen: Allergen) -> Option<&AllergenConcentration> {
+        self.concentrations
+            .iter()
+            .find(|concentration| concentration.allergen == allergen)
+    }
+
+    pub fn airborne(&self) -> impl Iterator<Item = &AllergenConcentration> {
+        self.concentrations
+            .iter()
+            .filter(|concentration| concentration.is_airborne())
+    }
+}
+
+impl Source for Pollen {
     type Error = Error;
 
     type Key = Position;
 
-    const NAME: &'static str = A::SOURCE_NAME;
+    const NAME: &'static str = "pollen";
     const INTERVAL: Duration = Duration::from_mins(30);
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
@@ -596,11 +653,7 @@ impl<A: Allergen + Clone + PartialEq + Send + Sync + 'static> Source for Pollen<
             here.latitude, here.longitude
         );
         let air: AirQuality = serde_json::from_str(&http::get_text(&url, 10).await?)?;
-        Ok(Pollen {
-            value: A::concentration(&air.current),
-            all: air.current.all(),
-            allergen: PhantomData,
-        })
+        Ok(Pollen::of(&air.current))
     }
 }
 
@@ -635,20 +688,29 @@ mod tests {
     #[test]
     fn allergens_select_their_own_species() {
         let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
-        assert!((Grass::concentration(&air.current) - 0.3).abs() < f64::EPSILON);
-        assert!((Birch::concentration(&air.current) - 0.0).abs() < f64::EPSILON);
-        assert_eq!(air.current.all().len(), 6);
+        let pollen = Pollen::of(&air.current);
+        let grains = |allergen| {
+            pollen
+                .concentration(allergen)
+                .unwrap()
+                .grains_per_cubic_metre
+        };
+        assert!((grains(Allergen::Grass) - 0.3).abs() < f64::EPSILON);
+        assert!(grains(Allergen::Birch).abs() < f64::EPSILON);
+        assert_eq!(pollen.concentrations.len(), Allergen::ALL.len());
     }
 
     #[test]
-    fn pollen_below_threshold_reads_zero() {
+    fn only_allergens_with_pollen_in_the_air_are_airborne() {
         let air: AirQuality = serde_json::from_str(AIR_QUALITY).unwrap();
-        let birch: Pollen<Birch> = Pollen {
-            value: Birch::concentration(&air.current),
-            all: air.current.all(),
-            allergen: PhantomData,
-        };
-        assert!(birch.value.abs() < f64::EPSILON);
+        let airborne: Vec<Allergen> = Pollen::of(&air.current)
+            .airborne()
+            .map(|concentration| concentration.allergen)
+            .collect();
+        assert_eq!(
+            airborne,
+            [Allergen::Grass, Allergen::Mugwort, Allergen::Ragweed]
+        );
     }
 
     #[test]

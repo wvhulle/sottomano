@@ -5,6 +5,7 @@ pub mod tooltip_transition;
 
 use iced::{Rectangle, window::Id};
 
+use crate::data::source::weather::Allergen;
 pub use crate::wayland_layers::tooltip::{
     host_surfaces::TooltipHost,
     hover_area::{hoverable, on_surface},
@@ -57,8 +58,8 @@ pub enum HoverTarget {
     WeatherTemp,
     WeatherWind,
     WeatherRain,
-    PollenBirch,
-    PollenGrass,
+    Pollen,
+    Allergen(Allergen),
     Location,
     Wallpaper,
     WallpaperPlace,
