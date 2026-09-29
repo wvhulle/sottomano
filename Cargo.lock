@@ -893,6 +893,7 @@ dependencies = [
  "js-sys",
  "num-traits",
  "pure-rust-locales",
+ "serde",
  "wasm-bindgen",
  "windows-link",
 ]

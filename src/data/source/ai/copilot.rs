@@ -1,22 +1,29 @@
+mod free_quota;
+mod metered_quota;
+mod monthly_usage;
+
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
     time::Duration,
 };
 
-use chrono::{DateTime, Local, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
 
+pub use self::{
+    free_quota::CopilotFree, metered_quota::CopilotMetered, monthly_usage::CopilotCcusage,
+};
 use crate::data::source::{
-    Source,
-    ai::read_secret,
-    command::{self, exists, require},
+    ai::{ccusage, read_secret},
     http,
 };
 
-const USER_URL: &str = "https://api.github.com/copilot_internal/user";
+const API_BASE: &str = "https://api.github.com";
+pub const USER_ENDPOINT: &str = "/copilot_internal/user";
 const USER_AGENT: &str = "vetrata";
+const USER_POLL_INTERVAL: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -24,7 +31,7 @@ pub enum Error {
     Fetch(http::Error),
     Decode(Arc<serde_json::Error>),
     NoQuota,
-    Ccusage(command::Error),
+    Ccusage(ccusage::Error),
 }
 
 impl Display for Error {
@@ -51,8 +58,8 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<command::Error> for Error {
-    fn from(error: command::Error) -> Self {
+impl From<ccusage::Error> for Error {
+    fn from(error: ccusage::Error) -> Self {
         Error::Ccusage(error)
     }
 }
@@ -60,10 +67,9 @@ impl From<command::Error> for Error {
 #[derive(Deserialize)]
 struct UserInfo {
     limited_user_quotas: Option<FreeQuotas>,
-    token_based_billing: Option<bool>,
     quota_snapshots: Option<QuotaSnapshots>,
     copilot_plan: Option<String>,
-    sku: Option<String>,
+    access_type_sku: Option<String>,
     limited_user_reset_date: Option<i64>,
     quota_reset_date_utc: Option<String>,
     quota_reset_date: Option<String>,
@@ -85,183 +91,33 @@ struct QuotaSnapshots {
 struct QuotaSnapshot {
     has_quota: bool,
     entitlement: i64,
-    remaining: i64,
-    percent_remaining: Option<f64>,
-}
-
-#[derive(Deserialize)]
-struct MonthlyReport {
-    monthly: Vec<MonthEntry>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MonthEntry {
-    month: String,
-    total_tokens: u64,
-    total_cost: f64,
-    models_used: Vec<String>,
-}
-
-impl MonthlyReport {
-    fn month(self, month: &str) -> Option<MonthEntry> {
-        self.monthly.into_iter().find(|entry| entry.month == month)
-    }
+    quota_remaining: f64,
+    percent_remaining: f64,
 }
 
 impl UserInfo {
-    fn metered_plan(&self) -> bool {
-        self.limited_user_quotas.is_none() && self.token_based_billing != Some(true)
-    }
-
-    fn free_plan(&self) -> bool {
-        self.limited_user_quotas.is_some()
-    }
-
     fn plan(&self) -> String {
-        self.copilot_plan
-            .as_ref()
-            .or(self.sku.as_ref())
-            .filter(|plan| !plan.is_empty())
+        [&self.access_type_sku, &self.copilot_plan]
+            .into_iter()
+            .flatten()
+            .find(|plan| !plan.is_empty())
             .map_or_else(|| "unknown".to_owned(), ToOwned::to_owned)
     }
-
-    fn metered_quota(&self) -> Option<(&QuotaSnapshot, &'static str)> {
-        let snapshots = self.quota_snapshots.as_ref()?;
-        usable(snapshots.premium_interactions.as_ref(), "Premium requests")
-            .or_else(|| usable(snapshots.chat.as_ref(), "Chat"))
-    }
 }
 
-impl QuotaSnapshot {
-    #[allow(clippy::cast_possible_truncation)]
-    fn percent_used(&self) -> i64 {
-        100 - self.percent_remaining.map_or_else(
-            || (self.remaining * 100) / self.entitlement,
-            |percent| percent as i64,
-        )
-    }
-}
-
-fn usable<'a>(
-    snapshot: Option<&'a QuotaSnapshot>,
-    label: &'static str,
-) -> Option<(&'a QuotaSnapshot, &'static str)> {
-    snapshot
-        .filter(|snap| snap.has_quota && snap.entitlement > 0 && snap.remaining >= 0)
-        .map(|snap| (snap, label))
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CopilotMetered {
-    pub plan: String,
-    pub quota: String,
-    pub used: i64,
-    pub limit: i64,
-    pub remaining: i64,
-    pub percent_used: i64,
-    pub reset: Option<DateTime<Utc>>,
-}
-
-impl Source for CopilotMetered {
-    type Error = Error;
-    type Key = PathBuf;
-
-    const NAME: &'static str = "copilot-usage-metered";
-    const INTERVAL: Duration = Duration::from_secs(60);
-
-    async fn available(key: &PathBuf) -> bool {
-        user_info(key).await.is_ok_and(|info| info.metered_plan())
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
-        let info = user_info(&key).await?;
-        let (snapshot, label) = info.metered_quota().ok_or(Error::NoQuota)?;
-        Ok(CopilotMetered {
-            plan: info.plan(),
-            quota: label.to_owned(),
-            used: snapshot.entitlement - snapshot.remaining,
-            limit: snapshot.entitlement,
-            remaining: snapshot.remaining,
-            percent_used: snapshot.percent_used(),
-            reset: quota_reset(&info),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CopilotFree {
-    pub plan: String,
-    pub chat: i64,
-    pub completions: i64,
-    pub reset: Option<DateTime<Utc>>,
-}
-
-impl Source for CopilotFree {
-    type Error = Error;
-    type Key = PathBuf;
-
-    const NAME: &'static str = "copilot-usage-free";
-    const INTERVAL: Duration = Duration::from_secs(60);
-
-    async fn available(key: &PathBuf) -> bool {
-        user_info(key).await.is_ok_and(|info| info.free_plan())
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
-        let info = user_info(&key).await?;
-        let quotas = info.limited_user_quotas.as_ref().ok_or(Error::NoQuota)?;
-        Ok(CopilotFree {
-            plan: info.plan(),
-            chat: quotas.chat,
-            completions: quotas.completions,
-            reset: info
-                .limited_user_reset_date
-                .filter(|epoch| *epoch > 0)
-                .and_then(|epoch| DateTime::from_timestamp(epoch, 0)),
-        })
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct CopilotCcusage {
-    pub month: String,
-    pub tokens: u64,
-    pub cost: f64,
-    pub models: String,
-}
-
-impl Source for CopilotCcusage {
-    type Error = Error;
-    type Key = ();
-
-    const NAME: &'static str = "copilot-usage-ccusage";
-    const INTERVAL: Duration = Duration::from_secs(60);
-
-    async fn available((): &()) -> bool {
-        exists("ccusage").await
-    }
-
-    async fn poll((): ()) -> Result<Self, Self::Error> {
-        let now = Local::now();
-        let first_of_month = now.format("%Y%m01").to_string();
-        let current_month = now.format("%Y-%m").to_string();
-        let raw = require(
-            "ccusage",
-            &["copilot", "monthly", "--since", &first_of_month, "--json"],
-        )
-        .await?;
-        let report: MonthlyReport = serde_json::from_str(&raw)?;
-        let Some(entry) = report.month(&current_month) else {
-            return Ok(CopilotCcusage::default());
-        };
-        Ok(CopilotCcusage {
-            month: entry.month,
-            tokens: entry.total_tokens,
-            cost: entry.total_cost,
-            models: entry.models_used.join(", "),
-        })
-    }
+async fn user_info(key: &Path) -> Result<UserInfo, Error> {
+    let token = read_secret(key).ok_or(Error::Secret)?;
+    let auth = format!("token {token}");
+    Ok(http::get_json(
+        &format!("{API_BASE}{USER_ENDPOINT}"),
+        &[
+            ("Authorization", &auth),
+            ("Accept", "application/json"),
+            ("User-Agent", USER_AGENT),
+        ],
+        10,
+    )
+    .await?)
 }
 
 fn quota_reset(info: &UserInfo) -> Option<DateTime<Utc>> {
@@ -273,116 +129,4 @@ fn quota_reset(info: &UserInfo) -> Option<DateTime<Utc>> {
         let date: NaiveDate = info.quota_reset_date.as_deref()?.parse().ok()?;
         Some(date.and_time(NaiveTime::MIN).and_utc())
     })
-}
-
-async fn user_info(key: &Path) -> Result<UserInfo, Error> {
-    let token = read_secret(key).ok_or(Error::Secret)?;
-    let auth = format!("token {token}");
-    Ok(http::get_json(
-        USER_URL,
-        &[
-            ("Authorization", &auth),
-            ("Accept", "application/json"),
-            ("User-Agent", USER_AGENT),
-        ],
-        10,
-    )
-    .await?)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const USER_INFO: &str = r#"{
-        "copilot_plan": "individual",
-        "sku": null,
-        "token_based_billing": false,
-        "limited_user_quotas": null,
-        "limited_user_reset_date": null,
-        "quota_reset_date": "2026-09-01",
-        "quota_reset_date_utc": "2026-09-01T00:00:00Z",
-        "quota_snapshots": {
-            "premium_interactions": {
-                "has_quota": false, "entitlement": 0, "remaining": 0,
-                "quota_remaining": 0.0, "percent_remaining": 0.0,
-                "quota_reset_at": 0, "unlimited": false
-            },
-            "chat": {
-                "has_quota": true, "entitlement": 200, "remaining": 150,
-                "quota_remaining": 150.0, "percent_remaining": 75.0,
-                "quota_reset_at": 0, "unlimited": false
-            }
-        }
-    }"#;
-
-    const FREE_USER_INFO: &str = r#"{
-        "sku": "free",
-        "limited_user_quotas": { "chat": 12, "completions": 900 },
-        "limited_user_reset_date": 1788220800
-    }"#;
-
-    #[test]
-    fn metered_account_picks_the_chat_snapshot() {
-        let info: UserInfo = serde_json::from_str(USER_INFO).unwrap();
-        assert!(info.metered_plan());
-        assert_eq!(info.plan(), "individual");
-        let (snapshot, label) = info.metered_quota().unwrap();
-        assert_eq!(label, "Chat");
-        assert_eq!(snapshot.entitlement, 200);
-        assert_eq!(snapshot.percent_used(), 25);
-        assert_eq!(
-            quota_reset(&info),
-            "2026-09-01T00:00:00Z".parse::<DateTime<Utc>>().ok()
-        );
-    }
-
-    #[test]
-    fn free_account_is_not_metered() {
-        let info: UserInfo = serde_json::from_str(FREE_USER_INFO).unwrap();
-        assert!(!info.metered_plan());
-        assert!(info.free_plan());
-        let quotas = info.limited_user_quotas.unwrap();
-        assert_eq!(quotas.chat, 12);
-        assert_eq!(quotas.completions, 900);
-    }
-
-    #[test]
-    fn token_based_billing_account_is_neither_metered_nor_free() {
-        let info: UserInfo = serde_json::from_str(
-            r#"{"limited_user_quotas": null, "token_based_billing": true,
-                "quota_snapshots": {"chat": {"has_quota": true, "entitlement": 200,
-                "remaining": 200, "quota_remaining": 200.0, "percent_remaining": 100.0}}}"#,
-        )
-        .unwrap();
-        assert!(!info.metered_plan());
-        assert!(!info.free_plan());
-    }
-
-    const OLD_MONTH_REPORT: &str = r#"{"monthly":[{
-        "month": "2026-06", "totalTokens": 5000, "totalCost": 1.25,
-        "modelsUsed": ["gpt-5"]
-    }]}"#;
-
-    #[test]
-    fn empty_monthly_report_yields_no_usage() {
-        let report: MonthlyReport = serde_json::from_str(r#"{"monthly":[]}"#).unwrap();
-        assert!(report.month("2026-09").is_none());
-        let empty = CopilotCcusage::default();
-        assert_eq!(empty.tokens, 0);
-        assert!(empty.cost.abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn earlier_month_is_not_reported_as_current() {
-        let report: MonthlyReport = serde_json::from_str(OLD_MONTH_REPORT).unwrap();
-        assert!(report.month("2026-09").is_none());
-    }
-
-    #[test]
-    fn matching_month_is_reported() {
-        let report: MonthlyReport = serde_json::from_str(OLD_MONTH_REPORT).unwrap();
-        let entry = report.month("2026-06").unwrap();
-        assert_eq!(entry.total_tokens, 5000);
-    }
 }

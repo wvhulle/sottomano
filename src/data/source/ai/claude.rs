@@ -1,5 +1,5 @@
 mod backoff;
-mod ccusage;
+mod daily_usage;
 mod oauth;
 
 use std::{
@@ -10,15 +10,16 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
 pub use self::{
-    ccusage::ClaudeCcusage,
-    oauth::{ClaudeOauth, ExtraUsage, WindowUsage},
+    daily_usage::ClaudeCcusage,
+    oauth::{ClaudeOauth, ExtraStatus, ExtraUsage, WindowUsage},
 };
-use crate::data::source::{command, http};
+use crate::data::source::{ai::ccusage, http};
+
+const SUBSCRIPTION_SCOPE: &str = "user:inference";
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -32,7 +33,7 @@ pub enum Error {
     Api(ApiFailure),
     Decode(Arc<serde_json::Error>),
     Fetch(http::Error),
-    Ccusage(command::Error),
+    Ccusage(ccusage::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,8 +92,8 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-impl From<command::Error> for Error {
-    fn from(error: command::Error) -> Self {
+impl From<ccusage::Error> for Error {
+    fn from(error: ccusage::Error) -> Self {
         Error::Ccusage(error)
     }
 }
@@ -109,6 +110,14 @@ struct Oauth {
     access_token: Option<String>,
     rate_limit_tier: Option<String>,
     subscription_type: Option<String>,
+    #[serde(default)]
+    scopes: Vec<String>,
+}
+
+impl Oauth {
+    fn grants_subscription_usage(&self) -> bool {
+        self.access_token.is_some() && self.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
+    }
 }
 
 #[derive(Deserialize)]
@@ -126,30 +135,31 @@ fn read_credentials(path: &Path) -> Result<Credentials, Error> {
     Ok(serde_json::from_str(&raw)?)
 }
 
-#[allow(clippy::cast_possible_truncation)]
-fn percent(utilization: f64) -> i64 {
-    utilization as i64
-}
-
-fn time_until_reset(resets_at: Option<&String>) -> String {
-    let Some(at) = resets_at.and_then(|iso| iso.parse::<DateTime<Utc>>().ok()) else {
-        return "—".to_owned();
-    };
-    let diff = at.signed_duration_since(Utc::now());
-    let hours = diff.num_hours();
-    let mins = diff.num_minutes() - hours * 60;
-    format!("{hours}h{mins}m")
+fn subscription_login(path: &Path) -> bool {
+    read_credentials(path).is_ok_and(|credentials| {
+        credentials
+            .oauth
+            .is_some_and(|oauth| oauth.grants_subscription_usage())
+    })
 }
 
 fn plan(oauth: &Oauth) -> String {
-    if let Some(tier) = oauth.rate_limit_tier.as_ref().filter(|t| !t.is_empty()) {
-        return title_case(&tier.replace("default_claude_", "").replace('_', " "));
-    }
-    oauth
+    let subscription = oauth
         .subscription_type
-        .as_ref()
-        .filter(|value| !value.is_empty())
-        .map_or_else(|| "unknown".to_owned(), |value| title_case(value))
+        .as_deref()
+        .filter(|value| !value.is_empty());
+    let tier = oauth
+        .rate_limit_tier
+        .as_deref()
+        .map(|tier| tier.trim_start_matches("default_claude_"))
+        .filter(|tier| !tier.is_empty());
+    let name = match subscription {
+        Some(subscription) => tier
+            .filter(|tier| tier.starts_with(subscription))
+            .unwrap_or(subscription),
+        None => tier.unwrap_or("unknown"),
+    };
+    title_case(&name.replace('_', " "))
 }
 
 fn title_case(text: &str) -> String {
@@ -177,6 +187,29 @@ mod tests {
         let oauth = credentials.oauth.unwrap();
         assert_eq!(oauth.access_token.as_deref(), Some("t"));
         assert_eq!(plan(&oauth), "Max 20x");
+    }
+
+    fn plan_of(credentials: &str) -> String {
+        let credentials: Credentials = serde_json::from_str(credentials).unwrap();
+        plan(&credentials.oauth.unwrap())
+    }
+
+    #[test]
+    fn generic_tier_does_not_hide_the_subscription() {
+        let plan = plan_of(
+            r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_ai",
+                "subscriptionType":"pro","scopes":["user:inference"]}}"#,
+        );
+        assert_eq!(plan, "Pro");
+    }
+
+    #[test]
+    fn tier_multiplier_refines_the_subscription() {
+        let plan = plan_of(
+            r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_max_5x",
+                "subscriptionType":"max"}}"#,
+        );
+        assert_eq!(plan, "Max 5x");
     }
 
     #[test]
