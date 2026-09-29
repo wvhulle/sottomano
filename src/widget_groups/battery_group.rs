@@ -19,6 +19,7 @@ use crate::{
         },
     },
     wayland_layers::{
+        notifications::NotificationMessage,
         surface::Position,
         tooltip::{HoverTarget, TooltipMessage},
     },
@@ -27,6 +28,7 @@ use crate::{
         last_poll::LastPoll,
         menu_group::{MenuGroup, MenuMessage},
         reading_row::{Reading, ReadingRow},
+        severity_change::{severity_change, severity_of},
         tooltip_body::Tooltip,
     },
 };
@@ -50,6 +52,7 @@ pub enum BatteryMessage {
     PowerProfile(PowerProfileMessage),
     Menu(MenuMessage),
     Tooltip(TooltipMessage),
+    Notification(NotificationMessage),
 }
 
 impl BatteryGroup {
@@ -95,7 +98,8 @@ impl BatteryGroup {
                 Task::none()
             }
             BatteryMessage::PowerProfile(PowerProfileMessage::Tooltip(_))
-            | BatteryMessage::Tooltip(_) => Task::none(),
+            | BatteryMessage::Tooltip(_)
+            | BatteryMessage::Notification(_) => Task::none(),
             BatteryMessage::PowerProfile(msg) => self
                 .power_profile
                 .update(msg)
@@ -107,6 +111,7 @@ impl BatteryGroup {
                 Task::none()
             }
         };
+        let time_severity_before = severity_of(self.time_widget());
         let battery = self.battery.get();
         self.time = battery.and_then(|battery| {
             self.time_reading
@@ -114,7 +119,20 @@ impl BatteryGroup {
         });
         self.draw =
             battery.map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw()));
-        task
+        let alert = severity_change(
+            &HoverTarget::BatteryTime,
+            "Battery running out",
+            time_severity_before,
+            self.time_widget(),
+        )
+        .map_or_else(Task::none, |message| {
+            Task::done(BatteryMessage::Notification(message))
+        });
+        Task::batch([task, alert])
+    }
+
+    fn time_widget(&self) -> Option<&dyn BarWidget> {
+        self.time.as_ref().map(|time| time as &dyn BarWidget)
     }
 
     fn observe_battery(&mut self) -> Task<BatteryMessage> {
@@ -161,10 +179,7 @@ impl BatteryGroup {
                     self.draw.as_ref().map(|draw| draw as &dyn BarWidget),
                     HoverTarget::PowerDraw,
                 ))
-                .push(Reading::new(
-                    self.time.as_ref().map(|time| time as &dyn BarWidget),
-                    HoverTarget::BatteryTime,
-                ))
+                .push(Reading::new(self.time_widget(), HoverTarget::BatteryTime))
                 .row(config, BatteryMessage::Tooltip)
                 .map(Element::from);
             let power_profile = self.power_profile.view(config, reveal).map(|element| {
@@ -182,6 +197,7 @@ impl BatteryGroup {
         Some(
             self.menu
                 .slot(face, content, BatteryMessage::Menu)
+                .alert(severity_of(self.time_widget()))
                 .view(config, position),
         )
     }

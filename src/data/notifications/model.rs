@@ -8,13 +8,15 @@ pub enum Urgency {
     Low,
     #[default]
     Normal,
+    Warning,
     Critical,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpireTimeout {
     Never,
     After(Duration),
+    #[default]
     ServerDefault,
 }
 
@@ -40,7 +42,7 @@ pub enum NotifImage {
     Named(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NotificationData {
     pub id: u32,
     pub app_name: String,

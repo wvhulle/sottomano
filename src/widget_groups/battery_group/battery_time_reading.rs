@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use iced::Task;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -21,10 +23,13 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, TableRow, TooltipBody, row},
+        widget_state::WidgetState,
     },
 };
 
 const MIN_SAMPLE_W: f64 = 0.5;
+const EMPTY_CRITICAL: Duration = Duration::from_mins(10);
+const EMPTY_WARNING: Duration = Duration::from_mins(20);
 
 #[derive(Default)]
 pub struct BatteryTimeReading {
@@ -196,6 +201,22 @@ impl BarWidget for BatteryTime {
         match self {
             BatteryTime::Idle(idle) => Some(idle.label().to_string()),
             BatteryTime::Countdown(countdown) => Some(duration_text(countdown.estimate()?.time)),
+        }
+    }
+
+    fn state(&self) -> WidgetState {
+        match self {
+            BatteryTime::Countdown(Countdown::UntilEmpty(Some(estimate)))
+                if estimate.time < EMPTY_CRITICAL =>
+            {
+                WidgetState::Critical
+            }
+            BatteryTime::Countdown(Countdown::UntilEmpty(Some(estimate)))
+                if estimate.time < EMPTY_WARNING =>
+            {
+                WidgetState::Warning
+            }
+            BatteryTime::Idle(_) | BatteryTime::Countdown(_) => WidgetState::Idle,
         }
     }
 

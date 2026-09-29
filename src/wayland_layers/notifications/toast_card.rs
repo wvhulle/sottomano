@@ -176,6 +176,7 @@ fn urgency_accent(urgency: Urgency, palette: &Palette) -> Color {
     match urgency {
         Urgency::Low => palette.inactive,
         Urgency::Normal => palette.focus,
+        Urgency::Warning => palette.warning,
         Urgency::Critical => palette.urgent,
     }
 }

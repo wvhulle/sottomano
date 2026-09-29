@@ -253,6 +253,9 @@ impl Bar {
             }
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
             Message::Wallpaper(msg) => self.wallpaper_group.update(msg).map(Message::Wallpaper),
+            Message::Notification(msg) | Message::Battery(BatteryMessage::Notification(msg)) => {
+                self.update_notification(msg)
+            }
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
@@ -306,7 +309,6 @@ impl Bar {
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),
             ]),
             Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
-            Message::Notification(msg) => self.update_notification(msg),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => self.prune_notifications(),
             Message::TooltipTick
