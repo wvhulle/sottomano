@@ -170,6 +170,6 @@ fn edge_indicator<'a, Message: 'a>(
     activity_line(
         config.palette.focus,
         base + (1.0 - base) * reveal,
-        config.widgets.focus_underline_thickness_px,
+        config.widgets.indicator_thickness_px,
     )
 }

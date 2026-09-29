@@ -4,9 +4,7 @@ use iced::{
 };
 use simpleicons_rs::{SICLAUDE, SIGITHUBCOPILOT, SIOPENROUTER, SIUNSPLASH, SIWIKIPEDIA};
 
-use crate::widgets::bar_widget::Glyph;
-
-const PHOSPHOR_LIVE_AREA_FRACTION: f32 = 224.0 / 256.0;
+use crate::widgets::{bar_widget::Glyph, svg_icon::PHOSPHOR_INK_FRACTION};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimpleIcon {
@@ -30,7 +28,7 @@ impl SimpleIcon {
     }
 
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
-        let drawing = size * PHOSPHOR_LIVE_AREA_FRACTION;
+        let drawing = size * PHOSPHOR_INK_FRACTION;
         container(
             svg(self.handle())
                 .width(drawing)

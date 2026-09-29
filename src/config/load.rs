@@ -144,13 +144,15 @@ pub fn load() -> Config {
             process::exit(1);
         }
     };
+    let icon_slot_height_px =
+        user.chrome.outer_height_px - 2.0 * user.widgets.indicator_thickness_px;
     Config {
         palette: user.palette,
         chrome: user.chrome,
         spacing: user.spacing,
         widgets: user.widgets,
         window_list: user.window_list,
-        font: font::resolve(&user.font),
+        font: font::resolve(&user.font, icon_slot_height_px),
         notifications: user.notifications,
         tray: user.tray,
         terminal_command_prefix: user.terminal,

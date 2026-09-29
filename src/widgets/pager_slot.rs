@@ -30,10 +30,7 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
     }
 
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
-        let band = config
-            .widgets
-            .focus_underline_thickness_px
-            .max(config.widgets.window_segment_thickness_px);
+        let band = config.widgets.indicator_thickness_px;
         let ticks_against = |edge: Vertical| -> Element<'a, Message> {
             self.ticks.map_or_else(
                 || Space::new().height(band).into(),
@@ -63,7 +60,7 @@ pub fn permanently_inactive_slot<'a, Message: 'a>(
     let inactive_indicator = activity_line(
         config.palette.focus,
         0.0,
-        config.widgets.focus_underline_thickness_px,
+        config.widgets.indicator_thickness_px,
     );
     PagerSlot::new(content, inactive_indicator).view(config, position)
 }

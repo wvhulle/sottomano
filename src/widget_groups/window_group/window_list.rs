@@ -184,7 +184,7 @@ impl WindowList {
             focused_index,
             config.palette.focus.scale_alpha(focus_opacity),
         )
-        .thickness(config.widgets.focus_underline_thickness_px)
+        .thickness(config.widgets.indicator_thickness_px)
         .edge(position);
         Some(window_list_viewport(
             indicated,
@@ -323,7 +323,7 @@ fn indicator_line<'a>(
     activity_line(
         config.palette.urgent,
         urgency * opacity,
-        config.widgets.focus_underline_thickness_px,
+        config.widgets.indicator_thickness_px,
     )
 }
 
@@ -337,7 +337,7 @@ fn progress_ticks<'a>(
         config.palette.warning.scale_alpha(opacity),
         config.palette.dim.scale_alpha(opacity),
         fraction,
-        config.widgets.window_segment_thickness_px,
+        config.widgets.indicator_thickness_px,
     ))
 }
 

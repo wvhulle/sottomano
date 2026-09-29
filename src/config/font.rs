@@ -18,7 +18,7 @@ impl Default for UserFont {
         Self {
             name: None,
             text_size_px: 14.0,
-            icon_size_px: 19.0,
+            icon_size_px: 25.0,
         }
     }
 }
@@ -32,7 +32,7 @@ pub struct FontConfig {
     pub covered: Arc<HashSet<char>>,
 }
 
-pub(super) fn resolve(config: &UserFont) -> FontConfig {
+pub(super) fn resolve(config: &UserFont, max_icon_size_px: f32) -> FontConfig {
     let matched = fc_match_family_file(config.name.as_deref().unwrap_or("sans-serif"));
     let name = config
         .name
@@ -48,7 +48,7 @@ pub(super) fn resolve(config: &UserFont) -> FontConfig {
     FontConfig {
         iced_font,
         text_size_px: config.text_size_px,
-        icon_size_px: config.icon_size_px,
+        icon_size_px: config.icon_size_px.min(max_icon_size_px),
         data: Arc::from(bytes),
         covered: Arc::new(covered),
     }
