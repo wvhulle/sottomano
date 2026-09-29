@@ -17,7 +17,7 @@ pub struct ReadingAlertActionButton<Message> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ActiveReadingAlert<Message> {
+pub struct ReadingAlert<Message> {
     pub hover_target: HoverTarget,
     pub severity: Severity,
     pub summary_text: &'static str,
@@ -38,7 +38,7 @@ const fn alerting_severity_of(state: WidgetState) -> Severity {
     }
 }
 
-impl<Message> ActiveReadingAlert<Message> {
+impl<Message> ReadingAlert<Message> {
     pub fn from_widget_state(
         hover_target: HoverTarget,
         widget: Option<&dyn BarWidget>,
@@ -76,11 +76,8 @@ impl<Message> ActiveReadingAlert<Message> {
         self
     }
 
-    pub fn map_messages<Lifted>(
-        self,
-        lift: impl Fn(Message) -> Lifted,
-    ) -> ActiveReadingAlert<Lifted> {
-        ActiveReadingAlert {
+    pub fn map_messages<Lifted>(self, lift: impl Fn(Message) -> Lifted) -> ReadingAlert<Lifted> {
+        ReadingAlert {
             hover_target: self.hover_target,
             severity: self.severity,
             summary_text: self.summary_text,
@@ -126,14 +123,6 @@ impl<Message> ActiveReadingAlert<Message> {
     }
 }
 
-pub fn highest_active_alert_severity<Message>(alerts: &[ActiveReadingAlert<Message>]) -> Severity {
-    alerts
-        .iter()
-        .map(|alert| alert.severity)
-        .max()
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,11 +165,8 @@ mod tests {
         summary_text: "summary",
     };
 
-    fn alert_for(
-        state: WidgetState,
-        threshold: ReadingAlertThreshold,
-    ) -> Option<ActiveReadingAlert<u8>> {
-        ActiveReadingAlert::from_widget_state(
+    fn alert_for(state: WidgetState, threshold: ReadingAlertThreshold) -> Option<ReadingAlert<u8>> {
+        ReadingAlert::from_widget_state(
             HoverTarget::BatteryTime,
             Some(&FixedReading { state, threshold }),
             0,

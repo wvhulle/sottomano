@@ -232,6 +232,10 @@ impl SliderControl {
         self.open = false;
     }
 
+    pub fn target(&self) -> &HoverTarget {
+        &self.target
+    }
+
     pub fn current(&self) -> f32 {
         self.device_setting.wanted_value()
     }

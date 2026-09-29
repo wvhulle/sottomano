@@ -1,12 +1,11 @@
 use std::{collections::HashMap, ops::RangeInclusive};
 
-use iced::{Element, Subscription, Task};
+use iced::{Subscription, Task};
 use uom::si::{f64::Power, power::watt};
 
 pub mod profile_icon;
 
 use crate::{
-    config::Config,
     data::{
         battery_forecast::{Estimate, RegressionState, time_until_empty},
         source::{
@@ -16,7 +15,7 @@ use crate::{
     },
     message_subscriptions::polling,
     state::power,
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage},
+    wayland_layers::tooltip::HoverTarget,
     widget_groups::battery_group::{
         estimate_columns::{ESTIMATE_HEADINGS, estimate_cells},
         power_profile_control::profile_icon::profile_face,
@@ -75,7 +74,6 @@ pub enum PowerProfileMessage {
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
     SwitchToProfile(Profile),
-    Tooltip(TooltipMessage),
 }
 
 fn commit_profile_switch(profile: Profile) -> Task<PowerProfileMessage> {
@@ -138,7 +136,6 @@ impl PowerProfileControl {
                 };
             }
             PowerProfileMessage::SwitchToProfile(profile) => return commit_profile_switch(profile),
-            PowerProfileMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -240,16 +237,8 @@ impl PowerProfileControl {
         }))
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        opacity: f32,
-    ) -> Option<Element<'a, PowerProfileMessage>> {
-        self.active_profile?;
-        Some(self.control.view(config, opacity).map(|m| match m {
-            ControlMessage::Tooltip(t) => PowerProfileMessage::Tooltip(t),
-            m => PowerProfileMessage::Control(m),
-        }))
+    pub fn slider(&self) -> Option<&SliderControl> {
+        self.active_profile.map(|_| &self.control)
     }
 }
 

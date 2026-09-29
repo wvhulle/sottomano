@@ -1,4 +1,4 @@
-use iced::{Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 
 pub mod geolocation_fix;
 pub mod pollen_count_gauge;
@@ -7,19 +7,13 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
-    config::Config,
     data::source::weather::{self, Birch, Grass, Location, Pollen, Rain, Temperature, Wind},
     message_subscriptions::polling,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
         last_poll::LastPoll,
-        menu_group::{MenuGroup, MenuMessage},
-        reading_row::{Reading, ReadingRow},
-        source_reading::source_reading,
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -31,7 +25,7 @@ pub struct WeatherGroup {
     birch: LastPoll<Pollen<Birch>>,
     grass: LastPoll<Pollen<Grass>>,
     location: LastPoll<Location>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -42,8 +36,7 @@ pub enum WeatherMessage {
     Birch(Result<Pollen<Birch>, weather::Error>),
     Grass(Result<Pollen<Grass>, weather::Error>),
     Location(Result<Location, weather::Error>),
-    Menu(MenuMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl WeatherGroup {
@@ -70,10 +63,9 @@ impl WeatherGroup {
             WeatherMessage::Birch(reading) => self.birch.receive(reading),
             WeatherMessage::Grass(reading) => self.grass.receive(reading),
             WeatherMessage::Location(reading) => self.location.receive(reading),
-            WeatherMessage::Menu(m) => {
-                self.menu.update(m);
+            WeatherMessage::Expansion(m) => {
+                self.expansion.update(m);
             }
-            WeatherMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -90,37 +82,13 @@ impl WeatherGroup {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, WeatherMessage>> {
-        self.location.get()?;
-        source_reading::<WeatherMessage>(config, self.temp.display(), 1.0)?;
-
-        let face = move || {
-            let reading = source_reading(config, self.temp.display(), 1.0)
-                .unwrap_or_else(|| Row::new().into());
-            hoverable(reading, HoverTarget::WeatherTemp, WeatherMessage::Tooltip)
-        };
-
-        let content = move |reveal: f32| {
-            ReadingRow::new()
-                .opacity(reveal)
-                .push(Reading::new(self.wind.display(), HoverTarget::WeatherWind))
-                .push(Reading::new(self.rain.present(), HoverTarget::WeatherRain))
-                .push(Reading::new(self.birch.present(), HoverTarget::PollenBirch))
-                .push(Reading::new(self.grass.present(), HoverTarget::PollenGrass))
-                .push(Reading::new(self.location.display(), HoverTarget::Location))
-                .row(config, WeatherMessage::Tooltip)
-                .unwrap_or_else(Row::new)
-                .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, WeatherMessage::Menu)
-                .view(config, position),
-        )
+    pub fn widget_group(&self) -> WidgetGroup<'_, WeatherMessage> {
+        WidgetGroup::new(&self.expansion, WeatherMessage::Expansion)
+            .reading(self.temp.display(), HoverTarget::WeatherTemp)
+            .reading(self.wind.display(), HoverTarget::WeatherWind)
+            .reading(self.rain.present(), HoverTarget::WeatherRain)
+            .reading(self.birch.present(), HoverTarget::PollenBirch)
+            .reading(self.grass.present(), HoverTarget::PollenGrass)
+            .reading(self.location.display(), HoverTarget::Location)
     }
 }

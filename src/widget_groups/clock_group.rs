@@ -1,18 +1,16 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
-use iced::{
-    Alignment, Element, Subscription, Task, futures::channel::mpsc::Sender, stream, widget::Row,
-};
+use iced::{Subscription, Task, futures::channel::mpsc::Sender, stream};
 use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    wayland_layers::surface::Position,
     widgets::{
+        group_item::GroupItem,
         localized_time::TimePart,
-        menu_group::{MenuGroup, MenuMessage},
         text::bar_text,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -20,20 +18,20 @@ const TICK: Duration = Duration::from_secs(1);
 
 pub struct ClockGroup {
     now: DateTime<Local>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum ClockMessage {
     Tick(DateTime<Local>),
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl Default for ClockGroup {
     fn default() -> Self {
         Self {
             now: Local::now(),
-            menu: MenuGroup::default(),
+            expansion: GroupExpansion::default(),
         }
     }
 }
@@ -42,8 +40,8 @@ impl ClockGroup {
     pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
         match msg {
             ClockMessage::Tick(now) => self.now = now,
-            ClockMessage::Menu(m) => {
-                self.menu.update(m);
+            ClockMessage::Expansion(m) => {
+                self.expansion.update(m);
             }
         }
         Task::none()
@@ -63,29 +61,22 @@ impl ClockGroup {
         })
     }
 
-    pub fn view<'a>(&'a self, config: &'a Config, position: Position) -> Element<'a, ClockMessage> {
-        let face = move || {
-            bar_text(
-                &config.font,
-                TimePart::TimeOfDay.format(&self.now, config.locale),
-            )
-            .into()
-        };
-
-        let content = move |_reveal: f32| {
-            Row::new()
-                .push(bar_text(
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, ClockMessage> {
+        WidgetGroup::new(&self.expansion, ClockMessage::Expansion)
+            .item(GroupItem::element(move |_| {
+                bar_text(
+                    &config.font,
+                    TimePart::TimeOfDay.format(&self.now, config.locale),
+                )
+                .into()
+            }))
+            .item(GroupItem::element(move |_| {
+                bar_text(
                     &config.font,
                     TimePart::Date.format(&self.now, config.locale),
-                ))
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
+                )
                 .into()
-        };
-
-        self.menu
-            .slot(face, content, ClockMessage::Menu)
-            .view(config, position)
+            }))
     }
 }
 

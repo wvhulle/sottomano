@@ -11,14 +11,14 @@ use super::{expiry_countdown::Countdown, toast_anchor::ToastPlacement, toast_car
 use crate::{
     app::Message,
     data::notifications::model::{NotifHandle, NotificationData},
-    widgets::active_reading_alert::ActiveReadingAlert,
+    widgets::reading_alert::ReadingAlert,
 };
 
 const PRESENCE: Duration = Duration::from_millis(90);
 
 pub enum ToastOrigin {
     DbusClient,
-    ActiveReadingAlert(Box<ActiveReadingAlert<Message>>),
+    ReadingAlert(Box<ReadingAlert<Message>>),
 }
 
 #[derive(Debug, Clone)]
@@ -71,9 +71,9 @@ impl Notification {
         }
     }
 
-    pub(super) fn active_reading_alert(&self) -> Option<&ActiveReadingAlert<Message>> {
+    pub(super) fn reading_alert(&self) -> Option<&ReadingAlert<Message>> {
         match &self.origin {
-            ToastOrigin::ActiveReadingAlert(alert) => Some(alert),
+            ToastOrigin::ReadingAlert(alert) => Some(alert),
             ToastOrigin::DbusClient => None,
         }
     }

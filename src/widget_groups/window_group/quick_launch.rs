@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
 use iced::{
-    Alignment, Element, Task,
+    Element, Task,
     widget::{Row, button, hover, image, svg},
 };
 
@@ -9,12 +9,11 @@ use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     message_subscriptions::blocking,
-    wayland_layers::surface::Position,
     widgets::{
-        bar_widget::Glyph,
         flat_button,
-        menu_group::{MenuGroup, MenuMessage},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -25,12 +24,12 @@ const RESTING_OPACITY: f32 = 0.65;
 pub struct QuickLaunch {
     ranked: HashMap<String, Vec<String>>,
     desktop_entries: Option<Arc<DesktopEntries>>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum QuickLaunchMessage {
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Launch(String),
 }
 
@@ -49,8 +48,8 @@ impl QuickLaunch {
 
     pub fn update(&mut self, msg: QuickLaunchMessage) -> Task<QuickLaunchMessage> {
         match msg {
-            QuickLaunchMessage::Menu(m) => {
-                self.menu.update(m);
+            QuickLaunchMessage::Expansion(m) => {
+                self.expansion.update(m);
             }
             QuickLaunchMessage::Launch(app_id) => return self.launch(app_id),
         }
@@ -69,36 +68,21 @@ impl QuickLaunch {
         .discard()
     }
 
-    pub fn view<'a>(
+    pub fn widget_group<'a>(
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
         config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, QuickLaunchMessage>> {
-        let app_ids = self.ranked.get(output).filter(|ids| !ids.is_empty())?;
-
-        let face = move || {
-            Glyph::from(Phosphor::Rocket(Weight::Regular))
-                .view(config.font.icon_size_px, config.palette.bar_foreground)
-        };
-
-        let content = move |reveal: f32| {
-            Row::with_children(
-                app_ids
-                    .iter()
-                    .filter_map(|app_id| icon_slot(config, index, app_id, reveal)),
-            )
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, QuickLaunchMessage::Menu)
-                .view(config, position),
-        )
+    ) -> WidgetGroup<'a, QuickLaunchMessage> {
+        let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
+        WidgetGroup::new(&self.expansion, QuickLaunchMessage::Expansion)
+            .icon(Phosphor::Rocket(Weight::Regular))
+            .items(app_ids.iter().filter_map(|app_id| {
+                icon_slot(config, index, app_id, 1.0)?;
+                Some(GroupItem::element(move |reveal| {
+                    icon_slot(config, index, app_id, reveal).unwrap_or_else(|| Row::new().into())
+                }))
+            }))
     }
 }
 

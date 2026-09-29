@@ -1,11 +1,10 @@
-use iced::{Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 
 pub mod network_throughput_gauge;
 pub mod tailscale_mesh_tooltip;
 pub mod wireguard_tunnel_tooltip;
 
 use crate::{
-    config::Config,
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
@@ -13,17 +12,13 @@ use crate::{
         wireguard::{Wireguard, disconnect},
     },
     message_subscriptions::polling,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
+        group_item::GroupItem,
         last_poll::LastPoll,
-        menu_group::{MenuGroup, MenuMessage},
-        reading_row::{Reading, ReadingRow},
-        source_reading::source_reading,
         tooltip_body::Tooltip,
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -34,7 +29,7 @@ pub struct InternetGroup {
     wireguard: LastPoll<Wireguard>,
     tailscale: LastPoll<Tailscale>,
     installed: Installed,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -49,10 +44,9 @@ pub enum InternetMessage {
     Throughput(Readings),
     Wireguard(Result<Wireguard, command::Error>),
     Tailscale(Result<Tailscale, tailscale::Error>),
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Disconnect(String),
     OpenTailscale,
-    Tooltip(TooltipMessage),
 }
 
 impl InternetGroup {
@@ -93,8 +87,8 @@ impl InternetGroup {
             }
             InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
             InternetMessage::Tailscale(reading) => self.tailscale.receive(reading),
-            InternetMessage::Menu(m) => {
-                self.menu.update(m);
+            InternetMessage::Expansion(m) => {
+                self.expansion.update(m);
             }
             InternetMessage::Disconnect(name) => {
                 return blocking("wireguard down", move || disconnect(&name)).discard();
@@ -102,7 +96,6 @@ impl InternetGroup {
             InternetMessage::OpenTailscale => {
                 return blocking("tailscale admin", open_admin).discard();
             }
-            InternetMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -125,51 +118,21 @@ impl InternetGroup {
         }
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-    ) -> Option<Element<'a, InternetMessage>> {
-        let down = self.down.get()?;
-        source_reading::<InternetMessage>(config, Some(down as &dyn BarWidget), 1.0)?;
-
-        let face = move || {
-            let reading = source_reading(config, Some(down as &dyn BarWidget), 1.0)
-                .unwrap_or_else(|| Row::new().into());
-            hoverable(reading, HoverTarget::InternetDown, InternetMessage::Tooltip)
-        };
-
-        let content = move |reveal: f32| {
-            let tunnels = self
-                .wireguard
-                .get()
-                .map_or(&[][..], |wireguard| &wireguard.tunnels);
-            tunnels
-                .iter()
-                .fold(
-                    ReadingRow::new()
-                        .opacity(reveal)
-                        .push(Reading::new(self.up.display(), HoverTarget::InternetUp)),
-                    |readings, tunnel| {
-                        readings.push(
-                            Reading::new(Some(tunnel), HoverTarget::Wireguard(tunnel.name.clone()))
-                                .on_right_press(InternetMessage::Disconnect(tunnel.name.clone())),
-                        )
-                    },
-                )
-                .push(
-                    Reading::new(self.tailscale.display(), HoverTarget::Tailscale)
-                        .on_press(InternetMessage::OpenTailscale),
-                )
-                .row(config, InternetMessage::Tooltip)
-                .unwrap_or_else(Row::new)
-                .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, InternetMessage::Menu)
-                .view(config, position),
-        )
+    pub fn widget_group(&self) -> WidgetGroup<'_, InternetMessage> {
+        let tunnels = self
+            .wireguard
+            .get()
+            .map_or(&[][..], |wireguard| &wireguard.tunnels);
+        WidgetGroup::new(&self.expansion, InternetMessage::Expansion)
+            .reading(self.down.display(), HoverTarget::InternetDown)
+            .reading(self.up.display(), HoverTarget::InternetUp)
+            .items(tunnels.iter().map(|tunnel| {
+                GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
+                    .on_right_press(InternetMessage::Disconnect(tunnel.name.clone()))
+            }))
+            .item(self.tailscale.display().map(|tailscale| {
+                GroupItem::reading(tailscale, HoverTarget::Tailscale)
+                    .on_press(InternetMessage::OpenTailscale)
+            }))
     }
 }

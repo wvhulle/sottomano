@@ -1,26 +1,19 @@
 use std::{future::Future, ops::RangeInclusive};
 
-use iced::{
-    Alignment, Element, Task,
-    widget::{Row, button},
-};
+use iced::Task;
 
 use crate::{
     app::Message,
     config::Config,
     state::{self, ChromeState},
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
+    wayland_layers::tooltip::{HoverTarget, hoverable},
     widgets::{
-        bar_widget::Glyph,
-        flat_button,
-        menu_group::{MenuGroup, MenuMessage},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
+        toggle_control::icon_toggle_glyph,
         tooltip_body::{Tooltip, row},
-        widget_state::WidgetState,
+        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -78,7 +71,7 @@ fn auto_collapse_tooltip(chrome: &ChromeState) -> Tooltip {
 }
 
 pub struct PanelSettingsGroup {
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
     radius: SliderControl,
     offset: SliderControl,
     tint: SliderControl,
@@ -86,20 +79,19 @@ pub struct PanelSettingsGroup {
 
 #[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     ToggleBlurBackground,
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
     Radius(ControlMessage),
     Offset(ControlMessage),
     Tint(ControlMessage),
-    Tooltip(TooltipMessage),
 }
 
 impl Default for PanelSettingsGroup {
     fn default() -> Self {
         Self {
-            menu: MenuGroup::default(),
+            expansion: GroupExpansion::default(),
             radius: SliderControl::new(
                 RADIUS_RANGE,
                 HoverTarget::CornerRadius,
@@ -156,16 +148,16 @@ impl PanelSettingsGroup {
         self.tint.close();
     }
 
-    pub fn close_menu(&mut self) {
-        if self.menu.close() {
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
             self.close_sliders();
         }
     }
 
     pub fn update(&mut self, msg: PanelSettingsMessage, chrome: &mut ChromeState) -> Action {
         match msg {
-            PanelSettingsMessage::Menu(menu) => {
-                if self.menu.update(menu) {
+            PanelSettingsMessage::Expansion(menu) => {
+                if self.expansion.update(menu) {
                     self.close_sliders();
                 }
                 Action::None
@@ -228,7 +220,6 @@ impl PanelSettingsGroup {
                 }
                 _ => Action::None,
             },
-            PanelSettingsMessage::Tooltip(_) => Action::None,
         }
     }
 
@@ -241,86 +232,65 @@ impl PanelSettingsGroup {
             .update(ControlMessage::Reading(chrome.chrome_tint_factor * 100.0));
     }
 
-    #[allow(clippy::unnecessary_wraps)]
-    pub fn view<'a>(
+    pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-        chrome: &'a ChromeState,
-        position: Position,
-    ) -> Option<Element<'a, PanelSettingsMessage>> {
-        let foreground = config.palette.bar_foreground;
-        let face = move || {
-            Glyph::from(Phosphor::SlidersHorizontal(Weight::Regular))
-                .view(config.font.icon_size_px, foreground)
-        };
-
-        let content = move |_reveal: f32| {
-            Row::with_children([
-                icon_toggle(
-                    config,
-                    Phosphor::Pill(Weight::Regular),
-                    WidgetState::of_toggle(chrome.disconnected_groups),
-                    PanelSettingsMessage::ToggleDisconnectedGroups,
-                    HoverTarget::DisconnectedGroups,
-                ),
-                icon_toggle(
-                    config,
-                    Phosphor::PushPin(Weight::Regular),
-                    WidgetState::of_toggle(!chrome.auto_collapse_groups),
-                    PanelSettingsMessage::ToggleAutoCollapseGroups,
-                    HoverTarget::AutoCollapseGroups,
-                ),
-                icon_toggle(
-                    config,
-                    Phosphor::Snowflake(Weight::Regular),
-                    WidgetState::of_toggle(chrome.blur_background),
-                    PanelSettingsMessage::ToggleBlurBackground,
-                    HoverTarget::BlurBackground,
-                ),
-                slider_element(&self.tint, config, PanelSettingsMessage::Tint),
-                slider_element(&self.radius, config, PanelSettingsMessage::Radius),
-                slider_element(&self.offset, config, PanelSettingsMessage::Offset),
-            ])
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
-        };
-        Some(
-            self.menu
-                .slot(face, content, PanelSettingsMessage::Menu)
-                .view(config, position),
-        )
+        chrome: &ChromeState,
+    ) -> WidgetGroup<'a, PanelSettingsMessage> {
+        WidgetGroup::new(&self.expansion, PanelSettingsMessage::Expansion)
+            .icon(Phosphor::SlidersHorizontal(Weight::Regular))
+            .item(icon_toggle_item(
+                config,
+                Phosphor::Pill(Weight::Regular),
+                chrome.disconnected_groups,
+                PanelSettingsMessage::ToggleDisconnectedGroups,
+                HoverTarget::DisconnectedGroups,
+            ))
+            .item(icon_toggle_item(
+                config,
+                Phosphor::PushPin(Weight::Regular),
+                !chrome.auto_collapse_groups,
+                PanelSettingsMessage::ToggleAutoCollapseGroups,
+                HoverTarget::AutoCollapseGroups,
+            ))
+            .item(icon_toggle_item(
+                config,
+                Phosphor::Snowflake(Weight::Regular),
+                chrome.blur_background,
+                PanelSettingsMessage::ToggleBlurBackground,
+                HoverTarget::BlurBackground,
+            ))
+            .item(GroupItem::slider(
+                &self.tint,
+                config,
+                PanelSettingsMessage::Tint,
+            ))
+            .item(GroupItem::slider(
+                &self.radius,
+                config,
+                PanelSettingsMessage::Radius,
+            ))
+            .item(GroupItem::slider(
+                &self.offset,
+                config,
+                PanelSettingsMessage::Offset,
+            ))
     }
 }
 
-fn slider_element<'a>(
-    slider: &'a SliderControl,
-    config: &'a Config,
-    wrap: fn(ControlMessage) -> PanelSettingsMessage,
-) -> Element<'a, PanelSettingsMessage> {
-    slider.view(config, 1.0).map(move |m| match m {
-        ControlMessage::Tooltip(t) => PanelSettingsMessage::Tooltip(t),
-        m => wrap(m),
-    })
-}
-
-fn icon_toggle<'a>(
+fn icon_toggle_item(
     config: &Config,
     icon: Phosphor,
-    state: WidgetState,
+    enabled: bool,
     press: PanelSettingsMessage,
     target: HoverTarget,
-) -> Element<'a, PanelSettingsMessage> {
-    let color = state.color(&config.palette);
-    let widget =
-        Glyph::from(icon.with_weight(state.weight())).view(config.font.icon_size_px, color);
-    hoverable(
-        button(widget)
-            .padding(0)
-            .style(flat_button(color))
-            .on_press(press)
-            .into(),
-        target,
-        PanelSettingsMessage::Tooltip,
-    )
+) -> GroupItem<'_, PanelSettingsMessage> {
+    GroupItem::hoverable_element(move |_| {
+        hoverable(
+            icon_toggle_glyph(config, icon, enabled),
+            target.clone(),
+            GroupEvent::Tooltip,
+        )
+    })
+    .on_press(press)
 }

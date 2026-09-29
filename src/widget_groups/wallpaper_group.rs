@@ -3,33 +3,42 @@ use std::{
     path::PathBuf,
 };
 
-use iced::{Element, Subscription, Task, widget::Row};
+use iced::{Subscription, Task};
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
-    config::{Config, SecretPaths},
+    config::SecretPaths,
     data::source::{
         command,
         wallpaper::{self, Position, Wallpaper},
     },
-    wayland_layers::{
-        surface::Position as SurfacePosition,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         last_poll::LastPoll,
-        menu_group::{MenuGroup, MenuMessage},
         phosphor::Phosphor,
-        reading_row::{Reading, ReadingRow},
         simple_icons::SimpleIcon,
-        source_reading::source_reading,
         tooltip_body::{Tooltip, TooltipBody, link, row, section},
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Lookup(Wallpaper);
+pub struct Lookup {
+    place: Option<Place>,
+    article: Option<Article>,
+    photo: Photo,
+}
+
+impl Lookup {
+    fn of(wallpaper: &Wallpaper) -> Self {
+        Self {
+            place: Place::of(wallpaper),
+            article: Article::of(wallpaper),
+            photo: Photo::of(wallpaper),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Failure {
@@ -52,7 +61,7 @@ impl BarWidget for Lookup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![row("File", self.0.file_name.clone())])
+        TooltipBody::rows(vec![row("File", self.photo.file_name.clone())])
     }
 }
 
@@ -156,17 +165,17 @@ impl BarWidget for Photo {
 }
 
 impl Place {
-    fn of(lookup: &Lookup) -> Option<Self> {
+    fn of(wallpaper: &Wallpaper) -> Option<Self> {
         Some(Self {
-            name: lookup.0.place.clone()?,
-            position: lookup.0.position,
+            name: wallpaper.place.clone()?,
+            position: wallpaper.position,
         })
     }
 }
 
 impl Article {
-    fn of(lookup: &Lookup) -> Option<Self> {
-        let article = lookup.0.article.as_ref()?;
+    fn of(wallpaper: &Wallpaper) -> Option<Self> {
+        let article = wallpaper.article.as_ref()?;
         Some(Self {
             title: article.title.clone(),
             url: article.url.clone(),
@@ -176,12 +185,12 @@ impl Article {
 }
 
 impl Photo {
-    fn of(lookup: &Lookup) -> Self {
+    fn of(wallpaper: &Wallpaper) -> Self {
         Self {
-            file_name: lookup.0.file_name.clone(),
-            photographer: lookup.0.photographer.clone(),
-            caption: lookup.0.caption.clone(),
-            url: lookup.0.photo_url.clone(),
+            file_name: wallpaper.file_name.clone(),
+            photographer: wallpaper.photographer.clone(),
+            caption: wallpaper.caption.clone(),
+            url: wallpaper.photo_url.clone(),
         }
     }
 }
@@ -191,7 +200,7 @@ pub struct WallpaperGroup {
     shown: Option<String>,
     unsplash_key: Option<PathBuf>,
     wallpaper_daemon: bool,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -199,8 +208,7 @@ pub enum WallpaperMessage {
     DaemonFound(bool),
     Displayed(Result<String, command::Error>),
     Resolved(Result<Wallpaper, wallpaper::Error>),
-    Menu(MenuMessage),
-    Tooltip(TooltipMessage),
+    Expansion(ExpansionMessage),
 }
 
 impl WallpaperGroup {
@@ -210,7 +218,7 @@ impl WallpaperGroup {
             shown: None,
             unsplash_key: secrets.unsplash_access_key.clone(),
             wallpaper_daemon: false,
-            menu: MenuGroup::default(),
+            expansion: GroupExpansion::default(),
         }
     }
 
@@ -236,13 +244,15 @@ impl WallpaperGroup {
                 self.lookup.receive(Err(Failure::Query(failure)));
             }
             WallpaperMessage::Resolved(resolved) => {
-                self.lookup
-                    .receive(resolved.map(Lookup).map_err(Failure::Resolve));
+                self.lookup.receive(
+                    resolved
+                        .map(|wallpaper| Lookup::of(&wallpaper))
+                        .map_err(Failure::Resolve),
+                );
             }
-            WallpaperMessage::Menu(menu) => {
-                self.menu.update(menu);
+            WallpaperMessage::Expansion(menu) => {
+                self.expansion.update(menu);
             }
-            WallpaperMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -257,7 +267,7 @@ impl WallpaperGroup {
             return Task::none();
         };
         self.lookup
-            .load(Some(Lookup(wallpaper::unresolved(&path, &id))));
+            .load(Some(Lookup::of(&wallpaper::unresolved(&path, &id))));
         Task::future(async move { wallpaper::resolve(path, id, &key).await })
             .map(WallpaperMessage::Resolved)
     }
@@ -265,54 +275,33 @@ impl WallpaperGroup {
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         let body = match target {
             HoverTarget::Wallpaper => self.lookup.display()?.tooltip(),
-            HoverTarget::WallpaperPlace => Place::of(self.lookup.get()?)?.tooltip(),
-            HoverTarget::WallpaperArticle => Article::of(self.lookup.get()?)?.tooltip(),
-            HoverTarget::WallpaperPhoto => Photo::of(self.lookup.get()?).tooltip(),
+            HoverTarget::WallpaperPlace => self.lookup.get()?.place.as_ref()?.tooltip(),
+            HoverTarget::WallpaperArticle => self.lookup.get()?.article.as_ref()?.tooltip(),
+            HoverTarget::WallpaperPhoto => self.lookup.get()?.photo.tooltip(),
             _ => return None,
         };
         Some(Tooltip::of(body))
     }
 
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        position: SurfacePosition,
-    ) -> Option<Element<'a, WallpaperMessage>> {
-        source_reading::<WallpaperMessage>(config, self.lookup.display(), 1.0)?;
-
-        let face = move || {
-            let reading = source_reading(config, self.lookup.display(), 1.0)
-                .unwrap_or_else(|| Row::new().into());
-            hoverable(reading, HoverTarget::Wallpaper, WallpaperMessage::Tooltip)
-        };
-
-        let content = move |reveal: f32| {
-            let place = self.lookup.get().and_then(Place::of);
-            let article = self.lookup.get().and_then(Article::of);
-            let photo = self.lookup.get().map(Photo::of);
-            ReadingRow::new()
-                .opacity(reveal)
-                .push(Reading::new(
-                    place.as_ref().map(|pill| pill as &dyn BarWidget),
-                    HoverTarget::WallpaperPlace,
-                ))
-                .push(Reading::new(
-                    article.as_ref().map(|pill| pill as &dyn BarWidget),
-                    HoverTarget::WallpaperArticle,
-                ))
-                .push(Reading::new(
-                    photo.as_ref().map(|pill| pill as &dyn BarWidget),
-                    HoverTarget::WallpaperPhoto,
-                ))
-                .row(config, WallpaperMessage::Tooltip)
-                .unwrap_or_else(Row::new)
-                .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, WallpaperMessage::Menu)
-                .view(config, position),
-        )
+    pub fn widget_group(&self) -> WidgetGroup<'_, WallpaperMessage> {
+        let lookup = self.lookup.get();
+        WidgetGroup::new(&self.expansion, WallpaperMessage::Expansion)
+            .reading(self.lookup.display(), HoverTarget::Wallpaper)
+            .reading(
+                lookup
+                    .and_then(|lookup| lookup.place.as_ref())
+                    .map(|place| place as &dyn BarWidget),
+                HoverTarget::WallpaperPlace,
+            )
+            .reading(
+                lookup
+                    .and_then(|lookup| lookup.article.as_ref())
+                    .map(|article| article as &dyn BarWidget),
+                HoverTarget::WallpaperArticle,
+            )
+            .reading(
+                lookup.map(|lookup| &lookup.photo as &dyn BarWidget),
+                HoverTarget::WallpaperPhoto,
+            )
     }
 }

@@ -14,7 +14,7 @@ use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
     wayland_layers::surface::Position,
-    widgets::{tooltip_body::Tooltip, window_icon::WindowAssets},
+    widgets::{tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets},
 };
 
 #[derive(Default)]
@@ -91,15 +91,21 @@ impl WindowGroup {
         output: &str,
         config: &'a Config,
         position: Position,
-    ) -> Option<Element<'a, WindowGroupMessage>> {
+    ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         let quick_launch = self
             .quick_launch
-            .view(icons.entries, output, config, position)
-            .map(|e| e.map(WindowGroupMessage::QuickLaunch));
+            .widget_group(icons.entries, output, config)
+            .map_messages(WindowGroupMessage::QuickLaunch)
+            .view(config, position);
         let window_list = self
             .window_list
             .view(niri, icons, audio, output, config, position)
-            .map(|e| e.map(WindowGroupMessage::WindowList));
+            .map(|element| {
+                element.map(|message| match message {
+                    WindowListMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
+                    message => GroupEvent::Group(WindowGroupMessage::WindowList(message)),
+                })
+            });
         if quick_launch.is_none() && window_list.is_none() {
             return None;
         }

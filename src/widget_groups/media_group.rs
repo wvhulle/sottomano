@@ -14,17 +14,15 @@ use crate::{
         niri,
     },
     message_subscriptions::blocking,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
-    },
+    wayland_layers::tooltip::{HoverTarget, hoverable},
     widgets::{
         bar_widget::Glyph,
         flat_button,
-        menu_group::{MenuGroup, MenuMessage},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, row},
+        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -35,16 +33,15 @@ pub struct MediaGroup {
     players: Vec<Media>,
     forced: Option<String>,
     optimistic: Option<Status>,
-    pub(crate) menu: MenuGroup,
+    pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum MediaMessage {
     Reading(Vec<Media>),
-    Menu(MenuMessage),
+    Expansion(ExpansionMessage),
     Transport(&'static str),
     Source(String),
-    Tooltip(TooltipMessage),
 }
 
 impl MediaGroup {
@@ -76,8 +73,8 @@ impl MediaGroup {
                     self.forced = None;
                 }
             }
-            MediaMessage::Menu(m) => {
-                self.menu.update(m);
+            MediaMessage::Expansion(m) => {
+                self.expansion.update(m);
             }
             MediaMessage::Source(bus) => {
                 if self.current().is_some_and(|m| m.bus == bus) {
@@ -101,7 +98,6 @@ impl MediaGroup {
                 };
                 return blocking("mpris control", move || mpris::control(&bus, method)).discard();
             }
-            MediaMessage::Tooltip(_) => {}
         }
         Task::none()
     }
@@ -193,48 +189,44 @@ impl MediaGroup {
         Some(Tooltip::table(rows))
     }
 
-    pub fn view<'a>(
+    pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
         index: &'a DesktopIndex,
-        position: Position,
-    ) -> Option<Element<'a, MediaMessage>> {
-        let media = self.current()?;
+    ) -> WidgetGroup<'a, MediaMessage> {
+        let group = WidgetGroup::new(&self.expansion, MediaMessage::Expansion);
+        let Some(media) = self.current() else {
+            return group;
+        };
         let status = self.status(media);
         let opacity = if status == Status::Playing { 1.0 } else { 0.4 };
-
-        let face = move || {
-            let track = track_face(config, media, status, opacity);
-            hoverable(track, HoverTarget::Media, MediaMessage::Tooltip)
-        };
-
-        let content = move |reveal: f32| {
-            let title = rich_text(label_spans(config, media, reveal))
-                .size(config.font.text_size_px)
-                .line_height(LINE_HEIGHT);
-            let title = button(title)
-                .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
-                .on_press(MediaMessage::Source(media.bus.clone()));
-            Row::with_children(
-                [
-                    Some(title.into()),
-                    Some(transport(config, media, status, reveal)),
-                    self.sources(config, index, media, reveal),
-                ]
-                .into_iter()
-                .flatten(),
+        let sources = self.sources(config, index, media, 1.0).is_some().then(|| {
+            GroupItem::element(move |reveal| {
+                self.sources(config, index, media, reveal)
+                    .unwrap_or_else(|| Row::new().into())
+            })
+        });
+        group
+            .item(GroupItem::hoverable_element(move |_| {
+                hoverable(
+                    track_face(config, media, status, opacity).map(GroupEvent::Group),
+                    HoverTarget::Media,
+                    GroupEvent::Tooltip,
+                )
+            }))
+            .item(
+                GroupItem::element(move |reveal| {
+                    rich_text(label_spans(config, media, reveal))
+                        .size(config.font.text_size_px)
+                        .line_height(LINE_HEIGHT)
+                        .into()
+                })
+                .on_press(MediaMessage::Source(media.bus.clone())),
             )
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
-        };
-
-        Some(
-            self.menu
-                .slot(face, content, MediaMessage::Menu)
-                .view(config, position),
-        )
+            .item(GroupItem::element(move |reveal| {
+                transport(config, media, status, reveal)
+            }))
+            .item(sources)
     }
 }
 

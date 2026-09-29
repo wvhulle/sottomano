@@ -26,6 +26,7 @@ pub enum HoverTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
     TintChrome,
+    Journal,
     JournalSystem,
     JournalUser,
     JournalKernel,
