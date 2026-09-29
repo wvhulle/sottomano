@@ -150,10 +150,6 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.radius.is_animating() || self.offset.is_animating() || self.tint.is_animating()
-    }
-
     fn close_sliders(&mut self) {
         self.radius.close();
         self.offset.close();
@@ -298,8 +294,8 @@ impl PanelSettingsGroup {
 }
 
 fn slider_element<'a>(
-    slider: &SliderControl,
-    config: &Config,
+    slider: &'a SliderControl,
+    config: &'a Config,
     wrap: fn(ControlMessage) -> PanelSettingsMessage,
 ) -> Element<'a, PanelSettingsMessage> {
     slider.view(config, 1.0).map(move |m| match m {

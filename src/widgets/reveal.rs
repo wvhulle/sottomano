@@ -146,14 +146,18 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         viewport: &Rectangle,
     ) {
         let child = layout.children().next().unwrap();
-        let paint = |renderer: &mut iced::Renderer| {
+        let paint = |renderer: &mut iced::Renderer, visible: &Rectangle| {
             self.content
                 .as_widget()
-                .draw(tree, renderer, theme, style, child, cursor, viewport);
+                .draw(tree, renderer, theme, style, child, cursor, visible);
         };
         match self.clip(layout.bounds(), viewport) {
-            Some(clip) => renderer.with_layer(clip, paint),
-            None => paint(renderer),
+            Some(clip) => {
+                if let Some(visible) = clip.intersection(viewport) {
+                    renderer.with_layer(visible, |renderer| paint(renderer, &visible));
+                }
+            }
+            None => paint(renderer, viewport),
         }
     }
 

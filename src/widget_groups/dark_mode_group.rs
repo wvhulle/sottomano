@@ -107,10 +107,6 @@ impl DarkModeGroup {
         ])
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.sunrise_offset_slider.is_animating() || self.sunset_offset_slider.is_animating()
-    }
-
     fn close_controls(&mut self) {
         self.sunrise_offset_slider.close();
         self.sunset_offset_slider.close();
@@ -284,8 +280,8 @@ impl DarkModeGroup {
     }
 
     fn offset_slider_view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         edge: ColorMode,
     ) -> Element<'a, DarkModeMessage> {
         self.offset_slider_for(edge)

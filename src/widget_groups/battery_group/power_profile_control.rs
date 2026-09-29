@@ -84,8 +84,8 @@ struct DrainSample {
 }
 
 impl PowerProfileControl {
-    pub fn is_animating(&self) -> bool {
-        self.control.is_animating()
+    pub fn close(&mut self) {
+        self.control.close();
     }
 
     pub fn probe() -> Task<PowerProfileMessage> {
@@ -231,8 +231,8 @@ impl PowerProfileControl {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         opacity: f32,
     ) -> Option<Element<'a, PowerProfileMessage>> {
         self.active_profile?;

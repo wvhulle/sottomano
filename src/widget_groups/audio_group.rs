@@ -88,10 +88,6 @@ impl Default for AudioGroup {
 }
 
 impl AudioGroup {
-    pub fn is_animating(&self) -> bool {
-        self.sink_control.is_animating() || self.source_control.is_animating()
-    }
-
     pub fn window_audio(&self) -> &HashMap<i32, WindowAudio> {
         &self.windows
     }
@@ -233,8 +229,8 @@ impl AudioGroup {
     }
 
     pub fn view<'a>(
-        &self,
-        config: &Config,
+        &'a self,
+        config: &'a Config,
         position: Position,
     ) -> Option<Element<'a, AudioMessage>> {
         let source = self.source.as_ref().map(|_| {
