@@ -1,11 +1,10 @@
 use std::ops::RangeInclusive;
 
 use iced::{
-    Alignment, Animation, Element, Padding, Task,
+    Alignment, Element, Padding, Task,
     alignment::Horizontal,
-    animation::Easing,
     mouse::ScrollDelta,
-    time::{Duration, Instant},
+    time::Duration,
     widget::{Row, button, container, mouse_area},
 };
 use uom::si::{f64::Ratio, ratio};
@@ -17,6 +16,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         device_setting::{DeviceSetting, Nudge, Write},
+        expand_animation::expand_animation,
         flat_button,
         inline_slider::inline_slider,
         phosphor::Phosphor,
@@ -57,7 +57,7 @@ fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct SliderControl {
-    open: Animation<bool>,
+    open: bool,
     accum: f32,
     device_setting: DeviceSetting,
     disabled: bool,
@@ -141,9 +141,7 @@ pub enum Action {
 impl SliderControl {
     pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: impl Into<Glyph>) -> Self {
         Self {
-            open: Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(EXPAND),
+            open: false,
             accum: 0.0,
             device_setting: DeviceSetting::default(),
             disabled: false,
@@ -230,11 +228,7 @@ impl SliderControl {
     }
 
     pub fn close(&mut self) {
-        self.open.go_mut(false, Instant::now());
-    }
-
-    pub fn is_animating(&self) -> bool {
-        self.open.is_animating(Instant::now())
+        self.open = false;
     }
 
     pub fn current(&self) -> f32 {
@@ -259,8 +253,8 @@ impl SliderControl {
     pub fn update(&mut self, msg: ControlMessage) -> Action {
         match msg {
             ControlMessage::Press => {
-                self.open.go_mut(!self.open.value(), Instant::now());
-                if self.open.value() {
+                self.open = !self.open;
+                if self.open {
                     Action::Opened
                 } else {
                     Action::None
@@ -309,53 +303,62 @@ impl SliderControl {
         }
     }
 
-    pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
-        let expand = self.open.interpolate(0.0, 1.0, Instant::now());
-        if expand > 0.0 {
-            let state = self.state();
-            let glyph = button(
-                self.effective_icon()
-                    .with_weight(state.weight())
-                    .view(config.font.icon_size_px, state.color(&config.palette)),
-            )
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(ControlMessage::Press);
-            let slider = inline_slider(
-                config,
-                self.range.clone(),
-                self.current(),
-                self.device_setting.lagging_device_value(self.slider_step),
-                self.slider_step,
-                self.severity(),
-                ControlMessage::Set,
-                ControlMessage::Release,
-            );
-            let readout = button(
-                bar_text(&config.font, self.readout_text())
-                    .width(self.readout_width)
-                    .align_x(Horizontal::Center)
-                    .color(config.palette.bar_foreground),
-            )
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(ControlMessage::Press);
-            let gap = config.spacing.widget_spacing_px;
-            let revealed = Row::with_children([slider, readout.into()])
-                .spacing(gap)
-                .align_y(Alignment::Center);
-            let opened = Row::with_children([
-                glyph.into(),
-                reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
-            ])
-            .align_y(Alignment::Center);
-            let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
-            if self.right_click {
-                area = area.on_right_press(ControlMessage::Right);
+    pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, ControlMessage> {
+        expand_animation(self.open, EXPAND, move |expand| {
+            if expand > 0.0 {
+                self.expanded_view(config, expand)
+            } else {
+                self.collapsed_view(config, reveal)
             }
-            return area.into();
-        }
+        })
+    }
 
+    fn expanded_view<'a>(&self, config: &Config, expand: f32) -> Element<'a, ControlMessage> {
+        let state = self.state();
+        let glyph = button(
+            self.effective_icon()
+                .with_weight(state.weight())
+                .view(config.font.icon_size_px, state.color(&config.palette)),
+        )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
+        .on_press(ControlMessage::Press);
+        let slider = inline_slider(
+            config,
+            self.range.clone(),
+            self.current(),
+            self.device_setting.lagging_device_value(self.slider_step),
+            self.slider_step,
+            self.severity(),
+            ControlMessage::Set,
+            ControlMessage::Release,
+        );
+        let readout = button(
+            bar_text(&config.font, self.readout_text())
+                .width(self.readout_width)
+                .align_x(Horizontal::Center)
+                .color(config.palette.bar_foreground),
+        )
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
+        .on_press(ControlMessage::Press);
+        let gap = config.spacing.widget_spacing_px;
+        let revealed = Row::with_children([slider, readout.into()])
+            .spacing(gap)
+            .align_y(Alignment::Center);
+        let opened = Row::with_children([
+            glyph.into(),
+            reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
+        ])
+        .align_y(Alignment::Center);
+        let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
+        if self.right_click {
+            area = area.on_right_press(ControlMessage::Right);
+        }
+        area.into()
+    }
+
+    fn collapsed_view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
         let reading = source_reading(config, Some(self as &dyn BarWidget), reveal)
             .unwrap_or_else(|| Row::new().into());
         let hover = hoverable(reading, self.target.clone(), ControlMessage::Tooltip);

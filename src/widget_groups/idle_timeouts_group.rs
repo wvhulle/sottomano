@@ -91,17 +91,6 @@ impl Default for IdleTimeoutsGroup {
 }
 
 impl IdleTimeoutsGroup {
-    pub fn is_animating(&self) -> bool {
-        [
-            &self.lock,
-            &self.screen_off,
-            &self.standby,
-            &self.power_down,
-        ]
-        .iter()
-        .any(|timer| timer.is_animating())
-    }
-
     fn timer_mut(&mut self, kind: TimerKind) -> &mut IdleTimer {
         match kind {
             TimerKind::LockUser => &mut self.lock,
@@ -118,6 +107,12 @@ impl IdleTimeoutsGroup {
             (TimerKind::Standby, &self.standby),
             (TimerKind::PowerDown, &self.power_down),
         ]
+    }
+
+    pub fn close_menu(&mut self) {
+        if self.menu.close() {
+            self.close_all();
+        }
     }
 
     fn close_all(&mut self) {

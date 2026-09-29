@@ -621,16 +621,6 @@ impl Bar {
             .map(Message::ColorTemperature)
     }
 
-    pub fn any_slider_animating(&self) -> bool {
-        self.audio_group.is_animating()
-            || self.monitor_group.is_animating()
-            || self.color_temperature_group.is_animating()
-            || self.dark_mode_group.is_animating()
-            || self.panel_settings_group.is_animating()
-            || self.idle_timeouts_group.is_animating()
-            || self.battery_group.is_animating()
-    }
-
     fn dismiss_menus(&mut self) {
         if !self.session.chrome.auto_collapse_groups {
             return;
@@ -639,14 +629,14 @@ impl Bar {
         self.monitor_group.close_menu();
         self.color_temperature_group.close_menu();
         self.dark_mode_group.close_menu();
+        self.battery_group.close_menu();
+        self.idle_timeouts_group.close_menu();
         let _ = [
             &mut self.wallpaper_group.menu,
             &mut self.clock_group.menu,
             &mut self.weather_group.menu,
             &mut self.system_group.menu,
-            &mut self.battery_group.menu,
             &mut self.media_group.menu,
-            &mut self.idle_timeouts_group.menu,
             &mut self.internet_group.menu,
             &mut self.net_interfaces_group.menu,
             &mut self.window_group.quick_launch.menu,

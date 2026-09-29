@@ -70,10 +70,6 @@ impl IdleTimer {
         self.timeout
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.control.is_animating()
-    }
-
     pub fn trigger(&self) -> Option<IdleTrigger> {
         self.timeout.map(|after| IdleTrigger {
             after,
@@ -132,7 +128,7 @@ impl IdleTimer {
         Tooltip::table(vec![when, row("Via", self.action.mechanism())])
     }
 
-    pub fn view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, TimerMessage> {
+    pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, TimerMessage> {
         let slider = self.control.view(config, reveal).map(TimerMessage::Slider);
         let trigger = self.button.view(
             config,

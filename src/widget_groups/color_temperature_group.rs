@@ -104,10 +104,6 @@ impl ColorTemperatureGroup {
         ])
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.dim.is_animating() || self.warmth.is_animating()
-    }
-
     fn close_controls(&mut self) {
         self.dim.close();
         self.warmth.close();
@@ -241,14 +237,14 @@ impl ColorTemperatureGroup {
             .view(config.font.icon_size_px, config.palette.bar_foreground)
     }
 
-    fn dim_slider<'a>(&self, config: &Config) -> Element<'a, ColorTemperatureMessage> {
+    fn dim_slider<'a>(&'a self, config: &'a Config) -> Element<'a, ColorTemperatureMessage> {
         self.dim.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => ColorTemperatureMessage::Tooltip(t),
             m => ColorTemperatureMessage::Dim(m),
         })
     }
 
-    fn warmth_slider<'a>(&self, config: &Config) -> Element<'a, ColorTemperatureMessage> {
+    fn warmth_slider<'a>(&'a self, config: &'a Config) -> Element<'a, ColorTemperatureMessage> {
         self.warmth.view(config, 1.0).map(|m| match m {
             ControlMessage::Tooltip(t) => ColorTemperatureMessage::Tooltip(t),
             m => ColorTemperatureMessage::Warmth(m),

@@ -53,8 +53,10 @@ pub enum BatteryMessage {
 }
 
 impl BatteryGroup {
-    pub fn is_animating(&self) -> bool {
-        self.power_profile.is_animating()
+    pub fn close_menu(&mut self) {
+        if self.menu.close() {
+            self.power_profile.close();
+        }
     }
 
     pub fn probe() -> Task<BatteryMessage> {
@@ -99,7 +101,9 @@ impl BatteryGroup {
                 .update(msg)
                 .map(BatteryMessage::PowerProfile),
             BatteryMessage::Menu(msg) => {
-                self.menu.update(msg);
+                if self.menu.update(msg) {
+                    self.power_profile.close();
+                }
                 Task::none()
             }
         };

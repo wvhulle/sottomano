@@ -58,10 +58,6 @@ impl MonitorGroup {
         ])
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.sliders.values().any(SliderControl::is_animating)
-    }
-
     fn close_controls(&mut self) {
         self.close_backlight_sliders(None);
     }
@@ -203,8 +199,8 @@ impl MonitorGroup {
 }
 
 fn backlight_slider<'a>(
-    config: &Config,
-    control: &SliderControl,
+    config: &'a Config,
+    control: &'a SliderControl,
     serial: &str,
 ) -> Element<'a, MonitorMessage> {
     let serial = serial.to_string();
