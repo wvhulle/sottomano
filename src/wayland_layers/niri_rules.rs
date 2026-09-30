@@ -7,22 +7,17 @@ use iced::Task;
 use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use tokio::fs;
 
-use crate::{
-    state::{PanelLayout, ShadowStyle},
-    wayland_layers::surface::Position,
-};
+use crate::{state::PanelLayout, wayland_layers::surface::Position};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyledSurface {
     Panel,
-    Sidebar,
     Backdrop(Position),
 }
 
 impl StyledSurface {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 3] = [
         Self::Panel,
-        Self::Sidebar,
         Self::Backdrop(Position::Top),
         Self::Backdrop(Position::Bottom),
     ];
@@ -30,25 +25,16 @@ impl StyledSurface {
     pub fn namespace(self) -> &'static str {
         match self {
             Self::Panel => "vetrata-panel",
-            Self::Sidebar => "vetrata-sidebar",
             Self::Backdrop(Position::Top) => "vetrata-backdrop-top",
             Self::Backdrop(Position::Bottom) => "vetrata-backdrop-bottom",
             Self::Backdrop(Position::Left) => "vetrata-backdrop-left",
         }
     }
 
-    fn casts_niri_shadow(self, layout: &PanelLayout) -> bool {
-        match self {
-            Self::Panel => !layout.disconnected_groups,
-            Self::Sidebar => true,
-            Self::Backdrop(_) => false,
-        }
-    }
-
     fn rule(self, layout: &PanelLayout) -> KdlNode {
         match self {
             Self::Backdrop(position) => backdrop_rule(self, position),
-            Self::Panel | Self::Sidebar => chrome_rule(self, layout),
+            Self::Panel => panel_rule(self, layout),
         }
     }
 }
@@ -117,50 +103,16 @@ fn apply(text: &str, layout: &mut PanelLayout) {
             return;
         }
     };
-    let Some(rule) = rule_of(&document, StyledSurface::Sidebar) else {
+    let Some(effect) = rule_of(&document, StyledSurface::Panel)
+        .and_then(|rule| rule.get("background-effect"))
+        .and_then(KdlNode::children)
+    else {
         return;
     };
-    let arg = |block: &str, name: &str| {
-        rule.get(block)
-            .and_then(KdlNode::children)
-            .and_then(|children| children.get_arg(name))
-    };
+    let switch = |name: &str| effect.get_arg(name).and_then(KdlValue::as_bool);
     let niri = &mut layout.niri;
-    let shadow = &mut niri.shadow;
-    set(
-        &mut niri.blurred,
-        arg("background-effect", "blur").and_then(KdlValue::as_bool),
-    );
-    set(
-        &mut niri.xray,
-        arg("background-effect", "xray").and_then(KdlValue::as_bool),
-    );
-    set(
-        &mut shadow.softness_px,
-        arg("shadow", "softness").and_then(number),
-    );
-    set(
-        &mut shadow.spread_px,
-        arg("shadow", "spread").and_then(number),
-    );
-    set(
-        &mut shadow.opacity,
-        arg("shadow", "color")
-            .and_then(KdlValue::as_string)
-            .and_then(alpha_of),
-    );
-    if let Some(block) = rule.get("shadow").and_then(KdlNode::children) {
-        shadow.cast = block.get("on").is_some();
-    }
-    if let Some(radius) = rule.get_arg("geometry-corner-radius").and_then(number) {
-        layout.corner_radius = radius.into();
-    }
-}
-
-fn set<T>(field: &mut T, read: Option<T>) {
-    if let Some(value) = read {
-        *field = value;
-    }
+    niri.blurred = switch("blur").unwrap_or(niri.blurred);
+    niri.xray = switch("xray").unwrap_or(niri.xray);
 }
 
 fn rule_of(document: &KdlDocument, surface: StyledSurface) -> Option<&KdlDocument> {
@@ -176,22 +128,6 @@ fn rule_of(document: &KdlDocument, surface: StyledSurface) -> Option<&KdlDocumen
                 .and_then(KdlValue::as_string)
                 == Some(pattern.as_str())
         })
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn number(value: &KdlValue) -> Option<f32> {
-    value
-        .as_float()
-        .or_else(|| value.as_integer().map(|integer| integer as f64))
-        .map(|float| float as f32)
-}
-
-fn alpha_of(color: &str) -> Option<f32> {
-    let hex = color.strip_prefix('#')?;
-    let alpha = hex.get(6..8)?;
-    u8::from_str_radix(alpha, 16)
-        .ok()
-        .map(|alpha| f32::from(alpha) / 255.0)
 }
 
 fn namespace_pattern(surface: StyledSurface) -> String {
@@ -219,7 +155,7 @@ pub fn render(layout: &PanelLayout) -> String {
     document.to_string()
 }
 
-fn chrome_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
+fn panel_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
     block(
         "layer-rule",
         [
@@ -227,11 +163,6 @@ fn chrome_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
                 "match",
                 [KdlEntry::new_prop("namespace", namespace_pattern(surface))],
             ),
-            leaf(
-                "geometry-corner-radius",
-                f64::from(layout.corner_radius.top_left),
-            ),
-            shadow(layout.niri.shadow, surface.casts_niri_shadow(layout)),
             block(
                 "background-effect",
                 [
@@ -276,25 +207,6 @@ fn backdrop_rule(surface: StyledSurface, position: Position) -> KdlNode {
     )
 }
 
-fn shadow(style: ShadowStyle, casts: bool) -> KdlNode {
-    let switch = if style.cast && casts { "on" } else { "off" };
-    block(
-        "shadow",
-        [
-            KdlNode::new(switch),
-            leaf("softness", f64::from(style.softness_px)),
-            leaf("spread", f64::from(style.spread_px)),
-            leaf("color", shadow_color(style.opacity)),
-        ],
-    )
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn shadow_color(opacity: f32) -> String {
-    let alpha = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
-    format!("#000000{alpha:02x}")
-}
-
 fn leaf(name: &str, value: impl Into<KdlValue>) -> KdlNode {
     node(name, [KdlEntry::new(value)])
 }
@@ -314,32 +226,23 @@ fn block(name: &str, children: impl IntoIterator<Item = KdlNode>) -> KdlNode {
 #[cfg(test)]
 mod tests {
     use super::{apply, render};
-    use crate::state::{NiriStyling, PanelLayout, ShadowStyle};
+    use crate::state::{NiriStyling, PanelLayout};
 
-    fn styled(disconnected_groups: bool) -> PanelLayout {
+    fn styled() -> PanelLayout {
         PanelLayout {
-            corner_radius: 5.5.into(),
             niri: NiriStyling {
                 blurred: true,
                 xray: true,
-                shadow: ShadowStyle {
-                    cast: false,
-                    softness_px: 33.0,
-                    spread_px: 7.0,
-                    opacity: 0.4,
-                },
             },
-            disconnected_groups,
             ..PanelLayout::default()
         }
     }
 
     #[test]
     fn a_rendered_look_reads_back_unchanged() {
-        let written = styled(true);
+        let written = styled();
         let mut read = PanelLayout::default();
         apply(&render(&written), &mut read);
-        assert_eq!(read.corner_radius, written.corner_radius);
         assert_eq!(read.niri, written.niri);
     }
 
@@ -351,21 +254,14 @@ mod tests {
     }
 
     #[test]
-    fn niri_shadows_the_strip_only_as_one_bar() {
-        let panel_rule = |disconnected_groups| {
-            let mut layout = styled(disconnected_groups);
-            layout.niri.shadow.cast = true;
-            let rules = render(&layout);
-            let start = rules.find("\"^vetrata-panel$\"").expect("panel rule");
-            rules[start..]
-                .split("layer-rule")
-                .next()
-                .unwrap_or_default()
-                .to_string()
-        };
-        let joined = panel_rule(false);
-        let pills = panel_rule(true);
-        assert!(joined.contains("blur true") && !joined.contains("off"));
-        assert!(pills.contains("blur true") && pills.contains("off"));
+    fn the_panel_leaves_shadows_and_corners_to_vetrata() {
+        let rules = render(&styled());
+        let start = rules.find("\"^vetrata-panel$\"").expect("panel rule");
+        let panel_rule = rules[start..]
+            .split("layer-rule")
+            .next()
+            .unwrap_or_default();
+        assert!(panel_rule.contains("blur true"));
+        assert!(!panel_rule.contains("shadow") && !panel_rule.contains("corner"));
     }
 }

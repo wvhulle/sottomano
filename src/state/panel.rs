@@ -9,14 +9,25 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session 
     dnd INTEGER,
     sound INTEGER,
     spatial_layout INTEGER,
-    workspaces_in_sidebar INTEGER
+    workspaces_in_sidebar INTEGER,
+    corner_radius_px REAL,
+    drop_shadow INTEGER,
+    shadow_softness_px REAL,
+    shadow_opacity REAL
 )";
 
-const COLUMNS_ADDED_LATER: [&str; 1] = ["workspaces_in_sidebar INTEGER"];
+const COLUMNS_ADDED_LATER: [&str; 5] = [
+    "workspaces_in_sidebar INTEGER",
+    "corner_radius_px REAL",
+    "drop_shadow INTEGER",
+    "shadow_softness_px REAL",
+    "shadow_opacity REAL",
+];
 
 const SELECT_PANEL_SETTINGS: &str = "SELECT float_offset_px, chrome_tint_factor,
         disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout,
-        workspaces_in_sidebar
+        workspaces_in_sidebar, corner_radius_px, drop_shadow, shadow_softness_px,
+        shadow_opacity
     FROM panel_session WHERE id = 0";
 
 #[derive(Debug, Clone, Copy)]
@@ -29,11 +40,19 @@ enum Setting {
     Sound,
     SpatialLayout,
     WorkspacesInSidebar,
+    CornerRadius,
+    DropShadow,
+    ShadowSoftness,
+    ShadowOpacity,
 }
 
 impl Setting {
     fn column(self) -> &'static str {
         match self {
+            Self::CornerRadius => "corner_radius_px",
+            Self::DropShadow => "drop_shadow",
+            Self::ShadowSoftness => "shadow_softness_px",
+            Self::ShadowOpacity => "shadow_opacity",
             Self::FloatOffset => "float_offset_px",
             Self::TintFactor => "chrome_tint_factor",
             Self::DisconnectedGroups => "disconnected_groups",
@@ -75,6 +94,22 @@ pub async fn save_workspaces_placement(placement: WorkspacesPlacement) {
 
 pub async fn save_tint_factor(factor: f32) -> bool {
     put(Setting::TintFactor, measure(factor)).await
+}
+
+pub async fn save_corner_radius(radius: f32) -> bool {
+    put(Setting::CornerRadius, measure(radius)).await
+}
+
+pub async fn save_drop_shadow(cast: bool) {
+    put(Setting::DropShadow, flag(cast)).await;
+}
+
+pub async fn save_shadow_softness(softness: f32) -> bool {
+    put(Setting::ShadowSoftness, measure(softness)).await
+}
+
+pub async fn save_shadow_opacity(opacity: f32) -> bool {
+    put(Setting::ShadowOpacity, measure(opacity)).await
 }
 
 pub async fn save_do_not_disturb(dnd: bool) {
@@ -168,6 +203,19 @@ async fn read_panel_settings(conn: &turso::Connection) -> Result<PanelSettings, 
         } else {
             WorkspacesPlacement::BottomPanel
         };
+    }
+    let layout = &mut panel_settings.layout;
+    if let Some(radius) = columns.optional_real(&row, "corner_radius_px")? {
+        layout.corner_radius = (radius as f32).into();
+    }
+    if let Some(cast) = columns.optional_flag(&row, "drop_shadow")? {
+        layout.shadow.cast = cast;
+    }
+    if let Some(softness) = columns.optional_real(&row, "shadow_softness_px")? {
+        layout.shadow.softness_px = softness as f32;
+    }
+    if let Some(opacity) = columns.optional_real(&row, "shadow_opacity")? {
+        layout.shadow.opacity = opacity as f32;
     }
     Ok(panel_settings)
 }
@@ -284,11 +332,20 @@ mod tests {
             (Setting::Sound, flag(false)),
             (Setting::SpatialLayout, flag(false)),
             (Setting::WorkspacesInSidebar, flag(false)),
+            (Setting::CornerRadius, measure(6.5)),
+            (Setting::DropShadow, flag(false)),
+            (Setting::ShadowSoftness, measure(33.0)),
+            (Setting::ShadowOpacity, measure(0.5)),
         ] {
             write_setting(&conn, setting, value).await.unwrap();
         }
 
         let panel_settings = read_panel_settings(&conn).await.unwrap();
+        let shadow = panel_settings.layout.shadow;
+        assert!((panel_settings.layout.corner_radius.top_left - 6.5).abs() < f32::EPSILON);
+        assert!(!shadow.cast);
+        assert!((shadow.softness_px - 33.0).abs() < f32::EPSILON);
+        assert!((shadow.opacity - 0.5).abs() < f32::EPSILON);
         assert!((panel_settings.layout.float_offset_px - 3.25).abs() < f32::EPSILON);
         assert!((panel_settings.layout.tint_factor - 0.75).abs() < f32::EPSILON);
         assert!(panel_settings.layout.disconnected_groups);

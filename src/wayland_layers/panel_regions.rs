@@ -1,12 +1,14 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use iced::{Rectangle, Task, window::Id};
 use iced_exwlshell::reexport::{BlurOption, BlurRegion};
 
-use crate::{app::Message, state::PanelLayout, wayland_layers::surface::Surface};
+use crate::{app::Message, state::PanelLayout, wayland_layers::surface::input_regions};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Zone {
+    TopBar,
+    BottomBar,
     TopStart,
     TopCenter,
     TopEnd,
@@ -16,50 +18,95 @@ pub enum Zone {
     Sidebar,
 }
 
+impl Zone {
+    fn takes_input(self) -> bool {
+        matches!(self, Self::TopBar | Self::BottomBar | Self::Sidebar)
+    }
+
+    fn is_blurred(self, layout: &PanelLayout) -> bool {
+        match self {
+            Self::Sidebar => true,
+            Self::TopBar | Self::BottomBar => !layout.disconnected_groups,
+            Self::TopStart
+            | Self::TopCenter
+            | Self::TopEnd
+            | Self::BottomStart
+            | Self::BottomMiddle
+            | Self::BottomEnd => layout.disconnected_groups,
+        }
+    }
+}
+
 #[derive(Default)]
-pub struct PanelPills {
+pub struct PanelRegions {
     rects: HashMap<(Id, Zone), Vec<Rectangle>>,
 }
 
-impl PanelPills {
-    pub fn pill_rects(
+impl PanelRegions {
+    pub fn bounds(
         &mut self,
-        strip: Id,
+        panel: Id,
         zone: Zone,
-        rects: &[Rectangle],
+        rects: Vec<Rectangle>,
         layout: &PanelLayout,
     ) -> Task<Message> {
-        self.rects.insert((strip, zone), rects.to_vec());
-        self.blur_of(strip, layout)
+        self.rects.insert((panel, zone), rects);
+        let input = zone.takes_input().then(|| self.input_of(panel));
+        Task::batch(
+            [Some(self.blur_of(panel, layout)), input]
+                .into_iter()
+                .flatten(),
+        )
     }
 
-    pub fn refresh(&self, layout: &PanelLayout, bars: &BTreeMap<Id, Surface>) -> Task<Message> {
+    pub fn refresh(&self, layout: &PanelLayout, panels: impl Iterator<Item = Id>) -> Task<Message> {
         Task::batch(
-            bars.iter()
-                .filter(|(_, surface)| !surface.position.is_vertical())
-                .map(|(&strip, _)| self.blur_of(strip, layout))
+            panels
+                .map(|panel| self.blur_of(panel, layout))
                 .collect::<Vec<_>>(),
         )
     }
 
-    pub fn forget(&mut self, window: Id) {
-        self.rects.retain(|(strip, _), _| *strip != window);
+    pub fn width_of(&self, panel: Id, zone: Zone) -> f32 {
+        self.rects
+            .get(&(panel, zone))
+            .into_iter()
+            .flatten()
+            .map(|rect| rect.width)
+            .fold(0.0, f32::max)
     }
 
-    fn blur_of(&self, strip: Id, layout: &PanelLayout) -> Task<Message> {
-        let option = if layout.disconnected_groups {
-            BlurOption::Region(
-                self.rects
-                    .iter()
-                    .filter(|((owner, _), _)| *owner == strip)
-                    .flat_map(|(_, rects)| rects)
-                    .flat_map(|rect| rounded(*rect, layout.corner_radius.top_left))
-                    .collect(),
-            )
-        } else {
-            BlurOption::None
-        };
-        Task::done(Message::BlurOptionChange { id: strip, option })
+    pub fn forget(&mut self, window: Id) {
+        self.rects.retain(|(panel, _), _| *panel != window);
+    }
+
+    fn zones_of(&self, panel: Id) -> impl Iterator<Item = (Zone, &Vec<Rectangle>)> {
+        self.rects
+            .iter()
+            .filter(move |((owner, _), _)| *owner == panel)
+            .map(|((_, zone), rects)| (*zone, rects))
+    }
+
+    fn input_of(&self, panel: Id) -> Task<Message> {
+        let rects = self
+            .zones_of(panel)
+            .filter(|(zone, _)| zone.takes_input())
+            .flat_map(|(_, rects)| rects.iter().copied())
+            .collect();
+        Task::done(input_regions(panel, rects))
+    }
+
+    fn blur_of(&self, panel: Id, layout: &PanelLayout) -> Task<Message> {
+        let region = self
+            .zones_of(panel)
+            .filter(|(zone, _)| zone.is_blurred(layout))
+            .flat_map(|(_, rects)| rects)
+            .flat_map(|rect| rounded(*rect, layout.corner_radius.top_left))
+            .collect();
+        Task::done(Message::BlurOptionChange {
+            id: panel,
+            option: BlurOption::Region(region),
+        })
     }
 }
 

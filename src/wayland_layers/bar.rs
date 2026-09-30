@@ -4,21 +4,19 @@ use iced::{
     Alignment, Color, Element, Length, Shadow, Vector,
     alignment::Vertical,
     border::Radius,
-    widget::{Row, Space, container, mouse_area, row, stack, text},
+    widget::{Row, Space, column, container, mouse_area, row, stack, text},
     window::Id,
 };
-use iced_exwlshell::reexport::{Layer, NewLayerShellSettings};
 
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::{PanelLayout, PanelSettings, ShadowStyle, WorkspacesPlacement},
+    state::{PanelLayout, PanelSettings, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
-        niri_rules::StyledSurface,
-        panel_pills::Zone,
+        panel_regions::Zone,
         sidebar,
-        surface::{self, Position},
+        surface::{self, Position, SurfaceRole},
         tooltip,
     },
     widget_groups::{
@@ -39,79 +37,87 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     let Some(surface) = bar.surfaces.get(&window) else {
         return container(text("")).into();
     };
-    match surface.position {
-        Position::Top => dismissable_strip(
+    match surface.role {
+        SurfaceRole::Panel => panel(bar, window, &surface.output),
+        SurfaceRole::Reservation(_) => surface::blank(),
+    }
+}
+
+fn panel<'a>(bar: &'a Bar, window: Id, output: &'a str) -> Element<'a, Message> {
+    let float = bar.panel_settings.layout.float_offset_px;
+    let origin = Vector::new(-float, -float);
+    let edge = |position, content| tooltip::on_surface(window, position, origin, content);
+    let top = container(edge(
+        Position::Top,
+        band(
             bar,
-            tooltip::on_surface(
-                window,
-                |_| Vector::ZERO,
-                top_row(bar, window, &surface.output, surface.position),
-            ),
-        ),
-        Position::Bottom => dismissable_strip(
-            bar,
-            tooltip::on_surface(
-                window,
-                |_| Vector::ZERO,
-                bottom_row(bar, window, &surface.output, surface.position),
-            ),
-        ),
-        Position::Left => tooltip::on_surface(
             window,
-            sidebar::origin_in_tooltip_overlay(bar, &surface.output),
-            sidebar::view(bar, window, &surface.output),
+            Zone::TopBar,
+            top_row(bar, window, output, Position::Top),
         ),
-    }
+    ))
+    .width(Length::Fill)
+    .align_top(Length::Fill);
+    let bottom = container(edge(
+        Position::Bottom,
+        band(
+            bar,
+            window,
+            Zone::BottomBar,
+            bottom_row(bar, window, output, Position::Bottom),
+        ),
+    ))
+    .width(Length::Fill)
+    .align_bottom(Length::Fill);
+    let side = container(edge(Position::Left, sidebar::view(bar, window, output)))
+        .padding([bar.config.bar.height_px, 0.0])
+        .align_left(Length::Fill)
+        .center_y(Length::Fill);
+    container(stack![top, bottom, side]).padding(float).into()
 }
 
-pub fn layer_settings(
-    output: &str,
-    position: Position,
-    height: u32,
-    layout: &PanelLayout,
-) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: position.strip_size(height),
-        exclusive_zone: Some(height.cast_signed()),
-        anchor: position.anchor(),
-        layer: Layer::Top,
-        margin: Some(position.float_margin(layout.margin_offset_px())),
-        ..surface::base_settings(Some(output), StyledSurface::Panel.namespace())
-    }
-}
-
-fn dismissable_strip<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Message> {
+fn band<'a>(
+    bar: &'a Bar,
+    window: Id,
+    zone: Zone,
+    content: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let layout = &bar.panel_settings.layout;
     let dismiss = mouse_area(
         container(Space::new())
             .width(Length::Fill)
             .height(Length::Fill),
     )
     .on_press(Message::DismissPressed);
-
     let centered = container(content)
         .width(Length::Fill)
         .height(Length::Fill)
         .align_y(Vertical::Center);
-
-    container(stack![dismiss, centered])
+    let joined = !layout.disconnected_groups;
+    let background = chrome_tint(&bar.config, layout);
+    let shadow = pill_shadow(layout);
+    let strip = container(stack![dismiss, centered])
         .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            background: (!bar.panel_settings.layout.disconnected_groups).then(|| {
-                bar.config
-                    .palette
-                    .surface
-                    .scale_alpha(bar.panel_settings.layout.tint_factor)
-                    .into()
-            }),
+        .height(Length::Fixed(bar.config.bar.height_px))
+        .style(move |_| container::Style {
+            background: joined.then(|| background.into()),
             border: iced::Border {
-                radius: bar.panel_settings.layout.corner_radius,
+                radius: layout.corner_radius,
                 ..Default::default()
             },
+            shadow: if joined { shadow } else { Shadow::default() },
             text_color: Some(bar.config.palette.bar_foreground),
             ..Default::default()
-        })
-        .into()
+        });
+    bounds_probe(column![strip], move |rects| Message::PillBounds {
+        window,
+        zone,
+        rects,
+    })
+}
+
+fn chrome_tint(config: &Config, layout: &PanelLayout) -> Color {
+    config.palette.surface.scale_alpha(layout.tint_factor)
 }
 
 fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 8] {
@@ -223,7 +229,7 @@ fn zone_pills<'a>(
         Zone::BottomStart => vec![Some(places(bar, output, position))],
         Zone::BottomMiddle => vec![window_list(bar, output, position)],
         Zone::BottomEnd => rendered(bottom_end_groups(bar), config, position).collect(),
-        Zone::Sidebar => Vec::new(),
+        Zone::TopBar | Zone::BottomBar | Zone::Sidebar => Vec::new(),
     };
     groups
         .into_iter()
@@ -309,9 +315,9 @@ fn pill<'a>(
         return group;
     }
     let layout = &panel_settings.layout;
-    let background = config.palette.surface.scale_alpha(layout.tint_factor);
+    let background = chrome_tint(config, layout);
     let radius = layout.corner_radius;
-    let shadow = pill_shadow(layout.niri.shadow);
+    let shadow = pill_shadow(layout);
     container(group)
         .height(Length::Fixed(config.bar.height_px))
         .align_y(Vertical::Center)
@@ -328,7 +334,8 @@ fn pill<'a>(
         .into()
 }
 
-fn pill_shadow(style: ShadowStyle) -> Shadow {
+pub fn pill_shadow(layout: &PanelLayout) -> Shadow {
+    let style = layout.shadow;
     if !style.cast {
         return Shadow::default();
     }

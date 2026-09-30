@@ -35,7 +35,6 @@ impl WorkspacesPlacement {
 pub struct ShadowStyle {
     pub cast: bool,
     pub softness_px: f32,
-    pub spread_px: f32,
     pub opacity: f32,
 }
 
@@ -44,7 +43,6 @@ impl Default for ShadowStyle {
         Self {
             cast: true,
             softness_px: 20.0,
-            spread_px: 4.0,
             opacity: 0.3,
         }
     }
@@ -54,12 +52,12 @@ impl Default for ShadowStyle {
 pub struct NiriStyling {
     pub blurred: bool,
     pub xray: bool,
-    pub shadow: ShadowStyle,
 }
 
 #[derive(Debug, Clone)]
 pub struct PanelLayout {
     pub niri: NiriStyling,
+    pub shadow: ShadowStyle,
     pub disconnected_groups: bool,
     pub auto_collapse_groups: bool,
     pub workspaces_placement: WorkspacesPlacement,
@@ -72,6 +70,7 @@ impl Default for PanelLayout {
     fn default() -> Self {
         Self {
             niri: NiriStyling::default(),
+            shadow: ShadowStyle::default(),
             disconnected_groups: false,
             auto_collapse_groups: true,
             workspaces_placement: WorkspacesPlacement::Sidebar,
@@ -100,13 +99,7 @@ impl Default for ToastPreferences {
 }
 
 impl PanelLayout {
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn margin_offset_px(&self) -> i32 {
-        self.float_offset_px as i32
-    }
-
     pub fn keep_niri_look_of(&mut self, current: &PanelLayout) {
         self.niri = current.niri;
-        self.corner_radius = current.corner_radius;
     }
 }

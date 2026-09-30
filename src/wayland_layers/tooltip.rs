@@ -3,14 +3,14 @@ pub mod hover_area;
 pub mod tooltip_content;
 pub mod tooltip_transition;
 
-use iced::{Rectangle, Size, window::Id};
+use iced::{Rectangle, window::Id};
 
-use crate::data::source::weather::Allergen;
 pub use crate::wayland_layers::tooltip::{
     host_surfaces::TooltipHost,
     hover_area::{hoverable, on_surface},
     tooltip_content::relative,
 };
+use crate::{data::source::weather::Allergen, wayland_layers::surface::Position};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
@@ -27,7 +27,6 @@ pub enum HoverTarget {
     Xray,
     DropShadow,
     ShadowSoftness,
-    ShadowSpread,
     ShadowOpacity,
     DisconnectedGroups,
     AutoCollapseGroups,
@@ -89,10 +88,10 @@ pub enum TooltipMessage {
     EnterAnchor {
         target: HoverTarget,
         anchor: Rectangle,
-        surface_size: Size,
     },
     Enter {
         surface: Id,
+        position: Position,
         target: HoverTarget,
         anchor: Rectangle,
     },

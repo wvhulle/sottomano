@@ -13,7 +13,10 @@ use iced::{
 
 use crate::{
     app::Message,
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage},
+    wayland_layers::{
+        surface::Position,
+        tooltip::{HoverTarget, TooltipMessage},
+    },
 };
 
 pub fn hoverable<'a, M: 'a>(
@@ -28,21 +31,21 @@ pub fn hoverable<'a, M: 'a>(
     })
 }
 
-pub fn on_surface<'a>(
+pub fn on_surface(
     surface: Id,
-    origin_in_overlay: impl Fn(Size) -> Vector + 'a,
-    content: Element<'a, Message>,
-) -> Element<'a, Message> {
+    position: Position,
+    origin_in_overlay: Vector,
+    content: Element<'_, Message>,
+) -> Element<'_, Message> {
     content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor {
-            target,
-            anchor,
-            surface_size,
-        }) => Message::Tooltip(TooltipMessage::Enter {
-            surface,
-            target,
-            anchor: anchor + origin_in_overlay(surface_size),
-        }),
+        Message::Tooltip(TooltipMessage::EnterAnchor { target, anchor }) => {
+            Message::Tooltip(TooltipMessage::Enter {
+                surface,
+                position,
+                target,
+                anchor: anchor + origin_in_overlay,
+            })
+        }
         other => other,
     })
 }
@@ -137,7 +140,6 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
                 TooltipMessage::EnterAnchor {
                     target: self.target.clone(),
                     anchor,
-                    surface_size: viewport.size(),
                 }
             } else {
                 TooltipMessage::Exit {
