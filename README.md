@@ -82,9 +82,11 @@ slider in the bar itself.
 
 ![The workspace group, the card for the hack workspace open](docs/workspaces.png)
 
-A pill floating over the left edge of the screen, above the windows rather than
-beside them, lists every workspace by index and name, one below the other, with
-a mark beside each for the windows on it. The focus marker slides to the new
+A pill centred on the left edge, tinted like the panels, lists every workspace
+by index and name, one below the other, with a mark beside each for the windows
+on it. It grows to fit the longest name and reserves that width along the edge,
+so windows tile beside it rather than under it. Short names keep it narrow,
+such as a single emoji per workspace in the niri config. The focus marker slides to the new
 workspace instead of blinking there. Hover a workspace for a card of its
 windows. The sidebar toggle in the panel settings moves the workspaces back
 into the bottom panel, next to the display icon, as a row.
