@@ -177,7 +177,6 @@ pub struct PreviewTile {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorkspacePreview {
-    pub header: Vec<Row>,
     pub columns: Vec<Vec<PreviewTile>>,
     pub floating: Vec<PreviewTile>,
 }

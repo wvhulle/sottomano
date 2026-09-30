@@ -12,6 +12,7 @@ use tokio::time::sleep;
 use crate::{
     app::Message,
     config::Config,
+    state::Session,
     wayland_layers::{
         surface::{self, Position, Surface, input_region},
         tooltip::{
@@ -27,7 +28,6 @@ use crate::{
     },
 };
 
-const MORPH: Duration = Duration::from_millis(160);
 const HIDE_GRACE: Duration = Duration::from_millis(250);
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
@@ -218,7 +218,7 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
-        float_offset: f32,
+        session: &Session,
         favicons: &'a Favicons,
         content: impl Fn(&HoverTarget) -> Tooltip,
     ) -> Option<Element<'a, Message>> {
@@ -235,21 +235,23 @@ impl TooltipHost {
                 Rectangle::default(),
                 Position::Top,
                 self.transition.seq(),
-                MORPH,
                 config,
+                session.corner_radius,
                 move |bounds| input_region(surface, bounds),
             ));
         };
 
+        let corner_radius = session.corner_radius;
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             renderings.push(Rendering::outgoing(
-                TooltipContent::new(&previous.content, config, favicons).view(),
+                TooltipContent::new(&previous.content, config, corner_radius, favicons).view(),
             ));
         }
         if let Some(current) = self.transition.current() {
             renderings.push(Rendering::incoming(hoverable_content(
-                TooltipContent::new(&content(&current.target), config, favicons).view(),
+                TooltipContent::new(&content(&current.target), config, corner_radius, favicons)
+                    .view(),
             )));
         }
         Some(
@@ -258,11 +260,11 @@ impl TooltipHost {
                 placement.anchor,
                 placement.position,
                 self.transition.seq(),
-                MORPH,
                 config,
+                corner_radius,
                 move |bounds| input_region(surface, bounds),
             ))
-            .padding(float_offset)
+            .padding(session.chrome.float_offset_px)
             .into(),
         )
     }

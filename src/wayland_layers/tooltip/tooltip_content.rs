@@ -7,6 +7,7 @@ use chrono::Locale;
 use iced::{
     Color, Element, Font, Padding,
     alignment::{Horizontal, Vertical},
+    border::Radius,
     font::{Style as FontStyle, Weight},
     widget::{Column, Container, Space, container, table},
 };
@@ -62,15 +63,22 @@ const FOOTER_PADDING: Padding = Padding {
 pub struct TooltipContent<'a> {
     tooltip: &'a Tooltip,
     config: &'a Config,
+    corner_radius: Radius,
     favicons: &'a Favicons,
     now: SystemTime,
 }
 
 impl<'a> TooltipContent<'a> {
-    pub fn new(tooltip: &'a Tooltip, config: &'a Config, favicons: &'a Favicons) -> Self {
+    pub fn new(
+        tooltip: &'a Tooltip,
+        config: &'a Config,
+        corner_radius: Radius,
+        favicons: &'a Favicons,
+    ) -> Self {
         Self {
             tooltip,
             config,
+            corner_radius,
             favicons,
             now: SystemTime::now(),
         }
@@ -121,12 +129,8 @@ impl<'a> TooltipContent<'a> {
         match &self.tooltip.body {
             TooltipBody::Sections(sections) => self.sections(sections),
             TooltipBody::Workspace(preview) => inset(
-                Column::with_children([
-                    self.table(&preview.header),
-                    WorkspaceSchematic::new(preview, self.config, self.favicons).view(),
-                ])
-                .spacing(SECTION_GAP_PX)
-                .into(),
+                WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.favicons)
+                    .view(),
             ),
             TooltipBody::Text { title, body } => inset(self.text(title, body)),
             TooltipBody::TrayMenu(menu) => self.tray_menu(menu),
@@ -138,6 +142,7 @@ impl<'a> TooltipContent<'a> {
         let menu_path = menu.menu_path.clone();
         let entries = context_menu(
             self.config,
+            self.corner_radius,
             &menu.nodes,
             &menu.open_submenus,
             &move |id| {

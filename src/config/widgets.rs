@@ -16,7 +16,7 @@ impl Default for Widgets {
             slider_width_px: 60.0,
             indicator_thickness_px: 2.4,
             tooltip_value_width_px: 620.0,
-            workspace_preview_scale: 0.15,
+            workspace_preview_scale: 0.19,
         }
     }
 }

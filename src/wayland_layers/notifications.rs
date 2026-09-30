@@ -13,6 +13,7 @@ use std::{cmp::Reverse, collections::HashSet};
 use expiry_countdown::Countdown;
 use iced::{
     Element, Task,
+    border::Radius,
     time::{Duration, Instant},
     window::Id,
 };
@@ -536,7 +537,12 @@ impl NotificationLayer {
         ])
     }
 
-    pub fn view(&self, window: Id, config: &Config) -> Option<Element<'_, Message>> {
+    pub fn view(
+        &self,
+        window: Id,
+        config: &Config,
+        corner_radius: Radius,
+    ) -> Option<Element<'_, Message>> {
         let output = self.surfaces.output_of(window)?;
         let now = Instant::now();
         let mut ordered: Vec<&Notification> = self
@@ -553,7 +559,7 @@ impl NotificationLayer {
                     id: notif.data.id,
                     anchor: notif.place.anchor,
                     card: reveal_y(
-                        toast_card::Card::new(notif, config)
+                        toast_card::Card::new(notif, config, corner_radius)
                             .hovered(self.hovered == Some(notif.data.id))
                             .reveal(reveal),
                         reveal,

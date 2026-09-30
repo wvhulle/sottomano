@@ -2,6 +2,7 @@ use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Shadow,
+    border::Radius,
     font::Weight,
     theme::palette::{mix, readable},
     widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
@@ -9,7 +10,7 @@ use iced::{
 
 use super::{Notification, NotificationMessage, body_markup};
 use crate::{
-    config::{Config, Palette, font::FontConfig, notifications::ToastCardSizeConfig},
+    config::{Config, Palette, notifications::ToastCardSizeConfig},
     data::{
         notifications::model::{NotifAction, NotifImage, NotificationData},
         severity::Severity,
@@ -83,15 +84,17 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
 pub struct Card<'a> {
     notif: &'a Notification,
     config: &'a Config,
+    corner_radius: Radius,
     hovered: bool,
     reveal: f32,
 }
 
 impl<'a> Card<'a> {
-    pub fn new(notif: &'a Notification, config: &'a Config) -> Self {
+    pub fn new(notif: &'a Notification, config: &'a Config, corner_radius: Radius) -> Self {
         Self {
             notif,
             config,
+            corner_radius,
             hovered: false,
             reveal: 1.0,
         }
@@ -170,7 +173,7 @@ impl Card<'_> {
             border: Border {
                 color: fade(if self.hovered { accent } else { rest }),
                 width: if self.hovered { 3.0 } else { 2.0 },
-                radius: f32::from(self.config.chrome.popup_radius_px).into(),
+                radius: self.corner_radius,
             },
             foreground: fade(palette.bar_foreground),
             subtext: fade(readable(background, palette.dim)),
@@ -262,14 +265,13 @@ impl Card<'_> {
         if has_actions {
             let mut actions = Row::new().spacing(6.0).align_y(Alignment::Center);
             for action in &button_actions {
-                actions = actions.push(action_button(
+                actions = actions.push(self.action_button(
                     action.label.clone(),
                     NotificationMessage::ActionClicked {
                         id,
                         key: action.key.clone(),
                     },
                     action_tint(&action.key, palette),
-                    font,
                 ));
             }
             actions = actions.push(Space::new().width(Length::Fill));
@@ -279,6 +281,38 @@ impl Card<'_> {
             column = column.push(actions);
         }
         column
+    }
+
+    fn action_button<'b>(
+        &self,
+        label: String,
+        message: NotificationMessage,
+        tint: Color,
+    ) -> Element<'b, NotificationMessage> {
+        let font = &self.config.font;
+        let radius = self.corner_radius;
+        button(bar_text(font, label).size(font.text_size_px).color(tint))
+            .padding(BUTTON_PADDING)
+            .style(move |_, status| {
+                let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+                button::Style {
+                    background: Some(
+                        Color {
+                            a: if hovered { 0.22 } else { 0.12 },
+                            ..tint
+                        }
+                        .into(),
+                    ),
+                    text_color: tint,
+                    border: Border {
+                        radius,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            })
+            .on_press(message)
+            .into()
     }
 }
 
@@ -329,34 +363,4 @@ fn action_tint(key: &str, palette: &Palette) -> Color {
         "stop" | "cancel" | "later" | "snooze" => palette.warning,
         _ => palette.success,
     }
-}
-
-fn action_button<'a>(
-    label: String,
-    message: NotificationMessage,
-    tint: Color,
-    font: &FontConfig,
-) -> Element<'a, NotificationMessage> {
-    button(bar_text(font, label).size(font.text_size_px).color(tint))
-        .padding(BUTTON_PADDING)
-        .style(move |_, status| {
-            let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            button::Style {
-                background: Some(
-                    Color {
-                        a: if hovered { 0.22 } else { 0.12 },
-                        ..tint
-                    }
-                    .into(),
-                ),
-                text_color: tint,
-                border: Border {
-                    radius: 4.0.into(),
-                    ..Default::default()
-                },
-                ..Default::default()
-            }
-        })
-        .on_press(message)
-        .into()
 }
