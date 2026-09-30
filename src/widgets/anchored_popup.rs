@@ -1,8 +1,9 @@
+use std::iter::once;
+
 use iced::{
     Animation, Border, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
-        graphics::geometry::Renderer as _,
         layout::{Limits, Node},
         mouse, renderer,
         widget::{Operation, Tree, tree},
@@ -11,7 +12,6 @@ use iced::{
     border::Radius,
     mouse::Cursor,
     time::{Duration, Instant},
-    widget::canvas::Frame,
     window,
 };
 
@@ -19,7 +19,10 @@ use crate::{
     app::Message,
     config::Config,
     wayland_layers::surface::Position,
-    widgets::{overlay_shadow::overlay_shadow, popup_connector::notch},
+    widgets::{
+        overlay_shadow::overlay_shadow,
+        popup_connector::{notch, notch_region},
+    },
 };
 
 const MORPH: Duration = Duration::from_millis(160);
@@ -56,6 +59,7 @@ pub fn anchored_popup<'a>(
 ) -> Element<'a, Message> {
     Element::new(AnchoredPopup {
         renderings,
+        notch: notch(position, config.palette.surface),
         on_bounds: Box::new(on_bounds),
         anchor,
         edge_inset: config.bar.height_px + config.bar.popup_gap_px,
@@ -70,6 +74,7 @@ pub fn anchored_popup<'a>(
 
 struct AnchoredPopup<'a> {
     renderings: Vec<Rendering<'a>>,
+    notch: Element<'a, Message>,
     on_bounds: Box<dyn Fn(Rectangle) -> Message + 'a>,
     anchor: Rectangle,
     edge_inset: f32,
@@ -118,6 +123,20 @@ impl<'a> AnchoredPopup<'a> {
         self.anchor.x + self.anchor.width
     }
 
+    fn bar_edge(&self, surface: Size) -> f32 {
+        match self.position {
+            Position::Top => self.bar_thickness,
+            Position::Bottom => surface.height - self.bar_thickness,
+            Position::Left => self.pill_edge_x(),
+        }
+    }
+
+    fn child_elements(&self) -> Vec<&Element<'a, Message>> {
+        once(&self.notch)
+            .chain(self.renderings.iter().map(|rendering| &rendering.element))
+            .collect()
+    }
+
     fn resting(&self, size: Size, surface: Size) -> Rectangle {
         let centered_on_anchor = |anchor_center: f32, extent: f32, room: f32| {
             (anchor_center - extent / 2.0).clamp(0.0, (room - extent).max(0.0))
@@ -146,8 +165,8 @@ impl<'a> AnchoredPopup<'a> {
     ) -> impl DoubleEndedIterator<Item = RenderingView<'t, 'a>> {
         self.renderings
             .iter()
-            .zip(&tree.children)
-            .zip(layout.children())
+            .zip(&tree.children[1..])
+            .zip(layout.children().skip(1))
             .map(|((rendering, state), layout)| RenderingView {
                 widget: &rendering.element,
                 state,
@@ -162,8 +181,8 @@ impl<'a> AnchoredPopup<'a> {
     ) -> impl DoubleEndedIterator<Item = RenderingViewMut<'t, 'a>> {
         self.renderings
             .iter_mut()
-            .zip(&mut tree.children)
-            .zip(layout.children())
+            .zip(&mut tree.children[1..])
+            .zip(layout.children().skip(1))
             .map(|((rendering, state), layout)| RenderingViewMut {
                 widget: &mut rendering.element,
                 state,
@@ -186,8 +205,8 @@ impl<'a> AnchoredPopup<'a> {
     ) -> Option<RenderingViewMut<'t, 'a>> {
         self.renderings
             .iter_mut()
-            .zip(&mut tree.children)
-            .zip(layout.children())
+            .zip(&mut tree.children[1..])
+            .zip(layout.children().skip(1))
             .find(|((rendering, _), _)| rendering.incoming)
             .map(|((rendering, state), layout)| RenderingViewMut {
                 widget: &mut rendering.element,
@@ -215,18 +234,11 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
     }
 
     fn children(&self) -> Vec<Tree> {
-        self.renderings
-            .iter()
-            .map(|rendering| Tree::new(&rendering.element))
-            .collect()
+        self.child_elements().into_iter().map(Tree::new).collect()
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.diff_children_custom(
-            &self.renderings,
-            |state, rendering| state.diff(&rendering.element),
-            |rendering| Tree::new(&rendering.element),
-        );
+        tree.diff_children(&self.child_elements());
     }
 
     fn size(&self) -> Size<Length> {
@@ -239,7 +251,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         let nodes: Vec<Node> = self
             .renderings
             .iter_mut()
-            .zip(&mut tree.children)
+            .zip(&mut tree.children[1..])
             .map(|(rendering, child)| {
                 rendering
                     .element
@@ -273,11 +285,30 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         state.progress = state.morph.interpolate(0.0, 1.0, state.now);
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
         state.current = lerp(state.from, target, state.progress);
-        let origin = state.current.position();
+        let popup = state.current;
+
+        let region = notch_region(
+            self.anchor,
+            self.bar_edge(surface),
+            popup,
+            self.position,
+            self.radius,
+        );
+        let notch_node = self
+            .notch
+            .as_widget_mut()
+            .layout(
+                &mut tree.children[0],
+                renderer,
+                &Limits::new(Size::ZERO, region.size()),
+            )
+            .move_to(region.position());
 
         Node::with_children(
             surface,
-            nodes.into_iter().map(|node| node.move_to(origin)).collect(),
+            once(notch_node)
+                .chain(nodes.into_iter().map(|node| node.move_to(popup.position())))
+                .collect(),
         )
     }
 
@@ -298,11 +329,6 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
-        let bar_edge = match self.position {
-            Position::Top => bounds.y + self.bar_thickness,
-            Position::Bottom => bounds.y + bounds.height - self.bar_thickness,
-            Position::Left => bounds.x + self.pill_edge_x(),
-        };
         renderer.fill_quad(
             renderer::Quad {
                 bounds: box_bounds,
@@ -317,19 +343,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             self.background,
         );
         if self.is_settled(state) {
-            let notch = notch(
-                self.anchor + origin,
-                bar_edge,
-                box_bounds,
-                self.position,
-                self.radius,
+            self.notch.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                style,
+                layout.children().next().unwrap(),
+                cursor,
+                viewport,
             );
-            let fill = self.background;
-            renderer.with_translation(Vector::new(notch.region.x, notch.region.y), |renderer| {
-                let mut frame = Frame::new(renderer, notch.region.size());
-                frame.fill(&notch.path, fill);
-                renderer.draw_geometry(frame.into_geometry());
-            });
         }
         renderer.with_layer(box_bounds, |renderer| {
             self.views(tree, layout).for_each(|rendering| {

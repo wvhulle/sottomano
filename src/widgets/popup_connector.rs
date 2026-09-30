@@ -1,22 +1,73 @@
-use iced::{Point, Rectangle, widget::canvas::Path};
+use iced::{
+    Color, Element, Length, Point, Rectangle, Renderer, Size, Theme,
+    mouse::Cursor,
+    widget::canvas::{self, Canvas, Frame, Geometry, Path},
+};
 
 use crate::wayland_layers::surface::Position;
 
-const BASE_HALF_WIDTH_PX: f32 = 5.0;
-pub const OVERLAP_PX: f32 = 2.0;
+const BASE_HALF_WIDTH_PX: f32 = 4.0;
+const OVERLAP_PX: f32 = 2.0;
 
-pub struct Notch {
-    pub region: Rectangle,
-    pub path: Path,
+pub fn notch<'a, Message: 'a>(position: Position, fill: Color) -> Element<'a, Message> {
+    Canvas::new(Notch { position, fill })
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
-pub fn notch(
+struct Notch {
+    position: Position,
+    fill: Color,
+}
+
+impl Notch {
+    fn outline(&self, size: Size) -> Path {
+        let half = BASE_HALF_WIDTH_PX;
+        Path::new(|path| match self.position {
+            Position::Top => {
+                path.move_to(Point::new(0.0, size.height));
+                path.line_to(Point::new(half, 0.0));
+                path.line_to(Point::new(size.width, size.height));
+            }
+            Position::Bottom => {
+                path.move_to(Point::ORIGIN);
+                path.line_to(Point::new(half, size.height));
+                path.line_to(Point::new(size.width, 0.0));
+            }
+            Position::Left => {
+                path.move_to(Point::new(size.width, 0.0));
+                path.line_to(Point::new(0.0, half));
+                path.line_to(Point::new(size.width, size.height));
+            }
+        })
+    }
+}
+
+impl<Message> canvas::Program<Message> for Notch {
+    type State = ();
+
+    fn draw(
+        &self,
+        (): &(),
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: Cursor,
+    ) -> Vec<Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        frame.fill(&self.outline(bounds.size()), self.fill);
+        vec![frame.into_geometry()]
+    }
+}
+
+pub fn notch_region(
     anchor: Rectangle,
     bar_edge: f32,
     popup: Rectangle,
     position: Position,
     corner_radius: f32,
-) -> Notch {
+) -> Rectangle {
     let inset = BASE_HALF_WIDTH_PX + corner_radius;
     match position {
         Position::Top | Position::Bottom => {
@@ -42,59 +93,28 @@ fn below_or_above(
     popup: Rectangle,
     position: Position,
     inset: f32,
-) -> Notch {
-    let popup_below_bar = position == Position::Top;
-    let base_y = if popup_below_bar {
+) -> Rectangle {
+    let base_y = if position == Position::Top {
         popup.y + OVERLAP_PX
     } else {
         popup.y + popup.height - OVERLAP_PX
     };
-    let height = (base_y - bar_edge_y).abs();
     let center = centered_within(anchor.center_x(), popup.x, popup.x + popup.width, inset);
-
-    let region = Rectangle {
+    Rectangle {
         x: center - BASE_HALF_WIDTH_PX,
         y: base_y.min(bar_edge_y),
         width: BASE_HALF_WIDTH_PX * 2.0,
-        height,
-    };
-    let base = if popup_below_bar { height } else { 0.0 };
-    let apex_control = if popup_below_bar {
-        -height
-    } else {
-        height * 2.0
-    };
-    let path = Path::new(|notch| {
-        notch.move_to(Point::new(0.0, base));
-        notch.quadratic_curve_to(
-            Point::new(BASE_HALF_WIDTH_PX, apex_control),
-            Point::new(BASE_HALF_WIDTH_PX * 2.0, base),
-        );
-        notch.close();
-    });
-
-    Notch { region, path }
+        height: (base_y - bar_edge_y).abs(),
+    }
 }
 
-fn beside(anchor: Rectangle, bar_edge_x: f32, popup: Rectangle, inset: f32) -> Notch {
+fn beside(anchor: Rectangle, bar_edge_x: f32, popup: Rectangle, inset: f32) -> Rectangle {
     let base_x = popup.x + OVERLAP_PX;
-    let width = (base_x - bar_edge_x).abs();
     let center = centered_within(anchor.center_y(), popup.y, popup.y + popup.height, inset);
-
-    let region = Rectangle {
+    Rectangle {
         x: base_x.min(bar_edge_x),
         y: center - BASE_HALF_WIDTH_PX,
-        width,
+        width: (base_x - bar_edge_x).abs(),
         height: BASE_HALF_WIDTH_PX * 2.0,
-    };
-    let path = Path::new(|notch| {
-        notch.move_to(Point::new(width, 0.0));
-        notch.quadratic_curve_to(
-            Point::new(-width, BASE_HALF_WIDTH_PX),
-            Point::new(width, BASE_HALF_WIDTH_PX * 2.0),
-        );
-        notch.close();
-    });
-
-    Notch { region, path }
+    }
 }

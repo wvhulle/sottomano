@@ -12,7 +12,7 @@ impl Default for BarSize {
     fn default() -> Self {
         Self {
             height_px: 24.0,
-            popup_gap_px: 6.0,
+            popup_gap_px: 14.0,
         }
     }
 }
