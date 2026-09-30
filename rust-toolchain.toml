@@ -5,4 +5,5 @@ components = [
   "rustfmt",
   "clippy",
   "rust-analyzer",
+  "rustc-codegen-cranelift-preview",
 ]
