@@ -533,7 +533,6 @@ impl Bar {
     }
 
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
-        let departing = self.tooltip_departure();
         match msg {
             TooltipMessage::Enter {
                 surface,
@@ -549,13 +548,13 @@ impl Bar {
                 if let Some(intent) = self.tooltip.defer_switch(&parent, &target, anchor) {
                     return intent;
                 }
-                self.tooltip.open(&parent, target, anchor, departing);
+                self.tooltip.open(&parent, target, anchor);
                 Task::none()
             }
             TooltipMessage::SwitchIntentElapsed { seq } => {
                 if let Some(pending) = self.tooltip.take_pending_switch(seq) {
                     self.tooltip
-                        .open(&pending.parent, pending.target, pending.anchor, departing);
+                        .open(&pending.parent, pending.target, pending.anchor);
                 }
                 Task::none()
             }
@@ -952,5 +951,5 @@ impl Bar {
 }
 
 fn query_outputs() -> Task<Message> {
-    blocking("niri outputs",niri::output_info).map(Message::OutputsResolved)
+    blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
 }

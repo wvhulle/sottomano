@@ -138,7 +138,6 @@ pub struct ProcessTree<'a> {
     root: &'a Process,
     folding: &'a Folding,
     config: &'a Config,
-    opacity: f32,
 }
 
 impl<'a> ProcessTree<'a> {
@@ -147,13 +146,7 @@ impl<'a> ProcessTree<'a> {
             root,
             folding,
             config,
-            opacity: 1.0,
         }
-    }
-
-    pub fn opacity(mut self, opacity: f32) -> Self {
-        self.opacity = opacity;
-        self
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -215,7 +208,7 @@ impl<'a> ProcessTree<'a> {
         column_heading(
             &self.config.font,
             title.to_owned(),
-            self.config.palette.inactive.scale_alpha(self.opacity),
+            self.config.palette.inactive,
         )
         .into()
     }
@@ -244,17 +237,17 @@ impl<'a> ProcessTree<'a> {
     fn tint(&self) -> Tint {
         let palette = &self.config.palette;
         Tint {
-            warning: Severity::Warning.color(palette).scale_alpha(self.opacity),
-            critical: Severity::Critical.color(palette).scale_alpha(self.opacity),
+            warning: Severity::Warning.color(palette),
+            critical: Severity::Critical.color(palette),
         }
     }
 
     fn foreground(&self) -> Color {
-        self.config.palette.bar_foreground.scale_alpha(self.opacity)
+        self.config.palette.bar_foreground
     }
 
     fn flash(&self) -> Color {
-        self.config.palette.success.scale_alpha(self.opacity)
+        self.config.palette.success
     }
 
     fn dim(&self) -> Color {
@@ -262,7 +255,6 @@ impl<'a> ProcessTree<'a> {
             a: DIM_ALPHA,
             ..self.config.palette.bar_foreground
         }
-        .scale_alpha(self.opacity)
     }
 }
 

@@ -27,6 +27,7 @@ use crate::{
     },
 };
 
+const MORPH: Duration = Duration::from_millis(160);
 const HIDE_GRACE: Duration = Duration::from_millis(250);
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
@@ -90,13 +91,7 @@ impl TooltipHost {
         self.pending_switch.take_if(|pending| pending.seq == seq)
     }
 
-    pub fn open(
-        &mut self,
-        parent: &Surface,
-        target: HoverTarget,
-        anchor: Rectangle,
-        departing: Option<Departed>,
-    ) {
+    pub fn open(&mut self, parent: &Surface, target: HoverTarget, anchor: Rectangle) {
         self.pending_switch = None;
         self.transition.cancel_leave();
         if self
@@ -106,17 +101,14 @@ impl TooltipHost {
         {
             return;
         }
-        self.transition.show(
-            Occupant {
-                target,
-                placement: Placement {
-                    anchor,
-                    position: parent.position,
-                    output: parent.output.clone(),
-                },
+        self.transition.show(Occupant {
+            target,
+            placement: Placement {
+                anchor,
+                position: parent.position,
+                output: parent.output.clone(),
             },
-            departing,
-        );
+        });
     }
 
     fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
@@ -222,10 +214,6 @@ impl TooltipHost {
         Some(Departed::new(content, placement))
     }
 
-    pub fn is_morphing(&self) -> bool {
-        self.transition.is_morphing()
-    }
-
     pub fn view<'a>(
         &self,
         surface: Id,
@@ -246,31 +234,22 @@ impl TooltipHost {
                 Vec::new(),
                 Rectangle::default(),
                 Position::Top,
-                0.0,
                 self.transition.seq(),
+                MORPH,
                 config,
                 move |bounds| input_region(surface, bounds),
             ));
         };
 
-        let progress = self.transition.progress();
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
-            let opacity = (1.0 - 2.0 * progress).max(0.0);
-            if opacity > 0.0 {
-                renderings.push(Rendering::outgoing(
-                    TooltipContent::new(&previous.content, config, favicons)
-                        .opacity(opacity)
-                        .view(),
-                ));
-            }
+            renderings.push(Rendering::outgoing(
+                TooltipContent::new(&previous.content, config, favicons).view(),
+            ));
         }
         if let Some(current) = self.transition.current() {
-            let opacity = (2.0 * progress - 1.0).max(0.0);
             renderings.push(Rendering::incoming(hoverable_content(
-                TooltipContent::new(&content(&current.target), config, favicons)
-                    .opacity(opacity)
-                    .view(),
+                TooltipContent::new(&content(&current.target), config, favicons).view(),
             )));
         }
         Some(
@@ -278,8 +257,8 @@ impl TooltipHost {
                 renderings,
                 placement.anchor,
                 placement.position,
-                progress,
                 self.transition.seq(),
+                MORPH,
                 config,
                 move |bounds| input_region(surface, bounds),
             ))
