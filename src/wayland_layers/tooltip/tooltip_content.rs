@@ -14,7 +14,7 @@ use iced::{
 
 use crate::{
     app::Message,
-    config::{Config, font::FontConfig},
+    config::{Config, font::ResolvedFont},
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
@@ -172,7 +172,7 @@ impl<'a> TooltipContent<'a> {
             weight: Weight::Bold,
             ..self.config.font.iced_font
         };
-        let max_width = self.config.widgets.tooltip_value_width_px;
+        let max_width = self.config.widget_sizes.tooltip_value_width_px;
         let mut column = Column::new().spacing(ROW_SPACING_PX);
         if !title.is_empty() {
             column = column.push(
@@ -229,7 +229,7 @@ impl<'a> TooltipContent<'a> {
     fn cell_view(&self) -> CellView {
         CellView {
             font: self.config.font.clone(),
-            max_width: self.config.widgets.tooltip_value_width_px,
+            max_width: self.config.widget_sizes.tooltip_value_width_px,
             locale: self.config.locale,
             flash: self.flash(),
             link: self.config.palette.info,
@@ -292,7 +292,7 @@ impl<'a> TooltipContent<'a> {
 }
 
 struct CellView {
-    font: FontConfig,
+    font: ResolvedFont,
     max_width: f32,
     locale: Locale,
     flash: Color,
@@ -366,7 +366,7 @@ fn value_column<'b, T: 'static>(
 }
 
 fn cell(
-    font: &FontConfig,
+    font: &ResolvedFont,
     text: String,
     color: Color,
     max_width: f32,

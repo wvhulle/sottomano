@@ -3,14 +3,14 @@ use serde::Deserialize;
 #[allow(clippy::struct_field_names)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct Widgets {
+pub struct WidgetSizes {
     pub slider_width_px: f32,
     pub indicator_thickness_px: f32,
     pub tooltip_value_width_px: f32,
     pub workspace_preview_scale: f32,
 }
 
-impl Default for Widgets {
+impl Default for WidgetSizes {
     fn default() -> Self {
         Self {
             slider_width_px: 60.0,

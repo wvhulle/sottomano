@@ -2,7 +2,7 @@ use super::toast_anchor::{ToastAnchor, ToastPlacement};
 use crate::{
     config::Config,
     data::{notifications::model::NotificationData, source::niri::Placement},
-    state::NotificationState,
+    state::ToastPreferences,
 };
 
 pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Option<u64> {
@@ -23,17 +23,17 @@ pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Opti
 pub fn placement_for(
     data: &NotificationData,
     placement: &Placement,
-    notif_state: &NotificationState,
+    toast_preferences: &ToastPreferences,
     config: &Config,
 ) -> ToastPlacement {
-    let id = notif_state
+    let id = toast_preferences
         .spatial_layout
         .then(|| resolve_window_id(data, placement))
         .flatten()
         .filter(|&id| placement.workspace_of_window(id).is_some());
 
     let Some(id) = id else {
-        let fallback_corner = config.notifications.placement.fallback_corner;
+        let fallback_corner = config.toasts.placement.fallback_corner;
         return ToastPlacement {
             output: fallback_output(placement),
             anchor: ToastAnchor::Edge {

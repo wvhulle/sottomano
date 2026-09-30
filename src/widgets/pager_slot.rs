@@ -30,7 +30,7 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
     }
 
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
-        let band = config.widgets.indicator_thickness_px;
+        let band = config.widget_sizes.indicator_thickness_px;
         let Self {
             content,
             indicator,
@@ -92,7 +92,7 @@ pub fn permanently_inactive_slot<'a, Message: 'a>(
         position,
         config.palette.focus,
         0.0,
-        config.widgets.indicator_thickness_px,
+        config.widget_sizes.indicator_thickness_px,
     );
     PagerSlot::new(content, inactive_indicator).view(config, position)
 }

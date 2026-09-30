@@ -12,7 +12,7 @@ use iced_exwlshell::reexport::{KeyboardInteractivity, Layer, NewLayerShellSettin
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::{ChromeState, Session, WorkspacesPlacement},
+    state::{PanelLayout, PanelSettings, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         blur_caster::{self, Zone},
@@ -32,7 +32,7 @@ use crate::{
 };
 
 pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
-    if bar.backdrops.contains(&window) {
+    if bar.backdrops.contains_key(&window) {
         return backdrop_shadow::fill();
     }
     if bar.blur_casters.contains(window) {
@@ -42,11 +42,11 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
         return container(text("")).into();
     };
     match surface.position {
-        Position::Top => chrome(
+        Position::Top => dismissable_strip(
             bar,
             tooltip::on_surface(window, Vector::ZERO, top_row(bar, window, surface.position)),
         ),
-        Position::Bottom => chrome(
+        Position::Bottom => dismissable_strip(
             bar,
             tooltip::on_surface(
                 window,
@@ -56,7 +56,7 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
         ),
         Position::Left => tooltip::on_surface(
             window,
-            sidebar::origin_in_tooltip_overlay(&bar.session.chrome),
+            sidebar::origin_in_tooltip_overlay(&bar.panel_settings.layout),
             sidebar::view(bar, window, &surface.output),
         ),
     }
@@ -80,7 +80,7 @@ pub fn layer_settings(
     }
 }
 
-fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Message> {
+fn dismissable_strip<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Message> {
     let dismiss = mouse_area(
         container(Space::new())
             .width(Length::Fill)
@@ -97,15 +97,15 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| container::Style {
-            background: (!bar.session.chrome.disconnected_groups).then(|| {
+            background: (!bar.panel_settings.layout.disconnected_groups).then(|| {
                 bar.config
                     .palette
                     .surface
-                    .scale_alpha(bar.session.chrome.chrome_tint_factor)
+                    .scale_alpha(bar.panel_settings.layout.tint_factor)
                     .into()
             }),
             border: iced::Border {
-                radius: bar.session.corner_radius,
+                radius: bar.panel_settings.layout.corner_radius,
                 ..Default::default()
             },
             text_color: Some(bar.config.palette.bar_foreground),
@@ -136,7 +136,7 @@ fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 7] {
             .widget_group()
             .map_messages(Message::Internet),
         bar.panel_settings_group
-            .widget_group(config, &bar.session.chrome)
+            .widget_group(config, &bar.panel_settings.layout)
             .map_messages(Message::PanelSettings),
     ]
 }
@@ -150,7 +150,7 @@ fn top_center_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 2] {
         bar.notification_group
             .widget_group(
                 config,
-                &bar.session.notifications,
+                &bar.panel_settings.toasts,
                 bar.notifications.live_count(),
             )
             .map_messages(Message::NotificationGroup),
@@ -208,15 +208,15 @@ fn routed(event: GroupEvent<Message>) -> Message {
 
 fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
-    let session = &bar.session;
-    let chrome = &session.chrome;
+    let panel_settings = &bar.panel_settings;
+    let layout = &panel_settings.layout;
     let start = measured(
         zone(
             rendered(top_start_groups(bar), config, position),
             config,
-            session,
+            panel_settings,
         ),
-        chrome,
+        layout,
         window,
         Zone::TopStart,
     );
@@ -224,9 +224,9 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
         zone(
             rendered(top_center_groups(bar), config, position),
             config,
-            session,
+            panel_settings,
         ),
-        chrome,
+        layout,
         window,
         Zone::TopCenter,
     );
@@ -234,9 +234,9 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
         zone(
             rendered(top_end_groups(bar), config, position),
             config,
-            session,
+            panel_settings,
         ),
-        chrome,
+        layout,
         window,
         Zone::TopEnd,
     );
@@ -257,11 +257,11 @@ fn rendered<'a>(
 
 fn measured<'a>(
     content: Element<'a, Message>,
-    chrome: &ChromeState,
+    layout: &PanelLayout,
     window: Id,
     zone: Zone,
 ) -> Element<'a, Message> {
-    if !chrome.disconnected_groups {
+    if !layout.disconnected_groups {
         return content;
     }
     bounds_probe(content, move |rects| Message::PillBounds {
@@ -274,9 +274,9 @@ fn measured<'a>(
 fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     config: &'a Config,
-    session: &Session,
+    panel_settings: &PanelSettings,
 ) -> Element<'a, Message> {
-    let spacing = if session.chrome.disconnected_groups {
+    let spacing = if panel_settings.layout.disconnected_groups {
         config.spacing.widget_spacing_px
     } else {
         config.spacing.group_spacing_px
@@ -285,7 +285,7 @@ fn zone<'a>(
         groups
             .into_iter()
             .flatten()
-            .map(|group| pill(group, config, session)),
+            .map(|group| pill(group, config, panel_settings)),
     )
     .spacing(spacing)
     .height(Length::Fill)
@@ -300,18 +300,18 @@ pub fn corner_inset(radius: Radius) -> f32 {
 fn pill<'a>(
     group: Element<'a, Message>,
     config: &Config,
-    session: &Session,
+    panel_settings: &PanelSettings,
 ) -> Element<'a, Message> {
-    if !session.chrome.disconnected_groups {
+    if !panel_settings.layout.disconnected_groups {
         return group;
     }
     let background = config
         .palette
         .surface
-        .scale_alpha(session.chrome.chrome_tint_factor);
-    let radius = session.corner_radius;
+        .scale_alpha(panel_settings.layout.tint_factor);
+    let radius = panel_settings.layout.corner_radius;
     container(group)
-        .height(Length::Fixed(config.chrome.outer_height_px))
+        .height(Length::Fixed(config.bar.height_px))
         .align_y(Vertical::Center)
         .padding([0.0, corner_inset(radius) + config.spacing.group_padding_px])
         .style(move |_| container::Style {
@@ -338,7 +338,7 @@ fn places<'a>(bar: &'a Bar, output: &str, position: Position) -> Element<'a, Mes
         OutputMessage::Clicked => Message::OverviewToggled,
         OutputMessage::Tooltip(t) => Message::Tooltip(t),
     });
-    let workspaces = match bar.session.chrome.workspaces_placement {
+    let workspaces = match bar.panel_settings.layout.workspaces_placement {
         WorkspacesPlacement::Sidebar => None,
         WorkspacesPlacement::BottomPanel => {
             workspaces_group::inline_view(&bar.niri_snapshot, output, config, position)
@@ -358,10 +358,14 @@ fn bottom_row<'a>(
     position: Position,
 ) -> Element<'a, Message> {
     let config = &bar.config;
-    let session = &bar.session;
-    let chrome = &session.chrome;
-    let start = zone([Some(places(bar, output, position))], config, session);
-    let start = measured(start, chrome, window, Zone::BottomStart);
+    let panel_settings = &bar.panel_settings;
+    let layout = &panel_settings.layout;
+    let start = zone(
+        [Some(places(bar, output, position))],
+        config,
+        panel_settings,
+    );
+    let start = measured(start, layout, window, Zone::BottomStart);
     let middle = container(measured(
         Row::with_children(
             slot(
@@ -379,10 +383,10 @@ fn bottom_row<'a>(
                 ),
                 |event| routed(event.map(Message::WindowGroup)),
             )
-            .map(|group| pill(group, config, session)),
+            .map(|group| pill(group, config, panel_settings)),
         )
         .into(),
-        chrome,
+        layout,
         window,
         Zone::BottomMiddle,
     ))
@@ -391,10 +395,10 @@ fn bottom_row<'a>(
         Row::with_children(
             rendered(bottom_end_groups(bar), config, position)
                 .flatten()
-                .map(|group| pill(group, config, session)),
+                .map(|group| pill(group, config, panel_settings)),
         )
         .into(),
-        chrome,
+        layout,
         window,
         Zone::BottomEnd,
     );

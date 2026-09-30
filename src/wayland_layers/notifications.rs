@@ -8,7 +8,7 @@ pub mod toast_card;
 pub mod toast_field;
 pub mod toast_lifecycle;
 
-use std::{cmp::Reverse, collections::HashSet};
+use std::{cmp::Reverse, collections::HashSet, path::Path};
 
 use expiry_countdown::Countdown;
 use iced::{
@@ -31,19 +31,24 @@ use tokio::{sync::mpsc, time::timeout};
 
 use crate::{
     app::Message,
-    config::Config,
+    config::{Config, LoadError},
     data::{
-        notifications::model::{NotifHandle, NotificationData, Outbound, close_reason},
+        notifications::model::{
+            ExpireTimeout, NotifHandle, NotificationData, Outbound, close_reason,
+        },
+        severity::Severity,
         sink::sound,
         source::{app_icon::DesktopEntries, niri::Placement},
     },
     message_subscriptions::niri_action,
-    state::{self, NotificationState},
+    state::{self, ToastPreferences},
     widget_groups::notification_group::NotificationToggle,
     widgets::{reading_alert::ReadingAlert, reveal::reveal_y},
 };
 
 const DEFAULT_ACTION: &str = "default";
+
+const CONFIG_ERROR_TOAST_ID: u32 = 0;
 
 /// How long the compositor gets to answer `get_activation_token` before the
 /// action is invoked without one.
@@ -77,7 +82,7 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         match message {
             NotificationMessage::Connected(handle) => {
@@ -90,10 +95,10 @@ impl NotificationLayer {
                 placement,
                 entries,
                 config,
-                notif_state,
+                toast_preferences,
             ),
             NotificationMessage::BodyClicked(id) => {
-                self.activate_action(id, DEFAULT_ACTION, placement, config, notif_state)
+                self.activate_action(id, DEFAULT_ACTION, placement, config, toast_preferences)
             }
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
@@ -106,20 +111,26 @@ impl NotificationLayer {
             }
             NotificationMessage::Dismiss(id) => {
                 self.remember_dismissed_reading_alert(id);
-                self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state)
+                self.dismiss(
+                    id,
+                    close_reason::DISMISSED,
+                    placement,
+                    config,
+                    toast_preferences,
+                )
             }
             NotificationMessage::ActionClicked { id, key } => {
-                self.activate_action(id, &key, placement, config, notif_state)
+                self.activate_action(id, &key, placement, config, toast_preferences)
             }
             NotificationMessage::DefaultActivated { id, token } => {
-                self.invoke_default(id, token, placement, config, notif_state)
+                self.invoke_default(id, token, placement, config, toast_preferences)
             }
             NotificationMessage::CloseRequested(id) => self.dismiss(
                 id,
                 close_reason::CLOSED_BY_CALL,
                 placement,
                 config,
-                notif_state,
+                toast_preferences,
             ),
             NotificationMessage::Rects { window, rects } => Task::done(Message::SetInputRegion {
                 id: window,
@@ -134,7 +145,7 @@ impl NotificationLayer {
                     });
                 }),
             }),
-            NotificationMessage::Tick => self.expire(placement, config, notif_state),
+            NotificationMessage::Tick => self.expire(placement, config, toast_preferences),
         }
     }
 
@@ -144,9 +155,9 @@ impl NotificationLayer {
         niri: &EventStreamState,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
-        if notif_state.dnd {
+        if toast_preferences.do_not_disturb {
             return Task::none();
         }
         let changes = self.plan_reading_alert_toasts(active_alerts);
@@ -154,7 +165,56 @@ impl NotificationLayer {
             return Task::none();
         }
         let placement = Placement::derive(niri);
-        self.apply_reading_alert_toast_changes(changes, &placement, entries, config, notif_state)
+        self.apply_reading_alert_toast_changes(
+            changes,
+            &placement,
+            entries,
+            config,
+            toast_preferences,
+        )
+    }
+
+    pub fn show_config_error(
+        &mut self,
+        path: &Path,
+        error: &LoadError,
+        placement: &Placement,
+        entries: Option<&DesktopEntries>,
+        config: &Config,
+        toast_preferences: &ToastPreferences,
+    ) -> Task<Message> {
+        let data = NotificationData {
+            id: CONFIG_ERROR_TOAST_ID,
+            app_name: "vetrata".to_owned(),
+            summary: format!("Invalid configuration in {}", path.display()),
+            body: error.to_string(),
+            severity: Severity::Critical,
+            expire_timeout: ExpireTimeout::Never,
+            ..NotificationData::default()
+        };
+        self.serve(
+            Box::new(data),
+            ToastOrigin::ConfigError,
+            placement,
+            entries,
+            config,
+            toast_preferences,
+        )
+    }
+
+    pub fn withdraw_config_error(
+        &mut self,
+        placement: &Placement,
+        config: &Config,
+        toast_preferences: &ToastPreferences,
+    ) -> Task<Message> {
+        if !self.showing().any(|n| n.data.id == CONFIG_ERROR_TOAST_ID) {
+            return Task::none();
+        }
+        Task::batch([
+            self.close_all([CONFIG_ERROR_TOAST_ID], close_reason::CLOSED_BY_CALL),
+            self.reconcile(placement, config, toast_preferences),
+        ])
     }
 
     fn plan_reading_alert_toasts(
@@ -184,7 +244,7 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         self.dismissed_reading_alerts.retain(|dismissed| {
             !changes
@@ -204,10 +264,10 @@ impl NotificationLayer {
                 placement,
                 entries,
                 config,
-                notif_state,
+                toast_preferences,
             )
         }));
-        tasks.push(self.reconcile(placement, config, notif_state));
+        tasks.push(self.reconcile(placement, config, toast_preferences));
         Task::batch(tasks)
     }
 
@@ -246,9 +306,9 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
-        if notif_state.dnd {
+        if toast_preferences.do_not_disturb {
             return Task::none();
         }
         let id = data.id;
@@ -262,25 +322,22 @@ impl NotificationLayer {
                 .collect();
             tasks.push(self.close_all(dupes, close_reason::DISMISSED));
         }
-        if notif_state.sound && !data.suppress_sound {
+        if toast_preferences.sound && !data.suppress_sound {
             tasks.push(sound::play(&data, self.sound_theme.as_deref()));
         }
         let icons = toast_card::resolve_icons(&data, entries);
         let seq = self.next_seq;
         self.next_seq += 1;
         let now = Instant::now();
-        let countdown = expiry_countdown::lifetime(
-            data.expire_timeout,
-            data.severity,
-            &config.notifications.lifetime,
-        )
-        .map(|remaining| Countdown::started(remaining, now));
-        let place = placement_for(&data, placement, notif_state, config);
+        let countdown =
+            expiry_countdown::lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
+                .map(|remaining| Countdown::started(remaining, now));
+        let place = placement_for(&data, placement, toast_preferences, config);
         self.live.push(Notification::appearing(
             *data, origin, icons, countdown, seq, place, now,
         ));
         self.sync_countdowns(now);
-        tasks.push(self.reconcile(placement, config, notif_state));
+        tasks.push(self.reconcile(placement, config, toast_preferences));
         Task::batch(tasks)
     }
 
@@ -288,7 +345,7 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .showing()
@@ -296,7 +353,7 @@ impl NotificationLayer {
             .map(|n| n.data.id)
             .collect();
         let mut tasks = vec![self.close_all(stale, close_reason::UNDEFINED)];
-        tasks.push(self.reconcile(placement, config, notif_state));
+        tasks.push(self.reconcile(placement, config, toast_preferences));
         Task::batch(tasks)
     }
 
@@ -304,7 +361,7 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         let now = Instant::now();
         let before = self.live.len();
@@ -312,14 +369,14 @@ impl NotificationLayer {
         if self.live.len() == before {
             return Task::none();
         }
-        self.reconcile(placement, config, notif_state)
+        self.reconcile(placement, config, toast_preferences)
     }
 
     fn expire(
         &mut self,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         let now = Instant::now();
         let expired: Vec<u32> = self
@@ -328,7 +385,7 @@ impl NotificationLayer {
             .map(|n| n.data.id)
             .collect();
         let mut tasks = vec![self.close_all(expired, close_reason::EXPIRED)];
-        tasks.push(self.prune(placement, config, notif_state));
+        tasks.push(self.prune(placement, config, toast_preferences));
         Task::batch(tasks)
     }
 
@@ -415,13 +472,19 @@ impl NotificationLayer {
         key: &str,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         if let Some(reading_alert_message) = self.reading_alert_message_for(id, key) {
             self.remember_dismissed_reading_alert(id);
             return Task::batch([
                 Task::done(reading_alert_message),
-                self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
+                self.dismiss(
+                    id,
+                    close_reason::DISMISSED,
+                    placement,
+                    config,
+                    toast_preferences,
+                ),
             ]);
         }
         if key == DEFAULT_ACTION && self.declares_default_action(id) {
@@ -460,7 +523,13 @@ impl NotificationLayer {
         } else {
             Task::batch([
                 activation,
-                self.dismiss(id, close_reason::DISMISSED, placement, config, notif_state),
+                self.dismiss(
+                    id,
+                    close_reason::DISMISSED,
+                    placement,
+                    config,
+                    toast_preferences,
+                ),
             ])
         }
     }
@@ -507,7 +576,7 @@ impl NotificationLayer {
         token: Option<String>,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
         let mut outbound: Vec<Outbound> = token
@@ -533,7 +602,7 @@ impl NotificationLayer {
         );
         Task::batch([
             self.emit(outbound),
-            self.reconcile(placement, config, notif_state),
+            self.reconcile(placement, config, toast_preferences),
         ])
     }
 
@@ -568,7 +637,7 @@ impl NotificationLayer {
                 }
             })
             .collect();
-        Some(toast_field::field(window, slots, &config.notifications).map(Message::Notification))
+        Some(toast_field::field(window, slots, &config.toasts).map(Message::Notification))
     }
 
     pub fn forget(&mut self, window: Id) {
@@ -593,28 +662,31 @@ impl NotificationLayer {
     pub fn toggle(
         &mut self,
         toggle: NotificationToggle,
-        notif_state: &mut NotificationState,
+        toast_preferences: &mut ToastPreferences,
         placement: &Placement,
         config: &Config,
     ) -> Task<Message> {
         match toggle {
             NotificationToggle::DoNotDisturb => {
-                notif_state.dnd = !notif_state.dnd;
+                toast_preferences.do_not_disturb = !toast_preferences.do_not_disturb;
                 Task::batch([
-                    self.sync_dnd(placement, config, notif_state),
-                    Task::future(state::panel::save_dnd(notif_state.dnd)).discard(),
+                    self.sync_dnd(placement, config, toast_preferences),
+                    Task::future(state::panel::save_do_not_disturb(
+                        toast_preferences.do_not_disturb,
+                    ))
+                    .discard(),
                 ])
             }
             NotificationToggle::Sound => {
-                notif_state.sound = !notif_state.sound;
-                Task::future(state::panel::save_sound(notif_state.sound)).discard()
+                toast_preferences.sound = !toast_preferences.sound;
+                Task::future(state::panel::save_sound(toast_preferences.sound)).discard()
             }
             NotificationToggle::SpatialLayout => {
-                notif_state.spatial_layout = !notif_state.spatial_layout;
+                toast_preferences.spatial_layout = !toast_preferences.spatial_layout;
                 Task::batch([
-                    self.on_niri_changed(placement, config, notif_state),
+                    self.on_niri_changed(placement, config, toast_preferences),
                     Task::future(state::panel::save_spatial_layout(
-                        notif_state.spatial_layout,
+                        toast_preferences.spatial_layout,
                     ))
                     .discard(),
                 ])
@@ -626,13 +698,13 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
-        if notif_state.dnd {
+        if toast_preferences.do_not_disturb {
             self.live.clear();
             self.hovered = None;
         }
-        self.reconcile(placement, config, notif_state)
+        self.reconcile(placement, config, toast_preferences)
     }
 
     fn dismiss(
@@ -641,11 +713,11 @@ impl NotificationLayer {
         reason: u32,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         Task::batch([
             self.close_all([id], reason),
-            self.reconcile(placement, config, notif_state),
+            self.reconcile(placement, config, toast_preferences),
         ])
     }
 
@@ -670,12 +742,12 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         config: &Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
     ) -> Task<Message> {
         self.live.iter_mut().for_each(|notif| {
-            notif.place = placement_for(&notif.data, placement, notif_state, config);
+            notif.place = placement_for(&notif.data, placement, toast_preferences, config);
         });
-        let desired: HashSet<Option<String>> = if notif_state.dnd {
+        let desired: HashSet<Option<String>> = if toast_preferences.do_not_disturb {
             HashSet::new()
         } else {
             self.live

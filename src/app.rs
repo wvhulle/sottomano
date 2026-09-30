@@ -1,15 +1,16 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
+    mem,
     sync::Arc,
 };
 
 use chrono::Utc;
-use iced::{Color, Element, Font, Rectangle, Task, theme::Style, window::Id};
+use iced::{Color, Element, Font, Rectangle, Task, font, theme::Style, window::Id};
 use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
-    config::Config,
+    config::{Config, ConfigFile, LoadError, SecretPaths, bar_size::BarSize, font::ResolvedFont},
     data::{
         sink::{clipboard, sound},
         source::{
@@ -23,7 +24,7 @@ use crate::{
         },
     },
     message_subscriptions::{blocking, niri_action},
-    state::{self, Session, WorkspacesPlacement},
+    state::{self, PanelSettings, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         bar::{layer_settings, view, widget_groups},
@@ -63,9 +64,10 @@ use crate::{
 };
 
 pub struct Bar {
+    pub(crate) config_file: ConfigFile,
     pub(crate) config: Config,
     pub(crate) theme: iced::Theme,
-    pub(crate) session: Session,
+    pub(crate) panel_settings: PanelSettings,
     pub(crate) weather_group: WeatherGroup,
     pub(crate) wallpaper_group: WallpaperGroup,
     pub(crate) battery_group: BatteryGroup,
@@ -90,7 +92,7 @@ pub struct Bar {
     pub(crate) niri_snapshot: niri::Snapshot,
     pub(crate) outputs: HashMap<String, niri::OutputInfo>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
-    pub(crate) backdrops: HashSet<Id>,
+    pub(crate) backdrops: BTreeMap<Id, Position>,
     pub(crate) blur_casters: BlurCasters,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
@@ -128,7 +130,9 @@ pub enum Message {
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
-    PanelLoaded(Session),
+    PanelLoaded(PanelSettings),
+    ConfigFileChanged,
+    ConfigLoaded(Result<Box<Config>, Arc<LoadError>>),
     SoundThemeLoaded(Option<String>),
     Audio(AudioMessage),
     Ai(AiMessage),
@@ -172,11 +176,16 @@ impl From<TooltipMessage> for Message {
 }
 
 impl Bar {
-    pub fn new(config: Config) -> (Self, Task<Message>) {
+    pub fn new(
+        config: Config,
+        config_file: ConfigFile,
+        secrets: SecretPaths,
+        loaded: Result<Box<Config>, Arc<LoadError>>,
+    ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("bar init").entered();
         let bar = Self {
             weather_group: WeatherGroup::default(),
-            wallpaper_group: WallpaperGroup::new(&config.secrets),
+            wallpaper_group: WallpaperGroup::new(&secrets),
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
@@ -187,13 +196,13 @@ impl Bar {
             net_interfaces_group: NetInterfacesGroup::default(),
             monitor_group: MonitorGroup::default(),
             color_temperature_group: ColorTemperatureGroup::new(
-                config.color_temperature_unit.clone(),
+                config.color_temperature_service.clone(),
             ),
             dark_mode_group: DarkModeGroup::default(),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
-            ai_group: AiGroup::new(config.secrets.clone()),
+            ai_group: AiGroup::new(secrets),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
@@ -201,18 +210,20 @@ impl Bar {
             niri_snapshot: niri::Snapshot::default(),
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
-            backdrops: HashSet::new(),
+            backdrops: BTreeMap::new(),
             blur_casters: BlurCasters::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
             font_fallbacks: FontFallbacks::default(),
-            session: Session::default(),
+            panel_settings: PanelSettings::default(),
             theme: iced::Theme::from(&config.palette),
             config,
+            config_file,
         };
         let init = Task::batch([
+            Task::done(Message::ConfigLoaded(loaded)),
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(state::launches::load(), Message::TrackerLoaded),
             Task::perform(state::idle::load(), |t| {
@@ -247,7 +258,7 @@ impl Bar {
             &self.niri,
             self.desktop_entries.get(),
             &self.config,
-            &self.session.notifications,
+            &self.panel_settings.toasts,
         );
         Task::batch([dispatched, alert_toasts])
     }
@@ -300,7 +311,10 @@ impl Bar {
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
             Message::SoundThemeLoaded(theme) => self.adopt_sound_theme(theme),
-            Message::PanelLoaded(session) => self.apply_saved_panel_settings(session),
+            Message::PanelLoaded(panel_settings) => self.apply_saved_panel_settings(panel_settings),
+            Message::ConfigFileChanged => self.reload_config(),
+            Message::ConfigLoaded(Ok(config)) => self.adopt_config(*config),
+            Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
             Message::DismissPressed => {
@@ -364,7 +378,7 @@ impl Bar {
             zone,
             rects,
             &self.config,
-            &self.session.chrome,
+            &self.panel_settings.layout,
             &self.surfaces,
         );
         if zone != Zone::Sidebar {
@@ -443,7 +457,7 @@ impl Bar {
             &placement,
             self.desktop_entries.get(),
             &self.config,
-            &self.session.notifications,
+            &self.panel_settings.toasts,
         )
     }
 
@@ -453,14 +467,14 @@ impl Bar {
         }
         let placement = niri::Placement::derive(&self.niri);
         self.notifications
-            .prune(&placement, &self.config, &self.session.notifications)
+            .prune(&placement, &self.config, &self.panel_settings.toasts)
     }
 
     fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputInfo>) -> Task<Message> {
         self.outputs = outputs;
         let placement = niri::Placement::derive(&self.niri);
         self.notifications
-            .on_niri_changed(&placement, &self.config, &self.session.notifications)
+            .on_niri_changed(&placement, &self.config, &self.panel_settings.toasts)
     }
 
     fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
@@ -505,7 +519,7 @@ impl Bar {
                 let placement = niri::Placement::derive(&self.niri);
                 self.notifications.toggle(
                     toggle,
-                    &mut self.session.notifications,
+                    &mut self.panel_settings.toasts,
                     &placement,
                     &self.config,
                 )
@@ -582,17 +596,84 @@ impl Bar {
         self.tooltip.leave_elapsed(departing)
     }
 
-    fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
-        let placement_before = self.session.chrome.workspaces_placement;
-        self.session = session;
-        self.panel_settings_group
-            .adopt(&self.session.chrome, self.session.corner_radius);
-        let placed = if self.session.chrome.workspaces_placement == placement_before {
+    fn apply_saved_panel_settings(&mut self, panel_settings: PanelSettings) -> Task<Message> {
+        let placement_before = self.panel_settings.layout.workspaces_placement;
+        self.panel_settings = panel_settings;
+        self.panel_settings_group.adopt(&self.panel_settings.layout);
+        let placed = if self.panel_settings.layout.workspaces_placement == placement_before {
             Task::none()
         } else {
             self.enter_workspaces_placement()
         };
         Task::batch([placed, self.remargin_surfaces(), self.rebuild_blur()])
+    }
+
+    fn reload_config(&self) -> Task<Message> {
+        let file = self.config_file.clone();
+        blocking("config reload", move || Some(file.load())).and_then(|loaded| {
+            Task::done(Message::ConfigLoaded(
+                loaded.map(Box::new).map_err(Arc::new),
+            ))
+        })
+    }
+
+    fn adopt_config(&mut self, config: Config) -> Task<Message> {
+        let previous = mem::replace(&mut self.config, config);
+        self.theme = iced::Theme::from(&self.config.palette);
+        Task::batch([
+            self.notifications.withdraw_config_error(
+                &niri::Placement::derive(&self.niri),
+                &self.config,
+                &self.panel_settings.toasts,
+            ),
+            self.adopt_font(&previous.font),
+            self.adopt_bar_size(&previous.bar),
+            self.adopt_color_temperature_service(&previous.color_temperature_service),
+        ])
+    }
+
+    fn adopt_font(&mut self, previous: &ResolvedFont) -> Task<Message> {
+        if self.config.font.has_same_face_as(previous) {
+            return Task::none();
+        }
+        self.font_fallbacks = FontFallbacks::default();
+        font::load(self.config.font.data.to_vec()).map(|loaded| {
+            if let Err(e) = loaded {
+                tracing::warn!("config reload: font not loaded: {e:?}");
+            }
+            Message::Redraw
+        })
+    }
+
+    fn adopt_bar_size(&mut self, previous: &BarSize) -> Task<Message> {
+        if self.config.bar == *previous {
+            return Task::none();
+        }
+        Task::batch([self.resize_bars(), self.rebuild_blur()])
+    }
+
+    fn adopt_color_temperature_service(&mut self, previous: &str) -> Task<Message> {
+        if self.config.color_temperature_service == previous {
+            return Task::none();
+        }
+        self.color_temperature_group =
+            ColorTemperatureGroup::new(self.config.color_temperature_service.clone());
+        self.color_temperature_group
+            .probe()
+            .map(Message::ColorTemperature)
+    }
+
+    fn reject_config(&mut self, error: &LoadError) -> Task<Message> {
+        let path = self.config_file.path();
+        tracing::warn!("invalid configuration {}: {error}", path.display());
+        self.notifications.show_config_error(
+            path,
+            error,
+            &niri::Placement::derive(&self.niri),
+            self.desktop_entries.get(),
+            &self.config,
+            &self.panel_settings.toasts,
+        )
     }
 
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
@@ -635,7 +716,7 @@ impl Bar {
             .or_else(|| self.ai_group.tooltip_for(target))
             .or_else(|| {
                 self.panel_settings_group
-                    .tooltip_for(target, &self.session.chrome)
+                    .tooltip_for(target, &self.panel_settings.layout)
             })
             .unwrap_or_else(Tooltip::empty)
     }
@@ -672,7 +753,7 @@ impl Bar {
     }
 
     fn collapse_groups(&mut self) {
-        if !self.session.chrome.auto_collapse_groups {
+        if !self.panel_settings.layout.auto_collapse_groups {
             return;
         }
         self.panel_settings_group.collapse();
@@ -737,7 +818,7 @@ impl Bar {
             tasks.push(self.notifications.on_niri_changed(
                 &placement,
                 &self.config,
-                &self.session.notifications,
+                &self.panel_settings.toasts,
             ));
         }
         Task::batch(tasks)
@@ -802,11 +883,10 @@ impl Bar {
     }
 
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
-        match self.panel_settings_group.update(
-            msg,
-            &mut self.session.chrome,
-            &mut self.session.corner_radius,
-        ) {
+        match self
+            .panel_settings_group
+            .update(msg, &mut self.panel_settings.layout)
+        {
             panel_settings_group::Action::None => Task::none(),
             panel_settings_group::Action::Run(task) => task,
             panel_settings_group::Action::RebuildBlur(task) => {
@@ -815,7 +895,7 @@ impl Bar {
             panel_settings_group::Action::Reflow(task) => Task::batch([
                 self.remargin_surfaces(),
                 self.blur_casters
-                    .reposition(&self.session.chrome, &self.surfaces),
+                    .reposition(&self.panel_settings.layout, &self.surfaces),
                 task,
             ]),
             panel_settings_group::Action::PlaceWorkspaces(task) => {
@@ -825,7 +905,7 @@ impl Bar {
     }
 
     fn enter_workspaces_placement(&mut self) -> Task<Message> {
-        match self.session.chrome.workspaces_placement {
+        match self.panel_settings.layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => {
                 let outputs: Vec<String> = self
                     .surfaces
@@ -833,11 +913,9 @@ impl Bar {
                     .filter(|surface| surface.position == Position::Top)
                     .map(|surface| surface.output.clone())
                     .collect();
-                Task::batch(
-                    outputs.iter().map(|output| {
-                        sidebar::open(&mut self.surfaces, output, &self.session.chrome)
-                    }),
-                )
+                Task::batch(outputs.iter().map(|output| {
+                    sidebar::open(&mut self.surfaces, output, &self.panel_settings.layout)
+                }))
             }
             WorkspacesPlacement::BottomPanel => Task::batch(
                 sidebar::windows(&self.surfaces)
@@ -855,11 +933,11 @@ impl Bar {
 
     fn rebuild_blur(&mut self) -> Task<Message> {
         self.blur_casters
-            .rebuild(&self.config, &self.session.chrome, &self.surfaces)
+            .rebuild(&self.config, &self.panel_settings.layout, &self.surfaces)
     }
 
     fn remargin_surfaces(&self) -> Task<Message> {
-        let offset = self.session.chrome.margin_offset_px();
+        let offset = self.panel_settings.layout.margin_offset_px();
         Task::batch(self.surfaces.iter().map(move |(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
@@ -869,8 +947,8 @@ impl Bar {
     }
 
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.chrome.outer_height_px as u32;
-        let offset = self.session.chrome.margin_offset_px();
+        let height = self.config.bar.height_px as u32;
+        let offset = self.panel_settings.layout.margin_offset_px();
         let settings = layer_settings(output, position, height, position.float_margin(offset));
         let id = Id::unique();
         let surface = Surface {
@@ -881,18 +959,53 @@ impl Bar {
             id,
             &surface,
             &self.config,
-            &self.session.chrome,
+            &self.panel_settings.layout,
         );
         self.surfaces.insert(id, surface);
         Task::batch([Task::done(Message::NewLayerShell { settings, id }), strip])
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.chrome.outer_height_px as u32;
+        let height = self.config.bar.height_px as u32;
         let settings = backdrop_shadow::settings(output, position, height);
         let id = Id::unique();
-        self.backdrops.insert(id);
+        self.backdrops.insert(id, position);
         Task::done(Message::NewLayerShell { settings, id })
+    }
+
+    fn resize_bars(&self) -> Task<Message> {
+        let height = self.config.bar.height_px as u32;
+        let bars = self
+            .surfaces
+            .iter()
+            .filter(|(_, surface)| !surface.position.is_vertical())
+            .flat_map(move |(&id, surface)| {
+                [
+                    Task::done(Message::LayoutChange {
+                        id,
+                        anchor: surface.position.anchor(),
+                        size: surface.position.strip_size(height),
+                    }),
+                    Task::done(Message::ExclusiveZoneChange {
+                        id,
+                        zone_size: height.cast_signed(),
+                    }),
+                ]
+            });
+        let backdrops = self.backdrops.iter().flat_map(move |(&id, &position)| {
+            [
+                Task::done(Message::LayoutChange {
+                    id,
+                    anchor: position.anchor(),
+                    size: position.strip_size(height),
+                }),
+                Task::done(Message::MarginChange {
+                    id,
+                    margin: backdrop_shadow::margin(position, height),
+                }),
+            ]
+        });
+        Task::batch(bars.chain(backdrops))
     }
 
     /// The compositor's output list reaches vetrata through a worker that may
@@ -911,11 +1024,11 @@ impl Bar {
             .into_iter()
             .map(|position| self.open_bar(output, position))
             .collect();
-        if self.session.chrome.workspaces_placement == WorkspacesPlacement::Sidebar {
+        if self.panel_settings.layout.workspaces_placement == WorkspacesPlacement::Sidebar {
             opens.push(sidebar::open(
                 &mut self.surfaces,
                 output,
-                &self.session.chrome,
+                &self.panel_settings.layout,
             ));
         }
         opens.push(self.tooltip.open_surface(output));
@@ -932,16 +1045,17 @@ impl Bar {
         if let Some(element) = self.tooltip.view(
             window,
             &self.config,
-            &self.session,
+            &self.panel_settings,
             &self.favicons,
             |target| self.tooltip_for(target),
         ) {
             return element;
         }
-        if let Some(element) =
-            self.notifications
-                .view(window, &self.config, self.session.corner_radius)
-        {
+        if let Some(element) = self.notifications.view(
+            window,
+            &self.config,
+            self.panel_settings.layout.corner_radius,
+        ) {
             return element;
         }
         view(self, window)

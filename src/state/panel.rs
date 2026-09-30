@@ -1,4 +1,4 @@
-use crate::state::{Columns, Session, StoreError, WorkspacesPlacement, open};
+use crate::state::{Columns, PanelSettings, StoreError, WorkspacesPlacement, open};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -16,7 +16,7 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session 
 
 const COLUMNS_ADDED_LATER: [&str; 1] = ["workspaces_in_sidebar INTEGER"];
 
-const SELECT_SESSION: &str = "SELECT corner_radius_px, float_offset_px, chrome_tint_factor,
+const SELECT_PANEL_SETTINGS: &str = "SELECT corner_radius_px, float_offset_px, chrome_tint_factor,
         blur_background, disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout,
         workspaces_in_sidebar
     FROM panel_session WHERE id = 0";
@@ -25,11 +25,11 @@ const SELECT_SESSION: &str = "SELECT corner_radius_px, float_offset_px, chrome_t
 enum Setting {
     CornerRadius,
     FloatOffset,
-    ChromeTintFactor,
+    TintFactor,
     BlurBackground,
     DisconnectedGroups,
     AutoCollapseGroups,
-    Dnd,
+    DoNotDisturb,
     Sound,
     SpatialLayout,
     WorkspacesInSidebar,
@@ -40,11 +40,11 @@ impl Setting {
         match self {
             Self::CornerRadius => "corner_radius_px",
             Self::FloatOffset => "float_offset_px",
-            Self::ChromeTintFactor => "chrome_tint_factor",
+            Self::TintFactor => "chrome_tint_factor",
             Self::BlurBackground => "blur_background",
             Self::DisconnectedGroups => "disconnected_groups",
             Self::AutoCollapseGroups => "auto_collapse_groups",
-            Self::Dnd => "dnd",
+            Self::DoNotDisturb => "dnd",
             Self::Sound => "sound",
             Self::SpatialLayout => "spatial_layout",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
@@ -52,10 +52,10 @@ impl Setting {
     }
 }
 
-pub async fn load() -> Session {
+pub async fn load() -> PanelSettings {
     try_load().await.unwrap_or_else(|e| {
         tracing::warn!("panel settings: load failed: {e}");
-        Session::default()
+        PanelSettings::default()
     })
 }
 
@@ -87,12 +87,12 @@ pub async fn save_workspaces_placement(placement: WorkspacesPlacement) {
     .await;
 }
 
-pub async fn save_chrome_tint_factor(factor: f32) -> bool {
-    put(Setting::ChromeTintFactor, measure(factor)).await
+pub async fn save_tint_factor(factor: f32) -> bool {
+    put(Setting::TintFactor, measure(factor)).await
 }
 
-pub async fn save_dnd(dnd: bool) {
-    put(Setting::Dnd, flag(dnd)).await;
+pub async fn save_do_not_disturb(dnd: bool) {
+    put(Setting::DoNotDisturb, flag(dnd)).await;
 }
 
 pub async fn save_sound(sound: bool) {
@@ -143,53 +143,53 @@ async fn write_setting(
     Ok(())
 }
 
-async fn try_load() -> Result<Session, StoreError> {
+async fn try_load() -> Result<PanelSettings, StoreError> {
     let conn = open().await?;
-    read_session(&conn).await
+    read_panel_settings(&conn).await
 }
 
-async fn read_session(conn: &turso::Connection) -> Result<Session, StoreError> {
-    let mut rows = conn.query(SELECT_SESSION, ()).await?;
+async fn read_panel_settings(conn: &turso::Connection) -> Result<PanelSettings, StoreError> {
+    let mut rows = conn.query(SELECT_PANEL_SETTINGS, ()).await?;
     let columns = Columns::of(&rows);
-    let mut session = Session::default();
+    let mut panel_settings = PanelSettings::default();
     let Some(row) = rows.next().await? else {
-        return Ok(session);
+        return Ok(panel_settings);
     };
     if let Some(radius) = columns.optional_real(&row, "corner_radius_px")? {
-        session.corner_radius = (radius as f32).into();
+        panel_settings.layout.corner_radius = (radius as f32).into();
     }
     if let Some(offset) = columns.optional_real(&row, "float_offset_px")? {
-        session.chrome.float_offset_px = offset as f32;
+        panel_settings.layout.float_offset_px = offset as f32;
     }
     if let Some(factor) = columns.optional_real(&row, "chrome_tint_factor")? {
-        session.chrome.chrome_tint_factor = factor as f32;
+        panel_settings.layout.tint_factor = factor as f32;
     }
     if let Some(blur) = columns.optional_flag(&row, "blur_background")? {
-        session.chrome.blur_background = blur;
+        panel_settings.layout.blur_background = blur;
     }
     if let Some(disconnected) = columns.optional_flag(&row, "disconnected_groups")? {
-        session.chrome.disconnected_groups = disconnected;
+        panel_settings.layout.disconnected_groups = disconnected;
     }
     if let Some(collapse) = columns.optional_flag(&row, "auto_collapse_groups")? {
-        session.chrome.auto_collapse_groups = collapse;
+        panel_settings.layout.auto_collapse_groups = collapse;
     }
     if let Some(dnd) = columns.optional_flag(&row, "dnd")? {
-        session.notifications.dnd = dnd;
+        panel_settings.toasts.do_not_disturb = dnd;
     }
     if let Some(sound) = columns.optional_flag(&row, "sound")? {
-        session.notifications.sound = sound;
+        panel_settings.toasts.sound = sound;
     }
     if let Some(spatial) = columns.optional_flag(&row, "spatial_layout")? {
-        session.notifications.spatial_layout = spatial;
+        panel_settings.toasts.spatial_layout = spatial;
     }
     if let Some(in_sidebar) = columns.optional_flag(&row, "workspaces_in_sidebar")? {
-        session.chrome.workspaces_placement = if in_sidebar {
+        panel_settings.layout.workspaces_placement = if in_sidebar {
             WorkspacesPlacement::Sidebar
         } else {
             WorkspacesPlacement::BottomPanel
         };
     }
-    Ok(session)
+    Ok(panel_settings)
 }
 
 pub(crate) async fn add_later_columns(conn: &turso::Connection) -> Result<(), StoreError> {
@@ -233,25 +233,28 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
         .query("SELECT key, value FROM panel_settings", ())
         .await?;
     let columns = Columns::of(&rows);
-    let mut session = Session::default();
+    let mut panel_settings = PanelSettings::default();
     while let Some(row) = rows.next().await? {
         let key = columns.text(&row, "key")?;
         let value = columns.text(&row, "value")?;
         let set = value != "0";
         match key.as_str() {
             "corner_radius_px" => {
-                session.corner_radius = value.parse::<f32>().unwrap_or_default().into();
+                panel_settings.layout.corner_radius =
+                    value.parse::<f32>().unwrap_or_default().into();
             }
-            "float_offset_px" => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
+            "float_offset_px" => {
+                panel_settings.layout.float_offset_px = value.parse().unwrap_or_default()
+            }
             "chrome_tint_factor" | "darken_chrome_factor" => {
-                session.chrome.chrome_tint_factor = value.parse().unwrap_or_default();
+                panel_settings.layout.tint_factor = value.parse().unwrap_or_default();
             }
-            "blur_background" => session.chrome.blur_background = set,
-            "disconnected_groups" => session.chrome.disconnected_groups = set,
-            "auto_collapse_groups" => session.chrome.auto_collapse_groups = set,
-            "dnd" => session.notifications.dnd = set,
-            "sound" => session.notifications.sound = set,
-            "spatial_layout" => session.notifications.spatial_layout = set,
+            "blur_background" => panel_settings.layout.blur_background = set,
+            "disconnected_groups" => panel_settings.layout.disconnected_groups = set,
+            "auto_collapse_groups" => panel_settings.layout.auto_collapse_groups = set,
+            "dnd" => panel_settings.toasts.do_not_disturb = set,
+            "sound" => panel_settings.toasts.sound = set,
+            "spatial_layout" => panel_settings.toasts.spatial_layout = set,
             _ => tracing::warn!("panel settings: discarding unknown legacy setting {key}"),
         }
     }
@@ -266,15 +269,15 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
              chrome_tint_factor = ?3, blur_background = ?4, disconnected_groups = ?5,
              auto_collapse_groups = ?6, dnd = ?7, sound = ?8, spatial_layout = ?9",
         (
-            f64::from(session.corner_radius.top_left),
-            f64::from(session.chrome.float_offset_px),
-            f64::from(session.chrome.chrome_tint_factor),
-            i64::from(session.chrome.blur_background),
-            i64::from(session.chrome.disconnected_groups),
-            i64::from(session.chrome.auto_collapse_groups),
-            i64::from(session.notifications.dnd),
-            i64::from(session.notifications.sound),
-            i64::from(session.notifications.spatial_layout),
+            f64::from(panel_settings.layout.corner_radius.top_left),
+            f64::from(panel_settings.layout.float_offset_px),
+            f64::from(panel_settings.layout.tint_factor),
+            i64::from(panel_settings.layout.blur_background),
+            i64::from(panel_settings.layout.disconnected_groups),
+            i64::from(panel_settings.layout.auto_collapse_groups),
+            i64::from(panel_settings.toasts.do_not_disturb),
+            i64::from(panel_settings.toasts.sound),
+            i64::from(panel_settings.toasts.spatial_layout),
         ),
     )
     .await?;
@@ -285,7 +288,7 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::{
-        CREATE_TABLE, Setting, add_later_columns, flag, measure, read_session, write_setting,
+        CREATE_TABLE, Setting, add_later_columns, flag, measure, read_panel_settings, write_setting,
     };
     use crate::state::WorkspacesPlacement;
 
@@ -302,11 +305,11 @@ mod tests {
         for (setting, value) in [
             (Setting::CornerRadius, measure(12.5)),
             (Setting::FloatOffset, measure(3.25)),
-            (Setting::ChromeTintFactor, measure(0.75)),
+            (Setting::TintFactor, measure(0.75)),
             (Setting::BlurBackground, flag(true)),
             (Setting::DisconnectedGroups, flag(true)),
             (Setting::AutoCollapseGroups, flag(false)),
-            (Setting::Dnd, flag(true)),
+            (Setting::DoNotDisturb, flag(true)),
             (Setting::Sound, flag(false)),
             (Setting::SpatialLayout, flag(false)),
             (Setting::WorkspacesInSidebar, flag(false)),
@@ -314,18 +317,18 @@ mod tests {
             write_setting(&conn, setting, value).await.unwrap();
         }
 
-        let session = read_session(&conn).await.unwrap();
-        assert!((session.corner_radius.top_left - 12.5).abs() < f32::EPSILON);
-        assert!((session.chrome.float_offset_px - 3.25).abs() < f32::EPSILON);
-        assert!((session.chrome.chrome_tint_factor - 0.75).abs() < f32::EPSILON);
-        assert!(session.chrome.blur_background);
-        assert!(session.chrome.disconnected_groups);
-        assert!(!session.chrome.auto_collapse_groups);
-        assert!(session.notifications.dnd);
-        assert!(!session.notifications.sound);
-        assert!(!session.notifications.spatial_layout);
+        let panel_settings = read_panel_settings(&conn).await.unwrap();
+        assert!((panel_settings.layout.corner_radius.top_left - 12.5).abs() < f32::EPSILON);
+        assert!((panel_settings.layout.float_offset_px - 3.25).abs() < f32::EPSILON);
+        assert!((panel_settings.layout.tint_factor - 0.75).abs() < f32::EPSILON);
+        assert!(panel_settings.layout.blur_background);
+        assert!(panel_settings.layout.disconnected_groups);
+        assert!(!panel_settings.layout.auto_collapse_groups);
+        assert!(panel_settings.toasts.do_not_disturb);
+        assert!(!panel_settings.toasts.sound);
+        assert!(!panel_settings.toasts.spatial_layout);
         assert_eq!(
-            session.chrome.workspaces_placement,
+            panel_settings.layout.workspaces_placement,
             WorkspacesPlacement::BottomPanel
         );
     }
@@ -359,17 +362,17 @@ mod tests {
     #[tokio::test]
     async fn unwritten_columns_keep_their_defaults() {
         let conn = connection().await;
-        write_setting(&conn, Setting::Dnd, flag(true))
+        write_setting(&conn, Setting::DoNotDisturb, flag(true))
             .await
             .unwrap();
 
-        let session = read_session(&conn).await.unwrap();
-        assert!(session.notifications.dnd);
-        assert!(session.chrome.auto_collapse_groups);
-        assert!(session.notifications.sound);
-        assert!(session.notifications.spatial_layout);
+        let panel_settings = read_panel_settings(&conn).await.unwrap();
+        assert!(panel_settings.toasts.do_not_disturb);
+        assert!(panel_settings.layout.auto_collapse_groups);
+        assert!(panel_settings.toasts.sound);
+        assert!(panel_settings.toasts.spatial_layout);
         assert_eq!(
-            session.chrome.workspaces_placement,
+            panel_settings.layout.workspaces_placement,
             WorkspacesPlacement::Sidebar
         );
     }

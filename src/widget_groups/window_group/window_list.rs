@@ -184,7 +184,7 @@ impl WindowList {
             focused_index,
             config.palette.focus.scale_alpha(focus_opacity),
         )
-        .thickness(config.widgets.indicator_thickness_px)
+        .thickness(config.widget_sizes.indicator_thickness_px)
         .edge(position);
         Some(window_list_viewport(
             indicated,
@@ -323,7 +323,7 @@ fn indicator_line<'a>(
     activity_line(
         config.palette.urgent,
         severity * opacity,
-        config.widgets.indicator_thickness_px,
+        config.widget_sizes.indicator_thickness_px,
     )
 }
 
@@ -337,7 +337,7 @@ fn progress_ticks<'a>(
         config.palette.warning.scale_alpha(opacity),
         config.palette.dim.scale_alpha(opacity),
         fraction,
-        config.widgets.indicator_thickness_px,
+        config.widget_sizes.indicator_thickness_px,
     ))
 }
 
@@ -357,16 +357,21 @@ fn count_badge<'a>(
     let background = config.palette.urgent.scale_alpha(opacity);
     let foreground = config.palette.surface.scale_alpha(opacity);
     let size = config.font.text_size_px;
-    let badge = container(text(label).size(size).color(foreground))
-        .padding([0.0, config.spacing.widget_spacing_px])
-        .style(move |_| container::Style {
-            background: Some(background.into()),
-            border: iced::Border {
-                radius: Radius::new(size),
-                ..iced::Border::default()
-            },
-            ..container::Style::default()
-        });
+    let badge = container(
+        text(label)
+            .size(size)
+            .font(config.font.iced_font)
+            .color(foreground),
+    )
+    .padding([0.0, config.spacing.widget_spacing_px])
+    .style(move |_| container::Style {
+        background: Some(background.into()),
+        border: iced::Border {
+            radius: Radius::new(size),
+            ..iced::Border::default()
+        },
+        ..container::Style::default()
+    });
     Some(
         container(badge)
             .width(Length::Fill)

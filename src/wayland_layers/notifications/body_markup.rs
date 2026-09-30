@@ -6,7 +6,7 @@ use iced::{
     widget::{span, text::Span},
 };
 
-use crate::config::font::FontConfig;
+use crate::config::font::ResolvedFont;
 
 #[derive(Clone, Copy)]
 struct Emphasis {
@@ -43,7 +43,7 @@ pub fn body_spans<'a>(
     body: &str,
     color: Color,
     size: f32,
-    font: &FontConfig,
+    font: &ResolvedFont,
     mono: Font,
 ) -> Vec<Span<'a>> {
     let mut stack: Vec<String> = Vec::new();
@@ -152,7 +152,7 @@ mod tests {
     use super::*;
 
     fn render(body: &str) -> String {
-        let font = FontConfig {
+        let font = ResolvedFont {
             iced_font: Font::DEFAULT,
             text_size_px: 14.0,
             icon_size_px: 14.0,

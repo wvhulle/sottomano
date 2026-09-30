@@ -1,11 +1,11 @@
 use std::{future::Future, ops::RangeInclusive};
 
-use iced::{Task, border::Radius};
+use iced::Task;
 
 use crate::{
     app::Message,
     config::Config,
-    state::{self, ChromeState, WorkspacesPlacement},
+    state::{self, PanelLayout, WorkspacesPlacement},
     wayland_layers::tooltip::{HoverTarget, hoverable},
     widgets::{
         group_item::GroupItem,
@@ -38,10 +38,10 @@ fn persisted(
         .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Persisted { value, ok })))
 }
 
-fn blur_tooltip(chrome: &ChromeState) -> Tooltip {
+fn blur_tooltip(layout: &PanelLayout) -> Tooltip {
     Tooltip::table(vec![row(
         "Blur",
-        if chrome.blur_background {
+        if layout.blur_background {
             "on — frosted behind the chrome"
         } else {
             "off"
@@ -49,10 +49,10 @@ fn blur_tooltip(chrome: &ChromeState) -> Tooltip {
     )])
 }
 
-fn disconnected_tooltip(chrome: &ChromeState) -> Tooltip {
+fn disconnected_tooltip(layout: &PanelLayout) -> Tooltip {
     Tooltip::table(vec![row(
         "Groups",
-        if chrome.disconnected_groups {
+        if layout.disconnected_groups {
             "separate pills"
         } else {
             "one bar"
@@ -60,10 +60,10 @@ fn disconnected_tooltip(chrome: &ChromeState) -> Tooltip {
     )])
 }
 
-fn auto_collapse_tooltip(chrome: &ChromeState) -> Tooltip {
+fn auto_collapse_tooltip(layout: &PanelLayout) -> Tooltip {
     Tooltip::table(vec![row(
         "Groups",
-        if chrome.auto_collapse_groups {
+        if layout.auto_collapse_groups {
             "collapse when another window takes focus"
         } else {
             "stay open until the handle is clicked"
@@ -71,10 +71,10 @@ fn auto_collapse_tooltip(chrome: &ChromeState) -> Tooltip {
     )])
 }
 
-fn workspaces_placement_tooltip(chrome: &ChromeState) -> Tooltip {
+fn workspaces_placement_tooltip(layout: &PanelLayout) -> Tooltip {
     Tooltip::table(vec![row(
         "Workspaces",
-        match chrome.workspaces_placement {
+        match layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
             WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
         },
@@ -133,7 +133,7 @@ impl Default for PanelSettingsGroup {
 }
 
 impl PanelSettingsGroup {
-    pub fn tooltip_for(&self, target: &HoverTarget, chrome: &ChromeState) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &HoverTarget, layout: &PanelLayout) -> Option<Tooltip> {
         match target {
             HoverTarget::CornerRadius => Some(Tooltip::table(vec![row(
                 "Corners",
@@ -147,10 +147,10 @@ impl PanelSettingsGroup {
                 "Tint",
                 format!("{} tint over the chrome", self.tint.readout_text()),
             )])),
-            HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
-            HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
-            HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(chrome)),
-            HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(chrome)),
+            HoverTarget::BlurBackground => Some(blur_tooltip(layout)),
+            HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(layout)),
+            HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(layout)),
+            HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(layout)),
             _ => None,
         }
     }
@@ -167,12 +167,7 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn update(
-        &mut self,
-        msg: PanelSettingsMessage,
-        chrome: &mut ChromeState,
-        corner_radius: &mut Radius,
-    ) -> Action {
+    pub fn update(&mut self, msg: PanelSettingsMessage, layout: &mut PanelLayout) -> Action {
         match msg {
             PanelSettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
@@ -181,42 +176,42 @@ impl PanelSettingsGroup {
                 Action::None
             }
             PanelSettingsMessage::ToggleBlurBackground => {
-                chrome.blur_background = !chrome.blur_background;
+                layout.blur_background = !layout.blur_background;
                 Action::RebuildBlur(
-                    Task::future(state::panel::save_blur_background(chrome.blur_background))
+                    Task::future(state::panel::save_blur_background(layout.blur_background))
                         .discard(),
                 )
             }
             PanelSettingsMessage::ToggleDisconnectedGroups => {
-                chrome.disconnected_groups = !chrome.disconnected_groups;
+                layout.disconnected_groups = !layout.disconnected_groups;
                 Action::RebuildBlur(
                     Task::future(state::panel::save_disconnected_groups(
-                        chrome.disconnected_groups,
+                        layout.disconnected_groups,
                     ))
                     .discard(),
                 )
             }
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
-                chrome.auto_collapse_groups = !chrome.auto_collapse_groups;
+                layout.auto_collapse_groups = !layout.auto_collapse_groups;
                 Action::Run(
                     Task::future(state::panel::save_auto_collapse_groups(
-                        chrome.auto_collapse_groups,
+                        layout.auto_collapse_groups,
                     ))
                     .discard(),
                 )
             }
             PanelSettingsMessage::ToggleWorkspacesPlacement => {
-                chrome.workspaces_placement = chrome.workspaces_placement.toggled();
+                layout.workspaces_placement = layout.workspaces_placement.toggled();
                 Action::PlaceWorkspaces(
                     Task::future(state::panel::save_workspaces_placement(
-                        chrome.workspaces_placement,
+                        layout.workspaces_placement,
                     ))
                     .discard(),
                 )
             }
             PanelSettingsMessage::Radius(msg) => match self.radius.update(msg) {
                 SliderAction::Commit(radius) => {
-                    *corner_radius = radius.into();
+                    layout.corner_radius = radius.into();
                     Action::Run(persisted(
                         radius,
                         state::panel::save_corner_radius(radius),
@@ -227,7 +222,7 @@ impl PanelSettingsGroup {
             },
             PanelSettingsMessage::Offset(msg) => match self.offset.update(msg) {
                 SliderAction::Commit(offset) => {
-                    chrome.float_offset_px = offset;
+                    layout.float_offset_px = offset;
                     Action::Reflow(persisted(
                         offset,
                         state::panel::save_float_offset(offset),
@@ -238,10 +233,10 @@ impl PanelSettingsGroup {
             },
             PanelSettingsMessage::Tint(msg) => match self.tint.update(msg) {
                 SliderAction::Commit(percent) => {
-                    chrome.chrome_tint_factor = percent / 100.0;
+                    layout.tint_factor = percent / 100.0;
                     Action::Run(persisted(
                         percent,
-                        state::panel::save_chrome_tint_factor(chrome.chrome_tint_factor),
+                        state::panel::save_tint_factor(layout.tint_factor),
                         PanelSettingsMessage::Tint,
                     ))
                 }
@@ -250,47 +245,47 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn adopt(&mut self, chrome: &ChromeState, corner_radius: Radius) {
+    pub fn adopt(&mut self, layout: &PanelLayout) {
         self.radius
-            .update(ControlMessage::Reading(corner_radius.top_left));
+            .update(ControlMessage::Reading(layout.corner_radius.top_left));
         self.offset
-            .update(ControlMessage::Reading(chrome.float_offset_px));
+            .update(ControlMessage::Reading(layout.float_offset_px));
         self.tint
-            .update(ControlMessage::Reading(chrome.chrome_tint_factor * 100.0));
+            .update(ControlMessage::Reading(layout.tint_factor * 100.0));
     }
 
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-        chrome: &ChromeState,
+        layout: &PanelLayout,
     ) -> WidgetGroup<'a, PanelSettingsMessage> {
         WidgetGroup::new(&self.expansion, PanelSettingsMessage::Expansion)
             .icon(Phosphor::SlidersHorizontal(Weight::Regular))
             .item(icon_toggle_item(
                 config,
                 Phosphor::Pill(Weight::Regular),
-                chrome.disconnected_groups,
+                layout.disconnected_groups,
                 PanelSettingsMessage::ToggleDisconnectedGroups,
                 HoverTarget::DisconnectedGroups,
             ))
             .item(icon_toggle_item(
                 config,
                 Phosphor::PushPin(Weight::Regular),
-                !chrome.auto_collapse_groups,
+                !layout.auto_collapse_groups,
                 PanelSettingsMessage::ToggleAutoCollapseGroups,
                 HoverTarget::AutoCollapseGroups,
             ))
             .item(icon_toggle_item(
                 config,
                 Phosphor::SidebarSimple(Weight::Regular),
-                chrome.workspaces_placement == WorkspacesPlacement::Sidebar,
+                layout.workspaces_placement == WorkspacesPlacement::Sidebar,
                 PanelSettingsMessage::ToggleWorkspacesPlacement,
                 HoverTarget::WorkspacesPlacement,
             ))
             .item(icon_toggle_item(
                 config,
                 Phosphor::Snowflake(Weight::Regular),
-                chrome.blur_background,
+                layout.blur_background,
                 PanelSettingsMessage::ToggleBlurBackground,
                 HoverTarget::BlurBackground,
             ))

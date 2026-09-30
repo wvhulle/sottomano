@@ -17,19 +17,22 @@ pub fn namespace(position: Position) -> &'static str {
     }
 }
 
-pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
+pub fn margin(position: Position, height: u32) -> (i32, i32, i32, i32) {
     let h = height.cast_signed();
-    let margin = match position {
+    match position {
         Position::Top => (-h, 0, 0, 0),
         Position::Bottom => (0, 0, -h, 0),
         Position::Left => (0, 0, 0, -h),
-    };
+    }
+}
+
+pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: position.strip_size(height),
         exclusive_zone: Some(-1),
         anchor: position.anchor(),
         layer: Layer::Background,
-        margin: Some(margin),
+        margin: Some(margin(position, height)),
         events_transparent: true,
         ..surface::base_settings(Some(output), namespace(position))
     }

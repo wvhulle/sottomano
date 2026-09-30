@@ -1,19 +1,20 @@
-use std::{collections::HashSet, fs, sync::Arc};
+use std::{collections::HashSet, fmt, fs, io, sync::Arc};
 
 use iced::Font;
 use serde::Deserialize;
+use ttf_parser::FaceParsingError;
 
 use crate::data::source::command;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct UserFont {
+pub struct FontChoice {
     pub name: Option<String>,
     pub text_size_px: f32,
     pub icon_size_px: f32,
 }
 
-impl Default for UserFont {
+impl Default for FontChoice {
     fn default() -> Self {
         Self {
             name: None,
@@ -24,7 +25,7 @@ impl Default for UserFont {
 }
 
 #[derive(Debug, Clone)]
-pub struct FontConfig {
+pub struct ResolvedFont {
     pub iced_font: Font,
     pub text_size_px: f32,
     pub icon_size_px: f32,
@@ -32,26 +33,63 @@ pub struct FontConfig {
     pub covered: Arc<HashSet<char>>,
 }
 
-pub(super) fn resolve(config: &UserFont, max_icon_size_px: f32) -> FontConfig {
-    let matched = fc_match_family_file(config.name.as_deref().unwrap_or("sans-serif"));
-    let name = config
-        .name
-        .clone()
-        .or_else(|| matched.as_ref().map(|m| m.family.clone()))
-        .unwrap_or_else(|| "sans-serif".to_owned());
-    let bytes = matched
-        .and_then(|m| fs::read(m.file).ok())
-        .expect("no readable sans-serif font found");
-    let face = ttf_parser::Face::parse(&bytes, 0).expect("sans-serif font failed to parse");
+impl ResolvedFont {
+    pub fn has_same_face_as(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
+}
+
+#[derive(Debug)]
+pub enum FontError {
+    Unmatched(String),
+    Unreadable {
+        file: String,
+        error: io::Error,
+    },
+    Unparsable {
+        file: String,
+        error: FaceParsingError,
+    },
+}
+
+impl fmt::Display for FontError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unmatched(pattern) => write!(f, "fc-match found no font file for {pattern:?}"),
+            Self::Unreadable { file, error } => {
+                write!(f, "font file {file} cannot be read: {error}")
+            }
+            Self::Unparsable { file, error } => {
+                write!(f, "font file {file} cannot be parsed: {error}")
+            }
+        }
+    }
+}
+
+pub(super) fn resolve(
+    config: &FontChoice,
+    max_icon_size_px: f32,
+) -> Result<ResolvedFont, FontError> {
+    let pattern = config.name.as_deref().unwrap_or("sans-serif");
+    let matched =
+        fc_match_family_file(pattern).ok_or_else(|| FontError::Unmatched(pattern.to_owned()))?;
+    let bytes = fs::read(&matched.file).map_err(|error| FontError::Unreadable {
+        file: matched.file.clone(),
+        error,
+    })?;
+    let face = ttf_parser::Face::parse(&bytes, 0).map_err(|error| FontError::Unparsable {
+        file: matched.file.clone(),
+        error,
+    })?;
     let covered = covered_chars(&face);
-    let iced_font = Font::with_name(String::leak(name));
-    FontConfig {
-        iced_font,
+    let name = config.name.clone().unwrap_or(matched.family);
+    Ok(ResolvedFont {
+        iced_font: Font::with_name(String::leak(name)),
         text_size_px: config.text_size_px,
         icon_size_px: config.icon_size_px.min(max_icon_size_px),
         data: Arc::from(bytes),
         covered: Arc::new(covered),
-    }
+    })
 }
 
 fn covered_chars(face: &ttf_parser::Face) -> HashSet<char> {

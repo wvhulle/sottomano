@@ -10,7 +10,7 @@ use iced::{
 
 use super::{Notification, NotificationMessage, body_markup};
 use crate::{
-    config::{Config, Palette, notifications::ToastCardSizeConfig},
+    config::{Config, Palette, toasts::ToastCardSizeConfig},
     data::{
         notifications::model::{NotifAction, NotifImage, NotificationData},
         severity::Severity,
@@ -120,7 +120,7 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
             .align_y(Alignment::Center);
         if let Some(icon) = icon_slot(
             &card.notif.icons,
-            &card.config.notifications.card_size,
+            &card.config.toasts.card_size,
             card.reveal,
         ) {
             body_row = body_row.push(icon);
@@ -128,9 +128,7 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
         body_row = body_row.push(card.column(chrome));
 
         let panel = container(body_row)
-            .width(Length::Fixed(
-                card.config.notifications.card_size.card_width_px,
-            ))
+            .width(Length::Fixed(card.config.toasts.card_size.card_width_px))
             .padding(PADDING_PX)
             .style(move |_| container::Style {
                 background: Some(chrome.background.into()),

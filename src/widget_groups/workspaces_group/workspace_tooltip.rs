@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    config::font::FontConfig,
+    config::font::ResolvedFont,
     data::source::{
         app_rules::{self, AppRule, IconCandidate},
         desktop_entries::DesktopIndex,
@@ -17,7 +17,7 @@ use crate::{
 pub fn tooltip(
     snapshot: &niri::Snapshot,
     icons: &DesktopIndex,
-    font: &FontConfig,
+    font: &ResolvedFont,
     fallbacks: &FontFallbacks,
     workspace: u64,
 ) -> Option<Tooltip> {
@@ -52,7 +52,7 @@ fn scrolling_columns(windows: &[niri::WinEntry]) -> Vec<Vec<&niri::WinEntry>> {
 
 fn preview_tile(
     icons: &DesktopIndex,
-    font: &FontConfig,
+    font: &ResolvedFont,
     fallbacks: &FontFallbacks,
     window: &niri::WinEntry,
 ) -> PreviewTile {

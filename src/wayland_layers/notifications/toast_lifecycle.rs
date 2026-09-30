@@ -19,6 +19,7 @@ const PRESENCE: Duration = Duration::from_millis(90);
 pub enum ToastOrigin {
     DbusClient,
     ReadingAlert(Box<ReadingAlert<Message>>),
+    ConfigError,
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +75,7 @@ impl Notification {
     pub(super) fn reading_alert(&self) -> Option<&ReadingAlert<Message>> {
         match &self.origin {
             ToastOrigin::ReadingAlert(alert) => Some(alert),
-            ToastOrigin::DbusClient => None,
+            ToastOrigin::DbusClient | ToastOrigin::ConfigError => None,
         }
     }
 

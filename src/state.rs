@@ -11,10 +11,9 @@ use iced::border::Radius;
 pub(crate) use store::{Columns, StoreError, open};
 
 #[derive(Debug, Clone, Default)]
-pub struct Session {
-    pub chrome: ChromeState,
-    pub notifications: NotificationState,
-    pub corner_radius: Radius,
+pub struct PanelSettings {
+    pub layout: PanelLayout,
+    pub toasts: ToastPreferences,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,16 +32,17 @@ impl WorkspacesPlacement {
 }
 
 #[derive(Debug, Clone)]
-pub struct ChromeState {
+pub struct PanelLayout {
     pub blur_background: bool,
     pub disconnected_groups: bool,
     pub auto_collapse_groups: bool,
     pub workspaces_placement: WorkspacesPlacement,
     pub float_offset_px: f32,
-    pub chrome_tint_factor: f32,
+    pub tint_factor: f32,
+    pub corner_radius: Radius,
 }
 
-impl Default for ChromeState {
+impl Default for PanelLayout {
     fn default() -> Self {
         Self {
             blur_background: false,
@@ -50,29 +50,30 @@ impl Default for ChromeState {
             auto_collapse_groups: true,
             workspaces_placement: WorkspacesPlacement::Sidebar,
             float_offset_px: 0.0,
-            chrome_tint_factor: 0.0,
+            tint_factor: 0.0,
+            corner_radius: Radius::default(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct NotificationState {
-    pub dnd: bool,
+pub struct ToastPreferences {
+    pub do_not_disturb: bool,
     pub sound: bool,
     pub spatial_layout: bool,
 }
 
-impl Default for NotificationState {
+impl Default for ToastPreferences {
     fn default() -> Self {
         Self {
-            dnd: false,
+            do_not_disturb: false,
             sound: true,
             spatial_layout: true,
         }
     }
 }
 
-impl ChromeState {
+impl PanelLayout {
     #[allow(clippy::cast_possible_truncation)]
     pub fn margin_offset_px(&self) -> i32 {
         self.float_offset_px as i32

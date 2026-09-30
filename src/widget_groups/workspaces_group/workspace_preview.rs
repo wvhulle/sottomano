@@ -80,7 +80,7 @@ impl<'a> WorkspaceSchematic<'a> {
     }
 
     fn tile(&self, tile: &PreviewTile) -> Element<'static, Message> {
-        let scale = self.config.widgets.workspace_preview_scale;
+        let scale = self.config.widget_sizes.workspace_preview_scale;
         let side = self.config.font.icon_size_px;
         let width = (tile.tile_size.width * scale).max(side);
         let height = (tile.tile_size.height * scale).max(side);

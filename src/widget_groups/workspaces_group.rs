@@ -63,8 +63,8 @@ pub fn vertical_view<'a>(
                     Column::with_children(tick_segments(config, niri, p.id, Position::Left))
                         .spacing(1.0),
                 )
-                .width(config.widgets.indicator_thickness_px)
-                .height(config.chrome.outer_height_px)
+                .width(config.widget_sizes.indicator_thickness_px)
+                .height(config.bar.height_px)
                 .into()
             })
             .collect(),
@@ -88,7 +88,7 @@ pub fn vertical_view<'a>(
             .iter()
             .map(|p| {
                 container(urgency_line(config, p, Position::Left))
-                    .height(config.chrome.outer_height_px)
+                    .height(config.bar.height_px)
                     .into()
             })
             .collect(),
@@ -101,7 +101,7 @@ pub fn vertical_view<'a>(
                     p,
                     Space::new()
                         .width(Length::Fill)
-                        .height(config.chrome.outer_height_px)
+                        .height(config.bar.height_px)
                         .into(),
                     config,
                 )
@@ -166,7 +166,7 @@ fn indicated<'a>(
         config.palette.focus
     };
     focus_indicator(slots, active, color)
-        .thickness(config.widgets.indicator_thickness_px)
+        .thickness(config.widget_sizes.indicator_thickness_px)
         .edge(position)
         .into()
 }
@@ -195,7 +195,7 @@ fn row_cell<'a>(
     config: &Config,
 ) -> Element<'a, WorkspacesMessage> {
     container(content)
-        .height(config.chrome.outer_height_px)
+        .height(config.bar.height_px)
         .align_y(Vertical::Center)
         .into()
 }
@@ -206,7 +206,7 @@ fn tick_segments<'a>(
     workspace: u64,
     position: Position,
 ) -> Vec<Element<'a, WorkspacesMessage>> {
-    let thickness = config.widgets.indicator_thickness_px;
+    let thickness = config.widget_sizes.indicator_thickness_px;
     niri.windows_on_workspace(workspace)
         .iter()
         .map(|w| {
@@ -232,7 +232,7 @@ fn urgency_line<'a>(
         position,
         config.palette.urgent,
         opacity,
-        config.widgets.indicator_thickness_px,
+        config.widget_sizes.indicator_thickness_px,
     )
 }
 

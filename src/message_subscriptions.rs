@@ -91,6 +91,10 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
     };
     Subscription::batch([
         outputs(),
+        state
+            .config_file
+            .changes()
+            .map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         state.battery_group.subscription().map(Message::Battery),

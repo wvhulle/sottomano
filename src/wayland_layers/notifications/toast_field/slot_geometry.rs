@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use iced::{Point, Rectangle, Size};
 
 use crate::{
-    config::notifications::ToastPlacementConfig,
+    config::toasts::ToastPlacementConfig,
     data::source::niri::{HEdge, VEdge},
     wayland_layers::notifications::toast_anchor::{AnchorGroup, ToastAnchor},
 };

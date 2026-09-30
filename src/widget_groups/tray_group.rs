@@ -198,7 +198,7 @@ fn item_view<'a>(
             activity_line(
                 config.palette.focus,
                 reveal,
-                config.widgets.indicator_thickness_px,
+                config.widget_sizes.indicator_thickness_px,
             ),
         ])
         .spacing(1.0)

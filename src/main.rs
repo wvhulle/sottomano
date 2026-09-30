@@ -7,9 +7,10 @@ mod wayland_layers;
 mod widget_groups;
 mod widgets;
 
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 use app::Bar;
+use config::{Config, ConfigFile, SecretPaths};
 use iced_exwlshell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
@@ -24,7 +25,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with_span_events(FmtSpan::CLOSE)
         .init();
 
-    let config = tracing::debug_span!("load config").in_scope(config::load);
+    let config_home = config::config_home();
+    let config_file = ConfigFile::in_config_home(&config_home);
+    let secrets = SecretPaths::discover(&config_home);
+    let loaded = tracing::debug_span!("load config").in_scope(|| config_file.load());
+    let config = loaded
+        .as_ref()
+        .map_or_else(|_| Config::fallback(), Config::clone);
+    let loaded = loaded.map(Box::new).map_err(Arc::new);
 
     let mut settings = Settings {
         layer_settings: LayerShellSettings {
@@ -40,7 +48,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     settings.fonts.push(config.font.data.to_vec().into());
 
     daemon(
-        move || Bar::new(config.clone()),
+        move || {
+            Bar::new(
+                config.clone(),
+                config_file.clone(),
+                secrets.clone(),
+                loaded.clone(),
+            )
+        },
         Bar::namespace,
         Bar::update,
         Bar::view,

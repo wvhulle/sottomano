@@ -316,6 +316,6 @@ fn edge_indicator<'a, Message: 'a>(
     activity_line(
         color,
         base + (1.0 - base) * reveal,
-        config.widgets.indicator_thickness_px,
+        config.widget_sizes.indicator_thickness_px,
     )
 }
