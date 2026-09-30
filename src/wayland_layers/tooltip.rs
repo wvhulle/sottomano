@@ -26,6 +26,7 @@ pub enum HoverTarget {
     BlurBackground,
     DisconnectedGroups,
     AutoCollapseGroups,
+    WorkspacesPlacement,
     TintChrome,
     Journal,
     JournalSystem,

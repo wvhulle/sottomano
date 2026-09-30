@@ -5,7 +5,7 @@ use iced::Task;
 use crate::{
     app::Message,
     config::Config,
-    state::{self, ChromeState},
+    state::{self, ChromeState, WorkspacesPlacement},
     wayland_layers::tooltip::{HoverTarget, hoverable},
     widgets::{
         group_item::GroupItem,
@@ -22,6 +22,7 @@ pub enum Action {
     Run(Task<Message>),
     RebuildBlur(Task<Message>),
     Reflow(Task<Message>),
+    PlaceWorkspaces(Task<Message>),
 }
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
@@ -70,6 +71,16 @@ fn auto_collapse_tooltip(chrome: &ChromeState) -> Tooltip {
     )])
 }
 
+fn workspaces_placement_tooltip(chrome: &ChromeState) -> Tooltip {
+    Tooltip::table(vec![row(
+        "Workspaces",
+        match chrome.workspaces_placement {
+            WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
+            WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
+        },
+    )])
+}
+
 pub struct PanelSettingsGroup {
     pub(crate) expansion: GroupExpansion,
     radius: SliderControl,
@@ -83,6 +94,7 @@ pub enum PanelSettingsMessage {
     ToggleBlurBackground,
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
+    ToggleWorkspacesPlacement,
     Radius(ControlMessage),
     Offset(ControlMessage),
     Tint(ControlMessage),
@@ -138,6 +150,7 @@ impl PanelSettingsGroup {
             HoverTarget::BlurBackground => Some(blur_tooltip(chrome)),
             HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(chrome)),
             HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(chrome)),
+            HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(chrome)),
             _ => None,
         }
     }
@@ -183,6 +196,15 @@ impl PanelSettingsGroup {
                 Action::Run(
                     Task::future(state::panel::save_auto_collapse_groups(
                         chrome.auto_collapse_groups,
+                    ))
+                    .discard(),
+                )
+            }
+            PanelSettingsMessage::ToggleWorkspacesPlacement => {
+                chrome.workspaces_placement = chrome.workspaces_placement.toggled();
+                Action::PlaceWorkspaces(
+                    Task::future(state::panel::save_workspaces_placement(
+                        chrome.workspaces_placement,
                     ))
                     .discard(),
                 )
@@ -252,6 +274,13 @@ impl PanelSettingsGroup {
                 !chrome.auto_collapse_groups,
                 PanelSettingsMessage::ToggleAutoCollapseGroups,
                 HoverTarget::AutoCollapseGroups,
+            ))
+            .item(icon_toggle_item(
+                config,
+                Phosphor::SidebarSimple(Weight::Regular),
+                chrome.workspaces_placement == WorkspacesPlacement::Sidebar,
+                PanelSettingsMessage::ToggleWorkspacesPlacement,
+                HoverTarget::WorkspacesPlacement,
             ))
             .item(icon_toggle_item(
                 config,

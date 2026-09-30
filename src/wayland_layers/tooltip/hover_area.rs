@@ -28,13 +28,17 @@ pub fn hoverable<'a, M: 'a>(
     })
 }
 
-pub fn on_surface(surface: Id, content: Element<'_, Message>) -> Element<'_, Message> {
+pub fn on_surface(
+    surface: Id,
+    origin_in_overlay: Vector,
+    content: Element<'_, Message>,
+) -> Element<'_, Message> {
     content.map(move |message| match message {
         Message::Tooltip(TooltipMessage::EnterAnchor { target, anchor }) => {
             Message::Tooltip(TooltipMessage::Enter {
                 surface,
                 target,
-                anchor,
+                anchor: anchor + origin_in_overlay,
             })
         }
         other => other,

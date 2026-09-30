@@ -1,7 +1,7 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 
 use iced::{
-    Alignment, Element, Length,
+    Alignment, Element, Length, Vector,
     alignment::Vertical,
     widget::{Row, Space, container, mouse_area, row, stack, text},
     window::Id,
@@ -11,7 +11,7 @@ use iced_exwlshell::reexport::{KeyboardInteractivity, Layer, NewLayerShellSettin
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::ChromeState,
+    state::{ChromeState, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         blur_caster::{self, Zone},
@@ -19,7 +19,10 @@ use crate::{
         surface::{Margin, Position},
         tooltip,
     },
-    widget_groups::output_group::{self, OutputMessage},
+    widget_groups::{
+        output_group::{self, OutputMessage},
+        workspaces_group,
+    },
     widgets::{
         bounds_probe::bounds_probe,
         widget_group::{GroupEvent, WidgetGroup},
@@ -40,16 +43,21 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     match surface.position {
         Position::Top => chrome(
             bar,
-            tooltip::on_surface(window, top_row(bar, window, surface.position)),
+            tooltip::on_surface(window, Vector::ZERO, top_row(bar, window, surface.position)),
         ),
         Position::Bottom => chrome(
             bar,
             tooltip::on_surface(
                 window,
+                Vector::ZERO,
                 bottom_row(bar, window, &surface.output, surface.position),
             ),
         ),
-        Position::Left => tooltip::on_surface(window, sidebar::view(bar, window, &surface.output)),
+        Position::Left => tooltip::on_surface(
+            window,
+            sidebar::origin_in_tooltip_overlay(&bar.session.chrome),
+            sidebar::view(bar, window, &surface.output),
+        ),
     }
 }
 
@@ -319,11 +327,23 @@ fn slot<'a, M: 'a>(
     element.into().map(|e| e.map(wrap))
 }
 
-fn output_slot<'a>(output: &str, config: &Config, position: Position) -> Element<'a, Message> {
-    output_group::view(output, config, position).map(|m| match m {
+fn places<'a>(bar: &'a Bar, output: &str, position: Position) -> Element<'a, Message> {
+    let config = &bar.config;
+    let display = output_group::view(output, config, position).map(|m| match m {
         OutputMessage::Clicked => Message::OverviewToggled,
         OutputMessage::Tooltip(t) => Message::Tooltip(t),
-    })
+    });
+    let workspaces = match bar.session.chrome.workspaces_placement {
+        WorkspacesPlacement::Sidebar => None,
+        WorkspacesPlacement::BottomPanel => {
+            workspaces_group::inline_view(&bar.niri_snapshot, output, config, position)
+                .map(|workspaces| workspaces.map(Message::from))
+        }
+    };
+    Row::with_children([Some(display), workspaces].into_iter().flatten())
+        .spacing(config.spacing.widget_spacing_px)
+        .align_y(Alignment::Center)
+        .into()
 }
 
 fn bottom_row<'a>(
@@ -334,11 +354,7 @@ fn bottom_row<'a>(
 ) -> Element<'a, Message> {
     let config = &bar.config;
     let chrome = &bar.session.chrome;
-    let start = zone(
-        [Some(output_slot(output, config, position))],
-        config,
-        chrome,
-    );
+    let start = zone([Some(places(bar, output, position))], config, chrome);
     let start = measured(start, chrome, window, Zone::BottomStart);
     let middle = container(measured(
         Row::with_children(

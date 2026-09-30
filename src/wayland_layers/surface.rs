@@ -67,10 +67,10 @@ impl Position {
                 left: offset_px,
             },
             Position::Left => Margin {
-                top: offset_px,
-                right: offset_px,
-                bottom: offset_px,
-                left: offset_px,
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
             },
         }
     }
