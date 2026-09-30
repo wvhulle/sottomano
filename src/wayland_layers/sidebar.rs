@@ -13,7 +13,7 @@ use iced_exwlshell::reexport::{
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::{ChromeState, Session},
+    state::{PanelLayout, PanelSettings},
     wayland_layers::{
         bar::corner_inset,
         blur_caster::{self, Zone},
@@ -34,7 +34,7 @@ pub fn windows(surfaces: &BTreeMap<Id, Surface>) -> Vec<Id> {
 pub fn open(
     surfaces: &mut BTreeMap<Id, Surface>,
     output: &str,
-    chrome: &ChromeState,
+    layout: &PanelLayout,
 ) -> Task<Message> {
     let id = Id::unique();
     surfaces.insert(
@@ -46,7 +46,7 @@ pub fn open(
     );
     Task::batch([
         Task::done(Message::NewLayerShell {
-            settings: layer_settings(output, chrome),
+            settings: layer_settings(output, layout),
             id,
         }),
         Task::done(input_region(id, Rectangle::default())),
@@ -62,7 +62,7 @@ pub fn pointer_region(window: Id, pills: &[Rectangle]) -> Task<Message> {
     Task::done(input_region(window, covered))
 }
 
-fn layer_settings(output: &str, chrome: &ChromeState) -> NewLayerShellSettings {
+fn layer_settings(output: &str, layout: &PanelLayout) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: LayerSize::FILL,
         exclusive_zone: Some(-1),
@@ -72,7 +72,7 @@ fn layer_settings(output: &str, chrome: &ChromeState) -> NewLayerShellSettings {
         output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(
             Position::Left
-                .float_margin(chrome.margin_offset_px())
+                .float_margin(layout.margin_offset_px())
                 .edges(),
         ),
         ..Default::default()
@@ -85,7 +85,7 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
     else {
         return blur_caster::fill();
     };
-    let pill = pill(workspaces.map(Message::from), config, &bar.session);
+    let pill = pill(workspaces.map(Message::from), config, &bar.panel_settings);
     let measured = bounds_probe(column![pill], move |rects| Message::PillBounds {
         window,
         zone: Zone::Sidebar,
@@ -94,25 +94,25 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
     container(measured)
         .height(Length::Fill)
         .align_y(Vertical::Center)
-        .padding(bar.session.chrome.float_offset_px)
+        .padding(bar.panel_settings.layout.float_offset_px)
         .into()
 }
 
-pub fn origin_in_tooltip_overlay(chrome: &ChromeState) -> Vector {
-    Vector::new(-chrome.float_offset_px, -chrome.float_offset_px)
+pub fn origin_in_tooltip_overlay(layout: &PanelLayout) -> Vector {
+    Vector::new(-layout.float_offset_px, -layout.float_offset_px)
 }
 
 fn pill<'a>(
     content: Element<'a, Message>,
     config: &Config,
-    session: &Session,
+    panel_settings: &PanelSettings,
 ) -> Element<'a, Message> {
     let background = config
         .palette
         .surface
-        .scale_alpha(session.chrome.chrome_tint_factor);
+        .scale_alpha(panel_settings.layout.tint_factor);
     let foreground = config.palette.bar_foreground;
-    let radius = session.corner_radius;
+    let radius = panel_settings.layout.corner_radius;
     container(content)
         .padding([corner_inset(radius) + config.spacing.group_padding_px, 0.0])
         .style(move |_| container::Style {

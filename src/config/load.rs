@@ -1,7 +1,6 @@
 use std::{
     env, fmt, fs, io,
     path::{Path, PathBuf},
-    process,
 };
 
 use chrono::Locale;
@@ -9,54 +8,53 @@ use serde::Deserialize;
 use toml::de;
 
 use super::{
-    chrome::Chrome,
-    font::{self, FontConfig, UserFont},
+    bar_size::BarSize,
+    font::{self, FontChoice, FontError, ResolvedFont},
     locale,
-    notifications::NotificationConfig,
     palette::Palette,
     spacing::Spacing,
+    toasts::ToastConfig,
     tray::TrayConfig,
-    widgets::Widgets,
+    widget_sizes::WidgetSizes,
     window_list::WindowListConfig,
 };
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub palette: Palette,
-    pub chrome: Chrome,
+    pub bar: BarSize,
     pub spacing: Spacing,
-    pub widgets: Widgets,
+    pub widget_sizes: WidgetSizes,
     pub window_list: WindowListConfig,
-    pub font: FontConfig,
-    pub notifications: NotificationConfig,
+    pub font: ResolvedFont,
+    pub toasts: ToastConfig,
     pub tray: TrayConfig,
     pub terminal_command_prefix: Vec<String>,
-    pub color_temperature_unit: String,
+    pub color_temperature_service: String,
     pub locale: Locale,
-    pub secrets: SecretPaths,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct SecretPaths {
-    pub openrouter_management: Option<PathBuf>,
-    pub claude_code_oauth: Option<PathBuf>,
-    pub gh_auth_token: Option<PathBuf>,
-    pub unsplash_access_key: Option<PathBuf>,
+impl Config {
+    pub fn fallback() -> Self {
+        UserConfig::default()
+            .resolve()
+            .expect("the default configuration resolves")
+    }
 }
 
 #[derive(Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct UserConfig {
     palette: Palette,
-    chrome: Chrome,
+    bar: BarSize,
     spacing: Spacing,
-    widgets: Widgets,
+    widget_sizes: WidgetSizes,
     window_list: WindowListConfig,
-    font: UserFont,
-    notifications: NotificationConfig,
+    font: FontChoice,
+    toasts: ToastConfig,
     tray: TrayConfig,
-    terminal: Vec<String>,
-    color_temperature_unit: String,
+    terminal_command_prefix: Vec<String>,
+    color_temperature_service: String,
     locale: Option<String>,
 }
 
@@ -64,130 +62,133 @@ impl Default for UserConfig {
     fn default() -> Self {
         Self {
             palette: Palette::default(),
-            chrome: Chrome::default(),
+            bar: BarSize::default(),
             spacing: Spacing::default(),
-            widgets: Widgets::default(),
+            widget_sizes: WidgetSizes::default(),
             window_list: WindowListConfig::default(),
-            font: UserFont::default(),
-            notifications: NotificationConfig::default(),
+            font: FontChoice::default(),
+            toasts: ToastConfig::default(),
             tray: TrayConfig::default(),
-            terminal: ["kitty", "-e"].map(String::from).to_vec(),
-            color_temperature_unit: String::from("screen-temperature.service"),
+            terminal_command_prefix: ["kitty", "-e"].map(String::from).to_vec(),
+            color_temperature_service: String::from("screen-temperature.service"),
             locale: None,
         }
     }
 }
 
+impl UserConfig {
+    fn resolve(self) -> Result<Config, LoadError> {
+        let locale = match self.locale {
+            None => locale::from_environment(),
+            Some(configured) => configured
+                .parse::<Locale>()
+                .map_err(|_| LoadError::UnknownLocale(configured))?,
+        };
+        let icon_slot_height_px =
+            self.bar.height_px - 2.0 * self.widget_sizes.indicator_thickness_px;
+        Ok(Config {
+            font: font::resolve(&self.font, icon_slot_height_px).map_err(LoadError::Font)?,
+            palette: self.palette,
+            bar: self.bar,
+            spacing: self.spacing,
+            widget_sizes: self.widget_sizes,
+            window_list: self.window_list,
+            toasts: self.toasts,
+            tray: self.tray,
+            terminal_command_prefix: self.terminal_command_prefix,
+            color_temperature_service: self.color_temperature_service,
+            locale,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub enum LoadError {
-    Missing,
     Unreadable(io::Error),
     Invalid(de::Error),
-}
-
-impl From<io::Error> for LoadError {
-    fn from(e: io::Error) -> Self {
-        if e.kind() == io::ErrorKind::NotFound {
-            Self::Missing
-        } else {
-            Self::Unreadable(e)
-        }
-    }
-}
-
-impl From<de::Error> for LoadError {
-    fn from(e: de::Error) -> Self {
-        Self::Invalid(e)
-    }
+    UnknownLocale(String),
+    Font(FontError),
 }
 
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Missing => write!(f, "file not found"),
             Self::Unreadable(e) => write!(f, "cannot be read: {e}"),
-            Self::Invalid(e) => write!(f, "\n{e}"),
+            Self::Invalid(e) => write!(f, "{e}"),
+            Self::UnknownLocale(locale) => write!(f, "unknown locale {locale:?}"),
+            Self::Font(e) => write!(f, "{e}"),
         }
     }
 }
 
-fn config_path() -> PathBuf {
-    let base: PathBuf = env::var_os("HOME").unwrap().into();
-    base.join(".config").join("vetrata.toml")
+#[derive(Debug, Clone, Hash)]
+pub struct ConfigFile {
+    pub(super) path: PathBuf,
 }
 
-fn read(path: &Path) -> Result<UserConfig, LoadError> {
-    let text = fs::read_to_string(path)?;
-    Ok(toml::from_str(&text)?)
-}
+impl ConfigFile {
+    pub fn in_config_home(config_home: &Path) -> Self {
+        Self {
+            path: config_home.join("vetrata.toml"),
+        }
+    }
 
-pub fn load() -> Config {
-    let path = config_path();
-    let user = match read(&path) {
-        Ok(user) => user,
-        Err(LoadError::Missing) => UserConfig::default(),
-        Err(e) => {
-            tracing::warn!("invalid configuration {}: {e}", path.display());
-            process::exit(1);
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn load(&self) -> Result<Config, LoadError> {
+        self.read()?.resolve()
+    }
+
+    fn read(&self) -> Result<UserConfig, LoadError> {
+        match fs::read_to_string(&self.path) {
+            Ok(text) => toml::from_str(&text).map_err(LoadError::Invalid),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(UserConfig::default()),
+            Err(e) => Err(LoadError::Unreadable(e)),
         }
-    };
-    let secrets = config_home().map(|dir| dir.join("vetrata"));
-    let locale = match user.locale.as_deref().map(str::parse::<Locale>) {
-        None => locale::from_environment(),
-        Some(Ok(configured)) => configured,
-        Some(Err(_)) => {
-            tracing::warn!(
-                "invalid configuration {}: unknown locale {:?}",
-                path.display(),
-                user.locale
-            );
-            process::exit(1);
-        }
-    };
-    let icon_slot_height_px =
-        user.chrome.outer_height_px - 2.0 * user.widgets.indicator_thickness_px;
-    Config {
-        palette: user.palette,
-        chrome: user.chrome,
-        spacing: user.spacing,
-        widgets: user.widgets,
-        window_list: user.window_list,
-        font: font::resolve(&user.font, icon_slot_height_px),
-        notifications: user.notifications,
-        tray: user.tray,
-        terminal_command_prefix: user.terminal,
-        color_temperature_unit: user.color_temperature_unit,
-        locale,
-        secrets: SecretPaths {
-            openrouter_management: secrets
-                .as_ref()
-                .map(|dir| dir.join("openrouter-management-key"))
-                .filter(|path| path.is_file()),
-            claude_code_oauth: secrets
-                .as_ref()
-                .map(|dir| dir.join("claude-code-oauth"))
-                .filter(|path| path.is_file()),
-            gh_auth_token: secrets
-                .as_ref()
-                .map(|dir| dir.join("gh-auth-token"))
-                .filter(|path| path.is_file()),
-            unsplash_access_key: secrets
-                .as_ref()
-                .map(|dir| dir.join("unsplash-access-key"))
-                .filter(|path| path.is_file()),
-        },
     }
 }
 
-fn home() -> Option<PathBuf> {
-    env::var_os("HOME")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
+#[cfg(test)]
+mod tests {
+    use std::{fs, process};
+
+    use super::{ConfigFile, LoadError};
+
+    fn file_containing(test: &str, toml: &str) -> ConfigFile {
+        let directory = std::env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("vetrata.toml"), toml).unwrap();
+        ConfigFile::in_config_home(&directory)
+    }
+
+    #[test]
+    fn keys_from_before_the_rename_are_rejected() {
+        let file = file_containing("old-keys", "[chrome]\nouter_height_px = 28.0\n");
+        let error = file.load().unwrap_err();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert!(matches!(error, LoadError::Invalid(_)));
+        assert!(error.to_string().contains("chrome"));
+    }
+
+    #[test]
+    fn an_unknown_locale_is_rejected_with_its_name() {
+        let file = file_containing("locale", "locale = \"xx_nowhere\"\n");
+        let error = file.load().unwrap_err();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert!(matches!(error, LoadError::UnknownLocale(ref name) if name == "xx_nowhere"));
+    }
 }
 
-fn config_home() -> Option<PathBuf> {
+pub fn config_home() -> PathBuf {
     env::var_os("XDG_CONFIG_HOME")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| home().map(|home| home.join(".config")))
+        .or_else(|| {
+            env::var_os("HOME")
+                .filter(|value| !value.is_empty())
+                .map(|home| PathBuf::from(home).join(".config"))
+        })
+        .unwrap_or_default()
 }

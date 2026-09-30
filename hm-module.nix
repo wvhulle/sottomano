@@ -152,12 +152,13 @@ in
       example = lib.literalExpression ''
         {
           palette.bar_foreground = "#ffffff";
-          chrome.outer_height_px = 28.0;
+          bar.height_px = 28.0;
           font.text_size_px = 15.0;
         }
       '';
       description = ''
-        Contents of ~/.config/vetrata.toml, written verbatim.
+        Contents of ~/.config/vetrata.toml, written verbatim. The running bar
+        watches the file and applies changes in place.
       '';
     };
 
@@ -225,8 +226,9 @@ in
         Runtime dark/light palette switching via the umbra app registry.
         Requires services.umbra (from umbra.homeModules) in the same
         home-manager config: registers services.umbra.apps.vetrata with
-        dark/light palette variants derived from services.umbra.palettes.* and
-        restarts vetrata.service on mode switch. Set false for a standalone
+        dark/light palette variants derived from services.umbra.palettes.*. On
+        a mode switch umbra re-points ~/.config/vetrata.toml and the running
+        bar reloads it in place. Set false for a standalone
         install with no umbra — vetrata then falls back to the static
         settings.palette written to ~/.config/vetrata.toml.
       '';
@@ -276,7 +278,6 @@ in
       target = "vetrata.toml";
       dark.source = variantToml themeCfg.palettes.dark;
       light.source = variantToml themeCfg.palettes.light;
-      reload.restartUnits = [ "vetrata.service" ];
     };
 
     services.niri.settings.layer-rules = lib.mkAfter vetrataLayerRules;
@@ -293,29 +294,6 @@ in
         RestartSec = 2;
       };
       Install.WantedBy = [ "graphical-session.target" ];
-    };
-
-    systemd.user.paths.vetrata = lib.mkIf cfg.systemdUnit {
-      Unit = {
-        Description = "Watch vetrata config and restart the bar on change";
-        PartOf = [ "graphical-session.target" ];
-      };
-      Path = {
-        PathModified = "%h/.config/vetrata.toml";
-        Unit = "vetrata-reload.service";
-      };
-      Install.WantedBy = [ "graphical-session.target" ];
-    };
-
-    systemd.user.services.vetrata-reload = lib.mkIf cfg.systemdUnit {
-      Unit = {
-        Description = "Restart vetrata after a config change";
-        PartOf = [ "graphical-session.target" ];
-      };
-      Service = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.systemd}/bin/systemctl --user restart vetrata.service";
-      };
     };
   };
 }

@@ -2,7 +2,7 @@ use iced::widget::Row;
 
 use crate::{
     config::Config,
-    state::NotificationState,
+    state::ToastPreferences,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
@@ -37,19 +37,19 @@ impl NotificationGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-        notif_state: &NotificationState,
+        toast_preferences: &ToastPreferences,
         live: usize,
     ) -> WidgetGroup<'a, NotificationGroupMessage> {
         let status = NotificationStatus {
-            dnd: notif_state.dnd,
+            dnd: toast_preferences.do_not_disturb,
             live,
         };
-        let sound_icon = if notif_state.sound {
+        let sound_icon = if toast_preferences.sound {
             Phosphor::Bell(Weight::Regular)
         } else {
             Phosphor::BellSlash(Weight::Regular)
         };
-        let spatial_layout_icon = if notif_state.spatial_layout {
+        let spatial_layout_icon = if toast_preferences.spatial_layout {
             Phosphor::TextAlignCenter(Weight::Regular)
         } else {
             Phosphor::TextAlignRight(Weight::Regular)
@@ -61,19 +61,19 @@ impl NotificationGroup {
             .item(toggle_item(
                 config,
                 Phosphor::Prohibit(Weight::Regular),
-                notif_state.dnd,
+                toast_preferences.do_not_disturb,
                 NotificationToggle::DoNotDisturb,
             ))
             .item(toggle_item(
                 config,
                 sound_icon,
-                notif_state.sound,
+                toast_preferences.sound,
                 NotificationToggle::Sound,
             ))
             .item(toggle_item(
                 config,
                 spatial_layout_icon,
-                notif_state.spatial_layout,
+                toast_preferences.spatial_layout,
                 NotificationToggle::SpatialLayout,
             ))
     }

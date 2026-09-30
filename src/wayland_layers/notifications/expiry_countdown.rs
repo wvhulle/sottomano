@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    config::notifications::ToastLifetimeConfig,
+    config::toasts::ToastLifetimeConfig,
     data::{notifications::model::ExpireTimeout, severity::Severity},
 };
 

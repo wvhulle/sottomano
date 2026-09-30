@@ -134,9 +134,16 @@ Import `homeModules.default` from the flake. It installs the package, writes
 
 ## Configure
 
-`~/.config/vetrata.toml`, or `services.vetrata.settings`, which is written to it
-verbatim. The keys mirror the structs in `src/config/` — unknown ones are
-rejected rather than ignored.
+`$XDG_CONFIG_HOME/vetrata.toml`, or `services.vetrata.settings`, which is
+written to it verbatim. The keys mirror the structs in `src/config/` — unknown
+ones are rejected rather than ignored.
+
+The bar watches the file and applies every change in place, including a symlink
+swapped to point elsewhere. An invalid file raises a critical toast with the
+error and the bar keeps its previous configuration (defaults when it starts on
+an invalid file). What you toggle from the settings panel — corner radius, float
+offset, tint, blur, grouping, workspace placement, do-not-disturb and toast
+sound — is remembered separately and never read from this file.
 
 ## Secrets
 

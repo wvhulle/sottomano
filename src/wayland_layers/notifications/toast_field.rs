@@ -20,14 +20,14 @@ use super::{
     toast_anchor::{ToastAnchor, ToastSlot},
     toast_lifecycle::NotificationMessage,
 };
-use crate::config::NotificationConfig;
+use crate::config::ToastConfig;
 
 const MOTION: Duration = Duration::from_millis(160);
 
 pub fn field<'a>(
     window: Id,
     slots: Vec<ToastSlot<'a>>,
-    config: &NotificationConfig,
+    config: &ToastConfig,
 ) -> Element<'a, NotificationMessage> {
     let field = slots.into_iter().fold(
         ToastField {
@@ -54,7 +54,7 @@ struct ToastField<'a> {
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
-    config: NotificationConfig,
+    config: ToastConfig,
     revealing: bool,
 }
 

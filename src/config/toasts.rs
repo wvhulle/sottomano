@@ -9,7 +9,7 @@ pub use toast_placement::ToastPlacementConfig;
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct NotificationConfig {
+pub struct ToastConfig {
     pub placement: ToastPlacementConfig,
     pub card_size: ToastCardSizeConfig,
     pub lifetime: ToastLifetimeConfig,

@@ -12,14 +12,14 @@ use iced::{
 };
 
 use crate::{
-    config::font::{FontConfig, fallback_font},
+    config::font::{ResolvedFont, fallback_font},
     message_subscriptions::blocking,
 };
 
 pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Relative(1.1);
 
 pub fn column_heading<'a>(
-    font: &FontConfig,
+    font: &ResolvedFont,
     title: impl IntoFragment<'a>,
     color: Color,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
@@ -32,7 +32,7 @@ pub fn column_heading<'a>(
 }
 
 pub fn bar_text<'a>(
-    font: &FontConfig,
+    font: &ResolvedFont,
     content: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     text(content)
@@ -60,7 +60,7 @@ impl FontFallbacks {
     pub fn resolve_missing(
         &mut self,
         content: impl Iterator<Item = char>,
-        font: &FontConfig,
+        font: &ResolvedFont,
     ) -> Task<HashMap<char, Font>> {
         let pending: Vec<char> = content
             .filter(|ch| !font.covered.contains(ch) && !self.fonts.contains_key(ch))
@@ -82,7 +82,7 @@ impl FontFallbacks {
 }
 
 impl FontFallbacks {
-    pub fn runs(&self, font: &FontConfig, content: &str, base: Font) -> Vec<(String, Font)> {
+    pub fn runs(&self, font: &ResolvedFont, content: &str, base: Font) -> Vec<(String, Font)> {
         let tagged: Vec<(char, Font)> = content
             .chars()
             .map(|ch| {

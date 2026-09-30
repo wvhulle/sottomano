@@ -12,7 +12,7 @@ use tokio::time::sleep;
 use crate::{
     app::Message,
     config::Config,
-    state::Session,
+    state::PanelSettings,
     wayland_layers::{
         surface::{self, Position, Surface, input_region},
         tooltip::{
@@ -218,7 +218,7 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
-        session: &Session,
+        panel_settings: &PanelSettings,
         favicons: &'a Favicons,
         content: impl Fn(&HoverTarget) -> Tooltip,
     ) -> Option<Element<'a, Message>> {
@@ -236,12 +236,12 @@ impl TooltipHost {
                 Position::Top,
                 self.transition.seq(),
                 config,
-                session.corner_radius,
+                panel_settings.layout.corner_radius,
                 move |bounds| input_region(surface, bounds),
             ));
         };
 
-        let corner_radius = session.corner_radius;
+        let corner_radius = panel_settings.layout.corner_radius;
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             renderings.push(Rendering::outgoing(
@@ -264,7 +264,7 @@ impl TooltipHost {
                 corner_radius,
                 move |bounds| input_region(surface, bounds),
             ))
-            .padding(session.chrome.float_offset_px)
+            .padding(panel_settings.layout.float_offset_px)
             .into(),
         )
     }

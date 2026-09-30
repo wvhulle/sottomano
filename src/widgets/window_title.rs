@@ -1,7 +1,7 @@
 use iced::{Font, font::Style as FontStyle, widget::text::Span};
 
 use crate::{
-    config::{Config, font::FontConfig},
+    config::{Config, font::ResolvedFont},
     data::source::app_rules::TitleParts,
     widgets::text::{FontFallbacks, colored_span},
 };
@@ -22,7 +22,7 @@ pub struct TitleRun {
 }
 
 pub fn title_runs(
-    font: &FontConfig,
+    font: &ResolvedFont,
     fallbacks: &FontFallbacks,
     parts: &TitleParts,
     lead_first: bool,
