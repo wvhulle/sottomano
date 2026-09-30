@@ -377,7 +377,7 @@ impl Bar {
     }
 
     fn update_niri_styling(&mut self, msg: NiriMessage) -> Task<Message> {
-        self.niri_group.update(msg, &mut self.panel_settings.layout)
+        self.niri_group.update(msg)
     }
 
     fn dismiss_groups(&mut self) -> Task<Message> {
@@ -613,10 +613,7 @@ impl Bar {
         self.tooltip.leave_elapsed(departing)
     }
 
-    fn apply_saved_panel_settings(&mut self, mut panel_settings: PanelSettings) -> Task<Message> {
-        panel_settings
-            .layout
-            .keep_niri_look_of(&self.panel_settings.layout);
+    fn apply_saved_panel_settings(&mut self, panel_settings: PanelSettings) -> Task<Message> {
         self.panel_settings = panel_settings;
         self.panel_settings_group.adopt(&self.panel_settings.layout);
         Task::batch([self.reserve(), self.rebuild_blur()])
@@ -732,7 +729,7 @@ impl Bar {
                 self.panel_settings_group
                     .tooltip_for(target, &self.panel_settings.layout)
             })
-            .or_else(|| NiriGroup::tooltip_for(target, &self.panel_settings.layout))
+            .or_else(|| self.niri_group.tooltip_for(target))
             .unwrap_or_else(Tooltip::empty)
     }
 
