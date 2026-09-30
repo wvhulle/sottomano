@@ -583,7 +583,8 @@ impl Bar {
     fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
         let placement_before = self.session.chrome.workspaces_placement;
         self.session = session;
-        self.panel_settings_group.adopt(&self.session.chrome);
+        self.panel_settings_group
+            .adopt(&self.session.chrome, self.session.corner_radius);
         let placed = if self.session.chrome.workspaces_placement == placement_before {
             Task::none()
         } else {
@@ -799,10 +800,11 @@ impl Bar {
     }
 
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
-        match self
-            .panel_settings_group
-            .update(msg, &mut self.session.chrome)
-        {
+        match self.panel_settings_group.update(
+            msg,
+            &mut self.session.chrome,
+            &mut self.session.corner_radius,
+        ) {
             panel_settings_group::Action::None => Task::none(),
             panel_settings_group::Action::Run(task) => task,
             panel_settings_group::Action::RebuildBlur(task) => {
@@ -926,13 +928,16 @@ impl Bar {
         if let Some(element) = self.tooltip.view(
             window,
             &self.config,
-            self.session.chrome.float_offset_px,
+            &self.session,
             &self.favicons,
             |target| self.tooltip_for(target),
         ) {
             return element;
         }
-        if let Some(element) = self.notifications.view(window, &self.config) {
+        if let Some(element) =
+            self.notifications
+                .view(window, &self.config, self.session.corner_radius)
+        {
             return element;
         }
         view(self, window)

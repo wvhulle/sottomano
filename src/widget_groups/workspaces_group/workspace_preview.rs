@@ -22,12 +22,10 @@ const TILE_LABEL_GAP_PX: f32 = 5.0;
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;
 const TILE_LABEL_SCALE: f32 = 0.8;
 const TILE_BORDER_PX: f32 = 2.0;
-const TILE_RADIUS_PX: f32 = 4.0;
 const TILE_FILL_ALPHA: f32 = 0.18;
 const TILE_HOVER_FILL_ALPHA: f32 = 0.34;
 const TILE_OUTLINE_ALPHA: f32 = 0.7;
 const TILE_PADDING: Padding = Padding::new(4.0);
-const FLOATING_TILE_RADIUS_PX: f32 = 8.0;
 const FLOATING_SHADOW_ALPHA: f32 = 0.45;
 const FLOATING_SHADOW_OFFSET: Vector = Vector::new(0.0, 2.0);
 const FLOATING_SHADOW_BLUR_PX: f32 = 6.0;
@@ -35,14 +33,21 @@ const FLOATING_SHADOW_BLUR_PX: f32 = 6.0;
 pub struct WorkspaceSchematic<'a> {
     preview: &'a WorkspacePreview,
     config: &'a Config,
+    corner_radius: Radius,
     favicons: &'a Favicons,
 }
 
 impl<'a> WorkspaceSchematic<'a> {
-    pub fn new(preview: &'a WorkspacePreview, config: &'a Config, favicons: &'a Favicons) -> Self {
+    pub fn new(
+        preview: &'a WorkspacePreview,
+        config: &'a Config,
+        corner_radius: Radius,
+        favicons: &'a Favicons,
+    ) -> Self {
         Self {
             preview,
             config,
+            corner_radius,
             favicons,
         }
     }
@@ -102,11 +107,7 @@ impl<'a> WorkspaceSchematic<'a> {
             a: TILE_HOVER_FILL_ALPHA,
             ..self.config.palette.dim
         };
-        let radius = if tile.is_floating {
-            FLOATING_TILE_RADIUS_PX
-        } else {
-            TILE_RADIUS_PX
-        };
+        let radius = self.corner_radius;
         let shadow = self.lift(tile);
         let text_color = self.config.palette.bar_foreground;
 
@@ -124,7 +125,7 @@ impl<'a> WorkspaceSchematic<'a> {
                     border: Border {
                         color: if hovered { highlight } else { outline },
                         width: TILE_BORDER_PX,
-                        radius: Radius::new(radius),
+                        radius,
                     },
                     shadow,
                     ..button::Style::default()

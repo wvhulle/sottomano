@@ -3,6 +3,7 @@ use core::f32::consts::FRAC_1_SQRT_2;
 use iced::{
     Alignment, Element, Length, Vector,
     alignment::Vertical,
+    border::Radius,
     widget::{Row, Space, container, mouse_area, row, stack, text},
     window::Id,
 };
@@ -11,7 +12,7 @@ use iced_exwlshell::reexport::{KeyboardInteractivity, Layer, NewLayerShellSettin
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::{ChromeState, WorkspacesPlacement},
+    state::{ChromeState, Session, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         blur_caster::{self, Zone},
@@ -104,7 +105,7 @@ fn chrome<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Messag
                     .into()
             }),
             border: iced::Border {
-                radius: bar.session.chrome.radius().into(),
+                radius: bar.session.corner_radius,
                 ..Default::default()
             },
             text_color: Some(bar.config.palette.bar_foreground),
@@ -207,12 +208,13 @@ fn routed(event: GroupEvent<Message>) -> Message {
 
 fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
     let config = &bar.config;
-    let chrome = &bar.session.chrome;
+    let session = &bar.session;
+    let chrome = &session.chrome;
     let start = measured(
         zone(
             rendered(top_start_groups(bar), config, position),
             config,
-            chrome,
+            session,
         ),
         chrome,
         window,
@@ -222,7 +224,7 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
         zone(
             rendered(top_center_groups(bar), config, position),
             config,
-            chrome,
+            session,
         ),
         chrome,
         window,
@@ -232,7 +234,7 @@ fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
         zone(
             rendered(top_end_groups(bar), config, position),
             config,
-            chrome,
+            session,
         ),
         chrome,
         window,
@@ -272,9 +274,9 @@ fn measured<'a>(
 fn zone<'a>(
     groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     config: &'a Config,
-    chrome: &ChromeState,
+    session: &Session,
 ) -> Element<'a, Message> {
-    let spacing = if chrome.disconnected_groups {
+    let spacing = if session.chrome.disconnected_groups {
         config.spacing.widget_spacing_px
     } else {
         config.spacing.group_spacing_px
@@ -283,7 +285,7 @@ fn zone<'a>(
         groups
             .into_iter()
             .flatten()
-            .map(|group| pill(group, config, chrome)),
+            .map(|group| pill(group, config, session)),
     )
     .spacing(spacing)
     .height(Length::Fill)
@@ -291,28 +293,31 @@ fn zone<'a>(
     .into()
 }
 
+pub fn corner_inset(radius: Radius) -> f32 {
+    radius.top_left * (1.0 - FRAC_1_SQRT_2)
+}
+
 fn pill<'a>(
     group: Element<'a, Message>,
     config: &Config,
-    chrome: &ChromeState,
+    session: &Session,
 ) -> Element<'a, Message> {
-    if !chrome.disconnected_groups {
+    if !session.chrome.disconnected_groups {
         return group;
     }
     let background = config
         .palette
         .surface
-        .scale_alpha(chrome.chrome_tint_factor);
-    let radius = chrome.radius();
-    let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
+        .scale_alpha(session.chrome.chrome_tint_factor);
+    let radius = session.corner_radius;
     container(group)
         .height(Length::Fixed(config.chrome.outer_height_px))
         .align_y(Vertical::Center)
-        .padding([0.0, curve_inset + config.spacing.group_padding_px])
+        .padding([0.0, corner_inset(radius) + config.spacing.group_padding_px])
         .style(move |_| container::Style {
             background: Some(background.into()),
             border: iced::Border {
-                radius: radius.into(),
+                radius,
                 ..Default::default()
             },
             ..Default::default()
@@ -353,8 +358,9 @@ fn bottom_row<'a>(
     position: Position,
 ) -> Element<'a, Message> {
     let config = &bar.config;
-    let chrome = &bar.session.chrome;
-    let start = zone([Some(places(bar, output, position))], config, chrome);
+    let session = &bar.session;
+    let chrome = &session.chrome;
+    let start = zone([Some(places(bar, output, position))], config, session);
     let start = measured(start, chrome, window, Zone::BottomStart);
     let middle = container(measured(
         Row::with_children(
@@ -373,7 +379,7 @@ fn bottom_row<'a>(
                 ),
                 |event| routed(event.map(Message::WindowGroup)),
             )
-            .map(|group| pill(group, config, chrome)),
+            .map(|group| pill(group, config, session)),
         )
         .into(),
         chrome,
@@ -385,7 +391,7 @@ fn bottom_row<'a>(
         Row::with_children(
             rendered(bottom_end_groups(bar), config, position)
                 .flatten()
-                .map(|group| pill(group, config, chrome)),
+                .map(|group| pill(group, config, session)),
         )
         .into(),
         chrome,

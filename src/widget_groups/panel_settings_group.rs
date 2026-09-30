@@ -1,6 +1,6 @@
 use std::{future::Future, ops::RangeInclusive};
 
-use iced::Task;
+use iced::{Task, border::Radius};
 
 use crate::{
     app::Message,
@@ -167,7 +167,12 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn update(&mut self, msg: PanelSettingsMessage, chrome: &mut ChromeState) -> Action {
+    pub fn update(
+        &mut self,
+        msg: PanelSettingsMessage,
+        chrome: &mut ChromeState,
+        corner_radius: &mut Radius,
+    ) -> Action {
         match msg {
             PanelSettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
@@ -211,7 +216,7 @@ impl PanelSettingsGroup {
             }
             PanelSettingsMessage::Radius(msg) => match self.radius.update(msg) {
                 SliderAction::Commit(radius) => {
-                    chrome.corner_radius_px = radius;
+                    *corner_radius = radius.into();
                     Action::Run(persisted(
                         radius,
                         state::panel::save_corner_radius(radius),
@@ -245,9 +250,9 @@ impl PanelSettingsGroup {
         }
     }
 
-    pub fn adopt(&mut self, chrome: &ChromeState) {
+    pub fn adopt(&mut self, chrome: &ChromeState, corner_radius: Radius) {
         self.radius
-            .update(ControlMessage::Reading(chrome.corner_radius_px));
+            .update(ControlMessage::Reading(corner_radius.top_left));
         self.offset
             .update(ControlMessage::Reading(chrome.float_offset_px));
         self.tint

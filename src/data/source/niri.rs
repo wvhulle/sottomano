@@ -97,13 +97,6 @@ impl Snapshot {
         self.workspaces.get(output).map_or(&[], Vec::as_slice)
     }
 
-    pub fn workspace(&self, id: u64) -> Option<&WsPill> {
-        self.workspaces
-            .values()
-            .flatten()
-            .find(|pill| pill.id == id)
-    }
-
     pub fn windows_on_workspace(&self, workspace: u64) -> &[WinEntry] {
         self.windows.get(&workspace).map_or(&[], Vec::as_slice)
     }

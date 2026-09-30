@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use iced::{
     Background, Border, Color, Element, Length, Padding,
     alignment::Vertical,
+    border::Radius,
     widget::{Column, Row, Space, button, container},
 };
 
@@ -29,6 +30,7 @@ const CHEVRON_SCALE: f32 = 0.85;
 
 pub fn context_menu<'a, Message: Clone + 'a>(
     config: &Config,
+    corner_radius: Radius,
     nodes: &[MenuNode],
     open: &HashSet<i32>,
     on_activate: &impl Fn(i32) -> Message,
@@ -36,7 +38,7 @@ pub fn context_menu<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let rows = clean_separators(nodes)
         .into_iter()
-        .flat_map(|node| entry_rows(config, node, open, on_activate, on_toggle));
+        .flat_map(|node| entry_rows(config, corner_radius, node, open, on_activate, on_toggle));
     Column::with_children(rows)
         .spacing(ROW_SPACING)
         .width(Length::Fill)
@@ -45,6 +47,7 @@ pub fn context_menu<'a, Message: Clone + 'a>(
 
 fn entry_rows<'a, Message: Clone + 'a>(
     config: &Config,
+    corner_radius: Radius,
     node: &MenuNode,
     open: &HashSet<i32>,
     on_activate: &impl Fn(i32) -> Message,
@@ -53,9 +56,10 @@ fn entry_rows<'a, Message: Clone + 'a>(
     match node.kind {
         MenuKind::Separator => vec![divider(config)],
         MenuKind::Submenu if open.contains(&node.id) => vec![
-            entry(config, node, true, on_toggle(node.id)),
+            entry(config, corner_radius, node, true, on_toggle(node.id)),
             container(context_menu(
                 config,
+                corner_radius,
                 &node.children,
                 open,
                 on_activate,
@@ -64,15 +68,28 @@ fn entry_rows<'a, Message: Clone + 'a>(
             .padding(Padding::ZERO.left(SUBMENU_INDENT))
             .into(),
         ],
-        MenuKind::Submenu => vec![entry(config, node, false, on_toggle(node.id))],
+        MenuKind::Submenu => vec![entry(
+            config,
+            corner_radius,
+            node,
+            false,
+            on_toggle(node.id),
+        )],
         MenuKind::Standard | MenuKind::Toggle(_) => {
-            vec![entry(config, node, false, on_activate(node.id))]
+            vec![entry(
+                config,
+                corner_radius,
+                node,
+                false,
+                on_activate(node.id),
+            )]
         }
     }
 }
 
 fn entry<'a, Message: Clone + 'a>(
     config: &Config,
+    corner_radius: Radius,
     node: &MenuNode,
     submenu_open: bool,
     message: Message,
@@ -113,12 +130,11 @@ fn entry<'a, Message: Clone + 'a>(
         );
     }
 
-    let radius = f32::from(config.chrome.popup_radius_px);
     let accent = config.palette.focus;
     let styled = button(row)
         .width(Length::Fill)
         .padding(ROW_PADDING)
-        .style(move |_theme, status| button_style(status, color, accent, radius));
+        .style(move |_theme, status| button_style(status, color, accent, corner_radius));
     if node.enabled {
         styled.on_press(message).into()
     } else {
@@ -126,14 +142,19 @@ fn entry<'a, Message: Clone + 'a>(
     }
 }
 
-fn button_style(status: button::Status, text: Color, accent: Color, radius: f32) -> button::Style {
+fn button_style(
+    status: button::Status,
+    text: Color,
+    accent: Color,
+    radius: Radius,
+) -> button::Style {
     let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
         .then(|| Background::Color(accent.scale_alpha(HOVER_ALPHA)));
     button::Style {
         background,
         text_color: text,
         border: Border {
-            radius: radius.into(),
+            radius,
             ..Default::default()
         },
         ..Default::default()

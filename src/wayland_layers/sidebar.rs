@@ -1,4 +1,3 @@
-use core::f32::consts::FRAC_1_SQRT_2;
 use std::collections::BTreeMap;
 
 use iced::{
@@ -14,8 +13,9 @@ use iced_exwlshell::reexport::{
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::ChromeState,
+    state::{ChromeState, Session},
     wayland_layers::{
+        bar::corner_inset,
         blur_caster::{self, Zone},
         surface::{Position, Surface, input_region},
     },
@@ -85,7 +85,7 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
     else {
         return blur_caster::fill();
     };
-    let pill = pill(workspaces.map(Message::from), config, &bar.session.chrome);
+    let pill = pill(workspaces.map(Message::from), config, &bar.session);
     let measured = bounds_probe(column![pill], move |rects| Message::PillBounds {
         window,
         zone: Zone::Sidebar,
@@ -105,21 +105,20 @@ pub fn origin_in_tooltip_overlay(chrome: &ChromeState) -> Vector {
 fn pill<'a>(
     content: Element<'a, Message>,
     config: &Config,
-    chrome: &ChromeState,
+    session: &Session,
 ) -> Element<'a, Message> {
     let background = config
         .palette
         .surface
-        .scale_alpha(chrome.chrome_tint_factor);
+        .scale_alpha(session.chrome.chrome_tint_factor);
     let foreground = config.palette.bar_foreground;
-    let radius = chrome.radius();
-    let curve_inset = radius * (1.0 - FRAC_1_SQRT_2);
+    let radius = session.corner_radius;
     container(content)
-        .padding([curve_inset + config.spacing.group_padding_px, 0.0])
+        .padding([corner_inset(radius) + config.spacing.group_padding_px, 0.0])
         .style(move |_| container::Style {
             background: Some(background.into()),
             border: iced::Border {
-                radius: radius.into(),
+                radius,
                 ..Default::default()
             },
             text_color: Some(foreground),

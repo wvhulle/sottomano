@@ -8,6 +8,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     animation::Easing,
+    border::Radius,
     mouse::Cursor,
     time::{Duration, Instant},
     widget::canvas::Frame,
@@ -20,6 +21,8 @@ use crate::{
     wayland_layers::surface::Position,
     widgets::{overlay_shadow::overlay_shadow, popup_connector::notch},
 };
+
+const MORPH: Duration = Duration::from_millis(160);
 
 pub struct Rendering<'a> {
     element: Element<'a, Message>,
@@ -47,8 +50,8 @@ pub fn anchored_popup<'a>(
     anchor: Rectangle,
     position: Position,
     seq: u64,
-    morph_duration: Duration,
     config: &Config,
+    corner_radius: Radius,
     on_bounds: impl Fn(Rectangle) -> Message + 'a,
 ) -> Element<'a, Message> {
     Element::new(AnchoredPopup {
@@ -60,9 +63,8 @@ pub fn anchored_popup<'a>(
         popup_gap: config.chrome.popup_gap_px,
         position,
         seq,
-        morph_duration,
         background: config.palette.surface,
-        radius: f32::from(config.chrome.popup_radius_px),
+        radius: corner_radius.top_left,
     })
 }
 
@@ -75,7 +77,6 @@ struct AnchoredPopup<'a> {
     popup_gap: f32,
     position: Position,
     seq: u64,
-    morph_duration: Duration,
     background: Color,
     radius: f32,
 }
@@ -266,7 +267,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             state.now = Instant::now();
             state.morph = Animation::new(false)
                 .easing(Easing::EaseOutCubic)
-                .duration(self.morph_duration)
+                .duration(MORPH)
                 .go(true, state.now);
         }
         state.progress = state.morph.interpolate(0.0, 1.0, state.now);

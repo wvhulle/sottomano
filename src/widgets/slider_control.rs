@@ -295,8 +295,7 @@ impl SliderControl {
             ControlMessage::Persisted { value, ok } => {
                 let follow_up = self.device_setting.absolute_write_finished(value, ok);
                 if ok {
-                    self.device_setting
-                        .device_reported(value, self.slider_step);
+                    self.device_setting.device_reported(value, self.slider_step);
                 }
                 into_action(follow_up)
             }

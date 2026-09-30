@@ -156,7 +156,7 @@ async fn read_session(conn: &turso::Connection) -> Result<Session, StoreError> {
         return Ok(session);
     };
     if let Some(radius) = columns.optional_real(&row, "corner_radius_px")? {
-        session.chrome.corner_radius_px = radius as f32;
+        session.corner_radius = (radius as f32).into();
     }
     if let Some(offset) = columns.optional_real(&row, "float_offset_px")? {
         session.chrome.float_offset_px = offset as f32;
@@ -240,7 +240,7 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
         let set = value != "0";
         match key.as_str() {
             "corner_radius_px" => {
-                session.chrome.corner_radius_px = value.parse().unwrap_or_default();
+                session.corner_radius = value.parse::<f32>().unwrap_or_default().into();
             }
             "float_offset_px" => session.chrome.float_offset_px = value.parse().unwrap_or_default(),
             "chrome_tint_factor" | "darken_chrome_factor" => {
@@ -266,7 +266,7 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
              chrome_tint_factor = ?3, blur_background = ?4, disconnected_groups = ?5,
              auto_collapse_groups = ?6, dnd = ?7, sound = ?8, spatial_layout = ?9",
         (
-            f64::from(session.chrome.corner_radius_px),
+            f64::from(session.corner_radius.top_left),
             f64::from(session.chrome.float_offset_px),
             f64::from(session.chrome.chrome_tint_factor),
             i64::from(session.chrome.blur_background),
@@ -315,7 +315,7 @@ mod tests {
         }
 
         let session = read_session(&conn).await.unwrap();
-        assert!((session.chrome.corner_radius_px - 12.5).abs() < f32::EPSILON);
+        assert!((session.corner_radius.top_left - 12.5).abs() < f32::EPSILON);
         assert!((session.chrome.float_offset_px - 3.25).abs() < f32::EPSILON);
         assert!((session.chrome.chrome_tint_factor - 0.75).abs() < f32::EPSILON);
         assert!(session.chrome.blur_background);

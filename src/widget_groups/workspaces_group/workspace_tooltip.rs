@@ -9,7 +9,7 @@ use crate::{
     },
     widgets::{
         text::FontFallbacks,
-        tooltip_body::{PreviewTile, Row, Tooltip, TooltipBody, WorkspacePreview, row},
+        tooltip_body::{PreviewTile, Tooltip, TooltipBody, WorkspacePreview},
         window_title::title_runs,
     },
 };
@@ -25,10 +25,8 @@ pub fn tooltip(
     if windows.is_empty() {
         return None;
     }
-    let pill = snapshot.workspace(workspace)?;
     let tile = |window| preview_tile(icons, font, fallbacks, window);
     Some(Tooltip::of(TooltipBody::Workspace(WorkspacePreview {
-        header: identity(pill),
         columns: scrolling_columns(windows)
             .into_iter()
             .map(|column| column.into_iter().map(&tile).collect())
@@ -39,14 +37,6 @@ pub fn tooltip(
             .map(&tile)
             .collect(),
     })))
-}
-
-fn identity(pill: &niri::WsPill) -> Vec<Row> {
-    let mut rows = vec![row("Workspace", pill.idx.to_string())];
-    if let Some(name) = pill.name.as_ref().filter(|name| !name.is_empty()) {
-        rows.push(row("Name", name.clone()));
-    }
-    rows
 }
 
 fn scrolling_columns(windows: &[niri::WinEntry]) -> Vec<Vec<&niri::WinEntry>> {
