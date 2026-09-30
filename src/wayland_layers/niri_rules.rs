@@ -16,15 +16,13 @@ use crate::{
 pub enum StyledSurface {
     Panel,
     Sidebar,
-    Pill,
     Backdrop(Position),
 }
 
 impl StyledSurface {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 4] = [
         Self::Panel,
         Self::Sidebar,
-        Self::Pill,
         Self::Backdrop(Position::Top),
         Self::Backdrop(Position::Bottom),
     ];
@@ -33,18 +31,16 @@ impl StyledSurface {
         match self {
             Self::Panel => "vetrata-panel",
             Self::Sidebar => "vetrata-sidebar",
-            Self::Pill => "vetrata-pill",
             Self::Backdrop(Position::Top) => "vetrata-backdrop-top",
             Self::Backdrop(Position::Bottom) => "vetrata-backdrop-bottom",
             Self::Backdrop(Position::Left) => "vetrata-backdrop-left",
         }
     }
 
-    fn carries_chrome(self, layout: &PanelLayout) -> bool {
+    fn casts_niri_shadow(self, layout: &PanelLayout) -> bool {
         match self {
             Self::Panel => !layout.disconnected_groups,
             Self::Sidebar => true,
-            Self::Pill => layout.disconnected_groups,
             Self::Backdrop(_) => false,
         }
     }
@@ -52,7 +48,7 @@ impl StyledSurface {
     fn rule(self, layout: &PanelLayout) -> KdlNode {
         match self {
             Self::Backdrop(position) => backdrop_rule(self, position),
-            Self::Panel | Self::Sidebar | Self::Pill => chrome_rule(self, layout),
+            Self::Panel | Self::Sidebar => chrome_rule(self, layout),
         }
     }
 }
@@ -224,7 +220,6 @@ pub fn render(layout: &PanelLayout) -> String {
 }
 
 fn chrome_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
-    let carries_chrome = surface.carries_chrome(layout);
     block(
         "layer-rule",
         [
@@ -236,11 +231,11 @@ fn chrome_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
                 "geometry-corner-radius",
                 f64::from(layout.corner_radius.top_left),
             ),
-            shadow(layout.niri.shadow, carries_chrome),
+            shadow(layout.niri.shadow, surface.casts_niri_shadow(layout)),
             block(
                 "background-effect",
                 [
-                    leaf("blur", layout.niri.blurred && carries_chrome),
+                    leaf("blur", layout.niri.blurred),
                     leaf("xray", layout.niri.xray),
                 ],
             ),
@@ -281,12 +276,8 @@ fn backdrop_rule(surface: StyledSurface, position: Position) -> KdlNode {
     )
 }
 
-fn shadow(style: ShadowStyle, carries_chrome: bool) -> KdlNode {
-    let switch = if style.cast && carries_chrome {
-        "on"
-    } else {
-        "off"
-    };
+fn shadow(style: ShadowStyle, casts: bool) -> KdlNode {
+    let switch = if style.cast && casts { "on" } else { "off" };
     block(
         "shadow",
         [
@@ -360,18 +351,21 @@ mod tests {
     }
 
     #[test]
-    fn the_blur_follows_the_grouping() {
-        let blur_of = |disconnected, namespace: &str| {
-            let rules = render(&styled(disconnected));
-            let start = rules.find(&format!("\"^{namespace}$\"")).expect("rule");
+    fn niri_shadows_the_strip_only_as_one_bar() {
+        let panel_rule = |disconnected_groups| {
+            let mut layout = styled(disconnected_groups);
+            layout.niri.shadow.cast = true;
+            let rules = render(&layout);
+            let start = rules.find("\"^vetrata-panel$\"").expect("panel rule");
             rules[start..]
                 .split("layer-rule")
                 .next()
-                .is_some_and(|rule| rule.contains("blur true"))
+                .unwrap_or_default()
+                .to_string()
         };
-        assert!(blur_of(false, "vetrata-panel"));
-        assert!(!blur_of(false, "vetrata-pill"));
-        assert!(!blur_of(true, "vetrata-panel"));
-        assert!(blur_of(true, "vetrata-pill"));
+        let joined = panel_rule(false);
+        let pills = panel_rule(true);
+        assert!(joined.contains("blur true") && !joined.contains("off"));
+        assert!(pills.contains("blur true") && pills.contains("off"));
     }
 }

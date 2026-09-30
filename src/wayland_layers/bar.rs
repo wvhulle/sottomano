@@ -1,7 +1,7 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 
 use iced::{
-    Alignment, Element, Length, Vector,
+    Alignment, Color, Element, Length, Shadow, Vector,
     alignment::Vertical,
     border::Radius,
     widget::{Row, Space, container, mouse_area, row, stack, text},
@@ -12,11 +12,11 @@ use iced_exwlshell::reexport::{Layer, NewLayerShellSettings};
 use crate::{
     app::{Bar, Message},
     config::Config,
-    state::{PanelLayout, PanelSettings, WorkspacesPlacement},
+    state::{PanelLayout, PanelSettings, ShadowStyle, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         niri_rules::StyledSurface,
-        panel_pills::{PillPlacement, Zone},
+        panel_pills::Zone,
         sidebar,
         surface::{self, Position},
         tooltip,
@@ -27,7 +27,6 @@ use crate::{
     },
     widgets::{
         bounds_probe::bounds_probe,
-        settled_layout::settled_layout,
         widget_group::{GroupEvent, WidgetGroup},
         window_icon::WindowAssets,
     },
@@ -37,33 +36,24 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     if bar.backdrops.contains_key(&window) {
         return backdrop_shadow::fill();
     }
-    if let Some(placement) = bar.panel_pills.placement(window) {
-        return pill_surface(bar, window, placement);
-    }
     let Some(surface) = bar.surfaces.get(&window) else {
         return container(text("")).into();
     };
     match surface.position {
         Position::Top => dismissable_strip(
             bar,
-            strip_content(
-                bar,
-                tooltip::on_surface(
-                    window,
-                    |_| Vector::ZERO,
-                    top_row(bar, window, &surface.output, surface.position),
-                ),
+            tooltip::on_surface(
+                window,
+                |_| Vector::ZERO,
+                top_row(bar, window, &surface.output, surface.position),
             ),
         ),
         Position::Bottom => dismissable_strip(
             bar,
-            strip_content(
-                bar,
-                tooltip::on_surface(
-                    window,
-                    |_| Vector::ZERO,
-                    bottom_row(bar, window, &surface.output, surface.position),
-                ),
+            tooltip::on_surface(
+                window,
+                |_| Vector::ZERO,
+                bottom_row(bar, window, &surface.output, surface.position),
             ),
         ),
         Position::Left => tooltip::on_surface(
@@ -85,40 +75,9 @@ pub fn layer_settings(
         exclusive_zone: Some(height.cast_signed()),
         anchor: position.anchor(),
         layer: Layer::Top,
-        margin: Some(position.float_margin(layout.margin_offset_px()).edges()),
+        margin: Some(position.float_margin(layout.margin_offset_px())),
         ..surface::base_settings(Some(output), StyledSurface::Panel.namespace())
     }
-}
-
-fn strip_content<'a>(bar: &Bar, row: Element<'a, Message>) -> Element<'a, Message> {
-    if bar.panel_settings.layout.disconnected_groups {
-        return settled_layout(row);
-    }
-    row
-}
-
-fn pill_surface(bar: &Bar, window: Id, placement: PillPlacement) -> Element<'_, Message> {
-    let Some(strip) = bar.surfaces.get(&placement.strip) else {
-        return surface::blank();
-    };
-    let Some(pill) = zone_pills(bar, &strip.output, strip.position, placement.zone)
-        .into_iter()
-        .nth(placement.index)
-    else {
-        return surface::blank();
-    };
-    let left = placement.rect.x.round();
-    let foreground = bar.config.palette.bar_foreground;
-    container(tooltip::on_surface(
-        window,
-        move |_| Vector::new(left, 0.0),
-        pill,
-    ))
-    .style(move |_| container::Style {
-        text_color: Some(foreground),
-        ..Default::default()
-    })
-    .into()
 }
 
 fn dismissable_strip<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Message> {
@@ -349,11 +308,10 @@ fn pill<'a>(
     if !panel_settings.layout.disconnected_groups {
         return group;
     }
-    let background = config
-        .palette
-        .surface
-        .scale_alpha(panel_settings.layout.tint_factor);
-    let radius = panel_settings.layout.corner_radius;
+    let layout = &panel_settings.layout;
+    let background = config.palette.surface.scale_alpha(layout.tint_factor);
+    let radius = layout.corner_radius;
+    let shadow = pill_shadow(layout.niri.shadow);
     container(group)
         .height(Length::Fixed(config.bar.height_px))
         .align_y(Vertical::Center)
@@ -364,9 +322,21 @@ fn pill<'a>(
                 radius,
                 ..Default::default()
             },
+            shadow,
             ..Default::default()
         })
         .into()
+}
+
+fn pill_shadow(style: ShadowStyle) -> Shadow {
+    if !style.cast {
+        return Shadow::default();
+    }
+    Shadow {
+        color: Color::BLACK.scale_alpha(style.opacity),
+        offset: Vector::ZERO,
+        blur_radius: style.softness_px,
+    }
 }
 
 fn slot<'a, M: 'a>(

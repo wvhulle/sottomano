@@ -1,4 +1,5 @@
 use iced::{Element, Length, Rectangle, widget::Space, window::Id};
+pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::{
     actions::ActionCallback,
     reexport::{Anchor, KeyboardInteractivity, LayerSize, NewLayerShellSettings, OutputOption},
@@ -8,20 +9,6 @@ use crate::app::Message;
 
 pub fn blank<'a>() -> Element<'a, Message> {
     Space::new().width(Length::Fill).height(Length::Fill).into()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Margin {
-    pub top: i32,
-    pub right: i32,
-    pub bottom: i32,
-    pub left: i32,
-}
-
-impl Margin {
-    pub fn edges(self) -> (i32, i32, i32, i32) {
-        (self.top, self.right, self.bottom, self.left)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -171,10 +171,6 @@ pub enum Message {
         zone: Zone,
         rects: Vec<iced::Rectangle>,
     },
-    PillsSettled {
-        window: Id,
-        zone: Zone,
-    },
 }
 
 impl From<TooltipMessage> for Message {
@@ -344,7 +340,6 @@ impl Bar {
                 zone,
                 rects,
             } => self.update_pill_bounds(window, zone, &rects),
-            Message::PillsSettled { window, zone } => self.settle_pills(window, zone),
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => {
@@ -391,28 +386,12 @@ impl Bar {
         Task::none()
     }
 
-    fn settle_pills(&mut self, window: Id, zone: Zone) -> Task<Message> {
-        self.panel_pills.follow(
-            window,
-            zone,
-            &self.config,
-            &self.panel_settings.layout,
-            &self.surfaces,
-        )
-    }
-
     fn update_pill_bounds(&mut self, window: Id, zone: Zone, rects: &[Rectangle]) -> Task<Message> {
         if zone == Zone::Sidebar {
             return sidebar::fit(window, rects);
         }
-        self.panel_pills.pill_rects(
-            window,
-            zone,
-            rects,
-            &self.config,
-            &self.panel_settings.layout,
-            &self.surfaces,
-        )
+        self.panel_pills
+            .pill_rects(window, zone, rects, &self.panel_settings.layout)
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -475,7 +454,8 @@ impl Bar {
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
         self.notifications.forget(window);
-        self.panel_pills.forget(window)
+        self.panel_pills.forget(window);
+        Task::none()
     }
 
     fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
@@ -576,14 +556,6 @@ impl Bar {
         niri_action(niri_ipc::Action::FocusWindow { id: window })
     }
 
-    fn panel_surface(&self, window: Id) -> Option<&Surface> {
-        let strip = self
-            .panel_pills
-            .placement(window)
-            .map_or(window, |placement| placement.strip);
-        self.surfaces.get(&strip)
-    }
-
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
         match msg {
             TooltipMessage::Enter {
@@ -592,7 +564,7 @@ impl Bar {
                 anchor,
             } => {
                 let content = self.tooltip_for(&target);
-                let Some(parent) = self.panel_surface(surface).filter(|_| !content.is_empty())
+                let Some(parent) = self.surfaces.get(&surface).filter(|_| !content.is_empty())
                 else {
                     return Task::none();
                 };
@@ -943,12 +915,9 @@ impl Bar {
                 self.niri_group.restyle(&self.panel_settings.layout),
                 task,
             ]),
-            panel_settings_group::Action::Reflow(task) => Task::batch([
-                self.remargin_surfaces(),
-                self.panel_pills
-                    .reposition(&self.panel_settings.layout, &self.surfaces),
-                task,
-            ]),
+            panel_settings_group::Action::Reflow(task) => {
+                Task::batch([self.remargin_surfaces(), task])
+            }
             panel_settings_group::Action::PlaceWorkspaces(task) => {
                 Task::batch([self.enter_workspaces_placement(), task])
             }
@@ -990,9 +959,9 @@ impl Bar {
         )
     }
 
-    fn rebuild_blur(&mut self) -> Task<Message> {
+    fn rebuild_blur(&self) -> Task<Message> {
         self.panel_pills
-            .rebuild(&self.config, &self.panel_settings.layout, &self.surfaces)
+            .refresh(&self.panel_settings.layout, &self.surfaces)
     }
 
     fn remargin_surfaces(&self) -> Task<Message> {
@@ -1000,7 +969,7 @@ impl Bar {
         Task::batch(self.surfaces.iter().map(move |(&id, surface)| {
             Task::done(Message::MarginChange {
                 id,
-                margin: surface.position.float_margin(offset).edges(),
+                margin: surface.position.float_margin(offset),
             })
         }))
     }

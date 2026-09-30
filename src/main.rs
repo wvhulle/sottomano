@@ -13,7 +13,7 @@ use app::Bar;
 use config::{Config, ConfigFile, SecretPaths};
 use iced_exwlshell::{
     build_pattern::daemon,
-    settings::{LayerShellSettings, Settings, StartMode},
+    settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 use wayland_layers::niri_rules::NiriRulesFile;
@@ -36,18 +36,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map_or_else(|_| Config::fallback(), Config::clone);
     let loaded = loaded.map(Box::new).map_err(Arc::new);
 
-    let mut settings = Settings {
+    let wl_settings = ExWlSettings {
         layer_settings: LayerShellSettings {
             start_mode: StartMode::Background,
             ..Default::default()
         },
         with_connection: message_subscriptions::wayland_connection()
             .map(|connection| connection.clone().into()),
-        default_font: config.font.iced_font,
-        antialiasing: true,
         ..Default::default()
     };
-    settings.fonts.push(config.font.data.to_vec().into());
+    let default_font = config.font.iced_font;
+    let font_data = config.font.data.to_vec();
 
     daemon(
         move || {
@@ -66,7 +65,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     .style(Bar::style)
     .theme(Bar::theme)
     .subscription(message_subscriptions::subscription)
-    .settings(settings)
+    .wl_settings(wl_settings)
+    .default_font(default_font)
+    .antialiasing(true)
+    .font(font_data)
     .run()?;
     Ok(())
 }
