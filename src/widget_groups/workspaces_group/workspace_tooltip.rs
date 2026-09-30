@@ -42,12 +42,7 @@ pub fn tooltip(
 }
 
 fn identity(pill: &niri::WsPill) -> Vec<Row> {
-    let key = if pill.idx == 10 {
-        "0".to_owned()
-    } else {
-        pill.idx.to_string()
-    };
-    let mut rows = vec![row("Workspace", key)];
+    let mut rows = vec![row("Workspace", pill.idx.to_string())];
     if let Some(name) = pill.name.as_ref().filter(|name| !name.is_empty()) {
         rows.push(row("Name", name.clone()));
     }

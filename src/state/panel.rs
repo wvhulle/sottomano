@@ -1,4 +1,4 @@
-use crate::state::{Columns, Session, StoreError, open};
+use crate::state::{Columns, Session, StoreError, WorkspacesPlacement, open};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -10,11 +10,15 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session 
     auto_collapse_groups INTEGER,
     dnd INTEGER,
     sound INTEGER,
-    spatial_layout INTEGER
+    spatial_layout INTEGER,
+    workspaces_in_sidebar INTEGER
 )";
 
+const COLUMNS_ADDED_LATER: [&str; 1] = ["workspaces_in_sidebar INTEGER"];
+
 const SELECT_SESSION: &str = "SELECT corner_radius_px, float_offset_px, chrome_tint_factor,
-        blur_background, disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout
+        blur_background, disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout,
+        workspaces_in_sidebar
     FROM panel_session WHERE id = 0";
 
 #[derive(Debug, Clone, Copy)]
@@ -28,6 +32,7 @@ enum Setting {
     Dnd,
     Sound,
     SpatialLayout,
+    WorkspacesInSidebar,
 }
 
 impl Setting {
@@ -42,6 +47,7 @@ impl Setting {
             Self::Dnd => "dnd",
             Self::Sound => "sound",
             Self::SpatialLayout => "spatial_layout",
+            Self::WorkspacesInSidebar => "workspaces_in_sidebar",
         }
     }
 }
@@ -71,6 +77,14 @@ pub async fn save_disconnected_groups(disconnected: bool) {
 
 pub async fn save_auto_collapse_groups(collapse: bool) {
     put(Setting::AutoCollapseGroups, flag(collapse)).await;
+}
+
+pub async fn save_workspaces_placement(placement: WorkspacesPlacement) {
+    put(
+        Setting::WorkspacesInSidebar,
+        flag(placement == WorkspacesPlacement::Sidebar),
+    )
+    .await;
 }
 
 pub async fn save_chrome_tint_factor(factor: f32) -> bool {
@@ -168,7 +182,40 @@ async fn read_session(conn: &turso::Connection) -> Result<Session, StoreError> {
     if let Some(spatial) = columns.optional_flag(&row, "spatial_layout")? {
         session.notifications.spatial_layout = spatial;
     }
+    if let Some(in_sidebar) = columns.optional_flag(&row, "workspaces_in_sidebar")? {
+        session.chrome.workspaces_placement = if in_sidebar {
+            WorkspacesPlacement::Sidebar
+        } else {
+            WorkspacesPlacement::BottomPanel
+        };
+    }
     Ok(session)
+}
+
+pub(crate) async fn add_later_columns(conn: &turso::Connection) -> Result<(), StoreError> {
+    let mut rows = conn
+        .query(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'panel_session'",
+            (),
+        )
+        .await?;
+    let columns = Columns::of(&rows);
+    let Some(row) = rows.next().await? else {
+        return Ok(());
+    };
+    let schema = columns.text(&row, "sql")?;
+    drop(rows);
+    for definition in COLUMNS_ADDED_LATER {
+        let name = definition.split_whitespace().next().unwrap_or(definition);
+        if !schema.contains(name) {
+            conn.execute(
+                format!("ALTER TABLE panel_session ADD COLUMN {definition}"),
+                (),
+            )
+            .await?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<(), StoreError> {
@@ -237,7 +284,10 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{CREATE_TABLE, Setting, flag, measure, read_session, write_setting};
+    use super::{
+        CREATE_TABLE, Setting, add_later_columns, flag, measure, read_session, write_setting,
+    };
+    use crate::state::WorkspacesPlacement;
 
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
@@ -259,6 +309,7 @@ mod tests {
             (Setting::Dnd, flag(true)),
             (Setting::Sound, flag(false)),
             (Setting::SpatialLayout, flag(false)),
+            (Setting::WorkspacesInSidebar, flag(false)),
         ] {
             write_setting(&conn, setting, value).await.unwrap();
         }
@@ -273,6 +324,36 @@ mod tests {
         assert!(session.notifications.dnd);
         assert!(!session.notifications.sound);
         assert!(!session.notifications.spatial_layout);
+        assert_eq!(
+            session.chrome.workspaces_placement,
+            WorkspacesPlacement::BottomPanel
+        );
+    }
+
+    #[tokio::test]
+    async fn a_table_from_before_the_sidebar_gains_its_column() {
+        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
+        let conn = database.connect().unwrap();
+        conn.execute(
+            "CREATE TABLE panel_session (id INTEGER PRIMARY KEY CHECK (id = 0), dnd INTEGER)",
+            (),
+        )
+        .await
+        .unwrap();
+        add_later_columns(&conn).await.unwrap();
+        add_later_columns(&conn).await.unwrap();
+        write_setting(&conn, Setting::WorkspacesInSidebar, flag(false))
+            .await
+            .unwrap();
+        let mut rows = conn
+            .query(
+                "SELECT workspaces_in_sidebar FROM panel_session WHERE id = 0",
+                (),
+            )
+            .await
+            .unwrap();
+        let row = rows.next().await.unwrap().unwrap();
+        assert_eq!(row.get_value(0).unwrap(), turso::Value::Integer(0));
     }
 
     #[tokio::test]
@@ -287,5 +368,9 @@ mod tests {
         assert!(session.chrome.auto_collapse_groups);
         assert!(session.notifications.sound);
         assert!(session.notifications.spatial_layout);
+        assert_eq!(
+            session.chrome.workspaces_placement,
+            WorkspacesPlacement::Sidebar
+        );
     }
 }

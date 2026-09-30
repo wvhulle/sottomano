@@ -2,7 +2,7 @@ use core::f32::consts::FRAC_1_SQRT_2;
 use std::collections::BTreeMap;
 
 use iced::{
-    Element, Length, Rectangle, Task,
+    Element, Length, Rectangle, Task, Vector,
     alignment::Vertical,
     widget::{column, container},
     window::Id,
@@ -19,9 +19,17 @@ use crate::{
         blur_caster::{self, Zone},
         surface::{Position, Surface, input_region},
     },
-    widget_groups::workspaces_group::{self, WorkspacesMessage},
+    widget_groups::workspaces_group,
     widgets::{bounds_probe::bounds_probe, overlay_shadow::overlay_shadow},
 };
+
+pub fn windows(surfaces: &BTreeMap<Id, Surface>) -> Vec<Id> {
+    surfaces
+        .iter()
+        .filter(|(_, surface)| surface.position.is_vertical())
+        .map(|(&id, _)| id)
+        .collect()
+}
 
 pub fn open(
     surfaces: &mut BTreeMap<Id, Surface>,
@@ -45,10 +53,7 @@ pub fn open(
     ])
 }
 
-pub fn pointer_region(window: Id, zone: Zone, pills: &[Rectangle]) -> Task<Message> {
-    if zone != Zone::Sidebar {
-        return Task::none();
-    }
+pub fn pointer_region(window: Id, pills: &[Rectangle]) -> Task<Message> {
     let covered = pills
         .iter()
         .copied()
@@ -76,14 +81,11 @@ fn layer_settings(output: &str, chrome: &ChromeState) -> NewLayerShellSettings {
 
 pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> {
     let config = &bar.config;
-    let Some(workspaces) = workspaces_group::view(&bar.niri_snapshot, output, config) else {
+    let Some(workspaces) = workspaces_group::vertical_view(&bar.niri_snapshot, output, config)
+    else {
         return blur_caster::fill();
     };
-    let pill = pill(
-        workspaces.map(workspace_message),
-        config,
-        &bar.session.chrome,
-    );
+    let pill = pill(workspaces.map(Message::from), config, &bar.session.chrome);
     let measured = bounds_probe(column![pill], move |rects| Message::PillBounds {
         window,
         zone: Zone::Sidebar,
@@ -92,14 +94,12 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
     container(measured)
         .height(Length::Fill)
         .align_y(Vertical::Center)
+        .padding(bar.session.chrome.float_offset_px)
         .into()
 }
 
-fn workspace_message(message: WorkspacesMessage) -> Message {
-    match message {
-        WorkspacesMessage::Clicked { id, is_active } => Message::WorkspaceClicked { id, is_active },
-        WorkspacesMessage::Tooltip(tooltip) => Message::Tooltip(tooltip),
-    }
+pub fn origin_in_tooltip_overlay(chrome: &ChromeState) -> Vector {
+    Vector::new(-chrome.float_offset_px, -chrome.float_offset_px)
 }
 
 fn pill<'a>(

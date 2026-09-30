@@ -15,11 +15,27 @@ pub struct Session {
     pub notifications: NotificationState,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspacesPlacement {
+    Sidebar,
+    BottomPanel,
+}
+
+impl WorkspacesPlacement {
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::Sidebar => Self::BottomPanel,
+            Self::BottomPanel => Self::Sidebar,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ChromeState {
     pub blur_background: bool,
     pub disconnected_groups: bool,
     pub auto_collapse_groups: bool,
+    pub workspaces_placement: WorkspacesPlacement,
     pub corner_radius_px: f32,
     pub float_offset_px: f32,
     pub chrome_tint_factor: f32,
@@ -31,6 +47,7 @@ impl Default for ChromeState {
             blur_background: false,
             disconnected_groups: false,
             auto_collapse_groups: true,
+            workspaces_placement: WorkspacesPlacement::Sidebar,
             corner_radius_px: 0.0,
             float_offset_px: 0.0,
             chrome_tint_factor: 0.0,

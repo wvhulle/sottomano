@@ -35,8 +35,9 @@ From left to right, all expanded:
 - **Transfer.** Download and upload throughput, WireGuard tunnels and the
   Tailscale mesh with its peer count.
 - **Panel settings.** The panel's own shape: corner radius, float offset,
-  tint, blur, whether groups are separate pills or one bar, and whether they
-  fold back on focus change.
+  tint, blur, whether groups are separate pills or one bar, whether they
+  fold back on focus change, and whether the workspaces sit in the left
+  sidebar or inline in the bottom panel.
 
 ![The weather group expanded, the location card open](docs/location.png)
 
@@ -85,7 +86,8 @@ A pill floating over the left edge of the screen, above the windows rather than
 beside them, lists every workspace by index and name, one below the other, with
 a mark beside each for the windows on it. The focus marker slides to the new
 workspace instead of blinking there. Hover a workspace for a card of its
-windows.
+windows. The sidebar toggle in the panel settings moves the workspaces back
+into the bottom panel, next to the display icon, as a row.
 
 ### Bottom panel, left: display and quick launch
 

@@ -23,7 +23,7 @@ use crate::{
         },
     },
     message_subscriptions::{blocking, niri_action},
-    state::{self, Session},
+    state::{self, Session, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         bar::{layer_settings, view, widget_groups},
@@ -365,7 +365,10 @@ impl Bar {
             &self.session.chrome,
             &self.surfaces,
         );
-        Task::batch([blur, sidebar::pointer_region(window, zone, rects)])
+        if zone != Zone::Sidebar {
+            return blur;
+        }
+        Task::batch([blur, sidebar::pointer_region(window, rects)])
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -579,9 +582,15 @@ impl Bar {
     }
 
     fn apply_saved_panel_settings(&mut self, session: Session) -> Task<Message> {
+        let placement_before = self.session.chrome.workspaces_placement;
         self.session = session;
         self.panel_settings_group.adopt(&self.session.chrome);
-        Task::batch([self.remargin_surfaces(), self.rebuild_blur()])
+        let placed = if self.session.chrome.workspaces_placement == placement_before {
+            Task::none()
+        } else {
+            self.enter_workspaces_placement()
+        };
+        Task::batch([placed, self.remargin_surfaces(), self.rebuild_blur()])
     }
 
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
@@ -806,6 +815,38 @@ impl Bar {
                     .reposition(&self.session.chrome, &self.surfaces),
                 task,
             ]),
+            panel_settings_group::Action::PlaceWorkspaces(task) => {
+                Task::batch([self.enter_workspaces_placement(), task])
+            }
+        }
+    }
+
+    fn enter_workspaces_placement(&mut self) -> Task<Message> {
+        match self.session.chrome.workspaces_placement {
+            WorkspacesPlacement::Sidebar => {
+                let outputs: Vec<String> = self
+                    .surfaces
+                    .values()
+                    .filter(|surface| surface.position == Position::Top)
+                    .map(|surface| surface.output.clone())
+                    .collect();
+                Task::batch(
+                    outputs.iter().map(|output| {
+                        sidebar::open(&mut self.surfaces, output, &self.session.chrome)
+                    }),
+                )
+            }
+            WorkspacesPlacement::BottomPanel => Task::batch(
+                sidebar::windows(&self.surfaces)
+                    .into_iter()
+                    .flat_map(|id| {
+                        [
+                            self.forget_window(id),
+                            Task::done(Message::RemoveWindow(id)),
+                        ]
+                    })
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 
@@ -866,11 +907,13 @@ impl Bar {
             .into_iter()
             .map(|position| self.open_bar(output, position))
             .collect();
-        opens.push(sidebar::open(
-            &mut self.surfaces,
-            output,
-            &self.session.chrome,
-        ));
+        if self.session.chrome.workspaces_placement == WorkspacesPlacement::Sidebar {
+            opens.push(sidebar::open(
+                &mut self.surfaces,
+                output,
+                &self.session.chrome,
+            ));
+        }
         opens.push(self.tooltip.open_surface(output));
         opens.extend(
             Position::BARS
