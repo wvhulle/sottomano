@@ -1,14 +1,16 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iced::{Element, Length, Rectangle, Task, widget::Space, window::Id};
+use iced::{Rectangle, Task, window::Id};
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 
 use crate::{
     app::Message,
     config::Config,
-    data::sink::niri_rules::StyledSurface,
     state::PanelLayout,
-    wayland_layers::surface::{self, Margin, Position, Surface},
+    wayland_layers::{
+        niri_rules::StyledSurface,
+        surface::{self, Margin, Position, Surface},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,20 +24,33 @@ pub enum Zone {
     Sidebar,
 }
 
-pub fn fill<'a>() -> Element<'a, Message> {
-    Space::new().width(Length::Fill).height(Length::Fill).into()
+#[derive(Debug, Clone, Copy)]
+pub struct PillPlacement {
+    pub strip: Id,
+    pub zone: Zone,
+    pub index: usize,
+    pub rect: Rectangle,
 }
 
 #[derive(Default)]
-pub struct BlurCasters {
+pub struct PanelPills {
     ids: HashSet<Id>,
     pills: HashMap<(Id, Zone), Vec<(Id, Rectangle)>>,
     rects: HashMap<(Id, Zone), Vec<Rectangle>>,
 }
 
-impl BlurCasters {
-    pub fn contains(&self, id: Id) -> bool {
-        self.ids.contains(&id)
+impl PanelPills {
+    pub fn placement(&self, pill: Id) -> Option<PillPlacement> {
+        self.pills.iter().find_map(|(&(strip, zone), list)| {
+            list.iter()
+                .position(|&(id, _)| id == pill)
+                .map(|index| PillPlacement {
+                    strip,
+                    zone,
+                    index,
+                    rect: list[index].1,
+                })
+        })
     }
 
     pub fn rebuild(
@@ -123,11 +138,11 @@ impl BlurCasters {
     pub fn reposition(&self, layout: &PanelLayout, bars: &BTreeMap<Id, Surface>) -> Task<Message> {
         let pills = self.pills.iter().flat_map(|((window, _), list)| {
             let surface = bars.get(window);
-            list.iter().filter_map(move |&(caster, rect)| {
+            list.iter().filter_map(move |&(pill, rect)| {
                 let surface = surface?;
                 let float = active_float_margin(layout, surface.position);
                 Some(Task::done(Message::MarginChange {
-                    id: caster,
+                    id: pill,
                     margin: pill_margin(surface.position, float, rect).edges(),
                 }))
             })
@@ -169,9 +184,9 @@ impl BlurCasters {
         config: &Config,
         layout: &PanelLayout,
     ) -> Task<Message> {
-        let casters: Vec<(Id, Rectangle)> =
+        let pills: Vec<(Id, Rectangle)> =
             rects.iter().map(|&rect| (Id::unique(), rect)).collect();
-        let tasks: Vec<Task<Message>> = casters
+        let tasks: Vec<Task<Message>> = pills
             .iter()
             .map(|&(id, rect)| {
                 self.ids.insert(id);
@@ -187,7 +202,7 @@ impl BlurCasters {
                 })
             })
             .collect();
-        self.pills.insert((window, zone), casters);
+        self.pills.insert((window, zone), pills);
         Task::batch(tasks)
     }
 }
@@ -219,9 +234,8 @@ fn pill_settings(
         size: pill_size(position, rect, config),
         exclusive_zone: Some(-1),
         anchor: pill_anchor(position),
-        layer: Layer::Bottom,
+        layer: Layer::Top,
         margin: Some(pill_margin(position, float, rect).edges()),
-        events_transparent: true,
         ..surface::base_settings(Some(output), StyledSurface::Pill.namespace())
     }
 }
@@ -257,5 +271,5 @@ fn pill_size(position: Position, rect: Rectangle, config: &Config) -> LayerSize 
         Position::Top | Position::Bottom => config.bar.height_px,
         Position::Left => rect.height.round().max(1.0),
     };
-    LayerSize::px(rect.width.round().max(1.0) as u32, height as u32)
+    LayerSize::px(rect.width.ceil().max(1.0) as u32, height as u32)
 }

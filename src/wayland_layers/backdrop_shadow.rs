@@ -6,16 +6,11 @@ use iced_exwlshell::reexport::{Layer, NewLayerShellSettings};
 
 use crate::{
     app::Message,
-    wayland_layers::surface::{self, Position},
+    wayland_layers::{
+        niri_rules::StyledSurface,
+        surface::{self, Position},
+    },
 };
-
-pub fn namespace(position: Position) -> &'static str {
-    match position {
-        Position::Top => "vetrata-backdrop-top",
-        Position::Bottom => "vetrata-backdrop-bottom",
-        Position::Left => "vetrata-backdrop-left",
-    }
-}
 
 pub fn margin(position: Position, height: u32) -> (i32, i32, i32, i32) {
     let h = height.cast_signed();
@@ -34,7 +29,7 @@ pub fn settings(output: &str, position: Position, height: u32) -> NewLayerShellS
         layer: Layer::Background,
         margin: Some(margin(position, height)),
         events_transparent: true,
-        ..surface::base_settings(Some(output), namespace(position))
+        ..surface::base_settings(Some(output), StyledSurface::Backdrop(position).namespace())
     }
 }
 

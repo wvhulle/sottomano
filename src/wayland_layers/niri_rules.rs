@@ -9,7 +9,7 @@ use tokio::fs;
 
 use crate::{
     state::{NiriStyling, PanelLayout, ShadowStyle},
-    wayland_layers::{backdrop_shadow, surface::Position},
+    wayland_layers::surface::Position,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,16 +17,26 @@ pub enum StyledSurface {
     Panel,
     Sidebar,
     Pill,
+    Backdrop(Position),
 }
 
 impl StyledSurface {
-    const ALL: [Self; 3] = [Self::Panel, Self::Sidebar, Self::Pill];
+    const ALL: [Self; 5] = [
+        Self::Panel,
+        Self::Sidebar,
+        Self::Pill,
+        Self::Backdrop(Position::Top),
+        Self::Backdrop(Position::Bottom),
+    ];
 
     pub fn namespace(self) -> &'static str {
         match self {
             Self::Panel => "vetrata-panel",
             Self::Sidebar => "vetrata-sidebar",
-            Self::Pill => "vetrata-blur-pill",
+            Self::Pill => "vetrata-pill",
+            Self::Backdrop(Position::Top) => "vetrata-backdrop-top",
+            Self::Backdrop(Position::Bottom) => "vetrata-backdrop-bottom",
+            Self::Backdrop(Position::Left) => "vetrata-backdrop-left",
         }
     }
 
@@ -35,6 +45,14 @@ impl StyledSurface {
             Self::Panel => !layout.disconnected_groups,
             Self::Sidebar => true,
             Self::Pill => layout.disconnected_groups,
+            Self::Backdrop(_) => false,
+        }
+    }
+
+    fn rule(self, layout: &PanelLayout) -> KdlNode {
+        match self {
+            Self::Backdrop(position) => backdrop_rule(self, position),
+            Self::Panel | Self::Sidebar | Self::Pill => chrome_rule(self, layout),
         }
     }
 }
@@ -214,17 +232,14 @@ pub fn render(layout: &PanelLayout) -> String {
     document.nodes_mut().extend(
         StyledSurface::ALL
             .into_iter()
-            .map(|surface| layer_rule(surface, layout)),
+            .map(|surface| surface.rule(layout)),
     );
-    document
-        .nodes_mut()
-        .extend(Position::BARS.into_iter().map(backdrop_rule));
     document.autoformat();
     document.ensure_v1();
     document.to_string()
 }
 
-fn layer_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
+fn chrome_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
     let carries_chrome = surface.carries_chrome(layout);
     block(
         "layer-rule",
@@ -249,7 +264,7 @@ fn layer_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
     )
 }
 
-fn backdrop_rule(position: Position) -> KdlNode {
+fn backdrop_rule(surface: StyledSurface, position: Position) -> KdlNode {
     let lift: i128 = match position {
         Position::Top => -3,
         Position::Bottom => 3,
@@ -260,10 +275,7 @@ fn backdrop_rule(position: Position) -> KdlNode {
         [
             node(
                 "match",
-                [KdlEntry::new_prop(
-                    "namespace",
-                    format!("^{}$", backdrop_shadow::namespace(position)),
-                )],
+                [KdlEntry::new_prop("namespace", namespace_pattern(surface))],
             ),
             block(
                 "shadow",
@@ -393,14 +405,14 @@ mod tests {
     fn joined_groups_style_the_strip_and_not_the_pills() {
         let rules = render(&blurred(false));
         assert!(rule_for(&rules, "vetrata-panel").contains("blur true"));
-        assert!(rule_for(&rules, "vetrata-blur-pill").contains("blur false"));
+        assert!(rule_for(&rules, "vetrata-pill").contains("blur false"));
     }
 
     #[test]
     fn separate_pills_move_the_chrome_off_the_strip() {
         let rules = render(&blurred(true));
         assert!(rule_for(&rules, "vetrata-panel").contains("blur false"));
-        assert!(rule_for(&rules, "vetrata-blur-pill").contains("blur true"));
+        assert!(rule_for(&rules, "vetrata-pill").contains("blur true"));
         assert!(rule_for(&rules, "vetrata-sidebar").contains("blur true"));
     }
 
