@@ -154,7 +154,7 @@ impl IdleTimeoutsGroup {
                     .map(move |ok| {
                         IdleTimeoutsMessage::Timer(
                             kind,
-                            TimerMessage::Slider(ControlMessage::Confirmed { value, ok }),
+                            TimerMessage::Slider(ControlMessage::Persisted { value, ok }),
                         )
                     }),
                 TimerChange::Fire(action) => {

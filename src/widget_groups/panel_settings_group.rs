@@ -29,13 +29,13 @@ const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
 const RADIUS_RANGE: RangeInclusive<f32> = 0.0..=16.0;
 const TINT_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
-fn confirmed(
+fn persisted(
     value: f32,
     save: impl Future<Output = bool> + Send + 'static,
     wrap: fn(ControlMessage) -> PanelSettingsMessage,
 ) -> Task<Message> {
     Task::future(save)
-        .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Confirmed { value, ok })))
+        .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Persisted { value, ok })))
 }
 
 fn blur_tooltip(chrome: &ChromeState) -> Tooltip {
@@ -212,7 +212,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::Radius(msg) => match self.radius.update(msg) {
                 SliderAction::Commit(radius) => {
                     chrome.corner_radius_px = radius;
-                    Action::Run(confirmed(
+                    Action::Run(persisted(
                         radius,
                         state::panel::save_corner_radius(radius),
                         PanelSettingsMessage::Radius,
@@ -223,7 +223,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::Offset(msg) => match self.offset.update(msg) {
                 SliderAction::Commit(offset) => {
                     chrome.float_offset_px = offset;
-                    Action::Reflow(confirmed(
+                    Action::Reflow(persisted(
                         offset,
                         state::panel::save_float_offset(offset),
                         PanelSettingsMessage::Offset,
@@ -234,7 +234,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::Tint(msg) => match self.tint.update(msg) {
                 SliderAction::Commit(percent) => {
                     chrome.chrome_tint_factor = percent / 100.0;
-                    Action::Run(confirmed(
+                    Action::Run(persisted(
                         percent,
                         state::panel::save_chrome_tint_factor(chrome.chrome_tint_factor),
                         PanelSettingsMessage::Tint,

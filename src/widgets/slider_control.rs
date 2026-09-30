@@ -112,7 +112,8 @@ pub enum ControlMessage {
     Scroll(ScrollDelta),
     Set(f32),
     Release,
-    Confirmed { value: f32, ok: bool },
+    DeviceAccepted { value: f32, ok: bool },
+    Persisted { value: f32, ok: bool },
     Adjusted(Option<f32>),
     Reading(f32),
     Level(f32),
@@ -127,7 +128,7 @@ impl ControlMessage {
         value: f32,
         write: impl FnOnce() -> bool + Send + 'static,
     ) -> Task<ControlMessage> {
-        blocking(label, write).map(move |ok| ControlMessage::Confirmed { value, ok })
+        blocking(label, write).map(move |ok| ControlMessage::DeviceAccepted { value, ok })
     }
 }
 
@@ -288,8 +289,16 @@ impl SliderControl {
             }
             ControlMessage::Set(pos) => into_action(self.device_setting.drag_moved_to(pos)),
             ControlMessage::Release => into_action(self.device_setting.drag_ended()),
-            ControlMessage::Confirmed { value, ok } => {
+            ControlMessage::DeviceAccepted { value, ok } => {
                 into_action(self.device_setting.absolute_write_finished(value, ok))
+            }
+            ControlMessage::Persisted { value, ok } => {
+                let follow_up = self.device_setting.absolute_write_finished(value, ok);
+                if ok {
+                    self.device_setting
+                        .device_reported(value, self.slider_step);
+                }
+                into_action(follow_up)
             }
             ControlMessage::Adjusted(resolved) => {
                 into_action(self.device_setting.relative_write_finished(resolved))
