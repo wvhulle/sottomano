@@ -173,6 +173,7 @@ impl From<TooltipMessage> for Message {
 
 impl Bar {
     pub fn new(config: Config) -> (Self, Task<Message>) {
+        let _span = tracing::debug_span!("bar init").entered();
         let bar = Self {
             weather_group: WeatherGroup::default(),
             wallpaper_group: WallpaperGroup::new(&config.secrets),
@@ -239,6 +240,7 @@ impl Bar {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        let _span = tracing::trace_span!("update", ?message).entered();
         let dispatched = self.dispatch_message(message);
         let alert_toasts = self.notifications.show_reading_alerts(
             &self.reading_alerts(),
@@ -897,6 +899,7 @@ impl Bar {
     /// restart and re-announce everything it knows, so an output already
     /// carrying surfaces is left alone rather than given a second set.
     fn open_bars(&mut self, output: &str) -> Task<Message> {
+        let _span = tracing::debug_span!("open bars", output).entered();
         if self
             .surfaces
             .values()
@@ -925,6 +928,7 @@ impl Bar {
     }
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
+        let _span = tracing::trace_span!("view", ?window).entered();
         if let Some(element) = self.tooltip.view(
             window,
             &self.config,

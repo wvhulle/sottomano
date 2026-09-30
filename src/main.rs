@@ -14,16 +14,17 @@ use iced_exwlshell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
 };
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(
-            "error,vetrata=warn,exwlshellev=warn,iced_exwlshell=warn",
-        ))
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("error,vetrata=warn,exwlshellev=warn,iced_exwlshell=warn")
+        }))
+        .with_span_events(FmtSpan::CLOSE)
         .init();
 
-    let config = config::load();
+    let config = tracing::debug_span!("load config").in_scope(config::load);
 
     let mut settings = Settings {
         layer_settings: LayerShellSettings {
