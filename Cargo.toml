@@ -66,6 +66,7 @@ systemd = "0.10"
 system-tray = "0.8"
 ttf-parser = "0.25"
 tokio = { version = "1.53.0", features = [
+  "fs",
   "process",
   "rt-multi-thread",
   "macros",
@@ -96,6 +97,7 @@ uom = { version = "0.38.0", default-features = false, features = [
   "si",
   "std",
 ] }
+kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
 
 [profile.dev.package."*"]
 opt-level = 2

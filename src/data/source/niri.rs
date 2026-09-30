@@ -429,6 +429,7 @@ pub struct OutputInfo {
     pub model: String,
     pub mode: Option<OutputMode>,
     pub scale: f64,
+    pub logical_height: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -482,6 +483,7 @@ pub fn output_info() -> HashMap<String, OutputInfo> {
                         model: product_field(output.model),
                         mode,
                         scale: logical.scale,
+                        logical_height: logical.height,
                     },
                 ))
             })

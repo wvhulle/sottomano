@@ -12,7 +12,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use crate::{
     config::{Config, ConfigFile, LoadError, SecretPaths, bar_size::BarSize, font::ResolvedFont},
     data::{
-        sink::{clipboard, sound},
+        sink::{clipboard, niri_rules::NiriRulesFile, sound},
         source::{
             app_icon::{self, DesktopEntries},
             command::blocking::run,
@@ -30,7 +30,7 @@ use crate::{
         bar::{layer_settings, view, widget_groups},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
-        sidebar::{self, SidebarReservations},
+        sidebar,
         surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
     },
@@ -47,6 +47,7 @@ use crate::{
         media_group::{MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
+        niri_group::{NiriGroup, NiriMessage},
         notification_group::{NotificationGroup, NotificationGroupMessage},
         output_group,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
@@ -73,6 +74,7 @@ pub struct Bar {
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
+    pub(crate) niri_group: NiriGroup,
     pub(crate) clock_group: ClockGroup,
     pub(crate) notification_group: NotificationGroup,
     pub(crate) journal_group: JournalGroup,
@@ -94,7 +96,6 @@ pub struct Bar {
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: BTreeMap<Id, Position>,
     pub(crate) blur_casters: BlurCasters,
-    pub(crate) sidebar_reservations: SidebarReservations,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
@@ -120,6 +121,7 @@ pub enum Message {
     Battery(BatteryMessage),
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
+    NiriStyling(NiriMessage),
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
     Journal(JournalMessage),
@@ -181,6 +183,7 @@ impl Bar {
         config: Config,
         config_file: ConfigFile,
         secrets: SecretPaths,
+        niri_rules: NiriRulesFile,
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("bar init").entered();
@@ -190,6 +193,7 @@ impl Bar {
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
+            niri_group: NiriGroup::new(niri_rules),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
             journal_group: JournalGroup::default(),
@@ -213,7 +217,6 @@ impl Bar {
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
             blur_casters: BlurCasters::default(),
-            sidebar_reservations: SidebarReservations::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -232,6 +235,7 @@ impl Bar {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
             Task::perform(state::panel::load(), Message::PanelLoaded),
+            bar.niri_group.load(),
             blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
             BatteryGroup::probe().map(Message::Battery),
@@ -298,6 +302,7 @@ impl Bar {
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
+            Message::NiriStyling(msg) => self.update_niri_styling(msg),
             Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
@@ -319,10 +324,7 @@ impl Bar {
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
-            Message::DismissPressed => {
-                self.collapse_groups();
-                Task::none()
-            }
+            Message::DismissPressed => self.dismiss_groups(),
             Message::WorkspaceClicked {
                 is_active: true, ..
             }
@@ -374,23 +376,27 @@ impl Bar {
         }
     }
 
+    fn update_niri_styling(&mut self, msg: NiriMessage) -> Task<Message> {
+        self.niri_group.update(msg, &mut self.panel_settings.layout)
+    }
+
+    fn dismiss_groups(&mut self) -> Task<Message> {
+        self.collapse_groups();
+        Task::none()
+    }
+
     fn update_pill_bounds(&mut self, window: Id, zone: Zone, rects: &[Rectangle]) -> Task<Message> {
-        let blur = self.blur_casters.pill_rects(
+        if zone == Zone::Sidebar {
+            return sidebar::fit(window, rects);
+        }
+        self.blur_casters.pill_rects(
             window,
             zone,
             rects,
             &self.config,
             &self.panel_settings.layout,
             &self.surfaces,
-        );
-        if zone != Zone::Sidebar {
-            return blur;
-        }
-        Task::batch([
-            blur,
-            sidebar::pointer_region(window, rects),
-            self.sidebar_reservations.reserve(window, rects),
-        ])
+        )
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -453,10 +459,7 @@ impl Bar {
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
         self.notifications.forget(window);
-        Task::batch([
-            self.blur_casters.forget(window),
-            self.sidebar_reservations.forget(window),
-        ])
+        self.blur_casters.forget(window)
     }
 
     fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
@@ -605,8 +608,11 @@ impl Bar {
         self.tooltip.leave_elapsed(departing)
     }
 
-    fn apply_saved_panel_settings(&mut self, panel_settings: PanelSettings) -> Task<Message> {
+    fn apply_saved_panel_settings(&mut self, mut panel_settings: PanelSettings) -> Task<Message> {
         let placement_before = self.panel_settings.layout.workspaces_placement;
+        panel_settings
+            .layout
+            .keep_niri_look_of(&self.panel_settings.layout);
         self.panel_settings = panel_settings;
         self.panel_settings_group.adopt(&self.panel_settings.layout);
         let placed = if self.panel_settings.layout.workspaces_placement == placement_before {
@@ -614,7 +620,12 @@ impl Bar {
         } else {
             self.enter_workspaces_placement()
         };
-        Task::batch([placed, self.remargin_surfaces(), self.rebuild_blur()])
+        Task::batch([
+            placed,
+            self.remargin_surfaces(),
+            self.rebuild_blur(),
+            self.niri_group.restyle(&self.panel_settings.layout),
+        ])
     }
 
     fn reload_config(&self) -> Task<Message> {
@@ -727,6 +738,10 @@ impl Bar {
                 self.panel_settings_group
                     .tooltip_for(target, &self.panel_settings.layout)
             })
+            .or_else(|| {
+                self.niri_group
+                    .tooltip_for(target, &self.panel_settings.layout)
+            })
             .unwrap_or_else(Tooltip::empty)
     }
 
@@ -766,6 +781,7 @@ impl Bar {
             return;
         }
         self.panel_settings_group.collapse();
+        self.niri_group.collapse();
         self.monitor_group.collapse();
         self.color_temperature_group.collapse();
         self.dark_mode_group.collapse();
@@ -898,9 +914,11 @@ impl Bar {
         {
             panel_settings_group::Action::None => Task::none(),
             panel_settings_group::Action::Run(task) => task,
-            panel_settings_group::Action::RebuildBlur(task) => {
-                Task::batch([self.rebuild_blur(), task])
-            }
+            panel_settings_group::Action::RebuildBlur(task) => Task::batch([
+                self.rebuild_blur(),
+                self.niri_group.restyle(&self.panel_settings.layout),
+                task,
+            ]),
             panel_settings_group::Action::Reflow(task) => Task::batch([
                 self.remargin_surfaces(),
                 self.blur_casters
@@ -915,34 +933,37 @@ impl Bar {
 
     fn enter_workspaces_placement(&mut self) -> Task<Message> {
         match self.panel_settings.layout.workspaces_placement {
-            WorkspacesPlacement::Sidebar => {
-                let outputs: Vec<String> = self
-                    .surfaces
-                    .values()
-                    .filter(|surface| surface.position == Position::Top)
-                    .map(|surface| surface.output.clone())
-                    .collect();
-                Task::batch(outputs.iter().map(|output| {
-                    sidebar::open(
-                        &mut self.surfaces,
-                        &mut self.sidebar_reservations,
-                        output,
-                        &self.panel_settings.layout,
-                    )
-                }))
-            }
-            WorkspacesPlacement::BottomPanel => Task::batch(
-                sidebar::windows(&self.surfaces)
-                    .into_iter()
-                    .flat_map(|id| {
-                        [
-                            self.forget_window(id),
-                            Task::done(Message::RemoveWindow(id)),
-                        ]
-                    })
-                    .collect::<Vec<_>>(),
-            ),
+            WorkspacesPlacement::Sidebar => self.open_sidebars(),
+            WorkspacesPlacement::BottomPanel => self.close_sidebars(),
         }
+    }
+
+    fn open_sidebars(&mut self) -> Task<Message> {
+        let outputs: Vec<String> = self
+            .surfaces
+            .values()
+            .filter(|surface| surface.position == Position::Top)
+            .map(|surface| surface.output.clone())
+            .collect();
+        Task::batch(
+            outputs.iter().map(|output| {
+                sidebar::open(&mut self.surfaces, output, &self.panel_settings.layout)
+            }),
+        )
+    }
+
+    fn close_sidebars(&mut self) -> Task<Message> {
+        Task::batch(
+            sidebar::windows(&self.surfaces)
+                .into_iter()
+                .flat_map(|id| {
+                    [
+                        self.forget_window(id),
+                        Task::done(Message::RemoveWindow(id)),
+                    ]
+                })
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn rebuild_blur(&mut self) -> Task<Message> {
@@ -960,23 +981,33 @@ impl Bar {
         }))
     }
 
+    fn open_panels(&mut self, output: &str) -> Task<Message> {
+        let mut opens: Vec<Task<Message>> = Position::BARS
+            .into_iter()
+            .map(|position| self.open_bar(output, position))
+            .collect();
+        if self.panel_settings.layout.workspaces_placement == WorkspacesPlacement::Sidebar {
+            opens.push(sidebar::open(
+                &mut self.surfaces,
+                output,
+                &self.panel_settings.layout,
+            ));
+        }
+        Task::batch(opens)
+    }
+
     fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
         let height = self.config.bar.height_px as u32;
-        let offset = self.panel_settings.layout.margin_offset_px();
-        let settings = layer_settings(output, position, height, position.float_margin(offset));
+        let settings = layer_settings(output, position, height, &self.panel_settings.layout);
         let id = Id::unique();
-        let surface = Surface {
-            output: output.to_string(),
-            position,
-        };
-        let strip = self.blur_casters.open_strip_for_new_bar(
+        self.surfaces.insert(
             id,
-            &surface,
-            &self.config,
-            &self.panel_settings.layout,
+            Surface {
+                output: output.to_string(),
+                position,
+            },
         );
-        self.surfaces.insert(id, surface);
-        Task::batch([Task::done(Message::NewLayerShell { settings, id }), strip])
+        Task::done(Message::NewLayerShell { settings, id })
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
@@ -1034,18 +1065,7 @@ impl Bar {
         {
             return Task::none();
         }
-        let mut opens: Vec<Task<Message>> = Position::BARS
-            .into_iter()
-            .map(|position| self.open_bar(output, position))
-            .collect();
-        if self.panel_settings.layout.workspaces_placement == WorkspacesPlacement::Sidebar {
-            opens.push(sidebar::open(
-                &mut self.surfaces,
-                &mut self.sidebar_reservations,
-                output,
-                &self.panel_settings.layout,
-            ));
-        }
+        let mut opens = vec![self.open_panels(output)];
         opens.push(self.tooltip.open_surface(output));
         opens.extend(
             Position::BARS

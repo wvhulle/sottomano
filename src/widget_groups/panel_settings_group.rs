@@ -6,14 +6,14 @@ use crate::{
     app::Message,
     config::Config,
     state::{self, PanelLayout, WorkspacesPlacement},
-    wayland_layers::tooltip::{HoverTarget, hoverable},
+    wayland_layers::tooltip::HoverTarget,
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::icon_toggle_glyph,
+        toggle_control::icon_toggle_item,
         tooltip_body::{Tooltip, row},
-        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -26,7 +26,6 @@ pub enum Action {
 }
 
 const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
-const RADIUS_RANGE: RangeInclusive<f32> = 0.0..=16.0;
 const TINT_RANGE: RangeInclusive<f32> = 0.0..=100.0;
 
 fn persisted(
@@ -36,17 +35,6 @@ fn persisted(
 ) -> Task<Message> {
     Task::future(save)
         .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Persisted { value, ok })))
-}
-
-fn blur_tooltip(layout: &PanelLayout) -> Tooltip {
-    Tooltip::table(vec![row(
-        "Blur",
-        if layout.blur_background {
-            "on — frosted behind the chrome"
-        } else {
-            "off"
-        },
-    )])
 }
 
 fn disconnected_tooltip(layout: &PanelLayout) -> Tooltip {
@@ -83,7 +71,6 @@ fn workspaces_placement_tooltip(layout: &PanelLayout) -> Tooltip {
 
 pub struct PanelSettingsGroup {
     pub(crate) expansion: GroupExpansion,
-    radius: SliderControl,
     offset: SliderControl,
     tint: SliderControl,
 }
@@ -91,11 +78,9 @@ pub struct PanelSettingsGroup {
 #[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
     Expansion(ExpansionMessage),
-    ToggleBlurBackground,
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
     ToggleWorkspacesPlacement,
-    Radius(ControlMessage),
     Offset(ControlMessage),
     Tint(ControlMessage),
 }
@@ -104,14 +89,6 @@ impl Default for PanelSettingsGroup {
     fn default() -> Self {
         Self {
             expansion: GroupExpansion::default(),
-            radius: SliderControl::new(
-                RADIUS_RANGE,
-                HoverTarget::CornerRadius,
-                Phosphor::FrameCorners(Weight::Regular),
-            )
-            .icon_only()
-            .readout_width(44.0)
-            .readout(|value| format!("{} px", value.round())),
             offset: SliderControl::new(
                 OFFSET_RANGE,
                 HoverTarget::FloatOffset,
@@ -135,10 +112,6 @@ impl Default for PanelSettingsGroup {
 impl PanelSettingsGroup {
     pub fn tooltip_for(&self, target: &HoverTarget, layout: &PanelLayout) -> Option<Tooltip> {
         match target {
-            HoverTarget::CornerRadius => Some(Tooltip::table(vec![row(
-                "Corners",
-                format!("{} radius", self.radius.readout_text()),
-            )])),
             HoverTarget::FloatOffset => Some(Tooltip::table(vec![row(
                 "Offset",
                 self.offset.readout_text(),
@@ -147,7 +120,6 @@ impl PanelSettingsGroup {
                 "Tint",
                 format!("{} tint over the chrome", self.tint.readout_text()),
             )])),
-            HoverTarget::BlurBackground => Some(blur_tooltip(layout)),
             HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(layout)),
             HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(layout)),
             HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(layout)),
@@ -156,7 +128,6 @@ impl PanelSettingsGroup {
     }
 
     fn close_sliders(&mut self) {
-        self.radius.close();
         self.offset.close();
         self.tint.close();
     }
@@ -174,13 +145,6 @@ impl PanelSettingsGroup {
                     self.close_sliders();
                 }
                 Action::None
-            }
-            PanelSettingsMessage::ToggleBlurBackground => {
-                layout.blur_background = !layout.blur_background;
-                Action::RebuildBlur(
-                    Task::future(state::panel::save_blur_background(layout.blur_background))
-                        .discard(),
-                )
             }
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 layout.disconnected_groups = !layout.disconnected_groups;
@@ -209,17 +173,6 @@ impl PanelSettingsGroup {
                     .discard(),
                 )
             }
-            PanelSettingsMessage::Radius(msg) => match self.radius.update(msg) {
-                SliderAction::Commit(radius) => {
-                    layout.corner_radius = radius.into();
-                    Action::Run(persisted(
-                        radius,
-                        state::panel::save_corner_radius(radius),
-                        PanelSettingsMessage::Radius,
-                    ))
-                }
-                _ => Action::None,
-            },
             PanelSettingsMessage::Offset(msg) => match self.offset.update(msg) {
                 SliderAction::Commit(offset) => {
                     layout.float_offset_px = offset;
@@ -246,8 +199,6 @@ impl PanelSettingsGroup {
     }
 
     pub fn adopt(&mut self, layout: &PanelLayout) {
-        self.radius
-            .update(ControlMessage::Reading(layout.corner_radius.top_left));
         self.offset
             .update(ControlMessage::Reading(layout.float_offset_px));
         self.tint
@@ -282,22 +233,10 @@ impl PanelSettingsGroup {
                 PanelSettingsMessage::ToggleWorkspacesPlacement,
                 HoverTarget::WorkspacesPlacement,
             ))
-            .item(icon_toggle_item(
-                config,
-                Phosphor::Snowflake(Weight::Regular),
-                layout.blur_background,
-                PanelSettingsMessage::ToggleBlurBackground,
-                HoverTarget::BlurBackground,
-            ))
             .item(GroupItem::slider(
                 &self.tint,
                 config,
                 PanelSettingsMessage::Tint,
-            ))
-            .item(GroupItem::slider(
-                &self.radius,
-                config,
-                PanelSettingsMessage::Radius,
             ))
             .item(GroupItem::slider(
                 &self.offset,
@@ -305,21 +244,4 @@ impl PanelSettingsGroup {
                 PanelSettingsMessage::Offset,
             ))
     }
-}
-
-fn icon_toggle_item(
-    config: &Config,
-    icon: Phosphor,
-    enabled: bool,
-    press: PanelSettingsMessage,
-    target: HoverTarget,
-) -> GroupItem<'_, PanelSettingsMessage> {
-    GroupItem::hoverable_element(move |_| {
-        hoverable(
-            icon_toggle_glyph(config, icon, enabled),
-            target.clone(),
-            GroupEvent::Tooltip,
-        )
-    })
-    .on_press(press)
 }

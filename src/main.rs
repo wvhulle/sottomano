@@ -11,6 +11,7 @@ use std::{error::Error, sync::Arc};
 
 use app::Bar;
 use config::{Config, ConfigFile, SecretPaths};
+use data::sink::niri_rules::NiriRulesFile;
 use iced_exwlshell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
@@ -28,6 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config_home = config::config_home();
     let config_file = ConfigFile::in_config_home(&config_home);
     let secrets = SecretPaths::discover(&config_home);
+    let niri_rules = NiriRulesFile::in_config_home(&config_home);
     let loaded = tracing::debug_span!("load config").in_scope(|| config_file.load());
     let config = loaded
         .as_ref()
@@ -53,6 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 config.clone(),
                 config_file.clone(),
                 secrets.clone(),
+                niri_rules.clone(),
                 loaded.clone(),
             )
         },

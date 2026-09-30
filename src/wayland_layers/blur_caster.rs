@@ -6,6 +6,7 @@ use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use crate::{
     app::Message,
     config::Config,
+    data::sink::niri_rules::StyledSurface,
     state::PanelLayout,
     wayland_layers::surface::{self, Margin, Position, Surface},
 };
@@ -21,14 +22,6 @@ pub enum Zone {
     Sidebar,
 }
 
-pub fn strip_namespace() -> &'static str {
-    "vetrata-blur"
-}
-
-pub fn pill_namespace() -> &'static str {
-    "vetrata-blur-pill"
-}
-
 pub fn fill<'a>() -> Element<'a, Message> {
     Space::new().width(Length::Fill).height(Length::Fill).into()
 }
@@ -36,7 +29,6 @@ pub fn fill<'a>() -> Element<'a, Message> {
 #[derive(Default)]
 pub struct BlurCasters {
     ids: HashSet<Id>,
-    strips: HashMap<Id, Id>,
     pills: HashMap<(Id, Zone), Vec<(Id, Rectangle)>>,
     rects: HashMap<(Id, Zone), Vec<Rectangle>>,
 }
@@ -57,41 +49,18 @@ impl BlurCasters {
             .drain()
             .map(|id| Task::done(Message::RemoveWindow(id)))
             .collect();
-        self.strips.clear();
         self.pills.clear();
         self.rects
             .retain(|(window, _), _| bars.contains_key(window));
-        if layout.blur_background {
+        if casts_pills(layout) {
             let rects = self.rects.clone();
             for ((window, zone), list) in rects {
-                if let Some(surface) = bars
-                    .get(&window)
-                    .filter(|surface| casts_pills(layout, surface.position))
-                {
+                if let Some(surface) = bars.get(&window) {
                     tasks.push(self.open_pills(window, zone, &list, surface, config, layout));
                 }
             }
-            for (&window, surface) in bars
-                .iter()
-                .filter(|(_, surface)| !casts_pills(layout, surface.position))
-            {
-                tasks.push(self.open_strip(window, surface, config, layout));
-            }
         }
         Task::batch(tasks)
-    }
-
-    pub fn open_strip_for_new_bar(
-        &mut self,
-        bar: Id,
-        surface: &Surface,
-        config: &Config,
-        layout: &PanelLayout,
-    ) -> Task<Message> {
-        if !layout.blur_background || casts_pills(layout, surface.position) {
-            return Task::none();
-        }
-        self.open_strip(bar, surface, config, layout)
     }
 
     pub fn pill_rects(
@@ -106,7 +75,7 @@ impl BlurCasters {
         self.rects.insert((window, zone), new.to_vec());
         let Some(surface) = bars
             .get(&window)
-            .filter(|surface| layout.blur_background && casts_pills(layout, surface.position))
+            .filter(|surface| !surface.position.is_vertical() && casts_pills(layout))
         else {
             return Task::none();
         };
@@ -152,13 +121,6 @@ impl BlurCasters {
     }
 
     pub fn reposition(&self, layout: &PanelLayout, bars: &BTreeMap<Id, Surface>) -> Task<Message> {
-        let strips = self.strips.iter().filter_map(|(bar, &caster)| {
-            let surface = bars.get(bar)?;
-            Some(Task::done(Message::MarginChange {
-                id: caster,
-                margin: active_float_margin(layout, surface.position).edges(),
-            }))
-        });
         let pills = self.pills.iter().flat_map(|((window, _), list)| {
             let surface = bars.get(window);
             list.iter().filter_map(move |&(caster, rect)| {
@@ -170,15 +132,12 @@ impl BlurCasters {
                 }))
             })
         });
-        Task::batch(strips.chain(pills).collect::<Vec<_>>())
+        Task::batch(pills.collect::<Vec<_>>())
     }
 
     pub fn forget(&mut self, window: Id) -> Task<Message> {
         self.ids.remove(&window);
         let mut closed = Vec::new();
-        if let Some(caster) = self.strips.remove(&window) {
-            closed.push(caster);
-        }
         let zones: Vec<_> = self
             .pills
             .keys()
@@ -199,22 +158,6 @@ impl BlurCasters {
                 .into_iter()
                 .map(|id| Task::done(Message::RemoveWindow(id))),
         )
-    }
-
-    fn open_strip(
-        &mut self,
-        bar: Id,
-        surface: &Surface,
-        config: &Config,
-        layout: &PanelLayout,
-    ) -> Task<Message> {
-        let id = Id::unique();
-        self.ids.insert(id);
-        self.strips.insert(bar, id);
-        Task::done(Message::NewLayerShell {
-            settings: strip_settings(&surface.output, surface.position, config, layout),
-            id,
-        })
     }
 
     fn open_pills(
@@ -249,8 +192,8 @@ impl BlurCasters {
     }
 }
 
-fn casts_pills(layout: &PanelLayout, position: Position) -> bool {
-    layout.disconnected_groups || position.is_vertical()
+fn casts_pills(layout: &PanelLayout) -> bool {
+    layout.disconnected_groups
 }
 
 fn active_float_margin(layout: &PanelLayout, position: Position) -> Margin {
@@ -261,24 +204,6 @@ fn pill_anchor(position: Position) -> Anchor {
     match position {
         Position::Top | Position::Left => Anchor::Top | Anchor::Left,
         Position::Bottom => Anchor::Bottom | Anchor::Left,
-    }
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn strip_settings(
-    output: &str,
-    position: Position,
-    config: &Config,
-    layout: &PanelLayout,
-) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: position.strip_size(config.bar.height_px as u32),
-        exclusive_zone: Some(-1),
-        anchor: position.anchor(),
-        layer: Layer::Bottom,
-        margin: Some(active_float_margin(layout, position).edges()),
-        events_transparent: true,
-        ..surface::base_settings(Some(output), strip_namespace())
     }
 }
 
@@ -297,7 +222,7 @@ fn pill_settings(
         layer: Layer::Bottom,
         margin: Some(pill_margin(position, float, rect).edges()),
         events_transparent: true,
-        ..surface::base_settings(Some(output), pill_namespace())
+        ..surface::base_settings(Some(output), StyledSurface::Pill.namespace())
     }
 }
 

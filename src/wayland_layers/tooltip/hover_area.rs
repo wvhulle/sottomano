@@ -28,19 +28,21 @@ pub fn hoverable<'a, M: 'a>(
     })
 }
 
-pub fn on_surface(
+pub fn on_surface<'a>(
     surface: Id,
-    origin_in_overlay: Vector,
-    content: Element<'_, Message>,
-) -> Element<'_, Message> {
+    origin_in_overlay: impl Fn(Size) -> Vector + 'a,
+    content: Element<'a, Message>,
+) -> Element<'a, Message> {
     content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor { target, anchor }) => {
-            Message::Tooltip(TooltipMessage::Enter {
-                surface,
-                target,
-                anchor: anchor + origin_in_overlay,
-            })
-        }
+        Message::Tooltip(TooltipMessage::EnterAnchor {
+            target,
+            anchor,
+            surface_size,
+        }) => Message::Tooltip(TooltipMessage::Enter {
+            surface,
+            target,
+            anchor: anchor + origin_in_overlay(surface_size),
+        }),
         other => other,
     })
 }
@@ -135,6 +137,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
                 TooltipMessage::EnterAnchor {
                     target: self.target.clone(),
                     anchor,
+                    surface_size: viewport.size(),
                 }
             } else {
                 TooltipMessage::Exit {

@@ -4,11 +4,14 @@ use crate::{
     config::Config,
     data::source::Source,
     message_subscriptions::{blocking, polling},
+    wayland_layers::tooltip::{HoverTarget, hoverable},
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::Tooltip,
+        widget_group::GroupEvent,
         widget_state::WidgetState,
     },
 };
@@ -21,6 +24,23 @@ pub fn icon_toggle_glyph<'a, M: 'a>(
     let state = WidgetState::of_toggle(enabled);
     Glyph::from(icon.with_weight(state.weight()))
         .view(config.font.icon_size_px, state.color(&config.palette))
+}
+
+pub fn icon_toggle_item<M: Clone + 'static>(
+    config: &Config,
+    icon: Phosphor,
+    enabled: bool,
+    press: M,
+    target: HoverTarget,
+) -> GroupItem<'_, M> {
+    GroupItem::hoverable_element(move |_| {
+        hoverable(
+            icon_toggle_glyph(config, icon, enabled),
+            target.clone(),
+            GroupEvent::Tooltip,
+        )
+    })
+    .on_press(press)
 }
 
 pub trait Toggle: Source + BarWidget {
