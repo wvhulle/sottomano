@@ -1,26 +1,24 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use iced::{
-    Element, Length, Rectangle, Task, Vector,
-    alignment::Vertical,
+    Element, Rectangle, Size, Task, Vector,
     widget::{column, container},
     window::Id,
 };
-use iced_exwlshell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
-};
+use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 
 use crate::{
     app::{Bar, Message},
     config::Config,
+    data::sink::niri_rules::StyledSurface,
     state::{PanelLayout, PanelSettings},
     wayland_layers::{
         bar::corner_inset,
         blur_caster::{self, Zone},
-        surface::{self, Position, Surface, input_region},
+        surface::{self, Position, Surface},
     },
     widget_groups::workspaces_group,
-    widgets::bounds_probe::bounds_probe,
+    widgets::bounds_probe::natural_bounds_probe,
 };
 
 pub fn windows(surfaces: &BTreeMap<Id, Surface>) -> Vec<Id> {
@@ -33,7 +31,6 @@ pub fn windows(surfaces: &BTreeMap<Id, Surface>) -> Vec<Id> {
 
 pub fn open(
     surfaces: &mut BTreeMap<Id, Surface>,
-    reservations: &mut SidebarReservations,
     output: &str,
     layout: &PanelLayout,
 ) -> Task<Message> {
@@ -45,94 +42,45 @@ pub fn open(
             position: Position::Left,
         },
     );
-    Task::batch([
-        Task::done(Message::NewLayerShell {
-            settings: layer_settings(output, layout),
-            id,
-        }),
-        Task::done(input_region(id, Rectangle::default())),
-        reservations.open(id, output),
-    ])
-}
-
-pub fn pointer_region(window: Id, pills: &[Rectangle]) -> Task<Message> {
-    Task::done(input_region(window, covered(pills)))
-}
-
-fn covered(pills: &[Rectangle]) -> Rectangle {
-    pills
-        .iter()
-        .copied()
-        .reduce(|covered, pill| covered.union(&pill))
-        .unwrap_or_default()
+    Task::done(Message::NewLayerShell {
+        settings: layer_settings(output, layout),
+        id,
+    })
 }
 
 fn layer_settings(output: &str, layout: &PanelLayout) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: LayerSize::FILL,
-        exclusive_zone: Some(-1),
-        anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+        size: LayerSize::px(1, 1),
+        exclusive_zone: Some(0),
+        anchor: Anchor::Left,
         layer: Layer::Top,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(output.to_string()),
         margin: Some(
             Position::Left
                 .float_margin(layout.margin_offset_px())
                 .edges(),
         ),
-        ..Default::default()
+        ..surface::base_settings(Some(output), StyledSurface::Sidebar.namespace())
     }
 }
 
-#[derive(Default)]
-pub struct SidebarReservations {
-    by_sidebar: HashMap<Id, Id>,
-}
-
-impl SidebarReservations {
-    pub fn contains(&self, id: Id) -> bool {
-        self.by_sidebar
-            .values()
-            .any(|&reservation| reservation == id)
-    }
-
-    fn open(&mut self, sidebar: Id, output: &str) -> Task<Message> {
-        let id = Id::unique();
-        self.by_sidebar.insert(sidebar, id);
-        Task::done(Message::NewLayerShell {
-            settings: reservation_settings(output),
-            id,
-        })
-    }
-
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn reserve(&self, sidebar: Id, pills: &[Rectangle]) -> Task<Message> {
-        let Some(&id) = self.by_sidebar.get(&sidebar) else {
-            return Task::none();
-        };
-        let pill = covered(pills);
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub fn fit(sidebar: Id, pills: &[Rectangle]) -> Task<Message> {
+    let Some(pill) = pills.first() else {
+        return Task::none();
+    };
+    let width = pill.width.ceil() as u32;
+    let height = pill.height.ceil() as u32;
+    Task::batch([
+        Task::done(Message::LayoutChange {
+            id: sidebar,
+            anchor: Anchor::Left,
+            size: LayerSize::px(width.max(1), height.max(1)),
+        }),
         Task::done(Message::ExclusiveZoneChange {
-            id,
-            zone_size: (pill.x + pill.width).round() as i32,
-        })
-    }
-
-    pub fn forget(&mut self, sidebar: Id) -> Task<Message> {
-        self.by_sidebar
-            .remove(&sidebar)
-            .map_or_else(Task::none, |id| Task::done(Message::RemoveWindow(id)))
-    }
-}
-
-fn reservation_settings(output: &str) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: Position::Left.strip_size(1),
-        exclusive_zone: Some(0),
-        anchor: Position::Left.anchor(),
-        layer: Layer::Bottom,
-        events_transparent: true,
-        ..surface::base_settings(Some(output), "vetrata-sidebar-reservation")
-    }
+            id: sidebar,
+            zone_size: width.cast_signed(),
+        }),
+    ])
 }
 
 pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> {
@@ -142,20 +90,21 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
         return blur_caster::fill();
     };
     let pill = pill(workspaces.map(Message::from), config, &bar.panel_settings);
-    let measured = bounds_probe(column![pill], move |rects| Message::PillBounds {
+    natural_bounds_probe(column![pill], move |rects| Message::PillBounds {
         window,
         zone: Zone::Sidebar,
         rects,
-    });
-    container(measured)
-        .height(Length::Fill)
-        .align_y(Vertical::Center)
-        .padding(bar.panel_settings.layout.float_offset_px)
-        .into()
+    })
 }
 
-pub fn origin_in_tooltip_overlay(layout: &PanelLayout) -> Vector {
-    Vector::new(-layout.float_offset_px, -layout.float_offset_px)
+#[allow(clippy::cast_precision_loss)]
+pub fn origin_in_tooltip_overlay(bar: &Bar, output: &str) -> impl Fn(Size) -> Vector + use<> {
+    let output_height = bar
+        .outputs
+        .get(output)
+        .map_or(0.0, |info| info.logical_height as f32);
+    let float_offset = bar.panel_settings.layout.float_offset_px;
+    move |sidebar: Size| Vector::new(0.0, (output_height - sidebar.height) / 2.0 - float_offset)
 }
 
 fn pill<'a>(

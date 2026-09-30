@@ -30,77 +30,6 @@ let
         palette = modeToPalette modePalette // (cfg.settings.palette or { });
       }
     );
-
-  radius0 = {
-    top-left = 0.0;
-    top-right = 0.0;
-    bottom-left = 0.0;
-    bottom-right = 0.0;
-  };
-  uniformRadius = r: {
-    top-left = r;
-    top-right = r;
-    bottom-left = r;
-    bottom-right = r;
-  };
-  cornerRadius = 1.0 * cfg.blurCornerRadius;
-  pillRadius = cornerRadius;
-  cardShadow = {
-    enable = true;
-    softness = 30;
-    spread = 10;
-    color = "#00000070";
-  };
-  gradientShadow = sign: {
-    enable = true;
-    softness = 27;
-    spread = 25;
-    color = "#00000060";
-    offset = {
-      x = 0;
-      y = sign * 3;
-    };
-  };
-  vetrataLayerRules = [
-    {
-      matches = [ { namespace = "^vetrata$"; } ];
-      geometry-corner-radius = radius0;
-      shadow.enable = false;
-    }
-    {
-      matches = [ { namespace = "^vetrata-blur$"; } ];
-      geometry-corner-radius = uniformRadius cornerRadius;
-      shadow.enable = false;
-      background-effect.blur = true;
-    }
-    {
-      matches = [ { namespace = "^vetrata-blur-pill$"; } ];
-      geometry-corner-radius = uniformRadius pillRadius;
-      shadow.enable = false;
-      background-effect.blur = true;
-    }
-    {
-      matches = [ { namespace = "^vetrata-backdrop-top$"; } ];
-      geometry-corner-radius = radius0;
-      shadow = gradientShadow (-1);
-    }
-    {
-      matches = [ { namespace = "^vetrata-backdrop-bottom$"; } ];
-      geometry-corner-radius = radius0;
-      shadow = gradientShadow 1;
-    }
-    {
-      matches = [ { namespace = "^vetrata-notifications$"; } ];
-      geometry-corner-radius = radius0;
-      shadow.enable = false;
-    }
-    # Disabled because tooltips now have their own shadows
-    # {
-    #   matches = [ { namespace = "^vetrata-tooltip$"; } ];
-    #   geometry-corner-radius = uniformRadius cornerRadius;
-    #   shadow = cardShadow;
-    # }
-  ];
 in
 {
   options.services.vetrata = {
@@ -120,29 +49,6 @@ in
         Whether to create a systemd user service that starts vetrata with
         graphical-session.target. Disable to spawn vetrata from a
         compositor-specific hook instead.
-      '';
-    };
-
-    blurCornerRadius = lib.mkOption {
-      type = lib.types.int;
-      default = 8;
-      description = ''
-        Corner radius of the niri layer rules for the vetrata-blur and
-        vetrata-blur-pill surfaces. The bar and its pills share one corner
-        radius, which is a runtime panel setting adjusted from the settings
-        menu, so the compositor cannot follow it; set this to the radius you
-        usually run the bar at.
-
-        Having vetrata push its live radius over ext-background-effect-v1
-        instead would look worse, not better. That protocol's set_blur_region
-        takes a wl_region, so a rounded shape is a staircase of integer
-        rectangles, and niri applies it by filtering damage rects snapped to
-        whole physical pixels rather than through a shader — the corners come
-        out jagged. Supplying a client region also makes niri pass
-        clip_to_geometry false for layer surfaces, which drops the clip that
-        carries geometry-corner-radius, so the antialiased rounding in
-        rounding_alpha.frag is skipped entirely. The layer rule is the only
-        path to smooth blur corners. Verified against niri 26.04.
       '';
     };
 
@@ -280,7 +186,12 @@ in
       light.source = variantToml themeCfg.palettes.light;
     };
 
-    services.niri.settings.layer-rules = lib.mkAfter vetrataLayerRules;
+    services.niri.settings.includes = [
+      {
+        path = "${config.xdg.configHome}/vetrata/niri.kdl";
+        optional = true;
+      }
+    ];
 
     systemd.user.services.vetrata = lib.mkIf cfg.systemdUnit {
       Unit = {

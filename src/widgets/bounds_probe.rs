@@ -19,12 +19,39 @@ pub fn bounds_probe<'a, Message: 'a>(
     Element::new(BoundsProbe {
         content: content.into(),
         on_rects: Box::new(on_rects),
+        sizing: Sizing::Parent,
     })
+}
+
+pub fn natural_bounds_probe<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    on_rects: impl Fn(Vec<Rectangle>) -> Message + 'a,
+) -> Element<'a, Message> {
+    Element::new(BoundsProbe {
+        content: content.into(),
+        on_rects: Box::new(on_rects),
+        sizing: Sizing::Natural,
+    })
+}
+
+enum Sizing {
+    Parent,
+    Natural,
+}
+
+impl Sizing {
+    fn limits(&self, parent: &Limits) -> Limits {
+        match self {
+            Sizing::Parent => *parent,
+            Sizing::Natural => Limits::new(Size::ZERO, Size::INFINITE),
+        }
+    }
 }
 
 struct BoundsProbe<'a, Message> {
     content: Element<'a, Message>,
     on_rects: Box<dyn Fn(Vec<Rectangle>) -> Message + 'a>,
+    sizing: Sizing,
 }
 
 #[derive(Default)]
@@ -52,10 +79,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for BoundsProbe<'_, M
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let child = self
-            .content
-            .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, limits);
+        let child = self.content.as_widget_mut().layout(
+            &mut tree.children[0],
+            renderer,
+            &self.sizing.limits(limits),
+        );
         Node::with_children(child.size(), vec![child])
     }
 

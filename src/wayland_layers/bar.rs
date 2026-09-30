@@ -7,17 +7,18 @@ use iced::{
     widget::{Row, Space, container, mouse_area, row, stack, text},
     window::Id,
 };
-use iced_exwlshell::reexport::{KeyboardInteractivity, Layer, NewLayerShellSettings, OutputOption};
+use iced_exwlshell::reexport::{Layer, NewLayerShellSettings};
 
 use crate::{
     app::{Bar, Message},
     config::Config,
+    data::sink::niri_rules::StyledSurface,
     state::{PanelLayout, PanelSettings, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
         blur_caster::{self, Zone},
         sidebar,
-        surface::{Margin, Position},
+        surface::{self, Position},
         tooltip,
     },
     widget_groups::{
@@ -35,7 +36,7 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     if bar.backdrops.contains_key(&window) {
         return backdrop_shadow::fill();
     }
-    if bar.blur_casters.contains(window) || bar.sidebar_reservations.contains(window) {
+    if bar.blur_casters.contains(window) {
         return blur_caster::fill();
     }
     let Some(surface) = bar.surfaces.get(&window) else {
@@ -44,19 +45,23 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     match surface.position {
         Position::Top => dismissable_strip(
             bar,
-            tooltip::on_surface(window, Vector::ZERO, top_row(bar, window, surface.position)),
+            tooltip::on_surface(
+                window,
+                |_| Vector::ZERO,
+                top_row(bar, window, surface.position),
+            ),
         ),
         Position::Bottom => dismissable_strip(
             bar,
             tooltip::on_surface(
                 window,
-                Vector::ZERO,
+                |_| Vector::ZERO,
                 bottom_row(bar, window, &surface.output, surface.position),
             ),
         ),
         Position::Left => tooltip::on_surface(
             window,
-            sidebar::origin_in_tooltip_overlay(&bar.panel_settings.layout),
+            sidebar::origin_in_tooltip_overlay(bar, &surface.output),
             sidebar::view(bar, window, &surface.output),
         ),
     }
@@ -66,17 +71,15 @@ pub fn layer_settings(
     output: &str,
     position: Position,
     height: u32,
-    margin: Margin,
+    layout: &PanelLayout,
 ) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: position.strip_size(height),
         exclusive_zone: Some(height.cast_signed()),
         anchor: position.anchor(),
         layer: Layer::Top,
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: OutputOption::OutputName(output.to_string()),
-        margin: Some(margin.edges()),
-        ..Default::default()
+        margin: Some(position.float_margin(layout.margin_offset_px()).edges()),
+        ..surface::base_settings(Some(output), StyledSurface::Panel.namespace())
     }
 }
 
@@ -114,7 +117,7 @@ fn dismissable_strip<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element
         .into()
 }
 
-fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 7] {
+fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 8] {
     let config = &bar.config;
     [
         bar.weather_group
@@ -138,6 +141,9 @@ fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 7] {
         bar.panel_settings_group
             .widget_group(config, &bar.panel_settings.layout)
             .map_messages(Message::PanelSettings),
+        bar.niri_group
+            .widget_group(config, &bar.panel_settings.layout)
+            .map_messages(Message::NiriStyling),
     ]
 }
 

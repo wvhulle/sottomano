@@ -34,10 +34,14 @@ From left to right, all expanded:
   reading per link.
 - **Transfer.** Download and upload throughput, WireGuard tunnels and the
   Tailscale mesh with its peer count.
-- **Panel settings.** The panel's own shape: corner radius, float offset,
-  tint, blur, whether groups are separate pills or one bar, whether they
-  fold back on focus change, and whether the workspaces sit in the left
-  sidebar or inline in the bottom panel.
+- **Panel settings.** The panel's own layout: float offset, tint, whether
+  groups are separate pills or one bar, whether they fold back on focus
+  change, and whether the workspaces sit in the left sidebar or inline in the
+  bottom panel.
+- **Niri.** How niri draws the panels: blur, xray, drop shadow with its
+  softness, spread and opacity, and the corner radius that rounds all three.
+  Each change rewrites `~/.config/vetrata/niri.kdl`, which niri includes and
+  reloads live, so the panels restyle in place.
 
 ![The weather group expanded, the location card open](docs/location.png)
 
@@ -130,7 +134,8 @@ A debug build, running both panels.
 ## Install
 
 Import `homeModules.default` from the flake. It installs the package, writes
-`~/.config/vetrata.toml`, adds the niri layer rules and, unless
+`~/.config/vetrata.toml`, makes niri include `~/.config/vetrata/niri.kdl`
+(the layer rules vetrata writes for its own surfaces) and, unless
 `services.vetrata.systemdUnit` is disabled, a systemd user service bound to
 `graphical-session.target`.
 
@@ -143,9 +148,10 @@ ones are rejected rather than ignored.
 The bar watches the file and applies every change in place, including a symlink
 swapped to point elsewhere. An invalid file raises a critical toast with the
 error and the bar keeps its previous configuration (defaults when it starts on
-an invalid file). What you toggle from the settings panel — corner radius, float
-offset, tint, blur, grouping, workspace placement, do-not-disturb and toast
-sound — is remembered separately and never read from this file.
+an invalid file). What you toggle from the settings panel — float offset, tint,
+grouping, workspace placement, do-not-disturb and toast sound — is remembered
+separately and never read from this file. What you set in the niri group lives
+only in `~/.config/vetrata/niri.kdl`.
 
 ## Secrets
 

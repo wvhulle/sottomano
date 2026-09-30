@@ -2,10 +2,8 @@ use crate::state::{Columns, PanelSettings, StoreError, WorkspacesPlacement, open
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session (
     id INTEGER PRIMARY KEY CHECK (id = 0),
-    corner_radius_px REAL,
     float_offset_px REAL,
     chrome_tint_factor REAL,
-    blur_background INTEGER,
     disconnected_groups INTEGER,
     auto_collapse_groups INTEGER,
     dnd INTEGER,
@@ -16,17 +14,15 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_session 
 
 const COLUMNS_ADDED_LATER: [&str; 1] = ["workspaces_in_sidebar INTEGER"];
 
-const SELECT_PANEL_SETTINGS: &str = "SELECT corner_radius_px, float_offset_px, chrome_tint_factor,
-        blur_background, disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout,
+const SELECT_PANEL_SETTINGS: &str = "SELECT float_offset_px, chrome_tint_factor,
+        disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout,
         workspaces_in_sidebar
     FROM panel_session WHERE id = 0";
 
 #[derive(Debug, Clone, Copy)]
 enum Setting {
-    CornerRadius,
     FloatOffset,
     TintFactor,
-    BlurBackground,
     DisconnectedGroups,
     AutoCollapseGroups,
     DoNotDisturb,
@@ -38,10 +34,8 @@ enum Setting {
 impl Setting {
     fn column(self) -> &'static str {
         match self {
-            Self::CornerRadius => "corner_radius_px",
             Self::FloatOffset => "float_offset_px",
             Self::TintFactor => "chrome_tint_factor",
-            Self::BlurBackground => "blur_background",
             Self::DisconnectedGroups => "disconnected_groups",
             Self::AutoCollapseGroups => "auto_collapse_groups",
             Self::DoNotDisturb => "dnd",
@@ -59,16 +53,8 @@ pub async fn load() -> PanelSettings {
     })
 }
 
-pub async fn save_corner_radius(radius: f32) -> bool {
-    put(Setting::CornerRadius, measure(radius)).await
-}
-
 pub async fn save_float_offset(offset: f32) -> bool {
     put(Setting::FloatOffset, measure(offset)).await
-}
-
-pub async fn save_blur_background(blur: bool) {
-    put(Setting::BlurBackground, flag(blur)).await;
 }
 
 pub async fn save_disconnected_groups(disconnected: bool) {
@@ -155,17 +141,11 @@ async fn read_panel_settings(conn: &turso::Connection) -> Result<PanelSettings, 
     let Some(row) = rows.next().await? else {
         return Ok(panel_settings);
     };
-    if let Some(radius) = columns.optional_real(&row, "corner_radius_px")? {
-        panel_settings.layout.corner_radius = (radius as f32).into();
-    }
     if let Some(offset) = columns.optional_real(&row, "float_offset_px")? {
         panel_settings.layout.float_offset_px = offset as f32;
     }
     if let Some(factor) = columns.optional_real(&row, "chrome_tint_factor")? {
         panel_settings.layout.tint_factor = factor as f32;
-    }
-    if let Some(blur) = columns.optional_flag(&row, "blur_background")? {
-        panel_settings.layout.blur_background = blur;
     }
     if let Some(disconnected) = columns.optional_flag(&row, "disconnected_groups")? {
         panel_settings.layout.disconnected_groups = disconnected;
@@ -239,17 +219,13 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
         let value = columns.text(&row, "value")?;
         let set = value != "0";
         match key.as_str() {
-            "corner_radius_px" => {
-                panel_settings.layout.corner_radius =
-                    value.parse::<f32>().unwrap_or_default().into();
-            }
             "float_offset_px" => {
                 panel_settings.layout.float_offset_px = value.parse().unwrap_or_default();
             }
             "chrome_tint_factor" | "darken_chrome_factor" => {
                 panel_settings.layout.tint_factor = value.parse().unwrap_or_default();
             }
-            "blur_background" => panel_settings.layout.blur_background = set,
+            "corner_radius_px" | "blur_background" => {}
             "disconnected_groups" => panel_settings.layout.disconnected_groups = set,
             "auto_collapse_groups" => panel_settings.layout.auto_collapse_groups = set,
             "dnd" => panel_settings.toasts.do_not_disturb = set,
@@ -261,18 +237,15 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
     drop(rows);
 
     conn.execute(
-        "INSERT INTO panel_session (id, corner_radius_px, float_offset_px, chrome_tint_factor,
-             blur_background, disconnected_groups, auto_collapse_groups, dnd, sound, \
-         spatial_layout)
-         VALUES (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-         ON CONFLICT(id) DO UPDATE SET corner_radius_px = ?1, float_offset_px = ?2,
-             chrome_tint_factor = ?3, blur_background = ?4, disconnected_groups = ?5,
-             auto_collapse_groups = ?6, dnd = ?7, sound = ?8, spatial_layout = ?9",
+        "INSERT INTO panel_session (id, float_offset_px, chrome_tint_factor,
+             disconnected_groups, auto_collapse_groups, dnd, sound, spatial_layout)
+         VALUES (0, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET float_offset_px = ?1, chrome_tint_factor = ?2,
+             disconnected_groups = ?3, auto_collapse_groups = ?4, dnd = ?5, sound = ?6,
+             spatial_layout = ?7",
         (
-            f64::from(panel_settings.layout.corner_radius.top_left),
             f64::from(panel_settings.layout.float_offset_px),
             f64::from(panel_settings.layout.tint_factor),
-            i64::from(panel_settings.layout.blur_background),
             i64::from(panel_settings.layout.disconnected_groups),
             i64::from(panel_settings.layout.auto_collapse_groups),
             i64::from(panel_settings.toasts.do_not_disturb),
@@ -303,10 +276,8 @@ mod tests {
     async fn every_setting_round_trips_to_its_own_column() {
         let conn = connection().await;
         for (setting, value) in [
-            (Setting::CornerRadius, measure(12.5)),
             (Setting::FloatOffset, measure(3.25)),
             (Setting::TintFactor, measure(0.75)),
-            (Setting::BlurBackground, flag(true)),
             (Setting::DisconnectedGroups, flag(true)),
             (Setting::AutoCollapseGroups, flag(false)),
             (Setting::DoNotDisturb, flag(true)),
@@ -318,10 +289,8 @@ mod tests {
         }
 
         let panel_settings = read_panel_settings(&conn).await.unwrap();
-        assert!((panel_settings.layout.corner_radius.top_left - 12.5).abs() < f32::EPSILON);
         assert!((panel_settings.layout.float_offset_px - 3.25).abs() < f32::EPSILON);
         assert!((panel_settings.layout.tint_factor - 0.75).abs() < f32::EPSILON);
-        assert!(panel_settings.layout.blur_background);
         assert!(panel_settings.layout.disconnected_groups);
         assert!(!panel_settings.layout.auto_collapse_groups);
         assert!(panel_settings.toasts.do_not_disturb);
