@@ -9,6 +9,7 @@ use iced::{
 use iced_exwlshell::reexport::{
     Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
 };
+use tracing::Instrument;
 
 use crate::{
     app::{Bar, Message},
@@ -107,10 +108,8 @@ fn pill<'a>(
     config: &Config,
     panel_settings: &PanelSettings,
 ) -> Element<'a, Message> {
-    let background = config
-        .palette
-        .surface
-        .scale_alpha(panel_settings.layout.tint_factor);
+    let background = config.palette.surface;
+    // .scale_alpha(panel_settings.layout.tint_factor);
     let foreground = config.palette.bar_foreground;
     let radius = panel_settings.layout.corner_radius;
     container(content)

@@ -244,7 +244,7 @@ pub(crate) async fn adopt_legacy_settings(conn: &turso::Connection) -> Result<()
                     value.parse::<f32>().unwrap_or_default().into();
             }
             "float_offset_px" => {
-                panel_settings.layout.float_offset_px = value.parse().unwrap_or_default()
+                panel_settings.layout.float_offset_px = value.parse().unwrap_or_default();
             }
             "chrome_tint_factor" | "darken_chrome_factor" => {
                 panel_settings.layout.tint_factor = value.parse().unwrap_or_default();

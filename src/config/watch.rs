@@ -49,7 +49,7 @@ fn watch_parent_directory(path: &Path) -> io::Result<impl Stream<Item = ()> + us
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, os::unix::fs::symlink, path::PathBuf, process, time::Duration};
+    use std::{env, fs, os::unix::fs::symlink, path::PathBuf, process, time::Duration};
 
     use iced::futures::StreamExt;
     use tokio::time::timeout;
@@ -57,7 +57,7 @@ mod tests {
     use super::watch_parent_directory;
 
     fn scratch_directory(test: &str) -> PathBuf {
-        let directory = std::env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
+        let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
         fs::create_dir_all(&directory).unwrap();
         directory
     }
