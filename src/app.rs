@@ -952,5 +952,5 @@ impl Bar {
 }
 
 fn query_outputs() -> Task<Message> {
-    blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
+    blocking("niri outputs",niri::output_info).map(Message::OutputsResolved)
 }
