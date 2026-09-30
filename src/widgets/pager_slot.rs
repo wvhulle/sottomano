@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Length,
-    alignment::{Horizontal, Vertical},
+    alignment::Vertical,
     widget::{Column, Row, Space, container},
 };
 
@@ -48,11 +48,10 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
                 indicator,
             ]),
             Position::Left => Row::with_children([
-                ticks_along(ticks, band),
-                side_label(content, config),
+                ticks.unwrap_or_else(|| Space::new().width(band).into()),
+                stacked_label(content),
                 indicator,
             ])
-            .height(config.chrome.outer_height_px)
             .into(),
         }
     }
@@ -73,17 +72,6 @@ fn stacked_label<'a, Message: 'a>(content: Element<'a, Message>) -> Element<'a, 
         .into()
 }
 
-fn side_label<'a, Message: 'a>(
-    content: Element<'a, Message>,
-    config: &Config,
-) -> Element<'a, Message> {
-    container(content)
-        .height(Length::Fill)
-        .padding([0.0, config.spacing.widget_spacing_px])
-        .align_y(Vertical::Center)
-        .into()
-}
-
 fn ticks_across<'a, Message: 'a>(
     ticks: Option<Element<'a, Message>>,
     band: f32,
@@ -92,22 +80,6 @@ fn ticks_across<'a, Message: 'a>(
     ticks.map_or_else(
         || Space::new().height(band).into(),
         |ticks| container(ticks).height(band).align_y(edge).into(),
-    )
-}
-
-fn ticks_along<'a, Message: 'a>(
-    ticks: Option<Element<'a, Message>>,
-    band: f32,
-) -> Element<'a, Message> {
-    ticks.map_or_else(
-        || Space::new().width(band).into(),
-        |ticks| {
-            container(ticks)
-                .width(band)
-                .height(Length::Fill)
-                .align_x(Horizontal::Left)
-                .into()
-        },
     )
 }
 

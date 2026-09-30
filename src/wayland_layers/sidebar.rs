@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use iced::{
     Element, Length, Rectangle, Task,
     alignment::Vertical,
-    widget::{Column, Space, column, container, stack},
+    widget::{column, container},
     window::Id,
 };
 use iced_exwlshell::reexport::{
@@ -14,7 +14,6 @@ use iced_exwlshell::reexport::{
 use crate::{
     app::{Bar, Message},
     config::Config,
-    data::source::niri,
     state::ChromeState,
     wayland_layers::{
         blur_caster::{self, Zone},
@@ -77,7 +76,7 @@ fn layer_settings(output: &str, chrome: &ChromeState) -> NewLayerShellSettings {
 
 pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> {
     let config = &bar.config;
-    let Some(workspaces) = workspaces(&bar.niri_snapshot, output, config) else {
+    let Some(workspaces) = workspaces_group::view(&bar.niri_snapshot, output, config) else {
         return blur_caster::fill();
     };
     let pill = pill(
@@ -94,45 +93,6 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
         .height(Length::Fill)
         .align_y(Vertical::Center)
         .into()
-}
-
-fn workspaces<'a>(
-    niri: &niri::Snapshot,
-    output: &str,
-    config: &Config,
-) -> Option<Element<'a, WorkspacesMessage>> {
-    let workspaces = niri.workspaces_for_output(output);
-    if workspaces.is_empty() {
-        return None;
-    }
-    let spacing = config.spacing.widget_spacing_px;
-    let slots = workspaces
-        .iter()
-        .map(|p| workspaces_group::slot(niri, p, config, Position::Left));
-    let full_width_hit_areas = workspaces.iter().map(|p| {
-        workspaces_group::hit_area(
-            p,
-            Space::new()
-                .width(Length::Fill)
-                .height(config.chrome.outer_height_px)
-                .into(),
-            config,
-        )
-    });
-    Some(
-        stack![
-            workspaces_group::indicated(
-                Column::with_children(slots).spacing(spacing).into(),
-                workspaces,
-                config,
-                Position::Left,
-            ),
-            Column::with_children(full_width_hit_areas)
-                .spacing(spacing)
-                .width(Length::Fill),
-        ]
-        .into(),
-    )
 }
 
 fn workspace_message(message: WorkspacesMessage) -> Message {
