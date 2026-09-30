@@ -5,8 +5,8 @@ use iced::{
     advanced::{
         Clipboard, Layout, Shell, Widget,
         layout::{Limits, Node},
-        mouse, renderer,
-        widget::{Operation, Tree},
+        renderer,
+        widget::Tree,
     },
     mouse::Cursor,
 };
@@ -56,21 +56,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LayoutOnly<'_, Me
     ) {
     }
 
-    fn operate(
-        &mut self,
-        tree: &mut Tree,
-        layout: Layout<'_>,
-        renderer: &iced::Renderer,
-        operation: &mut dyn Operation,
-    ) {
-        self.content.as_widget_mut().operate(
-            &mut tree.children[0],
-            layout.children().next().unwrap(),
-            renderer,
-            operation,
-        );
-    }
-
     fn update(
         &mut self,
         tree: &mut Tree,
@@ -92,16 +77,5 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LayoutOnly<'_, Me
             shell,
             viewport,
         );
-    }
-
-    fn mouse_interaction(
-        &self,
-        _tree: &Tree,
-        _layout: Layout<'_>,
-        _cursor: Cursor,
-        _viewport: &Rectangle,
-        _renderer: &iced::Renderer,
-    ) -> mouse::Interaction {
-        mouse::Interaction::None
     }
 }

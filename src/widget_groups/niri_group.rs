@@ -20,10 +20,69 @@ use crate::{
     },
 };
 
-const RADIUS_RANGE: RangeInclusive<f32> = 0.0..=16.0;
-const SOFTNESS_RANGE: RangeInclusive<f32> = 0.0..=60.0;
-const SPREAD_RANGE: RangeInclusive<f32> = 0.0..=20.0;
-const OPACITY_RANGE: RangeInclusive<f32> = 0.0..=100.0;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Knob {
+    Radius,
+    Softness,
+    Spread,
+    Opacity,
+}
+
+impl Knob {
+    const ALL: [Self; 4] = [Self::Radius, Self::Softness, Self::Spread, Self::Opacity];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Radius => "Corner radius",
+            Self::Softness => "Shadow softness",
+            Self::Spread => "Shadow spread",
+            Self::Opacity => "Shadow opacity",
+        }
+    }
+
+    fn target(self) -> HoverTarget {
+        match self {
+            Self::Radius => HoverTarget::CornerRadius,
+            Self::Softness => HoverTarget::ShadowSoftness,
+            Self::Spread => HoverTarget::ShadowSpread,
+            Self::Opacity => HoverTarget::ShadowOpacity,
+        }
+    }
+
+    fn control(self) -> SliderControl {
+        let (range, icon, readout): (RangeInclusive<f32>, Phosphor, fn(f32) -> String) = match self
+        {
+            Self::Radius => (0.0..=16.0, Phosphor::FrameCorners(Weight::Regular), pixels),
+            Self::Softness => (0.0..=60.0, Phosphor::Feather(Weight::Regular), pixels),
+            Self::Spread => (0.0..=20.0, Phosphor::BoundingBox(Weight::Regular), pixels),
+            Self::Opacity => (0.0..=100.0, Phosphor::CircleHalf(Weight::Regular), percent),
+        };
+        SliderControl::new(range, self.target(), icon)
+            .icon_only()
+            .readout_width(44.0)
+            .readout(readout)
+    }
+
+    fn read(self, layout: &PanelLayout) -> f32 {
+        let shadow = layout.niri.shadow;
+        match self {
+            Self::Radius => layout.corner_radius.top_left,
+            Self::Softness => shadow.softness_px,
+            Self::Spread => shadow.spread_px,
+            Self::Opacity => shadow.opacity * 100.0,
+        }
+    }
+
+    fn write(self, layout: &mut PanelLayout, value: f32) {
+        let shadow = &mut layout.niri.shadow;
+        match self {
+            Self::Radius => layout.corner_radius = value.into(),
+            Self::Softness => shadow.softness_px = value,
+            Self::Spread => shadow.spread_px = value,
+            Self::Opacity => shadow.opacity = value / 100.0,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum NiriMessage {
@@ -32,26 +91,21 @@ pub enum NiriMessage {
     ToggleBlur,
     ToggleXray,
     ToggleShadow,
-    Radius(ControlMessage),
-    ShadowSoftness(ControlMessage),
-    ShadowSpread(ControlMessage),
-    ShadowOpacity(ControlMessage),
+    Slider(Knob, ControlMessage),
 }
 
 pub struct NiriGroup {
     pub(crate) expansion: GroupExpansion,
     rules: NiriRulesFile,
-    radius: SliderControl,
-    softness: SliderControl,
-    spread: SliderControl,
-    opacity: SliderControl,
+    sliders: [SliderControl; 4],
 }
 
-fn pixel_slider(range: RangeInclusive<f32>, target: HoverTarget, icon: Phosphor) -> SliderControl {
-    SliderControl::new(range, target, icon)
-        .icon_only()
-        .readout_width(44.0)
-        .readout(|value| format!("{} px", value.round()))
+fn pixels(value: f32) -> String {
+    format!("{} px", value.round())
+}
+
+fn percent(value: f32) -> String {
+    format!("{} %", value.round())
 }
 
 fn switch_tooltip(label: &str, on: bool, described: &str) -> Tooltip {
@@ -63,30 +117,12 @@ impl NiriGroup {
         Self {
             expansion: GroupExpansion::default(),
             rules,
-            radius: pixel_slider(
-                RADIUS_RANGE,
-                HoverTarget::CornerRadius,
-                Phosphor::FrameCorners(Weight::Regular),
-            ),
-            softness: pixel_slider(
-                SOFTNESS_RANGE,
-                HoverTarget::ShadowSoftness,
-                Phosphor::Feather(Weight::Regular),
-            ),
-            spread: pixel_slider(
-                SPREAD_RANGE,
-                HoverTarget::ShadowSpread,
-                Phosphor::BoundingBox(Weight::Regular),
-            ),
-            opacity: SliderControl::new(
-                OPACITY_RANGE,
-                HoverTarget::ShadowOpacity,
-                Phosphor::CircleHalf(Weight::Regular),
-            )
-            .icon_only()
-            .readout_width(44.0)
-            .readout(|value| format!("{} %", value.round())),
+            sliders: Knob::ALL.map(Knob::control),
         }
+    }
+
+    fn slider(&self, knob: Knob) -> &SliderControl {
+        &self.sliders[knob as usize]
     }
 
     pub fn load(&self) -> Task<Message> {
@@ -99,59 +135,35 @@ impl NiriGroup {
         self.rules.write(layout).discard()
     }
 
-    fn restyle_confirming(
-        &mut self,
-        layout: &PanelLayout,
-        value: f32,
-        wrap: fn(ControlMessage) -> NiriMessage,
-    ) -> Task<Message> {
-        self.rules
-            .write(layout)
-            .map(move |ok| Message::NiriStyling(wrap(ControlMessage::Persisted { value, ok })))
-    }
-
     pub fn tooltip_for(&self, target: &HoverTarget, layout: &PanelLayout) -> Option<Tooltip> {
+        let niri = layout.niri;
         match target {
             HoverTarget::BlurBackground => Some(switch_tooltip(
                 "Blur",
-                layout.niri.blurred,
+                niri.blurred,
                 "on — frosted behind the panels",
             )),
             HoverTarget::Xray => Some(switch_tooltip(
                 "Xray",
-                layout.niri.xray,
+                niri.xray,
                 "on — blur shows only the wallpaper",
             )),
             HoverTarget::DropShadow => Some(switch_tooltip(
                 "Shadow",
-                layout.niri.shadow.cast,
+                niri.shadow.cast,
                 "on — panels cast a drop shadow",
             )),
-            HoverTarget::CornerRadius => Some(Tooltip::table(vec![row(
-                "Corners",
-                format!("{} radius", self.radius.readout_text()),
-            )])),
-            HoverTarget::ShadowSoftness => Some(Tooltip::table(vec![row(
-                "Shadow softness",
-                self.softness.readout_text(),
-            )])),
-            HoverTarget::ShadowSpread => Some(Tooltip::table(vec![row(
-                "Shadow spread",
-                self.spread.readout_text(),
-            )])),
-            HoverTarget::ShadowOpacity => Some(Tooltip::table(vec![row(
-                "Shadow opacity",
-                self.opacity.readout_text(),
-            )])),
-            _ => None,
+            _ => Knob::ALL
+                .into_iter()
+                .find(|knob| knob.target() == *target)
+                .map(|knob| {
+                    Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())])
+                }),
         }
     }
 
     fn close_sliders(&mut self) {
-        self.radius.close();
-        self.softness.close();
-        self.spread.close();
-        self.opacity.close();
+        self.sliders.iter_mut().for_each(SliderControl::close);
     }
 
     pub fn collapse(&mut self) {
@@ -163,10 +175,10 @@ impl NiriGroup {
     pub fn update(&mut self, msg: NiriMessage, layout: &mut PanelLayout) -> Task<Message> {
         match msg {
             NiriMessage::Loaded(stored) => {
-                layout.niri = stored.look.styling;
-                layout.corner_radius = stored.look.corner_radius_px.into();
-                self.rules.adopt(&stored);
-                self.adopt(layout);
+                self.rules.adopt(stored, layout);
+                for knob in Knob::ALL {
+                    self.sliders[knob as usize].update(ControlMessage::Reading(knob.read(layout)));
+                }
                 self.restyle(layout)
             }
             NiriMessage::Expansion(menu) => {
@@ -187,46 +199,20 @@ impl NiriGroup {
                 layout.niri.shadow.cast = !layout.niri.shadow.cast;
                 self.restyle(layout)
             }
-            NiriMessage::Radius(msg) => {
-                let SliderAction::Commit(radius) = self.radius.update(msg) else {
+            NiriMessage::Slider(knob, control) => {
+                let SliderAction::Commit(value) = self.sliders[knob as usize].update(control)
+                else {
                     return Task::none();
                 };
-                layout.corner_radius = radius.into();
-                self.restyle_confirming(layout, radius, NiriMessage::Radius)
-            }
-            NiriMessage::ShadowSoftness(msg) => {
-                let SliderAction::Commit(softness) = self.softness.update(msg) else {
-                    return Task::none();
-                };
-                layout.niri.shadow.softness_px = softness;
-                self.restyle_confirming(layout, softness, NiriMessage::ShadowSoftness)
-            }
-            NiriMessage::ShadowSpread(msg) => {
-                let SliderAction::Commit(spread) = self.spread.update(msg) else {
-                    return Task::none();
-                };
-                layout.niri.shadow.spread_px = spread;
-                self.restyle_confirming(layout, spread, NiriMessage::ShadowSpread)
-            }
-            NiriMessage::ShadowOpacity(msg) => {
-                let SliderAction::Commit(percent) = self.opacity.update(msg) else {
-                    return Task::none();
-                };
-                layout.niri.shadow.opacity = percent / 100.0;
-                self.restyle_confirming(layout, percent, NiriMessage::ShadowOpacity)
+                knob.write(layout, value);
+                self.rules.write(layout).map(move |ok| {
+                    Message::NiriStyling(NiriMessage::Slider(
+                        knob,
+                        ControlMessage::Persisted { value, ok },
+                    ))
+                })
             }
         }
-    }
-
-    fn adopt(&mut self, layout: &PanelLayout) {
-        self.radius
-            .update(ControlMessage::Reading(layout.corner_radius.top_left));
-        self.softness
-            .update(ControlMessage::Reading(layout.niri.shadow.softness_px));
-        self.spread
-            .update(ControlMessage::Reading(layout.niri.shadow.spread_px));
-        self.opacity
-            .update(ControlMessage::Reading(layout.niri.shadow.opacity * 100.0));
     }
 
     pub fn widget_group<'a>(
@@ -234,44 +220,36 @@ impl NiriGroup {
         config: &'a Config,
         layout: &PanelLayout,
     ) -> WidgetGroup<'a, NiriMessage> {
-        WidgetGroup::new(&self.expansion, NiriMessage::Expansion)
+        let niri = layout.niri;
+        let toggles = WidgetGroup::new(&self.expansion, NiriMessage::Expansion)
             .icon(Phosphor::AppWindow(Weight::Regular))
             .item(icon_toggle_item(
                 config,
                 Phosphor::Snowflake(Weight::Regular),
-                layout.niri.blurred,
+                niri.blurred,
                 NiriMessage::ToggleBlur,
                 HoverTarget::BlurBackground,
             ))
             .item(icon_toggle_item(
                 config,
                 Phosphor::Eye(Weight::Regular),
-                layout.niri.xray,
+                niri.xray,
                 NiriMessage::ToggleXray,
                 HoverTarget::Xray,
             ))
             .item(icon_toggle_item(
                 config,
                 Phosphor::SelectionBackground(Weight::Regular),
-                layout.niri.shadow.cast,
+                niri.shadow.cast,
                 NiriMessage::ToggleShadow,
                 HoverTarget::DropShadow,
-            ))
-            .item(GroupItem::slider(&self.radius, config, NiriMessage::Radius))
-            .item(GroupItem::slider(
-                &self.softness,
+            ));
+        Knob::ALL.into_iter().fold(toggles, |group, knob| {
+            group.item(GroupItem::slider(
+                self.slider(knob),
                 config,
-                NiriMessage::ShadowSoftness,
+                move |control| NiriMessage::Slider(knob, control),
             ))
-            .item(GroupItem::slider(
-                &self.spread,
-                config,
-                NiriMessage::ShadowSpread,
-            ))
-            .item(GroupItem::slider(
-                &self.opacity,
-                config,
-                NiriMessage::ShadowOpacity,
-            ))
+        })
     }
 }

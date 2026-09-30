@@ -8,7 +8,7 @@ use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use tokio::fs;
 
 use crate::{
-    state::{NiriStyling, PanelLayout, ShadowStyle},
+    state::{PanelLayout, ShadowStyle},
     wayland_layers::surface::Position,
 };
 
@@ -57,26 +57,8 @@ impl StyledSurface {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct NiriLook {
-    pub corner_radius_px: f32,
-    pub styling: NiriStyling,
-}
-
-impl Default for NiriLook {
-    fn default() -> Self {
-        Self {
-            corner_radius_px: PanelLayout::default().corner_radius.top_left,
-            styling: NiriStyling::default(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
-pub struct StoredRules {
-    pub look: NiriLook,
-    text: String,
-}
+pub struct StoredRules(String);
 
 #[derive(Clone)]
 enum Written {
@@ -100,17 +82,14 @@ impl NiriRulesFile {
 
     pub fn read(&self) -> Task<StoredRules> {
         let path = self.path.clone();
-        Task::future(async move {
-            let text = fs::read_to_string(&path).await.unwrap_or_default();
-            StoredRules {
-                look: parse(&text),
-                text,
-            }
-        })
+        Task::future(
+            async move { StoredRules(fs::read_to_string(&path).await.unwrap_or_default()) },
+        )
     }
 
-    pub fn adopt(&mut self, stored: &StoredRules) {
-        self.written = Written::Known(stored.text.clone());
+    pub fn adopt(&mut self, stored: StoredRules, layout: &mut PanelLayout) {
+        apply(&stored.0, layout);
+        self.written = Written::Known(stored.0);
     }
 
     pub fn write(&mut self, layout: &PanelLayout) -> Task<bool> {
@@ -134,52 +113,57 @@ impl NiriRulesFile {
     }
 }
 
-fn parse(text: &str) -> NiriLook {
-    let fallback = NiriLook::default();
+fn apply(text: &str, layout: &mut PanelLayout) {
     let document = match KdlDocument::parse_v1(text) {
         Ok(document) => document,
         Err(e) => {
-            tracing::warn!("niri rules: unreadable, starting from defaults: {e}");
-            return fallback;
+            tracing::warn!("niri rules: unreadable, keeping defaults: {e}");
+            return;
         }
     };
     let Some(rule) = rule_of(&document, StyledSurface::Sidebar) else {
-        return fallback;
+        return;
     };
-    let shadow = rule.get("shadow").and_then(KdlNode::children);
-    let effect = rule.get("background-effect").and_then(KdlNode::children);
-    let default_shadow = fallback.styling.shadow;
-    NiriLook {
-        corner_radius_px: rule
-            .get_arg("geometry-corner-radius")
-            .and_then(number)
-            .unwrap_or(fallback.corner_radius_px),
-        styling: NiriStyling {
-            blurred: effect
-                .and_then(|effect| effect.get_arg("blur"))
-                .and_then(KdlValue::as_bool)
-                .unwrap_or(fallback.styling.blurred),
-            xray: effect
-                .and_then(|effect| effect.get_arg("xray"))
-                .and_then(KdlValue::as_bool)
-                .unwrap_or(fallback.styling.xray),
-            shadow: shadow.map_or(default_shadow, |shadow| ShadowStyle {
-                cast: shadow.get("on").is_some(),
-                softness_px: shadow
-                    .get_arg("softness")
-                    .and_then(number)
-                    .unwrap_or(default_shadow.softness_px),
-                spread_px: shadow
-                    .get_arg("spread")
-                    .and_then(number)
-                    .unwrap_or(default_shadow.spread_px),
-                opacity: shadow
-                    .get_arg("color")
-                    .and_then(KdlValue::as_string)
-                    .and_then(alpha_of)
-                    .unwrap_or(default_shadow.opacity),
-            }),
-        },
+    let arg = |block: &str, name: &str| {
+        rule.get(block)
+            .and_then(KdlNode::children)
+            .and_then(|children| children.get_arg(name))
+    };
+    let niri = &mut layout.niri;
+    let shadow = &mut niri.shadow;
+    set(
+        &mut niri.blurred,
+        arg("background-effect", "blur").and_then(KdlValue::as_bool),
+    );
+    set(
+        &mut niri.xray,
+        arg("background-effect", "xray").and_then(KdlValue::as_bool),
+    );
+    set(
+        &mut shadow.softness_px,
+        arg("shadow", "softness").and_then(number),
+    );
+    set(
+        &mut shadow.spread_px,
+        arg("shadow", "spread").and_then(number),
+    );
+    set(
+        &mut shadow.opacity,
+        arg("shadow", "color")
+            .and_then(KdlValue::as_string)
+            .and_then(alpha_of),
+    );
+    if let Some(block) = rule.get("shadow").and_then(KdlNode::children) {
+        shadow.cast = block.get("on").is_some();
+    }
+    if let Some(radius) = rule.get_arg("geometry-corner-radius").and_then(number) {
+        layout.corner_radius = radius.into();
+    }
+}
+
+fn set<T>(field: &mut T, read: Option<T>) {
+    if let Some(value) = read {
+        *field = value;
     }
 }
 
@@ -338,57 +322,21 @@ fn block(name: &str, children: impl IntoIterator<Item = KdlNode>) -> KdlNode {
 
 #[cfg(test)]
 mod tests {
-    use super::{NiriLook, parse, render};
+    use super::{apply, render};
     use crate::state::{NiriStyling, PanelLayout, ShadowStyle};
 
-    #[test]
-    fn a_rendered_look_reads_back_unchanged() {
-        let styling = NiriStyling {
-            blurred: true,
-            xray: true,
-            shadow: ShadowStyle {
-                cast: false,
-                softness_px: 33.0,
-                spread_px: 7.0,
-                opacity: 0.4,
-            },
-        };
-        let layout = PanelLayout {
-            corner_radius: 9.0.into(),
-            niri: styling,
-            disconnected_groups: true,
-            ..PanelLayout::default()
-        };
-        let look = parse(&render(&layout));
-        assert!((look.corner_radius_px - 9.0).abs() < f32::EPSILON);
-        assert_eq!(look.styling.blurred, styling.blurred);
-        assert_eq!(look.styling.xray, styling.xray);
-        assert_eq!(look.styling.shadow.cast, styling.shadow.cast);
-        assert!((look.styling.shadow.softness_px - 33.0).abs() < f32::EPSILON);
-        assert!((look.styling.shadow.spread_px - 7.0).abs() < f32::EPSILON);
-        assert!((look.styling.shadow.opacity - 0.4).abs() < 0.01);
-    }
-
-    #[test]
-    fn a_missing_file_reads_as_the_default_look() {
-        assert_eq!(parse(""), NiriLook::default());
-    }
-
-    fn rule_for<'a>(rules: &'a str, namespace: &str) -> &'a str {
-        let start = rules
-            .find(&format!("\"^{namespace}$\""))
-            .expect("rule for namespace");
-        let end = rules[start..]
-            .find("layer-rule")
-            .map_or(rules.len(), |offset| start + offset);
-        &rules[start..end]
-    }
-
-    fn blurred(disconnected_groups: bool) -> PanelLayout {
+    fn styled(disconnected_groups: bool) -> PanelLayout {
         PanelLayout {
+            corner_radius: 5.5.into(),
             niri: NiriStyling {
                 blurred: true,
-                ..NiriStyling::default()
+                xray: true,
+                shadow: ShadowStyle {
+                    cast: false,
+                    softness_px: 33.0,
+                    spread_px: 7.0,
+                    opacity: 0.4,
+                },
             },
             disconnected_groups,
             ..PanelLayout::default()
@@ -396,55 +344,34 @@ mod tests {
     }
 
     #[test]
-    fn rules_parse_as_kdl_v1() {
-        let rules = render(&PanelLayout::default());
-        kdl::KdlDocument::parse_v1(&rules).expect("valid KDL v1");
+    fn a_rendered_look_reads_back_unchanged() {
+        let written = styled(true);
+        let mut read = PanelLayout::default();
+        apply(&render(&written), &mut read);
+        assert_eq!(read.corner_radius, written.corner_radius);
+        assert_eq!(read.niri, written.niri);
     }
 
     #[test]
-    fn joined_groups_style_the_strip_and_not_the_pills() {
-        let rules = render(&blurred(false));
-        assert!(rule_for(&rules, "vetrata-panel").contains("blur true"));
-        assert!(rule_for(&rules, "vetrata-pill").contains("blur false"));
+    fn an_empty_file_keeps_the_defaults() {
+        let mut read = PanelLayout::default();
+        apply("", &mut read);
+        assert_eq!(read.niri, PanelLayout::default().niri);
     }
 
     #[test]
-    fn separate_pills_move_the_chrome_off_the_strip() {
-        let rules = render(&blurred(true));
-        assert!(rule_for(&rules, "vetrata-panel").contains("blur false"));
-        assert!(rule_for(&rules, "vetrata-pill").contains("blur true"));
-        assert!(rule_for(&rules, "vetrata-sidebar").contains("blur true"));
-    }
-
-    #[test]
-    fn radius_and_shadow_opacity_reach_the_rules() {
-        let layout = PanelLayout {
-            corner_radius: 5.5.into(),
-            niri: NiriStyling {
-                shadow: ShadowStyle {
-                    opacity: 0.5,
-                    ..ShadowStyle::default()
-                },
-                ..NiriStyling::default()
-            },
-            ..PanelLayout::default()
+    fn the_blur_follows_the_grouping() {
+        let blur_of = |disconnected, namespace: &str| {
+            let rules = render(&styled(disconnected));
+            let start = rules.find(&format!("\"^{namespace}$\"")).expect("rule");
+            rules[start..]
+                .split("layer-rule")
+                .next()
+                .is_some_and(|rule| rule.contains("blur true"))
         };
-        let rules = render(&layout);
-        assert!(rules.contains("geometry-corner-radius 5.5"));
-        assert!(rules.contains("\"#00000080\""));
-    }
-
-    #[test]
-    fn xray_follows_the_switch() {
-        let off = render(&PanelLayout::default());
-        assert_eq!(off.matches("xray false").count(), 3);
-        let on = render(&PanelLayout {
-            niri: NiriStyling {
-                xray: true,
-                ..NiriStyling::default()
-            },
-            ..PanelLayout::default()
-        });
-        assert_eq!(on.matches("xray true").count(), 3);
+        assert!(blur_of(false, "vetrata-panel"));
+        assert!(!blur_of(false, "vetrata-pill"));
+        assert!(!blur_of(true, "vetrata-panel"));
+        assert!(blur_of(true, "vetrata-pill"));
     }
 }

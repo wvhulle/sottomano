@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use iced::{Rectangle, Task, window::Id};
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
@@ -34,7 +34,6 @@ pub struct PillPlacement {
 
 #[derive(Default)]
 pub struct PanelPills {
-    ids: HashSet<Id>,
     pills: HashMap<(Id, Zone), Vec<(Id, Rectangle)>>,
     rects: HashMap<(Id, Zone), Vec<Rectangle>>,
 }
@@ -59,23 +58,18 @@ impl PanelPills {
         layout: &PanelLayout,
         bars: &BTreeMap<Id, Surface>,
     ) -> Task<Message> {
-        let mut tasks: Vec<Task<Message>> = self
-            .ids
-            .drain()
-            .map(|id| Task::done(Message::RemoveWindow(id)))
-            .collect();
-        self.pills.clear();
+        let closed = close(self.pills.drain().flat_map(|(_, list)| list));
         self.rects
             .retain(|(window, _), _| bars.contains_key(window));
-        if casts_pills(layout) {
-            let rects = self.rects.clone();
-            for ((window, zone), list) in rects {
-                if let Some(surface) = bars.get(&window) {
-                    tasks.push(self.open_pills(window, zone, &list, surface, config, layout));
-                }
-            }
-        }
-        Task::batch(tasks)
+        let reopened: Vec<Task<Message>> = self
+            .rects
+            .clone()
+            .into_iter()
+            .map(|((window, zone), rects)| {
+                self.pill_rects(window, zone, &rects, config, layout, bars)
+            })
+            .collect();
+        Task::batch([closed, Task::batch(reopened)])
     }
 
     pub fn pill_rects(
@@ -90,48 +84,41 @@ impl PanelPills {
         self.rects.insert((window, zone), new.to_vec());
         let Some(surface) = bars
             .get(&window)
-            .filter(|surface| !surface.position.is_vertical() && casts_pills(layout))
+            .filter(|surface| !surface.position.is_vertical() && layout.disconnected_groups)
         else {
             return Task::none();
         };
         let position = surface.position;
-        let output = surface.output.clone();
-        let float = active_float_margin(layout, position);
-        let key = (window, zone);
-        let mut current = self.pills.remove(&key).unwrap_or_default();
-        let mut tasks = Vec::new();
-        while current.len() > new.len() {
-            let (id, _) = current.pop().expect("length checked above");
-            self.ids.remove(&id);
-            tasks.push(Task::done(Message::RemoveWindow(id)));
-        }
-        for (index, rect) in new.iter().enumerate() {
+        let float = position.float_margin(layout.margin_offset_px());
+        let mut current = self.pills.remove(&(window, zone)).unwrap_or_default();
+        let surplus = close(current.drain(new.len().min(current.len())..));
+        let mut tasks = vec![surplus];
+        for (index, &rect) in new.iter().enumerate() {
             match current.get_mut(index) {
-                Some((id, old)) if old != rect => {
-                    *old = *rect;
+                Some((id, old)) if *old != rect => {
+                    *old = rect;
                     tasks.push(Task::done(Message::MarginChange {
                         id: *id,
-                        margin: pill_margin(position, float, *rect).edges(),
+                        margin: pill_margin(position, float, rect).edges(),
                     }));
                     tasks.push(Task::done(Message::LayoutChange {
                         id: *id,
                         anchor: pill_anchor(position),
-                        size: pill_size(position, *rect, config),
+                        size: pill_size(rect, config),
                     }));
                 }
                 Some(_) => {}
                 None => {
                     let id = Id::unique();
-                    self.ids.insert(id);
-                    current.push((id, *rect));
+                    current.push((id, rect));
                     tasks.push(Task::done(Message::NewLayerShell {
-                        settings: pill_settings(&output, position, *rect, config, layout),
+                        settings: pill_settings(&surface.output, position, float, rect, config),
                         id,
                     }));
                 }
             }
         }
-        self.pills.insert(key, current);
+        self.pills.insert((window, zone), current);
         Task::batch(tasks)
     }
 
@@ -139,11 +126,11 @@ impl PanelPills {
         let pills = self.pills.iter().flat_map(|((window, _), list)| {
             let surface = bars.get(window);
             list.iter().filter_map(move |&(pill, rect)| {
-                let surface = surface?;
-                let float = active_float_margin(layout, surface.position);
+                let position = surface?.position;
+                let float = position.float_margin(layout.margin_offset_px());
                 Some(Task::done(Message::MarginChange {
                     id: pill,
-                    margin: pill_margin(surface.position, float, rect).edges(),
+                    margin: pill_margin(position, float, rect).edges(),
                 }))
             })
         });
@@ -151,68 +138,30 @@ impl PanelPills {
     }
 
     pub fn forget(&mut self, window: Id) -> Task<Message> {
-        self.ids.remove(&window);
-        let mut closed = Vec::new();
-        let zones: Vec<_> = self
+        self.rects.retain(|(bar, _), _| *bar != window);
+        let strips: Vec<(Id, Zone)> = self
             .pills
             .keys()
             .filter(|(bar, _)| *bar == window)
             .copied()
             .collect();
-        for key in zones {
-            if let Some(list) = self.pills.remove(&key) {
-                closed.extend(list.into_iter().map(|(id, _)| id));
-            }
-        }
-        self.rects.retain(|(bar, _), _| *bar != window);
-        for id in &closed {
-            self.ids.remove(id);
-        }
-        Task::batch(
-            closed
+        close(
+            strips
                 .into_iter()
-                .map(|id| Task::done(Message::RemoveWindow(id))),
+                .filter_map(|key| self.pills.remove(&key))
+                .flatten()
+                .collect::<Vec<_>>(),
         )
     }
-
-    fn open_pills(
-        &mut self,
-        window: Id,
-        zone: Zone,
-        rects: &[Rectangle],
-        surface: &Surface,
-        config: &Config,
-        layout: &PanelLayout,
-    ) -> Task<Message> {
-        let pills: Vec<(Id, Rectangle)> =
-            rects.iter().map(|&rect| (Id::unique(), rect)).collect();
-        let tasks: Vec<Task<Message>> = pills
-            .iter()
-            .map(|&(id, rect)| {
-                self.ids.insert(id);
-                Task::done(Message::NewLayerShell {
-                    settings: pill_settings(
-                        &surface.output,
-                        surface.position,
-                        rect,
-                        config,
-                        layout,
-                    ),
-                    id,
-                })
-            })
-            .collect();
-        self.pills.insert((window, zone), pills);
-        Task::batch(tasks)
-    }
 }
 
-fn casts_pills(layout: &PanelLayout) -> bool {
-    layout.disconnected_groups
-}
-
-fn active_float_margin(layout: &PanelLayout, position: Position) -> Margin {
-    position.float_margin(layout.margin_offset_px())
+fn close(pills: impl IntoIterator<Item = (Id, Rectangle)>) -> Task<Message> {
+    Task::batch(
+        pills
+            .into_iter()
+            .map(|(id, _)| Task::done(Message::RemoveWindow(id)))
+            .collect::<Vec<_>>(),
+    )
 }
 
 fn pill_anchor(position: Position) -> Anchor {
@@ -225,13 +174,12 @@ fn pill_anchor(position: Position) -> Anchor {
 fn pill_settings(
     output: &str,
     position: Position,
+    float: Margin,
     rect: Rectangle,
     config: &Config,
-    layout: &PanelLayout,
 ) -> NewLayerShellSettings {
-    let float = active_float_margin(layout, position);
     NewLayerShellSettings {
-        size: pill_size(position, rect, config),
+        size: pill_size(rect, config),
         exclusive_zone: Some(-1),
         anchor: pill_anchor(position),
         layer: Layer::Top,
@@ -244,7 +192,7 @@ fn pill_settings(
 fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
     let left = float.left + rect.x.round() as i32;
     match position {
-        Position::Top => Margin {
+        Position::Top | Position::Left => Margin {
             top: float.top,
             right: 0,
             bottom: 0,
@@ -256,20 +204,13 @@ fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
             bottom: float.bottom,
             left,
         },
-        Position::Left => Margin {
-            top: float.top + rect.y.round() as i32,
-            right: 0,
-            bottom: 0,
-            left,
-        },
     }
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn pill_size(position: Position, rect: Rectangle, config: &Config) -> LayerSize {
-    let height = match position {
-        Position::Top | Position::Bottom => config.bar.height_px,
-        Position::Left => rect.height.round().max(1.0),
-    };
-    LayerSize::px(rect.width.ceil().max(1.0) as u32, height as u32)
+fn pill_size(rect: Rectangle, config: &Config) -> LayerSize {
+    LayerSize::px(
+        rect.width.ceil().max(1.0) as u32,
+        config.bar.height_px as u32,
+    )
 }
