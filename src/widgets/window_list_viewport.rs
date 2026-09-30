@@ -1,7 +1,7 @@
 use std::slice::from_ref;
 
 use iced::{
-    Element, Event, Length, Rectangle, Size, Vector,
+    Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -75,13 +75,18 @@ struct State {
 }
 
 impl<Message> WindowListViewport<'_, Message> {
-    fn shift(&self, bounds: Rectangle, natural: f32) -> Vector {
-        if natural <= bounds.width {
-            Vector::new((bounds.width - natural) / 2.0, 0.0)
-        } else {
-            let offset = self.offset.clamp(0.0, natural - bounds.width);
-            Vector::new(-offset, 0.0)
-        }
+    fn scrolled_origin(&self, viewport_width: f32, natural_width: f32) -> Point {
+        let max_offset = (natural_width - viewport_width).max(0.0);
+        Point::new(-self.offset.clamp(0.0, max_offset), 0.0)
+    }
+}
+
+fn visible_strip(bounds: Rectangle, viewport: &Rectangle) -> Rectangle {
+    Rectangle {
+        x: bounds.x,
+        width: bounds.width,
+        y: viewport.y,
+        height: viewport.height,
     }
 }
 
@@ -119,7 +124,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
                 .layout(&mut tree.children[0], renderer, &natural_limits);
         let natural = child.size();
         let width = natural.width.min(budget);
-        Node::with_children(Size::new(width, natural.height), vec![child])
+        let origin = self.scrolled_origin(width, natural.width);
+        Node::with_children(
+            Size::new(width, natural.height),
+            vec![child.move_to(origin)],
+        )
     }
 
     fn draw(
@@ -133,33 +142,17 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let child_layout = layout.children().next().unwrap();
-        let d = self.shift(bounds, natural_width(layout));
-        let clip = Rectangle {
-            x: bounds.x,
-            width: bounds.width,
-            y: viewport.y,
-            height: viewport.height,
-        };
-        let child_cursor = clip_cursor(cursor, bounds) - d;
-        let child_viewport = Rectangle {
-            x: bounds.x - d.x,
-            width: bounds.width,
-            y: viewport.y,
-            height: viewport.height,
-        };
+        let clip = visible_strip(bounds, viewport);
         renderer.with_layer(clip, |renderer| {
-            renderer.with_translation(d, |renderer| {
-                self.content.as_widget().draw(
-                    &tree.children[0],
-                    renderer,
-                    theme,
-                    style,
-                    child_layout,
-                    child_cursor,
-                    &child_viewport,
-                );
-            });
+            self.content.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                style,
+                layout.children().next().unwrap(),
+                clip_cursor(cursor, bounds),
+                &clip,
+            );
         });
     }
 
@@ -177,22 +170,15 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         let bounds = layout.bounds();
         let child_layout = layout.children().next().unwrap();
         let natural = natural_width(layout);
-        let d = self.shift(bounds, natural);
-        let child_viewport = Rectangle {
-            x: bounds.x - d.x,
-            width: bounds.width,
-            y: viewport.y,
-            height: viewport.height,
-        };
         self.content.as_widget_mut().update(
             &mut tree.children[0],
             event,
             child_layout,
-            clip_cursor(cursor, bounds) - d,
+            clip_cursor(cursor, bounds),
             renderer,
             clipboard,
             shell,
-            &child_viewport,
+            &visible_strip(bounds, viewport),
         );
 
         match event {
@@ -238,12 +224,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         renderer: &iced::Renderer,
     ) -> mouse::Interaction {
         let bounds = layout.bounds();
-        let d = self.shift(bounds, natural_width(layout));
         self.content.as_widget().mouse_interaction(
             &tree.children[0],
             layout.children().next().unwrap(),
-            clip_cursor(cursor, bounds) - d,
-            viewport,
+            clip_cursor(cursor, bounds),
+            &visible_strip(bounds, viewport),
             renderer,
         )
     }
@@ -271,14 +256,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
-        let bounds = layout.bounds();
-        let d = self.shift(bounds, natural_width(layout));
         self.content.as_widget_mut().overlay(
             &mut tree.children[0],
             layout.children().next().unwrap(),
             renderer,
             viewport,
-            translation + d,
+            translation,
         )
     }
 }
