@@ -131,10 +131,13 @@ pub(crate) fn blocking<T: Default + Send + 'static>(
 ) -> Task<T> {
     Task::perform(
         async move {
-            spawn_blocking(work).await.unwrap_or_else(|e| {
-                tracing::error!("{context}: task panicked: {e}");
-                T::default()
-            })
+            let span = tracing::debug_span!("blocking", context);
+            spawn_blocking(move || span.in_scope(work))
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::error!("{context}: task panicked: {e}");
+                    T::default()
+                })
         },
         identity,
     )
