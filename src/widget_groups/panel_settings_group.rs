@@ -1,4 +1,4 @@
-use std::{future::Future, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
 use iced::Task;
 
@@ -7,6 +7,7 @@ use crate::{
     config::Config,
     state::{self, PanelLayout, WorkspacesPlacement},
     wayland_layers::tooltip::HoverTarget,
+    widget_groups::niri_group::switch_tooltip,
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
@@ -22,19 +23,111 @@ pub enum Action {
     Run(Task<Message>),
     RebuildBlur(Task<Message>),
     Reflow(Task<Message>),
-    PlaceWorkspaces(Task<Message>),
 }
 
-const OFFSET_RANGE: RangeInclusive<f32> = 0.0..=24.0;
-const TINT_RANGE: RangeInclusive<f32> = 0.0..=100.0;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Knob {
+    Tint,
+    Offset,
+    Radius,
+    Softness,
+    Opacity,
+}
 
-fn persisted(
-    value: f32,
-    save: impl Future<Output = bool> + Send + 'static,
-    wrap: fn(ControlMessage) -> PanelSettingsMessage,
-) -> Task<Message> {
-    Task::future(save)
-        .map(move |ok| Message::PanelSettings(wrap(ControlMessage::Persisted { value, ok })))
+impl Knob {
+    const ALL: [Self; 5] = [
+        Self::Tint,
+        Self::Offset,
+        Self::Radius,
+        Self::Softness,
+        Self::Opacity,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Tint => "Tint",
+            Self::Offset => "Offset",
+            Self::Radius => "Corner radius",
+            Self::Softness => "Shadow softness",
+            Self::Opacity => "Shadow opacity",
+        }
+    }
+
+    fn target(self) -> HoverTarget {
+        match self {
+            Self::Tint => HoverTarget::TintChrome,
+            Self::Offset => HoverTarget::FloatOffset,
+            Self::Radius => HoverTarget::CornerRadius,
+            Self::Softness => HoverTarget::ShadowSoftness,
+            Self::Opacity => HoverTarget::ShadowOpacity,
+        }
+    }
+
+    fn control(self) -> SliderControl {
+        let (range, icon, readout): (RangeInclusive<f32>, Phosphor, fn(f32) -> String) = match self
+        {
+            Self::Tint => (0.0..=100.0, Phosphor::DropHalf(Weight::Regular), percent),
+            Self::Offset => (0.0..=24.0, Phosphor::ArrowsIn(Weight::Regular), pixels),
+            Self::Radius => (0.0..=16.0, Phosphor::FrameCorners(Weight::Regular), pixels),
+            Self::Softness => (0.0..=60.0, Phosphor::Feather(Weight::Regular), pixels),
+            Self::Opacity => (0.0..=100.0, Phosphor::CircleHalf(Weight::Regular), percent),
+        };
+        SliderControl::new(range, self.target(), icon)
+            .icon_only()
+            .readout_width(44.0)
+            .readout(readout)
+    }
+
+    fn read(self, layout: &PanelLayout) -> f32 {
+        match self {
+            Self::Tint => layout.tint_factor * 100.0,
+            Self::Offset => layout.float_offset_px,
+            Self::Radius => layout.corner_radius.top_left,
+            Self::Softness => layout.shadow.softness_px,
+            Self::Opacity => layout.shadow.opacity * 100.0,
+        }
+    }
+
+    fn write(self, layout: &mut PanelLayout, value: f32) -> Task<bool> {
+        match self {
+            Self::Tint => {
+                layout.tint_factor = value / 100.0;
+                Task::future(state::panel::save_tint_factor(layout.tint_factor))
+            }
+            Self::Offset => {
+                layout.float_offset_px = value;
+                Task::future(state::panel::save_float_offset(value))
+            }
+            Self::Radius => {
+                layout.corner_radius = value.into();
+                Task::future(state::panel::save_corner_radius(value))
+            }
+            Self::Softness => {
+                layout.shadow.softness_px = value;
+                Task::future(state::panel::save_shadow_softness(value))
+            }
+            Self::Opacity => {
+                layout.shadow.opacity = value / 100.0;
+                Task::future(state::panel::save_shadow_opacity(layout.shadow.opacity))
+            }
+        }
+    }
+
+    fn committed(self, persist: Task<Message>) -> Action {
+        match self {
+            Self::Offset => Action::Reflow(persist),
+            Self::Radius => Action::RebuildBlur(persist),
+            Self::Tint | Self::Softness | Self::Opacity => Action::Run(persist),
+        }
+    }
+}
+
+fn pixels(value: f32) -> String {
+    format!("{} px", value.round())
+}
+
+fn percent(value: f32) -> String {
+    format!("{} %", value.round())
 }
 
 fn disconnected_tooltip(layout: &PanelLayout) -> Tooltip {
@@ -71,8 +164,7 @@ fn workspaces_placement_tooltip(layout: &PanelLayout) -> Tooltip {
 
 pub struct PanelSettingsGroup {
     pub(crate) expansion: GroupExpansion,
-    offset: SliderControl,
-    tint: SliderControl,
+    sliders: [SliderControl; 5],
 }
 
 #[derive(Debug, Clone)]
@@ -81,55 +173,45 @@ pub enum PanelSettingsMessage {
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
     ToggleWorkspacesPlacement,
-    Offset(ControlMessage),
-    Tint(ControlMessage),
+    ToggleShadow,
+    Slider(Knob, ControlMessage),
 }
 
 impl Default for PanelSettingsGroup {
     fn default() -> Self {
         Self {
             expansion: GroupExpansion::default(),
-            offset: SliderControl::new(
-                OFFSET_RANGE,
-                HoverTarget::FloatOffset,
-                Phosphor::ArrowsIn(Weight::Regular),
-            )
-            .icon_only()
-            .readout_width(44.0)
-            .readout(|value| format!("{} px", value.round())),
-            tint: SliderControl::new(
-                TINT_RANGE,
-                HoverTarget::TintChrome,
-                Phosphor::DropHalf(Weight::Regular),
-            )
-            .icon_only()
-            .readout_width(44.0)
-            .readout(|value| format!("{} %", value.round())),
+            sliders: Knob::ALL.map(Knob::control),
         }
     }
 }
 
 impl PanelSettingsGroup {
+    fn slider(&self, knob: Knob) -> &SliderControl {
+        &self.sliders[knob as usize]
+    }
+
     pub fn tooltip_for(&self, target: &HoverTarget, layout: &PanelLayout) -> Option<Tooltip> {
         match target {
-            HoverTarget::FloatOffset => Some(Tooltip::table(vec![row(
-                "Offset",
-                self.offset.readout_text(),
-            )])),
-            HoverTarget::TintChrome => Some(Tooltip::table(vec![row(
-                "Tint",
-                format!("{} tint over the chrome", self.tint.readout_text()),
-            )])),
             HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(layout)),
             HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(layout)),
             HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(layout)),
-            _ => None,
+            HoverTarget::DropShadow => Some(switch_tooltip(
+                "Shadow",
+                layout.shadow.cast,
+                "on — panels cast a drop shadow",
+            )),
+            _ => Knob::ALL
+                .into_iter()
+                .find(|knob| knob.target() == *target)
+                .map(|knob| {
+                    Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())])
+                }),
         }
     }
 
     fn close_sliders(&mut self) {
-        self.offset.close();
-        self.tint.close();
+        self.sliders.iter_mut().for_each(SliderControl::close);
     }
 
     pub fn collapse(&mut self) {
@@ -166,43 +248,38 @@ impl PanelSettingsGroup {
             }
             PanelSettingsMessage::ToggleWorkspacesPlacement => {
                 layout.workspaces_placement = layout.workspaces_placement.toggled();
-                Action::PlaceWorkspaces(
+                Action::Run(
                     Task::future(state::panel::save_workspaces_placement(
                         layout.workspaces_placement,
                     ))
                     .discard(),
                 )
             }
-            PanelSettingsMessage::Offset(msg) => match self.offset.update(msg) {
-                SliderAction::Commit(offset) => {
-                    layout.float_offset_px = offset;
-                    Action::Reflow(persisted(
-                        offset,
-                        state::panel::save_float_offset(offset),
-                        PanelSettingsMessage::Offset,
+            PanelSettingsMessage::ToggleShadow => {
+                layout.shadow.cast = !layout.shadow.cast;
+                Action::Run(
+                    Task::future(state::panel::save_drop_shadow(layout.shadow.cast)).discard(),
+                )
+            }
+            PanelSettingsMessage::Slider(knob, control) => {
+                let SliderAction::Commit(value) = self.sliders[knob as usize].update(control)
+                else {
+                    return Action::None;
+                };
+                knob.committed(knob.write(layout, value).map(move |ok| {
+                    Message::PanelSettings(PanelSettingsMessage::Slider(
+                        knob,
+                        ControlMessage::Persisted { value, ok },
                     ))
-                }
-                _ => Action::None,
-            },
-            PanelSettingsMessage::Tint(msg) => match self.tint.update(msg) {
-                SliderAction::Commit(percent) => {
-                    layout.tint_factor = percent / 100.0;
-                    Action::Run(persisted(
-                        percent,
-                        state::panel::save_tint_factor(layout.tint_factor),
-                        PanelSettingsMessage::Tint,
-                    ))
-                }
-                _ => Action::None,
-            },
+                }))
+            }
         }
     }
 
     pub fn adopt(&mut self, layout: &PanelLayout) {
-        self.offset
-            .update(ControlMessage::Reading(layout.float_offset_px));
-        self.tint
-            .update(ControlMessage::Reading(layout.tint_factor * 100.0));
+        for knob in Knob::ALL {
+            self.sliders[knob as usize].update(ControlMessage::Reading(knob.read(layout)));
+        }
     }
 
     pub fn widget_group<'a>(
@@ -210,7 +287,7 @@ impl PanelSettingsGroup {
         config: &'a Config,
         layout: &PanelLayout,
     ) -> WidgetGroup<'a, PanelSettingsMessage> {
-        WidgetGroup::new(&self.expansion, PanelSettingsMessage::Expansion)
+        let toggles = WidgetGroup::new(&self.expansion, PanelSettingsMessage::Expansion)
             .icon(Phosphor::SlidersHorizontal(Weight::Regular))
             .item(icon_toggle_item(
                 config,
@@ -233,15 +310,19 @@ impl PanelSettingsGroup {
                 PanelSettingsMessage::ToggleWorkspacesPlacement,
                 HoverTarget::WorkspacesPlacement,
             ))
-            .item(GroupItem::slider(
-                &self.tint,
+            .item(icon_toggle_item(
                 config,
-                PanelSettingsMessage::Tint,
-            ))
-            .item(GroupItem::slider(
-                &self.offset,
+                Phosphor::SelectionBackground(Weight::Regular),
+                layout.shadow.cast,
+                PanelSettingsMessage::ToggleShadow,
+                HoverTarget::DropShadow,
+            ));
+        Knob::ALL.into_iter().fold(toggles, |group, knob| {
+            group.item(GroupItem::slider(
+                self.slider(knob),
                 config,
-                PanelSettingsMessage::Offset,
+                move |control| PanelSettingsMessage::Slider(knob, control),
             ))
+        })
     }
 }

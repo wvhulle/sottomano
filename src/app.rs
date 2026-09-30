@@ -24,15 +24,14 @@ use crate::{
         },
     },
     message_subscriptions::{blocking, niri_action},
-    state::{self, PanelSettings, WorkspacesPlacement},
+    state::{self, PanelSettings},
     wayland_layers::{
         backdrop_shadow,
-        bar::{layer_settings, view, widget_groups},
+        bar::{view, widget_groups},
         niri_rules::NiriRulesFile,
         notifications::{NotificationLayer, NotificationMessage},
-        panel_pills::{PanelPills, Zone},
-        sidebar,
-        surface::{Position, Surface},
+        panel_regions::{PanelRegions, Zone},
+        surface::{self, PanelEdge, Position, Surface, SurfaceRole},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
     },
     widget_groups::{
@@ -96,7 +95,7 @@ pub struct Bar {
     pub(crate) outputs: HashMap<String, niri::OutputInfo>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: BTreeMap<Id, Position>,
-    pub(crate) panel_pills: PanelPills,
+    pub(crate) panel_regions: PanelRegions,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
@@ -217,7 +216,7 @@ impl Bar {
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
-            panel_pills: PanelPills::default(),
+            panel_regions: PanelRegions::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -339,7 +338,7 @@ impl Bar {
                 window,
                 zone,
                 rects,
-            } => self.update_pill_bounds(window, zone, &rects),
+            } => self.update_pill_bounds(window, zone, rects),
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => {
@@ -386,12 +385,19 @@ impl Bar {
         Task::none()
     }
 
-    fn update_pill_bounds(&mut self, window: Id, zone: Zone, rects: &[Rectangle]) -> Task<Message> {
+    fn update_pill_bounds(
+        &mut self,
+        window: Id,
+        zone: Zone,
+        rects: Vec<Rectangle>,
+    ) -> Task<Message> {
+        let regions = self
+            .panel_regions
+            .bounds(window, zone, rects, &self.panel_settings.layout);
         if zone == Zone::Sidebar {
-            return sidebar::fit(window, rects);
+            return Task::batch([regions, self.reserve()]);
         }
-        self.panel_pills
-            .pill_rects(window, zone, rects, &self.panel_settings.layout)
+        regions
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -454,7 +460,7 @@ impl Bar {
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
         self.notifications.forget(window);
-        self.panel_pills.forget(window);
+        self.panel_regions.forget(window);
         Task::none()
     }
 
@@ -560,15 +566,18 @@ impl Bar {
         match msg {
             TooltipMessage::Enter {
                 surface,
+                position,
                 target,
                 anchor,
             } => {
                 let content = self.tooltip_for(&target);
-                let Some(parent) = self.surfaces.get(&surface).filter(|_| !content.is_empty())
-                else {
+                let Some(host) = self.surfaces.get(&surface).filter(|_| !content.is_empty()) else {
                     return Task::none();
                 };
-                let parent = parent.clone();
+                let parent = PanelEdge {
+                    output: host.output.clone(),
+                    position,
+                };
                 if let Some(intent) = self.tooltip.defer_switch(&parent, &target, anchor) {
                     return intent;
                 }
@@ -605,23 +614,12 @@ impl Bar {
     }
 
     fn apply_saved_panel_settings(&mut self, mut panel_settings: PanelSettings) -> Task<Message> {
-        let placement_before = self.panel_settings.layout.workspaces_placement;
         panel_settings
             .layout
             .keep_niri_look_of(&self.panel_settings.layout);
         self.panel_settings = panel_settings;
         self.panel_settings_group.adopt(&self.panel_settings.layout);
-        let placed = if self.panel_settings.layout.workspaces_placement == placement_before {
-            Task::none()
-        } else {
-            self.enter_workspaces_placement()
-        };
-        Task::batch([
-            placed,
-            self.remargin_surfaces(),
-            self.rebuild_blur(),
-            self.niri_group.restyle(&self.panel_settings.layout),
-        ])
+        Task::batch([self.reserve(), self.rebuild_blur()])
     }
 
     fn reload_config(&self) -> Task<Message> {
@@ -665,7 +663,7 @@ impl Bar {
         if self.config.bar == *previous {
             return Task::none();
         }
-        Task::batch([self.resize_bars(), self.rebuild_blur()])
+        Task::batch([self.resize_backdrops(), self.reserve()])
     }
 
     fn adopt_color_temperature_service(&mut self, previous: &str) -> Task<Message> {
@@ -734,10 +732,7 @@ impl Bar {
                 self.panel_settings_group
                     .tooltip_for(target, &self.panel_settings.layout)
             })
-            .or_else(|| {
-                self.niri_group
-                    .tooltip_for(target, &self.panel_settings.layout)
-            })
+            .or_else(|| NiriGroup::tooltip_for(target, &self.panel_settings.layout))
             .unwrap_or_else(Tooltip::empty)
     }
 
@@ -910,97 +905,91 @@ impl Bar {
         {
             panel_settings_group::Action::None => Task::none(),
             panel_settings_group::Action::Run(task) => task,
-            panel_settings_group::Action::RebuildBlur(task) => Task::batch([
-                self.rebuild_blur(),
-                self.niri_group.restyle(&self.panel_settings.layout),
-                task,
-            ]),
-            panel_settings_group::Action::Reflow(task) => {
-                Task::batch([self.remargin_surfaces(), task])
+            panel_settings_group::Action::RebuildBlur(task) => {
+                Task::batch([self.rebuild_blur(), task])
             }
-            panel_settings_group::Action::PlaceWorkspaces(task) => {
-                Task::batch([self.enter_workspaces_placement(), task])
-            }
+            panel_settings_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
         }
     }
 
-    fn enter_workspaces_placement(&mut self) -> Task<Message> {
-        match self.panel_settings.layout.workspaces_placement {
-            WorkspacesPlacement::Sidebar => self.open_sidebars(),
-            WorkspacesPlacement::BottomPanel => self.close_sidebars(),
+    fn panels(&self) -> impl Iterator<Item = (Id, &str)> {
+        self.surfaces
+            .iter()
+            .filter(|(_, surface)| surface.role == SurfaceRole::Panel)
+            .map(|(&id, surface)| (id, surface.output.as_str()))
+    }
+
+    fn rebuild_blur(&self) -> Task<Message> {
+        self.panel_regions
+            .refresh(&self.panel_settings.layout, self.panels().map(|(id, _)| id))
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn reserved_zone(&self, output: &str, position: Position) -> i32 {
+        let thickness = match position {
+            Position::Top | Position::Bottom => self.config.bar.height_px,
+            Position::Left => self
+                .panels()
+                .find(|(_, panel_output)| *panel_output == output)
+                .map_or(0.0, |(panel, _)| {
+                    self.panel_regions.width_of(panel, Zone::Sidebar)
+                }),
+        };
+        if thickness <= 0.0 {
+            return 0;
         }
+        (self.panel_settings.layout.float_offset_px + thickness).ceil() as i32
     }
 
-    fn open_sidebars(&mut self) -> Task<Message> {
-        let outputs: Vec<String> = self
-            .surfaces
-            .values()
-            .filter(|surface| surface.position == Position::Top)
-            .map(|surface| surface.output.clone())
-            .collect();
+    fn reserve(&self) -> Task<Message> {
         Task::batch(
-            outputs.iter().map(|output| {
-                sidebar::open(&mut self.surfaces, output, &self.panel_settings.layout)
-            }),
-        )
-    }
-
-    fn close_sidebars(&mut self) -> Task<Message> {
-        Task::batch(
-            sidebar::windows(&self.surfaces)
-                .into_iter()
-                .flat_map(|id| {
-                    [
-                        self.forget_window(id),
-                        Task::done(Message::RemoveWindow(id)),
-                    ]
+            self.surfaces
+                .iter()
+                .filter_map(|(&id, surface)| match surface.role {
+                    SurfaceRole::Reservation(position) => {
+                        Some(Task::done(Message::ExclusiveZoneChange {
+                            id,
+                            zone_size: self.reserved_zone(&surface.output, position),
+                        }))
+                    }
+                    SurfaceRole::Panel => None,
                 })
                 .collect::<Vec<_>>(),
         )
     }
 
-    fn rebuild_blur(&self) -> Task<Message> {
-        self.panel_pills
-            .refresh(&self.panel_settings.layout, &self.surfaces)
-    }
-
-    fn remargin_surfaces(&self) -> Task<Message> {
-        let offset = self.panel_settings.layout.margin_offset_px();
-        Task::batch(self.surfaces.iter().map(move |(&id, surface)| {
-            Task::done(Message::MarginChange {
-                id,
-                margin: surface.position.float_margin(offset),
-            })
-        }))
-    }
-
     fn open_panels(&mut self, output: &str) -> Task<Message> {
-        let mut opens: Vec<Task<Message>> = Position::BARS
-            .into_iter()
-            .map(|position| self.open_bar(output, position))
-            .collect();
-        if self.panel_settings.layout.workspaces_placement == WorkspacesPlacement::Sidebar {
-            opens.push(sidebar::open(
-                &mut self.surfaces,
-                output,
-                &self.panel_settings.layout,
-            ));
-        }
-        Task::batch(opens)
-    }
-
-    fn open_bar(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.bar.height_px as u32;
-        let settings = layer_settings(output, position, height, &self.panel_settings.layout);
-        let id = Id::unique();
+        let panel = Id::unique();
         self.surfaces.insert(
-            id,
+            panel,
             Surface {
                 output: output.to_string(),
-                position,
+                role: SurfaceRole::Panel,
             },
         );
-        Task::done(Message::NewLayerShell { settings, id })
+        let mut opens = vec![
+            Task::done(Message::NewLayerShell {
+                settings: surface::panel_settings(output),
+                id: panel,
+            }),
+            Task::done(surface::input_regions(panel, Vec::new())),
+        ];
+        for position in Position::ALL {
+            let id = Id::unique();
+            let zone = self.reserved_zone(output, position);
+            self.surfaces.insert(
+                id,
+                Surface {
+                    output: output.to_string(),
+                    role: SurfaceRole::Reservation(position),
+                },
+            );
+            opens.push(Task::done(Message::NewLayerShell {
+                settings: surface::reservation_settings(output, position, zone),
+                id,
+            }));
+        }
+        Task::batch(opens)
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
@@ -1011,26 +1000,9 @@ impl Bar {
         Task::done(Message::NewLayerShell { settings, id })
     }
 
-    fn resize_bars(&self) -> Task<Message> {
+    fn resize_backdrops(&self) -> Task<Message> {
         let height = self.config.bar.height_px as u32;
-        let bars = self
-            .surfaces
-            .iter()
-            .filter(|(_, surface)| !surface.position.is_vertical())
-            .flat_map(move |(&id, surface)| {
-                [
-                    Task::done(Message::LayoutChange {
-                        id,
-                        anchor: surface.position.anchor(),
-                        size: surface.position.strip_size(height),
-                    }),
-                    Task::done(Message::ExclusiveZoneChange {
-                        id,
-                        zone_size: height.cast_signed(),
-                    }),
-                ]
-            });
-        let backdrops = self.backdrops.iter().flat_map(move |(&id, &position)| {
+        Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
             [
                 Task::done(Message::LayoutChange {
                     id,
@@ -1042,8 +1014,7 @@ impl Bar {
                     margin: backdrop_shadow::margin(position, height),
                 }),
             ]
-        });
-        Task::batch(bars.chain(backdrops))
+        }))
     }
 
     /// The compositor's output list reaches vetrata through a worker that may

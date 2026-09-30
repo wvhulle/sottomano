@@ -14,7 +14,7 @@ use crate::{
     config::Config,
     state::PanelSettings,
     wayland_layers::{
-        surface::{self, Position, Surface, input_region},
+        surface::{self, PanelEdge, Position, input_region},
         tooltip::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
@@ -32,7 +32,7 @@ const HIDE_GRACE: Duration = Duration::from_millis(250);
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
 pub struct PendingSwitch {
-    pub parent: Surface,
+    pub parent: PanelEdge,
     pub target: HoverTarget,
     pub anchor: Rectangle,
     seq: u64,
@@ -64,7 +64,7 @@ impl TooltipHost {
 
     pub fn defer_switch(
         &mut self,
-        parent: &Surface,
+        parent: &PanelEdge,
         target: &HoverTarget,
         anchor: Rectangle,
     ) -> Option<Task<Message>> {
@@ -91,7 +91,7 @@ impl TooltipHost {
         self.pending_switch.take_if(|pending| pending.seq == seq)
     }
 
-    pub fn open(&mut self, parent: &Surface, target: HoverTarget, anchor: Rectangle) {
+    pub fn open(&mut self, parent: &PanelEdge, target: HoverTarget, anchor: Rectangle) {
         self.pending_switch = None;
         self.transition.cancel_leave();
         if self
