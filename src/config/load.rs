@@ -150,14 +150,26 @@ impl ConfigFile {
     }
 }
 
+pub fn config_home() -> PathBuf {
+    env::var_os("XDG_CONFIG_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            env::var_os("HOME")
+                .filter(|value| !value.is_empty())
+                .map(|home| PathBuf::from(home).join(".config"))
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{fs, process};
+    use std::{env, fs, process};
 
     use super::{ConfigFile, LoadError};
 
     fn file_containing(test: &str, toml: &str) -> ConfigFile {
-        let directory = std::env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
+        let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("vetrata.toml"), toml).unwrap();
         ConfigFile::in_config_home(&directory)
@@ -179,16 +191,4 @@ mod tests {
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
         assert!(matches!(error, LoadError::UnknownLocale(ref name) if name == "xx_nowhere"));
     }
-}
-
-pub fn config_home() -> PathBuf {
-    env::var_os("XDG_CONFIG_HOME")
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| {
-            env::var_os("HOME")
-                .filter(|value| !value.is_empty())
-                .map(|home| PathBuf::from(home).join(".config"))
-        })
-        .unwrap_or_default()
 }
