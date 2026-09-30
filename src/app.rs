@@ -171,6 +171,10 @@ pub enum Message {
         zone: Zone,
         rects: Vec<iced::Rectangle>,
     },
+    PillsSettled {
+        window: Id,
+        zone: Zone,
+    },
 }
 
 impl From<TooltipMessage> for Message {
@@ -340,6 +344,7 @@ impl Bar {
                 zone,
                 rects,
             } => self.update_pill_bounds(window, zone, &rects),
+            Message::PillsSettled { window, zone } => self.settle_pills(window, zone),
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => {
@@ -384,6 +389,16 @@ impl Bar {
     fn dismiss_groups(&mut self) -> Task<Message> {
         self.collapse_groups();
         Task::none()
+    }
+
+    fn settle_pills(&mut self, window: Id, zone: Zone) -> Task<Message> {
+        self.panel_pills.follow(
+            window,
+            zone,
+            &self.config,
+            &self.panel_settings.layout,
+            &self.surfaces,
+        )
     }
 
     fn update_pill_bounds(&mut self, window: Id, zone: Zone, rects: &[Rectangle]) -> Task<Message> {

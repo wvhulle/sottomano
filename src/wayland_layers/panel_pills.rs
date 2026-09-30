@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use iced::{Rectangle, Task, window::Id};
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
+use tokio::time::sleep;
 
 use crate::{
     app::Message,
@@ -11,6 +12,7 @@ use crate::{
         niri_rules::StyledSurface,
         surface::{self, Margin, Position, Surface},
     },
+    widgets::widget_group::EXPAND,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -65,9 +67,7 @@ impl PanelPills {
             .rects
             .clone()
             .into_iter()
-            .map(|((window, zone), rects)| {
-                self.pill_rects(window, zone, &rects, config, layout, bars)
-            })
+            .map(|((window, zone), _)| self.follow(window, zone, config, layout, bars))
             .collect();
         Task::batch([closed, Task::batch(reopened)])
     }
@@ -82,6 +82,32 @@ impl PanelPills {
         bars: &BTreeMap<Id, Surface>,
     ) -> Task<Message> {
         self.rects.insert((window, zone), new.to_vec());
+        if self.shrinks(window, zone, new) {
+            return Task::future(sleep(EXPAND))
+                .map(move |()| Message::PillsSettled { window, zone });
+        }
+        self.follow(window, zone, config, layout, bars)
+    }
+
+    fn shrinks(&self, window: Id, zone: Zone, new: &[Rectangle]) -> bool {
+        self.pills.get(&(window, zone)).is_some_and(|current| {
+            new.len() < current.len()
+                || current
+                    .iter()
+                    .zip(new)
+                    .any(|(&(_, old), rect)| rect.width < old.width)
+        })
+    }
+
+    pub fn follow(
+        &mut self,
+        window: Id,
+        zone: Zone,
+        config: &Config,
+        layout: &PanelLayout,
+        bars: &BTreeMap<Id, Surface>,
+    ) -> Task<Message> {
+        let new = self.rects.get(&(window, zone)).cloned().unwrap_or_default();
         let Some(surface) = bars
             .get(&window)
             .filter(|surface| !surface.position.is_vertical() && layout.disconnected_groups)

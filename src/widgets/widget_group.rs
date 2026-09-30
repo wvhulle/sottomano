@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-const EXPAND: Duration = Duration::from_millis(90);
+pub(crate) const EXPAND: Duration = Duration::from_millis(90);
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExpansionMessage {
