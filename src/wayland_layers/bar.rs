@@ -27,7 +27,7 @@ use crate::{
     },
     widgets::{
         bounds_probe::bounds_probe,
-        layout_only::layout_only,
+        settled_layout::settled_layout,
         widget_group::{GroupEvent, WidgetGroup},
         window_icon::WindowAssets,
     },
@@ -92,7 +92,7 @@ pub fn layer_settings(
 
 fn strip_content<'a>(bar: &Bar, row: Element<'a, Message>) -> Element<'a, Message> {
     if bar.panel_settings.layout.disconnected_groups {
-        return layout_only(row);
+        return settled_layout(row);
     }
     row
 }

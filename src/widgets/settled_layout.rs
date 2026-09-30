@@ -9,21 +9,25 @@ use iced::{
         widget::Tree,
     },
     mouse::Cursor,
+    time::Duration,
+    window,
 };
 
-pub fn layout_only<'a, Message: 'a>(
+const SETTLE: Duration = Duration::from_secs(3600);
+
+pub fn settled_layout<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    Element::new(LayoutOnly {
+    Element::new(SettledLayout {
         content: content.into(),
     })
 }
 
-struct LayoutOnly<'a, Message> {
+struct SettledLayout<'a, Message> {
     content: Element<'a, Message>,
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LayoutOnly<'_, Message> {
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for SettledLayout<'_, Message> {
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
@@ -67,15 +71,23 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LayoutOnly<'_, Me
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        self.content.as_widget_mut().update(
-            &mut tree.children[0],
-            event,
-            layout.children().next().unwrap(),
-            Cursor::Unavailable,
-            renderer,
-            clipboard,
-            shell,
-            viewport,
-        );
+        let settled = match event {
+            Event::Window(window::Event::RedrawRequested(now)) => {
+                Some(Event::Window(window::Event::RedrawRequested(*now + SETTLE)))
+            }
+            _ => None,
+        };
+        for event in [Some(event), settled.as_ref()].into_iter().flatten() {
+            self.content.as_widget_mut().update(
+                &mut tree.children[0],
+                event,
+                layout.children().next().unwrap(),
+                Cursor::Unavailable,
+                renderer,
+                clipboard,
+                shell,
+                viewport,
+            );
+        }
     }
 }
