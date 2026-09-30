@@ -28,6 +28,8 @@ pub enum HoverTarget {
     DropShadow,
     ShadowSoftness,
     ShadowOpacity,
+    WindowCornerRadius,
+    WindowGaps,
     DisconnectedGroups,
     AutoCollapseGroups,
     WorkspacesPlacement,

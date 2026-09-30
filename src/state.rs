@@ -48,15 +48,8 @@ impl Default for ShadowStyle {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct NiriStyling {
-    pub blurred: bool,
-    pub xray: bool,
-}
-
 #[derive(Debug, Clone)]
 pub struct PanelLayout {
-    pub niri: NiriStyling,
     pub shadow: ShadowStyle,
     pub disconnected_groups: bool,
     pub auto_collapse_groups: bool,
@@ -69,7 +62,6 @@ pub struct PanelLayout {
 impl Default for PanelLayout {
     fn default() -> Self {
         Self {
-            niri: NiriStyling::default(),
             shadow: ShadowStyle::default(),
             disconnected_groups: false,
             auto_collapse_groups: true,
@@ -95,11 +87,5 @@ impl Default for ToastPreferences {
             sound: true,
             spatial_layout: true,
         }
-    }
-}
-
-impl PanelLayout {
-    pub fn keep_niri_look_of(&mut self, current: &PanelLayout) {
-        self.niri = current.niri;
     }
 }

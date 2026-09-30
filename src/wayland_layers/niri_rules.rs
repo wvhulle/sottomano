@@ -7,7 +7,29 @@ use iced::Task;
 use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use tokio::fs;
 
-use crate::{state::PanelLayout, wayland_layers::surface::Position};
+use crate::wayland_layers::surface::Position;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NiriLayout {
+    pub window_corner_radius_px: f32,
+    pub gaps_px: f32,
+}
+
+impl Default for NiriLayout {
+    fn default() -> Self {
+        Self {
+            window_corner_radius_px: 0.0,
+            gaps_px: 16.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct NiriStyling {
+    pub blurred: bool,
+    pub xray: bool,
+    pub layout: NiriLayout,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyledSurface {
@@ -31,10 +53,10 @@ impl StyledSurface {
         }
     }
 
-    fn rule(self, layout: &PanelLayout) -> KdlNode {
+    fn rule(self, styling: &NiriStyling) -> KdlNode {
         match self {
             Self::Backdrop(position) => backdrop_rule(self, position),
-            Self::Panel => panel_rule(self, layout),
+            Self::Panel => panel_rule(self, styling),
         }
     }
 }
@@ -52,6 +74,7 @@ enum Written {
 pub struct NiriRulesFile {
     path: PathBuf,
     written: Written,
+    styling: NiriStyling,
 }
 
 impl NiriRulesFile {
@@ -59,7 +82,17 @@ impl NiriRulesFile {
         Self {
             path: config_home.join("vetrata").join("niri.kdl"),
             written: Written::Unread,
+            styling: NiriStyling::default(),
         }
+    }
+
+    pub fn styling(&self) -> NiriStyling {
+        self.styling
+    }
+
+    pub fn restyle(&mut self, change: impl FnOnce(&mut NiriStyling)) -> Task<bool> {
+        change(&mut self.styling);
+        self.write()
     }
 
     pub fn read(&self) -> Task<StoredRules> {
@@ -69,16 +102,17 @@ impl NiriRulesFile {
         )
     }
 
-    pub fn adopt(&mut self, stored: StoredRules, layout: &mut PanelLayout) {
-        apply(&stored.0, layout);
+    pub fn adopt(&mut self, stored: StoredRules) -> Task<bool> {
+        apply(&stored.0, &mut self.styling);
         self.written = Written::Known(stored.0);
+        self.write()
     }
 
-    pub fn write(&mut self, layout: &PanelLayout) -> Task<bool> {
+    fn write(&mut self) -> Task<bool> {
         let Written::Known(last) = &self.written else {
             return Task::done(false);
         };
-        let rules = render(layout);
+        let rules = render(&self.styling);
         if rules == *last {
             return Task::done(true);
         }
@@ -95,7 +129,7 @@ impl NiriRulesFile {
     }
 }
 
-fn apply(text: &str, layout: &mut PanelLayout) {
+fn apply(text: &str, styling: &mut NiriStyling) {
     let document = match KdlDocument::parse_v1(text) {
         Ok(document) => document,
         Err(e) => {
@@ -103,16 +137,41 @@ fn apply(text: &str, layout: &mut PanelLayout) {
             return;
         }
     };
-    let Some(effect) = rule_of(&document, StyledSurface::Panel)
+    apply_background_effect(&document, styling);
+    apply_window_layout(&document, &mut styling.layout);
+}
+
+fn apply_background_effect(document: &KdlDocument, niri: &mut NiriStyling) {
+    let Some(effect) = rule_of(document, StyledSurface::Panel)
         .and_then(|rule| rule.get("background-effect"))
         .and_then(KdlNode::children)
     else {
         return;
     };
     let switch = |name: &str| effect.get_arg(name).and_then(KdlValue::as_bool);
-    let niri = &mut layout.niri;
     niri.blurred = switch("blur").unwrap_or(niri.blurred);
     niri.xray = switch("xray").unwrap_or(niri.xray);
+}
+
+fn apply_window_layout(document: &KdlDocument, windows: &mut NiriLayout) {
+    let setting = |section: &str, name: &str| {
+        document
+            .get(section)
+            .and_then(KdlNode::children)
+            .and_then(|children| children.get_arg(name))
+            .and_then(number)
+    };
+    windows.gaps_px = setting("layout", "gaps").unwrap_or(windows.gaps_px);
+    windows.window_corner_radius_px =
+        setting("window-rule", "geometry-corner-radius").unwrap_or(windows.window_corner_radius_px);
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn number(value: &KdlValue) -> Option<f32> {
+    value
+        .as_float()
+        .or_else(|| value.as_integer().map(|integer| integer as f64))
+        .map(|float| float as f32)
 }
 
 fn rule_of(document: &KdlDocument, surface: StyledSurface) -> Option<&KdlDocument> {
@@ -143,19 +202,20 @@ async fn replace(path: &Path, contents: &str) -> io::Result<()> {
     fs::rename(&staged, path).await
 }
 
-pub fn render(layout: &PanelLayout) -> String {
+fn render(styling: &NiriStyling) -> String {
     let mut document = KdlDocument::new();
     document.nodes_mut().extend(
         StyledSurface::ALL
             .into_iter()
-            .map(|surface| surface.rule(layout)),
+            .map(|surface| surface.rule(styling))
+            .chain(window_layout(styling.layout)),
     );
     document.autoformat();
     document.ensure_v1();
     document.to_string()
 }
 
-fn panel_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
+fn panel_rule(surface: StyledSurface, styling: &NiriStyling) -> KdlNode {
     block(
         "layer-rule",
         [
@@ -165,13 +225,26 @@ fn panel_rule(surface: StyledSurface, layout: &PanelLayout) -> KdlNode {
             ),
             block(
                 "background-effect",
-                [
-                    leaf("blur", layout.niri.blurred),
-                    leaf("xray", layout.niri.xray),
-                ],
+                [leaf("blur", styling.blurred), leaf("xray", styling.xray)],
             ),
         ],
     )
+}
+
+fn window_layout(windows: NiriLayout) -> [KdlNode; 2] {
+    [
+        block("layout", [leaf("gaps", f64::from(windows.gaps_px))]),
+        block(
+            "window-rule",
+            [
+                leaf(
+                    "geometry-corner-radius",
+                    f64::from(windows.window_corner_radius_px),
+                ),
+                leaf("clip-to-geometry", true),
+            ],
+        ),
+    ]
 }
 
 fn backdrop_rule(surface: StyledSurface, position: Position) -> KdlNode {
@@ -225,32 +298,32 @@ fn block(name: &str, children: impl IntoIterator<Item = KdlNode>) -> KdlNode {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply, render};
-    use crate::state::{NiriStyling, PanelLayout};
+    use super::{NiriLayout, NiriStyling, apply, render};
 
-    fn styled() -> PanelLayout {
-        PanelLayout {
-            niri: NiriStyling {
-                blurred: true,
-                xray: true,
+    fn styled() -> NiriStyling {
+        NiriStyling {
+            blurred: true,
+            xray: true,
+            layout: NiriLayout {
+                window_corner_radius_px: 7.5,
+                gaps_px: 5.0,
             },
-            ..PanelLayout::default()
         }
     }
 
     #[test]
     fn a_rendered_look_reads_back_unchanged() {
         let written = styled();
-        let mut read = PanelLayout::default();
+        let mut read = NiriStyling::default();
         apply(&render(&written), &mut read);
-        assert_eq!(read.niri, written.niri);
+        assert_eq!(read, written);
     }
 
     #[test]
     fn an_empty_file_keeps_the_defaults() {
-        let mut read = PanelLayout::default();
+        let mut read = NiriStyling::default();
         apply("", &mut read);
-        assert_eq!(read.niri, PanelLayout::default().niri);
+        assert_eq!(read, NiriStyling::default());
     }
 
     #[test]

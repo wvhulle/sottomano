@@ -145,7 +145,7 @@ fn top_start_groups(bar: &Bar) -> [WidgetGroup<'_, Message>; 8] {
             .widget_group(config, &bar.panel_settings.layout)
             .map_messages(Message::PanelSettings),
         bar.niri_group
-            .widget_group(config, &bar.panel_settings.layout)
+            .widget_group(config)
             .map_messages(Message::NiriStyling),
     ]
 }
