@@ -171,7 +171,7 @@ impl DarkModeGroup {
                     self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |ok| {
-                    DarkModeMessage::OffsetSlider(edge, ControlMessage::Confirmed { value, ok })
+                    DarkModeMessage::OffsetSlider(edge, ControlMessage::Persisted { value, ok })
                 })
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),

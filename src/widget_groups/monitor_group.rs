@@ -99,7 +99,7 @@ impl MonitorGroup {
     }
 
     fn update_backlight(&mut self, serial: String, m: ControlMessage) -> Task<MonitorMessage> {
-        let write_settled = matches!(m, ControlMessage::Confirmed { ok: true, .. });
+        let write_settled = matches!(m, ControlMessage::DeviceAccepted { ok: true, .. });
         let action = match self.sliders.get_mut(&serial) {
             Some(control) => control.update(m),
             None => return Task::none(),
