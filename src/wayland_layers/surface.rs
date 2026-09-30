@@ -1,10 +1,14 @@
-use iced::{Rectangle, window::Id};
+use iced::{Element, Length, Rectangle, widget::Space, window::Id};
 use iced_exwlshell::{
     actions::ActionCallback,
     reexport::{Anchor, KeyboardInteractivity, LayerSize, NewLayerShellSettings, OutputOption},
 };
 
 use crate::app::Message;
+
+pub fn blank<'a>() -> Element<'a, Message> {
+    Space::new().width(Length::Fill).height(Length::Fill).into()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Margin {

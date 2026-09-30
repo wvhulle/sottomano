@@ -10,11 +10,11 @@ use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use crate::{
     app::{Bar, Message},
     config::Config,
-    data::sink::niri_rules::StyledSurface,
     state::{PanelLayout, PanelSettings},
     wayland_layers::{
         bar::corner_inset,
-        blur_caster::{self, Zone},
+        niri_rules::StyledSurface,
+        panel_pills::Zone,
         surface::{self, Position, Surface},
     },
     widget_groups::workspaces_group,
@@ -87,7 +87,7 @@ pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> 
     let config = &bar.config;
     let Some(workspaces) = workspaces_group::vertical_view(&bar.niri_snapshot, output, config)
     else {
-        return blur_caster::fill();
+        return surface::blank();
     };
     let pill = pill(workspaces.map(Message::from), config, &bar.panel_settings);
     natural_bounds_probe(column![pill], move |rects| Message::PillBounds {

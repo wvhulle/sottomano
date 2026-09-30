@@ -14,6 +14,7 @@ pub mod group_item;
 pub mod idle;
 pub mod inline_slider;
 pub mod last_poll;
+pub mod layout_only;
 pub mod localized_time;
 pub mod native_icon;
 pub mod overlay_shadow;

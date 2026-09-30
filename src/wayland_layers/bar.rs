@@ -12,11 +12,11 @@ use iced_exwlshell::reexport::{Layer, NewLayerShellSettings};
 use crate::{
     app::{Bar, Message},
     config::Config,
-    data::sink::niri_rules::StyledSurface,
     state::{PanelLayout, PanelSettings, WorkspacesPlacement},
     wayland_layers::{
         backdrop_shadow,
-        blur_caster::{self, Zone},
+        niri_rules::StyledSurface,
+        panel_pills::{PillPlacement, Zone},
         sidebar,
         surface::{self, Position},
         tooltip,
@@ -27,6 +27,7 @@ use crate::{
     },
     widgets::{
         bounds_probe::bounds_probe,
+        layout_only::layout_only,
         widget_group::{GroupEvent, WidgetGroup},
         window_icon::WindowAssets,
     },
@@ -36,8 +37,8 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     if bar.backdrops.contains_key(&window) {
         return backdrop_shadow::fill();
     }
-    if bar.blur_casters.contains(window) {
-        return blur_caster::fill();
+    if let Some(placement) = bar.panel_pills.placement(window) {
+        return pill_surface(bar, window, placement);
     }
     let Some(surface) = bar.surfaces.get(&window) else {
         return container(text("")).into();
@@ -45,18 +46,24 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     match surface.position {
         Position::Top => dismissable_strip(
             bar,
-            tooltip::on_surface(
-                window,
-                |_| Vector::ZERO,
-                top_row(bar, window, surface.position),
+            strip_content(
+                bar,
+                tooltip::on_surface(
+                    window,
+                    |_| Vector::ZERO,
+                    top_row(bar, window, &surface.output, surface.position),
+                ),
             ),
         ),
         Position::Bottom => dismissable_strip(
             bar,
-            tooltip::on_surface(
-                window,
-                |_| Vector::ZERO,
-                bottom_row(bar, window, &surface.output, surface.position),
+            strip_content(
+                bar,
+                tooltip::on_surface(
+                    window,
+                    |_| Vector::ZERO,
+                    bottom_row(bar, window, &surface.output, surface.position),
+                ),
             ),
         ),
         Position::Left => tooltip::on_surface(
@@ -81,6 +88,37 @@ pub fn layer_settings(
         margin: Some(position.float_margin(layout.margin_offset_px()).edges()),
         ..surface::base_settings(Some(output), StyledSurface::Panel.namespace())
     }
+}
+
+fn strip_content<'a>(bar: &Bar, row: Element<'a, Message>) -> Element<'a, Message> {
+    if bar.panel_settings.layout.disconnected_groups {
+        return layout_only(row);
+    }
+    row
+}
+
+fn pill_surface(bar: &Bar, window: Id, placement: PillPlacement) -> Element<'_, Message> {
+    let Some(strip) = bar.surfaces.get(&placement.strip) else {
+        return surface::blank();
+    };
+    let Some(pill) = zone_pills(bar, &strip.output, strip.position, placement.zone)
+        .into_iter()
+        .nth(placement.index)
+    else {
+        return surface::blank();
+    };
+    let left = placement.rect.x.round();
+    let foreground = bar.config.palette.bar_foreground;
+    container(tooltip::on_surface(
+        window,
+        move |_| Vector::new(left, 0.0),
+        pill,
+    ))
+    .style(move |_| container::Style {
+        text_color: Some(foreground),
+        ..Default::default()
+    })
+    .into()
 }
 
 fn dismissable_strip<'a>(bar: &'a Bar, content: Element<'a, Message>) -> Element<'a, Message> {
@@ -212,40 +250,45 @@ fn routed(event: GroupEvent<Message>) -> Message {
     }
 }
 
-fn top_row(bar: &Bar, window: Id, position: Position) -> Element<'_, Message> {
+fn zone_pills<'a>(
+    bar: &'a Bar,
+    output: &'a str,
+    position: Position,
+    zone: Zone,
+) -> Vec<Element<'a, Message>> {
     let config = &bar.config;
-    let panel_settings = &bar.panel_settings;
-    let layout = &panel_settings.layout;
-    let start = measured(
-        zone(
-            rendered(top_start_groups(bar), config, position),
-            config,
-            panel_settings,
-        ),
-        layout,
-        window,
-        Zone::TopStart,
-    );
-    let center = measured(
-        zone(
-            rendered(top_center_groups(bar), config, position),
-            config,
-            panel_settings,
-        ),
-        layout,
-        window,
-        Zone::TopCenter,
-    );
-    let end = measured(
-        zone(
-            rendered(top_end_groups(bar), config, position),
-            config,
-            panel_settings,
-        ),
-        layout,
-        window,
-        Zone::TopEnd,
-    );
+    let groups: Vec<Option<Element<'a, Message>>> = match zone {
+        Zone::TopStart => rendered(top_start_groups(bar), config, position).collect(),
+        Zone::TopCenter => rendered(top_center_groups(bar), config, position).collect(),
+        Zone::TopEnd => rendered(top_end_groups(bar), config, position).collect(),
+        Zone::BottomStart => vec![Some(places(bar, output, position))],
+        Zone::BottomMiddle => vec![window_list(bar, output, position)],
+        Zone::BottomEnd => rendered(bottom_end_groups(bar), config, position).collect(),
+        Zone::Sidebar => Vec::new(),
+    };
+    groups
+        .into_iter()
+        .flatten()
+        .map(|group| pill(group, config, &bar.panel_settings))
+        .collect()
+}
+
+fn top_row<'a>(
+    bar: &'a Bar,
+    window: Id,
+    output: &'a str,
+    position: Position,
+) -> Element<'a, Message> {
+    let config = &bar.config;
+    let layout = &bar.panel_settings.layout;
+    let [start, center, end] = [Zone::TopStart, Zone::TopCenter, Zone::TopEnd].map(|zone| {
+        measured(
+            zone_row(zone_pills(bar, output, position, zone), config, layout),
+            layout,
+            window,
+            zone,
+        )
+    });
     bar_row(start, center, end, config)
 }
 
@@ -277,26 +320,21 @@ fn measured<'a>(
     })
 }
 
-fn zone<'a>(
-    groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
-    config: &'a Config,
-    panel_settings: &PanelSettings,
+fn zone_row<'a>(
+    pills: Vec<Element<'a, Message>>,
+    config: &Config,
+    layout: &PanelLayout,
 ) -> Element<'a, Message> {
-    let spacing = if panel_settings.layout.disconnected_groups {
+    let spacing = if layout.disconnected_groups {
         config.spacing.widget_spacing_px
     } else {
         config.spacing.group_spacing_px
     };
-    Row::with_children(
-        groups
-            .into_iter()
-            .flatten()
-            .map(|group| pill(group, config, panel_settings)),
-    )
-    .spacing(spacing)
-    .height(Length::Fill)
-    .align_y(Alignment::Center)
-    .into()
+    Row::with_children(pills)
+        .spacing(spacing)
+        .height(Length::Fill)
+        .align_y(Alignment::Center)
+        .into()
 }
 
 pub fn corner_inset(radius: Radius) -> f32 {
@@ -357,6 +395,28 @@ fn places<'a>(bar: &'a Bar, output: &str, position: Position) -> Element<'a, Mes
         .into()
 }
 
+fn window_list<'a>(
+    bar: &'a Bar,
+    output: &'a str,
+    position: Position,
+) -> Option<Element<'a, Message>> {
+    slot(
+        bar.window_group.view(
+            &bar.niri_snapshot,
+            WindowAssets {
+                entries: &bar.desktop_entries,
+                favicons: &bar.favicons,
+                fallbacks: &bar.font_fallbacks,
+            },
+            bar.audio_group.window_audio(),
+            output,
+            &bar.config,
+            position,
+        ),
+        |event| routed(event.map(Message::WindowGroup)),
+    )
+}
+
 fn bottom_row<'a>(
     bar: &'a Bar,
     window: Id,
@@ -364,46 +424,26 @@ fn bottom_row<'a>(
     position: Position,
 ) -> Element<'a, Message> {
     let config = &bar.config;
-    let panel_settings = &bar.panel_settings;
-    let layout = &panel_settings.layout;
-    let start = zone(
-        [Some(places(bar, output, position))],
-        config,
-        panel_settings,
+    let layout = &bar.panel_settings.layout;
+    let start = measured(
+        zone_row(
+            zone_pills(bar, output, position, Zone::BottomStart),
+            config,
+            layout,
+        ),
+        layout,
+        window,
+        Zone::BottomStart,
     );
-    let start = measured(start, layout, window, Zone::BottomStart);
     let middle = container(measured(
-        Row::with_children(
-            slot(
-                bar.window_group.view(
-                    &bar.niri_snapshot,
-                    WindowAssets {
-                        entries: &bar.desktop_entries,
-                        favicons: &bar.favicons,
-                        fallbacks: &bar.font_fallbacks,
-                    },
-                    bar.audio_group.window_audio(),
-                    output,
-                    config,
-                    position,
-                ),
-                |event| routed(event.map(Message::WindowGroup)),
-            )
-            .map(|group| pill(group, config, panel_settings)),
-        )
-        .into(),
+        Row::with_children(zone_pills(bar, output, position, Zone::BottomMiddle)).into(),
         layout,
         window,
         Zone::BottomMiddle,
     ))
     .center_x(Length::Fill);
     let end = measured(
-        Row::with_children(
-            rendered(bottom_end_groups(bar), config, position)
-                .flatten()
-                .map(|group| pill(group, config, panel_settings)),
-        )
-        .into(),
+        Row::with_children(zone_pills(bar, output, position, Zone::BottomEnd)).into(),
         layout,
         window,
         Zone::BottomEnd,

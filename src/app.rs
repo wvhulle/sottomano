@@ -12,7 +12,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use crate::{
     config::{Config, ConfigFile, LoadError, SecretPaths, bar_size::BarSize, font::ResolvedFont},
     data::{
-        sink::{clipboard, niri_rules::NiriRulesFile, sound},
+        sink::{clipboard, sound},
         source::{
             app_icon::{self, DesktopEntries},
             command::blocking::run,
@@ -28,8 +28,9 @@ use crate::{
     wayland_layers::{
         backdrop_shadow,
         bar::{layer_settings, view, widget_groups},
-        blur_caster::{BlurCasters, Zone},
+        niri_rules::NiriRulesFile,
         notifications::{NotificationLayer, NotificationMessage},
+        panel_pills::{PanelPills, Zone},
         sidebar,
         surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
@@ -95,7 +96,7 @@ pub struct Bar {
     pub(crate) outputs: HashMap<String, niri::OutputInfo>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: BTreeMap<Id, Position>,
-    pub(crate) blur_casters: BlurCasters,
+    pub(crate) panel_pills: PanelPills,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
@@ -216,7 +217,7 @@ impl Bar {
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
-            blur_casters: BlurCasters::default(),
+            panel_pills: PanelPills::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -389,7 +390,7 @@ impl Bar {
         if zone == Zone::Sidebar {
             return sidebar::fit(window, rects);
         }
-        self.blur_casters.pill_rects(
+        self.panel_pills.pill_rects(
             window,
             zone,
             rects,
@@ -459,7 +460,7 @@ impl Bar {
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
         self.notifications.forget(window);
-        self.blur_casters.forget(window)
+        self.panel_pills.forget(window)
     }
 
     fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
@@ -560,6 +561,14 @@ impl Bar {
         niri_action(niri_ipc::Action::FocusWindow { id: window })
     }
 
+    fn panel_surface(&self, window: Id) -> Option<&Surface> {
+        let strip = self
+            .panel_pills
+            .placement(window)
+            .map_or(window, |placement| placement.strip);
+        self.surfaces.get(&strip)
+    }
+
     fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
         match msg {
             TooltipMessage::Enter {
@@ -568,7 +577,7 @@ impl Bar {
                 anchor,
             } => {
                 let content = self.tooltip_for(&target);
-                let Some(parent) = self.surfaces.get(&surface).filter(|_| !content.is_empty())
+                let Some(parent) = self.panel_surface(surface).filter(|_| !content.is_empty())
                 else {
                     return Task::none();
                 };
@@ -921,7 +930,7 @@ impl Bar {
             ]),
             panel_settings_group::Action::Reflow(task) => Task::batch([
                 self.remargin_surfaces(),
-                self.blur_casters
+                self.panel_pills
                     .reposition(&self.panel_settings.layout, &self.surfaces),
                 task,
             ]),
@@ -967,7 +976,7 @@ impl Bar {
     }
 
     fn rebuild_blur(&mut self) -> Task<Message> {
-        self.blur_casters
+        self.panel_pills
             .rebuild(&self.config, &self.panel_settings.layout, &self.surfaces)
     }
 

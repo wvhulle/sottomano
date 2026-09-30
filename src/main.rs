@@ -11,12 +11,12 @@ use std::{error::Error, sync::Arc};
 
 use app::Bar;
 use config::{Config, ConfigFile, SecretPaths};
-use data::sink::niri_rules::NiriRulesFile;
 use iced_exwlshell::{
     build_pattern::daemon,
     settings::{LayerShellSettings, Settings, StartMode},
 };
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
+use wayland_layers::niri_rules::NiriRulesFile;
 
 fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()

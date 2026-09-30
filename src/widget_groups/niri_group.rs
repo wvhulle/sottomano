@@ -5,9 +5,11 @@ use iced::Task;
 use crate::{
     app::Message,
     config::Config,
-    data::sink::niri_rules::{NiriRulesFile, StoredRules},
     state::PanelLayout,
-    wayland_layers::tooltip::HoverTarget,
+    wayland_layers::{
+        niri_rules::{NiriRulesFile, StoredRules},
+        tooltip::HoverTarget,
+    },
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
