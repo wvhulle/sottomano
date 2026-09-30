@@ -36,7 +36,6 @@ pub struct WorkspaceSchematic<'a> {
     preview: &'a WorkspacePreview,
     config: &'a Config,
     favicons: &'a Favicons,
-    opacity: f32,
 }
 
 impl<'a> WorkspaceSchematic<'a> {
@@ -45,13 +44,7 @@ impl<'a> WorkspaceSchematic<'a> {
             preview,
             config,
             favicons,
-            opacity: 1.0,
         }
-    }
-
-    pub fn opacity(mut self, opacity: f32) -> Self {
-        self.opacity = opacity;
-        self
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -92,7 +85,7 @@ impl<'a> WorkspaceSchematic<'a> {
             tile.favicon_key.as_deref(),
             tile.icon.as_deref(),
             side,
-            self.opacity,
+            1.0,
         );
         let label = (width >= side * TILE_LABEL_WIDTH_RATIO).then(|| self.label(tile));
         let content = RowWidget::with_children(icon.into_iter().chain(label).collect::<Vec<_>>())
@@ -100,24 +93,22 @@ impl<'a> WorkspaceSchematic<'a> {
             .align_y(Vertical::Top);
 
         let outline = self.outline(tile);
-        let highlight = self.config.palette.focus.scale_alpha(self.opacity);
+        let highlight = self.config.palette.focus;
         let fill = Color {
             a: TILE_FILL_ALPHA,
             ..self.config.palette.dim
-        }
-        .scale_alpha(self.opacity);
+        };
         let hovered_fill = Color {
             a: TILE_HOVER_FILL_ALPHA,
             ..self.config.palette.dim
-        }
-        .scale_alpha(self.opacity);
+        };
         let radius = if tile.is_floating {
             FLOATING_TILE_RADIUS_PX
         } else {
             TILE_RADIUS_PX
         };
         let shadow = self.lift(tile);
-        let text_color = self.config.palette.bar_foreground.scale_alpha(self.opacity);
+        let text_color = self.config.palette.bar_foreground;
 
         button(content)
             .width(width)
@@ -150,15 +141,14 @@ impl<'a> WorkspaceSchematic<'a> {
             color: Color {
                 a: FLOATING_SHADOW_ALPHA,
                 ..self.config.palette.surface
-            }
-            .scale_alpha(self.opacity),
+            },
             offset: FLOATING_SHADOW_OFFSET,
             blur_radius: FLOATING_SHADOW_BLUR_PX,
         }
     }
 
     fn label(&self, tile: &PreviewTile) -> Element<'static, Message> {
-        rich_text(title_spans(self.config, &tile.title, self.opacity))
+        rich_text(title_spans(self.config, &tile.title, 1.0))
             .size(self.config.font.text_size_px * TILE_LABEL_SCALE)
             .line_height(LINE_HEIGHT)
             .wrapping(Wrapping::WordOrGlyph)
@@ -176,6 +166,5 @@ impl<'a> WorkspaceSchematic<'a> {
                 ..self.config.palette.bar_foreground
             }
         }
-        .scale_alpha(self.opacity)
     }
 }

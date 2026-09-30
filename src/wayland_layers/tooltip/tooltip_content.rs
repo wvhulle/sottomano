@@ -63,7 +63,6 @@ pub struct TooltipContent<'a> {
     tooltip: &'a Tooltip,
     config: &'a Config,
     favicons: &'a Favicons,
-    opacity: f32,
     now: SystemTime,
 }
 
@@ -73,14 +72,8 @@ impl<'a> TooltipContent<'a> {
             tooltip,
             config,
             favicons,
-            opacity: 1.0,
             now: SystemTime::now(),
         }
-    }
-
-    pub fn opacity(mut self, opacity: f32) -> Self {
-        self.opacity = opacity;
-        self
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -95,11 +88,11 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn foreground(&self) -> Color {
-        self.config.palette.bar_foreground.scale_alpha(self.opacity)
+        self.config.palette.bar_foreground
     }
 
     fn flash(&self) -> Color {
-        self.config.palette.success.scale_alpha(self.opacity)
+        self.config.palette.success
     }
 
     fn dim(&self) -> Color {
@@ -107,7 +100,6 @@ impl<'a> TooltipContent<'a> {
             a: DIM_ALPHA,
             ..self.config.palette.bar_foreground
         }
-        .scale_alpha(self.opacity)
     }
 
     fn footer(&self, info: RefreshInfo) -> Element<'static, Message> {
@@ -131,9 +123,7 @@ impl<'a> TooltipContent<'a> {
             TooltipBody::Workspace(preview) => inset(
                 Column::with_children([
                     self.table(&preview.header),
-                    WorkspaceSchematic::new(preview, self.config, self.favicons)
-                        .opacity(self.opacity)
-                        .view(),
+                    WorkspaceSchematic::new(preview, self.config, self.favicons).view(),
                 ])
                 .spacing(SECTION_GAP_PX)
                 .into(),
@@ -205,8 +195,8 @@ impl<'a> TooltipContent<'a> {
             style: FontStyle::Italic,
             ..self.config.font.iced_font
         };
-        let heading = self.config.palette.inactive.scale_alpha(self.opacity);
-        let divider = self.config.palette.surface_raised.scale_alpha(self.opacity);
+        let heading = self.config.palette.inactive;
+        let divider = self.config.palette.surface_raised;
         let font = self.config.font.clone();
 
         let filled = sections.iter().filter(|section| !section.body.is_empty());
@@ -225,9 +215,9 @@ impl<'a> TooltipContent<'a> {
         match body {
             SectionBody::Rows(rows) => self.table(rows),
             SectionBody::Columns { headings, rows } => self.headed_table(headings, rows),
-            SectionBody::Tree { root, folding } => ProcessTree::new(root, folding, self.config)
-                .opacity(self.opacity)
-                .view(),
+            SectionBody::Tree { root, folding } => {
+                ProcessTree::new(root, folding, self.config).view()
+            }
         }
     }
 
@@ -237,7 +227,7 @@ impl<'a> TooltipContent<'a> {
             max_width: self.config.widgets.tooltip_value_width_px,
             locale: self.config.locale,
             flash: self.flash(),
-            link: self.config.palette.info.scale_alpha(self.opacity),
+            link: self.config.palette.info,
         }
     }
 
@@ -262,7 +252,7 @@ impl<'a> TooltipContent<'a> {
             .chain(once(headings.len()))
             .max()
             .unwrap_or(0);
-        let heading_color = self.config.palette.inactive.scale_alpha(self.opacity);
+        let heading_color = self.config.palette.inactive;
 
         key_value_table(
             rows.iter().cloned(),
@@ -284,14 +274,13 @@ impl<'a> TooltipContent<'a> {
         heading: Element<'static, Message>,
     ) -> table::Column<'static, 'static, Row, Message> {
         let palette = self.config.palette.clone();
-        let opacity = self.opacity;
         let cell_view = self.cell_view();
 
         value_column(heading, move |mut entry: Row| {
             if position >= entry.cells.len() {
                 return Space::new().into();
             }
-            let foreground = entry.level.color(&palette).scale_alpha(opacity);
+            let foreground = entry.level.color(&palette);
             cell_view.value(entry.cells.swap_remove(position), foreground)
         })
     }

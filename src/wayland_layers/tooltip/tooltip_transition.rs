@@ -1,13 +1,9 @@
-use std::time::Instant;
-
-use iced::{Animation, Rectangle, animation::Easing, time::Duration};
+use iced::Rectangle;
 
 use crate::{
     wayland_layers::{surface::Position, tooltip::HoverTarget},
     widgets::tooltip_body::Tooltip,
 };
-
-const MORPH: Duration = Duration::from_millis(160);
 
 #[derive(Debug, Clone)]
 pub struct Placement {
@@ -34,19 +30,12 @@ impl Departed {
 
 enum Stage {
     Idle,
-    Showing {
-        current: Occupant,
-        previous: Option<Departed>,
-        leaving: bool,
-    },
-    Hiding {
-        previous: Departed,
-    },
+    Showing { current: Occupant, leaving: bool },
+    Hiding { previous: Departed },
 }
 
 pub struct TooltipTransition {
     stage: Stage,
-    morph: Animation<bool>,
     seq: u64,
 }
 
@@ -54,23 +43,15 @@ impl Default for TooltipTransition {
     fn default() -> Self {
         Self {
             stage: Stage::Idle,
-            morph: settled_morph(),
             seq: 0,
         }
     }
 }
 
-fn settled_morph() -> Animation<bool> {
-    Animation::new(false)
-        .easing(Easing::EaseOutCubic)
-        .duration(MORPH)
-}
-
 impl TooltipTransition {
-    pub fn show(&mut self, current: Occupant, previous: Option<Departed>) {
+    pub fn show(&mut self, current: Occupant) {
         self.stage = Stage::Showing {
             current,
-            previous,
             leaving: false,
         };
         self.restart();
@@ -90,7 +71,6 @@ impl TooltipTransition {
     }
 
     fn restart(&mut self) {
-        self.morph = settled_morph().go(true, Instant::now());
         self.seq += 1;
     }
 
@@ -119,9 +99,8 @@ impl TooltipTransition {
 
     pub fn previous(&self) -> Option<&Departed> {
         match &self.stage {
-            Stage::Showing { previous, .. } => previous.as_ref(),
             Stage::Hiding { previous } => Some(previous),
-            Stage::Idle => None,
+            Stage::Idle | Stage::Showing { .. } => None,
         }
     }
 
@@ -135,13 +114,5 @@ impl TooltipTransition {
 
     pub fn seq(&self) -> u64 {
         self.seq
-    }
-
-    pub fn progress(&self) -> f32 {
-        self.morph.interpolate(0.0, 1.0, Instant::now())
-    }
-
-    pub fn is_morphing(&self) -> bool {
-        self.morph.is_animating(Instant::now())
     }
 }

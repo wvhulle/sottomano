@@ -1,5 +1,5 @@
 use iced::{
-    Border, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
+    Animation, Border, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         graphics::geometry::Renderer as _,
@@ -7,7 +7,9 @@ use iced::{
         mouse, renderer,
         widget::{Operation, Tree, tree},
     },
+    animation::Easing,
     mouse::Cursor,
+    time::{Duration, Instant},
     widget::canvas::Frame,
     window,
 };
@@ -44,8 +46,8 @@ pub fn anchored_popup<'a>(
     renderings: Vec<Rendering<'a>>,
     anchor: Rectangle,
     position: Position,
-    progress: f32,
     seq: u64,
+    morph_duration: Duration,
     config: &Config,
     on_bounds: impl Fn(Rectangle) -> Message + 'a,
 ) -> Element<'a, Message> {
@@ -57,8 +59,8 @@ pub fn anchored_popup<'a>(
         bar_thickness: config.chrome.outer_height_px,
         popup_gap: config.chrome.popup_gap_px,
         position,
-        progress: progress.clamp(0.0, 1.0),
         seq,
+        morph_duration,
         background: config.palette.surface,
         radius: f32::from(config.chrome.popup_radius_px),
     })
@@ -72,15 +74,17 @@ struct AnchoredPopup<'a> {
     bar_thickness: f32,
     popup_gap: f32,
     position: Position,
-    progress: f32,
     seq: u64,
+    morph_duration: Duration,
     background: Color,
     radius: f32,
 }
 
-#[derive(Default)]
 struct MorphState {
     seq: u64,
+    morph: Animation<bool>,
+    now: Instant,
+    progress: f32,
     from: Rectangle,
     current: Rectangle,
     published: Option<Rectangle>,
@@ -170,8 +174,8 @@ impl<'a> AnchoredPopup<'a> {
         self.renderings.iter().any(|rendering| rendering.incoming)
     }
 
-    fn is_settled(&self) -> bool {
-        self.progress >= 1.0 && self.is_live()
+    fn is_settled(&self, state: &MorphState) -> bool {
+        state.progress >= 1.0 && self.is_live()
     }
 
     fn live_view<'t>(
@@ -198,7 +202,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(MorphState::default())
+        tree::State::new(MorphState {
+            seq: 0,
+            morph: Animation::new(true),
+            now: Instant::now(),
+            progress: 1.0,
+            from: Rectangle::default(),
+            current: Rectangle::default(),
+            published: None,
+        })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -251,9 +263,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             } else {
                 at_anchor
             };
+            state.now = Instant::now();
+            state.morph = Animation::new(false)
+                .easing(Easing::EaseOutCubic)
+                .duration(self.morph_duration)
+                .go(true, state.now);
         }
+        state.progress = state.morph.interpolate(0.0, 1.0, state.now);
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
-        state.current = lerp(state.from, target, self.progress);
+        state.current = lerp(state.from, target, state.progress);
         let origin = state.current.position();
 
         Node::with_children(
@@ -297,7 +315,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             },
             self.background,
         );
-        if self.is_settled() {
+        if self.is_settled(state) {
             let notch = notch(
                 self.anchor + origin,
                 bar_edge,
@@ -367,13 +385,19 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
                 viewport,
             );
         }
-        if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
+        let Event::Window(window::Event::RedrawRequested(now)) = event else {
             return;
-        }
-        let live = self.is_live();
+        };
         let state: &mut MorphState = tree.state.downcast_mut();
-        let interactive = if live {
+        state.now = *now;
+        if state.progress < 1.0 {
+            shell.invalidate_layout();
+            shell.request_redraw();
+        }
+        let interactive = if self.is_settled(state) {
             state.current + Vector::new(layout.bounds().x, layout.bounds().y)
+        } else if self.is_live() {
+            return;
         } else {
             Rectangle::default()
         };

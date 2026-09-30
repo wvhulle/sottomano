@@ -74,7 +74,7 @@ fn outputs() -> Subscription<Message> {
 }
 
 pub fn subscription(state: &Bar) -> Subscription<Message> {
-    let animation = if state.any_notification_transitioning() || state.tooltip.is_morphing() {
+    let animation = if state.any_notification_transitioning() {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
