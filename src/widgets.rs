@@ -24,7 +24,6 @@ pub mod progress_line;
 pub mod reading_alert;
 pub mod reveal;
 pub mod section_column;
-pub mod settled_layout;
 pub mod simple_icons;
 pub mod slider_control;
 pub mod source_reading;

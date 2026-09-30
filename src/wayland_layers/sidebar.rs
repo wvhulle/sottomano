@@ -54,11 +54,7 @@ fn layer_settings(output: &str, layout: &PanelLayout) -> NewLayerShellSettings {
         exclusive_zone: Some(0),
         anchor: Anchor::Left,
         layer: Layer::Top,
-        margin: Some(
-            Position::Left
-                .float_margin(layout.margin_offset_px())
-                .edges(),
-        ),
+        margin: Some(Position::Left.float_margin(layout.margin_offset_px())),
         ..surface::base_settings(Some(output), StyledSurface::Sidebar.namespace())
     }
 }

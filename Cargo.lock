@@ -1470,8 +1470,8 @@ dependencies = [
 
 [[package]]
 name = "exwlshellev"
-version = "0.20.0"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#6c9fe78b21995d011c164f078c0b22dca381dee3"
+version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#ee80b66aca885d5c57368be40b6c747f9c317920"
 dependencies = [
  "calloop 0.14.4",
  "calloop-wayland-source 0.4.1",
@@ -2510,8 +2510,8 @@ dependencies = [
 
 [[package]]
 name = "iced_exdevtools"
-version = "0.20.0"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#6c9fe78b21995d011c164f078c0b22dca381dee3"
+version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#ee80b66aca885d5c57368be40b6c747f9c317920"
 dependencies = [
  "iced_debug",
  "iced_devtools",
@@ -2523,8 +2523,8 @@ dependencies = [
 
 [[package]]
 name = "iced_exwlshell"
-version = "0.20.0"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#6c9fe78b21995d011c164f078c0b22dca381dee3"
+version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#ee80b66aca885d5c57368be40b6c747f9c317920"
 dependencies = [
  "enumflags2",
  "exwlshellev",
@@ -2549,8 +2549,8 @@ dependencies = [
 
 [[package]]
 name = "iced_exwlshell_macros"
-version = "0.20.0"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#6c9fe78b21995d011c164f078c0b22dca381dee3"
+version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#ee80b66aca885d5c57368be40b6c747f9c317920"
 dependencies = [
  "darling 0.24.1",
  "manyhow",
@@ -2652,8 +2652,8 @@ dependencies = [
 
 [[package]]
 name = "iced_wayland_subscriber"
-version = "0.20.0"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#6c9fe78b21995d011c164f078c0b22dca381dee3"
+version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#ee80b66aca885d5c57368be40b6c747f9c317920"
 dependencies = [
  "futures",
  "iced_core",
@@ -3478,9 +3478,9 @@ dependencies = [
 
 [[package]]
 name = "manyhow"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e480c047342e73ccc05fb821f0953512868b9257c2559b22a7e3efafc4aad85d"
+checksum = "8c69ea6e469ca785c846b25dd69eac9e9c916b51d8ada1f212866787ee1da12d"
 dependencies = [
  "darling_core 0.24.1",
  "manyhow-macros",
@@ -3491,9 +3491,9 @@ dependencies = [
 
 [[package]]
 name = "manyhow-macros"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3330ca83c69fe1691d12126d522dda965e58735ac26052580f95f56e4169ec4"
+checksum = "22fc5c1b2c4000056dae3619fea36e79ce79dabfee4907d2dcad6612b189e370"
 dependencies = [
  "proc-macro-utils",
  "proc-macro2",
@@ -7295,8 +7295,8 @@ dependencies = [
 
 [[package]]
 name = "waycrate_xkbkeycode"
-version = "0.20.0"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#6c9fe78b21995d011c164f078c0b22dca381dee3"
+version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#ee80b66aca885d5c57368be40b6c747f9c317920"
 dependencies = [
  "calloop 0.14.4",
  "log",
@@ -8134,9 +8134,9 @@ dependencies = [
 
 [[package]]
 name = "winit-common"
-version = "0.31.0-beta.2"
+version = "0.31.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45375fbac4cbb77260d83a30b1f9d8105880dbac99a9ae97f56656694680ff69"
+checksum = "e90422ff1c04502aaaac1dad1d099791c2bbb3fbb3f823019e0ce5cdeee04025"
 dependencies = [
  "memmap2",
  "smol_str 0.3.6",
@@ -8147,9 +8147,9 @@ dependencies = [
 
 [[package]]
 name = "winit-core"
-version = "0.31.0-beta.2"
+version = "0.31.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4f0ccd7abb43740e2c6124ac7cae7d865ecec74eec63783e8922577ac232583"
+checksum = "b8af6307236c51847199950c15cf80e0481a250bb96ce9132f5026df4ad3d0f9"
 dependencies = [
  "bitflags 2.13.1",
  "cursor-icon",
@@ -8157,6 +8157,7 @@ dependencies = [
  "keyboard-types",
  "raw-window-handle",
  "smol_str 0.3.6",
+ "url",
  "web-time",
 ]
 

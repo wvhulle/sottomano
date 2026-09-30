@@ -8,16 +8,25 @@ use crate::{
     app::Message,
     wayland_layers::{
         niri_rules::StyledSurface,
-        surface::{self, Position},
+        surface::{self, Margin, Position},
     },
 };
 
-pub fn margin(position: Position, height: u32) -> (i32, i32, i32, i32) {
-    let h = height.cast_signed();
+pub fn margin(position: Position, height: u32) -> Margin {
+    let offscreen = -height.cast_signed();
     match position {
-        Position::Top => (-h, 0, 0, 0),
-        Position::Bottom => (0, 0, -h, 0),
-        Position::Left => (0, 0, 0, -h),
+        Position::Top => Margin {
+            top: offscreen,
+            ..Margin::default()
+        },
+        Position::Bottom => Margin {
+            bottom: offscreen,
+            ..Margin::default()
+        },
+        Position::Left => Margin {
+            left: offscreen,
+            ..Margin::default()
+        },
     }
 }
 

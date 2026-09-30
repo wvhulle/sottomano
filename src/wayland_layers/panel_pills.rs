@@ -1,19 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use iced::{Rectangle, Task, window::Id};
-use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
-use tokio::time::sleep;
+use iced_exwlshell::reexport::{BlurOption, BlurRegion};
 
-use crate::{
-    app::Message,
-    config::Config,
-    state::PanelLayout,
-    wayland_layers::{
-        niri_rules::StyledSurface,
-        surface::{self, Margin, Position, Surface},
-    },
-    widgets::widget_group::EXPAND,
-};
+use crate::{app::Message, state::PanelLayout, wayland_layers::surface::Surface};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Zone {
@@ -26,217 +16,122 @@ pub enum Zone {
     Sidebar,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PillPlacement {
-    pub strip: Id,
-    pub zone: Zone,
-    pub index: usize,
-    pub rect: Rectangle,
-}
-
 #[derive(Default)]
 pub struct PanelPills {
-    pills: HashMap<(Id, Zone), Vec<(Id, Rectangle)>>,
     rects: HashMap<(Id, Zone), Vec<Rectangle>>,
 }
 
 impl PanelPills {
-    pub fn placement(&self, pill: Id) -> Option<PillPlacement> {
-        self.pills.iter().find_map(|(&(strip, zone), list)| {
-            list.iter()
-                .position(|&(id, _)| id == pill)
-                .map(|index| PillPlacement {
-                    strip,
-                    zone,
-                    index,
-                    rect: list[index].1,
-                })
-        })
-    }
-
-    pub fn rebuild(
-        &mut self,
-        config: &Config,
-        layout: &PanelLayout,
-        bars: &BTreeMap<Id, Surface>,
-    ) -> Task<Message> {
-        let closed = close(self.pills.drain().flat_map(|(_, list)| list));
-        self.rects
-            .retain(|(window, _), _| bars.contains_key(window));
-        let reopened: Vec<Task<Message>> = self
-            .rects
-            .clone()
-            .into_iter()
-            .map(|((window, zone), _)| self.follow(window, zone, config, layout, bars))
-            .collect();
-        Task::batch([closed, Task::batch(reopened)])
-    }
-
     pub fn pill_rects(
         &mut self,
-        window: Id,
+        strip: Id,
         zone: Zone,
-        new: &[Rectangle],
-        config: &Config,
+        rects: &[Rectangle],
         layout: &PanelLayout,
-        bars: &BTreeMap<Id, Surface>,
     ) -> Task<Message> {
-        self.rects.insert((window, zone), new.to_vec());
-        if self.shrinks(window, zone, new) {
-            return Task::future(sleep(EXPAND))
-                .map(move |()| Message::PillsSettled { window, zone });
-        }
-        self.follow(window, zone, config, layout, bars)
+        self.rects.insert((strip, zone), rects.to_vec());
+        self.blur_of(strip, layout)
     }
 
-    fn shrinks(&self, window: Id, zone: Zone, new: &[Rectangle]) -> bool {
-        self.pills.get(&(window, zone)).is_some_and(|current| {
-            new.len() < current.len()
-                || current
-                    .iter()
-                    .zip(new)
-                    .any(|(&(_, old), rect)| rect.width < old.width)
-        })
-    }
-
-    pub fn follow(
-        &mut self,
-        window: Id,
-        zone: Zone,
-        config: &Config,
-        layout: &PanelLayout,
-        bars: &BTreeMap<Id, Surface>,
-    ) -> Task<Message> {
-        let new = self.rects.get(&(window, zone)).cloned().unwrap_or_default();
-        let Some(surface) = bars
-            .get(&window)
-            .filter(|surface| !surface.position.is_vertical() && layout.disconnected_groups)
-        else {
-            return Task::none();
-        };
-        let position = surface.position;
-        let float = position.float_margin(layout.margin_offset_px());
-        let mut current = self.pills.remove(&(window, zone)).unwrap_or_default();
-        let surplus = close(current.drain(new.len().min(current.len())..));
-        let mut tasks = vec![surplus];
-        for (index, &rect) in new.iter().enumerate() {
-            match current.get_mut(index) {
-                Some((id, old)) if *old != rect => {
-                    *old = rect;
-                    tasks.push(Task::done(Message::MarginChange {
-                        id: *id,
-                        margin: pill_margin(position, float, rect).edges(),
-                    }));
-                    tasks.push(Task::done(Message::LayoutChange {
-                        id: *id,
-                        anchor: pill_anchor(position),
-                        size: pill_size(rect, config),
-                    }));
-                }
-                Some(_) => {}
-                None => {
-                    let id = Id::unique();
-                    current.push((id, rect));
-                    tasks.push(Task::done(Message::NewLayerShell {
-                        settings: pill_settings(&surface.output, position, float, rect, config),
-                        id,
-                    }));
-                }
-            }
-        }
-        self.pills.insert((window, zone), current);
-        Task::batch(tasks)
-    }
-
-    pub fn reposition(&self, layout: &PanelLayout, bars: &BTreeMap<Id, Surface>) -> Task<Message> {
-        let pills = self.pills.iter().flat_map(|((window, _), list)| {
-            let surface = bars.get(window);
-            list.iter().filter_map(move |&(pill, rect)| {
-                let position = surface?.position;
-                let float = position.float_margin(layout.margin_offset_px());
-                Some(Task::done(Message::MarginChange {
-                    id: pill,
-                    margin: pill_margin(position, float, rect).edges(),
-                }))
-            })
-        });
-        Task::batch(pills.collect::<Vec<_>>())
-    }
-
-    pub fn forget(&mut self, window: Id) -> Task<Message> {
-        self.rects.retain(|(bar, _), _| *bar != window);
-        let strips: Vec<(Id, Zone)> = self
-            .pills
-            .keys()
-            .filter(|(bar, _)| *bar == window)
-            .copied()
-            .collect();
-        close(
-            strips
-                .into_iter()
-                .filter_map(|key| self.pills.remove(&key))
-                .flatten()
+    pub fn refresh(&self, layout: &PanelLayout, bars: &BTreeMap<Id, Surface>) -> Task<Message> {
+        Task::batch(
+            bars.iter()
+                .filter(|(_, surface)| !surface.position.is_vertical())
+                .map(|(&strip, _)| self.blur_of(strip, layout))
                 .collect::<Vec<_>>(),
         )
     }
-}
 
-fn close(pills: impl IntoIterator<Item = (Id, Rectangle)>) -> Task<Message> {
-    Task::batch(
-        pills
-            .into_iter()
-            .map(|(id, _)| Task::done(Message::RemoveWindow(id)))
-            .collect::<Vec<_>>(),
-    )
-}
+    pub fn forget(&mut self, window: Id) {
+        self.rects.retain(|(strip, _), _| *strip != window);
+    }
 
-fn pill_anchor(position: Position) -> Anchor {
-    match position {
-        Position::Top | Position::Left => Anchor::Top | Anchor::Left,
-        Position::Bottom => Anchor::Bottom | Anchor::Left,
+    fn blur_of(&self, strip: Id, layout: &PanelLayout) -> Task<Message> {
+        let option = if layout.disconnected_groups {
+            BlurOption::Region(
+                self.rects
+                    .iter()
+                    .filter(|((owner, _), _)| *owner == strip)
+                    .flat_map(|(_, rects)| rects)
+                    .flat_map(|rect| rounded(*rect, layout.corner_radius.top_left))
+                    .collect(),
+            )
+        } else {
+            BlurOption::None
+        };
+        Task::done(Message::BlurOptionChange { id: strip, option })
     }
 }
 
-fn pill_settings(
-    output: &str,
-    position: Position,
-    float: Margin,
-    rect: Rectangle,
-    config: &Config,
-) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: pill_size(rect, config),
-        exclusive_zone: Some(-1),
-        anchor: pill_anchor(position),
-        layer: Layer::Top,
-        margin: Some(pill_margin(position, float, rect).edges()),
-        ..surface::base_settings(Some(output), StyledSurface::Pill.namespace())
-    }
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn rounded(rect: Rectangle, radius: f32) -> Vec<BlurRegion> {
+    let x = rect.x.round() as i32;
+    let y = rect.y.round() as i32;
+    let width = rect.width.ceil() as i32;
+    let height = rect.height.ceil() as i32;
+    let radius = (radius.round() as i32).clamp(0, width.min(height) / 2);
+    let row = |top: i32, inset: i32| BlurRegion {
+        x: x + inset,
+        y: top,
+        width: width - 2 * inset,
+        height: 1,
+    };
+    let corner_rows = (0..radius).flat_map(|step| {
+        let from_edge = (radius - step) as f32 - 0.5;
+        let reach = (radius as f32)
+            .mul_add(radius as f32, -from_edge * from_edge)
+            .sqrt();
+        let inset = (radius as f32 - reach).round() as i32;
+        [row(y + step, inset), row(y + height - 1 - step, inset)]
+    });
+    corner_rows
+        .chain([BlurRegion {
+            x,
+            y: y + radius,
+            width,
+            height: height - 2 * radius,
+        }])
+        .filter(|row| row.width > 0 && row.height > 0)
+        .collect()
 }
 
-#[allow(clippy::cast_possible_truncation)]
-fn pill_margin(position: Position, float: Margin, rect: Rectangle) -> Margin {
-    let left = float.left + rect.x.round() as i32;
-    match position {
-        Position::Top | Position::Left => Margin {
-            top: float.top,
-            right: 0,
-            bottom: 0,
-            left,
-        },
-        Position::Bottom => Margin {
-            top: 0,
-            right: 0,
-            bottom: float.bottom,
-            left,
-        },
-    }
-}
+#[cfg(test)]
+mod tests {
+    use iced::Rectangle;
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn pill_size(rect: Rectangle, config: &Config) -> LayerSize {
-    LayerSize::px(
-        rect.width.ceil().max(1.0) as u32,
-        config.bar.height_px as u32,
-    )
+    use super::rounded;
+
+    fn pill() -> Rectangle {
+        Rectangle {
+            x: 10.0,
+            y: 0.0,
+            width: 60.0,
+            height: 24.0,
+        }
+    }
+
+    #[test]
+    fn a_square_pill_is_one_rectangle() {
+        let region = rounded(pill(), 0.0);
+        assert_eq!(region.len(), 1);
+        assert_eq!(
+            (region[0].x, region[0].width, region[0].height),
+            (10, 60, 24)
+        );
+    }
+
+    #[test]
+    fn rounded_corners_step_inwards_towards_the_edge() {
+        let region = rounded(pill(), 8.0);
+        let top_row = region.iter().find(|row| row.y == 0).expect("top row");
+        let middle = region.iter().find(|row| row.height > 1).expect("middle");
+        assert!(top_row.x > 10 && top_row.width < 60);
+        assert_eq!((middle.y, middle.height, middle.width), (8, 8, 60));
+    }
+
+    #[test]
+    fn the_radius_never_exceeds_half_the_pill() {
+        let region = rounded(pill(), 100.0);
+        assert!(region.iter().all(|row| row.width > 0 && row.height > 0));
+    }
 }
