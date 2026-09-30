@@ -35,7 +35,7 @@ pub fn view(bar: &Bar, window: Id) -> Element<'_, Message> {
     if bar.backdrops.contains_key(&window) {
         return backdrop_shadow::fill();
     }
-    if bar.blur_casters.contains(window) {
+    if bar.blur_casters.contains(window) || bar.sidebar_reservations.contains(window) {
         return blur_caster::fill();
     }
     let Some(surface) = bar.surfaces.get(&window) else {

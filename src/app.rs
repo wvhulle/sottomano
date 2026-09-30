@@ -30,7 +30,7 @@ use crate::{
         bar::{layer_settings, view, widget_groups},
         blur_caster::{BlurCasters, Zone},
         notifications::{NotificationLayer, NotificationMessage},
-        sidebar,
+        sidebar::{self, SidebarReservations},
         surface::{Position, Surface},
         tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
     },
@@ -94,6 +94,7 @@ pub struct Bar {
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: BTreeMap<Id, Position>,
     pub(crate) blur_casters: BlurCasters,
+    pub(crate) sidebar_reservations: SidebarReservations,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
@@ -212,6 +213,7 @@ impl Bar {
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
             blur_casters: BlurCasters::default(),
+            sidebar_reservations: SidebarReservations::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -384,7 +386,11 @@ impl Bar {
         if zone != Zone::Sidebar {
             return blur;
         }
-        Task::batch([blur, sidebar::pointer_region(window, rects)])
+        Task::batch([
+            blur,
+            sidebar::pointer_region(window, rects),
+            self.sidebar_reservations.reserve(window, rects),
+        ])
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
@@ -447,7 +453,10 @@ impl Bar {
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
         self.notifications.forget(window);
-        self.blur_casters.forget(window)
+        Task::batch([
+            self.blur_casters.forget(window),
+            self.sidebar_reservations.forget(window),
+        ])
     }
 
     fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
@@ -914,7 +923,12 @@ impl Bar {
                     .map(|surface| surface.output.clone())
                     .collect();
                 Task::batch(outputs.iter().map(|output| {
-                    sidebar::open(&mut self.surfaces, output, &self.panel_settings.layout)
+                    sidebar::open(
+                        &mut self.surfaces,
+                        &mut self.sidebar_reservations,
+                        output,
+                        &self.panel_settings.layout,
+                    )
                 }))
             }
             WorkspacesPlacement::BottomPanel => Task::batch(
@@ -1027,6 +1041,7 @@ impl Bar {
         if self.panel_settings.layout.workspaces_placement == WorkspacesPlacement::Sidebar {
             opens.push(sidebar::open(
                 &mut self.surfaces,
+                &mut self.sidebar_reservations,
                 output,
                 &self.panel_settings.layout,
             ));

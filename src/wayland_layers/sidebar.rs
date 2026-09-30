@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use iced::{
     Element, Length, Rectangle, Task, Vector,
@@ -9,7 +9,6 @@ use iced::{
 use iced_exwlshell::reexport::{
     Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
 };
-use tracing::Instrument;
 
 use crate::{
     app::{Bar, Message},
@@ -18,10 +17,10 @@ use crate::{
     wayland_layers::{
         bar::corner_inset,
         blur_caster::{self, Zone},
-        surface::{Position, Surface, input_region},
+        surface::{self, Position, Surface, input_region},
     },
     widget_groups::workspaces_group,
-    widgets::{bounds_probe::bounds_probe, overlay_shadow::overlay_shadow},
+    widgets::bounds_probe::bounds_probe,
 };
 
 pub fn windows(surfaces: &BTreeMap<Id, Surface>) -> Vec<Id> {
@@ -34,6 +33,7 @@ pub fn windows(surfaces: &BTreeMap<Id, Surface>) -> Vec<Id> {
 
 pub fn open(
     surfaces: &mut BTreeMap<Id, Surface>,
+    reservations: &mut SidebarReservations,
     output: &str,
     layout: &PanelLayout,
 ) -> Task<Message> {
@@ -51,16 +51,20 @@ pub fn open(
             id,
         }),
         Task::done(input_region(id, Rectangle::default())),
+        reservations.open(id, output),
     ])
 }
 
 pub fn pointer_region(window: Id, pills: &[Rectangle]) -> Task<Message> {
-    let covered = pills
+    Task::done(input_region(window, covered(pills)))
+}
+
+fn covered(pills: &[Rectangle]) -> Rectangle {
+    pills
         .iter()
         .copied()
         .reduce(|covered, pill| covered.union(&pill))
-        .unwrap_or_default();
-    Task::done(input_region(window, covered))
+        .unwrap_or_default()
 }
 
 fn layer_settings(output: &str, layout: &PanelLayout) -> NewLayerShellSettings {
@@ -77,6 +81,57 @@ fn layer_settings(output: &str, layout: &PanelLayout) -> NewLayerShellSettings {
                 .edges(),
         ),
         ..Default::default()
+    }
+}
+
+#[derive(Default)]
+pub struct SidebarReservations {
+    by_sidebar: HashMap<Id, Id>,
+}
+
+impl SidebarReservations {
+    pub fn contains(&self, id: Id) -> bool {
+        self.by_sidebar
+            .values()
+            .any(|&reservation| reservation == id)
+    }
+
+    fn open(&mut self, sidebar: Id, output: &str) -> Task<Message> {
+        let id = Id::unique();
+        self.by_sidebar.insert(sidebar, id);
+        Task::done(Message::NewLayerShell {
+            settings: reservation_settings(output),
+            id,
+        })
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn reserve(&self, sidebar: Id, pills: &[Rectangle]) -> Task<Message> {
+        let Some(&id) = self.by_sidebar.get(&sidebar) else {
+            return Task::none();
+        };
+        let pill = covered(pills);
+        Task::done(Message::ExclusiveZoneChange {
+            id,
+            zone_size: (pill.x + pill.width).round() as i32,
+        })
+    }
+
+    pub fn forget(&mut self, sidebar: Id) -> Task<Message> {
+        self.by_sidebar
+            .remove(&sidebar)
+            .map_or_else(Task::none, |id| Task::done(Message::RemoveWindow(id)))
+    }
+}
+
+fn reservation_settings(output: &str) -> NewLayerShellSettings {
+    NewLayerShellSettings {
+        size: Position::Left.strip_size(1),
+        exclusive_zone: Some(0),
+        anchor: Position::Left.anchor(),
+        layer: Layer::Bottom,
+        events_transparent: true,
+        ..surface::base_settings(Some(output), "vetrata-sidebar-reservation")
     }
 }
 
@@ -108,8 +163,10 @@ fn pill<'a>(
     config: &Config,
     panel_settings: &PanelSettings,
 ) -> Element<'a, Message> {
-    let background = config.palette.surface;
-    // .scale_alpha(panel_settings.layout.tint_factor);
+    let background = config
+        .palette
+        .surface
+        .scale_alpha(panel_settings.layout.tint_factor);
     let foreground = config.palette.bar_foreground;
     let radius = panel_settings.layout.corner_radius;
     container(content)
@@ -121,7 +178,6 @@ fn pill<'a>(
                 ..Default::default()
             },
             text_color: Some(foreground),
-            shadow: overlay_shadow(1.0),
             ..Default::default()
         })
         .into()
