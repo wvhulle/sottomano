@@ -73,7 +73,7 @@ fn panel<'a>(bar: &'a Bar, window: Id, output: &'a str) -> Element<'a, Message> 
         .padding([bar.config.bar.height_px, 0.0])
         .align_left(Length::Fill)
         .center_y(Length::Fill);
-    container(stack![top, bottom, side]).padding(float).into()
+    container(stack![bottom, side, top]).padding(float).into()
 }
 
 fn band<'a>(
@@ -99,15 +99,18 @@ fn band<'a>(
     let strip = container(stack![dismiss, centered])
         .width(Length::Fill)
         .height(Length::Fixed(bar.config.bar.height_px))
-        .style(move |_| container::Style {
-            background: joined.then(|| background.into()),
-            border: iced::Border {
-                radius: layout.corner_radius,
+        .style(move |_| {
+            tracing::warn!(target: "vetrata::blurdbg", ?zone, joined, ?background, "strip style");
+            container::Style {
+                background: joined.then(|| background.into()),
+                border: iced::Border {
+                    radius: layout.corner_radius,
+                    ..Default::default()
+                },
+                shadow: if joined { shadow } else { Shadow::default() },
+                text_color: Some(bar.config.palette.bar_foreground),
                 ..Default::default()
-            },
-            shadow: if joined { shadow } else { Shadow::default() },
-            text_color: Some(bar.config.palette.bar_foreground),
-            ..Default::default()
+            }
         });
     bounds_probe(column![strip], move |rects| Message::PillBounds {
         window,

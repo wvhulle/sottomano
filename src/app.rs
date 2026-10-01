@@ -391,6 +391,7 @@ impl Bar {
         zone: Zone,
         rects: Vec<Rectangle>,
     ) -> Task<Message> {
+        tracing::warn!(target: "vetrata::blurdbg", ?window, ?zone, ?rects, "pill bounds");
         let regions = self
             .panel_regions
             .bounds(window, zone, rects, &self.panel_settings.layout);
@@ -896,6 +897,7 @@ impl Bar {
     }
 
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
+        tracing::warn!(target: "vetrata::blurdbg", ?msg, "panel settings message");
         match self
             .panel_settings_group
             .update(msg, &mut self.panel_settings.layout)
