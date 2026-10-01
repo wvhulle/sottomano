@@ -72,7 +72,7 @@ impl<S: BarWidget> LastPoll<S> {
     }
 
     pub fn live_tooltip(&self) -> Option<Tooltip> {
-        Some(Tooltip::of(self.data.as_ref()?.tooltip()))
+        Some(Tooltip::of(self.display()?.tooltip()))
     }
 
     pub fn receive<E: Display>(&mut self, reading: Result<S, E>) {

@@ -77,7 +77,12 @@ pub async fn post_json(
 }
 
 pub async fn get_text(url: &str, timeout_secs: u64) -> Result<String, Error> {
-    let body = client(timeout_secs)?.get(url).send().await?.text().await?;
+    let response = client(timeout_secs)?.get(url).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(Error::Status(status.as_u16()));
+    }
+    let body = response.text().await?;
     if body.trim().is_empty() {
         return Err(Error::Empty);
     }
