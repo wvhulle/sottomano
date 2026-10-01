@@ -6,18 +6,20 @@ use serde_json::Value;
 use super::{ApiFailure, Error, backoff, plan, read_credentials};
 use crate::data::source::http;
 
-const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+pub const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+pub const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.233";
 
-pub struct PlanUsage<Usage> {
+pub struct PlanReply<Reply> {
     pub plan: String,
-    pub usage: Usage,
+    pub reply: Reply,
 }
 
-pub async fn fetch<Usage: DeserializeOwned>(
+pub async fn fetch<Reply: DeserializeOwned>(
     credentials_path: &Path,
-) -> Result<PlanUsage<Usage>, Error> {
+    url: &str,
+) -> Result<PlanReply<Reply>, Error> {
     let credentials = read_credentials(credentials_path)?;
     if let Some(waiting) = backoff::still_waiting().await {
         return Err(waiting);
@@ -27,7 +29,7 @@ pub async fn fetch<Usage: DeserializeOwned>(
 
     let auth = format!("Bearer {token}");
     let mut resp = http::get(
-        USAGE_URL,
+        url,
         &[
             ("Authorization", &auth),
             ("anthropic-beta", OAUTH_BETA),
@@ -47,8 +49,8 @@ pub async fn fetch<Usage: DeserializeOwned>(
     }
     backoff::reset().await;
 
-    Ok(PlanUsage {
+    Ok(PlanReply {
         plan: plan(oauth),
-        usage: serde_json::from_value(body)?,
+        reply: serde_json::from_value(body)?,
     })
 }
