@@ -132,10 +132,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandAnimation<'
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
+            let laid_out_mid_animation = state.animation.is_animating(state.at);
             state.animation.go_mut(self.expanded, *now);
             state.at = *now;
-            if state.animation.is_animating(*now) {
+            let animating = state.animation.is_animating(*now);
+            if animating || laid_out_mid_animation {
                 shell.invalidate_layout();
+            }
+            if animating {
                 shell.request_redraw();
             }
         }
