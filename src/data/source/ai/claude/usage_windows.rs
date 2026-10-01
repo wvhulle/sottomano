@@ -7,14 +7,12 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
-use serde_json::Value;
 
-use super::{ApiFailure, Error, backoff, plan, read_credentials, subscription_login};
-use crate::data::source::{Source, http};
-
-const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
-const OAUTH_BETA: &str = "oauth-2025-04-20";
-const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.233";
+use super::{
+    Error, subscription_login,
+    usage_endpoint::{self, PlanUsage},
+};
+use crate::data::source::Source;
 
 const DEFAULT_DECIMAL_PLACES: i32 = 2;
 
@@ -53,6 +51,23 @@ pub struct Money {
     pub decimal_places: usize,
 }
 
+impl Money {
+    pub fn from_minor_units(minor_units: f64, currency: String, decimal_places: i32) -> Self {
+        Money {
+            amount: minor_units / 10f64.powi(decimal_places),
+            currency,
+            decimal_places: usize::try_from(decimal_places).unwrap_or_default(),
+        }
+    }
+
+    pub fn short_text(&self) -> String {
+        match self.currency.as_str() {
+            "USD" => format!("${:.*}", self.decimal_places, self.amount),
+            _ => self.to_string(),
+        }
+    }
+}
+
 impl Display for Money {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
@@ -78,7 +93,7 @@ pub struct ExtraUsage {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ClaudeOauth {
+pub struct ClaudeUsageWindows {
     pub plan: String,
     pub session: WindowUsage,
     pub weekly: WindowUsage,
@@ -86,56 +101,27 @@ pub struct ClaudeOauth {
     pub extra: Option<ExtraUsage>,
 }
 
-impl ClaudeOauth {
+impl ClaudeUsageWindows {
     pub fn session_used(&self) -> f64 {
         self.session.utilization
     }
 }
 
-impl Source for ClaudeOauth {
+impl Source for ClaudeUsageWindows {
     type Error = Error;
     type Key = PathBuf;
 
-    const NAME: &'static str = "claude-usage-oauth";
+    const NAME: &'static str = "claude-usage-windows";
     const INTERVAL: Duration = Duration::from_mins(1);
 
     fn available(key: &PathBuf) -> impl Future<Output = bool> + Send {
-        ready(subscription_login(key))
+        ready(subscription_login(key).is_some_and(|oauth| !oauth.is_enterprise()))
     }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
-        let credentials = read_credentials(&key)?;
-        if let Some(waiting) = backoff::still_waiting().await {
-            return Err(waiting);
-        }
-        let oauth = credentials.oauth.as_ref().ok_or(Error::NoToken)?;
-        let token = oauth.access_token.as_ref().ok_or(Error::NoToken)?;
-
-        let auth = format!("Bearer {token}");
-        let mut resp = http::get(
-            USAGE_URL,
-            &[
-                ("Authorization", &auth),
-                ("anthropic-beta", OAUTH_BETA),
-                ("User-Agent", CLAUDE_CODE_USER_AGENT),
-            ],
-            10,
-        )
-        .await?;
-        let body = resp.body.take().unwrap_or(Value::Null);
-        if resp.status == 429 {
-            return Err(backoff::schedule_retry(&resp, body).await);
-        }
-        if resp.status != 200 {
-            let failure = ApiFailure::from_body(body, resp.status);
-            tracing::warn!("claude usage: HTTP {}: {failure}", resp.status);
-            return Err(Error::Api(failure));
-        }
-        backoff::reset().await;
-
-        let usage: Usage = serde_json::from_value(body)?;
-        Ok(ClaudeOauth {
-            plan: plan(oauth),
+        let PlanUsage { plan, usage } = usage_endpoint::fetch::<Usage>(&key).await?;
+        Ok(ClaudeUsageWindows {
+            plan,
             extra: usage.overage.as_ref().and_then(Overage::extra_usage),
             session: usage.five_hour,
             weekly: usage.seven_day,
@@ -168,12 +154,11 @@ impl Overage {
     }
 
     fn money(&self, minor_units: f64) -> Money {
-        let decimal_places = self.decimal_places.unwrap_or(DEFAULT_DECIMAL_PLACES);
-        Money {
-            amount: minor_units / 10f64.powi(decimal_places),
-            currency: self.currency.clone(),
-            decimal_places: usize::try_from(decimal_places).unwrap_or_default(),
-        }
+        Money::from_minor_units(
+            minor_units,
+            self.currency.clone(),
+            self.decimal_places.unwrap_or(DEFAULT_DECIMAL_PLACES),
+        )
     }
 }
 
