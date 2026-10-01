@@ -17,7 +17,7 @@ impl BarWidget for OpenRouter {
     }
 
     fn label(&self) -> Option<String> {
-        Some(format!("{:.2}", self.spend))
+        Some(format!("${:.2}", self.spend))
     }
 
     fn state(&self) -> WidgetState {

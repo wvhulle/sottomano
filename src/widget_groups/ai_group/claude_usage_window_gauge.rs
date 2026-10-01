@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    data::source::ai::claude::{ClaudeOauth, ExtraStatus, ExtraUsage, WindowUsage},
+    data::source::ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
     widget_groups::ai_group::{amount_text::percent_text, spend_to_level::level_from_used},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-impl BarWidget for ClaudeOauth {
+impl BarWidget for ClaudeUsageWindows {
     fn icon(&self) -> Glyph {
         SimpleIcon::Claude.into()
     }
@@ -42,7 +42,7 @@ impl BarWidget for ClaudeOauth {
     }
 }
 
-impl Occasional for ClaudeOauth {
+impl Occasional for ClaudeUsageWindows {
     fn present(&self) -> bool {
         self.session_used() > 0.0
     }

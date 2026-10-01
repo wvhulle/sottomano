@@ -1,6 +1,8 @@
 mod backoff;
 mod daily_usage;
-mod oauth;
+mod enterprise_spend;
+mod usage_endpoint;
+mod usage_windows;
 
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
@@ -15,11 +17,13 @@ use serde_json::Value;
 
 pub use self::{
     daily_usage::ClaudeCcusage,
-    oauth::{ClaudeOauth, ExtraStatus, ExtraUsage, WindowUsage},
+    enterprise_spend::ClaudeEnterpriseSpend,
+    usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
 };
 use crate::data::source::{ai::ccusage, http};
 
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
+const ENTERPRISE_SUBSCRIPTION: &str = "enterprise";
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -118,6 +122,10 @@ impl Oauth {
     fn grants_subscription_usage(&self) -> bool {
         self.access_token.is_some() && self.scopes.iter().any(|scope| scope == SUBSCRIPTION_SCOPE)
     }
+
+    fn is_enterprise(&self) -> bool {
+        self.subscription_type.as_deref() == Some(ENTERPRISE_SUBSCRIPTION)
+    }
 }
 
 #[derive(Deserialize)]
@@ -135,12 +143,11 @@ fn read_credentials(path: &Path) -> Result<Credentials, Error> {
     Ok(serde_json::from_str(&raw)?)
 }
 
-fn subscription_login(path: &Path) -> bool {
-    read_credentials(path).is_ok_and(|credentials| {
-        credentials
-            .oauth
-            .is_some_and(|oauth| oauth.grants_subscription_usage())
-    })
+fn subscription_login(path: &Path) -> Option<Oauth> {
+    read_credentials(path)
+        .ok()?
+        .oauth
+        .filter(Oauth::grants_subscription_usage)
 }
 
 fn plan(oauth: &Oauth) -> String {
