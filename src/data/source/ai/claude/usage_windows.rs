@@ -9,12 +9,13 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use super::{
-    Error, subscription_login,
-    usage_endpoint::{self, PlanUsage},
+    Error,
+    oauth_api::{self, PlanReply},
+    subscription_login,
 };
 use crate::data::source::Source;
 
-const DEFAULT_DECIMAL_PLACES: i32 = 2;
+const DEFAULT_DECIMAL_PLACES: u8 = 2;
 
 #[derive(Deserialize)]
 struct Usage {
@@ -34,7 +35,7 @@ struct Overage {
     utilization: Option<f64>,
     #[serde(default)]
     currency: String,
-    decimal_places: Option<i32>,
+    decimal_places: Option<u8>,
     disabled_reason: Option<String>,
 }
 
@@ -52,11 +53,11 @@ pub struct Money {
 }
 
 impl Money {
-    pub fn from_minor_units(minor_units: f64, currency: String, decimal_places: i32) -> Self {
+    pub fn from_minor_units(minor_units: f64, currency: String, decimal_places: u8) -> Self {
         Money {
-            amount: minor_units / 10f64.powi(decimal_places),
+            amount: minor_units / 10f64.powi(i32::from(decimal_places)),
             currency,
-            decimal_places: usize::try_from(decimal_places).unwrap_or_default(),
+            decimal_places: usize::from(decimal_places),
         }
     }
 
@@ -119,7 +120,8 @@ impl Source for ClaudeUsageWindows {
     }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
-        let PlanUsage { plan, usage } = usage_endpoint::fetch::<Usage>(&key).await?;
+        let PlanReply { plan, reply: usage } =
+            oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
         Ok(ClaudeUsageWindows {
             plan,
             extra: usage.overage.as_ref().and_then(Overage::extra_usage),

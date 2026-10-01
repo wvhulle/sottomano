@@ -113,7 +113,10 @@ pub fn subscription(state: &Bar) -> Subscription<Message> {
         TrayGroup::subscription().map(Message::Tray),
         idle_subscription(state),
         AudioGroup::subscription().map(Message::Audio),
-        state.ai_group.subscription().map(Message::Ai),
+        state
+            .ai_group
+            .subscription(&state.config.working_days)
+            .map(Message::Ai),
         WindowGroup::subscription(state.watched_window()).map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {

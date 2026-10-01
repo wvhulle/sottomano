@@ -168,7 +168,7 @@ widget group that needs it.
 | file | what it is |
 | --- | --- |
 | `openrouter-management-key` | An OpenRouter **management** key, plain text. A regular API key is not enough: the usage widget calls `/analytics/query`. |
-| `claude-code-oauth` | The Claude Code credentials JSON (`~/.claude/.credentials.json`, containing `claudeAiOauth.accessToken`). Without an OAuth token it falls back to `ccusage` daily spend. |
+| `claude-code-oauth` | The Claude Code credentials JSON (`~/.claude/.credentials.json`, containing `claudeAiOauth.accessToken`). A Pro or Max login shows the usage windows and, with `ccusage` installed, the active 5-hour block. An Enterprise login or no login shows spend per day, week and month from `ccusage`, projected over `working_days` (Monday to Friday by default). |
 | `gh-auth-token` | A bare `gho_` GitHub OAuth token, used to call `/copilot_internal/user`. |
 | `unsplash-access-key` | An Unsplash **access** key — the Client-ID of an app registered at <https://unsplash.com/developers>, never the secret key. |
 

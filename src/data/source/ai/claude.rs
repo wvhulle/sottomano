@@ -1,7 +1,7 @@
 mod backoff;
-mod daily_usage;
+mod ccusage_reports;
 mod enterprise_spend;
-mod usage_endpoint;
+mod oauth_api;
 mod usage_windows;
 
 use std::{
@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub use self::{
-    daily_usage::ClaudeCcusage,
+    ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods},
     enterprise_spend::ClaudeEnterpriseSpend,
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
 };

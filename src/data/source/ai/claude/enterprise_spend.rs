@@ -7,8 +7,9 @@ use std::{
 use serde::Deserialize;
 
 use super::{
-    Error, ExtraStatus, Money, Oauth, subscription_login,
-    usage_endpoint::{self, PlanUsage},
+    Error, ExtraStatus, Money, Oauth,
+    oauth_api::{self, PlanReply},
+    subscription_login, title_case,
 };
 use crate::data::source::Source;
 
@@ -21,9 +22,7 @@ struct Usage {
 struct Spend {
     used: MinorAmount,
     limit: Option<MinorAmount>,
-    #[serde(default)]
     percent: f64,
-    #[serde(default)]
     enabled: bool,
     disabled_reason: Option<String>,
 }
@@ -32,7 +31,19 @@ struct Spend {
 struct MinorAmount {
     amount_minor: f64,
     currency: String,
-    exponent: i32,
+    exponent: u8,
+}
+
+#[derive(Deserialize)]
+struct Profile {
+    organization: Organization,
+}
+
+#[derive(Deserialize)]
+struct Organization {
+    name: String,
+    seat_tier: String,
+    subscription_status: String,
 }
 
 impl From<MinorAmount> for Money {
@@ -43,9 +54,11 @@ impl From<MinorAmount> for Money {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeEnterpriseSpend {
-    pub plan: String,
+    pub organization: String,
+    pub seat_tier: String,
+    pub subscription_status: String,
     pub status: ExtraStatus,
-    pub spent: Money,
+    pub used: Money,
     pub limit: Option<Money>,
     pub used_percent: f64,
 }
@@ -66,29 +79,35 @@ impl Source for ClaudeEnterpriseSpend {
     }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
-        let PlanUsage { plan, usage } = usage_endpoint::fetch::<Usage>(&key).await?;
-        Ok(usage.spend.into_enterprise(plan))
+        let PlanReply { reply: usage, .. } =
+            oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
+        let PlanReply { reply: profile, .. } =
+            oauth_api::fetch::<Profile>(&key, oauth_api::PROFILE_URL).await?;
+        Ok(ClaudeEnterpriseSpend::of(usage.spend, profile.organization))
     }
 }
 
-impl Spend {
-    fn into_enterprise(self, plan: String) -> ClaudeEnterpriseSpend {
-        let status = if self.enabled {
+impl ClaudeEnterpriseSpend {
+    fn of(spend: Spend, organization: Organization) -> Self {
+        let status = if spend.enabled {
             ExtraStatus::Enabled
         } else {
             ExtraStatus::Disabled(
-                self.disabled_reason
+                spend
+                    .disabled_reason
                     .as_deref()
                     .unwrap_or("disabled")
                     .replace('_', " "),
             )
         };
         ClaudeEnterpriseSpend {
-            plan,
+            organization: organization.name,
+            seat_tier: title_case(&organization.seat_tier.replace('_', " ")),
+            subscription_status: organization.subscription_status.replace('_', " "),
             status,
-            spent: self.used.into(),
-            limit: self.limit.map(Money::from),
-            used_percent: self.percent,
+            used: spend.used.into(),
+            limit: spend.limit.map(Money::from),
+            used_percent: spend.percent,
         }
     }
 }
@@ -111,13 +130,44 @@ mod tests {
         }
     }"#;
 
+    const ENTERPRISE_PROFILE: &str = r#"{
+        "account": { "display_name": "Someone", "has_claude_max": false },
+        "organization": {
+            "name": "Example Corp", "organization_type": "claude_enterprise",
+            "seat_tier": "enterprise_usage_based", "subscription_status": "active",
+            "has_extra_usage_enabled": true
+        }
+    }"#;
+
+    fn enterprise_spend() -> ClaudeEnterpriseSpend {
+        let usage: Usage = serde_json::from_str(ENTERPRISE_USAGE).unwrap();
+        let profile: Profile = serde_json::from_str(ENTERPRISE_PROFILE).unwrap();
+        ClaudeEnterpriseSpend::of(usage.spend, profile.organization)
+    }
+
     #[test]
     fn enterprise_usage_without_windows_reports_spend() {
-        let usage: Usage = serde_json::from_str(ENTERPRISE_USAGE).unwrap();
-        let enterprise = usage.spend.into_enterprise("Enterprise".to_owned());
+        let enterprise = enterprise_spend();
         assert_eq!(enterprise.status, ExtraStatus::Enabled);
-        assert_eq!(enterprise.spent.to_string(), "1.79 USD");
-        assert_eq!(enterprise.spent.short_text(), "$1.79");
+        assert_eq!(enterprise.used.to_string(), "1.79 USD");
+        assert_eq!(enterprise.used.short_text(), "$1.79");
         assert!(enterprise.limit.is_none());
+    }
+
+    #[test]
+    fn profile_names_the_organization_and_seat_tier() {
+        let enterprise = enterprise_spend();
+        assert_eq!(enterprise.organization, "Example Corp");
+        assert_eq!(enterprise.seat_tier, "Enterprise Usage Based");
+        assert_eq!(enterprise.subscription_status, "active");
+    }
+
+    #[test]
+    fn a_spend_without_its_percent_is_rejected() {
+        let missing_percent = r#"{"spend": {
+            "used": { "amount_minor": 1, "currency": "USD", "exponent": 2 },
+            "limit": null, "enabled": true, "disabled_reason": null
+        }}"#;
+        assert!(serde_json::from_str::<Usage>(missing_percent).is_err());
     }
 }

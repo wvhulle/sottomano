@@ -3,7 +3,10 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     data::source::ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-    widget_groups::ai_group::{amount_text::percent_text, spend_to_level::level_from_used},
+    widget_groups::ai_group::{
+        amount_text::{countdown, percent_text},
+        spend_to_level::level_from_used,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
@@ -61,13 +64,6 @@ fn window_section(title: &str, window: &WindowUsage, now: DateTime<Utc>) -> Sect
             ),
         ],
     )
-}
-
-fn countdown(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
-    let remaining = at.signed_duration_since(now).max(chrono::Duration::zero());
-    let hours = remaining.num_hours();
-    let minutes = remaining.num_minutes() - hours * 60;
-    format!("{hours}h {minutes}m")
 }
 
 fn extra_section(extra: &ExtraUsage) -> Section {

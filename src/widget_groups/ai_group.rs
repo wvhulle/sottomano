@@ -1,5 +1,6 @@
 pub mod amount_text;
-pub mod claude_code_daily_spend;
+pub mod claude_code_billing_block;
+pub mod claude_code_period_spend;
 pub mod claude_enterprise_credit_spend;
 pub mod claude_usage_window_gauge;
 pub mod copilot_cli_monthly_spend;
@@ -10,6 +11,7 @@ pub mod spend_to_level;
 
 use std::path::PathBuf;
 
+use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
@@ -17,7 +19,11 @@ use crate::{
     data::source::{
         Source,
         ai::{
-            claude::{self, ClaudeCcusage, ClaudeEnterpriseSpend, ClaudeUsageWindows},
+            ccusage,
+            claude::{
+                self, ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend,
+                ClaudeUsageWindows,
+            },
             copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
             openrouter::{self, OpenRouter},
         },
@@ -35,7 +41,8 @@ pub struct AiGroup {
     openrouter: LastPoll<OpenRouter>,
     claude_usage_windows: LastPoll<ClaudeUsageWindows>,
     claude_enterprise_spend: LastPoll<ClaudeEnterpriseSpend>,
-    claude_ccusage: LastPoll<ClaudeCcusage>,
+    claude_ccusage_periods: LastPoll<ClaudeCcusagePeriods>,
+    claude_ccusage_block: LastPoll<ClaudeCcusageBlock>,
     copilot_metered: LastPoll<CopilotMetered>,
     copilot_free: LastPoll<CopilotFree>,
     copilot_cli: LastPoll<CopilotCcusage>,
@@ -46,49 +53,59 @@ pub struct AiGroup {
 
 #[derive(Debug, Clone, Default)]
 pub struct Available {
-    claude: ClaudeUsageSource,
+    claude: ClaudeLogin,
+    ccusage_installed: bool,
     copilot: CopilotAvailable,
 }
 
 #[derive(Debug, Clone, Default)]
-pub enum ClaudeUsageSource {
-    UsageWindows(PathBuf),
-    EnterpriseSpend(PathBuf),
-    Ccusage,
+pub enum ClaudeLogin {
+    Subscription(PathBuf),
+    UsageBased(PathBuf),
     #[default]
-    Unavailable,
+    Absent,
 }
 
-impl ClaudeUsageSource {
+impl ClaudeLogin {
     async fn probe(credentials: Option<PathBuf>) -> Self {
-        if let Some(credentials) = credentials {
-            if ClaudeUsageWindows::available(&credentials).await {
-                return Self::UsageWindows(credentials);
-            }
-            if ClaudeEnterpriseSpend::available(&credentials).await {
-                return Self::EnterpriseSpend(credentials);
-            }
-        }
-        if ClaudeCcusage::available(&()).await {
-            Self::Ccusage
+        let Some(credentials) = credentials else {
+            return Self::Absent;
+        };
+        if ClaudeUsageWindows::available(&credentials).await {
+            Self::Subscription(credentials)
+        } else if ClaudeEnterpriseSpend::available(&credentials).await {
+            Self::UsageBased(credentials)
         } else {
-            Self::Unavailable
+            Self::Absent
         }
     }
 
-    fn subscription(&self) -> Option<Subscription<AiMessage>> {
-        match self {
-            Self::UsageWindows(credentials) => Some(
+    fn subscriptions(
+        &self,
+        ccusage_installed: bool,
+        working_days: &[Weekday],
+    ) -> Vec<Subscription<AiMessage>> {
+        let account = match self {
+            Self::Subscription(credentials) => Some(
                 polling::<ClaudeUsageWindows>(credentials.clone())
                     .map(AiMessage::ClaudeUsageWindows),
             ),
-            Self::EnterpriseSpend(credentials) => Some(
+            Self::UsageBased(credentials) => Some(
                 polling::<ClaudeEnterpriseSpend>(credentials.clone())
                     .map(AiMessage::ClaudeEnterpriseSpend),
             ),
-            Self::Ccusage => Some(polling::<ClaudeCcusage>(()).map(AiMessage::ClaudeCcusage)),
-            Self::Unavailable => None,
-        }
+            Self::Absent => None,
+        };
+        let local_logs = ccusage_installed.then(|| match self {
+            Self::Subscription(_) => {
+                polling::<ClaudeCcusageBlock>(()).map(AiMessage::ClaudeCcusageBlock)
+            }
+            Self::UsageBased(_) | Self::Absent => {
+                polling::<ClaudeCcusagePeriods>(working_days.to_vec())
+                    .map(AiMessage::ClaudeCcusagePeriods)
+            }
+        });
+        account.into_iter().chain(local_logs).collect()
     }
 }
 
@@ -112,7 +129,8 @@ pub enum AiMessage {
     OpenRouter(Result<OpenRouter, openrouter::Error>),
     ClaudeUsageWindows(Result<ClaudeUsageWindows, claude::Error>),
     ClaudeEnterpriseSpend(Result<ClaudeEnterpriseSpend, claude::Error>),
-    ClaudeCcusage(Result<ClaudeCcusage, claude::Error>),
+    ClaudeCcusagePeriods(Result<ClaudeCcusagePeriods, claude::Error>),
+    ClaudeCcusageBlock(Result<ClaudeCcusageBlock, claude::Error>),
     CopilotMetered(Result<CopilotMetered, copilot::Error>),
     CopilotFree(Result<CopilotFree, copilot::Error>),
     CopilotCli(Result<CopilotCcusage, copilot::Error>),
@@ -125,7 +143,8 @@ impl AiGroup {
             openrouter: LastPoll::default(),
             claude_usage_windows: LastPoll::default(),
             claude_enterprise_spend: LastPoll::default(),
-            claude_ccusage: LastPoll::default(),
+            claude_ccusage_periods: LastPoll::default(),
+            claude_ccusage_block: LastPoll::default(),
             copilot_metered: LastPoll::default(),
             copilot_free: LastPoll::default(),
             copilot_cli: LastPoll::default(),
@@ -140,7 +159,8 @@ impl AiGroup {
         Task::future(async move {
             let github_token = secrets.gh_auth_token.as_ref();
             AiMessage::Available(Available {
-                claude: ClaudeUsageSource::probe(secrets.claude_code_oauth).await,
+                claude: ClaudeLogin::probe(secrets.claude_code_oauth).await,
+                ccusage_installed: ccusage::installed().await,
                 copilot: CopilotAvailable {
                     metered: available_with::<CopilotMetered>(github_token).await,
                     free: available_with::<CopilotFree>(github_token).await,
@@ -150,14 +170,18 @@ impl AiGroup {
         })
     }
 
-    pub fn subscription(&self) -> Subscription<AiMessage> {
+    pub fn subscription(&self, working_days: &[Weekday]) -> Subscription<AiMessage> {
         let secrets = &self.secrets;
         let available = &self.available;
         let mut subscriptions = Vec::new();
         if let Some(key) = secrets.openrouter_management.clone() {
             subscriptions.push(polling::<OpenRouter>(key).map(AiMessage::OpenRouter));
         }
-        subscriptions.extend(available.claude.subscription());
+        subscriptions.extend(
+            available
+                .claude
+                .subscriptions(available.ccusage_installed, working_days),
+        );
         if let Some(key) = secrets.gh_auth_token.clone() {
             if available.copilot.metered {
                 subscriptions
@@ -181,7 +205,10 @@ impl AiGroup {
             AiMessage::ClaudeEnterpriseSpend(reading) => {
                 self.claude_enterprise_spend.receive(reading);
             }
-            AiMessage::ClaudeCcusage(reading) => self.claude_ccusage.receive(reading),
+            AiMessage::ClaudeCcusagePeriods(reading) => {
+                self.claude_ccusage_periods.receive(reading);
+            }
+            AiMessage::ClaudeCcusageBlock(reading) => self.claude_ccusage_block.receive(reading),
             AiMessage::CopilotMetered(reading) => self.copilot_metered.receive(reading),
             AiMessage::CopilotFree(reading) => self.copilot_free.receive(reading),
             AiMessage::CopilotCli(reading) => self.copilot_cli.receive(reading),
@@ -197,7 +224,8 @@ impl AiGroup {
             HoverTarget::AiOpenRouter => self.openrouter.tooltip(),
             HoverTarget::AiClaudeUsageWindows => self.claude_usage_windows.tooltip(),
             HoverTarget::AiClaudeEnterpriseSpend => self.claude_enterprise_spend.tooltip(),
-            HoverTarget::AiClaudeCcusage => self.claude_ccusage.tooltip(),
+            HoverTarget::AiClaudeCcusagePeriods => self.claude_ccusage_periods.tooltip(),
+            HoverTarget::AiClaudeCcusageBlock => self.claude_ccusage_block.tooltip(),
             HoverTarget::AiCopilotMetered => self.copilot_metered.tooltip(),
             HoverTarget::AiCopilotFree => self.copilot_free.tooltip(),
             HoverTarget::AiCopilotCli => self.copilot_cli.tooltip(),
@@ -215,7 +243,14 @@ impl AiGroup {
                 self.claude_enterprise_spend.present(),
                 HoverTarget::AiClaudeEnterpriseSpend,
             )
-            .reading(self.claude_ccusage.display(), HoverTarget::AiClaudeCcusage)
+            .reading(
+                self.claude_ccusage_periods.display(),
+                HoverTarget::AiClaudeCcusagePeriods,
+            )
+            .reading(
+                self.claude_ccusage_block.present(),
+                HoverTarget::AiClaudeCcusageBlock,
+            )
             .reading(
                 self.copilot_metered.present(),
                 HoverTarget::AiCopilotMetered,

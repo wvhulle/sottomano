@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chrono::Locale;
+use chrono::{Locale, Weekday};
 use serde::Deserialize;
 use toml::de;
 
@@ -32,6 +32,7 @@ pub struct Config {
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_service: String,
     pub locale: Locale,
+    pub working_days: Vec<Weekday>,
 }
 
 impl Config {
@@ -56,6 +57,7 @@ struct UserConfig {
     terminal_command_prefix: Vec<String>,
     color_temperature_service: String,
     locale: Option<String>,
+    working_days: Vec<Weekday>,
 }
 
 impl Default for UserConfig {
@@ -72,6 +74,13 @@ impl Default for UserConfig {
             terminal_command_prefix: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_service: String::from("screen-temperature.service"),
             locale: None,
+            working_days: vec![
+                Weekday::Mon,
+                Weekday::Tue,
+                Weekday::Wed,
+                Weekday::Thu,
+                Weekday::Fri,
+            ],
         }
     }
 }
@@ -98,6 +107,7 @@ impl UserConfig {
             terminal_command_prefix: self.terminal_command_prefix,
             color_temperature_service: self.color_temperature_service,
             locale,
+            working_days: self.working_days,
         })
     }
 }
