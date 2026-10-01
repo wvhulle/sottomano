@@ -23,7 +23,7 @@ impl TimePart {
         match self {
             TimePart::TimeOfDay => "%X",
             TimePart::Date => "%x",
-            TimePart::DateAndTime => "%c",
+            TimePart::DateAndTime => "%x %X",
         }
     }
 }
