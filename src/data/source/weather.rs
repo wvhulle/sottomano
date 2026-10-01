@@ -24,6 +24,7 @@ pub enum Error {
     Fetch(http::Error),
     Decode(Arc<serde_json::Error>),
     Malformed,
+    OutsideRainRadar,
 }
 
 impl Display for Error {
@@ -33,6 +34,9 @@ impl Display for Error {
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Malformed => write!(f, "unexpected response shape"),
+            Error::OutsideRainRadar => {
+                write!(f, "rain radar only covers the Netherlands and Belgium")
+            }
         }
     }
 }
@@ -56,7 +60,6 @@ impl From<serde_json::Error> for Error {
 }
 
 const BUIENRADAR_TIME_FORMAT: &str = "%H:%M";
-
 fn unix_instant<E: DeserializeError>(seconds: i64) -> Result<DateTime<Utc>, E> {
     DateTime::from_timestamp(seconds, 0).ok_or_else(|| E::custom("timestamp out of range"))
 }
@@ -270,21 +273,21 @@ struct AirQuality {
 #[derive(Deserialize)]
 pub struct PollenReadings {
     #[serde(rename = "alder_pollen")]
-    alder: f64,
+    alder: Option<f64>,
     #[serde(rename = "birch_pollen")]
-    birch: f64,
+    birch: Option<f64>,
     #[serde(rename = "grass_pollen")]
-    grass: f64,
+    grass: Option<f64>,
     #[serde(rename = "mugwort_pollen")]
-    mugwort: f64,
+    mugwort: Option<f64>,
     #[serde(rename = "olive_pollen")]
-    olive: f64,
+    olive: Option<f64>,
     #[serde(rename = "ragweed_pollen")]
-    ragweed: f64,
+    ragweed: Option<f64>,
 }
 
 impl PollenReadings {
-    fn grains_per_cubic_metre(&self, allergen: Allergen) -> f64 {
+    fn grains_per_cubic_metre(&self, allergen: Allergen) -> Option<f64> {
         match allergen {
             Allergen::Alder => self.alder,
             Allergen::Birch => self.birch,
@@ -522,7 +525,10 @@ impl Source for Rain {
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
             here.latitude, here.longitude
         );
-        let body = http::get_text(&url, 5).await?;
+        let body = http::get_text(&url, 5).await.map_err(|error| match error {
+            http::Error::Status(404) => Error::OutsideRainRadar,
+            other => Error::from(other),
+        })?;
         let now = Local::now();
         let forecast: Vec<Downpour> = body
             .lines()
@@ -596,11 +602,14 @@ impl Pollen {
     fn of(readings: &PollenReadings) -> Self {
         Self {
             concentrations: Allergen::ALL
-                .map(|allergen| AllergenConcentration {
-                    allergen,
-                    grains_per_cubic_metre: readings.grains_per_cubic_metre(allergen),
+                .into_iter()
+                .filter_map(|allergen| {
+                    Some(AllergenConcentration {
+                        allergen,
+                        grains_per_cubic_metre: readings.grains_per_cubic_metre(allergen)?,
+                    })
                 })
-                .to_vec(),
+                .collect(),
         }
     }
 
@@ -662,6 +671,22 @@ mod tests {
             "mugwort_pollen": 0.7, "olive_pollen": 0.0, "ragweed_pollen": 0.7
         }
     }"#;
+
+    const AIR_QUALITY_OUTSIDE_EUROPE: &str = r#"{
+        "current": {
+            "time": "2026-10-01T02:00", "interval": 3600,
+            "alder_pollen": null, "birch_pollen": null, "grass_pollen": null,
+            "mugwort_pollen": null, "olive_pollen": null, "ragweed_pollen": null
+        }
+    }"#;
+
+    #[test]
+    fn allergens_without_model_coverage_are_left_out() {
+        let air: AirQuality = serde_json::from_str(AIR_QUALITY_OUTSIDE_EUROPE).unwrap();
+        let pollen = Pollen::of(&air.current);
+        assert!(pollen.concentrations.is_empty());
+        assert_eq!(pollen.airborne().count(), 0);
+    }
 
     #[test]
     fn allergens_select_their_own_species() {
