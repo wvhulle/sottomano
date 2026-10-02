@@ -2,9 +2,8 @@ use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Shadow,
-    border::Radius,
     font::Weight,
-    theme::palette::{mix, readable},
+    theme::palette::{Extended, Pair},
     widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
 };
 
@@ -16,11 +15,9 @@ use crate::{
         severity::Severity,
         source::app_icon::DesktopEntries,
     },
-    wayland_layers::tooltip::relative,
-    widgets::{
-        overlay_shadow::overlay_shadow,
-        text::{LINE_HEIGHT, bar_text},
-    },
+    state::PanelLayout,
+    wayland_layers::{bar::pill_shadow, tooltip::relative},
+    widgets::text::{LINE_HEIGHT, bar_text},
 };
 
 const PADDING_PX: f32 = 10.0;
@@ -29,8 +26,8 @@ const COLUMN_SPACING: f32 = 4.0;
 const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
-const URGENCY_TINT_AMOUNT: f32 = 0.06;
-const RESTING_BORDER_TINT_AMOUNT: f32 = 0.6;
+const BORDER_WIDTH_PX: f32 = 1.5;
+const MIN_BACKDROP_OPACITY: f32 = 0.7;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -84,17 +81,24 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
 pub struct Card<'a> {
     notif: &'a Notification,
     config: &'a Config,
-    corner_radius: Radius,
+    palette: &'a Extended,
+    layout: &'a PanelLayout,
     hovered: bool,
     reveal: f32,
 }
 
 impl<'a> Card<'a> {
-    pub fn new(notif: &'a Notification, config: &'a Config, corner_radius: Radius) -> Self {
+    pub fn new(
+        notif: &'a Notification,
+        config: &'a Config,
+        palette: &'a Extended,
+        layout: &'a PanelLayout,
+    ) -> Self {
         Self {
             notif,
             config,
-            corner_radius,
+            palette,
+            layout,
             hovered: false,
             reveal: 1.0,
         }
@@ -133,7 +137,7 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
             .style(move |_| container::Style {
                 background: Some(chrome.background.into()),
                 border: chrome.border,
-                text_color: Some(chrome.foreground),
+                text_color: Some(chrome.text),
                 shadow: chrome.shadow,
                 ..Default::default()
             });
@@ -151,41 +155,65 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
 struct CardChrome {
     background: Color,
     border: Border,
-    foreground: Color,
-    subtext: Color,
+    text: Color,
     shadow: Shadow,
 }
 
 impl Card<'_> {
     fn chrome(&self) -> CardChrome {
-        let palette = &self.config.palette;
-        let accent = severity_accent(self.notif.data.severity, palette);
-        let background = mix(palette.surface, accent, URGENCY_TINT_AMOUNT);
-        let rest = mix(background, accent, RESTING_BORDER_TINT_AMOUNT);
-        let fade = |color: Color| Color {
-            a: color.a * self.reveal,
-            ..color
-        };
+        let pair = SeverityShades::of(self.notif.data.severity, self.palette).shown(self.hovered);
+        let opacity = mix_opacity(MIN_BACKDROP_OPACITY, self.layout.tint_factor);
+        let fade = |color: Color| color.scale_alpha(self.reveal);
+        let shadow = pill_shadow(self.layout);
         CardChrome {
-            background: fade(background),
+            background: fade(pair.color.scale_alpha(opacity)),
             border: Border {
-                color: fade(if self.hovered { accent } else { rest }),
-                width: if self.hovered { 3.0 } else { 2.0 },
-                radius: self.corner_radius,
+                color: fade(pair.color),
+                width: BORDER_WIDTH_PX,
+                radius: self.layout.corner_radius,
             },
-            foreground: fade(palette.bar_foreground),
-            subtext: fade(readable(background, palette.dim)),
-            shadow: overlay_shadow(self.reveal),
+            text: fade(pair.text),
+            shadow: Shadow {
+                color: fade(shadow.color),
+                ..shadow
+            },
         }
     }
 }
 
-fn severity_accent(severity: Severity, palette: &Palette) -> Color {
-    match severity {
-        Severity::Low => palette.inactive,
-        Severity::Normal => palette.focus,
-        Severity::Warning => palette.warning,
-        Severity::Critical => palette.urgent,
+fn mix_opacity(floor: f32, tint_factor: f32) -> f32 {
+    floor + (1.0 - floor) * tint_factor.clamp(0.0, 1.0)
+}
+
+struct SeverityShades {
+    resting: Pair,
+    hovered: Pair,
+}
+
+impl SeverityShades {
+    fn of(severity: Severity, palette: &Extended) -> Self {
+        match severity {
+            Severity::Low => Self {
+                resting: palette.background.strong,
+                hovered: palette.background.strongest,
+            },
+            Severity::Normal => Self {
+                resting: palette.primary.weak,
+                hovered: palette.primary.base,
+            },
+            Severity::Warning => Self {
+                resting: palette.warning.weak,
+                hovered: palette.warning.base,
+            },
+            Severity::Critical => Self {
+                resting: palette.danger.weak,
+                hovered: palette.danger.base,
+            },
+        }
+    }
+
+    fn shown(self, hovered: bool) -> Pair {
+        if hovered { self.hovered } else { self.resting }
     }
 }
 
@@ -196,9 +224,7 @@ impl Card<'_> {
         let font = &self.config.font;
         let palette = &self.config.palette;
 
-        let foreground = chrome.foreground;
-        let dim = chrome.subtext;
-        let body_color = palette.inactive;
+        let text = chrome.text;
 
         let button_actions: Vec<&NotifAction> = data
             .actions
@@ -212,7 +238,7 @@ impl Card<'_> {
             visible.then(|| {
                 bar_text(font, reltime.clone())
                     .size(font.text_size_px * SUBTEXT_SCALE)
-                    .color(dim)
+                    .color(text)
             })
         };
 
@@ -221,7 +247,7 @@ impl Card<'_> {
             .align_y(Alignment::Center)
             .push(
                 bar_text(font, data.summary.clone())
-                    .color(foreground)
+                    .color(text)
                     .font(Font {
                         weight: Weight::Bold,
                         ..font.iced_font
@@ -232,7 +258,7 @@ impl Card<'_> {
             title = title.push(
                 bar_text(font, data.app_name.clone())
                     .size(font.text_size_px * SUBTEXT_SCALE)
-                    .color(dim),
+                    .color(text),
             );
         }
         if let Some(time) = reltime_span(!has_actions && !has_body) {
@@ -247,7 +273,7 @@ impl Card<'_> {
                 .push(
                     rich_text(body_markup::body_spans(
                         &data.body,
-                        body_color,
+                        text,
                         font.text_size_px * SUBTEXT_SCALE,
                         font,
                         Font::MONOSPACE,
@@ -288,7 +314,7 @@ impl Card<'_> {
         tint: Color,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.font;
-        let radius = self.corner_radius;
+        let radius = self.layout.corner_radius;
         button(bar_text(font, label).size(font.text_size_px).color(tint))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {

@@ -13,14 +13,14 @@ pub const STACK_SPACING: f32 = 8.0;
 pub fn origins(
     anchors: &[ToastAnchor],
     sizes: &[Size],
-    surface: Size,
+    area: Rectangle,
     config: &ToastPlacementConfig,
 ) -> Vec<Point> {
     let slots = share_displaced_top(
         anchors
             .iter()
             .zip(sizes)
-            .map(|(&anchor, &size)| Slot::resolve(anchor, size, surface, config))
+            .map(|(&anchor, &size)| Slot::resolve(anchor, size, area, config))
             .collect(),
     );
     let mut placed: Vec<Placed> = grouped(&slots)
@@ -35,9 +35,9 @@ pub fn origins(
                 .map(|(&index, leading)| Placed {
                     index,
                     origin: clamped(
-                        slots[index].origin(sizes[index], leading, extent, surface, config),
+                        slots[index].origin(sizes[index], leading, extent, area, config),
                         sizes[index],
-                        surface,
+                        area,
                         config,
                     ),
                 })
@@ -69,14 +69,14 @@ impl Slot {
     fn resolve(
         anchor: ToastAnchor,
         size: Size,
-        surface: Size,
+        area: Rectangle,
         config: &ToastPlacementConfig,
     ) -> Self {
         let ToastAnchor::Window { bounds, .. } = anchor else {
             return Self::Anchored(anchor);
         };
         let origin = window_origin(bounds, size, config);
-        match overflowed_edge(origin.x, size, surface, config) {
+        match overflowed_edge(origin.x, size, area, config) {
             Some(horizontal) => Self::Displaced {
                 horizontal,
                 top: origin.y,
@@ -97,13 +97,13 @@ impl Slot {
         size: Size,
         leading: f32,
         extent: f32,
-        surface: Size,
+        area: Rectangle,
         config: &ToastPlacementConfig,
     ) -> Point {
         match self {
-            Self::Anchored(anchor) => member_origin(anchor, size, leading, extent, surface, config),
+            Self::Anchored(anchor) => member_origin(anchor, size, leading, extent, area, config),
             Self::Displaced { horizontal, top } => {
-                Point::new(edge_x(horizontal, size, surface, config), top + leading)
+                Point::new(edge_x(horizontal, size, area, config), top + leading)
             }
         }
     }
@@ -159,7 +159,7 @@ fn member_origin(
     size: Size,
     leading: f32,
     extent: f32,
-    surface: Size,
+    area: Rectangle,
     config: &ToastPlacementConfig,
 ) -> Point {
     let gap = config.edge_gap_px;
@@ -169,11 +169,11 @@ fn member_origin(
             horizontal,
         } => {
             let y = match vertical {
-                VEdge::Top => gap + leading,
-                VEdge::Bottom => surface.height - gap - leading - size.height,
-                VEdge::Center => (surface.height - extent) / 2.0 + leading,
+                VEdge::Top => area.y + gap + leading,
+                VEdge::Bottom => area.y + area.height - gap - leading - size.height,
+                VEdge::Center => area.y + (area.height - extent) / 2.0 + leading,
             };
-            Point::new(edge_x(horizontal, size, surface, config), y)
+            Point::new(edge_x(horizontal, size, area, config), y)
         }
         ToastAnchor::Window { bounds, .. } => {
             let origin = window_origin(bounds, size, config);
@@ -182,12 +182,12 @@ fn member_origin(
     }
 }
 
-fn edge_x(horizontal: HEdge, size: Size, surface: Size, config: &ToastPlacementConfig) -> f32 {
+fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, config: &ToastPlacementConfig) -> f32 {
     let gap = config.edge_gap_px;
     match horizontal {
-        HEdge::Left => gap,
-        HEdge::Right => surface.width - size.width - gap,
-        HEdge::Center => (surface.width - size.width) / 2.0,
+        HEdge::Left => area.x + gap,
+        HEdge::Right => area.x + area.width - size.width - gap,
+        HEdge::Center => area.x + (area.width - size.width) / 2.0,
     }
 }
 
@@ -204,28 +204,30 @@ fn window_origin(bounds: Rectangle, size: Size, config: &ToastPlacementConfig) -
 fn overflowed_edge(
     x: f32,
     size: Size,
-    surface: Size,
+    area: Rectangle,
     config: &ToastPlacementConfig,
 ) -> Option<HEdge> {
     let gap = config.edge_gap_px;
-    if x < gap {
+    if x < area.x + gap {
         Some(HEdge::Left)
-    } else if x > surface.width - size.width - gap {
+    } else if x > area.x + area.width - size.width - gap {
         Some(HEdge::Right)
     } else {
         None
     }
 }
 
-fn clamped(origin: Point, size: Size, surface: Size, config: &ToastPlacementConfig) -> Point {
+fn clamped(origin: Point, size: Size, area: Rectangle, config: &ToastPlacementConfig) -> Point {
     let gap = config.edge_gap_px;
+    let left = area.x + gap;
+    let top = area.y + gap;
     Point::new(
         origin
             .x
-            .clamp(gap, (surface.width - size.width - gap).max(gap)),
+            .clamp(left, (area.x + area.width - size.width - gap).max(left)),
         origin
             .y
-            .clamp(gap, (surface.height - size.height - gap).max(gap)),
+            .clamp(top, (area.y + area.height - size.height - gap).max(top)),
     )
 }
 
@@ -246,7 +248,12 @@ mod tests {
 
     fn placed(anchors: &[ToastAnchor]) -> Vec<Point> {
         let sizes = vec![CARD; anchors.len()];
-        origins(anchors, &sizes, SURFACE, &ToastPlacementConfig::default())
+        origins(
+            anchors,
+            &sizes,
+            Rectangle::with_size(SURFACE),
+            &ToastPlacementConfig::default(),
+        )
     }
 
     fn overlap(a: Point, b: Point) -> bool {

@@ -59,5 +59,7 @@ fn fallback_output(placement: &Placement) -> Option<String> {
     placement
         .focused_window()
         .and_then(|w| placement.workspace_of_window(w))
-        .and_then(|ws| placement.output_of_workspace(ws).map(str::to_owned))
+        .and_then(|ws| placement.output_of_workspace(ws))
+        .or_else(|| placement.focused_output())
+        .map(str::to_owned)
 }

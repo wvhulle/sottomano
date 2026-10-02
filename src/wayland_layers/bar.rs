@@ -4,7 +4,7 @@ use iced::{
     Alignment, Color, Element, Length, Shadow, Vector,
     alignment::Vertical,
     border::Radius,
-    widget::{Row, Space, column, container, mouse_area, row, text},
+    widget::{Row, Space, column, container, mouse_area, row, stack, text},
     window::Id,
 };
 
@@ -13,7 +13,7 @@ use crate::{
     config::Config,
     state::{PanelLayout, PanelSettings, WorkspacesPlacement},
     wayland_layers::{
-        backdrop_shadow,
+        backdrop_shadow, notifications,
         panel_regions::Zone,
         sidebar,
         surface::{self, Position, SurfaceRole},
@@ -68,7 +68,11 @@ fn panel<'a>(bar: &'a Bar, window: Id, output: &'a str) -> Element<'a, Message> 
     let side = container(edge(Position::Left, sidebar::view(bar, window, output)))
         .align_left(Length::Fill)
         .center_y(Length::Fill);
-    column![top, side, bottom].padding(float).into()
+    stack![
+        notifications::view(bar, window, output),
+        column![top, side, bottom].padding(float)
+    ]
+    .into()
 }
 
 fn band<'a>(
@@ -221,7 +225,7 @@ fn zone_pills<'a>(
         Zone::BottomStart => vec![Some(places(bar, output, position))],
         Zone::BottomMiddle => vec![window_list(bar, output, position)],
         Zone::BottomEnd => rendered(bottom_end_groups(bar), config, position).collect(),
-        Zone::TopBar | Zone::BottomBar | Zone::Sidebar => Vec::new(),
+        Zone::TopBar | Zone::BottomBar | Zone::Sidebar | Zone::Toasts => Vec::new(),
     };
     groups
         .into_iter()

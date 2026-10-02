@@ -16,16 +16,20 @@ pub enum Zone {
     BottomMiddle,
     BottomEnd,
     Sidebar,
+    Toasts,
 }
 
 impl Zone {
     fn takes_input(self) -> bool {
-        matches!(self, Self::TopBar | Self::BottomBar | Self::Sidebar)
+        matches!(
+            self,
+            Self::TopBar | Self::BottomBar | Self::Sidebar | Self::Toasts
+        )
     }
 
     fn is_blurred(self, layout: &PanelLayout) -> bool {
         match self {
-            Self::Sidebar => true,
+            Self::Sidebar | Self::Toasts => true,
             Self::TopBar | Self::BottomBar => !layout.disconnected_groups,
             Self::TopStart
             | Self::TopCenter
@@ -112,10 +116,10 @@ impl PanelRegions {
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn rounded(rect: Rectangle, radius: f32) -> Vec<BlurRegion> {
-    let x = rect.x.round() as i32;
-    let y = rect.y.round() as i32;
-    let width = rect.width.ceil() as i32;
-    let height = rect.height.ceil() as i32;
+    let x = rect.x.ceil() as i32;
+    let y = rect.y.ceil() as i32;
+    let width = (rect.x + rect.width).floor() as i32 - x;
+    let height = (rect.y + rect.height).floor() as i32 - y;
     let radius = (radius.round() as i32).clamp(0, width.min(height) / 2);
     let row = |top: i32, inset: i32| BlurRegion {
         x: x + inset,
@@ -128,7 +132,7 @@ fn rounded(rect: Rectangle, radius: f32) -> Vec<BlurRegion> {
         let reach = (radius as f32)
             .mul_add(radius as f32, -from_edge * from_edge)
             .sqrt();
-        let inset = (radius as f32 - reach).round() as i32;
+        let inset = (radius as f32 - reach).ceil() as i32;
         [row(y + step, inset), row(y + height - 1 - step, inset)]
     });
     corner_rows
