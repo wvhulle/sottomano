@@ -1,10 +1,8 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use iced::{
-    Alignment, Border, Color, Element, Font, Length, Shadow,
+    Alignment, Border, Color, Element, Font, Length, Shadow, Theme, border,
     font::Weight,
-    Theme,
-    theme::palette::Pair,
     widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
 };
 
@@ -28,7 +26,6 @@ const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const BORDER_WIDTH_PX: f32 = 1.5;
-const MIN_BACKDROP_OPACITY: f32 = 0.7;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -84,14 +81,8 @@ pub struct ToastCard<'a> {
     config: &'a Config,
     theme: &'a Theme,
     layout: &'a PanelLayout,
-    status: CardStatus,
+    hovered: bool,
     reveal: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CardStatus {
-    Resting,
-    Hovered,
 }
 
 impl<'a> ToastCard<'a> {
@@ -106,17 +97,13 @@ impl<'a> ToastCard<'a> {
             config,
             theme,
             layout,
-            status: CardStatus::Resting,
+            hovered: false,
             reveal: 1.0,
         }
     }
 
     pub fn hovered(mut self, hovered: bool) -> Self {
-        self.status = if hovered {
-            CardStatus::Hovered
-        } else {
-            CardStatus::Resting
-        };
+        self.hovered = hovered;
         self
     }
 
@@ -157,86 +144,37 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
 }
 
 impl ToastCard<'_> {
-    fn severity_style(&self) -> fn(&Theme, CardStatus) -> container::Style {
-        match self.notif.data.severity {
-            Severity::Low => low,
-            Severity::Normal => normal,
-            Severity::Warning => warning,
-            Severity::Critical => critical,
-        }
-    }
-
     fn style(&self) -> container::Style {
-        let severity = (self.severity_style())(self.theme, self.status);
-        let opacity = translucent_opacity(self.layout.tint_factor) * self.reveal;
+        let palette = self.theme.extended_palette();
+        let hovered = self.hovered;
+        let urgency = match self.notif.data.severity {
+            Severity::Low if hovered => palette.secondary.strong,
+            Severity::Low => palette.secondary.base,
+            Severity::Normal if hovered => palette.primary.strong,
+            Severity::Normal => palette.primary.base,
+            Severity::Warning if hovered => palette.warning.strong,
+            Severity::Warning => palette.warning.base,
+            Severity::Critical if hovered => palette.danger.strong,
+            Severity::Critical => palette.danger.base,
+        };
+        let opacity = if hovered {
+            1.0
+        } else {
+            self.layout.tint_factor
+        };
         let shadow = self.layout.frame_shadow();
-        container::Style {
-            background: severity
-                .background
-                .map(|background| background.scale_alpha(opacity)),
-            border: Border {
-                color: severity.border.color.scale_alpha(self.reveal),
-                radius: self.layout.corner_radius,
-                ..severity.border
-            },
-            text_color: severity
-                .text_color
-                .map(|text| text.scale_alpha(self.reveal)),
-            shadow: Shadow {
+        container::Style::default()
+            .background(urgency.color.scale_alpha(opacity * self.reveal))
+            .border(
+                border::rounded(self.layout.corner_radius)
+                    .color(urgency.color.scale_alpha(self.reveal))
+                    .width(BORDER_WIDTH_PX),
+            )
+            .color(urgency.text.scale_alpha(self.reveal))
+            .shadow(Shadow {
                 color: shadow.color.scale_alpha(self.reveal),
                 ..shadow
-            },
-            ..severity
-        }
-    }
-}
-
-fn translucent_opacity(tint_factor: f32) -> f32 {
-    MIN_BACKDROP_OPACITY + (1.0 - MIN_BACKDROP_OPACITY) * tint_factor.clamp(0.0, 1.0)
-}
-
-pub fn low(theme: &Theme, status: CardStatus) -> container::Style {
-    let palette = theme.extended_palette();
-    severity_tinted(match status {
-        CardStatus::Resting => palette.background.strong,
-        CardStatus::Hovered => palette.background.strongest,
-    })
-}
-
-pub fn normal(theme: &Theme, status: CardStatus) -> container::Style {
-    let palette = theme.extended_palette();
-    severity_tinted(match status {
-        CardStatus::Resting => palette.primary.weak,
-        CardStatus::Hovered => palette.primary.base,
-    })
-}
-
-pub fn warning(theme: &Theme, status: CardStatus) -> container::Style {
-    let palette = theme.extended_palette();
-    severity_tinted(match status {
-        CardStatus::Resting => palette.warning.weak,
-        CardStatus::Hovered => palette.warning.base,
-    })
-}
-
-pub fn critical(theme: &Theme, status: CardStatus) -> container::Style {
-    let palette = theme.extended_palette();
-    severity_tinted(match status {
-        CardStatus::Resting => palette.danger.weak,
-        CardStatus::Hovered => palette.danger.base,
-    })
-}
-
-fn severity_tinted(pair: Pair) -> container::Style {
-    container::Style {
-        background: Some(pair.color.into()),
-        text_color: Some(pair.text),
-        border: Border {
-            color: pair.color,
-            width: BORDER_WIDTH_PX,
-            ..Border::default()
-        },
-        ..container::Style::default()
+            })
     }
 }
 

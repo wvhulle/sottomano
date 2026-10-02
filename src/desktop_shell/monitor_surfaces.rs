@@ -1,10 +1,6 @@
 use std::collections::HashMap;
 
-use iced::{
-    Color, Element, Length, Padding, Rectangle, Task,
-    widget::{Space, container},
-    window::Id,
-};
+use iced::{Padding, Rectangle, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::{
     actions::ActionCallback,
@@ -76,21 +72,6 @@ pub struct Surface {
 pub struct PanelEdge {
     pub output: String,
     pub position: Position,
-}
-
-pub fn blank_surface<'a>() -> Element<'a, Message> {
-    Space::new().width(Length::Fill).height(Length::Fill).into()
-}
-
-pub fn backdrop_fill<'a>() -> Element<'a, Message> {
-    container(Space::new())
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Color::BLACK.into()),
-            ..Default::default()
-        })
-        .into()
 }
 
 pub(crate) fn input_region(surface: Id, bounds: Rectangle) -> Message {

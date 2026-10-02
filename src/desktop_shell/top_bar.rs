@@ -13,74 +13,35 @@ use crate::{
     widgets::{
         region_reporter::{RegionRoles, region_reporter},
         widget_group::WidgetGroup,
-        widget_group_frame::widget_group_frame,
     },
 };
 
-pub struct TopBar<'a> {
-    shell: &'a DesktopShell,
-    window: Id,
-}
-
-impl<'a> TopBar<'a> {
-    pub fn new(shell: &'a DesktopShell, window: Id) -> Self {
-        Self { shell, window }
-    }
-}
-
-impl<'a> From<TopBar<'a>> for Element<'a, Message> {
-    fn from(TopBar { shell, window }: TopBar<'a>) -> Self {
-        let spacing = &shell.config.spacing;
-        let cluster = |element, groups| {
-            GroupCluster::of_widget_groups(shell, window, element, groups, Position::Top)
+impl DesktopShell {
+    pub(super) fn top_bar(&self, window: Id) -> Element<'_, Message> {
+        let cluster = |element, groups: Vec<_>| {
+            self.widget_group_cluster(window, element, groups, Position::Top)
         };
         let clusters = row![
-            cluster(ShellElement::TopBarStart, top_start_groups(shell).into()),
+            cluster(ShellElement::TopBarStart, self.top_start_groups().into()),
             Space::new().width(Length::Fill),
-            cluster(ShellElement::TopBarCenter, top_center_groups(shell).into()),
+            cluster(ShellElement::TopBarCenter, self.top_center_groups().into()),
             Space::new().width(Length::Fill),
-            cluster(ShellElement::TopBarEnd, top_end_groups(shell).into()),
+            cluster(ShellElement::TopBarEnd, self.top_end_groups().into()),
         ]
         .height(Length::Fill)
         .align_y(Alignment::Center)
-        .padding([0.0, spacing.group_padding_px]);
-        BarBand::new(shell, window, ShellElement::TopBar, clusters).into()
+        .padding([0.0, self.config.spacing.group_padding_px]);
+        self.bar_band(window, ShellElement::TopBar, clusters)
     }
-}
 
-pub struct BarBand<'a> {
-    shell: &'a DesktopShell,
-    window: Id,
-    element: ShellElement,
-    content: Element<'a, Message>,
-}
-
-impl<'a> BarBand<'a> {
-    pub fn new(
-        shell: &'a DesktopShell,
+    pub(super) fn bar_band<'a>(
+        &'a self,
         window: Id,
         element: ShellElement,
         content: impl Into<Element<'a, Message>>,
-    ) -> Self {
-        Self {
-            shell,
-            window,
-            element,
-            content: content.into(),
-        }
-    }
-}
-
-impl<'a> From<BarBand<'a>> for Element<'a, Message> {
-    fn from(band: BarBand<'a>) -> Self {
-        let BarBand {
-            shell,
-            window,
-            element,
-            content,
-        } = band;
-        let layout = &shell.panel_settings.layout;
-        let palette = &shell.config.palette;
+    ) -> Element<'a, Message> {
+        let layout = &self.panel_settings.layout;
+        let palette = &self.config.palette;
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -89,86 +50,43 @@ impl<'a> From<BarBand<'a>> for Element<'a, Message> {
         )
         .on_press(Message::DismissPressed);
         let groups_joined = !layout.disconnected_groups;
-        let strip = if groups_joined {
-            widget_group_frame(centered, layout, palette)
+        let band_style = if groups_joined {
+            layout.frame_style(palette)
         } else {
-            let foreground = palette.bar_foreground;
-            container(centered).style(move |_| container::Style {
-                text_color: Some(foreground),
-                ..container::Style::default()
-            })
-        }
-        .width(Length::Fill)
-        .height(Length::Fixed(shell.config.bar.height_px));
+            container::Style::default().color(palette.bar_foreground)
+        };
+        let strip = container(centered)
+            .style(move |_| band_style)
+            .width(Length::Fill)
+            .height(Length::Fixed(self.config.bar.height_px));
         let roles = RegionRoles {
             takes_input: true,
             blurred: groups_joined,
         };
-        region_reporter(column![strip], roles, move |region| {
-            Message::ElementRegions {
-                window,
-                element,
-                region,
-            }
+        region_reporter(column![strip], roles, move |region| Message::ElementRegions {
+            window,
+            element,
+            region,
         })
         .into()
     }
-}
 
-pub struct GroupCluster<'a> {
-    shell: &'a DesktopShell,
-    window: Id,
-    element: ShellElement,
-    groups: Vec<Element<'a, Message>>,
-}
-
-impl<'a> GroupCluster<'a> {
-    pub fn new(
-        shell: &'a DesktopShell,
+    pub(super) fn group_cluster<'a>(
+        &'a self,
         window: Id,
         element: ShellElement,
         groups: Vec<Element<'a, Message>>,
-    ) -> Self {
-        Self {
-            shell,
-            window,
-            element,
-            groups,
-        }
-    }
-
-    pub fn of_widget_groups(
-        shell: &'a DesktopShell,
-        window: Id,
-        element: ShellElement,
-        groups: Vec<WidgetGroup<'a, Message>>,
-        position: Position,
-    ) -> Self {
-        let rendered = groups
-            .into_iter()
-            .filter_map(|group| group.view(&shell.config, position))
-            .map(|element| element.map(Message::from))
-            .collect();
-        Self::new(shell, window, element, rendered)
-    }
-}
-
-impl<'a> From<GroupCluster<'a>> for Element<'a, Message> {
-    fn from(cluster: GroupCluster<'a>) -> Self {
-        let GroupCluster {
-            shell,
-            window,
-            element,
-            groups,
-        } = cluster;
-        let config = &shell.config;
-        let layout = &shell.panel_settings.layout;
+    ) -> Element<'a, Message> {
+        let config = &self.config;
+        let layout = &self.panel_settings.layout;
         let groups_disconnected = layout.disconnected_groups;
+        let frame_style = layout.frame_style(&config.palette);
         let framed = groups.into_iter().map(|group| {
             if !groups_disconnected {
                 return group;
             }
-            widget_group_frame(group, layout, &config.palette)
+            container(group)
+                .style(move |_| frame_style)
                 .height(Length::Fixed(config.bar.height_px))
                 .align_y(Vertical::Center)
                 .padding([
@@ -197,95 +115,89 @@ impl<'a> From<GroupCluster<'a>> for Element<'a, Message> {
         })
         .into()
     }
-}
 
-pub(super) fn top_start_groups(shell: &DesktopShell) -> [WidgetGroup<'_, Message>; 8] {
-    let config = &shell.config;
-    [
-        shell
-            .weather_group
-            .widget_group()
-            .map_messages(Message::Weather),
-        shell
-            .battery_group
-            .widget_group(config)
-            .map_messages(Message::Battery),
-        shell
-            .system_group
-            .widget_group()
-            .map_messages(Message::System),
-        shell
-            .net_interfaces_group
-            .widget_group()
-            .map_messages(Message::NetInterfaces),
-        shell
-            .journal_group
-            .widget_group(config)
-            .map_messages(Message::Journal),
-        shell
-            .internet_group
-            .widget_group()
-            .map_messages(Message::Internet),
-        shell
-            .panel_settings_group
-            .widget_group(config, &shell.panel_settings.layout)
-            .map_messages(Message::PanelSettings),
-        shell
-            .niri_group
-            .widget_group(config)
-            .map_messages(Message::NiriStyling),
-    ]
-}
+    pub(super) fn widget_group_cluster<'a>(
+        &'a self,
+        window: Id,
+        element: ShellElement,
+        groups: Vec<WidgetGroup<'a, Message>>,
+        position: Position,
+    ) -> Element<'a, Message> {
+        let rendered = groups
+            .into_iter()
+            .filter_map(|group| group.view(&self.config, position))
+            .map(|element| element.map(Message::from))
+            .collect();
+        self.group_cluster(window, element, rendered)
+    }
 
-pub(super) fn top_center_groups(shell: &DesktopShell) -> [WidgetGroup<'_, Message>; 2] {
-    let config = &shell.config;
-    [
-        shell
-            .clock_group
-            .widget_group(config)
-            .map_messages(Message::Clock),
-        shell
-            .notification_group
-            .widget_group(
-                config,
-                &shell.panel_settings.toasts,
-                shell.notifications.live_count(),
-            )
-            .map_messages(Message::NotificationGroup),
-    ]
-}
+    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 8] {
+        let config = &self.config;
+        [
+            self.weather_group.widget_group().map_messages(Message::Weather),
+            self.battery_group
+                .widget_group(config)
+                .map_messages(Message::Battery),
+            self.system_group.widget_group().map_messages(Message::System),
+            self.net_interfaces_group
+                .widget_group()
+                .map_messages(Message::NetInterfaces),
+            self.journal_group
+                .widget_group(config)
+                .map_messages(Message::Journal),
+            self.internet_group
+                .widget_group()
+                .map_messages(Message::Internet),
+            self.panel_settings_group
+                .widget_group(config, &self.panel_settings.layout)
+                .map_messages(Message::PanelSettings),
+            self.niri_group
+                .widget_group(config)
+                .map_messages(Message::NiriStyling),
+        ]
+    }
 
-pub(super) fn top_end_groups(shell: &DesktopShell) -> [WidgetGroup<'_, Message>; 8] {
-    let config = &shell.config;
-    [
-        shell.ai_group.widget_group().map_messages(Message::Ai),
-        shell
-            .monitor_group
-            .widget_group(config)
-            .map_messages(Message::Monitor),
-        shell
-            .dark_mode_group
-            .widget_group(config)
-            .map_messages(Message::DarkMode),
-        shell
-            .color_temperature_group
-            .widget_group(config)
-            .map_messages(Message::ColorTemperature),
-        shell
-            .idle_timeouts_group
-            .widget_group(config)
-            .map_messages(Message::IdleTimeouts),
-        shell
-            .wallpaper_group
-            .widget_group()
-            .map_messages(Message::Wallpaper),
-        shell
-            .media_group
-            .widget_group(config, &shell.desktop_entries)
-            .map_messages(Message::Media),
-        shell
-            .audio_group
-            .widget_group(config)
-            .map_messages(Message::Audio),
-    ]
+    pub(super) fn top_center_groups(&self) -> [WidgetGroup<'_, Message>; 2] {
+        let config = &self.config;
+        [
+            self.clock_group
+                .widget_group(config)
+                .map_messages(Message::Clock),
+            self.notification_group
+                .widget_group(
+                    config,
+                    &self.panel_settings.toasts,
+                    self.notifications.live_count(),
+                )
+                .map_messages(Message::NotificationGroup),
+        ]
+    }
+
+    pub(super) fn top_end_groups(&self) -> [WidgetGroup<'_, Message>; 8] {
+        let config = &self.config;
+        [
+            self.ai_group.widget_group().map_messages(Message::Ai),
+            self.monitor_group
+                .widget_group(config)
+                .map_messages(Message::Monitor),
+            self.dark_mode_group
+                .widget_group(config)
+                .map_messages(Message::DarkMode),
+            self.color_temperature_group
+                .widget_group(config)
+                .map_messages(Message::ColorTemperature),
+            self.idle_timeouts_group
+                .widget_group(config)
+                .map_messages(Message::IdleTimeouts),
+            self.wallpaper_group
+                .widget_group()
+                .map_messages(Message::Wallpaper),
+            self.media_group
+                .widget_group(config, &self.desktop_entries)
+                .map_messages(Message::Media),
+            self.audio_group
+                .widget_group(config)
+                .map_messages(Message::Audio),
+        ]
+    }
 }

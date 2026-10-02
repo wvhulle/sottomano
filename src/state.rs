@@ -9,7 +9,13 @@ pub mod store;
 
 use core::f32::consts::FRAC_1_SQRT_2;
 
-use iced::{Color, Shadow, Vector, border::Radius};
+use iced::{
+    Color, Shadow, Vector,
+    border::{self, Radius},
+    widget::container,
+};
+
+use crate::config::Palette;
 pub(crate) use store::{Columns, StoreError, open};
 
 #[derive(Debug, Clone, Default)]
@@ -62,8 +68,12 @@ pub struct PanelLayout {
 }
 
 impl PanelLayout {
-    pub fn frame_background(&self, surface: Color) -> Color {
-        surface.scale_alpha(self.tint_factor)
+    pub fn frame_style(&self, palette: &Palette) -> container::Style {
+        container::Style::default()
+            .background(palette.surface.scale_alpha(self.tint_factor))
+            .border(border::rounded(self.corner_radius))
+            .shadow(self.frame_shadow())
+            .color(palette.bar_foreground)
     }
 
     pub fn frame_shadow(&self) -> Shadow {

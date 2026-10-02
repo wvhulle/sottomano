@@ -1,13 +1,14 @@
-use iced::{Element, widget::Column, window::Id};
+use iced::{
+    Element,
+    widget::{Column, container},
+    window::Id,
+};
 
 use crate::{
     desktop_shell::{DesktopShell, Message, monitor_surfaces::ShellElement},
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
-    widgets::{
-        region_reporter::{RegionRoles, region_reporter},
-        widget_group_frame::widget_group_frame,
-    },
+    widgets::region_reporter::{RegionRoles, region_reporter},
 };
 
 const SIDEBAR_REGION_ROLES: RegionRoles = RegionRoles {
@@ -15,36 +16,21 @@ const SIDEBAR_REGION_ROLES: RegionRoles = RegionRoles {
     blurred: true,
 };
 
-pub struct WorkspaceSidebar<'a> {
-    shell: &'a DesktopShell,
-    window: Id,
-    output: &'a str,
-}
-
-impl<'a> WorkspaceSidebar<'a> {
-    pub fn new(shell: &'a DesktopShell, window: Id, output: &'a str) -> Self {
-        Self {
-            shell,
-            window,
-            output,
-        }
-    }
-}
-
-impl<'a> From<WorkspaceSidebar<'a>> for Element<'a, Message> {
-    fn from(sidebar: WorkspaceSidebar<'a>) -> Self {
-        let WorkspaceSidebar {
-            shell,
-            window,
-            output,
-        } = sidebar;
-        let config = &shell.config;
-        let layout = &shell.panel_settings.layout;
+impl DesktopShell {
+    pub(super) fn workspace_sidebar<'a>(
+        &'a self,
+        window: Id,
+        output: &str,
+    ) -> Element<'a, Message> {
+        let config = &self.config;
+        let layout = &self.panel_settings.layout;
+        let frame_style = layout.frame_style(&config.palette);
         let framed_workspaces = (layout.workspaces_placement == WorkspacesPlacement::Sidebar)
-            .then(|| workspaces_group::vertical_view(&shell.niri_snapshot, output, config))
+            .then(|| workspaces_group::vertical_view(&self.niri_snapshot, output, config))
             .flatten()
             .map(|workspaces| {
-                widget_group_frame(workspaces.map(Message::from), layout, &config.palette)
+                container(workspaces.map(Message::from))
+                    .style(move |_| frame_style)
                     .padding([
                         layout.frame_corner_inset() + config.spacing.group_padding_px,
                         0.0,
