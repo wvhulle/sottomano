@@ -1,6 +1,6 @@
 use iced::{
-    Border, Color, Element,
-    widget::{ProgressBar, progress_bar, stack},
+    Border, Color, Element, Theme,
+    widget::{Space, column, container},
 };
 use uom::si::{
     f64::Ratio,
@@ -39,16 +39,18 @@ impl Gauge {
         self
     }
 
-    fn bar<'a>(&self, fraction: f32, track: Color, fill: Color) -> ProgressBar<'a> {
-        progress_bar(0.0..=1.0, fraction)
-            .vertical()
-            .girth(GIRTH)
-            .length(self.height)
-            .style(move |_| progress_bar::Style {
-                background: track.into(),
-                bar: fill.into(),
-                border: Border::default().rounded(1.0),
-            })
+    fn segment<'a, Message: 'a>(&self, fraction: f32, color: Color) -> Element<'a, Message> {
+        container(Space::new().width(GIRTH).height(self.height * fraction))
+            .style(rounded_fill(color))
+            .into()
+    }
+}
+
+fn rounded_fill(color: Color) -> impl Fn(&Theme) -> container::Style {
+    move |_| container::Style {
+        background: Some(color.into()),
+        border: Border::default().rounded(1.0),
+        ..container::Style::default()
     }
 }
 
@@ -59,16 +61,14 @@ fn bar_reach(fill: Ratio) -> f32 {
 
 impl<'a, Message: 'a> From<Gauge> for Element<'a, Message> {
     fn from(gauge: Gauge) -> Self {
-        let track = gauge.color.scale_alpha(TRACK_ALPHA);
         let reach = bar_reach(gauge.fill);
-        let live_reach = bar_reach(gauge.live);
-        if live_reach >= reach {
-            return gauge.bar(reach, track, gauge.color).into();
-        }
-        stack![
-            gauge.bar(reach, track, gauge.color.scale_alpha(HEADROOM_ALPHA)),
-            gauge.bar(live_reach, Color::TRANSPARENT, gauge.color),
-        ]
+        let live_reach = bar_reach(gauge.live).min(reach);
+        container(column![
+            gauge.segment(reach - live_reach, gauge.color.scale_alpha(HEADROOM_ALPHA)),
+            gauge.segment(live_reach, gauge.color),
+        ])
+        .align_bottom(gauge.height)
+        .style(rounded_fill(gauge.color.scale_alpha(TRACK_ALPHA)))
         .into()
     }
 }

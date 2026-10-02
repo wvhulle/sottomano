@@ -1,4 +1,11 @@
-use crate::data::severity::Severity;
+use crate::data::{severity::Severity, source::ai::claude::Pace};
+
+pub fn level_from_pace(pace: Pace) -> Severity {
+    match pace {
+        Pace::RunsOut { .. } => Severity::Warning,
+        Pace::Lasts { .. } => Severity::Normal,
+    }
+}
 
 pub fn level_from_used(used_percent: f64) -> Severity {
     if used_percent > 90.0 {
