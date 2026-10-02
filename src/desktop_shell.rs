@@ -1,3 +1,11 @@
+pub mod bottom_bar;
+pub mod hover_tooltips;
+pub mod monitor_layout;
+pub mod monitor_surfaces;
+pub mod notification_toasts;
+pub mod top_bar;
+pub mod workspace_sidebar;
+
 use std::{
     collections::{BTreeMap, HashMap},
     mem,
@@ -5,7 +13,7 @@ use std::{
 };
 
 use chrono::Utc;
-use iced::{Color, Element, Font, Padding, Rectangle, Task, font, theme::Style, window::Id};
+use iced::{Color, Element, Font, Task, font, theme::Style, window::Id};
 use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
@@ -20,20 +28,19 @@ use crate::{
             favicons::RawFavicon,
             launch_tracker::{Buckets, LaunchTracker},
             niri,
-            process::Watched,
         },
+    },
+    desktop_shell::{
+        hover_tooltips::{TooltipHost, TooltipMessage},
+        monitor_layout::{MonitorLayout, all_widget_groups},
+        monitor_surfaces::{
+            OutputChange, Position, ReportedElementRegions, ShellElement, Surface, SurfaceRole,
+            backdrop_fill, blank_surface, query_outputs,
+        },
+        notification_toasts::{NotificationLayer, NotificationMessage},
     },
     message_subscriptions::{blocking, niri_action},
     state::{self, PanelSettings},
-    wayland_layers::{
-        backdrop_shadow,
-        bar::{view, widget_groups},
-        niri_rules::NiriRulesFile,
-        notifications::{NotificationLayer, NotificationMessage},
-        panel_regions::{PanelRegions, Zone},
-        surface::{self, PanelEdge, Position, Surface, SurfaceRole},
-        tooltip::{HoverTarget, TooltipHost, TooltipMessage, tooltip_transition::Departed},
-    },
     widget_groups::{
         ai_group::{AiGroup, AiMessage},
         audio_group::{AudioGroup, AudioMessage},
@@ -47,24 +54,23 @@ use crate::{
         media_group::{MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
-        niri_group::{NiriGroup, NiriMessage},
+        niri_group::{NiriGroup, NiriMessage, niri_rules::NiriRulesFile},
         notification_group::{NotificationGroup, NotificationGroupMessage},
-        output_group,
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
         weather_group::{WeatherGroup, WeatherMessage},
         window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
-        workspaces_group::workspace_tooltip,
     },
     widgets::{
-        favicon::Favicons, reading_alert::ReadingAlert, text::FontFallbacks, tooltip_body::Tooltip,
-        widget_group::GroupExpansion,
+        favicon::Favicons, reading_alert::ReadingAlert, region_reporter::ReportedRegion,
+        text::FontFallbacks,
+        widget_group::{GroupEvent, GroupExpansion},
     },
 };
 
-pub struct Bar {
+pub struct DesktopShell {
     pub(crate) config_file: ConfigFile,
     pub(crate) config: Config,
     pub(crate) theme: iced::Theme,
@@ -95,22 +101,12 @@ pub struct Bar {
     pub(crate) outputs: HashMap<String, niri::OutputInfo>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: BTreeMap<Id, Position>,
-    pub(crate) panel_regions: PanelRegions,
+    pub(crate) element_regions: ReportedElementRegions,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
     pub(crate) favicons: Favicons,
     pub(crate) font_fallbacks: FontFallbacks,
-}
-
-/// What vetrata needs from the compositor's output list; the wire events carry
-/// more than that, so they are narrowed here rather than threaded through.
-#[derive(Debug, Clone)]
-pub enum OutputChange {
-    Connected(Option<String>),
-    Rearranged,
-    Disconnected(Option<String>),
-    Unavailable(String),
 }
 
 #[to_layer_message(multi)]
@@ -165,10 +161,10 @@ pub enum Message {
     OutputsResolved(HashMap<String, niri::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,
-    PillBounds {
+    ElementRegions {
         window: Id,
-        zone: Zone,
-        rects: Vec<iced::Rectangle>,
+        element: ShellElement,
+        region: ReportedRegion,
     },
 }
 
@@ -178,7 +174,16 @@ impl From<TooltipMessage> for Message {
     }
 }
 
-impl Bar {
+impl From<GroupEvent<Message>> for Message {
+    fn from(event: GroupEvent<Message>) -> Self {
+        match event {
+            GroupEvent::Group(message) => message,
+            GroupEvent::Tooltip(tooltip) => Message::Tooltip(tooltip),
+        }
+    }
+}
+
+impl DesktopShell {
     pub fn new(
         config: Config,
         config_file: ConfigFile,
@@ -186,8 +191,8 @@ impl Bar {
         niri_rules: NiriRulesFile,
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
-        let _span = tracing::debug_span!("bar init").entered();
-        let bar = Self {
+        let _span = tracing::debug_span!("desktop shell init").entered();
+        let shell = Self {
             weather_group: WeatherGroup::default(),
             wallpaper_group: WallpaperGroup::new(&secrets),
             battery_group: BatteryGroup::default(),
@@ -216,7 +221,7 @@ impl Bar {
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
-            panel_regions: PanelRegions::default(),
+            element_regions: ReportedElementRegions::default(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -235,7 +240,7 @@ impl Bar {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
             Task::perform(state::panel::load(), Message::PanelLoaded),
-            bar.niri_group.load(),
+            shell.niri_group.load(),
             blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
             BatteryGroup::probe().map(Message::Battery),
@@ -243,13 +248,14 @@ impl Bar {
             InternetGroup::probe().map(Message::Internet),
             MonitorGroup::probe().map(Message::Monitor),
             DarkModeGroup::probe().map(Message::DarkMode),
-            bar.color_temperature_group
+            shell
+                .color_temperature_group
                 .probe()
                 .map(Message::ColorTemperature),
-            bar.ai_group.probe().map(Message::Ai),
-            bar.wallpaper_group.probe().map(Message::Wallpaper),
+            shell.ai_group.probe().map(Message::Ai),
+            shell.wallpaper_group.probe().map(Message::Wallpaper),
         ]);
-        (bar, init)
+        (shell, init)
     }
 
     pub fn namespace() -> String {
@@ -270,7 +276,7 @@ impl Bar {
     }
 
     fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {
-        widget_groups(self)
+        all_widget_groups(self)
             .flat_map(|group| group.alerts())
             .collect()
     }
@@ -302,7 +308,7 @@ impl Bar {
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
-            Message::NiriStyling(msg) => self.update_niri_styling(msg),
+            Message::NiriStyling(msg) => self.niri_group.update(msg),
             Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
@@ -334,11 +340,11 @@ impl Bar {
             }),
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => self.forget_window(window),
-            Message::PillBounds {
+            Message::ElementRegions {
                 window,
-                zone,
-                rects,
-            } => self.update_pill_bounds(window, zone, rects),
+                element,
+                region,
+            } => self.update_element_regions(window, element, region),
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => {
@@ -376,34 +382,21 @@ impl Bar {
         }
     }
 
-    fn update_niri_styling(&mut self, msg: NiriMessage) -> Task<Message> {
-        self.niri_group.update(msg)
-    }
-
     fn dismiss_groups(&mut self) -> Task<Message> {
         self.collapse_groups();
         Task::none()
-    }
-
-    fn update_pill_bounds(
-        &mut self,
-        window: Id,
-        zone: Zone,
-        rects: Vec<Rectangle>,
-    ) -> Task<Message> {
-        let regions = self
-            .panel_regions
-            .bounds(window, zone, rects, &self.panel_settings.layout);
-        if zone == Zone::Sidebar {
-            return Task::batch([regions, self.reserve()]);
-        }
-        regions
     }
 
     fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
         self.idle_timeouts_group
             .update(msg)
             .map(Message::IdleTimeouts)
+    }
+
+    fn update_color_temperature(&mut self, msg: ColorTemperatureMessage) -> Task<Message> {
+        self.color_temperature_group
+            .update(msg)
+            .map(Message::ColorTemperature)
     }
 
     fn adopt_sound_theme(&mut self, theme: Option<String>) -> Task<Message> {
@@ -420,68 +413,6 @@ impl Bar {
         self.desktop_entries.set(entries.clone());
         self.window_group.set_desktop_entries(entries);
         self.refresh_quick_launch()
-    }
-
-    fn apply_output_change(&mut self, change: OutputChange) -> Task<Message> {
-        match change {
-            OutputChange::Connected(Some(name)) => {
-                Task::batch([self.open_bars(&name), query_outputs()])
-            }
-            OutputChange::Disconnected(Some(name)) => {
-                Task::batch([self.forget_output(&name), query_outputs()])
-            }
-            OutputChange::Rearranged => query_outputs(),
-            OutputChange::Unavailable(reason) => {
-                tracing::error!("wayland: output tracking stopped: {reason}");
-                Task::none()
-            }
-            OutputChange::Connected(None) | OutputChange::Disconnected(None) => Task::none(),
-        }
-    }
-
-    fn forget_output(&mut self, output: &str) -> Task<Message> {
-        let stranded: Vec<Id> = self
-            .surfaces
-            .iter()
-            .filter(|(_, surface)| surface.output == output)
-            .map(|(&id, _)| id)
-            .collect();
-        self.tooltip.forget_output(output);
-        Task::batch(stranded.into_iter().flat_map(|id| {
-            [
-                self.forget_window(id),
-                Task::done(Message::RemoveWindow(id)),
-            ]
-        }))
-    }
-
-    fn forget_window(&mut self, window: Id) -> Task<Message> {
-        self.surfaces.remove(&window);
-        self.backdrops.remove(&window);
-        self.tooltip.forget(window);
-        self.panel_regions.forget(window);
-        Task::none()
-    }
-
-    fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
-        let placement = niri::Placement::derive(&self.niri);
-        let panels: HashMap<String, Id> = self
-            .panels()
-            .map(|(id, output)| (output.to_owned(), id))
-            .collect();
-        self.notifications.update(
-            msg,
-            &placement,
-            self.desktop_entries.get(),
-            &self.config,
-            &self.panel_settings.toasts,
-            &|output| panels.get(output).copied(),
-        )
-    }
-
-    fn prune_notifications(&mut self) -> Task<Message> {
-        self.notifications.prune();
-        Task::none()
     }
 
     fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputInfo>) -> Task<Message> {
@@ -523,24 +454,6 @@ impl Bar {
         }
     }
 
-    fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match msg {
-            NotificationGroupMessage::Expansion(menu) => {
-                self.notification_group.expansion.update(menu);
-                Task::none()
-            }
-            NotificationGroupMessage::Toggle(toggle) => {
-                let placement = niri::Placement::derive(&self.niri);
-                self.notifications.toggle(
-                    toggle,
-                    &mut self.panel_settings.toasts,
-                    &placement,
-                    &self.config,
-                )
-            }
-        }
-    }
-
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
         match self.tray_group.update(msg) {
             tray_group::Action::None => Task::none(),
@@ -560,57 +473,6 @@ impl Bar {
             return Task::none();
         };
         niri_action(niri_ipc::Action::FocusWindow { id: window })
-    }
-
-    fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
-        match msg {
-            TooltipMessage::Enter {
-                surface,
-                position,
-                target,
-                anchor,
-            } => {
-                let content = self.tooltip_for(&target);
-                let Some(host) = self.surfaces.get(&surface).filter(|_| !content.is_empty()) else {
-                    return Task::none();
-                };
-                let parent = PanelEdge {
-                    output: host.output.clone(),
-                    position,
-                };
-                if let Some(intent) = self.tooltip.defer_switch(&parent, &target, anchor) {
-                    return intent;
-                }
-                self.tooltip.open(&parent, target, anchor);
-                Task::none()
-            }
-            TooltipMessage::SwitchIntentElapsed { seq } => {
-                if let Some(pending) = self.tooltip.take_pending_switch(seq) {
-                    self.tooltip
-                        .open(&pending.parent, pending.target, pending.anchor);
-                }
-                Task::none()
-            }
-            other => self.tooltip.update(other),
-        }
-    }
-
-    fn tooltip_departure(&self) -> Option<Departed> {
-        let content = self
-            .tooltip
-            .target()
-            .map(|target| self.tooltip_for(target))?;
-        self.tooltip.departure(content)
-    }
-
-    fn dismiss_tooltip(&mut self) -> Task<Message> {
-        let departing = self.tooltip_departure();
-        self.tooltip.dismiss(departing)
-    }
-
-    fn leave_tooltip_after_grace(&mut self) -> Task<Message> {
-        let departing = self.tooltip_departure();
-        self.tooltip.leave_elapsed(departing)
     }
 
     fn apply_saved_panel_settings(&mut self, panel_settings: PanelSettings) -> Task<Message> {
@@ -683,83 +545,6 @@ impl Bar {
         )
     }
 
-    pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
-        if let HoverTarget::Tray(address) = target {
-            return self.tray_group.tooltip_for(address);
-        }
-        if let HoverTarget::Window(window) = target {
-            return self
-                .window_group
-                .window_tooltip(&self.niri, *window)
-                .unwrap_or_else(Tooltip::empty);
-        }
-        if let HoverTarget::Workspace(workspace) = target {
-            return workspace_tooltip::tooltip(
-                &self.niri_snapshot,
-                &self.desktop_entries,
-                &self.config.font,
-                &self.font_fallbacks,
-                *workspace,
-            )
-            .unwrap_or_else(Tooltip::empty);
-        }
-        if let HoverTarget::Output(output) = target {
-            return output_group::tooltip(&self.outputs, output);
-        }
-        self.system_group
-            .tooltip_for(target)
-            .or_else(|| self.battery_group.tooltip_for(target))
-            .or_else(|| self.journal_group.tooltip_for(target))
-            .or_else(|| self.net_interfaces_group.tooltip_for(target))
-            .or_else(|| self.audio_group.tooltip_for(target))
-            .or_else(|| self.monitor_group.tooltip_for(target))
-            .or_else(|| self.color_temperature_group.tooltip_for(target))
-            .or_else(|| self.dark_mode_group.tooltip_for(target))
-            .or_else(|| self.idle_timeouts_group.tooltip_for(target))
-            .or_else(|| self.internet_group.tooltip_for(target))
-            .or_else(|| self.weather_group.tooltip_for(target))
-            .or_else(|| self.wallpaper_group.tooltip_for(target))
-            .or_else(|| self.media_group.tooltip_for(target))
-            .or_else(|| self.ai_group.tooltip_for(target))
-            .or_else(|| {
-                self.panel_settings_group
-                    .tooltip_for(target, &self.panel_settings.layout)
-            })
-            .or_else(|| self.niri_group.tooltip_for(target))
-            .unwrap_or_else(Tooltip::empty)
-    }
-
-    pub fn any_notification_transitioning(&self) -> bool {
-        self.notifications.is_transitioning()
-    }
-
-    pub fn any_notification_expiring(&self) -> bool {
-        self.notifications.has_running_countdown()
-    }
-
-    pub fn watched_window(&self) -> Option<Watched> {
-        let Some(HoverTarget::Window(window)) = self.tooltip.target() else {
-            return None;
-        };
-        let window = self.niri.windows.windows.get(window)?;
-        Some(Watched {
-            pid: window.pid?,
-            app_id: window.app_id.clone(),
-        })
-    }
-
-    pub fn tooltip_has_relative_time(&self) -> bool {
-        self.tooltip
-            .target()
-            .is_some_and(|target| self.tooltip_for(target).footer.is_some())
-    }
-
-    fn update_color_temperature(&mut self, msg: ColorTemperatureMessage) -> Task<Message> {
-        self.color_temperature_group
-            .update(msg)
-            .map(Message::ColorTemperature)
-    }
-
     fn collapse_groups(&mut self) {
         if !self.panel_settings.layout.auto_collapse_groups {
             return;
@@ -812,7 +597,7 @@ impl Bar {
             }
             let _ = self.niri.apply(event);
         }
-        self.rederive_snapshot();
+        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
         if focus_change {
             self.collapse_groups();
         }
@@ -862,10 +647,6 @@ impl Bar {
         self.resolve_icons()
     }
 
-    fn rederive_snapshot(&mut self) {
-        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
-    }
-
     fn refresh_window_assets(&mut self) -> Task<Message> {
         let titles = niri::all_windows(&self.niri);
         Task::batch([
@@ -905,151 +686,27 @@ impl Bar {
         }
     }
 
-    fn panels(&self) -> impl Iterator<Item = (Id, &str)> {
-        self.surfaces
-            .iter()
-            .filter(|(_, surface)| surface.role == SurfaceRole::Panel)
-            .map(|(&id, surface)| (id, surface.output.as_str()))
-    }
-
-    fn rebuild_blur(&self) -> Task<Message> {
-        self.panel_regions
-            .refresh(&self.panel_settings.layout, self.panels().map(|(id, _)| id))
-    }
-
-    pub(crate) fn bar_clearance(&self, output: &str) -> Padding {
-        Padding::ZERO
-            .top(self.reserved_zone(output, Position::Top) as f32)
-            .bottom(self.reserved_zone(output, Position::Bottom) as f32)
-    }
-
-    #[allow(clippy::cast_possible_truncation)]
-    fn reserved_zone(&self, output: &str, position: Position) -> i32 {
-        let thickness = match position {
-            Position::Top | Position::Bottom => self.config.bar.height_px,
-            Position::Left => self
-                .panels()
-                .find(|(_, panel_output)| *panel_output == output)
-                .map_or(0.0, |(panel, _)| {
-                    self.panel_regions.width_of(panel, Zone::Sidebar)
-                }),
-        };
-        if thickness <= 0.0 {
-            return 0;
-        }
-        (self.panel_settings.layout.float_offset_px + thickness).ceil() as i32
-    }
-
-    fn reserve(&self) -> Task<Message> {
-        Task::batch(
-            self.surfaces
-                .iter()
-                .filter_map(|(&id, surface)| match surface.role {
-                    SurfaceRole::Reservation(position) => {
-                        Some(Task::done(Message::ExclusiveZoneChange {
-                            id,
-                            zone_size: self.reserved_zone(&surface.output, position),
-                        }))
-                    }
-                    SurfaceRole::Panel => None,
-                })
-                .collect::<Vec<_>>(),
-        )
-    }
-
-    fn open_panels(&mut self, output: &str) -> Task<Message> {
-        let panel = Id::unique();
-        self.surfaces.insert(
-            panel,
-            Surface {
-                output: output.to_string(),
-                role: SurfaceRole::Panel,
-            },
-        );
-        let mut opens = vec![
-            Task::done(Message::NewLayerShell {
-                settings: surface::panel_settings(output),
-                id: panel,
-            }),
-            Task::done(surface::input_regions(panel, Vec::new())),
-        ];
-        for position in Position::ALL {
-            let id = Id::unique();
-            let zone = self.reserved_zone(output, position);
-            self.surfaces.insert(
-                id,
-                Surface {
-                    output: output.to_string(),
-                    role: SurfaceRole::Reservation(position),
-                },
-            );
-            opens.push(Task::done(Message::NewLayerShell {
-                settings: surface::reservation_settings(output, position, zone),
-                id,
-            }));
-        }
-        Task::batch(opens)
-    }
-
-    fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.bar.height_px as u32;
-        let settings = backdrop_shadow::settings(output, position, height);
-        let id = Id::unique();
-        self.backdrops.insert(id, position);
-        Task::done(Message::NewLayerShell { settings, id })
-    }
-
-    fn resize_backdrops(&self) -> Task<Message> {
-        let height = self.config.bar.height_px as u32;
-        Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
-            [
-                Task::done(Message::LayoutChange {
-                    id,
-                    anchor: position.anchor(),
-                    size: position.strip_size(height),
-                }),
-                Task::done(Message::MarginChange {
-                    id,
-                    margin: backdrop_shadow::margin(position, height),
-                }),
-            ]
-        }))
-    }
-
-    /// The compositor's output list reaches vetrata through a worker that may
-    /// restart and re-announce everything it knows, so an output already
-    /// carrying surfaces is left alone rather than given a second set.
-    fn open_bars(&mut self, output: &str) -> Task<Message> {
-        let _span = tracing::debug_span!("open bars", output).entered();
-        if self
-            .surfaces
-            .values()
-            .any(|surface| surface.output == output)
-        {
-            return Task::none();
-        }
-        let mut opens = vec![self.open_panels(output)];
-        opens.push(self.tooltip.open_surface(output));
-        opens.extend(
-            Position::BARS
-                .into_iter()
-                .map(|position| self.open_backdrop(output, position)),
-        );
-        Task::batch(opens)
-    }
-
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         let _span = tracing::trace_span!("view", ?window).entered();
-        if let Some(element) = self.tooltip.view(
+        if let Some(tooltip) = self.tooltip.view(
             window,
             &self.config,
             &self.panel_settings,
             &self.favicons,
             |target| self.tooltip_for(target),
         ) {
-            return element;
+            return tooltip;
         }
-        view(self, window)
+        if self.backdrops.contains_key(&window) {
+            return backdrop_fill();
+        }
+        let Some(surface) = self.surfaces.get(&window) else {
+            return blank_surface();
+        };
+        match surface.role {
+            SurfaceRole::Panel => MonitorLayout::new(self, window, &surface.output).into(),
+            SurfaceRole::Reservation(_) => blank_surface(),
+        }
     }
 
     pub fn theme(&self, _window: Id) -> iced::Theme {
@@ -1062,8 +719,4 @@ impl Bar {
             text_color: self.config.palette.bar_foreground,
         }
     }
-}
-
-fn query_outputs() -> Task<Message> {
-    blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
 }

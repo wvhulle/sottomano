@@ -14,7 +14,7 @@ use uom::{
 };
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::Config,
     data::{
         severity::Severity,

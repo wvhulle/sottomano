@@ -2,7 +2,7 @@ use iced::{
     Color, Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor, widget::canvas,
 };
 
-use crate::wayland_layers::surface::Position;
+use crate::desktop_shell::monitor_surfaces::Position;
 
 pub struct MarkerTrack {
     markers: Vec<Color>,

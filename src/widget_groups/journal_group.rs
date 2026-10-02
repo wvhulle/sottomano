@@ -13,7 +13,7 @@ use crate::{
         systemd_failed::{Failed, JournalScope, System, User},
     },
     message_subscriptions::blocking,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,

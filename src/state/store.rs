@@ -111,7 +111,6 @@ async fn build() -> Result<Store, StoreError> {
 pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), StoreError> {
     connection.execute(launches::CREATE_TABLE, ()).await?;
     connection.execute(panel::CREATE_TABLE, ()).await?;
-    panel::add_later_columns(connection).await?;
     connection.execute(idle::CREATE_TABLE, ()).await?;
     connection.execute(dark_mode::CREATE_TABLE, ()).await?;
     for statement in power::DROP_LEGACY_TABLES {
@@ -122,7 +121,6 @@ pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), S
         connection.execute(statement, ()).await?;
     }
     connection.execute(rate_limit::CREATE_TABLE, ()).await?;
-    panel::adopt_legacy_settings(connection).await?;
     Ok(())
 }
 

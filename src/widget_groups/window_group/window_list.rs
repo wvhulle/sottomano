@@ -18,9 +18,9 @@ use crate::{
         niri,
         process::{self, Forest, Inspection, Process, Watched},
     },
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    desktop_shell::{
+        monitor_surfaces::Position,
+        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
     },
     widget_groups::window_group::process_tree::Folding,
     widgets::{

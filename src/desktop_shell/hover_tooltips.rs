@@ -1,16 +1,17 @@
-pub mod host_surfaces;
 pub mod hover_area;
 pub mod tooltip_content;
+pub mod tooltip_surfaces;
 pub mod tooltip_transition;
+pub mod tooltip_updates;
 
 use iced::{Rectangle, window::Id};
 
-pub use crate::wayland_layers::tooltip::{
-    host_surfaces::TooltipHost,
+pub use crate::desktop_shell::hover_tooltips::{
     hover_area::{hoverable, on_surface},
     tooltip_content::relative,
+    tooltip_surfaces::TooltipHost,
 };
-use crate::{data::source::weather::Allergen, wayland_layers::surface::Position};
+use crate::{data::source::weather::Allergen, desktop_shell::monitor_surfaces::Position};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
@@ -33,7 +34,7 @@ pub enum HoverTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
     WorkspacesPlacement,
-    TintChrome,
+    BackgroundTint,
     Journal,
     JournalSystem,
     JournalUser,

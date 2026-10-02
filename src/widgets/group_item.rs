@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    wayland_layers::tooltip::{HoverTarget, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
     widgets::{
         bar_widget::BarWidget,
         flat_button,

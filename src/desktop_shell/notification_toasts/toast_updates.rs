@@ -1,83 +1,102 @@
-pub mod body_markup;
-pub mod expiry_countdown;
-pub mod placement_policy;
-pub mod reading_alert_reconciliation;
-pub mod toast_anchor;
-pub mod toast_card;
-pub mod toast_field;
-pub mod toast_lifecycle;
+use std::{collections::HashMap, path::Path};
 
-use std::{cmp::Reverse, path::Path};
-
-use expiry_countdown::Countdown;
 use iced::{
-    Element, Padding, Task,
-    theme::palette::Extended,
+    Task,
     time::{Duration, Instant},
     window::Id,
 };
 use iced_exwlshell::reexport::ActivationTokenSink;
 use niri_ipc::state::EventStreamState;
-use placement_policy::{placement_for, resolve_window_id};
-use reading_alert_reconciliation::{
-    DismissedReadingAlert, ReadingAlertToastChanges, ShownReadingAlertToast, ToastSlotForAlert,
-    plan_reading_alert_toast_changes,
-};
-use toast_anchor::ToastSlot;
-pub use toast_lifecycle::{Notification, NotificationMessage, ToastOrigin};
 use tokio::{sync::mpsc, time::timeout};
 
+use super::{
+    DEFAULT_ACTION, NotificationLayer,
+    reading_alert_toasts::{DismissedReadingAlert, ReadingAlertToastChanges, ToastSlotForAlert},
+    toast_card,
+    toast_lifecycle::{Countdown, Notification, NotificationMessage, ToastOrigin, lifetime},
+    toast_placement::{placement_for, resolve_window_id},
+};
 use crate::{
-    app::{Bar, Message},
     config::{Config, LoadError},
     data::{
-        notifications::model::{
-            ExpireTimeout, NotifHandle, NotificationData, Outbound, close_reason,
-        },
+        notifications::model::{ExpireTimeout, NotificationData, Outbound, close_reason},
         severity::Severity,
         sink::sound,
         source::{app_icon::DesktopEntries, niri::Placement},
     },
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::ShellElement},
     message_subscriptions::niri_action,
-    state::{self, PanelLayout, ToastPreferences},
-    wayland_layers::panel_regions::Zone,
-    widget_groups::notification_group::NotificationToggle,
-    widgets::{reading_alert::ReadingAlert, reveal::reveal_y},
+    state::{self, ToastPreferences},
+    widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
+    widgets::{
+        reading_alert::ReadingAlert,
+        region_reporter::{RegionRoles, ReportedRegion},
+    },
 };
-
-const DEFAULT_ACTION: &str = "default";
 
 const CONFIG_ERROR_TOAST_ID: u32 = 0;
 
-/// How long the compositor gets to answer `get_activation_token` before the
-/// action is invoked without one.
 const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
 
-/// Keys vetrata resolves itself against a niri window, rather than handing back
-/// to the sender.
-fn is_window_action(key: &str) -> bool {
+const TOAST_REGION_ROLES: RegionRoles = RegionRoles {
+    takes_input: true,
+    blurred: true,
+};
+
+fn is_window_owned_action(key: &str) -> bool {
     matches!(key, "move" | "quit")
 }
 
-pub fn view<'a>(bar: &'a Bar, window: Id, output: &str) -> Element<'a, Message> {
-    bar.notifications.view(
-        window,
-        output,
-        &bar.config,
-        bar.theme.extended_palette(),
-        &bar.panel_settings.layout,
-        bar.bar_clearance(output),
-    )
-}
+impl DesktopShell {
+    pub(crate) fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
+        let placement = Placement::derive(&self.niri);
+        let panels: HashMap<String, Id> = self
+            .panels()
+            .map(|(id, output)| (output.to_owned(), id))
+            .collect();
+        self.notifications.update(
+            msg,
+            &placement,
+            self.desktop_entries.get(),
+            &self.config,
+            &self.panel_settings.toasts,
+            &|output| panels.get(output).copied(),
+        )
+    }
 
-#[derive(Default)]
-pub struct NotificationLayer {
-    handle: Option<NotifHandle>,
-    sound_theme: Option<String>,
-    live: Vec<Notification>,
-    next_seq: u64,
-    hovered: Option<u32>,
-    dismissed_reading_alerts: Vec<DismissedReadingAlert>,
+    pub(crate) fn prune_notifications(&mut self) -> Task<Message> {
+        self.notifications.prune();
+        Task::none()
+    }
+
+    pub(crate) fn update_notification_group(
+        &mut self,
+        msg: NotificationGroupMessage,
+    ) -> Task<Message> {
+        match msg {
+            NotificationGroupMessage::Expansion(menu) => {
+                self.notification_group.expansion.update(menu);
+                Task::none()
+            }
+            NotificationGroupMessage::Toggle(toggle) => {
+                let placement = Placement::derive(&self.niri);
+                self.notifications.toggle(
+                    toggle,
+                    &mut self.panel_settings.toasts,
+                    &placement,
+                    &self.config,
+                )
+            }
+        }
+    }
+
+    pub fn any_notification_transitioning(&self) -> bool {
+        self.notifications.is_transitioning()
+    }
+
+    pub fn any_notification_expiring(&self) -> bool {
+        self.notifications.has_running_countdown()
+    }
 }
 
 impl NotificationLayer {
@@ -130,11 +149,16 @@ impl NotificationLayer {
             NotificationMessage::CloseRequested(id) => {
                 self.close_all([id], close_reason::CLOSED_BY_CALL)
             }
-            NotificationMessage::Rects { window, rects } => Task::done(Message::PillBounds {
-                window,
-                zone: Zone::Toasts,
-                rects,
-            }),
+            NotificationMessage::CardBoundsChanged { window, rects } => {
+                Task::done(Message::ElementRegions {
+                    window,
+                    element: ShellElement::NotificationToasts,
+                    region: ReportedRegion {
+                        rects,
+                        roles: TOAST_REGION_ROLES,
+                    },
+                })
+            }
             NotificationMessage::Tick => self.expire(),
         }
     }
@@ -196,27 +220,6 @@ impl NotificationLayer {
         self.close_all([CONFIG_ERROR_TOAST_ID], close_reason::CLOSED_BY_CALL)
     }
 
-    fn plan_reading_alert_toasts(
-        &self,
-        active_alerts: &[ReadingAlert<Message>],
-    ) -> ReadingAlertToastChanges<Message> {
-        let shown_toasts: Vec<ShownReadingAlertToast<'_>> = self
-            .showing()
-            .filter_map(|n| {
-                n.reading_alert().map(|alert| ShownReadingAlertToast {
-                    toast_id: n.data.id,
-                    hover_target: &alert.hover_target,
-                    severity: alert.severity,
-                })
-            })
-            .collect();
-        plan_reading_alert_toast_changes(
-            active_alerts,
-            &shown_toasts,
-            &self.dismissed_reading_alerts,
-        )
-    }
-
     fn apply_reading_alert_toast_changes(
         &mut self,
         changes: ReadingAlertToastChanges<Message>,
@@ -249,11 +252,6 @@ impl NotificationLayer {
         Task::batch(tasks)
     }
 
-    #[allow(clippy::cast_possible_truncation)]
-    fn fresh_reading_alert_toast_id(&self) -> u32 {
-        u32::MAX.wrapping_sub(self.next_seq as u32)
-    }
-
     fn remember_dismissed_reading_alert(&mut self, toast_id: u32) {
         let dismissed = self
             .showing()
@@ -264,17 +262,6 @@ impl NotificationLayer {
                 dismissed_at_severity: alert.severity,
             });
         self.dismissed_reading_alerts.extend(dismissed);
-    }
-
-    fn reading_alert_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
-        let alert = self
-            .showing()
-            .find(|n| n.data.id == toast_id)?
-            .reading_alert()?;
-        if action_key == DEFAULT_ACTION {
-            return Some(alert.on_body_clicked.clone());
-        }
-        alert.action_button_pressed(action_key).cloned()
     }
 
     fn serve(
@@ -307,9 +294,8 @@ impl NotificationLayer {
         let seq = self.next_seq;
         self.next_seq += 1;
         let now = Instant::now();
-        let countdown =
-            expiry_countdown::lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
-                .map(|remaining| Countdown::started(remaining, now));
+        let countdown = lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
+            .map(|remaining| Countdown::started(remaining, now));
         let place = placement_for(&data, placement, toast_preferences, config);
         self.live.push(Notification::appearing(
             *data, origin, icons, countdown, seq, place, now,
@@ -351,10 +337,6 @@ impl NotificationLayer {
         closed
     }
 
-    fn showing(&self) -> impl Iterator<Item = &Notification> {
-        self.live.iter().filter(|n| !n.is_withdrawing())
-    }
-
     fn sync_countdowns(&mut self, now: Instant) {
         let hovered = self.hovered;
         self.live.iter_mut().for_each(|notif| {
@@ -369,10 +351,7 @@ impl NotificationLayer {
         });
     }
 
-    /// Starts the fade-out and reports which notifications were actually
-    /// showing, so the caller can order their `Closed` signals against
-    /// whatever else it is emitting.
-    fn withdraw_all(&mut self, candidates: impl IntoIterator<Item = u32>) -> Vec<u32> {
+    fn withdraw_showing(&mut self, candidates: impl IntoIterator<Item = u32>) -> Vec<u32> {
         let now = Instant::now();
         let closing: Vec<u32> = candidates
             .into_iter()
@@ -392,40 +371,17 @@ impl NotificationLayer {
         reason: u32,
     ) -> Task<Message> {
         let closed = self
-            .withdraw_all(candidates)
+            .withdraw_showing(candidates)
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))
             .map(|id| Outbound::Closed { id, reason })
             .collect();
-        self.emit(closed)
-    }
-
-    fn sent_by_dbus_client(&self, id: u32) -> bool {
-        self.live
-            .iter()
-            .any(|n| n.data.id == id && n.sent_by_dbus_client())
+        self.emit_in_order(closed)
     }
 
     fn prune_hover(&mut self) {
         let hovered = self.hovered;
         self.hovered = hovered.filter(|id| self.showing().any(|n| n.data.id == *id));
-    }
-
-    pub fn has_running_countdown(&self) -> bool {
-        self.live
-            .iter()
-            .any(|n| n.countdown.is_some_and(Countdown::is_running))
-    }
-
-    fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
-        let notif = self.showing().find(|n| n.data.id == id)?;
-        resolve_window_id(&notif.data, placement)
-            .filter(|&w| placement.workspace_of_window(w).is_some())
-    }
-
-    fn declares_default_action(&self, id: u32) -> bool {
-        self.showing()
-            .any(|n| n.data.id == id && n.data.actions.iter().any(|a| a.key == DEFAULT_ACTION))
     }
 
     fn activate_action(
@@ -443,31 +399,17 @@ impl NotificationLayer {
             ]);
         }
         if key == DEFAULT_ACTION && self.declares_default_action(id) {
-            return self.request_activation_token(id, panel_on);
+            return self.hand_default_action_back_to_sender(id, panel_on);
         }
 
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
-        let window = self.window_of(id, placement);
-        let activation = match (key, window) {
-            (DEFAULT_ACTION, Some(window)) => {
-                niri_action(niri_ipc::Action::FocusWindow { id: window })
-            }
-            (DEFAULT_ACTION, None) => Task::none(),
-            ("quit", Some(window)) => {
-                niri_action(niri_ipc::Action::CloseWindow { id: Some(window) })
-            }
-            ("move", Some(window)) => {
-                placement
-                    .active_workspace_for_move()
-                    .map_or_else(Task::none, |target| {
-                        niri_action(niri_ipc::Action::MoveWindowToWorkspace {
-                            window_id: Some(window),
-                            reference: niri_ipc::WorkspaceReferenceArg::Id(target),
-                            focus: true,
-                        })
-                    })
-            }
-            _ => self.emit(vec![Outbound::ActionInvoked {
+        let window_action = self
+            .window_of(id, placement)
+            .and_then(|window| action_on_window(key, window, placement));
+        let activation = match window_action {
+            Some(task) => task,
+            None if key == DEFAULT_ACTION => Task::none(),
+            None => self.emit_in_order(vec![Outbound::ActionInvoked {
                 id,
                 key: key.to_owned(),
             }]),
@@ -480,10 +422,7 @@ impl NotificationLayer {
         }
     }
 
-    /// A notification that ships its own default action knows which of its
-    /// windows the user meant; vetrata cannot. So the click is handed back with
-    /// an activation token and the sender raises itself.
-    fn request_activation_token(
+    fn hand_default_action_back_to_sender(
         &self,
         id: u32,
         panel_on: &dyn Fn(&str) -> Option<Id>,
@@ -533,70 +472,18 @@ impl NotificationLayer {
         });
 
         if survives_action_invocation {
-            return self.emit(outbound);
+            return self.emit_in_order(outbound);
         }
 
         outbound.extend(
-            self.withdraw_all([id])
+            self.withdraw_showing([id])
                 .into_iter()
                 .map(|id| Outbound::Closed {
                     id,
                     reason: close_reason::DISMISSED,
                 }),
         );
-        self.emit(outbound)
-    }
-
-    fn view<'a>(
-        &'a self,
-        window: Id,
-        output: &str,
-        config: &'a Config,
-        palette: &'a Extended,
-        layout: &'a PanelLayout,
-        panel_clearance: Padding,
-    ) -> Element<'a, Message> {
-        let now = Instant::now();
-        let mut ordered: Vec<&Notification> = self
-            .live
-            .iter()
-            .filter(|n| n.place.output.as_deref() == Some(output))
-            .collect();
-        ordered.sort_by_key(|n| Reverse((n.place.anchor.is_window_bound(), n.seq)));
-        let slots: Vec<ToastSlot<'_>> = ordered
-            .into_iter()
-            .map(|notif| {
-                let reveal = notif.reveal(now);
-                ToastSlot {
-                    id: notif.data.id,
-                    anchor: notif.place.anchor,
-                    card: reveal_y(
-                        toast_card::Card::new(notif, config, palette, layout)
-                            .hovered(self.hovered == Some(notif.data.id))
-                            .reveal(reveal),
-                        reveal,
-                    ),
-                    animating: notif.is_animating(now),
-                }
-            })
-            .collect();
-        toast_field::field(window, slots, panel_clearance, &config.toasts)
-            .map(Message::Notification)
-    }
-
-    pub fn is_active(&self) -> bool {
-        !self.live.is_empty()
-    }
-
-    pub fn is_transitioning(&self) -> bool {
-        let now = Instant::now();
-        self.live
-            .iter()
-            .any(|n| n.is_animating(now) || n.is_withdrawing())
-    }
-
-    pub fn live_count(&self) -> usize {
-        self.live.len()
+        self.emit_in_order(outbound)
     }
 
     pub fn toggle(
@@ -639,9 +526,7 @@ impl NotificationLayer {
         }
     }
 
-    /// Signals reach the bus in the order given: a client reading an
-    /// `ActivationToken` only associates it with the action that follows it.
-    fn emit(&self, outbound: Vec<Outbound>) -> Task<Message> {
+    fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Message> {
         match &self.handle {
             Some(handle) if !outbound.is_empty() => {
                 let sender = handle.sender();
@@ -668,10 +553,31 @@ impl NotificationLayer {
     }
 }
 
+fn action_on_window(key: &str, window: u64, placement: &Placement) -> Option<Task<Message>> {
+    match key {
+        DEFAULT_ACTION => Some(niri_action(niri_ipc::Action::FocusWindow { id: window })),
+        "quit" => Some(niri_action(niri_ipc::Action::CloseWindow {
+            id: Some(window),
+        })),
+        "move" => Some(
+            placement
+                .active_workspace_for_move()
+                .map_or_else(Task::none, |target| {
+                    niri_action(niri_ipc::Action::MoveWindowToWorkspace {
+                        window_id: Some(window),
+                        reference: niri_ipc::WorkspaceReferenceArg::Id(target),
+                        focus: true,
+                    })
+                }),
+        ),
+        _ => None,
+    }
+}
+
 fn is_stale(data: &NotificationData, placement: &Placement) -> bool {
     let Some(window) = resolve_window_id(data, placement) else {
         return false;
     };
-    let window_owned = data.actions.iter().all(|a| is_window_action(&a.key));
+    let window_owned = data.actions.iter().all(|a| is_window_owned_action(&a.key));
     window_owned && placement.workspace_of_window(window).is_none()
 }

@@ -18,7 +18,7 @@ use crate::{
             battery::{self, Battery},
         },
     },
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

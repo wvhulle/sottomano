@@ -1,5 +1,5 @@
 use crate::{
-    data::severity::Severity, wayland_layers::tooltip::HoverTarget,
+    data::severity::Severity, desktop_shell::hover_tooltips::HoverTarget,
     widgets::reading_alert::ReadingAlert,
 };
 

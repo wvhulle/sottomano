@@ -1,14 +1,13 @@
+pub mod niri_rules;
+
 use std::ops::RangeInclusive;
 
 use iced::Task;
+use niri_rules::{NiriLayout, NiriRulesFile, StoredRules};
 
 use crate::{
-    app::Message,
     config::Config,
-    wayland_layers::{
-        niri_rules::{NiriLayout, NiriRulesFile, StoredRules},
-        tooltip::HoverTarget,
-    },
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},

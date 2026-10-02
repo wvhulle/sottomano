@@ -15,7 +15,7 @@ use crate::{
     },
     message_subscriptions::polling,
     state::power,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::battery_group::{
         estimate_columns::{ESTIMATE_HEADINGS, estimate_cells},
         power_profile_control::profile_icon::profile_face,

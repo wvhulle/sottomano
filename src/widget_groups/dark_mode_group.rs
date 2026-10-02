@@ -22,7 +22,7 @@ use crate::{
     },
     message_subscriptions::blocking,
     state::{self, dark_mode::DarkModeSchedule},
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },

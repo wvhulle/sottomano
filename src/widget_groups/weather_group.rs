@@ -9,7 +9,7 @@ pub mod wind_speed;
 use crate::{
     data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
     message_subscriptions::polling,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

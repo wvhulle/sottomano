@@ -7,7 +7,9 @@ pub mod power;
 pub mod rate_limit;
 pub mod store;
 
-use iced::border::Radius;
+use core::f32::consts::FRAC_1_SQRT_2;
+
+use iced::{Color, Shadow, Vector, border::Radius};
 pub(crate) use store::{Columns, StoreError, open};
 
 #[derive(Debug, Clone, Default)]
@@ -57,6 +59,27 @@ pub struct PanelLayout {
     pub float_offset_px: f32,
     pub tint_factor: f32,
     pub corner_radius: Radius,
+}
+
+impl PanelLayout {
+    pub fn frame_background(&self, surface: Color) -> Color {
+        surface.scale_alpha(self.tint_factor)
+    }
+
+    pub fn frame_shadow(&self) -> Shadow {
+        if !self.shadow.cast {
+            return Shadow::default();
+        }
+        Shadow {
+            color: Color::BLACK.scale_alpha(self.shadow.opacity),
+            offset: Vector::ZERO,
+            blur_radius: self.shadow.softness_px,
+        }
+    }
+
+    pub fn frame_corner_inset(&self) -> f32 {
+        self.corner_radius.top_left * (1.0 - FRAC_1_SQRT_2)
+    }
 }
 
 impl Default for PanelLayout {

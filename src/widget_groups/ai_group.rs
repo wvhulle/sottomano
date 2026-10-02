@@ -29,7 +29,7 @@ use crate::{
         },
     },
     message_subscriptions::polling,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         last_poll::LastPoll,
         tooltip_body::Tooltip,

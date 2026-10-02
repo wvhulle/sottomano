@@ -7,7 +7,7 @@ use iced::Task;
 use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use tokio::fs;
 
-use crate::wayland_layers::surface::Position;
+use crate::desktop_shell::monitor_surfaces::Position;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NiriLayout {

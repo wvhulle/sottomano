@@ -4,7 +4,7 @@ use iced::{
     widget::canvas::{self, Canvas, Frame, Geometry, Path},
 };
 
-use crate::wayland_layers::surface::Position;
+use crate::desktop_shell::monitor_surfaces::Position;
 
 const BASE_HALF_WIDTH_PX: f32 = 4.0;
 const OVERLAP_PX: f32 = 2.0;

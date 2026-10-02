@@ -1,5 +1,3 @@
-pub mod slot_geometry;
-
 use std::{collections::HashMap, convert::identity};
 
 use iced::{
@@ -17,43 +15,51 @@ use iced::{
 };
 
 use super::{
-    toast_anchor::{ToastAnchor, ToastSlot},
+    toast_anchor_geometry,
     toast_lifecycle::NotificationMessage,
+    toast_placement::{AnchoredToast, ToastAnchor},
 };
 use crate::config::ToastConfig;
 
 const MOTION: Duration = Duration::from_millis(160);
 
-pub fn field<'a>(
-    window: Id,
-    slots: Vec<ToastSlot<'a>>,
-    panel_clearance: Padding,
-    config: &ToastConfig,
-) -> Element<'a, NotificationMessage> {
-    let field = slots.into_iter().fold(
-        ToastField {
-            window,
-            panel_clearance,
-            ids: Vec::new(),
-            anchors: Vec::new(),
-            cards: Vec::new(),
-            config: config.clone(),
-            revealing: false,
-        },
-        |mut field, slot| {
-            field.ids.push(slot.id);
-            field.anchors.push(slot.anchor);
-            field.cards.push(slot.card);
-            field.revealing |= slot.animating;
-            field
-        },
-    );
-    Element::new(field)
+impl<'a> WindowAnchoredToasts<'a> {
+    pub fn new(
+        window: Id,
+        toasts: Vec<AnchoredToast<'a>>,
+        bar_clearance: Padding,
+        config: &ToastConfig,
+    ) -> Self {
+        toasts.into_iter().fold(
+            Self {
+                window,
+                bar_clearance,
+                ids: Vec::new(),
+                anchors: Vec::new(),
+                cards: Vec::new(),
+                config: config.clone(),
+                revealing: false,
+            },
+            |mut toasts, toast| {
+                toasts.ids.push(toast.id);
+                toasts.anchors.push(toast.anchor);
+                toasts.cards.push(toast.card);
+                toasts.revealing |= toast.animating;
+                toasts
+            },
+        )
+    }
 }
 
-struct ToastField<'a> {
+impl<'a> From<WindowAnchoredToasts<'a>> for Element<'a, NotificationMessage> {
+    fn from(toasts: WindowAnchoredToasts<'a>) -> Self {
+        Element::new(toasts)
+    }
+}
+
+pub struct WindowAnchoredToasts<'a> {
     window: Id,
-    panel_clearance: Padding,
+    bar_clearance: Padding,
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
@@ -209,7 +215,7 @@ struct CardViewMut<'t, 'a> {
     layout: Layout<'t>,
 }
 
-impl<'a> ToastField<'a> {
+impl<'a> WindowAnchoredToasts<'a> {
     fn views<'t>(
         &'t self,
         tree: &'t Tree,
@@ -243,7 +249,7 @@ impl<'a> ToastField<'a> {
     }
 }
 
-impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_> {
+impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchoredToasts<'_> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<FieldState>()
     }
@@ -281,9 +287,13 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
             .map(|(card, child)| card.as_widget_mut().layout(child, renderer, &card_limits))
             .collect();
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
-        let free_area = Rectangle::with_size(surface).shrink(self.panel_clearance);
-        let targets =
-            slot_geometry::origins(&self.anchors, &sizes, free_area, &self.config.placement);
+        let free_area = Rectangle::with_size(surface).shrink(self.bar_clearance);
+        let targets = toast_anchor_geometry::origins(
+            &self.anchors,
+            &sizes,
+            free_area,
+            &self.config.placement,
+        );
         let positions = tree
             .state
             .downcast_mut::<FieldState>()
@@ -379,7 +389,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
             .map(|card_layout| snapped(card_layout.bounds()))
             .collect();
         if let Some(rects) = state.region.changed(rects) {
-            shell.publish(NotificationMessage::Rects { window, rects });
+            shell.publish(NotificationMessage::CardBoundsChanged { window, rects });
             shell.request_redraw();
         }
         if drifting {

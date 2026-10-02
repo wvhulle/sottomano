@@ -8,12 +8,12 @@ use iced::{
 };
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::Config,
     data::source::niri,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    desktop_shell::{
+        monitor_surfaces::Position,
+        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
@@ -134,7 +134,7 @@ pub fn inline_view<'a>(
 
 fn indicated<'a>(
     slots: Element<'a, WorkspacesMessage>,
-    workspaces: &[niri::WsPill],
+    workspaces: &[niri::WorkspaceIndicator],
     config: &Config,
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
@@ -154,7 +154,7 @@ fn indicated<'a>(
 }
 
 fn hit_area<'a>(
-    p: &niri::WsPill,
+    p: &niri::WorkspaceIndicator,
     content: Element<'a, WorkspacesMessage>,
     config: &Config,
 ) -> Element<'a, WorkspacesMessage> {
@@ -206,7 +206,7 @@ fn window_markers<'a>(
 
 fn urgency_line<'a>(
     config: &Config,
-    p: &niri::WsPill,
+    p: &niri::WorkspaceIndicator,
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
     let opacity = if p.is_urgent { 1.0 } else { 0.0 };
@@ -218,25 +218,25 @@ fn urgency_line<'a>(
     )
 }
 
-fn given_name(p: &niri::WsPill) -> Option<&str> {
+fn given_name(p: &niri::WorkspaceIndicator) -> Option<&str> {
     p.name.as_deref().filter(|name| !name.is_empty())
 }
 
-fn display_name(p: &niri::WsPill) -> String {
+fn display_name(p: &niri::WorkspaceIndicator) -> String {
     given_name(p).map_or_else(|| p.idx.to_string(), str::to_string)
 }
 
-fn has_superscript(p: &niri::WsPill) -> bool {
+fn has_superscript(p: &niri::WorkspaceIndicator) -> bool {
     given_name(p).is_some() && p.idx <= 9
 }
 
-fn superscript<'a>(config: &Config, p: &niri::WsPill) -> Text<'a> {
+fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator) -> Text<'a> {
     bar_text(&config.font, p.idx.to_string())
         .size(config.font.text_size_px * SUPERSCRIPT_SCALE)
         .color(config.palette.inactive)
 }
 
-fn inline_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
+fn inline_label<'a>(config: &Config, p: &niri::WorkspaceIndicator) -> Element<'a, WorkspacesMessage> {
     let name = bar_text(&config.font, display_name(p));
     if !has_superscript(p) {
         return name.into();

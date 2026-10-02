@@ -10,12 +10,12 @@ use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use tokio::time::sleep;
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::Config,
     state::PanelSettings,
-    wayland_layers::{
-        surface::{self, PanelEdge, Position, input_region},
-        tooltip::{
+    desktop_shell::{
+        monitor_surfaces::{self, PanelEdge, Position, input_region},
+        hover_tooltips::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
@@ -283,6 +283,6 @@ fn tooltip_settings(output: &str) -> NewLayerShellSettings {
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         layer: Layer::Overlay,
-        ..surface::base_settings(Some(output), "vetrata-tooltip")
+        ..monitor_surfaces::base_settings(Some(output), "vetrata-tooltip")
     }
 }
