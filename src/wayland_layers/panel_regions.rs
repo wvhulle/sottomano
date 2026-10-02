@@ -102,14 +102,7 @@ impl PanelRegions {
             .filter(|(zone, _)| zone.is_blurred(layout))
             .flat_map(|(_, rects)| rects)
             .flat_map(|rect| rounded(*rect, layout.corner_radius.top_left))
-            .collect::<Vec<BlurRegion>>();
-        tracing::warn!(
-            target: "vetrata::blurdbg",
-            ?panel,
-            zones = ?self.zones_of(panel).map(|(zone, rects)| (zone, rects.len(), zone.is_blurred(layout))).collect::<Vec<_>>(),
-            region_rows = region.len(),
-            "blur region sent"
-        );
+            .collect();
         Task::done(Message::BlurOptionChange {
             id: panel,
             option: BlurOption::Region(region),

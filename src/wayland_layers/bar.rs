@@ -4,7 +4,7 @@ use iced::{
     Alignment, Color, Element, Length, Shadow, Vector,
     alignment::Vertical,
     border::Radius,
-    widget::{Row, Space, column, container, mouse_area, row, stack, text},
+    widget::{Row, Space, column, container, mouse_area, row, text},
     window::Id,
 };
 
@@ -47,7 +47,7 @@ fn panel<'a>(bar: &'a Bar, window: Id, output: &'a str) -> Element<'a, Message> 
     let float = bar.panel_settings.layout.float_offset_px;
     let origin = Vector::new(-float, -float);
     let edge = |position, content| tooltip::on_surface(window, position, origin, content);
-    let top = container(edge(
+    let top = edge(
         Position::Top,
         band(
             bar,
@@ -55,10 +55,8 @@ fn panel<'a>(bar: &'a Bar, window: Id, output: &'a str) -> Element<'a, Message> 
             Zone::TopBar,
             top_row(bar, window, output, Position::Top),
         ),
-    ))
-    .width(Length::Fill)
-    .align_top(Length::Fill);
-    let bottom = container(edge(
+    );
+    let bottom = edge(
         Position::Bottom,
         band(
             bar,
@@ -66,14 +64,11 @@ fn panel<'a>(bar: &'a Bar, window: Id, output: &'a str) -> Element<'a, Message> 
             Zone::BottomBar,
             bottom_row(bar, window, output, Position::Bottom),
         ),
-    ))
-    .width(Length::Fill)
-    .align_bottom(Length::Fill);
+    );
     let side = container(edge(Position::Left, sidebar::view(bar, window, output)))
-        .padding([bar.config.bar.height_px, 0.0])
         .align_left(Length::Fill)
         .center_y(Length::Fill);
-    container(stack![bottom, side, top]).padding(float).into()
+    column![top, side, bottom].padding(float).into()
 }
 
 fn band<'a>(
@@ -83,34 +78,28 @@ fn band<'a>(
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
     let layout = &bar.panel_settings.layout;
-    let dismiss = mouse_area(
-        container(Space::new())
+    let centered = mouse_area(
+        container(content)
             .width(Length::Fill)
-            .height(Length::Fill),
+            .height(Length::Fill)
+            .align_y(Vertical::Center),
     )
     .on_press(Message::DismissPressed);
-    let centered = container(content)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_y(Vertical::Center);
     let joined = !layout.disconnected_groups;
     let background = chrome_tint(&bar.config, layout);
     let shadow = pill_shadow(layout);
-    let strip = container(stack![dismiss, centered])
+    let strip = container(centered)
         .width(Length::Fill)
         .height(Length::Fixed(bar.config.bar.height_px))
-        .style(move |_| {
-            tracing::warn!(target: "vetrata::blurdbg", ?zone, joined, ?background, "strip style");
-            container::Style {
-                background: joined.then(|| background.into()),
-                border: iced::Border {
-                    radius: layout.corner_radius,
-                    ..Default::default()
-                },
-                shadow: if joined { shadow } else { Shadow::default() },
-                text_color: Some(bar.config.palette.bar_foreground),
+        .style(move |_| container::Style {
+            background: joined.then(|| background.into()),
+            border: iced::Border {
+                radius: layout.corner_radius,
                 ..Default::default()
-            }
+            },
+            shadow: if joined { shadow } else { Shadow::default() },
+            text_color: Some(bar.config.palette.bar_foreground),
+            ..Default::default()
         });
     bounds_probe(column![strip], move |rects| Message::PillBounds {
         window,
