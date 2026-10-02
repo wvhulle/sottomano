@@ -13,7 +13,12 @@ use std::{
 };
 
 use chrono::Utc;
-use iced::{Color, Element, Font, Task, font, theme::Style, window::Id};
+use iced::{
+    Color, Element, Font, Length, Task, font,
+    theme::Style,
+    widget::{Space, container},
+    window::Id,
+};
 use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
@@ -32,10 +37,9 @@ use crate::{
     },
     desktop_shell::{
         hover_tooltips::{TooltipHost, TooltipMessage},
-        monitor_layout::{MonitorLayout, all_widget_groups},
         monitor_surfaces::{
             OutputChange, Position, ReportedElementRegions, ShellElement, Surface, SurfaceRole,
-            backdrop_fill, blank_surface, query_outputs,
+            query_outputs,
         },
         notification_toasts::{NotificationLayer, NotificationMessage},
     },
@@ -276,7 +280,7 @@ impl DesktopShell {
     }
 
     fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {
-        all_widget_groups(self)
+        self.all_widget_groups()
             .flat_map(|group| group.alerts())
             .collect()
     }
@@ -697,15 +701,18 @@ impl DesktopShell {
         ) {
             return tooltip;
         }
+        let blank = || Space::new().width(Length::Fill).height(Length::Fill);
         if self.backdrops.contains_key(&window) {
-            return backdrop_fill();
+            return container(blank())
+                .style(|_| container::background(Color::BLACK))
+                .into();
         }
-        let Some(surface) = self.surfaces.get(&window) else {
-            return blank_surface();
-        };
-        match surface.role {
-            SurfaceRole::Panel => MonitorLayout::new(self, window, &surface.output).into(),
-            SurfaceRole::Reservation(_) => blank_surface(),
+        match self.surfaces.get(&window) {
+            Some(Surface {
+                output,
+                role: SurfaceRole::Panel,
+            }) => self.monitor_layout(window, output),
+            _ => blank().into(),
         }
     }
 

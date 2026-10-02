@@ -34,7 +34,6 @@ pub mod toggle_control;
 pub mod tooltip_body;
 pub mod weather_icons;
 pub mod widget_group;
-pub mod widget_group_frame;
 pub mod widget_state;
 pub mod window_icon;
 pub mod window_list_viewport;
