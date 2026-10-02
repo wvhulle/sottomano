@@ -5,7 +5,8 @@ use iced::{
 };
 
 use crate::{
-    config::Config, desktop_shell::monitor_surfaces::Position, widgets::activity_line::edge_activity_line,
+    config::Config, desktop_shell::monitor_surfaces::Position,
+    widgets::activity_line::edge_activity_line,
 };
 
 pub struct PagerSlot<'a, Message> {

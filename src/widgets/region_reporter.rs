@@ -12,10 +12,11 @@ use iced::{
     window,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RegionRoles {
     pub takes_input: bool,
     pub blurred: bool,
+    pub corner_radius: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

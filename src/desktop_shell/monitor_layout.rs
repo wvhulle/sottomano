@@ -12,7 +12,11 @@ use crate::{
 };
 
 impl DesktopShell {
-    pub(super) fn monitor_layout<'a>(&'a self, window: Id, output: &'a str) -> Element<'a, Message> {
+    pub(super) fn monitor_layout<'a>(
+        &'a self,
+        window: Id,
+        output: &'a str,
+    ) -> Element<'a, Message> {
         let float = self.panel_settings.layout.float_offset_px;
         let origin = Vector::new(-float, -float);
         let on_edge = |position, content| on_surface(window, position, origin, content);
@@ -27,7 +31,7 @@ impl DesktopShell {
             output,
             &self.config,
             &self.theme,
-            &self.panel_settings.layout,
+            &self.panel_settings,
             self.bar_clearance(output),
         ))
         .map(Message::Notification);

@@ -9,23 +9,29 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     animation::Easing,
-    border::Radius,
     mouse::Cursor,
     time::{Duration, Instant},
     window,
 };
 
 use crate::{
-    desktop_shell::Message,
     config::Config,
-    desktop_shell::monitor_surfaces::Position,
+    desktop_shell::{Message, monitor_surfaces::Position},
+    state::PanelSettings,
     widgets::{
         overlay_shadow::overlay_shadow,
-        popup_connector::{notch, notch_region},
+        popup_connector::{notch, notch_blur_rows, notch_region},
     },
 };
 
 const MORPH: Duration = Duration::from_millis(160);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PopupFrame {
+    pub bounds: Rectangle,
+    pub notch_rows: Vec<Rectangle>,
+    pub settled: bool,
+}
 
 pub struct Rendering<'a> {
     element: Element<'a, Message>,
@@ -54,28 +60,32 @@ pub fn anchored_popup<'a>(
     position: Position,
     seq: u64,
     config: &Config,
-    corner_radius: Radius,
-    on_bounds: impl Fn(Rectangle) -> Message + 'a,
+    settings: &PanelSettings,
+    on_frame: impl Fn(PopupFrame) -> Message + 'a,
 ) -> Element<'a, Message> {
+    let background = config
+        .palette
+        .surface
+        .scale_alpha(settings.overlays.opacity);
     Element::new(AnchoredPopup {
         renderings,
-        notch: notch(position, config.palette.surface),
-        on_bounds: Box::new(on_bounds),
+        notch: notch(position, background),
+        on_frame: Box::new(on_frame),
         anchor,
         edge_inset: config.bar.height_px + config.bar.popup_gap_px,
         bar_thickness: config.bar.height_px,
         popup_gap: config.bar.popup_gap_px,
         position,
         seq,
-        background: config.palette.surface,
-        radius: corner_radius.top_left,
+        background,
+        radius: settings.overlays.corner_radius.top_left,
     })
 }
 
 struct AnchoredPopup<'a> {
     renderings: Vec<Rendering<'a>>,
     notch: Element<'a, Message>,
-    on_bounds: Box<dyn Fn(Rectangle) -> Message + 'a>,
+    on_frame: Box<dyn Fn(PopupFrame) -> Message + 'a>,
     anchor: Rectangle,
     edge_inset: f32,
     bar_thickness: f32,
@@ -93,7 +103,7 @@ struct MorphState {
     progress: f32,
     from: Rectangle,
     current: Rectangle,
-    published: Option<Rectangle>,
+    published: Option<PopupFrame>,
 }
 
 fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
@@ -417,16 +427,21 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             shell.invalidate_layout();
             shell.request_redraw();
         }
-        let interactive = if self.is_settled(state) {
-            state.current + Vector::new(layout.bounds().x, layout.bounds().y)
-        } else if self.is_live() {
-            return;
+        let settled = self.is_settled(state);
+        let notch_rows = if settled {
+            let notch_bounds = layout.children().next().unwrap().bounds();
+            notch_blur_rows(notch_bounds, self.position)
         } else {
-            Rectangle::default()
+            Vec::new()
         };
-        if state.published != Some(interactive) {
-            state.published = Some(interactive);
-            shell.publish((self.on_bounds)(interactive));
+        let frame = PopupFrame {
+            bounds: state.current + Vector::new(layout.bounds().x, layout.bounds().y),
+            notch_rows,
+            settled,
+        };
+        if state.published.as_ref() != Some(&frame) {
+            state.published = Some(frame.clone());
+            shell.publish((self.on_frame)(frame));
         }
     }
 

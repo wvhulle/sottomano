@@ -15,7 +15,7 @@ use crate::{
         source::app_icon::DesktopEntries,
     },
     desktop_shell::hover_tooltips::relative,
-    state::PanelLayout,
+    state::PanelSettings,
     widgets::text::{LINE_HEIGHT, bar_text},
 };
 
@@ -80,7 +80,7 @@ pub struct ToastCard<'a> {
     notif: &'a Notification,
     config: &'a Config,
     theme: &'a Theme,
-    layout: &'a PanelLayout,
+    settings: &'a PanelSettings,
     hovered: bool,
     reveal: f32,
 }
@@ -90,13 +90,13 @@ impl<'a> ToastCard<'a> {
         notif: &'a Notification,
         config: &'a Config,
         theme: &'a Theme,
-        layout: &'a PanelLayout,
+        settings: &'a PanelSettings,
     ) -> Self {
         Self {
             notif,
             config,
             theme,
-            layout,
+            settings,
             hovered: false,
             reveal: 1.0,
         }
@@ -160,13 +160,13 @@ impl ToastCard<'_> {
         let opacity = if hovered {
             1.0
         } else {
-            self.layout.tint_factor
+            self.settings.overlays.opacity
         };
-        let shadow = self.layout.frame_shadow();
+        let shadow = self.settings.layout.frame_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(
-                border::rounded(self.layout.corner_radius)
+                border::rounded(self.settings.overlays.corner_radius)
                     .color(urgency.color.scale_alpha(self.reveal))
                     .width(BORDER_WIDTH_PX),
             )
@@ -273,7 +273,7 @@ impl ToastCard<'_> {
         tint: Color,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.font;
-        let radius = self.layout.corner_radius;
+        let radius = self.settings.overlays.corner_radius;
         button(bar_text(font, label).size(font.text_size_px).color(tint))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {

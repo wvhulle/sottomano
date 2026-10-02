@@ -7,7 +7,6 @@ use iced::{
 use crate::desktop_shell::monitor_surfaces::Position;
 
 const BASE_HALF_WIDTH_PX: f32 = 4.0;
-const OVERLAP_PX: f32 = 2.0;
 
 pub fn notch<'a, Message: 'a>(position: Position, fill: Color) -> Element<'a, Message> {
     Canvas::new(Notch { position, fill })
@@ -61,6 +60,46 @@ impl<Message> canvas::Program<Message> for Notch {
     }
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn notch_blur_rows(bounds: Rectangle, position: Position) -> Vec<Rectangle> {
+    let center_x = bounds.center_x();
+    let center_y = bounds.center_y();
+    match position {
+        Position::Top | Position::Bottom => {
+            let top = bounds.y.ceil() as i32;
+            let bottom = (bounds.y + bounds.height).floor() as i32;
+            (top..bottom)
+                .map(|row| {
+                    let from_apex = if position == Position::Top {
+                        row as f32 + 1.0 - bounds.y
+                    } else {
+                        bounds.y + bounds.height - row as f32
+                    };
+                    let width = bounds.width * (from_apex / bounds.height).min(1.0);
+                    Rectangle::new(
+                        Point::new(center_x - width / 2.0, row as f32),
+                        Size::new(width, 1.0),
+                    )
+                })
+                .collect()
+        }
+        Position::Left => {
+            let left = bounds.x.ceil() as i32;
+            let right = (bounds.x + bounds.width).floor() as i32;
+            (left..right)
+                .map(|column| {
+                    let from_apex = column as f32 + 1.0 - bounds.x;
+                    let height = bounds.height * (from_apex / bounds.width).min(1.0);
+                    Rectangle::new(
+                        Point::new(column as f32, center_y - height / 2.0),
+                        Size::new(1.0, height),
+                    )
+                })
+                .collect()
+        }
+    }
+}
+
 pub fn notch_region(
     anchor: Rectangle,
     bar_edge: f32,
@@ -95,9 +134,9 @@ fn below_or_above(
     inset: f32,
 ) -> Rectangle {
     let base_y = if position == Position::Top {
-        popup.y + OVERLAP_PX
+        popup.y
     } else {
-        popup.y + popup.height - OVERLAP_PX
+        popup.y + popup.height
     };
     let center = centered_within(anchor.center_x(), popup.x, popup.x + popup.width, inset);
     Rectangle {
@@ -109,7 +148,7 @@ fn below_or_above(
 }
 
 fn beside(anchor: Rectangle, bar_edge_x: f32, popup: Rectangle, inset: f32) -> Rectangle {
-    let base_x = popup.x + OVERLAP_PX;
+    let base_x = popup.x;
     let center = centered_within(anchor.center_y(), popup.y, popup.y + popup.height, inset);
     Rectangle {
         x: base_x.min(bar_edge_x),

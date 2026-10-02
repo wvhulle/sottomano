@@ -24,7 +24,7 @@ use crate::{
     config::Config,
     data::{notifications::model::NotifHandle, source::niri::Placement},
     desktop_shell::Message,
-    state::PanelLayout,
+    state::PanelSettings,
     widgets::{reading_alert::ReadingAlert, reveal::reveal_y},
 };
 
@@ -47,7 +47,7 @@ impl NotificationLayer {
         output: &str,
         config: &'a Config,
         theme: &'a Theme,
-        layout: &'a PanelLayout,
+        settings: &'a PanelSettings,
         bar_clearance: Padding,
     ) -> WindowAnchoredToasts<'a> {
         let now = Instant::now();
@@ -65,7 +65,7 @@ impl NotificationLayer {
                     id: notif.data.id,
                     anchor: notif.place.anchor,
                     card: reveal_y(
-                        ToastCard::new(notif, config, theme, layout)
+                        ToastCard::new(notif, config, theme, settings)
                             .hovered(self.hovered == Some(notif.data.id))
                             .reveal(reveal),
                         reveal,

@@ -1,7 +1,7 @@
 use iced::Rectangle;
 
 use crate::{
-    desktop_shell::{monitor_surfaces::Position, hover_tooltips::HoverTarget},
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widgets::tooltip_body::Tooltip,
 };
 

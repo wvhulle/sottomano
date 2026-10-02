@@ -11,8 +11,8 @@ use crate::{
         throughput::{self, Download, Readings, Throughput, Upload},
         wireguard::{Wireguard, disconnect},
     },
-    message_subscriptions::polling,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

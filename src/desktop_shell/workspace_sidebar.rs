@@ -11,11 +11,6 @@ use crate::{
     widgets::region_reporter::{RegionRoles, region_reporter},
 };
 
-const SIDEBAR_REGION_ROLES: RegionRoles = RegionRoles {
-    takes_input: true,
-    blurred: true,
-};
-
 impl DesktopShell {
     pub(super) fn workspace_sidebar<'a>(
         &'a self,
@@ -39,7 +34,11 @@ impl DesktopShell {
             });
         region_reporter(
             Column::with_children(framed_workspaces),
-            SIDEBAR_REGION_ROLES,
+            RegionRoles {
+                takes_input: true,
+                blurred: true,
+                corner_radius: layout.corner_radius.top_left,
+            },
             move |region| Message::ElementRegions {
                 window,
                 element: ShellElement::WorkspaceSidebar,

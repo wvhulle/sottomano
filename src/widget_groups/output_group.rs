@@ -6,8 +6,8 @@ use crate::{
     config::Config,
     data::source::niri::{OutputInfo, OutputMode},
     desktop_shell::{
-        monitor_surfaces::Position,
         hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+        monitor_surfaces::Position,
     },
     widgets::{
         bar_widget::Glyph,

@@ -13,9 +13,9 @@ use crate::{
             sysfs_sensors::{self, battery::Battery},
         },
     },
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     state::power,
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::battery_group::{
         estimate_columns::{ESTIMATE_HEADINGS, estimate_cells},
         power_profile_control::profile_icon::profile_face,

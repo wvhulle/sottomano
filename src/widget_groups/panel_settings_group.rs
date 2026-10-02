@@ -3,10 +3,9 @@ use std::ops::RangeInclusive;
 use iced::Task;
 
 use crate::{
-    desktop_shell::Message,
     config::Config,
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{self, PanelLayout, WorkspacesPlacement},
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::niri_group::switch_tooltip,
     widgets::{
         group_item::GroupItem,
@@ -21,7 +20,6 @@ use crate::{
 pub enum Action {
     None,
     Run(Task<Message>),
-    RebuildBlur(Task<Message>),
     Reflow(Task<Message>),
 }
 
@@ -116,8 +114,7 @@ impl Knob {
     fn committed(self, persist: Task<Message>) -> Action {
         match self {
             Self::Offset => Action::Reflow(persist),
-            Self::Radius => Action::RebuildBlur(persist),
-            Self::Tint | Self::Softness | Self::Opacity => Action::Run(persist),
+            Self::Radius | Self::Tint | Self::Softness | Self::Opacity => Action::Run(persist),
         }
     }
 }
@@ -230,7 +227,7 @@ impl PanelSettingsGroup {
             }
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 layout.disconnected_groups = !layout.disconnected_groups;
-                Action::RebuildBlur(
+                Action::Run(
                     Task::future(state::panel::save_disconnected_groups(
                         layout.disconnected_groups,
                     ))

@@ -8,12 +8,12 @@ use iced::{
 };
 
 use crate::{
-    desktop_shell::Message,
     config::Config,
     data::source::niri,
     desktop_shell::{
-        monitor_surfaces::Position,
+        Message,
         hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+        monitor_surfaces::Position,
     },
     widgets::{
         activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
@@ -236,7 +236,10 @@ fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator) -> Text<'a> {
         .color(config.palette.inactive)
 }
 
-fn inline_label<'a>(config: &Config, p: &niri::WorkspaceIndicator) -> Element<'a, WorkspacesMessage> {
+fn inline_label<'a>(
+    config: &Config,
+    p: &niri::WorkspaceIndicator,
+) -> Element<'a, WorkspacesMessage> {
     let name = bar_text(&config.font, display_name(p));
     if !has_superscript(p) {
         return name.into();

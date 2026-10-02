@@ -13,8 +13,8 @@ use crate::{
         mobile::{self, Mobile},
         wifi::{self, Wifi},
     },
-    message_subscriptions::dbus,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::dbus,
     widgets::{
         bar_widget::BarWidget,
         last_poll::LastPoll,

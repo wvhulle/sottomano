@@ -11,12 +11,10 @@ use iced::{
     window::Id,
 };
 
-use crate::{
-    desktop_shell::Message,
-    desktop_shell::{
-        monitor_surfaces::Position,
-        hover_tooltips::{HoverTarget, TooltipMessage},
-    },
+use crate::desktop_shell::{
+    Message,
+    hover_tooltips::{HoverTarget, TooltipMessage},
+    monitor_surfaces::Position,
 };
 
 pub fn hoverable<'a, M: 'a>(

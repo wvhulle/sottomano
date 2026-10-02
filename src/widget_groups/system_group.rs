@@ -12,8 +12,8 @@ use crate::{
         disk::{self, Disk},
         sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
-    message_subscriptions::polling,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::polling,
     widgets::{
         last_poll::LastPoll,
         tooltip_body::Tooltip,

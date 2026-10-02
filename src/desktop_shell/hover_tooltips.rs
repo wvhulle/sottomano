@@ -35,6 +35,8 @@ pub enum HoverTarget {
     AutoCollapseGroups,
     WorkspacesPlacement,
     BackgroundTint,
+    OverlayOpacity,
+    OverlayCornerRadius,
     Journal,
     JournalSystem,
     JournalUser,

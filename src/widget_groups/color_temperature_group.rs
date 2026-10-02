@@ -13,8 +13,8 @@ use crate::{
         gamma::{self, Gamma},
         screen_temperature::{self, SunFollow},
     },
-    message_subscriptions::polling,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::polling,
     widgets::{
         group_item::GroupItem,
         last_poll::LastPoll,

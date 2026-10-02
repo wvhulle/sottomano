@@ -2,6 +2,7 @@ pub mod charge_power_curve;
 pub mod dark_mode;
 pub mod idle;
 pub mod launches;
+pub mod overlay;
 pub mod panel;
 pub mod power;
 pub mod rate_limit;
@@ -14,14 +15,30 @@ use iced::{
     border::{self, Radius},
     widget::container,
 };
+pub(crate) use store::{Columns, StoreError, open};
 
 use crate::config::Palette;
-pub(crate) use store::{Columns, StoreError, open};
 
 #[derive(Debug, Clone, Default)]
 pub struct PanelSettings {
     pub layout: PanelLayout,
     pub toasts: ToastPreferences,
+    pub overlays: OverlayPreferences,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OverlayPreferences {
+    pub opacity: f32,
+    pub corner_radius: Radius,
+}
+
+impl Default for OverlayPreferences {
+    fn default() -> Self {
+        Self {
+            opacity: 0.85,
+            corner_radius: Radius::from(8.0),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

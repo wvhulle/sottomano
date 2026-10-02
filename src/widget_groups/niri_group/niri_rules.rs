@@ -34,12 +34,14 @@ pub struct NiriStyling {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyledSurface {
     Panel,
+    Tooltip,
     Backdrop(Position),
 }
 
 impl StyledSurface {
-    const ALL: [Self; 3] = [
+    const ALL: [Self; 4] = [
         Self::Panel,
+        Self::Tooltip,
         Self::Backdrop(Position::Top),
         Self::Backdrop(Position::Bottom),
     ];
@@ -47,6 +49,7 @@ impl StyledSurface {
     pub fn namespace(self) -> &'static str {
         match self {
             Self::Panel => "vetrata-panel",
+            Self::Tooltip => "vetrata-tooltip",
             Self::Backdrop(Position::Top) => "vetrata-backdrop-top",
             Self::Backdrop(Position::Bottom) => "vetrata-backdrop-bottom",
             Self::Backdrop(Position::Left) => "vetrata-backdrop-left",
@@ -56,7 +59,7 @@ impl StyledSurface {
     fn rule(self, styling: &NiriStyling) -> KdlNode {
         match self {
             Self::Backdrop(position) => backdrop_rule(self, position),
-            Self::Panel => panel_rule(self, styling),
+            Self::Panel | Self::Tooltip => background_effect_rule(self, styling),
         }
     }
 }
@@ -215,7 +218,7 @@ fn render(styling: &NiriStyling) -> String {
     document.to_string()
 }
 
-fn panel_rule(surface: StyledSurface, styling: &NiriStyling) -> KdlNode {
+fn background_effect_rule(surface: StyledSurface, styling: &NiriStyling) -> KdlNode {
     block(
         "layer-rule",
         [

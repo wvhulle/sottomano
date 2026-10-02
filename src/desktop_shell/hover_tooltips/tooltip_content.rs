@@ -13,8 +13,8 @@ use iced::{
 };
 
 use crate::{
-    desktop_shell::Message,
     config::{Config, font::ResolvedFont},
+    desktop_shell::Message,
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,

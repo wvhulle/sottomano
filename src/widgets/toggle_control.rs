@@ -3,8 +3,8 @@ use iced::{Element, Subscription, Task};
 use crate::{
     config::Config,
     data::source::Source,
-    message_subscriptions::{blocking, polling},
     desktop_shell::hover_tooltips::{HoverTarget, hoverable},
+    message_subscriptions::{blocking, polling},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,

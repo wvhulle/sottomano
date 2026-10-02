@@ -171,6 +171,7 @@ pub enum ShellElement {
     BottomBarEnd,
     WorkspaceSidebar,
     NotificationToasts,
+    HoverTooltip,
 }
 
 #[derive(Default)]
@@ -184,21 +185,9 @@ impl ReportedElementRegions {
         panel: Id,
         element: ShellElement,
         region: ReportedRegion,
-        corner_radius: f32,
     ) -> Task<Message> {
         self.by_element.insert((panel, element), region);
-        Task::batch([
-            self.input_region_of(panel),
-            self.blur_region_of(panel, corner_radius),
-        ])
-    }
-
-    fn refresh_blur(&self, corner_radius: f32, panels: impl Iterator<Item = Id>) -> Task<Message> {
-        Task::batch(
-            panels
-                .map(|panel| self.blur_region_of(panel, corner_radius))
-                .collect::<Vec<_>>(),
-        )
+        Task::batch([self.input_region_of(panel), self.blur_region_of(panel)])
     }
 
     fn width_of(&self, panel: Id, element: ShellElement) -> f32 {
@@ -230,12 +219,16 @@ impl ReportedElementRegions {
         Task::done(input_regions(panel, rects))
     }
 
-    fn blur_region_of(&self, panel: Id, corner_radius: f32) -> Task<Message> {
+    fn blur_region_of(&self, panel: Id) -> Task<Message> {
         let region = self
             .regions_on(panel)
             .filter(|region| region.roles.blurred)
-            .flat_map(|region| &region.rects)
-            .flat_map(|rect| rounded_blur_rows(*rect, corner_radius))
+            .flat_map(|region| {
+                region
+                    .rects
+                    .iter()
+                    .flat_map(|rect| rounded_blur_rows(*rect, region.roles.corner_radius))
+            })
             .collect();
         Task::done(Message::BlurOptionChange {
             id: panel,
@@ -324,10 +317,7 @@ impl DesktopShell {
         element: ShellElement,
         region: ReportedRegion,
     ) -> Task<Message> {
-        let corner_radius = self.panel_settings.layout.corner_radius.top_left;
-        let regions = self
-            .element_regions
-            .report(window, element, region, corner_radius);
+        let regions = self.element_regions.report(window, element, region);
         if element == ShellElement::WorkspaceSidebar {
             return Task::batch([regions, self.reserve()]);
         }
@@ -339,13 +329,6 @@ impl DesktopShell {
             .iter()
             .filter(|(_, surface)| surface.role == SurfaceRole::Panel)
             .map(|(&id, surface)| (id, surface.output.as_str()))
-    }
-
-    pub(crate) fn rebuild_blur(&self) -> Task<Message> {
-        self.element_regions.refresh_blur(
-            self.panel_settings.layout.corner_radius.top_left,
-            self.panels().map(|(id, _)| id),
-        )
     }
 
     pub(crate) fn bar_clearance(&self, output: &str) -> Padding {

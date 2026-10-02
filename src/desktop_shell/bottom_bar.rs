@@ -51,13 +51,10 @@ impl DesktopShell {
         });
         let workspaces = match self.panel_settings.layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => None,
-            WorkspacesPlacement::BottomPanel => workspaces_group::inline_view(
-                &self.niri_snapshot,
-                output,
-                config,
-                Position::Bottom,
-            )
-            .map(|workspaces| workspaces.map(Message::from)),
+            WorkspacesPlacement::BottomPanel => {
+                workspaces_group::inline_view(&self.niri_snapshot, output, config, Position::Bottom)
+                    .map(|workspaces| workspaces.map(Message::from))
+            }
         };
         Row::with_children([Some(display), workspaces].into_iter().flatten())
             .spacing(config.spacing.widget_spacing_px)
