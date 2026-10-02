@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use serde::Deserialize;
 
 use super::{
@@ -16,6 +16,10 @@ use super::{
 use crate::data::source::Source;
 
 const DEFAULT_DECIMAL_PLACES: u8 = 2;
+const FULL_PERCENT: f64 = 100.0;
+const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
+const WEEKLY_LENGTH: TimeDelta = TimeDelta::days(7);
+const MIN_ELAPSED: TimeDelta = TimeDelta::minutes(10);
 
 #[derive(Deserialize)]
 struct Usage {
@@ -43,6 +47,33 @@ struct Overage {
 pub struct WindowUsage {
     pub utilization: f64,
     pub resets_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Pace {
+    Lasts { at_reset: f64 },
+    RunsOut { at: DateTime<Utc> },
+}
+
+impl WindowUsage {
+    pub fn pace(&self, length: TimeDelta, now: DateTime<Utc>) -> Option<Pace> {
+        let start = self.resets_at? - length;
+        let elapsed = now - start;
+        if self.utilization <= 0.0 || elapsed < MIN_ELAPSED {
+            return None;
+        }
+        let at_reset = self.utilization * length.as_seconds_f64() / elapsed.as_seconds_f64();
+        if at_reset <= FULL_PERCENT {
+            return Some(Pace::Lasts { at_reset });
+        }
+        let until_full = elapsed
+            .to_std()
+            .ok()?
+            .mul_f64(FULL_PERCENT / self.utilization);
+        Some(Pace::RunsOut {
+            at: start + TimeDelta::from_std(until_full).ok()?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,6 +136,18 @@ pub struct ClaudeUsageWindows {
 impl ClaudeUsageWindows {
     pub fn session_used(&self) -> f64 {
         self.session.utilization
+    }
+
+    pub fn session_pace(&self, now: DateTime<Utc>) -> Option<Pace> {
+        self.session.pace(SESSION_LENGTH, now)
+    }
+
+    pub fn weekly_pace(&self, now: DateTime<Utc>) -> Option<Pace> {
+        self.weekly.pace(WEEKLY_LENGTH, now)
+    }
+
+    pub fn sonnet_pace(&self, now: DateTime<Utc>) -> Option<Pace> {
+        self.sonnet.as_ref()?.pace(WEEKLY_LENGTH, now)
     }
 }
 
@@ -214,6 +257,46 @@ mod tests {
         .unwrap();
         assert!((window.utilization - 4.5).abs() < f64::EPSILON);
         assert!(window.resets_at.is_some());
+    }
+
+    fn session_at(utilization: f64, start: DateTime<Utc>) -> WindowUsage {
+        WindowUsage {
+            utilization,
+            resets_at: Some(start + SESSION_LENGTH),
+        }
+    }
+
+    fn session_start() -> DateTime<Utc> {
+        "2026-10-02T10:00:00Z".parse().unwrap()
+    }
+
+    #[test]
+    fn a_steady_pace_projects_usage_at_reset() {
+        let start = session_start();
+        let pace = session_at(40.0, start).pace(SESSION_LENGTH, start + TimeDelta::minutes(150));
+        let Some(Pace::Lasts { at_reset }) = pace else {
+            panic!("expected the session to last, got {pace:?}");
+        };
+        assert!((at_reset - 80.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_fast_pace_runs_out_before_reset() {
+        let start = session_start();
+        let pace = session_at(60.0, start).pace(SESSION_LENGTH, start + TimeDelta::hours(2));
+        assert_eq!(
+            pace,
+            Some(Pace::RunsOut {
+                at: start + TimeDelta::minutes(200)
+            })
+        );
+    }
+
+    #[test]
+    fn too_early_in_the_window_projects_nothing() {
+        let start = session_start();
+        let pace = session_at(5.0, start).pace(SESSION_LENGTH, start + TimeDelta::minutes(5));
+        assert_eq!(pace, None);
     }
 
     #[test]

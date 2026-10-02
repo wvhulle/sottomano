@@ -2,10 +2,13 @@ use chrono::{DateTime, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    data::source::ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+    data::{
+        severity::Severity,
+        source::ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Pace, WindowUsage},
+    },
     widget_groups::ai_group::{
         amount_text::{countdown, percent_text},
-        spend_to_level::level_from_used,
+        spend_to_level::{level_from_pace, level_from_used},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -21,7 +24,13 @@ impl BarWidget for ClaudeUsageWindows {
     }
 
     fn state(&self) -> WidgetState {
-        level_from_used(self.session_used()).into()
+        let now = Utc::now();
+        [self.session_pace(now), self.weekly_pace(now)]
+            .into_iter()
+            .flatten()
+            .map(level_from_pace)
+            .fold(level_from_used(self.session_used()), Severity::max)
+            .into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -32,13 +41,13 @@ impl BarWidget for ClaudeUsageWindows {
         let now = Utc::now();
         let mut sections = vec![
             untitled(vec![row("Plan", self.plan.clone())]),
-            window_section("Session", &self.session, now),
-            window_section("Weekly", &self.weekly, now),
+            window_section("Session", &self.session, self.session_pace(now), now),
+            window_section("Weekly", &self.weekly, self.weekly_pace(now), now),
         ];
         sections.extend(
             self.sonnet
                 .as_ref()
-                .map(|sonnet| window_section("Weekly Sonnet", sonnet, now)),
+                .map(|sonnet| window_section("Weekly Sonnet", sonnet, self.sonnet_pace(now), now)),
         );
         sections.extend(self.extra.as_ref().map(extra_section));
         TooltipBody::Sections(sections)
@@ -51,19 +60,29 @@ impl Occasional for ClaudeUsageWindows {
     }
 }
 
-fn window_section(title: &str, window: &WindowUsage, now: DateTime<Utc>) -> Section {
-    section(
-        title,
-        vec![
-            row("Used", percent_text(window.utilization)),
-            row(
-                "Resets In",
-                window
-                    .resets_at
-                    .map_or_else(|| "—".to_owned(), |at| countdown(at, now)),
-            ),
-        ],
-    )
+fn window_section(
+    title: &str,
+    window: &WindowUsage,
+    pace: Option<Pace>,
+    now: DateTime<Utc>,
+) -> Section {
+    let rows = [
+        Some(row("Used", percent_text(window.utilization))),
+        pace.map(|pace| match pace {
+            Pace::Lasts { at_reset } => row("Projected At Reset", percent_text(at_reset)),
+            Pace::RunsOut { at } => row("Runs Out In", countdown(at, now)),
+        }),
+        Some(row(
+            "Resets In",
+            window
+                .resets_at
+                .map_or_else(|| "—".to_owned(), |at| countdown(at, now)),
+        )),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    section(title, rows)
 }
 
 fn extra_section(extra: &ExtraUsage) -> Section {

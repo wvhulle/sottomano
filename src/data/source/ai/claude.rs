@@ -18,7 +18,7 @@ use serde_json::Value;
 pub use self::{
     ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods},
     enterprise_spend::ClaudeEnterpriseSpend,
-    usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
+    usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, Pace, WindowUsage},
 };
 use crate::data::source::{ai::ccusage, http};
 
