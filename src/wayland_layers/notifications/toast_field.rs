@@ -3,7 +3,7 @@ pub mod slot_geometry;
 use std::{collections::HashMap, convert::identity};
 
 use iced::{
-    Animation, Element, Event, Length, Point, Rectangle, Size, Vector,
+    Animation, Element, Event, Length, Padding, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -27,11 +27,13 @@ const MOTION: Duration = Duration::from_millis(160);
 pub fn field<'a>(
     window: Id,
     slots: Vec<ToastSlot<'a>>,
+    panel_clearance: Padding,
     config: &ToastConfig,
 ) -> Element<'a, NotificationMessage> {
     let field = slots.into_iter().fold(
         ToastField {
             window,
+            panel_clearance,
             ids: Vec::new(),
             anchors: Vec::new(),
             cards: Vec::new(),
@@ -51,6 +53,7 @@ pub fn field<'a>(
 
 struct ToastField<'a> {
     window: Id,
+    panel_clearance: Padding,
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
@@ -170,36 +173,27 @@ impl Drifts {
 
 #[derive(Default)]
 struct PublishedRects {
-    seen: Option<Vec<Rectangle>>,
     published: Option<Vec<Rectangle>>,
 }
 
-enum RegionUpdate {
-    Publish(Vec<Rectangle>),
-    Settling,
-    Unchanged,
-}
-
 impl PublishedRects {
-    fn settled(&mut self, rects: Vec<Rectangle>) -> RegionUpdate {
-        if self.seen.as_ref() != Some(&rects) {
-            self.seen = Some(rects);
-            return RegionUpdate::Settling;
-        }
+    fn changed(&mut self, rects: Vec<Rectangle>) -> Option<Vec<Rectangle>> {
         if self.published.as_ref() == Some(&rects) {
-            return RegionUpdate::Unchanged;
+            return None;
         }
         self.published = Some(rects.clone());
-        RegionUpdate::Publish(rects)
+        Some(rects)
     }
 }
 
 fn snapped(bounds: Rectangle) -> Rectangle {
+    let x = bounds.x.ceil();
+    let y = bounds.y.ceil();
     Rectangle {
-        x: bounds.x.floor(),
-        y: bounds.y.floor(),
-        width: bounds.width.ceil(),
-        height: bounds.height.ceil(),
+        x,
+        y,
+        width: (bounds.x + bounds.width).floor() - x,
+        height: (bounds.y + bounds.height).floor() - y,
     }
 }
 
@@ -287,8 +281,9 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
             .map(|(card, child)| card.as_widget_mut().layout(child, renderer, &card_limits))
             .collect();
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
+        let free_area = Rectangle::with_size(surface).shrink(self.panel_clearance);
         let targets =
-            slot_geometry::origins(&self.anchors, &sizes, surface, &self.config.placement);
+            slot_geometry::origins(&self.anchors, &sizes, free_area, &self.config.placement);
         let positions = tree
             .state
             .downcast_mut::<FieldState>()
@@ -383,12 +378,9 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for ToastField<'_>
             .children()
             .map(|card_layout| snapped(card_layout.bounds()))
             .collect();
-        match state.region.settled(rects) {
-            RegionUpdate::Publish(rects) => {
-                shell.publish(NotificationMessage::Rects { window, rects });
-            }
-            RegionUpdate::Settling => shell.request_redraw(),
-            RegionUpdate::Unchanged => {}
+        if let Some(rects) = state.region.changed(rects) {
+            shell.publish(NotificationMessage::Rects { window, rects });
+            shell.request_redraw();
         }
         if drifting {
             shell.invalidate_layout();

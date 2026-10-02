@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::Utc;
-use iced::{Color, Element, Font, Rectangle, Task, font, theme::Style, window::Id};
+use iced::{Color, Element, Font, Padding, Rectangle, Task, font, theme::Style, window::Id};
 use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
@@ -459,29 +459,29 @@ impl Bar {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
-        self.notifications.forget(window);
         self.panel_regions.forget(window);
         Task::none()
     }
 
     fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
         let placement = niri::Placement::derive(&self.niri);
+        let panels: HashMap<String, Id> = self
+            .panels()
+            .map(|(id, output)| (output.to_owned(), id))
+            .collect();
         self.notifications.update(
             msg,
             &placement,
             self.desktop_entries.get(),
             &self.config,
             &self.panel_settings.toasts,
+            &|output| panels.get(output).copied(),
         )
     }
 
     fn prune_notifications(&mut self) -> Task<Message> {
-        if !self.notifications.is_active() {
-            return Task::none();
-        }
-        let placement = niri::Placement::derive(&self.niri);
-        self.notifications
-            .prune(&placement, &self.config, &self.panel_settings.toasts)
+        self.notifications.prune();
+        Task::none()
     }
 
     fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputInfo>) -> Task<Message> {
@@ -632,11 +632,7 @@ impl Bar {
         let previous = mem::replace(&mut self.config, config);
         self.theme = iced::Theme::from(&self.config.palette);
         Task::batch([
-            self.notifications.withdraw_config_error(
-                &niri::Placement::derive(&self.niri),
-                &self.config,
-                &self.panel_settings.toasts,
-            ),
+            self.notifications.withdraw_config_error(),
             self.adopt_font(&previous.font),
             self.adopt_bar_size(&previous.bar),
             self.adopt_color_temperature_service(&previous.color_temperature_service),
@@ -921,6 +917,12 @@ impl Bar {
             .refresh(&self.panel_settings.layout, self.panels().map(|(id, _)| id))
     }
 
+    pub(crate) fn bar_clearance(&self, output: &str) -> Padding {
+        Padding::ZERO
+            .top(self.reserved_zone(output, Position::Top) as f32)
+            .bottom(self.reserved_zone(output, Position::Bottom) as f32)
+    }
+
     #[allow(clippy::cast_possible_truncation)]
     fn reserved_zone(&self, output: &str, position: Position) -> i32 {
         let thickness = match position {
@@ -1044,13 +1046,6 @@ impl Bar {
             &self.panel_settings,
             &self.favicons,
             |target| self.tooltip_for(target),
-        ) {
-            return element;
-        }
-        if let Some(element) = self.notifications.view(
-            window,
-            &self.config,
-            self.panel_settings.layout.corner_radius,
         ) {
             return element;
         }

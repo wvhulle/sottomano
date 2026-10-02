@@ -214,6 +214,7 @@ fn win_entry(w: &niri_ipc::Window) -> WinEntry {
 pub struct Placement {
     workspace_by_window: HashMap<u64, u64>,
     focused_window: Option<u64>,
+    focused_output: Option<String>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
     rects: HashMap<u64, Rectangle>,
@@ -232,12 +233,16 @@ impl Placement {
         let mut output_by_workspace = HashMap::new();
         let mut active_ws_by_output: HashMap<String, u64> = HashMap::new();
         let mut ws_active_window = HashMap::new();
+        let mut focused_output = None;
         for w in state.workspaces.workspaces.values() {
             ws_idx.insert(w.id, w.idx);
             if let Some(output) = &w.output {
                 output_by_workspace.insert(w.id, output.clone());
                 if w.is_active {
                     active_ws_by_output.insert(output.clone(), w.id);
+                }
+                if w.is_focused {
+                    focused_output = Some(output.clone());
                 }
             }
             if let Some(active) = w.active_window_id {
@@ -305,6 +310,7 @@ impl Placement {
         Self {
             workspace_by_window,
             focused_window,
+            focused_output,
             output_by_workspace,
             edges,
             rects,
@@ -326,6 +332,10 @@ impl Placement {
 
     pub fn focused_window(&self) -> Option<u64> {
         self.focused_window
+    }
+
+    pub fn focused_output(&self) -> Option<&str> {
+        self.focused_output.as_deref()
     }
 
     pub fn workspace_of_window(&self, id: u64) -> Option<u64> {
