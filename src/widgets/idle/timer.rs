@@ -5,7 +5,7 @@ use iced::{Alignment, Element, widget::Row};
 
 use crate::{
     config::Config,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         confirm_button::{ConfirmButton, Press},

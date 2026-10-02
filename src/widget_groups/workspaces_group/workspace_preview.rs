@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::Config,
     widgets::{
         favicon::Favicons,

@@ -13,7 +13,7 @@ use crate::{
     config::Config,
     data::severity::Severity,
     message_subscriptions::blocking,
-    wayland_layers::tooltip::{HoverTarget, TooltipMessage, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         device_setting::{DeviceSetting, Nudge, Write},

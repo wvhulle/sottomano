@@ -3,7 +3,7 @@ use iced::{
     widget::rule::{self, FillMode},
 };
 
-use crate::wayland_layers::surface::Position;
+use crate::desktop_shell::monitor_surfaces::Position;
 
 pub fn activity_line<'a, Message: 'a>(
     color: Color,

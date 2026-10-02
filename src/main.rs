@@ -1,22 +1,21 @@
-mod app;
 mod config;
 mod data;
+mod desktop_shell;
 mod message_subscriptions;
 mod state;
-mod wayland_layers;
 mod widget_groups;
 mod widgets;
 
 use std::{error::Error, sync::Arc};
 
-use app::Bar;
 use config::{Config, ConfigFile, SecretPaths};
+use desktop_shell::DesktopShell;
 use iced_exwlshell::{
     build_pattern::daemon,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
-use wayland_layers::niri_rules::NiriRulesFile;
+use widget_groups::niri_group::niri_rules::NiriRulesFile;
 
 fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
@@ -50,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     daemon(
         move || {
-            Bar::new(
+            DesktopShell::new(
                 config.clone(),
                 config_file.clone(),
                 secrets.clone(),
@@ -58,12 +57,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 loaded.clone(),
             )
         },
-        Bar::namespace,
-        Bar::update,
-        Bar::view,
+        DesktopShell::namespace,
+        DesktopShell::update,
+        DesktopShell::view,
     )
-    .style(Bar::style)
-    .theme(Bar::theme)
+    .style(DesktopShell::style)
+    .theme(DesktopShell::theme)
     .subscription(message_subscriptions::subscription)
     .wl_settings(wl_settings)
     .default_font(default_font)

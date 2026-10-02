@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use iced::{Point, Rectangle, Size};
 
+use super::toast_placement::{AnchorGroup, ToastAnchor};
 use crate::{
     config::toasts::ToastPlacementConfig,
     data::source::niri::{HEdge, VEdge},
-    wayland_layers::notifications::toast_anchor::{AnchorGroup, ToastAnchor},
 };
 
 pub const STACK_SPACING: f32 = 8.0;

@@ -13,7 +13,7 @@ use iced::{
 };
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::{Config, font::ResolvedFont},
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,

@@ -8,7 +8,7 @@ use iced::{
 use crate::{
     config::{Config, tray::ClickAction},
     data::source::tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
-    wayland_layers::tooltip::{HoverTarget, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,

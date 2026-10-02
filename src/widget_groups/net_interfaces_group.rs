@@ -14,7 +14,7 @@ use crate::{
         wifi::{self, Wifi},
     },
     message_subscriptions::dbus,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         last_poll::LastPoll,

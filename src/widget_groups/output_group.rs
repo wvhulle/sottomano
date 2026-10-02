@@ -5,9 +5,9 @@ use iced::{Element, widget::button};
 use crate::{
     config::Config,
     data::source::niri::{OutputInfo, OutputMode},
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage, hoverable},
+    desktop_shell::{
+        monitor_surfaces::Position,
+        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
         bar_widget::Glyph,

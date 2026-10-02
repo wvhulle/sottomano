@@ -24,7 +24,7 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 use wayland_client::Connection;
 
 use crate::{
-    app::{Bar, Message, OutputChange},
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::OutputChange},
     data::{
         notifications::{
             model::{NotifHandle, Outbound, ServerEvent},
@@ -32,7 +32,7 @@ use crate::{
         },
         source::{Source, desktop_entries, niri},
     },
-    wayland_layers::notifications::NotificationMessage,
+    desktop_shell::notification_toasts::NotificationMessage,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, journal_group::JournalGroup,
         media_group::MediaGroup, net_interfaces_group::NetInterfacesGroup, tray_group::TrayGroup,
@@ -73,7 +73,7 @@ fn outputs() -> Subscription<Message> {
     })
 }
 
-pub fn subscription(state: &Bar) -> Subscription<Message> {
+pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     let animation = if state.any_notification_transitioning() {
         frames().map(|_| Message::Redraw)
     } else {
@@ -230,7 +230,7 @@ pub(crate) fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     blocking("niri action", move || niri::send_action(&action)).discard()
 }
 
-fn idle_subscription(state: &Bar) -> Subscription<Message> {
+fn idle_subscription(state: &DesktopShell) -> Subscription<Message> {
     Subscription::run_with(
         ("idle", state.idle_timeouts_group.triggers()),
         |(_, triggers): &(&str, Vec<IdleTrigger>)| {

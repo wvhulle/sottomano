@@ -3,7 +3,8 @@ use std::{path::PathBuf, time::SystemTime};
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Shadow,
     font::Weight,
-    theme::palette::{Extended, Pair},
+    Theme,
+    theme::palette::Pair,
     widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
 };
 
@@ -15,8 +16,8 @@ use crate::{
         severity::Severity,
         source::app_icon::DesktopEntries,
     },
+    desktop_shell::hover_tooltips::relative,
     state::PanelLayout,
-    wayland_layers::{bar::pill_shadow, tooltip::relative},
     widgets::text::{LINE_HEIGHT, bar_text},
 };
 
@@ -78,34 +79,44 @@ fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon
     })
 }
 
-pub struct Card<'a> {
+pub struct ToastCard<'a> {
     notif: &'a Notification,
     config: &'a Config,
-    palette: &'a Extended,
+    theme: &'a Theme,
     layout: &'a PanelLayout,
-    hovered: bool,
+    status: CardStatus,
     reveal: f32,
 }
 
-impl<'a> Card<'a> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardStatus {
+    Resting,
+    Hovered,
+}
+
+impl<'a> ToastCard<'a> {
     pub fn new(
         notif: &'a Notification,
         config: &'a Config,
-        palette: &'a Extended,
+        theme: &'a Theme,
         layout: &'a PanelLayout,
     ) -> Self {
         Self {
             notif,
             config,
-            palette,
+            theme,
             layout,
-            hovered: false,
+            status: CardStatus::Resting,
             reveal: 1.0,
         }
     }
 
     pub fn hovered(mut self, hovered: bool) -> Self {
-        self.hovered = hovered;
+        self.status = if hovered {
+            CardStatus::Hovered
+        } else {
+            CardStatus::Resting
+        };
         self
     }
 
@@ -115,10 +126,10 @@ impl<'a> Card<'a> {
     }
 }
 
-impl From<Card<'_>> for Element<'_, NotificationMessage> {
-    fn from(card: Card<'_>) -> Self {
+impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
+    fn from(card: ToastCard<'_>) -> Self {
         let id = card.notif.data.id;
-        let chrome = card.chrome();
+        let style = card.style();
         let mut body_row = Row::new()
             .spacing(BODY_ROW_SPACING)
             .align_y(Alignment::Center);
@@ -129,20 +140,14 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
         ) {
             body_row = body_row.push(icon);
         }
-        body_row = body_row.push(card.column(chrome));
+        body_row = body_row.push(card.column(style.text_color.unwrap_or_default()));
 
-        let panel = container(body_row)
+        let framed_card = container(body_row)
             .width(Length::Fixed(card.config.toasts.card_size.card_width_px))
             .padding(PADDING_PX)
-            .style(move |_| container::Style {
-                background: Some(chrome.background.into()),
-                border: chrome.border,
-                text_color: Some(chrome.text),
-                shadow: chrome.shadow,
-                ..Default::default()
-            });
+            .style(move |_| style);
 
-        mouse_area(panel)
+        mouse_area(framed_card)
             .on_enter(NotificationMessage::HoverChanged { id, hovered: true })
             .on_exit(NotificationMessage::HoverChanged { id, hovered: false })
             .on_press(NotificationMessage::BodyClicked(id))
@@ -151,80 +156,96 @@ impl From<Card<'_>> for Element<'_, NotificationMessage> {
     }
 }
 
-#[derive(Clone, Copy)]
-struct CardChrome {
-    background: Color,
-    border: Border,
-    text: Color,
-    shadow: Shadow,
-}
+impl ToastCard<'_> {
+    fn severity_style(&self) -> fn(&Theme, CardStatus) -> container::Style {
+        match self.notif.data.severity {
+            Severity::Low => low,
+            Severity::Normal => normal,
+            Severity::Warning => warning,
+            Severity::Critical => critical,
+        }
+    }
 
-impl Card<'_> {
-    fn chrome(&self) -> CardChrome {
-        let pair = SeverityShades::of(self.notif.data.severity, self.palette).shown(self.hovered);
-        let opacity = mix_opacity(MIN_BACKDROP_OPACITY, self.layout.tint_factor);
-        let fade = |color: Color| color.scale_alpha(self.reveal);
-        let shadow = pill_shadow(self.layout);
-        CardChrome {
-            background: fade(pair.color.scale_alpha(opacity)),
+    fn style(&self) -> container::Style {
+        let severity = (self.severity_style())(self.theme, self.status);
+        let opacity = translucent_opacity(self.layout.tint_factor) * self.reveal;
+        let shadow = self.layout.frame_shadow();
+        container::Style {
+            background: severity
+                .background
+                .map(|background| background.scale_alpha(opacity)),
             border: Border {
-                color: fade(pair.color),
-                width: BORDER_WIDTH_PX,
+                color: severity.border.color.scale_alpha(self.reveal),
                 radius: self.layout.corner_radius,
+                ..severity.border
             },
-            text: fade(pair.text),
+            text_color: severity
+                .text_color
+                .map(|text| text.scale_alpha(self.reveal)),
             shadow: Shadow {
-                color: fade(shadow.color),
+                color: shadow.color.scale_alpha(self.reveal),
                 ..shadow
             },
+            ..severity
         }
     }
 }
 
-fn mix_opacity(floor: f32, tint_factor: f32) -> f32 {
-    floor + (1.0 - floor) * tint_factor.clamp(0.0, 1.0)
+fn translucent_opacity(tint_factor: f32) -> f32 {
+    MIN_BACKDROP_OPACITY + (1.0 - MIN_BACKDROP_OPACITY) * tint_factor.clamp(0.0, 1.0)
 }
 
-struct SeverityShades {
-    resting: Pair,
-    hovered: Pair,
+pub fn low(theme: &Theme, status: CardStatus) -> container::Style {
+    let palette = theme.extended_palette();
+    severity_tinted(match status {
+        CardStatus::Resting => palette.background.strong,
+        CardStatus::Hovered => palette.background.strongest,
+    })
 }
 
-impl SeverityShades {
-    fn of(severity: Severity, palette: &Extended) -> Self {
-        match severity {
-            Severity::Low => Self {
-                resting: palette.background.strong,
-                hovered: palette.background.strongest,
-            },
-            Severity::Normal => Self {
-                resting: palette.primary.weak,
-                hovered: palette.primary.base,
-            },
-            Severity::Warning => Self {
-                resting: palette.warning.weak,
-                hovered: palette.warning.base,
-            },
-            Severity::Critical => Self {
-                resting: palette.danger.weak,
-                hovered: palette.danger.base,
-            },
-        }
+pub fn normal(theme: &Theme, status: CardStatus) -> container::Style {
+    let palette = theme.extended_palette();
+    severity_tinted(match status {
+        CardStatus::Resting => palette.primary.weak,
+        CardStatus::Hovered => palette.primary.base,
+    })
+}
+
+pub fn warning(theme: &Theme, status: CardStatus) -> container::Style {
+    let palette = theme.extended_palette();
+    severity_tinted(match status {
+        CardStatus::Resting => palette.warning.weak,
+        CardStatus::Hovered => palette.warning.base,
+    })
+}
+
+pub fn critical(theme: &Theme, status: CardStatus) -> container::Style {
+    let palette = theme.extended_palette();
+    severity_tinted(match status {
+        CardStatus::Resting => palette.danger.weak,
+        CardStatus::Hovered => palette.danger.base,
+    })
+}
+
+fn severity_tinted(pair: Pair) -> container::Style {
+    container::Style {
+        background: Some(pair.color.into()),
+        text_color: Some(pair.text),
+        border: Border {
+            color: pair.color,
+            width: BORDER_WIDTH_PX,
+            ..Border::default()
+        },
+        ..container::Style::default()
     }
-
-    fn shown(self, hovered: bool) -> Pair {
-        if hovered { self.hovered } else { self.resting }
-    }
 }
 
-impl Card<'_> {
-    fn column<'b>(&self, chrome: CardChrome) -> Column<'b, NotificationMessage> {
+impl ToastCard<'_> {
+    fn column<'b>(&self, text: Color) -> Column<'b, NotificationMessage> {
         let data = &self.notif.data;
         let id = data.id;
         let font = &self.config.font;
         let palette = &self.config.palette;
-
-        let text = chrome.text;
 
         let button_actions: Vec<&NotifAction> = data
             .actions

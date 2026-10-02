@@ -13,7 +13,7 @@ use window_list::{WindowList, WindowListMessage};
 use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
-    wayland_layers::surface::Position,
+    desktop_shell::monitor_surfaces::Position,
     widgets::{tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets},
 };
 

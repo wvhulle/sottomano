@@ -9,9 +9,9 @@ use iced::{
 use crate::{
     config::Config,
     data::severity::Severity,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
+    desktop_shell::{
+        monitor_surfaces::Position,
+        hover_tooltips::{HoverTarget, TooltipMessage},
     },
     widgets::{
         activity_line::activity_line,

@@ -15,7 +15,7 @@ use iced::{
     window,
 };
 
-use crate::wayland_layers::surface::Position;
+use crate::desktop_shell::monitor_surfaces::Position;
 
 const MOTION: Duration = Duration::from_millis(160);
 

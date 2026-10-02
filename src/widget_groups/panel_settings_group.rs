@@ -3,10 +3,10 @@ use std::ops::RangeInclusive;
 use iced::Task;
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::Config,
     state::{self, PanelLayout, WorkspacesPlacement},
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::niri_group::switch_tooltip,
     widgets::{
         group_item::GroupItem,
@@ -55,7 +55,7 @@ impl Knob {
 
     fn target(self) -> HoverTarget {
         match self {
-            Self::Tint => HoverTarget::TintChrome,
+            Self::Tint => HoverTarget::BackgroundTint,
             Self::Offset => HoverTarget::FloatOffset,
             Self::Radius => HoverTarget::CornerRadius,
             Self::Softness => HoverTarget::ShadowSoftness,
@@ -134,7 +134,7 @@ fn disconnected_tooltip(layout: &PanelLayout) -> Tooltip {
     Tooltip::table(vec![row(
         "Groups",
         if layout.disconnected_groups {
-            "separate pills"
+            "separate frames"
         } else {
             "one bar"
         },

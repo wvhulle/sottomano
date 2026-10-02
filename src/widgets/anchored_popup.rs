@@ -16,9 +16,9 @@ use iced::{
 };
 
 use crate::{
-    app::Message,
+    desktop_shell::Message,
     config::Config,
-    wayland_layers::surface::Position,
+    desktop_shell::monitor_surfaces::Position,
     widgets::{
         overlay_shadow::overlay_shadow,
         popup_connector::{notch, notch_region},
@@ -119,7 +119,7 @@ struct RenderingViewMut<'t, 'a> {
 }
 
 impl<'a> AnchoredPopup<'a> {
-    fn pill_edge_x(&self) -> f32 {
+    fn anchor_edge_x(&self) -> f32 {
         self.anchor.x + self.anchor.width
     }
 
@@ -127,7 +127,7 @@ impl<'a> AnchoredPopup<'a> {
         match self.position {
             Position::Top => self.bar_thickness,
             Position::Bottom => surface.height - self.bar_thickness,
-            Position::Left => self.pill_edge_x(),
+            Position::Left => self.anchor_edge_x(),
         }
     }
 
@@ -151,7 +151,7 @@ impl<'a> AnchoredPopup<'a> {
                 surface.height - self.edge_inset - size.height,
             ),
             Position::Left => Point::new(
-                self.pill_edge_x() + self.popup_gap,
+                self.anchor_edge_x() + self.popup_gap,
                 centered_on_anchor(self.anchor.center_y(), size.height, surface.height),
             ),
         };

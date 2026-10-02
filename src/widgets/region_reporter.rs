@@ -12,31 +12,52 @@ use iced::{
     window,
 };
 
-pub fn bounds_probe<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
-    on_rects: impl Fn(Vec<Rectangle>) -> Message + 'a,
-) -> Element<'a, Message> {
-    Element::new(BoundsProbe {
-        content: content.into(),
-        on_rects: Box::new(on_rects),
-    })
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RegionRoles {
+    pub takes_input: bool,
+    pub blurred: bool,
 }
 
-struct BoundsProbe<'a, Message> {
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ReportedRegion {
+    pub rects: Vec<Rectangle>,
+    pub roles: RegionRoles,
+}
+
+pub fn region_reporter<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    roles: RegionRoles,
+    on_report: impl Fn(ReportedRegion) -> Message + 'a,
+) -> RegionReporter<'a, Message> {
+    RegionReporter {
+        content: content.into(),
+        roles,
+        on_report: Box::new(on_report),
+    }
+}
+
+pub struct RegionReporter<'a, Message> {
     content: Element<'a, Message>,
-    on_rects: Box<dyn Fn(Vec<Rectangle>) -> Message + 'a>,
+    roles: RegionRoles,
+    on_report: Box<dyn Fn(ReportedRegion) -> Message + 'a>,
+}
+
+impl<'a, Message: 'a> From<RegionReporter<'a, Message>> for Element<'a, Message> {
+    fn from(reporter: RegionReporter<'a, Message>) -> Self {
+        Element::new(reporter)
+    }
 }
 
 #[derive(Default)]
-struct Published(Vec<Rectangle>);
+struct LastReport(Option<ReportedRegion>);
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for BoundsProbe<'_, Message> {
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_, Message> {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<Published>()
+        tree::Tag::of::<LastReport>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(Published::default())
+        tree::State::new(LastReport::default())
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -117,17 +138,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for BoundsProbe<'_, M
             viewport,
         );
         if matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
-            let rects: Vec<Rectangle> = layout
-                .children()
-                .next()
-                .unwrap()
-                .children()
-                .map(|child| child.bounds())
-                .collect();
-            let published = tree.state.downcast_mut::<Published>();
-            if published.0 != rects {
-                published.0.clone_from(&rects);
-                shell.publish((self.on_rects)(rects));
+            let region = ReportedRegion {
+                rects: layout
+                    .children()
+                    .next()
+                    .unwrap()
+                    .children()
+                    .map(|child| child.bounds())
+                    .collect(),
+                roles: self.roles,
+            };
+            let last = tree.state.downcast_mut::<LastReport>();
+            if last.0.as_ref() != Some(&region) {
+                last.0 = Some(region.clone());
+                shell.publish((self.on_report)(region));
             }
         }
     }

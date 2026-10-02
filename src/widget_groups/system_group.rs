@@ -13,7 +13,7 @@ use crate::{
         sysfs_sensors::{self, cpu_usage::CpuUsage, memory::Memory, temperature::Temperature},
     },
     message_subscriptions::polling,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         last_poll::LastPoll,
         tooltip_body::Tooltip,

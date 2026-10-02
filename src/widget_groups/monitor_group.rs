@@ -12,7 +12,7 @@ use crate::{
         clight::Clight,
     },
     message_subscriptions::blocking,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

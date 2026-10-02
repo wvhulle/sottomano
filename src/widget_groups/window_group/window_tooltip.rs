@@ -7,7 +7,7 @@ use crate::{
         nix_store::{Provenance, StorePackage},
         process::{self, Inspection, Launch, Process},
     },
-    wayland_layers::tooltip::relative,
+    desktop_shell::hover_tooltips::relative,
     widget_groups::window_group::process_tree::Folding,
     widgets::tooltip_body::{
         Row, Section, Tooltip, TooltipBody, row, section, tree_section, untitled,

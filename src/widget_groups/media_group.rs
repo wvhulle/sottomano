@@ -14,7 +14,7 @@ use crate::{
         niri,
     },
     message_subscriptions::blocking,
-    wayland_layers::tooltip::{HoverTarget, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
     widgets::{
         bar_widget::Glyph,
         flat_button,

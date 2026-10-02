@@ -3,7 +3,7 @@ use crate::{
         notifications::model::{ExpireTimeout, NotifAction, NotificationData},
         severity::Severity,
     },
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, ReadingAlertThreshold},
         widget_state::WidgetState,

@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     data::source::Source,
     message_subscriptions::{blocking, polling},
-    wayland_layers::tooltip::{HoverTarget, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,

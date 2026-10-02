@@ -12,10 +12,10 @@ use iced::{
 };
 
 use crate::{
-    app::Message,
-    wayland_layers::{
-        surface::Position,
-        tooltip::{HoverTarget, TooltipMessage},
+    desktop_shell::Message,
+    desktop_shell::{
+        monitor_surfaces::Position,
+        hover_tooltips::{HoverTarget, TooltipMessage},
     },
 };
 

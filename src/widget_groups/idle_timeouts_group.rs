@@ -6,7 +6,7 @@ use crate::{
     config::Config,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         group_item::GroupItem,
         idle::{

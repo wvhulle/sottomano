@@ -14,7 +14,7 @@ use crate::{
         screen_temperature::{self, SunFollow},
     },
     message_subscriptions::polling,
-    wayland_layers::tooltip::HoverTarget,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         group_item::GroupItem,
         last_poll::LastPoll,

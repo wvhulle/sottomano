@@ -28,7 +28,7 @@ pub struct WindowEdge {
 }
 
 #[derive(Debug, Clone)]
-pub struct WsPill {
+pub struct WorkspaceIndicator {
     pub id: u64,
     pub idx: u8,
     pub name: Option<String>,
@@ -38,21 +38,21 @@ pub struct WsPill {
 
 #[derive(Default)]
 pub struct Snapshot {
-    workspaces: HashMap<String, Vec<WsPill>>,
+    workspaces: HashMap<String, Vec<WorkspaceIndicator>>,
     windows: HashMap<u64, Vec<WinEntry>>,
     active: HashMap<String, u64>,
 }
 
 impl Snapshot {
     pub fn derive(state: &EventStreamState) -> Self {
-        let mut workspaces: HashMap<String, Vec<WsPill>> = HashMap::new();
+        let mut workspaces: HashMap<String, Vec<WorkspaceIndicator>> = HashMap::new();
         let mut active = HashMap::new();
         for w in state.workspaces.workspaces.values() {
             let Some(output) = &w.output else { continue };
             if w.is_active {
                 active.insert(output.clone(), w.id);
             }
-            workspaces.entry(output.clone()).or_default().push(WsPill {
+            workspaces.entry(output.clone()).or_default().push(WorkspaceIndicator {
                 id: w.id,
                 idx: w.idx,
                 name: w.name.clone(),
@@ -60,8 +60,8 @@ impl Snapshot {
                 is_urgent: w.is_urgent,
             });
         }
-        for pills in workspaces.values_mut() {
-            pills.sort_by_key(|p| p.idx);
+        for indicators in workspaces.values_mut() {
+            indicators.sort_by_key(|indicator| indicator.idx);
         }
 
         let mut grouped: HashMap<u64, Vec<&niri_ipc::Window>> = HashMap::new();
@@ -93,7 +93,7 @@ impl Snapshot {
         }
     }
 
-    pub fn workspaces_for_output(&self, output: &str) -> &[WsPill] {
+    pub fn workspaces_for_output(&self, output: &str) -> &[WorkspaceIndicator] {
         self.workspaces.get(output).map_or(&[], Vec::as_slice)
     }
 
@@ -110,8 +110,8 @@ impl Snapshot {
         self.workspaces
             .get(output)?
             .iter()
-            .find(|pill| pill.id == id)
-            .and_then(|pill| pill.name.as_deref())
+            .find(|indicator| indicator.id == id)
+            .and_then(|indicator| indicator.name.as_deref())
     }
 
     pub fn open_app_ids(&self, output: &str) -> Vec<String> {
