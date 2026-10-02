@@ -10,8 +10,8 @@ use crate::{
     config::Config,
     data::severity::Severity,
     desktop_shell::{
-        monitor_surfaces::Position,
         hover_tooltips::{HoverTarget, TooltipMessage},
+        monitor_surfaces::Position,
     },
     widgets::{
         activity_line::activity_line,

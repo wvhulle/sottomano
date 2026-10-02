@@ -11,8 +11,8 @@ use crate::{
         backlight::{self, Backlight},
         clight::Clight,
     },
-    message_subscriptions::blocking,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

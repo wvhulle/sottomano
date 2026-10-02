@@ -20,9 +20,9 @@ use crate::{
         },
         sun_schedule::ColorMode,
     },
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     state::{self, dark_mode::DarkModeSchedule},
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },

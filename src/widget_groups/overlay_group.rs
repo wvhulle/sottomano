@@ -1,0 +1,165 @@
+use iced::Task;
+
+use crate::{
+    config::Config,
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    state::{
+        OverlayPreferences,
+        overlay::{self, OverlaySetting},
+    },
+    widgets::{
+        group_item::GroupItem,
+        phosphor::{Phosphor, Weight},
+        slider_control::{Action as SliderAction, ControlMessage, SliderControl},
+        tooltip_body::{Tooltip, row},
+        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+    },
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverlayKnob {
+    Opacity,
+    CornerRadius,
+}
+
+impl OverlayKnob {
+    const ALL: [Self; 2] = [Self::Opacity, Self::CornerRadius];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Opacity => "Notification and tooltip opacity",
+            Self::CornerRadius => "Notification and tooltip corner radius",
+        }
+    }
+
+    fn target(self) -> HoverTarget {
+        match self {
+            Self::Opacity => HoverTarget::OverlayOpacity,
+            Self::CornerRadius => HoverTarget::OverlayCornerRadius,
+        }
+    }
+
+    fn control(self) -> SliderControl {
+        let slider = match self {
+            Self::Opacity => SliderControl::new(
+                0.0..=100.0,
+                self.target(),
+                Phosphor::SquareHalf(Weight::Regular),
+            )
+            .readout(|value| format!("{} %", value.round())),
+            Self::CornerRadius => SliderControl::new(
+                0.0..=16.0,
+                self.target(),
+                Phosphor::FrameCorners(Weight::Regular),
+            )
+            .readout(|value| format!("{} px", value.round())),
+        };
+        slider.icon_only().readout_width(44.0)
+    }
+
+    fn read(self, overlays: OverlayPreferences) -> f32 {
+        match self {
+            Self::Opacity => overlays.opacity * 100.0,
+            Self::CornerRadius => overlays.corner_radius.top_left,
+        }
+    }
+
+    fn write(self, overlays: &mut OverlayPreferences, value: f32) -> Task<bool> {
+        match self {
+            Self::Opacity => {
+                overlays.opacity = value / 100.0;
+                Task::future(overlay::save(OverlaySetting::Opacity, overlays.opacity))
+            }
+            Self::CornerRadius => {
+                overlays.corner_radius = value.into();
+                Task::future(overlay::save(OverlaySetting::CornerRadius, value))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum OverlayMessage {
+    Expansion(ExpansionMessage),
+    Slider(OverlayKnob, ControlMessage),
+}
+
+pub struct OverlayGroup {
+    pub(crate) expansion: GroupExpansion,
+    sliders: [SliderControl; 2],
+}
+
+impl Default for OverlayGroup {
+    fn default() -> Self {
+        Self {
+            expansion: GroupExpansion::default(),
+            sliders: OverlayKnob::ALL.map(OverlayKnob::control),
+        }
+    }
+}
+
+impl OverlayGroup {
+    fn slider(&self, knob: OverlayKnob) -> &SliderControl {
+        &self.sliders[knob as usize]
+    }
+
+    pub fn adopt(&mut self, overlays: OverlayPreferences) {
+        for knob in OverlayKnob::ALL {
+            self.sliders[knob as usize].update(ControlMessage::Reading(knob.read(overlays)));
+        }
+    }
+
+    pub fn collapse(&mut self) {
+        if self.expansion.collapse() {
+            self.sliders.iter_mut().for_each(SliderControl::close);
+        }
+    }
+
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        OverlayKnob::ALL
+            .into_iter()
+            .find(|knob| knob.target() == *target)
+            .map(|knob| Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())]))
+    }
+
+    pub fn update(
+        &mut self,
+        msg: OverlayMessage,
+        overlays: &mut OverlayPreferences,
+    ) -> Task<Message> {
+        match msg {
+            OverlayMessage::Expansion(menu) => {
+                if self.expansion.update(menu) {
+                    self.sliders.iter_mut().for_each(SliderControl::close);
+                }
+                Task::none()
+            }
+            OverlayMessage::Slider(knob, control) => {
+                let SliderAction::Commit(value) = self.sliders[knob as usize].update(control)
+                else {
+                    return Task::none();
+                };
+                knob.write(overlays, value).map(move |ok| {
+                    Message::Overlay(OverlayMessage::Slider(
+                        knob,
+                        ControlMessage::Persisted { value, ok },
+                    ))
+                })
+            }
+        }
+    }
+
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, OverlayMessage> {
+        OverlayKnob::ALL.into_iter().fold(
+            WidgetGroup::new(&self.expansion, OverlayMessage::Expansion)
+                .icon(Phosphor::Stack(Weight::Regular)),
+            |group, knob| {
+                group.item(GroupItem::slider(
+                    self.slider(knob),
+                    config,
+                    move |control| OverlayMessage::Slider(knob, control),
+                ))
+            },
+        )
+    }
+}

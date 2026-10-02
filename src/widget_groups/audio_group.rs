@@ -7,8 +7,8 @@ use crate::{
     data::source::audio::{
         self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
     },
-    message_subscriptions::blocking,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

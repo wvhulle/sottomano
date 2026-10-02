@@ -12,8 +12,8 @@ use crate::{
         niri,
         systemd_failed::{Failed, JournalScope, System, User},
     },
-    message_subscriptions::blocking,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::blocking,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,

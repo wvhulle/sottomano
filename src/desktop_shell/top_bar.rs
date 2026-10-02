@@ -62,11 +62,14 @@ impl DesktopShell {
         let roles = RegionRoles {
             takes_input: true,
             blurred: groups_joined,
+            corner_radius: layout.corner_radius.top_left,
         };
-        region_reporter(column![strip], roles, move |region| Message::ElementRegions {
-            window,
-            element,
-            region,
+        region_reporter(column![strip], roles, move |region| {
+            Message::ElementRegions {
+                window,
+                element,
+                region,
+            }
         })
         .into()
     }
@@ -107,6 +110,7 @@ impl DesktopShell {
         let roles = RegionRoles {
             takes_input: false,
             blurred: groups_disconnected,
+            corner_radius: layout.corner_radius.top_left,
         };
         region_reporter(cluster, roles, move |region| Message::ElementRegions {
             window,
@@ -131,14 +135,18 @@ impl DesktopShell {
         self.group_cluster(window, element, rendered)
     }
 
-    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 8] {
+    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 9] {
         let config = &self.config;
         [
-            self.weather_group.widget_group().map_messages(Message::Weather),
+            self.weather_group
+                .widget_group()
+                .map_messages(Message::Weather),
             self.battery_group
                 .widget_group(config)
                 .map_messages(Message::Battery),
-            self.system_group.widget_group().map_messages(Message::System),
+            self.system_group
+                .widget_group()
+                .map_messages(Message::System),
             self.net_interfaces_group
                 .widget_group()
                 .map_messages(Message::NetInterfaces),
@@ -151,6 +159,9 @@ impl DesktopShell {
             self.panel_settings_group
                 .widget_group(config, &self.panel_settings.layout)
                 .map_messages(Message::PanelSettings),
+            self.overlay_group
+                .widget_group(config)
+                .map_messages(Message::Overlay),
             self.niri_group
                 .widget_group(config)
                 .map_messages(Message::NiriStyling),

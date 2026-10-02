@@ -60,6 +60,7 @@ use crate::{
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         niri_group::{NiriGroup, NiriMessage, niri_rules::NiriRulesFile},
         notification_group::{NotificationGroup, NotificationGroupMessage},
+        overlay_group::{OverlayGroup, OverlayMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         system_group::{SystemGroup, SystemMessage},
         tray_group::{self, TrayGroup, TrayMessage},
@@ -68,7 +69,9 @@ use crate::{
         window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
     },
     widgets::{
-        favicon::Favicons, reading_alert::ReadingAlert, region_reporter::ReportedRegion,
+        favicon::Favicons,
+        reading_alert::ReadingAlert,
+        region_reporter::ReportedRegion,
         text::FontFallbacks,
         widget_group::{GroupEvent, GroupExpansion},
     },
@@ -84,6 +87,7 @@ pub struct DesktopShell {
     pub(crate) battery_group: BatteryGroup,
     pub(crate) system_group: SystemGroup,
     pub(crate) panel_settings_group: PanelSettingsGroup,
+    pub(crate) overlay_group: OverlayGroup,
     pub(crate) niri_group: NiriGroup,
     pub(crate) clock_group: ClockGroup,
     pub(crate) notification_group: NotificationGroup,
@@ -121,6 +125,7 @@ pub enum Message {
     Battery(BatteryMessage),
     System(SystemMessage),
     PanelSettings(PanelSettingsMessage),
+    Overlay(OverlayMessage),
     NiriStyling(NiriMessage),
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
@@ -202,6 +207,7 @@ impl DesktopShell {
             battery_group: BatteryGroup::default(),
             system_group: SystemGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
+            overlay_group: OverlayGroup::default(),
             niri_group: NiriGroup::new(niri_rules),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
@@ -312,6 +318,7 @@ impl DesktopShell {
             Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
             Message::System(msg) => self.system_group.update(msg).map(Message::System),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
+            Message::Overlay(msg) => self.update_overlay(msg),
             Message::NiriStyling(msg) => self.niri_group.update(msg),
             Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
@@ -384,6 +391,11 @@ impl DesktopShell {
             | Message::RemoveWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    fn update_overlay(&mut self, msg: OverlayMessage) -> Task<Message> {
+        self.overlay_group
+            .update(msg, &mut self.panel_settings.overlays)
     }
 
     fn dismiss_groups(&mut self) -> Task<Message> {
@@ -482,7 +494,8 @@ impl DesktopShell {
     fn apply_saved_panel_settings(&mut self, panel_settings: PanelSettings) -> Task<Message> {
         self.panel_settings = panel_settings;
         self.panel_settings_group.adopt(&self.panel_settings.layout);
-        Task::batch([self.reserve(), self.rebuild_blur()])
+        self.overlay_group.adopt(self.panel_settings.overlays);
+        self.reserve()
     }
 
     fn reload_config(&self) -> Task<Message> {
@@ -554,6 +567,7 @@ impl DesktopShell {
             return;
         }
         self.panel_settings_group.collapse();
+        self.overlay_group.collapse();
         self.niri_group.collapse();
         self.monitor_group.collapse();
         self.color_temperature_group.collapse();
@@ -683,9 +697,6 @@ impl DesktopShell {
         {
             panel_settings_group::Action::None => Task::none(),
             panel_settings_group::Action::Run(task) => task,
-            panel_settings_group::Action::RebuildBlur(task) => {
-                Task::batch([self.rebuild_blur(), task])
-            }
             panel_settings_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
         }
     }

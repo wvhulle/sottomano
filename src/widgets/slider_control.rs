@@ -12,8 +12,8 @@ use uom::si::{f64::Ratio, ratio};
 use crate::{
     config::Config,
     data::severity::Severity,
-    message_subscriptions::blocking,
     desktop_shell::hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+    message_subscriptions::blocking,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         device_setting::{DeviceSetting, Nudge, Write},

@@ -105,6 +105,7 @@ impl DesktopShell {
                 self.panel_settings_group
                     .tooltip_for(target, &self.panel_settings.layout)
             })
+            .or_else(|| self.overlay_group.tooltip_for(target))
             .or_else(|| self.niri_group.tooltip_for(target))
             .unwrap_or_else(Tooltip::empty)
     }

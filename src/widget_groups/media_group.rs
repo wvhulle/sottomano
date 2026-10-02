@@ -13,8 +13,8 @@ use crate::{
         mpris::{Media, Status},
         niri,
     },
-    message_subscriptions::blocking,
     desktop_shell::hover_tooltips::{HoverTarget, hoverable},
+    message_subscriptions::blocking,
     widgets::{
         bar_widget::Glyph,
         flat_button,

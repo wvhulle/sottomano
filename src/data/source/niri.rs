@@ -52,13 +52,16 @@ impl Snapshot {
             if w.is_active {
                 active.insert(output.clone(), w.id);
             }
-            workspaces.entry(output.clone()).or_default().push(WorkspaceIndicator {
-                id: w.id,
-                idx: w.idx,
-                name: w.name.clone(),
-                is_active: w.is_active,
-                is_urgent: w.is_urgent,
-            });
+            workspaces
+                .entry(output.clone())
+                .or_default()
+                .push(WorkspaceIndicator {
+                    id: w.id,
+                    idx: w.idx,
+                    name: w.name.clone(),
+                    is_active: w.is_active,
+                    is_urgent: w.is_urgent,
+                });
         }
         for indicators in workspaces.values_mut() {
             indicators.sort_by_key(|indicator| indicator.idx);

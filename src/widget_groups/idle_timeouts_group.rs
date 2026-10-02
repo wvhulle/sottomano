@@ -4,9 +4,9 @@ use iced::Task;
 
 use crate::{
     config::Config,
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
-    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         group_item::GroupItem,
         idle::{

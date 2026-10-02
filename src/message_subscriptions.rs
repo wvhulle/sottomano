@@ -24,7 +24,6 @@ use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 use wayland_client::Connection;
 
 use crate::{
-    desktop_shell::{DesktopShell, Message, monitor_surfaces::OutputChange},
     data::{
         notifications::{
             model::{NotifHandle, Outbound, ServerEvent},
@@ -32,7 +31,10 @@ use crate::{
         },
         source::{Source, desktop_entries, niri},
     },
-    desktop_shell::notification_toasts::NotificationMessage,
+    desktop_shell::{
+        DesktopShell, Message, monitor_surfaces::OutputChange,
+        notification_toasts::NotificationMessage,
+    },
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, journal_group::JournalGroup,
         media_group::MediaGroup, net_interfaces_group::NetInterfacesGroup, tray_group::TrayGroup,

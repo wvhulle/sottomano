@@ -8,8 +8,8 @@ pub mod wind_speed;
 
 use crate::{
     data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
-    message_subscriptions::polling,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::once};
 
 use iced::{
     Element, Rectangle, Task,
@@ -10,25 +10,42 @@ use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use tokio::time::sleep;
 
 use crate::{
-    desktop_shell::Message,
     config::Config,
-    state::PanelSettings,
     desktop_shell::{
-        monitor_surfaces::{self, PanelEdge, Position, input_region},
+        Message,
         hover_tooltips::{
             HoverTarget, TooltipMessage,
             tooltip_content::TooltipContent,
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
+        monitor_surfaces::{PanelEdge, Position, ShellElement, base_settings, input_region},
     },
+    state::PanelSettings,
+    widget_groups::niri_group::niri_rules::StyledSurface,
     widgets::{
-        anchored_popup::{Rendering, anchored_popup},
+        anchored_popup::{PopupFrame, Rendering, anchored_popup},
         favicon::Favicons,
+        region_reporter::{RegionRoles, ReportedRegion},
         tooltip_body::Tooltip,
     },
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
+
+fn tooltip_region(surface: Id, frame: PopupFrame, corner_radius: f32) -> Message {
+    Message::ElementRegions {
+        window: surface,
+        element: ShellElement::HoverTooltip,
+        region: ReportedRegion {
+            rects: once(frame.bounds).chain(frame.notch_rows).collect(),
+            roles: RegionRoles {
+                takes_input: frame.settled,
+                blurred: true,
+                corner_radius,
+            },
+        },
+    }
+}
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
 pub struct PendingSwitch {
@@ -225,6 +242,8 @@ impl TooltipHost {
         if !self.hosts(surface) {
             return None;
         }
+        let corner_radius = panel_settings.overlays.corner_radius;
+        let on_frame = move |frame| tooltip_region(surface, frame, corner_radius.top_left);
         let Some(placement) = self
             .transition
             .placement()
@@ -236,12 +255,11 @@ impl TooltipHost {
                 Position::Top,
                 self.transition.seq(),
                 config,
-                panel_settings.layout.corner_radius,
-                move |bounds| input_region(surface, bounds),
+                panel_settings,
+                on_frame,
             ));
         };
 
-        let corner_radius = panel_settings.layout.corner_radius;
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             renderings.push(Rendering::outgoing(
@@ -261,8 +279,8 @@ impl TooltipHost {
                 placement.position,
                 self.transition.seq(),
                 config,
-                corner_radius,
-                move |bounds| input_region(surface, bounds),
+                panel_settings,
+                on_frame,
             ))
             .padding(panel_settings.layout.float_offset_px)
             .into(),
@@ -283,6 +301,6 @@ fn tooltip_settings(output: &str) -> NewLayerShellSettings {
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         layer: Layer::Overlay,
-        ..monitor_surfaces::base_settings(Some(output), "vetrata-tooltip")
+        ..base_settings(Some(output), StyledSurface::Tooltip.namespace())
     }
 }

@@ -19,8 +19,8 @@ use crate::{
         process::{self, Forest, Inspection, Process, Watched},
     },
     desktop_shell::{
-        monitor_surfaces::Position,
         hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+        monitor_surfaces::Position,
     },
     widget_groups::window_group::process_tree::Folding,
     widgets::{

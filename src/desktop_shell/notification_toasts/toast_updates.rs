@@ -26,7 +26,7 @@ use crate::{
     },
     desktop_shell::{DesktopShell, Message, monitor_surfaces::ShellElement},
     message_subscriptions::niri_action,
-    state::{self, ToastPreferences},
+    state::{self, PanelSettings, ToastPreferences},
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
     widgets::{
         reading_alert::ReadingAlert,
@@ -37,11 +37,6 @@ use crate::{
 const CONFIG_ERROR_TOAST_ID: u32 = 0;
 
 const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
-
-const TOAST_REGION_ROLES: RegionRoles = RegionRoles {
-    takes_input: true,
-    blurred: true,
-};
 
 fn is_window_owned_action(key: &str) -> bool {
     matches!(key, "move" | "quit")
@@ -59,7 +54,7 @@ impl DesktopShell {
             &placement,
             self.desktop_entries.get(),
             &self.config,
-            &self.panel_settings.toasts,
+            &self.panel_settings,
             &|output| panels.get(output).copied(),
         )
     }
@@ -110,9 +105,10 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        toast_preferences: &ToastPreferences,
+        panel_settings: &PanelSettings,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
+        let toast_preferences = &panel_settings.toasts;
         match message {
             NotificationMessage::Connected(handle) => {
                 self.handle = Some(handle);
@@ -155,7 +151,11 @@ impl NotificationLayer {
                     element: ShellElement::NotificationToasts,
                     region: ReportedRegion {
                         rects,
-                        roles: TOAST_REGION_ROLES,
+                        roles: RegionRoles {
+                            takes_input: true,
+                            blurred: true,
+                            corner_radius: panel_settings.overlays.corner_radius.top_left,
+                        },
                     },
                 })
             }

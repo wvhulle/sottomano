@@ -13,6 +13,7 @@ pub mod net_interfaces_group;
 pub mod niri_group;
 pub mod notification_group;
 pub mod output_group;
+pub mod overlay_group;
 pub mod panel_settings_group;
 pub mod system_group;
 pub mod tray_group;

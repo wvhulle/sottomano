@@ -14,12 +14,12 @@ use uom::{
 };
 
 use crate::{
-    desktop_shell::Message,
     config::Config,
     data::{
         severity::Severity,
         source::process::{Forest, Process},
     },
+    desktop_shell::Message,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,

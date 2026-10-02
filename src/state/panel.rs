@@ -1,4 +1,4 @@
-use crate::state::{Columns, PanelSettings, StoreError, WorkspacesPlacement, open};
+use crate::state::{Columns, PanelSettings, StoreError, WorkspacesPlacement, open, overlay};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS panel_preferences (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -158,7 +158,9 @@ async fn write_setting(
 
 async fn try_load() -> Result<PanelSettings, StoreError> {
     let conn = open().await?;
-    read_panel_settings(&conn).await
+    let mut panel_settings = read_panel_settings(&conn).await?;
+    panel_settings.overlays = overlay::read_overlay_preferences(&conn).await?;
+    Ok(panel_settings)
 }
 
 async fn read_panel_settings(conn: &turso::Connection) -> Result<PanelSettings, StoreError> {

@@ -28,8 +28,8 @@ use crate::{
             openrouter::{self, OpenRouter},
         },
     },
-    message_subscriptions::polling,
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::polling,
     widgets::{
         last_poll::LastPoll,
         tooltip_body::Tooltip,

@@ -6,8 +6,8 @@ use iced::{
 };
 
 use crate::{
-    desktop_shell::Message,
     config::Config,
+    desktop_shell::Message,
     widgets::{
         favicon::Favicons,
         text::LINE_HEIGHT,
