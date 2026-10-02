@@ -16,11 +16,8 @@ use crate::{
         tooltip::{HoverTarget, TooltipMessage, hoverable},
     },
     widgets::{
-        activity_line::edge_activity_line,
-        flat_button,
-        focus_indicator::focus_indicator,
-        pager_slot::PagerSlot,
-        text::{LINE_HEIGHT, bar_text},
+        activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
+        marker_track::MarkerTrack, pager_slot::PagerSlot, text::bar_text,
     },
 };
 
@@ -55,31 +52,20 @@ pub fn vertical_view<'a>(
     let list = |cells: Vec<Element<'a, WorkspacesMessage>>| {
         Column::with_children(cells).spacing(config.spacing.widget_spacing_px)
     };
-    let ticks = list(
+    let markers = list(
         workspaces
             .iter()
             .map(|p| {
-                container(
-                    Column::with_children(tick_segments(config, niri, p.id, Position::Left))
-                        .spacing(1.0),
-                )
-                .width(config.widget_sizes.indicator_thickness_px)
-                .height(config.bar.height_px)
-                .into()
+                container(window_markers(config, niri, p.id, Position::Left))
+                    .height(config.bar.height_px)
+                    .into()
             })
             .collect(),
     );
-    let keys = list(
-        workspaces
-            .iter()
-            .map(|p| row_cell(superscript_cell(config, p), config))
-            .collect(),
-    )
-    .align_x(Alignment::End);
     let names = list(
         workspaces
             .iter()
-            .map(|p| row_cell(bar_text(&config.font, display_name(p)), config))
+            .map(|p| row_cell(inline_label(config, p), config))
             .collect(),
     )
     .align_x(Alignment::End);
@@ -110,8 +96,8 @@ pub fn vertical_view<'a>(
     )
     .width(Length::Fill);
     let labels = row![
-        ticks,
-        row![keys, names],
+        markers,
+        names,
         indicated(urgency.into(), workspaces, config, Position::Left)
     ]
     .spacing(config.spacing.widget_spacing_px);
@@ -130,11 +116,7 @@ pub fn inline_view<'a>(
     }
     let slots = workspaces.iter().map(|p| {
         let slot = PagerSlot::new(inline_label(config, p), urgency_line(config, p, position))
-            .ticks(
-                Row::with_children(tick_segments(config, niri, p.id, position))
-                    .spacing(1.0)
-                    .into(),
-            )
+            .ticks(window_markers(config, niri, p.id, position))
             .view(config, position);
         hit_area(p, slot, config)
     });
@@ -200,26 +182,26 @@ fn row_cell<'a>(
         .into()
 }
 
-fn tick_segments<'a>(
+fn window_markers<'a>(
     config: &Config,
     niri: &niri::Snapshot,
     workspace: u64,
     position: Position,
-) -> Vec<Element<'a, WorkspacesMessage>> {
-    let thickness = config.widget_sizes.indicator_thickness_px;
-    niri.windows_on_workspace(workspace)
+) -> Element<'a, WorkspacesMessage> {
+    let colors = niri
+        .windows_on_workspace(workspace)
         .iter()
         .map(|w| {
-            let color = if w.is_urgent {
+            if w.is_urgent {
                 config.palette.urgent
             } else if w.is_focused {
                 config.palette.focus
             } else {
                 config.palette.inactive
-            };
-            edge_activity_line(position, color, 1.0, thickness)
+            }
         })
-        .collect()
+        .collect();
+    MarkerTrack::new(colors, config.widget_sizes.indicator_thickness_px, position).view()
 }
 
 fn urgency_line<'a>(
@@ -252,17 +234,6 @@ fn superscript<'a>(config: &Config, p: &niri::WsPill) -> Text<'a> {
     bar_text(&config.font, p.idx.to_string())
         .size(config.font.text_size_px * SUPERSCRIPT_SCALE)
         .color(config.palette.inactive)
-}
-
-fn superscript_cell<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
-    if !has_superscript(p) {
-        return Space::new().into();
-    }
-    let name_line = LINE_HEIGHT.to_absolute(config.font.text_size_px.into()).0;
-    container(superscript(config, p))
-        .height(name_line)
-        .align_y(Vertical::Top)
-        .into()
 }
 
 fn inline_label<'a>(config: &Config, p: &niri::WsPill) -> Element<'a, WorkspacesMessage> {
