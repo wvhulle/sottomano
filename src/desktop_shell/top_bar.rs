@@ -40,7 +40,7 @@ impl DesktopShell {
         element: ShellElement,
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
-        let layout = &self.panel_settings.layout;
+        let panels = &self.shell_settings.panels;
         let palette = &self.config.palette;
         let centered = mouse_area(
             container(content)
@@ -49,9 +49,9 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(Message::DismissPressed);
-        let groups_joined = !layout.disconnected_groups;
+        let groups_joined = !self.shell_settings.layout.disconnected_groups;
         let band_style = if groups_joined {
-            layout.frame_style(palette)
+            self.shell_settings.frame_style(palette)
         } else {
             container::Style::default().color(palette.bar_foreground)
         };
@@ -62,7 +62,7 @@ impl DesktopShell {
         let roles = RegionRoles {
             takes_input: true,
             blurred: groups_joined,
-            corner_radius: layout.corner_radius.top_left,
+            corner_radius: panels.corner_radius.top_left,
         };
         region_reporter(column![strip], roles, move |region| {
             Message::ElementRegions {
@@ -81,9 +81,9 @@ impl DesktopShell {
         groups: Vec<Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
-        let layout = &self.panel_settings.layout;
-        let groups_disconnected = layout.disconnected_groups;
-        let frame_style = layout.frame_style(&config.palette);
+        let panels = &self.shell_settings.panels;
+        let groups_disconnected = self.shell_settings.layout.disconnected_groups;
+        let frame_style = self.shell_settings.frame_style(&config.palette);
         let framed = groups.into_iter().map(|group| {
             if !groups_disconnected {
                 return group;
@@ -94,7 +94,7 @@ impl DesktopShell {
                 .align_y(Vertical::Center)
                 .padding([
                     0.0,
-                    layout.frame_corner_inset() + config.spacing.group_padding_px,
+                    panels.frame_corner_inset() + config.spacing.group_padding_px,
                 ])
                 .into()
         });
@@ -110,7 +110,7 @@ impl DesktopShell {
         let roles = RegionRoles {
             takes_input: false,
             blurred: groups_disconnected,
-            corner_radius: layout.corner_radius.top_left,
+            corner_radius: panels.corner_radius.top_left,
         };
         region_reporter(cluster, roles, move |region| Message::ElementRegions {
             window,
@@ -127,15 +127,22 @@ impl DesktopShell {
         groups: Vec<WidgetGroup<'a, Message>>,
         position: Position,
     ) -> Element<'a, Message> {
-        let rendered = groups
-            .into_iter()
-            .filter_map(|group| group.view(&self.config, position))
-            .map(|element| element.map(Message::from))
-            .collect();
+        let rendered = self.rendered_widget_groups(groups, position).collect();
         self.group_cluster(window, element, rendered)
     }
 
-    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 9] {
+    pub(super) fn rendered_widget_groups<'a>(
+        &'a self,
+        groups: impl IntoIterator<Item = WidgetGroup<'a, Message>>,
+        position: Position,
+    ) -> impl Iterator<Item = Element<'a, Message>> {
+        groups
+            .into_iter()
+            .filter_map(move |group| group.view(&self.config, position))
+            .map(|element| element.map(Message::from))
+    }
+
+    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 6] {
         let config = &self.config;
         [
             self.weather_group
@@ -156,15 +163,6 @@ impl DesktopShell {
             self.internet_group
                 .widget_group()
                 .map_messages(Message::Internet),
-            self.panel_settings_group
-                .widget_group(config, &self.panel_settings.layout)
-                .map_messages(Message::PanelSettings),
-            self.overlay_group
-                .widget_group(config)
-                .map_messages(Message::Overlay),
-            self.niri_group
-                .widget_group(config)
-                .map_messages(Message::NiriStyling),
         ]
     }
 
@@ -177,7 +175,7 @@ impl DesktopShell {
             self.notification_group
                 .widget_group(
                     config,
-                    &self.panel_settings.toasts,
+                    &self.shell_settings.notifications,
                     self.notifications.live_count(),
                 )
                 .map_messages(Message::NotificationGroup),

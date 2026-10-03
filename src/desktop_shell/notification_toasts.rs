@@ -24,7 +24,7 @@ use crate::{
     config::Config,
     data::{notifications::model::NotifHandle, source::niri::Placement},
     desktop_shell::Message,
-    state::PanelSettings,
+    state::ShellSettings,
     widgets::{reading_alert::ReadingAlert, reveal::reveal_y},
 };
 
@@ -47,7 +47,7 @@ impl NotificationLayer {
         output: &str,
         config: &'a Config,
         theme: &'a Theme,
-        settings: &'a PanelSettings,
+        settings: &'a ShellSettings,
         bar_clearance: Padding,
     ) -> WindowAnchoredToasts<'a> {
         let now = Instant::now();

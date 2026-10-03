@@ -18,7 +18,7 @@ use tokio::{
     time::{Duration, sleep},
 };
 
-use crate::data::source::app_icon::DesktopEntries;
+use crate::data::{empty_text::non_empty, source::app_icon::DesktopEntries};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconSource {
@@ -29,7 +29,7 @@ pub enum IconSource {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuNode {
     pub id: i32,
-    pub label: String,
+    pub label: Option<String>,
     pub enabled: bool,
     pub kind: MenuKind,
     pub icon: Option<IconSource>,
@@ -46,15 +46,25 @@ pub enum MenuKind {
 
 #[derive(Debug, Clone)]
 pub struct Tip {
-    pub title: String,
-    pub body: String,
+    pub title: Option<String>,
+    pub body: Option<String>,
+}
+
+impl Tip {
+    fn of(title: String, description: String) -> Option<Self> {
+        let tip = Self {
+            title: non_empty(title),
+            body: non_empty(description),
+        };
+        (tip.title.is_some() || tip.body.is_some()).then_some(tip)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct TrayItem {
     pub address: String,
     pub id: String,
-    pub title: String,
+    pub title: Option<String>,
     pub status: Status,
     pub tooltip: Option<Tip>,
     pub menu_path: Option<String>,
@@ -64,11 +74,7 @@ pub struct TrayItem {
 
 impl TrayItem {
     pub fn name(&self) -> &str {
-        if self.title.is_empty() {
-            &self.id
-        } else {
-            &self.title
-        }
+        self.title.as_deref().unwrap_or(&self.id)
     }
 }
 
@@ -194,7 +200,7 @@ fn adapt_menu_item(item: &MenuItem, entries: &DesktopEntries) -> Option<MenuNode
     };
     Some(MenuNode {
         id: item.id,
-        label: clean_label(item.label.as_deref().unwrap_or_default()),
+        label: item.label.as_deref().map(clean_label).and_then(non_empty),
         enabled: item.enabled,
         kind,
         icon: menu_icon(item, entries),
@@ -227,10 +233,7 @@ fn clean_label(raw: &str) -> String {
 
 fn adapt_tooltip(item: &StatusNotifierItem) -> Option<Tip> {
     let tip = item.tool_tip.as_ref()?;
-    (!tip.title.is_empty() || !tip.description.is_empty()).then(|| Tip {
-        title: tip.title.clone(),
-        body: tip.description.clone(),
-    })
+    Tip::of(tip.title.clone(), tip.description.clone())
 }
 
 fn build_item(
@@ -242,7 +245,7 @@ fn build_item(
     TrayItem {
         address: address.to_string(),
         id: item.id.clone(),
-        title: item.title.clone().unwrap_or_default(),
+        title: item.title.clone().and_then(non_empty),
         status: item.status,
         tooltip: adapt_tooltip(item),
         menu_path: item.menu.clone(),
@@ -360,14 +363,9 @@ fn apply(items: &mut Vec<TrayItem>, event: Event, client: &Client, entries: &Des
                         resolve_visual(icon_name.as_deref(), icon_pixmap.as_deref(), None, entries);
                 }
                 UpdateEvent::Status(status) => item.status = status,
-                UpdateEvent::Title(title) => item.title = title.unwrap_or_default(),
+                UpdateEvent::Title(title) => item.title = title.and_then(non_empty),
                 UpdateEvent::Tooltip(tooltip) => {
-                    item.tooltip = tooltip.and_then(|tip| {
-                        (!tip.title.is_empty() || !tip.description.is_empty()).then_some(Tip {
-                            title: tip.title,
-                            body: tip.description,
-                        })
-                    });
+                    item.tooltip = tooltip.and_then(|tip| Tip::of(tip.title, tip.description));
                 }
                 UpdateEvent::Menu(_) | UpdateEvent::MenuDiff(_) => {
                     item.menu = menu.unwrap_or_default();

@@ -2,7 +2,7 @@ use iced::widget::Row;
 
 use crate::{
     config::Config,
-    state::ToastPreferences,
+    state::NotificationSettings,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
@@ -19,7 +19,6 @@ use crate::{
 pub enum NotificationToggle {
     DoNotDisturb,
     Sound,
-    SpatialLayout,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -37,22 +36,17 @@ impl NotificationGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-        toast_preferences: &ToastPreferences,
+        notification_settings: &NotificationSettings,
         live: usize,
     ) -> WidgetGroup<'a, NotificationGroupMessage> {
         let status = NotificationStatus {
-            dnd: toast_preferences.do_not_disturb,
+            dnd: notification_settings.do_not_disturb,
             live,
         };
-        let sound_icon = if toast_preferences.sound {
+        let sound_icon = if notification_settings.sound {
             Phosphor::Bell(Weight::Regular)
         } else {
             Phosphor::BellSlash(Weight::Regular)
-        };
-        let spatial_layout_icon = if toast_preferences.spatial_layout {
-            Phosphor::TextAlignCenter(Weight::Regular)
-        } else {
-            Phosphor::TextAlignRight(Weight::Regular)
         };
         WidgetGroup::new(&self.expansion, NotificationGroupMessage::Expansion)
             .item(GroupItem::element(move |reveal| {
@@ -61,20 +55,14 @@ impl NotificationGroup {
             .item(toggle_item(
                 config,
                 Phosphor::Prohibit(Weight::Regular),
-                toast_preferences.do_not_disturb,
+                notification_settings.do_not_disturb,
                 NotificationToggle::DoNotDisturb,
             ))
             .item(toggle_item(
                 config,
                 sound_icon,
-                toast_preferences.sound,
+                notification_settings.sound,
                 NotificationToggle::Sound,
-            ))
-            .item(toggle_item(
-                config,
-                spatial_layout_icon,
-                toast_preferences.spatial_layout,
-                NotificationToggle::SpatialLayout,
             ))
     }
 }

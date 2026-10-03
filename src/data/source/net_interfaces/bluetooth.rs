@@ -66,10 +66,10 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
             if !prop::<bool>(device, "Connected").unwrap_or(false) {
                 return None;
             }
+            let address = prop::<String>(device, "Address");
             let name = prop::<String>(device, "Alias")
                 .or_else(|| prop::<String>(device, "Name"))
-                .unwrap_or_default();
-            let address = prop::<String>(device, "Address");
+                .or_else(|| address.clone())?;
             let signal = prop::<i16>(device, "RSSI").map(|dbm| rssi_quality(i64::from(dbm)));
             let battery = interface(interfaces, BATTERY)
                 .and_then(|battery| prop::<u8>(battery, "Percentage"));

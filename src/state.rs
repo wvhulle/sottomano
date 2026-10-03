@@ -2,10 +2,11 @@ pub mod charge_power_curve;
 pub mod dark_mode;
 pub mod idle;
 pub mod launches;
-pub mod overlay;
-pub mod panel;
+pub mod niri_rules;
+pub mod overlay_settings;
 pub mod power;
 pub mod rate_limit;
+pub mod shell_settings;
 pub mod store;
 
 use core::f32::consts::FRAC_1_SQRT_2;
@@ -20,23 +21,37 @@ pub(crate) use store::{Columns, StoreError, open};
 use crate::config::Palette;
 
 #[derive(Debug, Clone, Default)]
-pub struct PanelSettings {
-    pub layout: PanelLayout,
-    pub toasts: ToastPreferences,
-    pub overlays: OverlayPreferences,
+pub struct ShellSettings {
+    pub layout: ShellLayout,
+    pub panels: PanelAppearance,
+    pub shadow: ShadowStyle,
+    pub notifications: NotificationSettings,
+    pub overlays: OverlaySettings,
+}
+
+impl ShellSettings {
+    pub fn frame_style(&self, palette: &Palette) -> container::Style {
+        container::Style::default()
+            .background(palette.surface.scale_alpha(self.panels.opacity))
+            .border(border::rounded(self.panels.corner_radius))
+            .shadow(self.shadow.drop_shadow())
+            .color(palette.bar_foreground)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct OverlayPreferences {
+pub struct OverlaySettings {
     pub opacity: f32,
     pub corner_radius: Radius,
+    pub toast_spatial_layout: bool,
 }
 
-impl Default for OverlayPreferences {
+impl Default for OverlaySettings {
     fn default() -> Self {
         Self {
             opacity: 0.85,
             corner_radius: Radius::from(8.0),
+            toast_spatial_layout: true,
         }
     }
 }
@@ -73,69 +88,70 @@ impl Default for ShadowStyle {
     }
 }
 
+impl ShadowStyle {
+    pub fn drop_shadow(&self) -> Shadow {
+        if !self.cast {
+            return Shadow::default();
+        }
+        Shadow {
+            color: Color::BLACK.scale_alpha(self.opacity),
+            offset: Vector::ZERO,
+            blur_radius: self.softness_px,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct PanelLayout {
-    pub shadow: ShadowStyle,
+pub struct ShellLayout {
     pub disconnected_groups: bool,
     pub auto_collapse_groups: bool,
     pub workspaces_placement: WorkspacesPlacement,
     pub float_offset_px: f32,
-    pub tint_factor: f32,
-    pub corner_radius: Radius,
 }
 
-impl PanelLayout {
-    pub fn frame_style(&self, palette: &Palette) -> container::Style {
-        container::Style::default()
-            .background(palette.surface.scale_alpha(self.tint_factor))
-            .border(border::rounded(self.corner_radius))
-            .shadow(self.frame_shadow())
-            .color(palette.bar_foreground)
-    }
-
-    pub fn frame_shadow(&self) -> Shadow {
-        if !self.shadow.cast {
-            return Shadow::default();
-        }
-        Shadow {
-            color: Color::BLACK.scale_alpha(self.shadow.opacity),
-            offset: Vector::ZERO,
-            blur_radius: self.shadow.softness_px,
-        }
-    }
-
-    pub fn frame_corner_inset(&self) -> f32 {
-        self.corner_radius.top_left * (1.0 - FRAC_1_SQRT_2)
-    }
-}
-
-impl Default for PanelLayout {
+impl Default for ShellLayout {
     fn default() -> Self {
         Self {
-            shadow: ShadowStyle::default(),
             disconnected_groups: false,
             auto_collapse_groups: true,
             workspaces_placement: WorkspacesPlacement::Sidebar,
             float_offset_px: 0.0,
-            tint_factor: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PanelAppearance {
+    pub opacity: f32,
+    pub corner_radius: Radius,
+}
+
+impl Default for PanelAppearance {
+    fn default() -> Self {
+        Self {
+            opacity: 0.8,
             corner_radius: Radius::default(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ToastPreferences {
-    pub do_not_disturb: bool,
-    pub sound: bool,
-    pub spatial_layout: bool,
+impl PanelAppearance {
+    pub fn frame_corner_inset(&self) -> f32 {
+        self.corner_radius.top_left * (1.0 - FRAC_1_SQRT_2)
+    }
 }
 
-impl Default for ToastPreferences {
+#[derive(Debug, Clone)]
+pub struct NotificationSettings {
+    pub do_not_disturb: bool,
+    pub sound: bool,
+}
+
+impl Default for NotificationSettings {
     fn default() -> Self {
         Self {
             do_not_disturb: false,
             sound: true,
-            spatial_layout: true,
         }
     }
 }

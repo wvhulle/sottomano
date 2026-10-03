@@ -1,15 +1,21 @@
 pub mod backlight_display;
 pub mod clight_auto_brightness;
+pub mod output_details;
 
-use std::{collections::BTreeMap, ops::RangeInclusive};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::RangeInclusive,
+};
 
 use iced::{Subscription, Task};
+use output_details::ConnectedOutput;
 
 use crate::{
     config::Config,
     data::source::{
         backlight::{self, Backlight},
         clight::Clight,
+        niri::OutputInfo,
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
@@ -131,13 +137,19 @@ impl MonitorGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(
+        &self,
+        target: &HoverTarget,
+        outputs: &HashMap<String, OutputInfo>,
+    ) -> Option<Tooltip> {
         match target {
             HoverTarget::Backlight(serial) => {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
                 let brightness = self.sliders.get(serial)?.readout_text();
                 Some(Tooltip::of(backlight_display::tooltip(
-                    backlight, brightness,
+                    backlight,
+                    brightness,
+                    ConnectedOutput::driving(backlight, outputs),
                 )))
             }
             HoverTarget::ClightAuto => self.clight.tooltip(),

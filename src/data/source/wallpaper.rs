@@ -129,11 +129,11 @@ struct SearchedPage {
     extract: Option<String>,
 }
 
-pub fn subscription() -> Subscription<Result<String, command::Error>> {
+pub fn subscription() -> Subscription<Result<Option<String>, command::Error>> {
     Subscription::run(|| {
         stream::channel(
             4,
-            |mut output: Sender<Result<String, command::Error>>| async move {
+            |mut output: Sender<Result<Option<String>, command::Error>>| async move {
                 loop {
                     if let Err(e) = watch(&mut output).await {
                         tracing::warn!("wallpaper watch: {e}");
@@ -145,7 +145,9 @@ pub fn subscription() -> Subscription<Result<String, command::Error>> {
     })
 }
 
-async fn watch(output: &mut Sender<Result<String, command::Error>>) -> Result<(), io::Error> {
+async fn watch(
+    output: &mut Sender<Result<Option<String>, command::Error>>,
+) -> Result<(), io::Error> {
     let roots = cache_roots();
     if roots.is_empty() {
         return Err(io::Error::new(
@@ -199,7 +201,7 @@ async fn watch(output: &mut Sender<Result<String, command::Error>>) -> Result<()
             })
             .filter(|requested| Path::new(requested).is_file());
         let reading = match requested {
-            Some(path) => Ok(path),
+            Some(path) => Ok(Some(path)),
             None => displayed_path().await,
         };
         output
@@ -231,11 +233,11 @@ fn version_directories(root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub async fn displayed_path() -> Result<String, command::Error> {
+pub async fn displayed_path() -> Result<Option<String>, command::Error> {
     let mut failure = None;
     for daemon in WALLPAPER_DAEMONS {
         match command::output(daemon, &["query"]).await {
-            Ok(Some(queried)) => return Ok(shown_image(&queried).unwrap_or_default().to_owned()),
+            Ok(Some(queried)) => return Ok(shown_image(&queried).map(str::to_owned)),
             Ok(None) => {}
             Err(error) => failure = Some(error),
         }
@@ -365,12 +367,12 @@ async fn nearby_article(
         latitude,
         longitude,
     } = position;
-    let search = format!(
-        "{} nearcoord:{ARTICLE_SEARCH_RADIUS_KM}km,{},{}",
-        place.unwrap_or_default(),
+    let nearcoord = format!(
+        "nearcoord:{ARTICLE_SEARCH_RADIUS_KM}km,{},{}",
         latitude.get::<degree>(),
         longitude.get::<degree>()
     );
+    let search = place.map_or_else(|| nearcoord.clone(), |place| format!("{place} {nearcoord}"));
     let query = form_urlencoded::Serializer::new(String::new())
         .append_pair("action", "query")
         .append_pair("generator", "search")

@@ -117,7 +117,9 @@ fn entry<'a, Message: Clone + 'a>(
     if let Some(element) = leading {
         row = row.push(element);
     }
-    row = row.push(bar_text(&config.font, node.label.clone()).color(color));
+    if let Some(label) = &node.label {
+        row = row.push(bar_text(&config.font, label.clone()).color(color));
+    }
     if matches!(node.kind, MenuKind::Submenu) {
         let chevron = if submenu_open {
             Phosphor::CaretDown(Weight::Regular)

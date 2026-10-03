@@ -4,7 +4,7 @@ use iced::{Rectangle, Size};
 use niri_ipc::{Event, Request, Response, Window, socket::Socket, state::EventStreamState};
 use tokio::sync::mpsc;
 
-use crate::data::source::app_rules::{self, TitleParts};
+use crate::data::source::app_rules::{self, AppRule, TitleParts};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VEdge {
@@ -124,8 +124,7 @@ impl Snapshot {
         let mut ids: Vec<String> = self
             .windows_on_workspace(id)
             .iter()
-            .map(|win| win.app_id.clone())
-            .filter(|app_id| !app_id.is_empty())
+            .filter_map(|win| win.app_id.clone())
             .collect();
         ids.sort_unstable();
         ids.dedup();
@@ -173,14 +172,22 @@ pub struct WinLayout {
 #[derive(Debug, Clone)]
 pub struct WinEntry {
     pub id: u64,
-    pub title: String,
-    pub app_id: String,
+    pub title: Option<String>,
+    pub app_id: Option<String>,
     pub pid: Option<i32>,
     pub is_focused: bool,
     pub is_urgent: bool,
     pub layout: WinLayout,
-    pub title_parts: TitleParts,
+    pub title_parts: Option<TitleParts>,
     pub lead_first: bool,
+}
+
+impl WinEntry {
+    pub fn app_rule(&self) -> AppRule {
+        self.app_id
+            .as_deref()
+            .map_or(AppRule::Fallback, app_rules::rule_for)
+    }
 }
 
 pub fn all_windows(state: &EventStreamState) -> Vec<WinEntry> {
@@ -189,8 +196,8 @@ pub fn all_windows(state: &EventStreamState) -> Vec<WinEntry> {
 
 fn titled_entry(w: &niri_ipc::Window) -> WinEntry {
     let mut entry = win_entry(w);
-    let rule = app_rules::rule_for(&entry.app_id);
-    entry.title_parts = rule.rewrite(app_rules::label_for(&entry));
+    let rule = entry.app_rule();
+    entry.title_parts = app_rules::label_for(&entry).map(|label| rule.rewrite(label));
     entry.lead_first = rule.lead_first();
     entry
 }
@@ -198,12 +205,12 @@ fn titled_entry(w: &niri_ipc::Window) -> WinEntry {
 fn win_entry(w: &niri_ipc::Window) -> WinEntry {
     WinEntry {
         id: w.id,
-        title: w.title.clone().unwrap_or_default(),
-        app_id: w.app_id.clone().unwrap_or_default(),
+        title: w.title.clone().filter(|title| !title.is_empty()),
+        app_id: w.app_id.clone().filter(|app_id| !app_id.is_empty()),
         pid: w.pid,
         is_focused: w.is_focused,
         is_urgent: w.is_urgent,
-        title_parts: TitleParts::default(),
+        title_parts: None,
         lead_first: false,
         layout: WinLayout {
             column: w.layout.pos_in_scrolling_layout.map(|(column, _)| column),
@@ -438,8 +445,9 @@ pub fn send_action(action: &niri_ipc::Action) {
 
 #[derive(Debug, Clone)]
 pub struct OutputInfo {
-    pub make: String,
-    pub model: String,
+    pub make: Option<String>,
+    pub model: Option<String>,
+    pub serial: Option<String>,
     pub mode: Option<OutputMode>,
     pub scale: f64,
     pub logical_height: u32,
@@ -462,12 +470,8 @@ fn describes_a_product(edid_field: &str) -> bool {
         .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
-fn product_field(edid_field: String) -> String {
-    if describes_a_product(&edid_field) {
-        edid_field
-    } else {
-        String::new()
-    }
+fn product_field(edid_field: String) -> Option<String> {
+    describes_a_product(&edid_field).then_some(edid_field)
 }
 
 fn current_mode(output: &niri_ipc::Output) -> Option<OutputMode> {
@@ -494,6 +498,7 @@ pub fn output_info() -> HashMap<String, OutputInfo> {
                     OutputInfo {
                         make: product_field(output.make),
                         model: product_field(output.model),
+                        serial: output.serial.and_then(product_field),
                         mode,
                         scale: logical.scale,
                         logical_height: logical.height,

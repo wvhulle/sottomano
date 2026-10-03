@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use iced::{
-    Animation, Border, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
+    Animation, Border, Color, Element, Event, Length, Point, Rectangle, Shadow, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -17,11 +17,8 @@ use iced::{
 use crate::{
     config::Config,
     desktop_shell::{Message, monitor_surfaces::Position},
-    state::PanelSettings,
-    widgets::{
-        overlay_shadow::overlay_shadow,
-        popup_connector::{notch, notch_blur_rows, notch_region},
-    },
+    state::ShellSettings,
+    widgets::popup_connector::{notch, notch_blur_rows, notch_region},
 };
 
 const MORPH: Duration = Duration::from_millis(160);
@@ -60,7 +57,7 @@ pub fn anchored_popup<'a>(
     position: Position,
     seq: u64,
     config: &Config,
-    settings: &PanelSettings,
+    settings: &ShellSettings,
     on_frame: impl Fn(PopupFrame) -> Message + 'a,
 ) -> Element<'a, Message> {
     let background = config
@@ -79,6 +76,7 @@ pub fn anchored_popup<'a>(
         seq,
         background,
         radius: settings.overlays.corner_radius.top_left,
+        shadow: settings.shadow.drop_shadow(),
     })
 }
 
@@ -94,6 +92,7 @@ struct AnchoredPopup<'a> {
     seq: u64,
     background: Color,
     radius: f32,
+    shadow: Shadow,
 }
 
 struct MorphState {
@@ -347,7 +346,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
                     width: 0.0,
                     radius: self.radius.into(),
                 },
-                shadow: overlay_shadow(1.0),
+                shadow: self.shadow,
                 ..Default::default()
             },
             self.background,

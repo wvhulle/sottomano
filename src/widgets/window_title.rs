@@ -24,9 +24,12 @@ pub struct TitleRun {
 pub fn title_runs(
     font: &ResolvedFont,
     fallbacks: &FontFallbacks,
-    parts: &TitleParts,
+    parts: Option<&TitleParts>,
     lead_first: bool,
 ) -> Vec<TitleRun> {
+    let Some(parts) = parts else {
+        return Vec::new();
+    };
     let runs = |content: &str, base: Font, role: TitleRole| {
         fallbacks
             .runs(font, content, base)
@@ -35,14 +38,14 @@ pub fn title_runs(
             .collect::<Vec<_>>()
     };
     let main = runs(&parts.main, font.iced_font, TitleRole::Main);
-    if parts.lead.is_empty() {
+    let Some(lead) = &parts.lead else {
         return main;
-    }
+    };
     let italic = Font {
         style: FontStyle::Italic,
         ..font.iced_font
     };
-    let lead = runs(&parts.lead, italic, TitleRole::Lead);
+    let lead = runs(lead, italic, TitleRole::Lead);
     let separator = runs(SEPARATOR, font.iced_font, TitleRole::Lead);
     if lead_first {
         lead.into_iter().chain(separator).chain(main).collect()

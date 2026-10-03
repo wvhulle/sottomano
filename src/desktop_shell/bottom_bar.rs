@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element, Length,
-    widget::{Row, container, row},
+    widget::{container, row},
     window::Id,
 };
 
@@ -10,10 +10,7 @@ use crate::{
         monitor_surfaces::{Position, ShellElement},
     },
     state::WorkspacesPlacement,
-    widget_groups::{
-        output_group::{self, OutputMessage},
-        workspaces_group,
-    },
+    widget_groups::workspaces_group,
     widgets::{widget_group::WidgetGroup, window_icon::WindowAssets},
 };
 
@@ -22,7 +19,9 @@ impl DesktopShell {
         let start = self.group_cluster(
             window,
             ShellElement::BottomBarStart,
-            vec![self.places(output)],
+            self.rendered_widget_groups(self.bottom_start_groups(), Position::Bottom)
+                .chain(self.inline_workspaces(output))
+                .collect(),
         );
         let middle = self.group_cluster(
             window,
@@ -43,23 +42,17 @@ impl DesktopShell {
         self.bar_band(window, ShellElement::BottomBar, clusters)
     }
 
-    fn places<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
-        let config = &self.config;
-        let display = output_group::view(output, config, Position::Bottom).map(|m| match m {
-            OutputMessage::Clicked => Message::OverviewToggled,
-            OutputMessage::Tooltip(t) => Message::Tooltip(t),
-        });
-        let workspaces = match self.panel_settings.layout.workspaces_placement {
+    fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
+        match self.shell_settings.layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => None,
-            WorkspacesPlacement::BottomPanel => {
-                workspaces_group::inline_view(&self.niri_snapshot, output, config, Position::Bottom)
-                    .map(|workspaces| workspaces.map(Message::from))
-            }
-        };
-        Row::with_children([Some(display), workspaces].into_iter().flatten())
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
+            WorkspacesPlacement::BottomPanel => workspaces_group::inline_view(
+                &self.niri_snapshot,
+                output,
+                &self.config,
+                Position::Bottom,
+            )
+            .map(|workspaces| workspaces.map(Message::from)),
+        }
     }
 
     fn window_list<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
@@ -77,6 +70,28 @@ impl DesktopShell {
                 Position::Bottom,
             )
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
+    }
+
+    pub(super) fn bottom_start_groups(&self) -> [WidgetGroup<'_, Message>; 5] {
+        let config = &self.config;
+        let shell_settings = &self.shell_settings;
+        [
+            self.shell_layout_group
+                .widget_group(config, &shell_settings.layout)
+                .map_messages(Message::ShellLayout),
+            self.panel_appearance_group
+                .widget_group(config)
+                .map_messages(Message::PanelAppearance),
+            self.overlay_group
+                .widget_group(config, shell_settings.overlays)
+                .map_messages(Message::Overlay),
+            self.surface_effects_group
+                .widget_group(config, shell_settings.shadow, self.niri_rules.styling())
+                .map_messages(Message::SurfaceEffects),
+            self.niri_window_group
+                .widget_group(config)
+                .map_messages(Message::NiriWindow),
+        ]
     }
 
     pub(super) fn bottom_end_groups(&self) -> [WidgetGroup<'_, Message>; 1] {

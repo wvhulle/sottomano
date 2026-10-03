@@ -17,7 +17,7 @@ impl DesktopShell {
         window: Id,
         output: &'a str,
     ) -> Element<'a, Message> {
-        let float = self.panel_settings.layout.float_offset_px;
+        let float = self.shell_settings.layout.float_offset_px;
         let origin = Vector::new(-float, -float);
         let on_edge = |position, content| on_surface(window, position, origin, content);
         let workspace_sidebar = container(on_edge(
@@ -31,7 +31,7 @@ impl DesktopShell {
             output,
             &self.config,
             &self.theme,
-            &self.panel_settings,
+            &self.shell_settings,
             self.bar_clearance(output),
         ))
         .map(Message::Notification);

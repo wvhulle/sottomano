@@ -279,7 +279,7 @@ struct RoutePlacement {
 struct AudioNode {
     direction: Direction,
     name: String,
-    description: String,
+    description: Option<String>,
     output_kind: OutputKind,
     serial: u64,
     placement: Option<RoutePlacement>,
@@ -462,7 +462,7 @@ fn reading(graph: &Graph, name: Option<&str>) -> Option<Reading> {
     Some(Reading {
         percent,
         muted: levels.mute || percent == 0,
-        device: (!node.description.is_empty()).then(|| node.description.clone()),
+        device: node.description.clone(),
     })
 }
 
@@ -818,6 +818,9 @@ fn track_device_node(
     props: &DictRef,
     direction: Direction,
 ) {
+    let Some(node) = node_from_props(props, direction) else {
+        return;
+    };
     let Some(proxy) = bind::<Node>(registry, global, "node") else {
         return;
     };
@@ -828,14 +831,7 @@ fn track_device_node(
         .info(on_node_info(id, session, states))
         .param(on_node_param(id, session, states))
         .register();
-    dispatch(
-        session,
-        states,
-        Event::NodeAdded {
-            id,
-            node: node_from_props(props, direction),
-        },
-    );
+    dispatch(session, states, Event::NodeAdded { id, node });
     session.borrow_mut().proxies.nodes.insert(
         id,
         NodeProxy {
@@ -1064,16 +1060,16 @@ fn stream_from_props(props: &DictRef) -> AppStream {
     }
 }
 
-fn node_from_props(props: &DictRef, direction: Direction) -> AudioNode {
-    let name = props.get("node.name").unwrap_or_default();
-    AudioNode {
+fn node_from_props(props: &DictRef, direction: Direction) -> Option<AudioNode> {
+    let name = props.get("node.name")?;
+    Some(AudioNode {
         direction,
         name: name.to_owned(),
         description: props
             .get("node.nick")
             .or_else(|| props.get("node.description"))
-            .unwrap_or_default()
-            .to_owned(),
+            .filter(|description| !description.is_empty())
+            .map(str::to_owned),
         output_kind: OutputKind::of_node(props.get("device.form-factor"), name),
         serial: props
             .get("object.serial")
@@ -1081,7 +1077,7 @@ fn node_from_props(props: &DictRef, direction: Direction) -> AudioNode {
             .unwrap_or_default(),
         placement: None,
         levels: Levels::default(),
-    }
+    })
 }
 
 fn route_placement(props: &DictRef) -> Option<RoutePlacement> {
@@ -1226,7 +1222,7 @@ mod tests {
         AudioNode {
             direction,
             name: name.to_owned(),
-            description: name.to_owned(),
+            description: Some(name.to_owned()),
             output_kind: OutputKind::default(),
             serial: 0,
             placement: None,

@@ -38,10 +38,10 @@ pub enum NotifImage {
 #[derive(Debug, Clone, Default)]
 pub struct NotificationData {
     pub id: u32,
-    pub app_name: String,
-    pub app_icon: String,
+    pub app_name: Option<String>,
+    pub app_icon: Option<String>,
     pub summary: String,
-    pub body: String,
+    pub body: Option<String>,
     pub actions: Vec<NotifAction>,
     pub severity: Severity,
     pub expire_timeout: ExpireTimeout,

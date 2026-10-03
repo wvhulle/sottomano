@@ -119,11 +119,11 @@ impl TrayGroup {
     }
 
     fn item_tooltip(&self, item: &TrayItem) -> Tooltip {
-        let (title, body) = match &item.tooltip {
-            Some(tip) if !tip.title.is_empty() => (tip.title.clone(), tip.body.clone()),
-            Some(tip) => (item.name().to_string(), tip.body.clone()),
-            None => (item.name().to_string(), String::new()),
-        };
+        let tip = item.tooltip.as_ref();
+        let title = tip
+            .and_then(|tip| tip.title.clone())
+            .unwrap_or_else(|| item.name().to_owned());
+        let body = tip.and_then(|tip| tip.body.clone());
         let menu_path = item
             .menu_path
             .as_ref()

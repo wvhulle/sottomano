@@ -72,7 +72,7 @@ impl ColorTemperatureGroup {
             .slider_step(WARMTH_STEP)
             .readout_width(52.0)
             .readout(|value| format!("{}K", as_kelvin(value)))
-            .label(|value| format!("{}K", as_kelvin(value))),
+            .label(|value| Some(format!("{}K", as_kelvin(value)))),
             auto: ToggleControl::default(),
             relay: false,
             expansion: GroupExpansion::default(),

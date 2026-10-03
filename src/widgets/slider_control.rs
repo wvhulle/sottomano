@@ -69,7 +69,7 @@ pub struct SliderControl {
     readout_width: f32,
     readout: fn(f32) -> String,
     gauge: bool,
-    label: Option<fn(f32) -> String>,
+    label: Option<fn(f32) -> Option<String>>,
     icon: Glyph,
     glyph: Option<fn(f32, bool) -> Phosphor>,
     thresholds: SeverityThresholds,
@@ -189,7 +189,7 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn label(mut self, format: fn(f32) -> String) -> Self {
+    pub fn label(mut self, format: fn(f32) -> Option<String>) -> Self {
         self.label = Some(format);
         self.gauge = false;
         self
@@ -395,7 +395,7 @@ impl BarWidget for SliderControl {
     }
 
     fn label(&self) -> Option<String> {
-        self.label.map(|format| format(self.current()))
+        self.label.and_then(|format| format(self.current()))
     }
 
     fn state(&self) -> WidgetState {

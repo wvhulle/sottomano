@@ -114,7 +114,7 @@ mod tests {
             hover_target: HoverTarget::BatteryTime,
             severity,
             summary_text: "",
-            body_text: String::new(),
+            body_text: None,
             on_body_clicked: (),
             action_buttons: Vec::new(),
         }

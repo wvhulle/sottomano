@@ -20,8 +20,7 @@ use crate::{
         },
         monitor_surfaces::{PanelEdge, Position, ShellElement, base_settings, input_region},
     },
-    state::PanelSettings,
-    widget_groups::niri_group::niri_rules::StyledSurface,
+    state::{ShellSettings, niri_rules::StyledSurface},
     widgets::{
         anchored_popup::{PopupFrame, Rendering, anchored_popup},
         favicon::Favicons,
@@ -235,14 +234,14 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
-        panel_settings: &PanelSettings,
+        shell_settings: &ShellSettings,
         favicons: &'a Favicons,
         content: impl Fn(&HoverTarget) -> Tooltip,
     ) -> Option<Element<'a, Message>> {
         if !self.hosts(surface) {
             return None;
         }
-        let corner_radius = panel_settings.overlays.corner_radius;
+        let corner_radius = shell_settings.overlays.corner_radius;
         let on_frame = move |frame| tooltip_region(surface, frame, corner_radius.top_left);
         let Some(placement) = self
             .transition
@@ -255,7 +254,7 @@ impl TooltipHost {
                 Position::Top,
                 self.transition.seq(),
                 config,
-                panel_settings,
+                shell_settings,
                 on_frame,
             ));
         };
@@ -279,10 +278,10 @@ impl TooltipHost {
                 placement.position,
                 self.transition.seq(),
                 config,
-                panel_settings,
+                shell_settings,
                 on_frame,
             ))
-            .padding(panel_settings.layout.float_offset_px)
+            .padding(shell_settings.layout.float_offset_px)
             .into(),
         )
     }

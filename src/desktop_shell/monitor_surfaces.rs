@@ -14,7 +14,7 @@ use crate::{
     data::source::niri,
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::blocking,
-    widget_groups::niri_group::niri_rules::StyledSurface,
+    state::niri_rules::StyledSurface,
     widgets::region_reporter::ReportedRegion,
 };
 
@@ -352,7 +352,7 @@ impl DesktopShell {
         if thickness <= 0.0 {
             return 0;
         }
-        (self.panel_settings.layout.float_offset_px + thickness).ceil() as i32
+        (self.shell_settings.layout.float_offset_px + thickness).ceil() as i32
     }
 
     pub(crate) fn reserve(&self) -> Task<Message> {

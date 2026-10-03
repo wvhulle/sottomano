@@ -7,7 +7,7 @@ use crate::{
         notifications::model::NotificationData,
         source::niri::{HEdge, Placement, VEdge},
     },
-    state::ToastPreferences,
+    state::OverlaySettings,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -57,25 +57,23 @@ pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Opti
     if let Some(hint) = data.window_id_hint {
         return Some(hint);
     }
-    let mut app_ids = Vec::new();
-    if let Some(entry) = &data.desktop_entry {
-        app_ids.push(entry.clone());
-    }
-    if !data.app_name.is_empty() {
-        app_ids.push(data.app_name.clone());
-    }
-    let title = (!data.app_name.is_empty()).then_some(data.app_name.as_str());
-    placement.window_by_source(&app_ids, title)
+    let app_ids: Vec<String> = data
+        .desktop_entry
+        .iter()
+        .chain(&data.app_name)
+        .cloned()
+        .collect();
+    placement.window_by_source(&app_ids, data.app_name.as_deref())
 }
 
 pub fn placement_for(
     data: &NotificationData,
     placement: &Placement,
-    toast_preferences: &ToastPreferences,
+    overlays: OverlaySettings,
     config: &Config,
 ) -> ToastPlacement {
-    let id = toast_preferences
-        .spatial_layout
+    let id = overlays
+        .toast_spatial_layout
         .then(|| resolve_window_id(data, placement))
         .flatten()
         .filter(|&id| placement.workspace_of_window(id).is_some());
