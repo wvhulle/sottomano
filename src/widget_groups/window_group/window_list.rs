@@ -11,7 +11,7 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{
-        app_rules::{self, AppRule},
+        app_rules::AppRule,
         audio::WindowAudio,
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
@@ -168,8 +168,8 @@ impl WindowList {
                     .audio_indicator
                     .then(|| win.pid.and_then(|pid| audio.get(&pid)).copied())
                     .flatten(),
-                launcher: self.launcher.get(&win.app_id),
-                job: self.jobs.get(&win.app_id),
+                launcher: win.app_id.as_deref().and_then(|id| self.launcher.get(id)),
+                job: win.app_id.as_deref().and_then(|id| self.jobs.get(id)),
             };
             window_button(config, icons, win, extras, position, opacity)
         });
@@ -234,7 +234,7 @@ fn window_button<'a>(
     position: Position,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
-    let rule = app_rules::rule_for(&win.app_id);
+    let rule = win.app_rule();
     let content = button_content(config, icons, rule, win, extras, opacity);
     let indicator = indicator_line(config, win, extras, opacity);
     let slot = PagerSlot::new(content, indicator);
@@ -275,7 +275,7 @@ fn button_content<'a>(
     let runs = title_runs(
         &config.font,
         icons.fallbacks,
-        &win.title_parts,
+        win.title_parts.as_ref(),
         win.lead_first,
     );
     let title = rich_text(title_spans(config, &runs, opacity))
@@ -410,7 +410,10 @@ fn resolved_icon<'a>(
     let path = icons.path_for(rule, win);
     window_icon(
         icons.favicons,
-        rule.favicon_key(&win.title).as_deref(),
+        win.title
+            .as_deref()
+            .and_then(|title| rule.favicon_key(title))
+            .as_deref(),
         path.as_deref(),
         config.font.icon_size_px,
         opacity,

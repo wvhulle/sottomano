@@ -4,10 +4,7 @@ use iced::{
     widget::{Column, Row, Space, container},
 };
 
-use crate::{
-    config::Config, desktop_shell::monitor_surfaces::Position,
-    widgets::activity_line::edge_activity_line,
-};
+use crate::{config::Config, desktop_shell::monitor_surfaces::Position};
 
 pub struct PagerSlot<'a, Message> {
     content: Element<'a, Message>,
@@ -82,18 +79,4 @@ fn ticks_across<'a, Message: 'a>(
         || Space::new().height(band).into(),
         |ticks| container(ticks).height(band).align_y(edge).into(),
     )
-}
-
-pub fn permanently_inactive_slot<'a, Message: 'a>(
-    content: Element<'a, Message>,
-    config: &Config,
-    position: Position,
-) -> Element<'a, Message> {
-    let inactive_indicator = edge_activity_line(
-        position,
-        config.palette.focus,
-        0.0,
-        config.widget_sizes.indicator_thickness_px,
-    );
-    PagerSlot::new(content, inactive_indicator).view(config, position)
 }

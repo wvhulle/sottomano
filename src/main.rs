@@ -14,8 +14,8 @@ use iced_exwlshell::{
     build_pattern::daemon,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
+use state::niri_rules::NiriRulesFile;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
-use widget_groups::niri_group::niri_rules::NiriRulesFile;
 
 fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()

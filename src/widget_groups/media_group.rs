@@ -115,8 +115,8 @@ impl MediaGroup {
         .flatten()
         .filter(|s| !s.is_empty())
         .collect();
-        let title = (!media.title.is_empty()).then(|| media.title.clone());
-        let Some(id) = niri::Placement::derive(niri).window_by_source(&app_ids, title.as_deref())
+        let Some(id) =
+            niri::Placement::derive(niri).window_by_source(&app_ids, media.title.as_deref())
         else {
             return Task::none();
         };
@@ -137,11 +137,7 @@ impl MediaGroup {
         current: &Media,
         reveal: f32,
     ) -> Option<Element<'a, MediaMessage>> {
-        let usable: Vec<&Media> = self
-            .players
-            .iter()
-            .filter(|m| !m.title.is_empty())
-            .collect();
+        let usable: Vec<&Media> = self.players.iter().filter(|m| m.title.is_some()).collect();
         if usable.len() < 2 {
             return None;
         }
@@ -174,16 +170,14 @@ impl MediaGroup {
 
     fn tooltip(&self) -> Option<Tooltip> {
         let media = self.current()?;
-        let mut rows = Vec::new();
-        if !media.title.is_empty() {
-            rows.push(row("Track", media.title.clone()));
-        }
-        if !media.artist.is_empty() {
-            rows.push(row("Artist", media.artist.clone()));
-        }
-        if !media.album.is_empty() {
-            rows.push(row("Album", media.album.clone()));
-        }
+        let mut rows: Vec<_> = [
+            ("Track", &media.title),
+            ("Artist", &media.artist),
+            ("Album", &media.album),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| Some(row(key, value.clone()?)))
+        .collect();
         rows.push(row("Player", media.identity.clone()));
         rows.push(row("State", media.status.label()));
         Some(Tooltip::table(rows))
@@ -366,14 +360,16 @@ fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>>
     };
     let lead = config.palette.inactive.scale_alpha(reveal);
     let main = config.palette.bar_foreground.scale_alpha(reveal);
-    match (media.artist.as_str(), media.title.as_str()) {
-        ("", "") => vec![colored_span(media.identity.clone(), base, main)],
-        ("", title) => vec![colored_span(title.to_owned(), base, main)],
-        (artist, "") => vec![colored_span(artist.to_owned(), italic, main)],
-        (artist, title) => vec![
-            colored_span(artist.to_owned(), italic, lead),
-            colored_span(SEPARATOR.to_owned(), base, lead),
-            colored_span(title.to_owned(), base, main),
-        ],
-    }
+    let Some(artist) = &media.artist else {
+        let title = media.title.as_ref().unwrap_or(&media.identity);
+        return vec![colored_span(title.clone(), base, main)];
+    };
+    let Some(title) = &media.title else {
+        return vec![colored_span(artist.clone(), italic, main)];
+    };
+    vec![
+        colored_span(artist.clone(), italic, lead),
+        colored_span(SEPARATOR.to_owned(), base, lead),
+        colored_span(title.clone(), base, main),
+    ]
 }

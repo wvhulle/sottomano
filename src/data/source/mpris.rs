@@ -50,9 +50,9 @@ pub struct Media {
     pub bus: String,
     pub identity: String,
     pub desktop_entry: Option<String>,
-    pub title: String,
-    pub artist: String,
-    pub album: String,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
     pub status: Status,
     pub art: Option<image::Handle>,
     pub can_next: bool,
@@ -76,12 +76,12 @@ fn string(metadata: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn artist(metadata: &HashMap<String, OwnedValue>) -> String {
+fn artist(metadata: &HashMap<String, OwnedValue>) -> Option<String> {
     metadata
         .get("xesam:artist")
         .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
         .map(|artists| artists.join(", "))
-        .unwrap_or_default()
+        .filter(|artists| !artists.is_empty())
 }
 
 pub fn app_handle(bus: &str) -> String {
@@ -236,9 +236,9 @@ async fn read_all(
             None => true,
         };
         media.push(Media {
-            title: string(&metadata, "xesam:title").unwrap_or_default(),
+            title: string(&metadata, "xesam:title"),
             artist: artist(&metadata),
-            album: string(&metadata, "xesam:album").unwrap_or_default(),
+            album: string(&metadata, "xesam:album"),
             art: handle,
             can_next,
             can_prev,

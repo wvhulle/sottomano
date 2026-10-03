@@ -7,7 +7,7 @@ use crate::{
         hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
-    widget_groups::{output_group, workspaces_group::workspace_tooltip},
+    widget_groups::workspaces_group::workspace_tooltip,
     widgets::tooltip_body::Tooltip,
 };
 
@@ -83,16 +83,13 @@ impl DesktopShell {
             )
             .unwrap_or_else(Tooltip::empty);
         }
-        if let HoverTarget::Output(output) = target {
-            return output_group::tooltip(&self.outputs, output);
-        }
         self.system_group
             .tooltip_for(target)
             .or_else(|| self.battery_group.tooltip_for(target))
             .or_else(|| self.journal_group.tooltip_for(target))
             .or_else(|| self.net_interfaces_group.tooltip_for(target))
             .or_else(|| self.audio_group.tooltip_for(target))
-            .or_else(|| self.monitor_group.tooltip_for(target))
+            .or_else(|| self.monitor_group.tooltip_for(target, &self.outputs))
             .or_else(|| self.color_temperature_group.tooltip_for(target))
             .or_else(|| self.dark_mode_group.tooltip_for(target))
             .or_else(|| self.idle_timeouts_group.tooltip_for(target))
@@ -102,11 +99,22 @@ impl DesktopShell {
             .or_else(|| self.media_group.tooltip_for(target))
             .or_else(|| self.ai_group.tooltip_for(target))
             .or_else(|| {
-                self.panel_settings_group
-                    .tooltip_for(target, &self.panel_settings.layout)
+                self.shell_layout_group
+                    .tooltip_for(target, &self.shell_settings.layout)
             })
-            .or_else(|| self.overlay_group.tooltip_for(target))
-            .or_else(|| self.niri_group.tooltip_for(target))
+            .or_else(|| self.panel_appearance_group.tooltip_for(target))
+            .or_else(|| {
+                self.surface_effects_group.tooltip_for(
+                    target,
+                    self.shell_settings.shadow,
+                    self.niri_rules.styling(),
+                )
+            })
+            .or_else(|| {
+                self.overlay_group
+                    .tooltip_for(target, self.shell_settings.overlays)
+            })
+            .or_else(|| self.niri_window_group.tooltip_for(target))
             .unwrap_or_else(Tooltip::empty)
     }
 

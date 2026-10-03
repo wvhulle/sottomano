@@ -35,18 +35,30 @@ pub fn rule_for(app_id: &str) -> AppRule {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TitleParts {
-    pub lead: String,
+    pub lead: Option<String>,
     pub main: String,
 }
 
-pub fn label_for(win: &WinEntry) -> &str {
-    if win.title.is_empty() {
-        &win.app_id
-    } else {
-        &win.title
+impl TitleParts {
+    fn whole(main: &str) -> Self {
+        Self {
+            lead: None,
+            main: main.to_owned(),
+        }
     }
+
+    fn led(lead: &str, main: &str) -> Self {
+        Self {
+            lead: Some(lead.to_owned()),
+            main: main.to_owned(),
+        }
+    }
+}
+
+pub fn label_for(win: &WinEntry) -> Option<&str> {
+    win.title.as_deref().or(win.app_id.as_deref())
 }
 
 #[derive(Debug, Clone)]
@@ -59,21 +71,12 @@ impl AppRule {
     pub fn rewrite(self, title: &str) -> TitleParts {
         match self {
             AppRule::Terminal => split(title, false).map_or_else(
-                || TitleParts {
-                    lead: String::new(),
-                    main: title.to_string(),
-                },
-                |(head, tail)| TitleParts {
-                    lead: head.to_string(),
-                    main: tail.to_string(),
-                },
+                || TitleParts::whole(title),
+                |(head, tail)| TitleParts::led(head, tail),
             ),
             AppRule::Firefox => browser_rewrite(title, &FIREFOX_BRANDS),
             AppRule::Browser { brand } => browser_rewrite(title, &[brand]),
-            AppRule::Fallback => TitleParts {
-                lead: String::new(),
-                main: title.to_string(),
-            },
+            AppRule::Fallback => TitleParts::whole(title),
         }
     }
 
@@ -91,39 +94,25 @@ impl AppRule {
     }
 
     pub fn icon_candidates(self, win: &WinEntry) -> Vec<IconCandidate> {
-        match self {
-            AppRule::Firefox => vec![IconCandidate::AppId(win.app_id.clone())],
-            AppRule::Terminal => {
-                let mut candidates = Vec::with_capacity(2);
-                if let Some(theme) = terminal_icon(win) {
-                    candidates.push(IconCandidate::Theme(theme));
-                }
-                candidates.push(IconCandidate::AppId(win.app_id.clone()));
-                candidates
-            }
-            AppRule::Browser { .. } | AppRule::Fallback => {
-                vec![IconCandidate::AppId(win.app_id.clone())]
-            }
-        }
+        let theme = match self {
+            AppRule::Terminal => terminal_icon(win),
+            AppRule::Firefox | AppRule::Browser { .. } | AppRule::Fallback => None,
+        };
+        theme
+            .map(IconCandidate::Theme)
+            .into_iter()
+            .chain(win.app_id.clone().map(IconCandidate::AppId))
+            .collect()
     }
 }
 
 fn browser_rewrite(title: &str, brands: &[&str]) -> TitleParts {
     match core(title, brands).filter(|c| !c.is_empty()) {
         Some(c) => split(&c, true).map_or_else(
-            || TitleParts {
-                lead: String::new(),
-                main: c.clone(),
-            },
-            |(head, tail)| TitleParts {
-                lead: tail.to_string(),
-                main: head.to_string(),
-            },
+            || TitleParts::whole(&c),
+            |(head, tail)| TitleParts::led(tail, head),
         ),
-        None => TitleParts {
-            lead: String::new(),
-            main: title.to_string(),
-        },
+        None => TitleParts::whole(title),
     }
 }
 
@@ -359,10 +348,11 @@ const SCRIPT_ICONS: &[(&str, &str)] = &[
 ];
 
 fn terminal_icon(win: &WinEntry) -> Option<String> {
-    if is_claude_session(&win.title) {
+    let title = win.title.as_deref()?;
+    if is_claude_session(title) {
         return Some("claude".to_string());
     }
-    command_icon(&AppRule::Terminal.rewrite(&win.title).main)
+    command_icon(&AppRule::Terminal.rewrite(title).main)
 }
 
 fn command_icon(command: &str) -> Option<String> {
@@ -392,21 +382,21 @@ mod tests {
     #[test]
     fn firefox_title_rewrite() {
         let parts = AppRule::Firefox.rewrite("Inbox — user@example.com — Mozilla Firefox");
-        assert_eq!(parts.lead, "user@example.com");
+        assert_eq!(parts.lead.as_deref(), Some("user@example.com"));
         assert_eq!(parts.main, "Inbox");
     }
 
     #[test]
     fn firefox_no_brand_suffix_falls_back() {
         let parts = AppRule::Firefox.rewrite("about:blank");
-        assert_eq!(parts.lead, "");
+        assert_eq!(parts.lead, None);
         assert_eq!(parts.main, "about:blank");
     }
 
     #[test]
     fn terminal_title_rewrite() {
         let parts = AppRule::Terminal.rewrite("~/Code/odin-rs — nvim src/main.rs");
-        assert_eq!(parts.lead, "~/Code/odin-rs");
+        assert_eq!(parts.lead.as_deref(), Some("~/Code/odin-rs"));
         assert_eq!(parts.main, "nvim src/main.rs");
     }
 
@@ -446,13 +436,13 @@ mod tests {
     fn kitty_window(title: &str) -> WinEntry {
         WinEntry {
             id: 1,
-            title: title.to_string(),
-            app_id: "kitty".to_string(),
+            title: Some(title.to_string()),
+            app_id: Some("kitty".to_string()),
             pid: None,
             is_focused: false,
             is_urgent: false,
             layout: WinLayout::default(),
-            title_parts: TitleParts::default(),
+            title_parts: None,
             lead_first: false,
         }
     }
@@ -461,7 +451,7 @@ mod tests {
     fn terminals_put_the_command_before_the_directory() {
         let rule = rule_for("kitty");
         let parts = rule.rewrite("vetrata — cargo");
-        assert_eq!(parts.lead, "vetrata");
+        assert_eq!(parts.lead.as_deref(), Some("vetrata"));
         assert_eq!(parts.main, "cargo");
         assert!(!rule.lead_first());
     }
@@ -471,7 +461,7 @@ mod tests {
         let rule = rule_for("firefox");
         let parts = rule.rewrite("Odin-rs · GitHub — Mozilla Firefox");
         assert_eq!(parts.main, "Odin-rs");
-        assert_eq!(parts.lead, "GitHub");
+        assert_eq!(parts.lead.as_deref(), Some("GitHub"));
         assert!(rule.lead_first());
     }
 

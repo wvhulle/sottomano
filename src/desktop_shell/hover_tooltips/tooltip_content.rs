@@ -132,7 +132,7 @@ impl<'a> TooltipContent<'a> {
                 WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.favicons)
                     .view(),
             ),
-            TooltipBody::Text { title, body } => inset(self.text(title, body)),
+            TooltipBody::Text { title, body } => inset(self.text(title, body.as_deref())),
             TooltipBody::TrayMenu(menu) => self.tray_menu(menu),
         }
     }
@@ -154,37 +154,32 @@ impl<'a> TooltipContent<'a> {
             },
             &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
         );
-        let mut column = Column::new().spacing(SECTION_GAP_PX);
-        if !menu.title.is_empty() || !menu.body.is_empty() {
-            column = column.push(
-                container(self.text(&menu.title, &menu.body))
+        Column::new()
+            .spacing(SECTION_GAP_PX)
+            .push(
+                container(self.text(&menu.title, menu.body.as_deref()))
                     .padding(CONTENT_INSET)
                     .width(TRAY_MENU_WIDTH_PX),
-            );
-        }
-        column
+            )
             .push(container(entries).width(TRAY_MENU_WIDTH_PX))
             .into()
     }
 
-    fn text(&self, title: &str, body: &str) -> Element<'static, Message> {
+    fn text(&self, title: &str, body: Option<&str>) -> Element<'static, Message> {
         let bold = Font {
             weight: Weight::Bold,
             ..self.config.font.iced_font
         };
         let max_width = self.config.widget_sizes.tooltip_value_width_px;
-        let mut column = Column::new().spacing(ROW_SPACING_PX);
-        if !title.is_empty() {
-            column = column.push(
-                container(
-                    bar_text(&self.config.font, title.to_owned())
-                        .font(bold)
-                        .color(self.foreground()),
-                )
-                .max_width(max_width),
-            );
-        }
-        if !body.is_empty() {
+        let mut column = Column::new().spacing(ROW_SPACING_PX).push(
+            container(
+                bar_text(&self.config.font, title.to_owned())
+                    .font(bold)
+                    .color(self.foreground()),
+            )
+            .max_width(max_width),
+        );
+        if let Some(body) = body {
             column = column.push(cell(
                 &self.config.font,
                 body.to_owned(),
@@ -263,12 +258,14 @@ impl<'a> TooltipContent<'a> {
             rows.iter().cloned(),
             move |entry: Row| cell_view.key(entry.key, dim),
             (0..widest).map(|position| {
-                let heading = headings.get(position).cloned().unwrap_or_default();
-                self.cell_column(
-                    position,
-                    column_heading(&self.config.font, heading, heading_color).into(),
-                )
-                .align_x(Horizontal::Right)
+                let heading = headings.get(position).map_or_else(
+                    || Space::new().into(),
+                    |heading| {
+                        column_heading(&self.config.font, heading.clone(), heading_color).into()
+                    },
+                );
+                self.cell_column(position, heading)
+                    .align_x(Horizontal::Right)
             }),
         )
     }

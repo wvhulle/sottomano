@@ -206,7 +206,7 @@ pub struct WallpaperGroup {
 #[derive(Debug, Clone)]
 pub enum WallpaperMessage {
     DaemonFound(bool),
-    Displayed(Result<String, command::Error>),
+    Displayed(Result<Option<String>, command::Error>),
     Resolved(Result<Wallpaper, wallpaper::Error>),
     Expansion(ExpansionMessage),
 }
@@ -257,11 +257,15 @@ impl WallpaperGroup {
         Task::none()
     }
 
-    fn follow(&mut self, path: String) -> Task<WallpaperMessage> {
-        if self.shown.as_deref() == Some(path.as_str()) {
+    fn follow(&mut self, path: Option<String>) -> Task<WallpaperMessage> {
+        if self.shown == path {
             return Task::none();
         }
-        self.shown = Some(path.clone());
+        self.shown.clone_from(&path);
+        let Some(path) = path else {
+            self.lookup.load(None);
+            return Task::none();
+        };
         let (Some(id), Some(key)) = (wallpaper::photo_id(&path), self.unsplash_key.clone()) else {
             self.lookup.load(None);
             return Task::none();

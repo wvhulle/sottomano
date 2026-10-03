@@ -15,7 +15,7 @@ use zbus::{
 use super::model::{
     ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ServerEvent,
 };
-use crate::data::severity::Severity;
+use crate::data::{empty_text::non_empty, severity::Severity};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
@@ -47,10 +47,10 @@ impl NotificationServer {
         };
         let data = NotificationData {
             id,
-            app_name,
-            app_icon,
+            app_name: non_empty(app_name),
+            app_icon: non_empty(app_icon),
             summary,
-            body,
+            body: non_empty(body),
             actions: parse_actions(&actions),
             severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::from_millis(expire_timeout),

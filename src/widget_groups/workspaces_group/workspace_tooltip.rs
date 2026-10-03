@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::{
     config::font::ResolvedFont,
     data::source::{
-        app_rules::{self, AppRule, IconCandidate},
+        app_rules::{AppRule, IconCandidate},
         desktop_entries::DesktopIndex,
         niri,
     },
@@ -56,11 +56,19 @@ fn preview_tile(
     fallbacks: &FontFallbacks,
     window: &niri::WinEntry,
 ) -> PreviewTile {
-    let rule = app_rules::rule_for(&window.app_id);
+    let rule = window.app_rule();
     PreviewTile {
         window: window.id,
-        title: title_runs(font, fallbacks, &window.title_parts, window.lead_first),
-        favicon_key: rule.favicon_key(&window.title),
+        title: title_runs(
+            font,
+            fallbacks,
+            window.title_parts.as_ref(),
+            window.lead_first,
+        ),
+        favicon_key: window
+            .title
+            .as_deref()
+            .and_then(|title| rule.favicon_key(title)),
         icon: icon_path(icons, rule, window),
         tile_size: window.layout.tile_size,
         is_focused: window.is_focused,
@@ -84,17 +92,16 @@ mod tests {
     use iced::Size;
 
     use super::*;
-    use crate::data::source::app_rules::TitleParts;
 
     fn window(id: u64, column: Option<usize>) -> niri::WinEntry {
         niri::WinEntry {
             id,
-            title: String::new(),
-            app_id: "kitty".to_owned(),
+            title: None,
+            app_id: Some("kitty".to_owned()),
             pid: None,
             is_focused: false,
             is_urgent: false,
-            title_parts: TitleParts::default(),
+            title_parts: None,
             lead_first: false,
             layout: niri::WinLayout {
                 column,

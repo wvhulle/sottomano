@@ -21,7 +21,7 @@ pub struct ReadingAlert<Message> {
     pub hover_target: HoverTarget,
     pub severity: Severity,
     pub summary_text: &'static str,
-    pub body_text: String,
+    pub body_text: Option<String>,
     pub on_body_clicked: Message,
     pub action_buttons: Vec<ReadingAlertActionButton<Message>>,
 }
@@ -57,7 +57,7 @@ impl<Message> ReadingAlert<Message> {
             hover_target,
             severity,
             summary_text,
-            body_text: widget.label().unwrap_or_default(),
+            body_text: widget.label(),
             on_body_clicked,
             action_buttons: Vec::new(),
         })
@@ -104,7 +104,7 @@ impl<Message> ReadingAlert<Message> {
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
             id: toast_id,
-            app_name: "vetrata".to_owned(),
+            app_name: Some("vetrata".to_owned()),
             summary: self.summary_text.to_owned(),
             body: self.body_text.clone(),
             actions: self

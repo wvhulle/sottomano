@@ -15,7 +15,7 @@ use crate::{
         source::app_icon::DesktopEntries,
     },
     desktop_shell::hover_tooltips::relative,
-    state::PanelSettings,
+    state::ShellSettings,
     widgets::text::{LINE_HEIGHT, bar_text},
 };
 
@@ -45,14 +45,12 @@ pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) 
         Some(NotifImage::Named(name)) => resolve_name(name, entries),
         None => None,
     };
-    let badge = non_empty(&data.app_icon)
+    let badge = data
+        .app_icon
+        .as_deref()
         .or(data.desktop_entry.as_deref())
         .and_then(|name| resolve_name(name, entries));
     CardIcons { image, badge }
-}
-
-fn non_empty(s: &str) -> Option<&str> {
-    (!s.is_empty()).then_some(s)
 }
 
 fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon> {
@@ -80,7 +78,7 @@ pub struct ToastCard<'a> {
     notif: &'a Notification,
     config: &'a Config,
     theme: &'a Theme,
-    settings: &'a PanelSettings,
+    settings: &'a ShellSettings,
     hovered: bool,
     reveal: f32,
 }
@@ -90,7 +88,7 @@ impl<'a> ToastCard<'a> {
         notif: &'a Notification,
         config: &'a Config,
         theme: &'a Theme,
-        settings: &'a PanelSettings,
+        settings: &'a ShellSettings,
     ) -> Self {
         Self {
             notif,
@@ -162,7 +160,7 @@ impl ToastCard<'_> {
         } else {
             self.settings.overlays.opacity
         };
-        let shadow = self.settings.layout.frame_shadow();
+        let shadow = self.settings.shadow.drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(
@@ -191,7 +189,7 @@ impl ToastCard<'_> {
             .filter(|a| a.key != "default" && !a.label.trim().is_empty())
             .collect();
         let has_actions = !button_actions.is_empty();
-        let has_body = !data.body.is_empty();
+        let has_body = data.body.is_some();
         let reltime = relative(self.notif.created_at, SystemTime::now());
         let reltime_span = |visible: bool| {
             visible.then(|| {
@@ -213,9 +211,9 @@ impl ToastCard<'_> {
                     })
                     .width(Length::Fill),
             );
-        if !data.app_name.is_empty() {
+        if let Some(app_name) = &data.app_name {
             title = title.push(
-                bar_text(font, data.app_name.clone())
+                bar_text(font, app_name.clone())
                     .size(font.text_size_px * SUBTEXT_SCALE)
                     .color(text),
             );
@@ -225,13 +223,13 @@ impl ToastCard<'_> {
         }
 
         let mut column = Column::new().spacing(COLUMN_SPACING).push(title);
-        if has_body {
+        if let Some(body) = &data.body {
             let body = Row::new()
                 .spacing(ROW_SPACING)
                 .align_y(Alignment::End)
                 .push(
                     rich_text(body_markup::body_spans(
-                        &data.body,
+                        body,
                         text,
                         font.text_size_px * SUBTEXT_SCALE,
                         font,

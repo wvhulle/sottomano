@@ -26,7 +26,7 @@ use crate::{
     },
     desktop_shell::{DesktopShell, Message, monitor_surfaces::ShellElement},
     message_subscriptions::niri_action,
-    state::{self, PanelSettings, ToastPreferences},
+    state::{self, NotificationSettings, OverlaySettings, ShellSettings},
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
     widgets::{
         reading_alert::ReadingAlert,
@@ -54,7 +54,7 @@ impl DesktopShell {
             &placement,
             self.desktop_entries.get(),
             &self.config,
-            &self.panel_settings,
+            &self.shell_settings,
             &|output| panels.get(output).copied(),
         )
     }
@@ -73,15 +73,9 @@ impl DesktopShell {
                 self.notification_group.expansion.update(menu);
                 Task::none()
             }
-            NotificationGroupMessage::Toggle(toggle) => {
-                let placement = Placement::derive(&self.niri);
-                self.notifications.toggle(
-                    toggle,
-                    &mut self.panel_settings.toasts,
-                    &placement,
-                    &self.config,
-                )
-            }
+            NotificationGroupMessage::Toggle(toggle) => self
+                .notifications
+                .toggle(toggle, &mut self.shell_settings.notifications),
         }
     }
 
@@ -105,10 +99,9 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        panel_settings: &PanelSettings,
+        shell_settings: &ShellSettings,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
-        let toast_preferences = &panel_settings.toasts;
         match message {
             NotificationMessage::Connected(handle) => {
                 self.handle = Some(handle);
@@ -120,7 +113,7 @@ impl NotificationLayer {
                 placement,
                 entries,
                 config,
-                toast_preferences,
+                shell_settings,
             ),
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, placement, panel_on)
@@ -154,7 +147,7 @@ impl NotificationLayer {
                         roles: RegionRoles {
                             takes_input: true,
                             blurred: true,
-                            corner_radius: panel_settings.overlays.corner_radius.top_left,
+                            corner_radius: shell_settings.overlays.corner_radius.top_left,
                         },
                     },
                 })
@@ -169,9 +162,9 @@ impl NotificationLayer {
         niri: &EventStreamState,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        toast_preferences: &ToastPreferences,
+        shell_settings: &ShellSettings,
     ) -> Task<Message> {
-        if toast_preferences.do_not_disturb {
+        if shell_settings.notifications.do_not_disturb {
             return Task::none();
         }
         let changes = self.plan_reading_alert_toasts(active_alerts);
@@ -179,13 +172,7 @@ impl NotificationLayer {
             return Task::none();
         }
         let placement = Placement::derive(niri);
-        self.apply_reading_alert_toast_changes(
-            changes,
-            &placement,
-            entries,
-            config,
-            toast_preferences,
-        )
+        self.apply_reading_alert_toast_changes(changes, &placement, entries, config, shell_settings)
     }
 
     pub fn show_config_error(
@@ -195,13 +182,13 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        toast_preferences: &ToastPreferences,
+        shell_settings: &ShellSettings,
     ) -> Task<Message> {
         let data = NotificationData {
             id: CONFIG_ERROR_TOAST_ID,
-            app_name: "vetrata".to_owned(),
+            app_name: Some("vetrata".to_owned()),
             summary: format!("Invalid configuration in {}", path.display()),
-            body: error.to_string(),
+            body: Some(error.to_string()),
             severity: Severity::Critical,
             expire_timeout: ExpireTimeout::Never,
             ..NotificationData::default()
@@ -212,7 +199,7 @@ impl NotificationLayer {
             placement,
             entries,
             config,
-            toast_preferences,
+            shell_settings,
         )
     }
 
@@ -226,7 +213,7 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        toast_preferences: &ToastPreferences,
+        shell_settings: &ShellSettings,
     ) -> Task<Message> {
         self.dismissed_reading_alerts.retain(|dismissed| {
             !changes
@@ -246,7 +233,7 @@ impl NotificationLayer {
                 placement,
                 entries,
                 config,
-                toast_preferences,
+                shell_settings,
             )
         }));
         Task::batch(tasks)
@@ -271,9 +258,10 @@ impl NotificationLayer {
         placement: &Placement,
         entries: Option<&DesktopEntries>,
         config: &Config,
-        toast_preferences: &ToastPreferences,
+        shell_settings: &ShellSettings,
     ) -> Task<Message> {
-        if toast_preferences.do_not_disturb {
+        let notifications = &shell_settings.notifications;
+        if notifications.do_not_disturb {
             return Task::none();
         }
         let id = data.id;
@@ -287,7 +275,7 @@ impl NotificationLayer {
                 .collect();
             tasks.push(self.close_all(dupes, close_reason::DISMISSED));
         }
-        if toast_preferences.sound && !data.suppress_sound {
+        if notifications.sound && !data.suppress_sound {
             tasks.push(sound::play(&data, self.sound_theme.as_deref()));
         }
         let icons = toast_card::resolve_icons(&data, entries);
@@ -296,7 +284,7 @@ impl NotificationLayer {
         let now = Instant::now();
         let countdown = lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
             .map(|remaining| Countdown::started(remaining, now));
-        let place = placement_for(&data, placement, toast_preferences, config);
+        let place = placement_for(&data, placement, shell_settings.overlays, config);
         self.live.push(Notification::appearing(
             *data, origin, icons, countdown, seq, place, now,
         ));
@@ -308,7 +296,7 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         config: &Config,
-        toast_preferences: &ToastPreferences,
+        overlays: OverlaySettings,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .showing()
@@ -316,7 +304,7 @@ impl NotificationLayer {
             .map(|n| n.data.id)
             .collect();
         let closed = self.close_all(stale, close_reason::UNDEFINED);
-        self.reposition(placement, config, toast_preferences);
+        self.reposition(placement, config, overlays);
         closed
     }
 
@@ -489,38 +477,26 @@ impl NotificationLayer {
     pub fn toggle(
         &mut self,
         toggle: NotificationToggle,
-        toast_preferences: &mut ToastPreferences,
-        placement: &Placement,
-        config: &Config,
+        notifications: &mut NotificationSettings,
     ) -> Task<Message> {
         match toggle {
             NotificationToggle::DoNotDisturb => {
-                toast_preferences.do_not_disturb = !toast_preferences.do_not_disturb;
-                self.sync_dnd(toast_preferences);
-                Task::future(state::panel::save_do_not_disturb(
-                    toast_preferences.do_not_disturb,
+                notifications.do_not_disturb = !notifications.do_not_disturb;
+                self.sync_dnd(notifications);
+                Task::future(state::shell_settings::save_do_not_disturb(
+                    notifications.do_not_disturb,
                 ))
                 .discard()
             }
             NotificationToggle::Sound => {
-                toast_preferences.sound = !toast_preferences.sound;
-                Task::future(state::panel::save_sound(toast_preferences.sound)).discard()
-            }
-            NotificationToggle::SpatialLayout => {
-                toast_preferences.spatial_layout = !toast_preferences.spatial_layout;
-                Task::batch([
-                    self.on_niri_changed(placement, config, toast_preferences),
-                    Task::future(state::panel::save_spatial_layout(
-                        toast_preferences.spatial_layout,
-                    ))
-                    .discard(),
-                ])
+                notifications.sound = !notifications.sound;
+                Task::future(state::shell_settings::save_sound(notifications.sound)).discard()
             }
         }
     }
 
-    fn sync_dnd(&mut self, toast_preferences: &ToastPreferences) {
-        if toast_preferences.do_not_disturb {
+    fn sync_dnd(&mut self, notifications: &NotificationSettings) {
+        if notifications.do_not_disturb {
             self.live.clear();
             self.hovered = None;
         }
@@ -541,14 +517,9 @@ impl NotificationLayer {
         }
     }
 
-    fn reposition(
-        &mut self,
-        placement: &Placement,
-        config: &Config,
-        toast_preferences: &ToastPreferences,
-    ) {
+    fn reposition(&mut self, placement: &Placement, config: &Config, overlays: OverlaySettings) {
         self.live.iter_mut().for_each(|notif| {
-            notif.place = placement_for(&notif.data, placement, toast_preferences, config);
+            notif.place = placement_for(&notif.data, placement, overlays, config);
         });
     }
 }

@@ -16,6 +16,8 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
+use crate::data::empty_text::non_empty;
+
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
 pub const TYPE_ETHERNET: u32 = 1;
@@ -289,10 +291,6 @@ async fn ip6_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
             })
             .collect(),
     })
-}
-
-fn non_empty(value: String) -> Option<String> {
-    (!value.is_empty()).then_some(value)
 }
 
 fn prefix_to_netmask(prefix: u32) -> String {

@@ -27,8 +27,8 @@ pub fn firefox_keys(niri: &EventStreamState) -> Vec<String> {
         .windows
         .values()
         .filter_map(|w| {
-            let app_id = w.app_id.as_deref().unwrap_or_default();
-            let title = w.title.as_deref().unwrap_or_default();
+            let app_id = w.app_id.as_deref()?;
+            let title = w.title.as_deref()?;
             matches!(app_rules::rule_for(app_id), AppRule::Firefox)
                 .then(|| AppRule::Firefox.favicon_key(title))
                 .flatten()

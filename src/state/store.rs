@@ -2,7 +2,10 @@ use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, tim
 
 use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
-use super::{charge_power_curve, dark_mode, idle, launches, overlay, panel, power, rate_limit};
+use super::{
+    charge_power_curve, dark_mode, idle, launches, overlay_settings, power, rate_limit,
+    shell_settings,
+};
 
 #[derive(Debug)]
 pub(crate) enum StoreError {
@@ -110,13 +113,12 @@ async fn build() -> Result<Store, StoreError> {
 
 pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), StoreError> {
     connection.execute(launches::CREATE_TABLE, ()).await?;
-    connection.execute(panel::CREATE_TABLE, ()).await?;
-    connection.execute(overlay::CREATE_TABLE, ()).await?;
+    connection.execute(shell_settings::CREATE_TABLE, ()).await?;
+    connection
+        .execute(overlay_settings::CREATE_TABLE, ())
+        .await?;
     connection.execute(idle::CREATE_TABLE, ()).await?;
     connection.execute(dark_mode::CREATE_TABLE, ()).await?;
-    for statement in power::DROP_LEGACY_TABLES {
-        connection.execute(statement, ()).await?;
-    }
     connection.execute(power::CREATE_TABLE, ()).await?;
     for statement in charge_power_curve::CREATE_TABLES {
         connection.execute(statement, ()).await?;

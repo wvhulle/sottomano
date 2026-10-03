@@ -184,7 +184,7 @@ pub struct WorkspacePreview {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TooltipBody {
     Sections(Vec<Section>),
-    Text { title: String, body: String },
+    Text { title: String, body: Option<String> },
     Workspace(WorkspacePreview),
     TrayMenu(TrayMenuBody),
 }
@@ -194,7 +194,7 @@ pub struct TrayMenuBody {
     pub address: String,
     pub menu_path: String,
     pub title: String,
-    pub body: String,
+    pub body: Option<String>,
     pub nodes: Vec<MenuNode>,
     pub open_submenus: HashSet<i32>,
 }
@@ -216,13 +216,10 @@ impl TooltipBody {
             TooltipBody::Sections(sections) => {
                 sections.iter().all(|section| section.body.is_empty())
             }
-            TooltipBody::Text { title, body } => title.is_empty() && body.is_empty(),
             TooltipBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
             }
-            TooltipBody::TrayMenu(menu) => {
-                menu.nodes.is_empty() && menu.title.is_empty() && menu.body.is_empty()
-            }
+            TooltipBody::Text { .. } | TooltipBody::TrayMenu(_) => false,
         }
     }
 }

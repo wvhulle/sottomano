@@ -4,17 +4,24 @@ use crate::{
     config::Config,
     desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{
-        OverlayPreferences,
-        overlay::{self, OverlaySetting},
+        OverlaySettings,
+        overlay_settings::{self, OverlaySetting},
     },
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
+        toggle_control::icon_toggle_item,
         tooltip_body::{Tooltip, row},
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
+
+pub enum Action {
+    None,
+    Run(Task<Message>),
+    ReflowToasts(Task<Message>),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverlayKnob {
@@ -57,22 +64,25 @@ impl OverlayKnob {
         slider.icon_only().readout_width(44.0)
     }
 
-    fn read(self, overlays: OverlayPreferences) -> f32 {
+    fn read(self, overlays: OverlaySettings) -> f32 {
         match self {
             Self::Opacity => overlays.opacity * 100.0,
             Self::CornerRadius => overlays.corner_radius.top_left,
         }
     }
 
-    fn write(self, overlays: &mut OverlayPreferences, value: f32) -> Task<bool> {
+    fn write(self, overlays: &mut OverlaySettings, value: f32) -> Task<bool> {
         match self {
             Self::Opacity => {
                 overlays.opacity = value / 100.0;
-                Task::future(overlay::save(OverlaySetting::Opacity, overlays.opacity))
+                Task::future(overlay_settings::save(
+                    OverlaySetting::Opacity,
+                    overlays.opacity,
+                ))
             }
             Self::CornerRadius => {
                 overlays.corner_radius = value.into();
-                Task::future(overlay::save(OverlaySetting::CornerRadius, value))
+                Task::future(overlay_settings::save(OverlaySetting::CornerRadius, value))
             }
         }
     }
@@ -81,6 +91,7 @@ impl OverlayKnob {
 #[derive(Debug, Clone)]
 pub enum OverlayMessage {
     Expansion(ExpansionMessage),
+    ToggleToastSpatialLayout,
     Slider(OverlayKnob, ControlMessage),
 }
 
@@ -103,7 +114,7 @@ impl OverlayGroup {
         &self.sliders[knob as usize]
     }
 
-    pub fn adopt(&mut self, overlays: OverlayPreferences) {
+    pub fn adopt(&mut self, overlays: OverlaySettings) {
         for knob in OverlayKnob::ALL {
             self.sliders[knob as usize].update(ControlMessage::Reading(knob.read(overlays)));
         }
@@ -115,44 +126,75 @@ impl OverlayGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &HoverTarget, overlays: OverlaySettings) -> Option<Tooltip> {
+        if *target == HoverTarget::ToastSpatialLayout {
+            return Some(Tooltip::table(vec![row(
+                "Notifications",
+                if overlays.toast_spatial_layout {
+                    "beside the window that sent them"
+                } else {
+                    "in the screen corner"
+                },
+            )]));
+        }
         OverlayKnob::ALL
             .into_iter()
             .find(|knob| knob.target() == *target)
             .map(|knob| Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())]))
     }
 
-    pub fn update(
-        &mut self,
-        msg: OverlayMessage,
-        overlays: &mut OverlayPreferences,
-    ) -> Task<Message> {
+    pub fn update(&mut self, msg: OverlayMessage, overlays: &mut OverlaySettings) -> Action {
         match msg {
             OverlayMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
                     self.sliders.iter_mut().for_each(SliderControl::close);
                 }
-                Task::none()
+                Action::None
+            }
+            OverlayMessage::ToggleToastSpatialLayout => {
+                overlays.toast_spatial_layout = !overlays.toast_spatial_layout;
+                Action::ReflowToasts(
+                    Task::future(overlay_settings::save_toast_spatial_layout(
+                        overlays.toast_spatial_layout,
+                    ))
+                    .discard(),
+                )
             }
             OverlayMessage::Slider(knob, control) => {
                 let SliderAction::Commit(value) = self.sliders[knob as usize].update(control)
                 else {
-                    return Task::none();
+                    return Action::None;
                 };
-                knob.write(overlays, value).map(move |ok| {
+                Action::Run(knob.write(overlays, value).map(move |ok| {
                     Message::Overlay(OverlayMessage::Slider(
                         knob,
                         ControlMessage::Persisted { value, ok },
                     ))
-                })
+                }))
             }
         }
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, OverlayMessage> {
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+        overlays: OverlaySettings,
+    ) -> WidgetGroup<'a, OverlayMessage> {
+        let spatial_layout_icon = if overlays.toast_spatial_layout {
+            Phosphor::TextAlignCenter(Weight::Regular)
+        } else {
+            Phosphor::TextAlignRight(Weight::Regular)
+        };
         OverlayKnob::ALL.into_iter().fold(
             WidgetGroup::new(&self.expansion, OverlayMessage::Expansion)
-                .icon(Phosphor::Stack(Weight::Regular)),
+                .icon(Phosphor::Stack(Weight::Regular))
+                .item(icon_toggle_item(
+                    config,
+                    spatial_layout_icon,
+                    overlays.toast_spatial_layout,
+                    OverlayMessage::ToggleToastSpatialLayout,
+                    HoverTarget::ToastSpatialLayout,
+                )),
             |group, knob| {
                 group.item(GroupItem::slider(
                     self.slider(knob),

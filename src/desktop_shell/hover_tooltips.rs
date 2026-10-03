@@ -34,9 +34,10 @@ pub enum HoverTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
     WorkspacesPlacement,
-    BackgroundTint,
+    PanelOpacity,
     OverlayOpacity,
     OverlayCornerRadius,
+    ToastSpatialLayout,
     Journal,
     JournalSystem,
     JournalUser,
@@ -87,7 +88,6 @@ pub enum HoverTarget {
     Tray(String),
     Window(u64),
     Workspace(u64),
-    Output(String),
 }
 
 #[derive(Debug, Clone)]

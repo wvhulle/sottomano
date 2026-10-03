@@ -16,7 +16,6 @@ pub mod last_poll;
 pub mod localized_time;
 pub mod marker_track;
 pub mod native_icon;
-pub mod overlay_shadow;
 pub mod pager_slot;
 pub mod phosphor;
 pub mod popup_connector;

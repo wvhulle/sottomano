@@ -30,12 +30,6 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_m
     PRIMARY KEY (battery, profile)
 )";
 
-pub(crate) const DROP_LEGACY_TABLES: [&str; 3] = [
-    "DROP TABLE IF EXISTS power_profile",
-    "DROP TABLE IF EXISTS power_regression",
-    "DROP TABLE IF EXISTS power_model",
-];
-
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
     try_load(&battery).await.unwrap_or_else(|e| {
         tracing::warn!("power regression: load failed: {e}");
