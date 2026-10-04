@@ -40,7 +40,7 @@ impl Knob {
 
     fn control(self) -> SliderControl {
         let (range, icon): (RangeInclusive<f32>, Phosphor) = match self {
-            Self::WindowRadius => (0.0..=24.0, Phosphor::CornersOut(Weight::Regular)),
+            Self::WindowRadius => (0.0..=24.0, Phosphor::FrameCorners(Weight::Regular)),
             Self::Gaps => (0.0..=48.0, Phosphor::Columns(Weight::Regular)),
         };
         SliderControl::new(range, self.target(), icon)
