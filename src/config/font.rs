@@ -19,7 +19,7 @@ impl Default for FontChoice {
         Self {
             name: None,
             text_size_px: 14.0,
-            icon_size_px: 25.0,
+            icon_size_px: 19.0,
         }
     }
 }
@@ -66,10 +66,7 @@ impl fmt::Display for FontError {
     }
 }
 
-pub(super) fn resolve(
-    config: &FontChoice,
-    max_icon_size_px: f32,
-) -> Result<ResolvedFont, FontError> {
+pub(super) fn resolve(config: &FontChoice) -> Result<ResolvedFont, FontError> {
     let pattern = config.name.as_deref().unwrap_or("sans-serif");
     let matched =
         fc_match_family_file(pattern).ok_or_else(|| FontError::Unmatched(pattern.to_owned()))?;
@@ -86,7 +83,7 @@ pub(super) fn resolve(
     Ok(ResolvedFont {
         iced_font: Font::with_name(String::leak(name)),
         text_size_px: config.text_size_px,
-        icon_size_px: config.icon_size_px.min(max_icon_size_px),
+        icon_size_px: config.icon_size_px,
         data: Arc::from(bytes),
         covered: Arc::new(covered),
     })

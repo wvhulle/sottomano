@@ -93,10 +93,8 @@ impl UserConfig {
                 .parse::<Locale>()
                 .map_err(|_| LoadError::UnknownLocale(configured))?,
         };
-        let icon_slot_height_px =
-            self.bar.height_px - 2.0 * self.widget_sizes.indicator_thickness_px;
         Ok(Config {
-            font: font::resolve(&self.font, icon_slot_height_px).map_err(LoadError::Font)?,
+            font: font::resolve(&self.font).map_err(LoadError::Font)?,
             palette: self.palette,
             bar: self.bar,
             spacing: self.spacing,

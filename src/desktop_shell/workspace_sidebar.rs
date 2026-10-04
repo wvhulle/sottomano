@@ -27,10 +27,7 @@ impl DesktopShell {
             .map(|workspaces| {
                 container(workspaces.map(Message::from))
                     .style(move |_| frame_style)
-                    .padding([
-                        panels.frame_corner_inset() + config.spacing.group_padding_px,
-                        0.0,
-                    ])
+                    .padding([panels.corner_radius.top_left, 0.0])
                     .into()
             });
         region_reporter(
