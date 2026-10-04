@@ -2,14 +2,10 @@ use iced::{
     Alignment, Element, Length,
     alignment::Vertical,
     widget::{Row, Space, column, container, mouse_area, row},
-    window::Id,
 };
 
 use crate::{
-    desktop_shell::{
-        DesktopShell, Message,
-        monitor_surfaces::{Position, ShellElement},
-    },
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
     widgets::{
         region_reporter::{RegionRoles, region_reporter},
         widget_group::WidgetGroup,
@@ -17,27 +13,23 @@ use crate::{
 };
 
 impl DesktopShell {
-    pub(super) fn top_bar(&self, window: Id) -> Element<'_, Message> {
-        let cluster = |element, groups: Vec<_>| {
-            self.widget_group_cluster(window, element, groups, Position::Top)
-        };
+    pub(super) fn top_bar(&self) -> Element<'_, Message> {
+        let cluster = |groups: Vec<_>| self.widget_group_cluster(groups, Position::Top);
         let clusters = row![
-            cluster(ShellElement::TopBarStart, self.top_start_groups().into()),
+            cluster(self.top_start_groups().into()),
             Space::new().width(Length::Fill),
-            cluster(ShellElement::TopBarCenter, self.top_center_groups().into()),
+            cluster(self.top_center_groups().into()),
             Space::new().width(Length::Fill),
-            cluster(ShellElement::TopBarEnd, self.top_end_groups().into()),
+            cluster(self.top_end_groups().into()),
         ]
         .height(Length::Fill)
         .align_y(Alignment::Center)
         .padding([0.0, self.config.spacing.group_padding_px]);
-        self.bar_band(window, ShellElement::TopBar, clusters)
+        self.bar_band(clusters)
     }
 
     pub(super) fn bar_band<'a>(
         &'a self,
-        window: Id,
-        element: ShellElement,
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let panels = &self.shell_settings.panels;
@@ -64,20 +56,11 @@ impl DesktopShell {
             blurred: groups_joined,
             corner_radius: panels.corner_radius.top_left,
         };
-        region_reporter(column![strip], roles, move |region| {
-            Message::ElementRegions {
-                window,
-                element,
-                region,
-            }
-        })
-        .into()
+        region_reporter(column![strip], roles).into()
     }
 
     pub(super) fn group_cluster<'a>(
         &'a self,
-        window: Id,
-        element: ShellElement,
         groups: Vec<Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
@@ -112,23 +95,16 @@ impl DesktopShell {
             blurred: groups_disconnected,
             corner_radius: panels.corner_radius.top_left,
         };
-        region_reporter(cluster, roles, move |region| Message::ElementRegions {
-            window,
-            element,
-            region,
-        })
-        .into()
+        region_reporter(cluster, roles).into()
     }
 
     pub(super) fn widget_group_cluster<'a>(
         &'a self,
-        window: Id,
-        element: ShellElement,
         groups: Vec<WidgetGroup<'a, Message>>,
         position: Position,
     ) -> Element<'a, Message> {
         let rendered = self.rendered_widget_groups(groups, position).collect();
-        self.group_cluster(window, element, rendered)
+        self.group_cluster(rendered)
     }
 
     pub(super) fn rendered_widget_groups<'a>(

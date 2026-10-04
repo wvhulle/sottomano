@@ -1,45 +1,30 @@
 use iced::{
     Alignment, Element, Length,
     widget::{container, row},
-    window::Id,
 };
 
 use crate::{
-    desktop_shell::{
-        DesktopShell, Message,
-        monitor_surfaces::{Position, ShellElement},
-    },
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
     widgets::{widget_group::WidgetGroup, window_icon::WindowAssets},
 };
 
 impl DesktopShell {
-    pub(super) fn bottom_bar<'a>(&'a self, window: Id, output: &'a str) -> Element<'a, Message> {
+    pub(super) fn bottom_bar<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
         let start = self.group_cluster(
-            window,
-            ShellElement::BottomBarStart,
             self.rendered_widget_groups(self.bottom_start_groups(), Position::Bottom)
                 .chain(self.inline_workspaces(output))
                 .collect(),
         );
-        let middle = self.group_cluster(
-            window,
-            ShellElement::BottomBarMiddle,
-            self.window_list(output).into_iter().collect(),
-        );
-        let end = self.widget_group_cluster(
-            window,
-            ShellElement::BottomBarEnd,
-            self.bottom_end_groups().into(),
-            Position::Bottom,
-        );
+        let middle = self.group_cluster(self.window_list(output).into_iter().collect());
+        let end = self.widget_group_cluster(self.bottom_end_groups().into(), Position::Bottom);
         let spacing = &self.config.spacing;
         let clusters = row![start, container(middle).center_x(Length::Fill), end]
             .spacing(spacing.group_spacing_px)
             .align_y(Alignment::Center)
             .padding([0.0, spacing.group_padding_px]);
-        self.bar_band(window, ShellElement::BottomBar, clusters)
+        self.bar_band(clusters)
     }
 
     fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {

@@ -5,7 +5,7 @@ use iced::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, Message, monitor_surfaces::ShellElement},
+    desktop_shell::{DesktopShell, Message},
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
     widgets::region_reporter::{RegionRoles, region_reporter},
@@ -37,12 +37,8 @@ impl DesktopShell {
                 blurred: true,
                 corner_radius: panels.corner_radius.top_left,
             },
-            move |region| Message::ElementRegions {
-                window,
-                element: ShellElement::WorkspaceSidebar,
-                region,
-            },
         )
+        .on_width_change(move |width| Message::SidebarWidthChanged { window, width })
         .into()
     }
 }

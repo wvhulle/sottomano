@@ -37,10 +37,7 @@ use crate::{
     },
     desktop_shell::{
         hover_tooltips::{TooltipHost, TooltipMessage},
-        monitor_surfaces::{
-            OutputChange, Position, ReportedElementRegions, ShellElement, Surface, SurfaceRole,
-            query_outputs,
-        },
+        monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage},
     },
     message_subscriptions::{blocking, niri_action},
@@ -76,7 +73,6 @@ use crate::{
     widgets::{
         favicon::Favicons,
         reading_alert::ReadingAlert,
-        region_reporter::ReportedRegion,
         text::FontFallbacks,
         widget_group::{GroupEvent, GroupExpansion},
     },
@@ -117,7 +113,7 @@ pub struct DesktopShell {
     pub(crate) outputs: HashMap<String, niri::OutputInfo>,
     pub(crate) surfaces: BTreeMap<Id, Surface>,
     pub(crate) backdrops: BTreeMap<Id, Position>,
-    pub(crate) element_regions: ReportedElementRegions,
+    pub(crate) sidebar_widths: HashMap<Id, f32>,
     pub(crate) tooltip: TooltipHost,
     pub(crate) notifications: NotificationLayer,
     pub(crate) desktop_entries: DesktopIndex,
@@ -162,10 +158,7 @@ pub enum Message {
     FaviconsResolved(HashMap<String, RawFavicon>),
     FallbackFontsResolved(HashMap<char, Font>),
     DismissPressed,
-    WorkspaceClicked {
-        id: u64,
-        is_active: bool,
-    },
+    WorkspaceClicked { id: u64, is_active: bool },
     Niri(Vec<niri_ipc::Event>),
     Redraw,
     WindowClosed(Id),
@@ -180,11 +173,7 @@ pub enum Message {
     OutputsResolved(HashMap<String, niri::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,
-    ElementRegions {
-        window: Id,
-        element: ShellElement,
-        region: ReportedRegion,
-    },
+    SidebarWidthChanged { window: Id, width: f32 },
 }
 
 impl From<TooltipMessage> for Message {
@@ -244,7 +233,7 @@ impl DesktopShell {
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
-            element_regions: ReportedElementRegions::default(),
+            sidebar_widths: HashMap::new(),
             tooltip: TooltipHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
@@ -365,11 +354,9 @@ impl DesktopShell {
             }),
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => self.forget_window(window),
-            Message::ElementRegions {
-                window,
-                element,
-                region,
-            } => self.update_element_regions(window, element, region),
+            Message::SidebarWidthChanged { window, width } => {
+                self.update_sidebar_width(window, width)
+            }
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => {
@@ -403,6 +390,7 @@ impl DesktopShell {
             | Message::NewMenu { .. }
             | Message::NewInputPanel { .. }
             | Message::RemoveWindow(_)
+            | Message::RedrawWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
     }

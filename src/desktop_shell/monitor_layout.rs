@@ -27,7 +27,6 @@ impl DesktopShell {
         .align_left(Length::Fill)
         .center_y(Length::Fill);
         let notification_toasts = Element::from(self.notifications.anchored_toasts(
-            window,
             output,
             &self.config,
             &self.theme,
@@ -38,9 +37,9 @@ impl DesktopShell {
         stack![
             notification_toasts,
             column![
-                on_edge(Position::Top, self.top_bar(window)),
+                on_edge(Position::Top, self.top_bar()),
                 workspace_sidebar,
-                on_edge(Position::Bottom, self.bottom_bar(window, output)),
+                on_edge(Position::Bottom, self.bottom_bar(output)),
             ]
             .padding(float)
         ]

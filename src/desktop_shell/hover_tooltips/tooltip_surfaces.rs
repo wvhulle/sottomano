@@ -18,26 +18,17 @@ use crate::{
             tooltip_content::TooltipContent,
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
-        monitor_surfaces::{PanelEdge, Position, base_settings, input_region, input_regions},
+        monitor_surfaces::{PanelEdge, Position, base_settings, input_region},
     },
     state::{ShellSettings, niri_rules::StyledSurface},
     widgets::{
-        anchored_popup::{PopupFrame, Rendering, anchored_popup},
+        anchored_popup::{Rendering, anchored_popup},
         favicon::Favicons,
         tooltip_body::Tooltip,
     },
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
-
-fn tooltip_input_region(surface: Id, frame: &PopupFrame) -> Message {
-    let rects = if frame.settled {
-        frame.rects().collect()
-    } else {
-        Vec::new()
-    };
-    input_regions(surface, rects)
-}
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
 pub struct PendingSwitch {
@@ -148,7 +139,7 @@ impl TooltipHost {
             return Task::none();
         }
         self.transition.hide(departing);
-        self.clear_input_regions()
+        Task::none()
     }
 
     pub fn dismiss(&mut self, departing: Option<Departed>) -> Task<Message> {
@@ -156,14 +147,7 @@ impl TooltipHost {
             return Task::none();
         }
         self.transition.hide(departing);
-        self.clear_input_regions()
-    }
-
-    fn clear_input_regions(&self) -> Task<Message> {
-        Task::batch(
-            self.surfaces()
-                .map(|surface| Task::done(input_region(surface, Rectangle::default()))),
-        )
+        Task::none()
     }
 
     pub fn open_surface(&mut self, output: &str) -> Task<Message> {
@@ -179,10 +163,6 @@ impl TooltipHost {
             }),
             Task::done(input_region(id, Rectangle::default())),
         ])
-    }
-
-    pub fn surfaces(&self) -> impl Iterator<Item = Id> {
-        self.surfaces.values().copied()
     }
 
     pub fn forget(&mut self, surface: Id) {
@@ -235,7 +215,6 @@ impl TooltipHost {
             return None;
         }
         let corner_radius = shell_settings.overlays.corner_radius;
-        let on_frame = move |frame| tooltip_input_region(surface, &frame);
         let Some(placement) = self
             .transition
             .placement()
@@ -248,7 +227,6 @@ impl TooltipHost {
                 self.transition.seq(),
                 config,
                 shell_settings,
-                on_frame,
             ));
         };
 
@@ -272,7 +250,6 @@ impl TooltipHost {
                 self.transition.seq(),
                 config,
                 shell_settings,
-                on_frame,
             ))
             .padding(shell_settings.layout.float_offset_px)
             .into(),

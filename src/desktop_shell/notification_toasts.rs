@@ -9,7 +9,7 @@ pub mod window_anchored_toasts;
 
 use std::cmp::Reverse;
 
-use iced::{Padding, Theme, time::Instant, window::Id};
+use iced::{Padding, Theme, time::Instant};
 use reading_alert_toasts::{
     DismissedReadingAlert, ReadingAlertToastChanges, ShownReadingAlertToast,
     plan_reading_alert_toast_changes,
@@ -43,7 +43,6 @@ pub struct NotificationLayer {
 impl NotificationLayer {
     pub fn anchored_toasts<'a>(
         &'a self,
-        window: Id,
         output: &str,
         config: &'a Config,
         theme: &'a Theme,
@@ -75,7 +74,6 @@ impl NotificationLayer {
             })
             .collect();
         WindowAnchoredToasts::new(
-            window,
             toasts,
             bar_clearance,
             settings.overlays.corner_radius.top_left,

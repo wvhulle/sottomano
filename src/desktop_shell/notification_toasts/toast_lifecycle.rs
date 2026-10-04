@@ -1,10 +1,9 @@
 use std::time::SystemTime;
 
 use iced::{
-    Animation, Rectangle,
+    Animation,
     animation::Easing,
     time::{Duration, Instant},
-    window::Id,
 };
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
@@ -36,7 +35,6 @@ pub enum NotificationMessage {
     Dismiss(u32),
     ActionClicked { id: u32, key: String },
     DefaultActivated { id: u32, token: Option<String> },
-    CardBoundsChanged { window: Id, rects: Vec<Rectangle> },
     Tick,
 }
 
