@@ -86,6 +86,7 @@ impl DesktopShell {
         self.system_group
             .tooltip_for(target)
             .or_else(|| self.battery_group.tooltip_for(target))
+            .or_else(|| self.clock_group.tooltip_for(target, &self.config))
             .or_else(|| self.journal_group.tooltip_for(target))
             .or_else(|| self.net_interfaces_group.tooltip_for(target))
             .or_else(|| self.audio_group.tooltip_for(target))

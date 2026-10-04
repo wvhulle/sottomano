@@ -1,15 +1,21 @@
+mod clock_reading;
+mod local_date;
+mod local_time;
+mod zone_time;
+
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
+use chrono_tz::Tz;
 use iced::{Subscription, Task, futures::channel::mpsc::Sender, stream};
 use tokio::time::sleep;
 
+use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     config::Config,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
-        group_item::GroupItem,
-        localized_time::TimePart,
-        text::bar_text,
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
 };
@@ -61,22 +67,29 @@ impl ClockGroup {
         })
     }
 
+    fn zone_time(&self, zone: Tz) -> ZoneTime {
+        ZoneTime(self.now.with_timezone(&zone))
+    }
+
+    pub fn tooltip_for(&self, target: &HoverTarget, config: &Config) -> Option<Tooltip> {
+        match target {
+            HoverTarget::LocalTime => Some(LocalTime(self.now).tooltip(config.locale)),
+            HoverTarget::LocalDate => Some(LocalDate(self.now).tooltip(config.locale)),
+            HoverTarget::ZoneTime(zone) => Some(self.zone_time(*zone).tooltip(config.locale)),
+            _ => None,
+        }
+    }
+
     pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, ClockMessage> {
         WidgetGroup::new(&self.expansion, ClockMessage::Expansion)
-            .item(GroupItem::element(move |_| {
-                bar_text(
-                    &config.font,
-                    TimePart::TimeOfDay.format(&self.now, config.locale),
-                )
-                .into()
-            }))
-            .item(GroupItem::element(move |_| {
-                bar_text(
-                    &config.font,
-                    TimePart::Date.format(&self.now, config.locale),
-                )
-                .into()
-            }))
+            .item(LocalTime(self.now).reading(config.locale).item(config))
+            .item(LocalDate(self.now).reading(config.locale).item(config))
+            .items(
+                config
+                    .other_time_zones
+                    .iter()
+                    .map(|&zone| self.zone_time(zone).reading(config.locale).item(config)),
+            )
     }
 }
 

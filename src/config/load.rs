@@ -4,6 +4,7 @@ use std::{
 };
 
 use chrono::{Locale, Weekday};
+use chrono_tz::{Asia, Tz};
 use serde::Deserialize;
 use toml::de;
 
@@ -29,6 +30,7 @@ pub struct Config {
     pub font: ResolvedFont,
     pub toasts: ToastConfig,
     pub tray: TrayConfig,
+    pub other_time_zones: Vec<Tz>,
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_service: String,
     pub locale: Locale,
@@ -54,6 +56,7 @@ struct UserConfig {
     font: FontChoice,
     toasts: ToastConfig,
     tray: TrayConfig,
+    other_time_zones: Vec<Tz>,
     terminal_command_prefix: Vec<String>,
     color_temperature_service: String,
     locale: Option<String>,
@@ -71,6 +74,7 @@ impl Default for UserConfig {
             font: FontChoice::default(),
             toasts: ToastConfig::default(),
             tray: TrayConfig::default(),
+            other_time_zones: vec![Asia::Shanghai],
             terminal_command_prefix: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_service: String::from("screen-temperature.service"),
             locale: None,
@@ -102,6 +106,7 @@ impl UserConfig {
             window_list: self.window_list,
             toasts: self.toasts,
             tray: self.tray,
+            other_time_zones: self.other_time_zones,
             terminal_command_prefix: self.terminal_command_prefix,
             color_temperature_service: self.color_temperature_service,
             locale,
@@ -174,7 +179,9 @@ pub fn config_home() -> PathBuf {
 mod tests {
     use std::{env, fs, process};
 
-    use super::{ConfigFile, LoadError};
+    use chrono_tz::Asia;
+
+    use super::{Config, ConfigFile, LoadError};
 
     fn file_containing(test: &str, toml: &str) -> ConfigFile {
         let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
@@ -190,6 +197,19 @@ mod tests {
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
         assert!(matches!(error, LoadError::Invalid(_)));
         assert!(error.to_string().contains("chrome"));
+    }
+
+    #[test]
+    fn other_time_zones_default_to_shanghai_and_parse_as_iana_names() {
+        let file = file_containing("zone", "other_time_zones = [\"Asia/Tokyo\"]\n");
+        let configured = file.load();
+        let emptied = file_containing("zone", "other_time_zones = []\n").load();
+        let unknown = file_containing("zone", "other_time_zones = [\"Mars/Olympus\"]\n").load();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert_eq!(Config::fallback().other_time_zones, [Asia::Shanghai]);
+        assert_eq!(configured.unwrap().other_time_zones, [Asia::Tokyo]);
+        assert!(emptied.unwrap().other_time_zones.is_empty());
+        assert!(matches!(unknown, Err(LoadError::Invalid(_))));
     }
 
     #[test]
