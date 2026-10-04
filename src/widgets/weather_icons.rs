@@ -12,6 +12,8 @@ use crate::{
     widgets::{bar_widget::Glyph, svg_icon, tooltip_body::Cell},
 };
 
+const INK_FRACTION: f32 = 22.0 / 30.0;
+
 macro_rules! weather_svg {
     ($name:literal) => {
         include_bytes!(concat!(env!("WEATHER_ICONS_SVG"), "/", $name, ".svg"))
@@ -72,8 +74,8 @@ impl WeatherIcon {
         }
     }
 
-    pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
-        svg_icon::view(self.svg_data(), size, color)
+    pub fn view<'a, Message: 'a>(self, ink_size: f32, color: Color) -> Element<'a, Message> {
+        svg_icon::view(self.svg_data(), ink_size / INK_FRACTION, color)
     }
 }
 

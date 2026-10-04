@@ -3,14 +3,13 @@ use std::collections::HashMap;
 use iced::{
     Element, Task,
     task::Handle,
-    widget::{container, image, svg},
+    widget::{image, svg},
 };
 use niri_ipc::state::EventStreamState;
 
 use crate::{
     data::source::favicons::{self, FaviconKind, RawFavicon},
     message_subscriptions::blocking,
-    widgets::native_icon::NATIVE_TO_PHOSPHOR_SCALE,
 };
 
 #[derive(Clone)]
@@ -34,20 +33,18 @@ impl Favicon {
     }
 
     pub fn view<'a, Message: 'a>(&self, side: f32, opacity: f32) -> Element<'a, Message> {
-        let drawing = side * NATIVE_TO_PHOSPHOR_SCALE;
-        let icon: Element<'a, Message> = match &self.handle {
+        match &self.handle {
             FaviconHandle::Raster(handle) => image(handle.clone())
-                .width(drawing)
-                .height(drawing)
+                .width(side)
+                .height(side)
                 .opacity(opacity)
                 .into(),
             FaviconHandle::Svg(handle) => svg(handle.clone())
-                .width(drawing)
-                .height(drawing)
+                .width(side)
+                .height(side)
                 .opacity(opacity)
                 .into(),
-        };
-        container(icon).center(side).into()
+        }
     }
 }
 

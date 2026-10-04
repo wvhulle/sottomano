@@ -4,7 +4,7 @@ use iced::{
     Alignment, Element, Font, Subscription, Task,
     font::Style as FontStyle,
     time::every,
-    widget::{Row, button, container, image, rich_text, svg, text::Span},
+    widget::{Row, button, image, rich_text, svg, text::Span},
 };
 use niri_ipc::state::EventStreamState;
 
@@ -23,7 +23,7 @@ use crate::{
         flat_button,
         gauge::Gauge,
         group_item::GroupItem,
-        phosphor::{Phosphor, Weight, ink_side},
+        phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, row},
@@ -276,7 +276,7 @@ fn track_face<'a>(
         return cover;
     };
     let color = config.palette.bar_foreground.scale_alpha(opacity);
-    Row::with_children([cover, Gauge::new(fraction, color, ink_side(side)).into()])
+    Row::with_children([cover, Gauge::new(fraction, color, side).into()])
         .spacing(icon_value_gap(config))
         .align_y(Alignment::Center)
         .into()
@@ -290,15 +290,11 @@ fn track_cover<'a>(
     side: f32,
 ) -> Element<'a, MediaMessage> {
     if let Some(art) = &media.art {
-        let drawing = ink_side(side);
-        return container(
-            image(art.clone())
-                .width(drawing)
-                .height(drawing)
-                .opacity(opacity),
-        )
-        .center(side)
-        .into();
+        return image(art.clone())
+            .width(side)
+            .height(side)
+            .opacity(opacity)
+            .into();
     }
     let icon = if status == Status::Playing {
         Phosphor::MusicNote(Weight::Regular)
