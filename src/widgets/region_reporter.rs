@@ -11,7 +11,7 @@ use iced::{
     mouse::Cursor,
     window,
 };
-use iced_exwlshell::{BlurRows, reexport::BlurRegion};
+use iced_exwlshell::{BlurRegions, InputRects, reexport::BlurRegion};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RegionRoles {
@@ -21,14 +21,26 @@ pub struct RegionRoles {
 }
 
 impl RegionRoles {
-    pub fn blur_rows(self, rects: impl IntoIterator<Item = Rectangle>) -> BlurRows {
-        if !self.blurred {
-            return BlurRows::default();
+    pub fn report(self, rects: &[Rectangle], bounds: Rectangle, operation: &mut dyn Operation) {
+        operation.custom(None, bounds, &mut self.blur_rows(rects));
+        operation.custom(None, bounds, &mut self.input_rects(rects));
+    }
+
+    fn input_rects(self, rects: &[Rectangle]) -> InputRects {
+        if !self.takes_input {
+            return InputRects::default();
         }
-        BlurRows(
+        InputRects(rects.to_vec())
+    }
+
+    fn blur_rows(self, rects: &[Rectangle]) -> BlurRegions {
+        if !self.blurred {
+            return BlurRegions::default();
+        }
+        BlurRegions(
             rects
-                .into_iter()
-                .flat_map(|rect| rounded_blur_rows(rect, self.corner_radius))
+                .iter()
+                .flat_map(|rect| rounded_blur_rows(*rect, self.corner_radius))
                 .collect(),
         )
     }
@@ -66,28 +78,28 @@ fn rounded_blur_rows(rect: Rectangle, radius: f32) -> Vec<BlurRegion> {
         .collect()
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ReportedRegion {
-    pub rects: Vec<Rectangle>,
-    pub roles: RegionRoles,
-}
-
 pub fn region_reporter<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     roles: RegionRoles,
-    on_report: impl Fn(ReportedRegion) -> Message + 'a,
 ) -> RegionReporter<'a, Message> {
     RegionReporter {
         content: content.into(),
         roles,
-        on_report: Box::new(on_report),
+        on_width_change: None,
     }
 }
 
 pub struct RegionReporter<'a, Message> {
     content: Element<'a, Message>,
     roles: RegionRoles,
-    on_report: Box<dyn Fn(ReportedRegion) -> Message + 'a>,
+    on_width_change: Option<Box<dyn Fn(f32) -> Message + 'a>>,
+}
+
+impl<'a, Message> RegionReporter<'a, Message> {
+    pub fn on_width_change(mut self, on_width_change: impl Fn(f32) -> Message + 'a) -> Self {
+        self.on_width_change = Some(Box::new(on_width_change));
+        self
+    }
 }
 
 impl<'a, Message: 'a> From<RegionReporter<'a, Message>> for Element<'a, Message> {
@@ -96,16 +108,25 @@ impl<'a, Message: 'a> From<RegionReporter<'a, Message>> for Element<'a, Message>
     }
 }
 
+fn region_rects(layout: Layout<'_>) -> impl Iterator<Item = Rectangle> {
+    layout
+        .children()
+        .next()
+        .unwrap()
+        .children()
+        .map(|child| child.bounds())
+}
+
 #[derive(Default)]
-struct LastReport(Option<ReportedRegion>);
+struct LastWidth(Option<f32>);
 
 impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_, Message> {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<LastReport>()
+        tree::Tag::of::<LastWidth>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(LastReport::default())
+        tree::State::new(LastWidth::default())
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -156,11 +177,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
-        let content_layout = layout.children().next().unwrap();
-        let mut blur_rows = self
-            .roles
-            .blur_rows(content_layout.children().map(|child| child.bounds()));
-        operation.custom(None, layout.bounds(), &mut blur_rows);
+        let rects: Vec<Rectangle> = region_rects(layout).collect();
+        self.roles.report(&rects, layout.bounds(), operation);
         self.content.as_widget_mut().operate(
             &mut tree.children[0],
             layout.children().next().unwrap(),
@@ -190,22 +208,19 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
             shell,
             viewport,
         );
-        if matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
-            let region = ReportedRegion {
-                rects: layout
-                    .children()
-                    .next()
-                    .unwrap()
-                    .children()
-                    .map(|child| child.bounds())
-                    .collect(),
-                roles: self.roles,
-            };
-            let last = tree.state.downcast_mut::<LastReport>();
-            if last.0.as_ref() != Some(&region) {
-                last.0 = Some(region.clone());
-                shell.publish((self.on_report)(region));
-            }
+        let Some(on_width_change) = &self.on_width_change else {
+            return;
+        };
+        if !matches!(event, Event::Window(window::Event::RedrawRequested(_))) {
+            return;
+        }
+        let width = region_rects(layout)
+            .map(|rect| rect.width)
+            .fold(0.0, f32::max);
+        let last = tree.state.downcast_mut::<LastWidth>();
+        if last.0 != Some(width) {
+            last.0 = Some(width);
+            shell.publish(on_width_change(width));
         }
     }
 

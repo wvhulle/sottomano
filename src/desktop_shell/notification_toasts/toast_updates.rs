@@ -24,14 +24,11 @@ use crate::{
         sink::sound,
         source::{app_icon::DesktopEntries, niri::Placement},
     },
-    desktop_shell::{DesktopShell, Message, monitor_surfaces::ShellElement},
+    desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
     state::{self, NotificationSettings, OverlaySettings, ShellSettings},
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
-    widgets::{
-        reading_alert::ReadingAlert,
-        region_reporter::{RegionRoles, ReportedRegion},
-    },
+    widgets::reading_alert::ReadingAlert,
 };
 
 const CONFIG_ERROR_TOAST_ID: u32 = 0;
@@ -137,19 +134,6 @@ impl NotificationLayer {
             NotificationMessage::DefaultActivated { id, token } => self.invoke_default(id, token),
             NotificationMessage::CloseRequested(id) => {
                 self.close_all([id], close_reason::CLOSED_BY_CALL)
-            }
-            NotificationMessage::CardBoundsChanged { window, rects } => {
-                Task::done(Message::ElementRegions {
-                    window,
-                    element: ShellElement::NotificationToasts,
-                    region: ReportedRegion {
-                        rects,
-                        roles: RegionRoles {
-                            takes_input: true,
-                            ..RegionRoles::default()
-                        },
-                    },
-                })
             }
             NotificationMessage::Tick => self.expire(),
         }

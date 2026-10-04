@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use iced::{Padding, Rectangle, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::{
@@ -14,7 +12,6 @@ use crate::{
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::blocking,
     state::niri_rules::StyledSurface,
-    widgets::region_reporter::ReportedRegion,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,66 +155,6 @@ fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerS
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ShellElement {
-    TopBar,
-    TopBarStart,
-    TopBarCenter,
-    TopBarEnd,
-    BottomBar,
-    BottomBarStart,
-    BottomBarMiddle,
-    BottomBarEnd,
-    WorkspaceSidebar,
-    NotificationToasts,
-}
-
-#[derive(Default)]
-pub struct ReportedElementRegions {
-    by_element: HashMap<(Id, ShellElement), ReportedRegion>,
-}
-
-impl ReportedElementRegions {
-    fn report(
-        &mut self,
-        panel: Id,
-        element: ShellElement,
-        region: ReportedRegion,
-    ) -> Task<Message> {
-        self.by_element.insert((panel, element), region);
-        self.input_region_of(panel)
-    }
-
-    fn width_of(&self, panel: Id, element: ShellElement) -> f32 {
-        self.by_element
-            .get(&(panel, element))
-            .into_iter()
-            .flat_map(|region| &region.rects)
-            .map(|rect| rect.width)
-            .fold(0.0, f32::max)
-    }
-
-    fn forget(&mut self, window: Id) {
-        self.by_element.retain(|(panel, _), _| *panel != window);
-    }
-
-    fn regions_on(&self, panel: Id) -> impl Iterator<Item = &ReportedRegion> {
-        self.by_element
-            .iter()
-            .filter(move |((owner, _), _)| *owner == panel)
-            .map(|(_, region)| region)
-    }
-
-    fn input_region_of(&self, panel: Id) -> Task<Message> {
-        let rects = self
-            .regions_on(panel)
-            .filter(|region| region.roles.takes_input)
-            .flat_map(|region| region.rects.iter().copied())
-            .collect();
-        Task::done(input_regions(panel, rects))
-    }
-}
-
 impl DesktopShell {
     pub(crate) fn apply_output_change(&mut self, change: OutputChange) -> Task<Message> {
         match change {
@@ -256,21 +193,13 @@ impl DesktopShell {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
-        self.element_regions.forget(window);
+        self.sidebar_widths.remove(&window);
         Task::none()
     }
 
-    pub(crate) fn update_element_regions(
-        &mut self,
-        window: Id,
-        element: ShellElement,
-        region: ReportedRegion,
-    ) -> Task<Message> {
-        let regions = self.element_regions.report(window, element, region);
-        if element == ShellElement::WorkspaceSidebar {
-            return Task::batch([regions, self.reserve()]);
-        }
-        regions
+    pub(crate) fn update_sidebar_width(&mut self, window: Id, width: f32) -> Task<Message> {
+        self.sidebar_widths.insert(window, width);
+        self.reserve()
     }
 
     pub(crate) fn panels(&self) -> impl Iterator<Item = (Id, &str)> {
@@ -293,10 +222,8 @@ impl DesktopShell {
             Position::Left => self
                 .panels()
                 .find(|(_, panel_output)| *panel_output == output)
-                .map_or(0.0, |(panel, _)| {
-                    self.element_regions
-                        .width_of(panel, ShellElement::WorkspaceSidebar)
-                }),
+                .and_then(|(panel, _)| self.sidebar_widths.get(&panel).copied())
+                .unwrap_or_default(),
         };
         if thickness <= 0.0 {
             return 0;

@@ -26,15 +26,14 @@ use crate::{
 
 const MORPH: Duration = Duration::from_millis(160);
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct PopupFrame {
-    pub bounds: Rectangle,
-    pub notch_rows: Vec<Rectangle>,
-    pub settled: bool,
+struct PopupFrame {
+    bounds: Rectangle,
+    notch_rows: Vec<Rectangle>,
+    settled: bool,
 }
 
 impl PopupFrame {
-    pub fn rects(&self) -> impl Iterator<Item = Rectangle> {
+    fn rects(&self) -> impl Iterator<Item = Rectangle> {
         once(self.bounds).chain(self.notch_rows.iter().copied())
     }
 }
@@ -67,7 +66,6 @@ pub fn anchored_popup<'a>(
     seq: u64,
     config: &Config,
     settings: &ShellSettings,
-    on_frame: impl Fn(PopupFrame) -> Message + 'a,
 ) -> Element<'a, Message> {
     let background = config
         .palette
@@ -76,7 +74,6 @@ pub fn anchored_popup<'a>(
     Element::new(AnchoredPopup {
         renderings,
         notch: notch(position, background),
-        on_frame: Box::new(on_frame),
         anchor,
         edge_inset: config.bar.height_px + config.bar.popup_gap_px,
         bar_thickness: config.bar.height_px,
@@ -92,7 +89,6 @@ pub fn anchored_popup<'a>(
 struct AnchoredPopup<'a> {
     renderings: Vec<Rendering<'a>>,
     notch: Element<'a, Message>,
-    on_frame: Box<dyn Fn(PopupFrame) -> Message + 'a>,
     anchor: Rectangle,
     edge_inset: f32,
     bar_thickness: f32,
@@ -111,7 +107,6 @@ struct MorphState {
     progress: f32,
     from: Rectangle,
     current: Rectangle,
-    published: Option<PopupFrame>,
 }
 
 fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
@@ -262,7 +257,6 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             progress: 1.0,
             from: Rectangle::default(),
             current: Rectangle::default(),
-            published: None,
         })
     }
 
@@ -409,13 +403,14 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         operation: &mut dyn Operation,
     ) {
         let state: &MorphState = tree.state.downcast_ref();
+        let frame = self.frame(state, layout);
         let roles = RegionRoles {
+            takes_input: frame.settled,
             blurred: true,
             corner_radius: self.radius,
-            ..RegionRoles::default()
         };
-        let mut blur_rows = roles.blur_rows(self.frame(state, layout).rects());
-        operation.custom(None, layout.bounds(), &mut blur_rows);
+        let rects: Vec<Rectangle> = frame.rects().collect();
+        roles.report(&rects, layout.bounds(), operation);
         self.views_mut(tree, layout).for_each(|rendering| {
             rendering.widget.as_widget_mut().operate(
                 rendering.state,
@@ -457,11 +452,6 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         if state.progress < 1.0 {
             shell.invalidate_layout();
             shell.request_redraw();
-        }
-        let frame = self.frame(state, layout);
-        if state.published.as_ref() != Some(&frame) {
-            state.published = Some(frame.clone());
-            shell.publish((self.on_frame)(frame));
         }
     }
 

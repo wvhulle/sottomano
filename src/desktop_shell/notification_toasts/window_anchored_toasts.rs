@@ -11,7 +11,7 @@ use iced::{
     animation::Easing,
     mouse::Cursor,
     time::{Duration, Instant},
-    window::{self, Id},
+    window,
 };
 
 use super::{
@@ -25,7 +25,6 @@ const MOTION: Duration = Duration::from_millis(160);
 
 impl<'a> WindowAnchoredToasts<'a> {
     pub fn new(
-        window: Id,
         toasts: Vec<AnchoredToast<'a>>,
         bar_clearance: Padding,
         card_corner_radius: f32,
@@ -33,7 +32,6 @@ impl<'a> WindowAnchoredToasts<'a> {
     ) -> Self {
         toasts.into_iter().fold(
             Self {
-                window,
                 bar_clearance,
                 card_roles: RegionRoles {
                     takes_input: true,
@@ -64,7 +62,6 @@ impl<'a> From<WindowAnchoredToasts<'a>> for Element<'a, NotificationMessage> {
 }
 
 pub struct WindowAnchoredToasts<'a> {
-    window: Id,
     bar_clearance: Padding,
     card_roles: RegionRoles,
     ids: Vec<u32>,
@@ -114,7 +111,6 @@ fn motion(value: f32) -> Animation<f32> {
 struct FieldState {
     order: ChildOrder,
     drift: Drifts,
-    region: PublishedRects,
     frame: Instant,
 }
 
@@ -123,7 +119,6 @@ impl Default for FieldState {
         Self {
             order: ChildOrder::default(),
             drift: Drifts::default(),
-            region: PublishedRects::default(),
             frame: Instant::now(),
         }
     }
@@ -181,21 +176,6 @@ impl Drifts {
             .values_mut()
             .for_each(|drift| drift.advance(frame));
         self.by_id.values().any(|drift| drift.is_animating(frame))
-    }
-}
-
-#[derive(Default)]
-struct PublishedRects {
-    published: Option<Vec<Rectangle>>,
-}
-
-impl PublishedRects {
-    fn changed(&mut self, rects: Vec<Rectangle>) -> Option<Vec<Rectangle>> {
-        if self.published.as_ref() == Some(&rects) {
-            return None;
-        }
-        self.published = Some(rects.clone());
-        Some(rects)
     }
 }
 
@@ -354,8 +334,8 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
-        let mut blur_rows = self.card_roles.blur_rows(card_rects(layout));
-        operation.custom(None, layout.bounds(), &mut blur_rows);
+        let rects: Vec<Rectangle> = card_rects(layout).collect();
+        self.card_roles.report(&rects, layout.bounds(), operation);
         self.views_mut(tree, layout).for_each(|card| {
             card.widget
                 .as_widget_mut()
@@ -374,7 +354,6 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         shell: &mut Shell<'_, NotificationMessage>,
         viewport: &Rectangle,
     ) {
-        let window = self.window;
         self.views_mut(tree, layout).for_each(|card| {
             card.widget.as_widget_mut().update(
                 card.state,
@@ -398,11 +377,6 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         }
         state.frame = *frame;
         let drifting = state.drift.advance(*frame);
-
-        if let Some(rects) = state.region.changed(card_rects(layout).collect()) {
-            shell.publish(NotificationMessage::CardBoundsChanged { window, rects });
-            shell.request_redraw();
-        }
         if drifting {
             shell.invalidate_layout();
         }
