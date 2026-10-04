@@ -151,6 +151,10 @@ Import `homeModules.default` from the flake. It installs the package, writes
 written to it verbatim. The keys mirror the structs in `src/config/` — unknown
 ones are rejected rather than ignored.
 
+`other_time_zones` lists IANA zones, `["Asia/Shanghai"]` by default, and the
+clock group shows the time in each of those cities next to the local time and
+date. An empty list hides them.
+
 The bar watches the file and applies every change in place, including a symlink
 swapped to point elsewhere. An invalid file raises a critical toast with the
 error and the bar keeps its previous configuration (defaults when it starts on

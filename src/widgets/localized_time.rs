@@ -14,9 +14,14 @@ impl TimePart {
     where
         Tz::Offset: Display,
     {
-        at.with_timezone(&Local)
-            .format_localized(self.specifier(), locale)
-            .to_string()
+        self.format_in_own_zone(&at.with_timezone(&Local), locale)
+    }
+
+    pub fn format_in_own_zone<Tz: TimeZone>(self, at: &DateTime<Tz>, locale: Locale) -> String
+    where
+        Tz::Offset: Display,
+    {
+        at.format_localized(self.specifier(), locale).to_string()
     }
 
     fn specifier(self) -> &'static str {

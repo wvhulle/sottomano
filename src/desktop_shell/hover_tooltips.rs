@@ -4,6 +4,7 @@ pub mod tooltip_surfaces;
 pub mod tooltip_transition;
 pub mod tooltip_updates;
 
+use chrono_tz::Tz;
 use iced::{Rectangle, window::Id};
 
 pub use crate::desktop_shell::hover_tooltips::{
@@ -85,6 +86,9 @@ pub enum HoverTarget {
     AiCopilotMetered,
     AiCopilotFree,
     AiCopilotCli,
+    LocalTime,
+    LocalDate,
+    ZoneTime(Tz),
     Tray(String),
     Window(u64),
     Workspace(u64),
