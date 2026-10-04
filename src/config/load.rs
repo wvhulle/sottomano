@@ -181,7 +181,7 @@ mod tests {
 
     use chrono_tz::Asia;
 
-    use super::{Config, ConfigFile, LoadError};
+    use super::{ConfigFile, LoadError, UserConfig};
 
     fn file_containing(test: &str, toml: &str) -> ConfigFile {
         let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
@@ -202,11 +202,11 @@ mod tests {
     #[test]
     fn other_time_zones_default_to_shanghai_and_parse_as_iana_names() {
         let file = file_containing("zone", "other_time_zones = [\"Asia/Tokyo\"]\n");
-        let configured = file.load();
-        let emptied = file_containing("zone", "other_time_zones = []\n").load();
-        let unknown = file_containing("zone", "other_time_zones = [\"Mars/Olympus\"]\n").load();
+        let configured = file.read();
+        let emptied = file_containing("zone", "other_time_zones = []\n").read();
+        let unknown = file_containing("zone", "other_time_zones = [\"Mars/Olympus\"]\n").read();
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
-        assert_eq!(Config::fallback().other_time_zones, [Asia::Shanghai]);
+        assert_eq!(UserConfig::default().other_time_zones, [Asia::Shanghai]);
         assert_eq!(configured.unwrap().other_time_zones, [Asia::Tokyo]);
         assert!(emptied.unwrap().other_time_zones.is_empty());
         assert!(matches!(unknown, Err(LoadError::Invalid(_))));
