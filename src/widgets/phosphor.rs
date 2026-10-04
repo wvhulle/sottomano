@@ -1,11 +1,15 @@
-use crate::widgets::bar_widget::Glyph;
+use iced::{Color, Element};
+
+use crate::widgets::{bar_widget::Glyph, svg_icon};
 
 include!(concat!(env!("OUT_DIR"), "/icons.rs"));
 
-pub const PHOSPHOR_INK_FRACTION: f32 = 208.0 / 256.0;
+const INK_FRACTION: f32 = 208.0 / 256.0;
 
-pub fn ink_side(icon_side: f32) -> f32 {
-    icon_side * PHOSPHOR_INK_FRACTION
+impl Phosphor {
+    pub fn view<'a, Message: 'a>(self, ink_size: f32, color: Color) -> Element<'a, Message> {
+        svg_icon::view(self.svg_data(), ink_size / INK_FRACTION, color)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

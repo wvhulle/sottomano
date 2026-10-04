@@ -1,10 +1,7 @@
-use iced::{
-    Color, Element,
-    widget::{container, svg},
-};
+use iced::{Color, Element, widget::svg};
 use simpleicons_rs::{SICLAUDE, SIGITHUBCOPILOT, SIOPENROUTER, SIUNSPLASH, SIWIKIPEDIA};
 
-use crate::widgets::{bar_widget::Glyph, phosphor::PHOSPHOR_INK_FRACTION};
+use crate::widgets::bar_widget::Glyph;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimpleIcon {
@@ -28,15 +25,11 @@ impl SimpleIcon {
     }
 
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
-        let drawing = size * PHOSPHOR_INK_FRACTION;
-        container(
-            svg(self.handle())
-                .width(drawing)
-                .height(drawing)
-                .style(move |_, _| svg::Style { color: Some(color) }),
-        )
-        .center(size)
-        .into()
+        svg(self.handle())
+            .width(size)
+            .height(size)
+            .style(move |_, _| svg::Style { color: Some(color) })
+            .into()
     }
 }
 

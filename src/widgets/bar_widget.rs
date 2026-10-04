@@ -7,7 +7,6 @@ use crate::{
     widgets::{
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        svg_icon,
         tooltip_body::TooltipBody,
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
@@ -32,7 +31,7 @@ impl Glyph {
 
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
         match self {
-            Glyph::Phosphor(icon) => svg_icon::view(icon.svg_data(), size, color),
+            Glyph::Phosphor(icon) => icon.view(size, color),
             Glyph::SimpleIcon(icon) => icon.view(size, color),
             Glyph::WeatherIcon(icon) => icon.view(size, color),
         }
