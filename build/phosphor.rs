@@ -106,21 +106,25 @@ pub fn generate(assets_dir: &Path) -> String {
     }
     format!(
         r"#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 pub enum Phosphor {{
 {variants}}}
 
 impl Phosphor {{
+    #[allow(clippy::too_many_lines)]
     pub const fn svg_data(self) -> &'static [u8] {{
         match self {{
 {svg_arms}        }}
     }}
 
+    #[allow(clippy::too_many_lines, clippy::match_same_arms)]
     pub const fn weight(self) -> Weight {{
         match self {{
 {weight_arms}        }}
     }}
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub const fn with_weight(self, weight: Weight) -> Self {{
         match self {{
 {reweight_arms}        }}
