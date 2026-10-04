@@ -45,11 +45,11 @@ async fn link(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<L
         });
     }
     let (ip, connection_id, mac, speed, mtu) = try_join!(
-        nm::ip(connection, &device.path),
-        nm::connection_id(connection, &device.path),
-        nm::hw_address(connection, &device.path),
-        nm::wired_speed(connection, &device.path),
-        nm::mtu(connection, &device.path)
+        nm::ip(connection, &device),
+        nm::connection_id(connection, &device),
+        nm::hw_address(&device),
+        nm::wired_speed(connection, &device),
+        nm::mtu(&device)
     )?;
     Ok(Link {
         name: device.interface,
@@ -68,7 +68,7 @@ async fn read(connection: Connection) -> zbus::Result<Option<Ethernet>> {
     let devices = nm::devices(&connection)
         .await?
         .into_iter()
-        .filter(|device| device.kind == nm::TYPE_ETHERNET);
+        .filter(|device| device.kind == nm::DeviceKind::Ethernet);
     let links = try_join_all(devices.map(|device| link(&connection, device))).await?;
     Ok((!links.is_empty()).then_some(Ethernet { links }))
 }
