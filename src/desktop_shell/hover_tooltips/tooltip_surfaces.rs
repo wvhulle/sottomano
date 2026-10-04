@@ -190,6 +190,22 @@ impl TooltipHost {
             .map(|(output, _)| output.clone())
     }
 
+    pub fn seq(&self) -> u64 {
+        self.transition.seq()
+    }
+
+    pub fn surfaces_to_redraw(&self, seq_before_update: u64) -> Vec<Id> {
+        if self.transition.seq() != seq_before_update {
+            return self.surfaces.values().copied().collect();
+        }
+        self.transition
+            .placement()
+            .and_then(|placement| self.surfaces.get(&placement.output))
+            .copied()
+            .into_iter()
+            .collect()
+    }
+
     fn hosts(&self, surface: Id) -> bool {
         self.surfaces.values().any(|id| *id == surface)
     }

@@ -1482,6 +1482,7 @@ dependencies = [
 [[package]]
 name = "exwlshellev"
 version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
 dependencies = [
  "calloop 0.14.4",
  "calloop-wayland-source 0.4.1",
@@ -2521,6 +2522,7 @@ dependencies = [
 [[package]]
 name = "iced_exdevtools"
 version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
 dependencies = [
  "iced_debug",
  "iced_devtools",
@@ -2533,6 +2535,7 @@ dependencies = [
 [[package]]
 name = "iced_exwlshell"
 version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
 dependencies = [
  "enumflags2",
  "exwlshellev",
@@ -2558,6 +2561,7 @@ dependencies = [
 [[package]]
 name = "iced_exwlshell_macros"
 version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
 dependencies = [
  "darling 0.24.1",
  "manyhow",
@@ -2660,6 +2664,7 @@ dependencies = [
 [[package]]
 name = "iced_wayland_subscriber"
 version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
 dependencies = [
  "futures",
  "iced_core",
@@ -7316,6 +7321,7 @@ dependencies = [
 [[package]]
 name = "waycrate_xkbkeycode"
 version = "0.21.0-dev"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
 dependencies = [
  "calloop 0.14.4",
  "log",
