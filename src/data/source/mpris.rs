@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use iced::{
     Subscription,
@@ -11,6 +11,7 @@ use iced::{
     widget::image,
 };
 use tokio::time::{Duration, sleep};
+use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
     Connection, MatchRule, MessageStream, fdo::DBusProxy, message::Type, proxy,
     proxy::CacheProperties, zvariant::OwnedValue,
@@ -45,6 +46,65 @@ impl Status {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Progress {
+    Untimed,
+    Timed {
+        position: Duration,
+        sampled_at: Instant,
+        length: Duration,
+    },
+}
+
+impl Progress {
+    fn sample(length: Option<Duration>, position_micros: Option<i64>) -> Self {
+        let Some(length) = length.filter(|length| !length.is_zero()) else {
+            return Self::Untimed;
+        };
+        let Some(position) = position_micros.and_then(|micros| u64::try_from(micros).ok()) else {
+            return Self::Untimed;
+        };
+        Self::Timed {
+            position: Duration::from_micros(position),
+            sampled_at: Instant::now(),
+            length,
+        }
+    }
+
+    pub fn fraction(self, status: Status, now: Instant) -> Option<Ratio> {
+        let Self::Timed { length, .. } = self else {
+            return None;
+        };
+        let played = self.played(status, now)?;
+        Some(Ratio::new::<ratio>(
+            played.as_secs_f64() / length.as_secs_f64(),
+        ))
+    }
+
+    pub fn remaining(self, status: Status, now: Instant) -> Option<Duration> {
+        let Self::Timed { length, .. } = self else {
+            return None;
+        };
+        Some(length.saturating_sub(self.played(status, now)?))
+    }
+
+    fn played(self, status: Status, now: Instant) -> Option<Duration> {
+        let Self::Timed {
+            position,
+            sampled_at,
+            length,
+        } = self
+        else {
+            return None;
+        };
+        let elapsed = match status {
+            Status::Playing => now.saturating_duration_since(sampled_at),
+            Status::Paused | Status::Stopped => Duration::ZERO,
+        };
+        Some((position + elapsed).min(length))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Media {
     pub bus: String,
@@ -54,6 +114,7 @@ pub struct Media {
     pub artist: Option<String>,
     pub album: Option<String>,
     pub status: Status,
+    pub progress: Progress,
     pub art: Option<image::Handle>,
     pub can_next: bool,
     pub can_prev: bool,
@@ -82,6 +143,16 @@ fn artist(metadata: &HashMap<String, OwnedValue>) -> Option<String> {
         .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
         .map(|artists| artists.join(", "))
         .filter(|artists| !artists.is_empty())
+}
+
+fn length(metadata: &HashMap<String, OwnedValue>) -> Option<Duration> {
+    let value = metadata.get("mpris:length")?;
+    let micros = u64::try_from(value).ok().or_else(|| {
+        i64::try_from(value)
+            .ok()
+            .and_then(|v| u64::try_from(v).ok())
+    })?;
+    Some(Duration::from_micros(micros))
 }
 
 pub fn app_handle(bus: &str) -> String {
@@ -121,6 +192,8 @@ trait Player {
     fn playback_status(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn metadata(&self) -> zbus::Result<HashMap<String, OwnedValue>>;
+    #[zbus(property)]
+    fn position(&self) -> zbus::Result<i64>;
     #[zbus(property)]
     fn can_go_next(&self) -> zbus::Result<bool>;
     #[zbus(property)]
@@ -235,10 +308,15 @@ async fn read_all(
             Some(player) => player.can_pause().await.unwrap_or(true),
             None => true,
         };
+        let position = match &player {
+            Some(player) => player.position().await.ok(),
+            None => None,
+        };
         media.push(Media {
             title: string(&metadata, "xesam:title"),
             artist: artist(&metadata),
             album: string(&metadata, "xesam:album"),
+            progress: Progress::sample(length(&metadata), position),
             art: handle,
             can_next,
             can_prev,
@@ -326,12 +404,21 @@ async fn watch(output: &mut Sender<Vec<Media>>) -> zbus::Result<()> {
     let properties = MessageStream::for_match_rule(properties_rule, &connection, Some(16))
         .await?
         .map(|_| true);
+    let seeked_rule = MatchRule::builder()
+        .msg_type(Type::Signal)
+        .path(PATH)?
+        .interface("org.mpris.MediaPlayer2.Player")?
+        .member("Seeked")?
+        .build();
+    let seeks = MessageStream::for_match_rule(seeked_rule, &connection, Some(16))
+        .await?
+        .map(|_| true);
     let owners = dbus.receive_name_owner_changed().await?.map(|signal| {
         signal
             .args()
             .is_ok_and(|args| args.name().as_str().starts_with(PREFIX))
     });
-    let mut events = select(properties, owners);
+    let mut events = select(select(properties, seeks), owners);
 
     while let Some(relevant) = events.next().await {
         if relevant

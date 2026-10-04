@@ -74,7 +74,13 @@ impl NotificationLayer {
                 }
             })
             .collect();
-        WindowAnchoredToasts::new(window, toasts, bar_clearance, &config.toasts)
+        WindowAnchoredToasts::new(
+            window,
+            toasts,
+            bar_clearance,
+            settings.overlays.corner_radius.top_left,
+            &config.toasts,
+        )
     }
 
     pub fn is_active(&self) -> bool {

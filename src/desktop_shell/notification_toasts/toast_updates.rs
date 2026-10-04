@@ -146,8 +146,7 @@ impl NotificationLayer {
                         rects,
                         roles: RegionRoles {
                             takes_input: true,
-                            blurred: true,
-                            corner_radius: shell_settings.overlays.corner_radius.top_left,
+                            ..RegionRoles::default()
                         },
                     },
                 })

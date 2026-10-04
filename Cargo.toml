@@ -34,8 +34,8 @@ iced = { version = "0.14.0", features = [
 ] }
 icu_locale_core = "2.2"
 sys-locale = "0.3"
-iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
-iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
+iced_exwlshell = { path = "../exwlshelleventloop/iced_exwlshell" }
+iced_wayland_subscriber = { path = "../exwlshelleventloop/iced_wayland_subscriber" }
 wayland-client = "0.31"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

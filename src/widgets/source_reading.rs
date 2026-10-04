@@ -8,8 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::Gauge,
-        phosphor::{Phosphor, Weight},
-        svg_icon::PHOSPHOR_INK_FRACTION,
+        phosphor::{Phosphor, Weight, ink_side},
         text::bar_text,
         widget_state::WidgetState,
     },
@@ -58,16 +57,12 @@ pub fn reading_value<'a, Message: 'a>(
     }
     match widget.gauge() {
         Some(fill) => Some(
-            Gauge::new(
-                fill,
-                color,
-                config.font.icon_size_px * PHOSPHOR_INK_FRACTION,
-            )
-            .live(widget.live_gauge().unwrap_or(fill))
-            .into(),
+            Gauge::new(fill, color, ink_side(config.font.icon_size_px))
+                .live(widget.live_gauge().unwrap_or(fill))
+                .into(),
         ),
         None => widget
-            .label()
+            .localized_label(config.locale)
             .filter(|label| !label.is_empty())
             .map(|label| bar_text(&config.font, label).color(color).into()),
     }

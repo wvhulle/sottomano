@@ -5,8 +5,7 @@ pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::{
     actions::ActionCallback,
     reexport::{
-        Anchor, BlurOption, BlurRegion, KeyboardInteractivity, Layer, LayerSize,
-        NewLayerShellSettings, OutputOption,
+        Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
     },
 };
 
@@ -171,7 +170,6 @@ pub enum ShellElement {
     BottomBarEnd,
     WorkspaceSidebar,
     NotificationToasts,
-    HoverTooltip,
 }
 
 #[derive(Default)]
@@ -187,7 +185,7 @@ impl ReportedElementRegions {
         region: ReportedRegion,
     ) -> Task<Message> {
         self.by_element.insert((panel, element), region);
-        Task::batch([self.input_region_of(panel), self.blur_region_of(panel)])
+        self.input_region_of(panel)
     }
 
     fn width_of(&self, panel: Id, element: ShellElement) -> f32 {
@@ -218,55 +216,6 @@ impl ReportedElementRegions {
             .collect();
         Task::done(input_regions(panel, rects))
     }
-
-    fn blur_region_of(&self, panel: Id) -> Task<Message> {
-        let region = self
-            .regions_on(panel)
-            .filter(|region| region.roles.blurred)
-            .flat_map(|region| {
-                region
-                    .rects
-                    .iter()
-                    .flat_map(|rect| rounded_blur_rows(*rect, region.roles.corner_radius))
-            })
-            .collect();
-        Task::done(Message::BlurOptionChange {
-            id: panel,
-            option: BlurOption::Region(region),
-        })
-    }
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn rounded_blur_rows(rect: Rectangle, radius: f32) -> Vec<BlurRegion> {
-    let x = rect.x.ceil() as i32;
-    let y = rect.y.ceil() as i32;
-    let width = (rect.x + rect.width).floor() as i32 - x;
-    let height = (rect.y + rect.height).floor() as i32 - y;
-    let radius = (radius.round() as i32).clamp(0, width.min(height) / 2);
-    let row = |top: i32, inset: i32| BlurRegion {
-        x: x + inset,
-        y: top,
-        width: width - 2 * inset,
-        height: 1,
-    };
-    let corner_rows = (0..radius).flat_map(|step| {
-        let from_edge = (radius - step) as f32 - 0.5;
-        let reach = (radius as f32)
-            .mul_add(radius as f32, -from_edge * from_edge)
-            .sqrt();
-        let inset = (radius as f32 - reach).ceil() as i32;
-        [row(y + step, inset), row(y + height - 1 - step, inset)]
-    });
-    corner_rows
-        .chain([BlurRegion {
-            x,
-            y: y + radius,
-            width,
-            height: height - 2 * radius,
-        }])
-        .filter(|row| row.width > 0 && row.height > 0)
-        .collect()
 }
 
 impl DesktopShell {
@@ -461,45 +410,4 @@ pub enum OutputChange {
 
 pub(crate) fn query_outputs() -> Task<Message> {
     blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
-}
-
-#[cfg(test)]
-mod tests {
-    use iced::Rectangle;
-
-    use super::rounded_blur_rows;
-
-    fn widget_group_frame() -> Rectangle {
-        Rectangle {
-            x: 10.0,
-            y: 0.0,
-            width: 60.0,
-            height: 24.0,
-        }
-    }
-
-    #[test]
-    fn a_square_frame_blurs_as_one_rectangle() {
-        let region = rounded_blur_rows(widget_group_frame(), 0.0);
-        assert_eq!(region.len(), 1);
-        assert_eq!(
-            (region[0].x, region[0].width, region[0].height),
-            (10, 60, 24)
-        );
-    }
-
-    #[test]
-    fn rounded_corners_step_inwards_towards_the_edge() {
-        let region = rounded_blur_rows(widget_group_frame(), 8.0);
-        let top_row = region.iter().find(|row| row.y == 0).expect("top row");
-        let middle = region.iter().find(|row| row.height > 1).expect("middle");
-        assert!(top_row.x > 10 && top_row.width < 60);
-        assert_eq!((middle.y, middle.height, middle.width), (8, 8, 60));
-    }
-
-    #[test]
-    fn the_radius_never_exceeds_half_the_frame() {
-        let region = rounded_blur_rows(widget_group_frame(), 100.0);
-        assert!(region.iter().all(|row| row.width > 0 && row.height > 0));
-    }
 }

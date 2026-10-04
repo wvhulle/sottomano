@@ -300,7 +300,7 @@ impl DesktopShell {
 
     fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {
         self.all_widget_groups()
-            .flat_map(|group| group.alerts())
+            .flat_map(|group| group.alerts(self.config.locale))
             .collect()
     }
 
@@ -336,7 +336,7 @@ impl DesktopShell {
             Message::SurfaceEffects(msg) => self.update_surface_effects(msg),
             Message::NiriWindow(msg) => self.niri_window_group.update(msg, &mut self.niri_rules),
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
-            Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
+            Message::Clock(msg) => self.update_clock(msg),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
             Message::NetInterfaces(msg) => self.update_net_interfaces(msg),
@@ -405,6 +405,12 @@ impl DesktopShell {
             | Message::RemoveWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    fn update_clock(&mut self, msg: ClockMessage) -> Task<Message> {
+        self.clock_group
+            .update(msg, &self.config)
+            .map(Message::Clock)
     }
 
     fn update_net_interfaces(&mut self, msg: NetInterfacesMessage) -> Task<Message> {

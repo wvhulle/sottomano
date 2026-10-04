@@ -7,6 +7,7 @@ pub enum TimePart {
     TimeOfDay,
     Date,
     DateAndTime,
+    Weekday,
 }
 
 impl TimePart {
@@ -29,6 +30,7 @@ impl TimePart {
             TimePart::TimeOfDay => "%X",
             TimePart::Date => "%x",
             TimePart::DateAndTime => "%x %X",
+            TimePart::Weekday => "%A",
         }
     }
 }

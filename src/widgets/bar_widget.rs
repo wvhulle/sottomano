@@ -1,3 +1,4 @@
+use chrono::Locale;
 use iced::{Color, Element};
 use uom::si::f64::Ratio;
 
@@ -59,6 +60,10 @@ pub trait BarWidget {
 
     fn label(&self) -> Option<String> {
         None
+    }
+
+    fn localized_label(&self, _locale: Locale) -> Option<String> {
+        self.label()
     }
 
     fn state(&self) -> WidgetState {

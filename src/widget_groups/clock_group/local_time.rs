@@ -1,33 +1,26 @@
-use chrono::{DateTime, Local, Locale, Utc};
+use chrono::{DateTime, Local, Locale};
 
-use super::clock_reading::ClockReading;
-use crate::{
-    desktop_shell::hover_tooltips::HoverTarget,
-    widgets::{
-        localized_time::TimePart,
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Tooltip, row},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    localized_time::TimePart,
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{TooltipBody, row},
 };
 
 pub struct LocalTime(pub DateTime<Local>);
 
-impl LocalTime {
-    pub fn reading(&self, locale: Locale) -> ClockReading {
-        ClockReading {
-            icon: Phosphor::Clock(Weight::Regular).into(),
-            label: TimePart::TimeOfDay.format(&self.0, locale),
-            target: HoverTarget::LocalTime,
-        }
+impl BarWidget for LocalTime {
+    fn icon(&self) -> Glyph {
+        Phosphor::Clock(Weight::Regular).into()
     }
 
-    pub fn tooltip(&self, locale: Locale) -> Tooltip {
-        Tooltip::table(vec![
+    fn localized_label(&self, locale: Locale) -> Option<String> {
+        Some(TimePart::TimeOfDay.format(&self.0, locale))
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        TooltipBody::rows(vec![
             row("UTC offset", self.0.format("%:z").to_string()),
-            row(
-                "UTC",
-                TimePart::TimeOfDay.format_in_own_zone(&self.0.with_timezone(&Utc), locale),
-            ),
             row("Unix time", self.0.timestamp().to_string()),
         ])
     }

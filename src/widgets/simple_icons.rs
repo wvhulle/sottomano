@@ -4,7 +4,7 @@ use iced::{
 };
 use simpleicons_rs::{SICLAUDE, SIGITHUBCOPILOT, SIOPENROUTER, SIUNSPLASH, SIWIKIPEDIA};
 
-use crate::widgets::{bar_widget::Glyph, svg_icon::PHOSPHOR_INK_FRACTION};
+use crate::widgets::{bar_widget::Glyph, phosphor::PHOSPHOR_INK_FRACTION};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimpleIcon {
