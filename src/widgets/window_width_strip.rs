@@ -1,10 +1,10 @@
 use iced::{
-    Border, Color, Element, Length, Theme,
+    Border, Color, Element, Theme,
     widget::{Row, Space, container},
 };
 
 pub struct WidthSegment {
-    pub width: f32,
+    pub width_px: f32,
     pub color: Color,
 }
 
@@ -22,11 +22,6 @@ impl WindowWidthStrip {
     }
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn width_portion(width: f32) -> u16 {
-    width.round().clamp(1.0, f32::from(u16::MAX)) as u16
-}
-
 fn rounded_fill(color: Color, thickness: f32) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
         background: Some(color.into()),
@@ -40,13 +35,12 @@ impl<'a, Message: 'a> From<WindowWidthStrip> for Element<'a, Message> {
         let thickness = strip.thickness;
         Row::with_children(strip.segments.into_iter().map(|segment| {
             container(Space::new())
-                .width(Length::FillPortion(width_portion(segment.width)))
+                .width(segment.width_px.max(thickness))
                 .height(thickness)
                 .style(rounded_fill(segment.color, thickness))
                 .into()
         }))
         .spacing(thickness)
-        .width(Length::Fill)
         .height(thickness)
         .into()
     }
