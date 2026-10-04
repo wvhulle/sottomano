@@ -3,6 +3,8 @@ use std::{
     fs,
     marker::PhantomData,
     ops::Add,
+    path::Path,
+    pin::pin,
     time::{Duration, Instant},
 };
 
@@ -12,8 +14,10 @@ use iced::{
     futures::{SinkExt, StreamExt, channel::mpsc::Sender},
     stream::channel,
 };
-use tokio::time::interval;
-use tokio_stream::wrappers::IntervalStream;
+use tokio::{
+    select,
+    time::{MissedTickBehavior, interval},
+};
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,
@@ -21,7 +25,11 @@ use uom::si::{
     ratio::ratio,
     time::second,
 };
-use zbus::{Connection, proxy};
+
+use crate::data::source::net_interfaces::{
+    nm::{self, Connectivity, Uplink},
+    nm_readings,
+};
 
 const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
 const SCALE_START_KB_PER_S: f64 = 100.0;
@@ -52,34 +60,6 @@ pub struct Throughput<D: Direction> {
     pub peak_rate: InformationRate,
     pub connectivity: Connectivity,
     direction: PhantomData<D>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Connectivity {
-    Full,
-    Limited,
-    None,
-    Unknown,
-}
-
-impl Connectivity {
-    fn from_nm(state: u32) -> Self {
-        match state {
-            4 => Self::Full,
-            2 | 3 => Self::Limited,
-            1 => Self::None,
-            _ => Self::Unknown,
-        }
-    }
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Full => "full",
-            Self::Limited => "limited",
-            Self::None => "none",
-            Self::Unknown => "unknown",
-        }
-    }
 }
 
 #[allow(clippy::cast_possible_truncation)]
@@ -124,12 +104,17 @@ pub struct Readings {
 pub fn subscription() -> Subscription<Readings> {
     Subscription::run_with("throughput", |_| {
         channel(16, |mut output: Sender<Readings>| async move {
-            let connection = Connection::system().await.ok();
-            let mut ticks = IntervalStream::new(interval(Duration::from_secs(1)));
+            let mut uplinks = pin!(nm_readings("throughput", nm::uplink));
+            let mut ticks = interval(Duration::from_secs(1));
+            ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
             let mut session = Session::default();
-            while ticks.next().await.is_some() {
-                let link = connectivity(connection.as_ref()).await;
-                if output.send(session.observe(capture(), link)).await.is_err() {
+            loop {
+                select! {
+                    Some(Some(uplink)) = uplinks.next() => session.relink(uplink),
+                    _ = ticks.tick(), if session.is_carrying() => {}
+                    else => break,
+                }
+                if output.send(session.sample()).await.is_err() {
                     break;
                 }
             }
@@ -150,18 +135,34 @@ struct Sample {
 
 #[derive(Default)]
 struct Session {
+    interfaces: Vec<String>,
+    connectivity: Connectivity,
     previous: Option<Sample>,
     peak: Rates,
 }
 
 impl Session {
-    fn observe(&mut self, current: Sample, connectivity: Connectivity) -> Readings {
+    fn relink(&mut self, uplink: Uplink) {
+        self.interfaces = uplink
+            .activated_interfaces
+            .into_iter()
+            .filter(|interface| is_physical(interface))
+            .collect();
+        self.connectivity = uplink.connectivity;
+    }
+
+    fn is_carrying(&self) -> bool {
+        !self.interfaces.is_empty()
+    }
+
+    fn sample(&mut self) -> Readings {
+        let current = capture(&self.interfaces);
         let rates = self
             .previous
             .as_ref()
             .map_or_else(Rates::default, |previous| current.rates_since(previous));
         self.peak = self.peak.raised_by(rates);
-        let readings = readings(&current, rates, self.peak, connectivity);
+        let readings = readings(&current, rates, self.peak, self.connectivity);
         self.previous = Some(current);
         readings
     }
@@ -198,13 +199,11 @@ impl Add for Rates {
     }
 }
 
-fn capture() -> Sample {
+fn capture(interfaces: &[String]) -> Sample {
     Sample {
-        counters: carrying_interfaces()
-            .map(|interface| {
-                let counters = read_counters(&interface);
-                (interface, counters)
-            })
+        counters: interfaces
+            .iter()
+            .map(|interface| (interface.clone(), read_counters(interface)))
             .collect(),
         at: Instant::now(),
     }
@@ -265,36 +264,9 @@ fn read_counters(interface: &str) -> Counters {
     }
 }
 
-fn carrying_interfaces() -> impl Iterator<Item = String> {
-    fs::read_dir("/sys/class/net")
-        .into_iter()
-        .flatten()
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.join("device").exists())
-        .filter(|path| {
-            fs::read_to_string(path.join("operstate")).is_ok_and(|state| state.trim() == "up")
-        })
-        .filter_map(|path| path.file_name()?.to_str().map(str::to_owned))
-}
-
-#[proxy(
-    interface = "org.freedesktop.NetworkManager",
-    default_service = "org.freedesktop.NetworkManager",
-    default_path = "/org/freedesktop/NetworkManager"
-)]
-trait NetworkManager {
-    #[zbus(property)]
-    fn connectivity(&self) -> zbus::Result<u32>;
-}
-
-async fn connectivity(connection: Option<&Connection>) -> Connectivity {
-    reported_connectivity(connection)
-        .await
-        .map_or(Connectivity::Unknown, Connectivity::from_nm)
-}
-
-async fn reported_connectivity(connection: Option<&Connection>) -> Option<u32> {
-    let proxy = NetworkManagerProxy::new(connection?).await.ok()?;
-    proxy.connectivity().await.ok()
+fn is_physical(interface: &str) -> bool {
+    Path::new("/sys/class/net")
+        .join(interface)
+        .join("device")
+        .exists()
 }

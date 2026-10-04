@@ -13,6 +13,7 @@ use zbus::{
     Connection, MatchRule, MessageStream,
     message::Type,
     proxy,
+    proxy::{Builder, CacheProperties, Defaults},
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
@@ -20,9 +21,55 @@ use crate::data::empty_text::non_empty;
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
-pub const TYPE_ETHERNET: u32 = 1;
-pub const TYPE_WIFI: u32 = 2;
-pub const STATE_ACTIVATED: u32 = 100;
+const STATE_ACTIVATED: u32 = 100;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceKind {
+    Ethernet,
+    Wifi,
+    Other,
+}
+
+impl From<u32> for DeviceKind {
+    fn from(code: u32) -> Self {
+        match code {
+            1 => Self::Ethernet,
+            2 => Self::Wifi,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Connectivity {
+    Full,
+    Limited,
+    None,
+    #[default]
+    Unknown,
+}
+
+impl From<u32> for Connectivity {
+    fn from(code: u32) -> Self {
+        match code {
+            4 => Self::Full,
+            2 | 3 => Self::Limited,
+            1 => Self::None,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl Connectivity {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Limited => "limited",
+            Self::None => "none",
+            Self::Unknown => "unknown",
+        }
+    }
+}
 
 #[proxy(
     interface = "org.freedesktop.NetworkManager",
@@ -31,6 +78,8 @@ pub const STATE_ACTIVATED: u32 = 100;
 )]
 trait Manager {
     fn get_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
+    #[zbus(property)]
+    fn connectivity(&self) -> zbus::Result<u32>;
 }
 
 #[proxy(
@@ -54,6 +103,8 @@ trait Device {
     fn hw_address(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn mtu(&self) -> zbus::Result<u32>;
+    #[zbus(property)]
+    fn ip_interface(&self) -> zbus::Result<String>;
 }
 
 #[proxy(
@@ -130,50 +181,90 @@ trait Ip6Config {
     fn nameservers(&self) -> zbus::Result<Vec<Vec<u8>>>;
 }
 
+async fn uncached<T>(connection: &Connection, path: OwnedObjectPath) -> zbus::Result<T>
+where
+    T: From<zbus::Proxy<'static>> + Defaults,
+{
+    Builder::new(connection)
+        .path(path)?
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+}
+
+async fn manager(connection: &Connection) -> zbus::Result<ManagerProxy<'static>> {
+    Builder::new(connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+}
+
 pub struct DeviceInfo {
     pub interface: String,
-    pub kind: u32,
+    pub kind: DeviceKind,
     pub connected: bool,
-    pub path: OwnedObjectPath,
+    path: OwnedObjectPath,
+    proxy: DeviceProxy<'static>,
 }
 
 pub async fn devices(connection: &Connection) -> zbus::Result<Vec<DeviceInfo>> {
-    let manager = ManagerProxy::new(connection).await?;
-    let paths = manager.get_devices().await?;
+    let paths = manager(connection).await?.get_devices().await?;
     try_join_all(paths.into_iter().map(|path| device_info(connection, path))).await
 }
 
 async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Result<DeviceInfo> {
-    let device = DeviceProxy::builder(connection)
-        .path(path.clone())?
-        .build()
-        .await?;
+    let proxy: DeviceProxy = uncached(connection, path.clone()).await?;
     let (kind, interface, state) =
-        try_join!(device.device_type(), device.interface(), device.state())?;
+        try_join!(proxy.device_type(), proxy.interface(), proxy.state())?;
     Ok(DeviceInfo {
-        kind,
+        kind: DeviceKind::from(kind),
         interface,
         connected: state == STATE_ACTIVATED,
         path,
+        proxy,
     })
+}
+
+pub struct Uplink {
+    pub activated_interfaces: Vec<String>,
+    pub connectivity: Connectivity,
+}
+
+pub async fn uplink(connection: Connection) -> zbus::Result<Option<Uplink>> {
+    let manager = manager(&connection).await?;
+    let (paths, connectivity) = try_join!(manager.get_devices(), manager.connectivity())?;
+    let interfaces = try_join_all(
+        paths
+            .into_iter()
+            .map(|path| activated_ip_interface(&connection, path)),
+    )
+    .await?;
+    Ok(Some(Uplink {
+        activated_interfaces: interfaces.into_iter().flatten().collect(),
+        connectivity: Connectivity::from(connectivity),
+    }))
+}
+
+async fn activated_ip_interface(
+    connection: &Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<Option<String>> {
+    let device: DeviceProxy = uncached(connection, path).await?;
+    let (state, interface) = try_join!(device.state(), device.ip_interface())?;
+    Ok((state == STATE_ACTIVATED)
+        .then_some(interface)
+        .and_then(non_empty))
 }
 
 pub async fn connection_id(
     connection: &Connection,
-    device: &OwnedObjectPath,
+    device: &DeviceInfo,
 ) -> zbus::Result<Option<String>> {
-    let device = DeviceProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?;
-    let path = device.active_connection().await?;
+    let path = device.proxy.active_connection().await?;
     if is_unset(&path) {
         return Ok(None);
     }
-    let active = ActiveConnectionProxy::builder(connection)
-        .path(path)?
-        .build()
-        .await?;
+    let active: ActiveConnectionProxy = uncached(connection, path).await?;
     Ok(Some(active.id().await?))
 }
 
@@ -208,12 +299,8 @@ impl FamilyConfig {
     }
 }
 
-pub async fn ip(connection: &Connection, device: &OwnedObjectPath) -> zbus::Result<IpInfo> {
-    let device = DeviceProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?;
-    let (v4_path, v6_path) = try_join!(device.ip4_config(), device.ip6_config())?;
+pub async fn ip(connection: &Connection, device: &DeviceInfo) -> zbus::Result<IpInfo> {
+    let (v4_path, v6_path) = try_join!(device.proxy.ip4_config(), device.proxy.ip6_config())?;
     let (v4, v6) = try_join!(
         ip4_config(connection, v4_path),
         ip6_config(connection, v6_path)
@@ -242,10 +329,7 @@ async fn ip4_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
     if is_unset(&path) {
         return Ok(FamilyConfig::unconfigured());
     }
-    let config = Ip4ConfigProxy::builder(connection)
-        .path(path)?
-        .build()
-        .await?;
+    let config: Ip4ConfigProxy = uncached(connection, path).await?;
     let (servers, addresses, gateway) = try_join!(
         config.nameserver_data(),
         config.address_data(),
@@ -268,10 +352,7 @@ async fn ip6_config(connection: &Connection, path: OwnedObjectPath) -> zbus::Res
     if is_unset(&path) {
         return Ok(FamilyConfig::unconfigured());
     }
-    let config = Ip6ConfigProxy::builder(connection)
-        .path(path)?
-        .build()
-        .await?;
+    let config: Ip6ConfigProxy = uncached(connection, path).await?;
     let (servers, addresses, gateway) = try_join!(
         config.nameservers(),
         config.address_data(),
@@ -302,36 +383,20 @@ fn prefix_to_netmask(prefix: u32) -> String {
     Ipv4Addr::from(bits).to_string()
 }
 
-pub async fn hw_address(
-    connection: &Connection,
-    device: &OwnedObjectPath,
-) -> zbus::Result<Option<String>> {
-    let device = DeviceProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?;
-    Ok(non_empty(device.hw_address().await?))
+pub async fn hw_address(device: &DeviceInfo) -> zbus::Result<Option<String>> {
+    Ok(non_empty(device.proxy.hw_address().await?))
 }
 
-pub async fn mtu(connection: &Connection, device: &OwnedObjectPath) -> zbus::Result<u32> {
-    DeviceProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?
-        .mtu()
-        .await
+pub async fn mtu(device: &DeviceInfo) -> zbus::Result<u32> {
+    device.proxy.mtu().await
 }
 
 pub async fn wired_speed(
     connection: &Connection,
-    device: &OwnedObjectPath,
+    device: &DeviceInfo,
 ) -> zbus::Result<InformationRate> {
-    let megabits_per_second = WiredProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?
-        .speed()
-        .await?;
+    let wired: WiredProxy = uncached(connection, device.path.clone()).await?;
+    let megabits_per_second = wired.speed().await?;
     Ok(InformationRate::new::<megabit_per_second>(f64::from(
         megabits_per_second,
     )))
@@ -339,14 +404,10 @@ pub async fn wired_speed(
 
 pub async fn wireless_rate(
     connection: &Connection,
-    device: &OwnedObjectPath,
+    device: &DeviceInfo,
 ) -> zbus::Result<InformationRate> {
-    let kilobits_per_second = WirelessProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?
-        .bitrate()
-        .await?;
+    let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
+    let kilobits_per_second = wireless.bitrate().await?;
     Ok(InformationRate::new::<kilobit_per_second>(f64::from(
         kilobits_per_second,
     )))
@@ -361,20 +422,14 @@ pub struct ApInfo {
 
 pub async fn access_point(
     connection: &Connection,
-    device: &OwnedObjectPath,
+    device: &DeviceInfo,
 ) -> zbus::Result<Option<ApInfo>> {
-    let wireless = WirelessProxy::builder(connection)
-        .path(device.clone())?
-        .build()
-        .await?;
+    let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
     let ap_path = wireless.active_access_point().await?;
     if is_unset(&ap_path) {
         return Ok(None);
     }
-    let ap = AccessPointProxy::builder(connection)
-        .path(ap_path)?
-        .build()
-        .await?;
+    let ap: AccessPointProxy = uncached(connection, ap_path).await?;
     let (ssid, strength, frequency, flags, wpa, rsn) = try_join!(
         ap.ssid(),
         ap.strength(),

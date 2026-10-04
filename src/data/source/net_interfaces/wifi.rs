@@ -30,7 +30,7 @@ async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
     let Some(device) = nm::devices(&connection)
         .await?
         .into_iter()
-        .find(|device| device.kind == nm::TYPE_WIFI)
+        .find(|device| device.kind == nm::DeviceKind::Wifi)
     else {
         return Ok(None);
     };
@@ -40,17 +40,17 @@ async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
             link: None,
         }));
     }
-    let Some(ap) = nm::access_point(&connection, &device.path).await? else {
+    let Some(ap) = nm::access_point(&connection, &device).await? else {
         return Ok(Some(Wifi {
             device: device.interface,
             link: None,
         }));
     };
     let (ip, mac, bitrate, mtu) = try_join!(
-        nm::ip(&connection, &device.path),
-        nm::hw_address(&connection, &device.path),
-        nm::wireless_rate(&connection, &device.path),
-        nm::mtu(&connection, &device.path)
+        nm::ip(&connection, &device),
+        nm::hw_address(&device),
+        nm::wireless_rate(&connection, &device),
+        nm::mtu(&device)
     )?;
     Ok(Some(Wifi {
         device: device.interface,

@@ -24,6 +24,8 @@ use zbus::{
 
 pub(crate) type Properties = HashMap<String, OwnedValue>;
 
+const SIGNAL_BURST_LIMIT: usize = 64;
+
 pub(crate) fn kept_readings<T>(
     label: &'static str,
     readings: impl Stream<Item = zbus::Result<Option<T>>>,
@@ -39,10 +41,14 @@ pub(crate) fn kept_readings<T>(
     })
 }
 
-pub(crate) fn once_then_on_each(
+pub(crate) fn once_then_per_burst(
     subscribed_signals: impl Stream<Item = ()>,
 ) -> impl Stream<Item = ()> {
-    stream::once(ready(())).chain(subscribed_signals)
+    stream::once(ready(())).chain(
+        subscribed_signals
+            .ready_chunks(SIGNAL_BURST_LIMIT)
+            .map(|_| ()),
+    )
 }
 
 fn once_subscribed<T, S>(
@@ -86,7 +92,7 @@ where
 {
     let connection = Connection::system().await?;
     let signals = nm::changes(&connection).await?;
-    let readings = once_then_on_each(signals).then(move |()| read(connection.clone()));
+    let readings = once_then_per_burst(signals).then(move |()| read(connection.clone()));
     Ok(kept_readings(label, readings))
 }
 
@@ -117,7 +123,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
         ),
         properties_changed(&connection, service).await?.map(|_| ()),
     );
-    let readings = once_then_on_each(signals).then(move |()| {
+    let readings = once_then_per_burst(signals).then(move |()| {
         let objects = objects.clone();
         async move { Ok(reading(&objects.get_managed_objects().await?)) }
     });

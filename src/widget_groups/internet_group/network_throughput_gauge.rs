@@ -10,8 +10,9 @@ use uom::si::{
 use crate::{
     data::{
         severity::Severity,
-        source::throughput::{
-            Connectivity, Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload,
+        source::{
+            net_interfaces::nm::Connectivity,
+            throughput::{Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload},
         },
     },
     widgets::{
