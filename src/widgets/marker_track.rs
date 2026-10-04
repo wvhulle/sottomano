@@ -1,5 +1,6 @@
 use iced::{
-    Color, Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor, widget::canvas,
+    Alignment, Color, Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor,
+    widget::canvas,
 };
 
 use crate::desktop_shell::monitor_surfaces::Position;
@@ -8,6 +9,7 @@ pub struct MarkerTrack {
     markers: Vec<Color>,
     max_diameter: f32,
     along_vertical_edge: bool,
+    alignment: Alignment,
 }
 
 impl MarkerTrack {
@@ -16,7 +18,14 @@ impl MarkerTrack {
             markers,
             max_diameter,
             along_vertical_edge: edge.is_vertical(),
+            alignment: Alignment::Center,
         }
+    }
+
+    #[must_use]
+    pub fn align(mut self, alignment: Alignment) -> Self {
+        self.alignment = alignment;
+        self
     }
 
     pub fn view<'a, Message: 'a>(self) -> Element<'a, Message> {
@@ -40,7 +49,12 @@ impl MarkerTrack {
 
     fn marker_centres(&self, track_length: f32) -> impl Iterator<Item = f32> {
         let diameter = self.marker_diameter(track_length);
-        let leading = (track_length - self.marker_and_gap_slots() * diameter) / 2.0;
+        let slack = track_length - self.marker_and_gap_slots() * diameter;
+        let leading = match self.alignment {
+            Alignment::Start => 0.0,
+            Alignment::Center => slack / 2.0,
+            Alignment::End => slack,
+        };
         (0..self.markers.len()).map(move |i| leading + diameter * (2.0 * i as f32 + 0.5))
     }
 }

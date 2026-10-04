@@ -18,6 +18,7 @@ use iced::{
 use crate::desktop_shell::monitor_surfaces::Position;
 
 const MOTION: Duration = Duration::from_millis(160);
+const BACKDROP_ALPHA: f32 = 0.2;
 
 pub fn focus_indicator<'a, Message>(
     slots: impl Into<Element<'a, Message>>,
@@ -93,6 +94,30 @@ impl<Message> FocusIndicator<'_, Message> {
                 height: travelled.extent,
             },
         }
+    }
+
+    fn backdrop(&self, slots: Rectangle, travelled: Travelled) -> Rectangle {
+        if self.edge.is_vertical() {
+            Rectangle {
+                x: slots.x,
+                y: travelled.start,
+                width: slots.width,
+                height: travelled.extent,
+            }
+        } else {
+            Rectangle {
+                x: travelled.start,
+                y: slots.y,
+                width: travelled.extent,
+                height: slots.height,
+            }
+        }
+    }
+
+    fn travelled(&self, tree: &Tree, layout: Layout<'_>) -> Option<Travelled> {
+        self.active_slot(layout)?;
+        let travel = tree.state.downcast_ref::<State>().travel.as_ref()?;
+        Some(travel.travelled(Instant::now()))
     }
 }
 
@@ -180,6 +205,17 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
+        let travelled = self.travelled(tree, layout);
+        if let Some(travelled) = travelled {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: self.backdrop(layout.bounds(), travelled),
+                    snap: false,
+                    ..renderer::Quad::default()
+                },
+                self.color.scale_alpha(BACKDROP_ALPHA),
+            );
+        }
         self.slots.as_widget().draw(
             &tree.children[0],
             renderer,
@@ -189,15 +225,15 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
             cursor,
             viewport,
         );
-        let Some(slot) = self.active_slot(layout) else {
+        let Some(travelled) = travelled else {
             return;
         };
-        let Some(travel) = tree.state.downcast_ref::<State>().travel.as_ref() else {
+        let Some(slot) = self.active_slot(layout) else {
             return;
         };
         renderer.fill_quad(
             renderer::Quad {
-                bounds: self.band(layout.bounds(), slot, travel.travelled(Instant::now())),
+                bounds: self.band(layout.bounds(), slot, travelled),
                 border: border::rounded(self.thickness / 2.0),
                 snap: false,
                 ..renderer::Quad::default()
