@@ -3,8 +3,7 @@ pub mod workspace_tooltip;
 
 use iced::{
     Alignment, Element, Length,
-    alignment::Vertical,
-    widget::{Column, Row, Space, Text, button, container, row, stack},
+    widget::{Column, Row, Text, button, column, row},
 };
 
 use crate::{
@@ -49,59 +48,37 @@ pub fn vertical_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let list = |cells: Vec<Element<'a, WorkspacesMessage>>| {
-        Column::with_children(cells).spacing(config.spacing.widget_spacing_px)
-    };
-    let markers = list(
-        workspaces
-            .iter()
-            .map(|p| {
-                container(window_markers(config, niri, p.id, Position::Left))
-                    .height(config.bar.height_px)
-                    .into()
-            })
-            .collect(),
-    );
-    let names = list(
-        workspaces
-            .iter()
-            .map(|p| row_cell(inline_label(config, p), config))
-            .collect(),
-    )
-    .align_x(Alignment::End);
-    let urgency = list(
-        workspaces
-            .iter()
-            .map(|p| {
-                container(urgency_line(config, p, Position::Left))
-                    .height(config.bar.height_px)
-                    .into()
-            })
-            .collect(),
-    );
-    let hit_areas = list(
-        workspaces
-            .iter()
-            .map(|p| {
-                hit_area(
-                    p,
-                    Space::new()
-                        .width(Length::Fill)
-                        .height(config.bar.height_px)
-                        .into(),
-                    config,
-                )
-            })
-            .collect(),
-    )
-    .width(Length::Fill);
-    let labels = row![
-        markers,
-        names,
-        indicated(urgency.into(), workspaces, config, Position::Left)
+    let rows = workspaces
+        .iter()
+        .map(|p| hit_area(p, sidebar_row(config, niri, p), config));
+    Some(indicated(
+        Column::with_children(rows)
+            .spacing(config.spacing.widget_spacing_px)
+            .align_x(Alignment::End)
+            .into(),
+        workspaces,
+        config,
+        Position::Left,
+    ))
+}
+
+fn sidebar_row<'a>(
+    config: &Config,
+    niri: &niri::Snapshot,
+    p: &niri::WorkspaceIndicator,
+) -> Element<'a, WorkspacesMessage> {
+    let label_over_markers = column![
+        inline_label(config, p),
+        window_markers(config, niri, p.id, Position::Bottom)
+            .align(Alignment::End)
+            .view()
     ]
-    .spacing(config.spacing.widget_spacing_px);
-    Some(stack![labels, hit_areas].into())
+    .width(Length::Shrink);
+    row![label_over_markers, urgency_line(config, p, Position::Left)]
+        .spacing(config.spacing.widget_spacing_px)
+        .height(config.bar.height_px)
+        .align_y(Alignment::Center)
+        .into()
 }
 
 pub fn inline_view<'a>(
@@ -116,7 +93,7 @@ pub fn inline_view<'a>(
     }
     let slots = workspaces.iter().map(|p| {
         let slot = PagerSlot::new(inline_label(config, p), urgency_line(config, p, position))
-            .ticks(window_markers(config, niri, p.id, position))
+            .ticks(window_markers(config, niri, p.id, position).view())
             .view(config, position);
         hit_area(p, slot, config)
     });
@@ -172,22 +149,12 @@ fn hit_area<'a>(
     )
 }
 
-fn row_cell<'a>(
-    content: impl Into<Element<'a, WorkspacesMessage>>,
-    config: &Config,
-) -> Element<'a, WorkspacesMessage> {
-    container(content)
-        .height(config.bar.height_px)
-        .align_y(Vertical::Center)
-        .into()
-}
-
-fn window_markers<'a>(
+fn window_markers(
     config: &Config,
     niri: &niri::Snapshot,
     workspace: u64,
     position: Position,
-) -> Element<'a, WorkspacesMessage> {
+) -> MarkerTrack {
     let colors = niri
         .windows_on_workspace(workspace)
         .iter()
@@ -201,7 +168,7 @@ fn window_markers<'a>(
             }
         })
         .collect();
-    MarkerTrack::new(colors, config.widget_sizes.indicator_thickness_px, position).view()
+    MarkerTrack::new(colors, config.widget_sizes.indicator_thickness_px, position)
 }
 
 fn urgency_line<'a>(
