@@ -276,6 +276,7 @@ impl DesktopShell {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
+        let tooltip_seq = self.tooltip.seq();
         let dispatched = self.dispatch_message(message);
         let alert_toasts = self.notifications.show_reading_alerts(
             &self.reading_alerts(),
@@ -284,7 +285,16 @@ impl DesktopShell {
             &self.config,
             &self.shell_settings,
         );
-        Task::batch([dispatched, alert_toasts])
+        Task::batch([dispatched, alert_toasts, self.redraw_content(tooltip_seq)])
+    }
+
+    fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {
+        Task::batch(
+            self.panels()
+                .map(|(panel, _)| panel)
+                .chain(self.tooltip.surfaces_to_redraw(tooltip_seq_before_update))
+                .map(|surface| Task::done(Message::RedrawWindow(surface))),
+        )
     }
 
     fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {

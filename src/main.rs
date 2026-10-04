@@ -12,6 +12,7 @@ use config::{Config, ConfigFile, SecretPaths};
 use desktop_shell::DesktopShell;
 use iced_exwlshell::{
     build_pattern::daemon,
+    redraw::Scope,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
 use state::niri_rules::NiriRulesFile;
@@ -64,6 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     .style(DesktopShell::style)
     .theme(DesktopShell::theme)
     .subscription(message_subscriptions::subscription)
+    .redraw_scope(|_| Scope::None)
     .wl_settings(wl_settings)
     .default_font(default_font)
     .antialiasing(true)
