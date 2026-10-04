@@ -2,7 +2,7 @@ pub mod workspace_preview;
 pub mod workspace_tooltip;
 
 use iced::{
-    Alignment, Element, Length,
+    Alignment, Color, Element, Length,
     widget::{Column, Row, Text, button, column, row},
 };
 
@@ -15,8 +15,13 @@ use crate::{
         monitor_surfaces::Position,
     },
     widgets::{
-        activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
-        marker_track::MarkerTrack, pager_slot::PagerSlot, text::bar_text,
+        activity_line::edge_activity_line,
+        flat_button,
+        focus_indicator::focus_indicator,
+        marker_track::MarkerTrack,
+        pager_slot::PagerSlot,
+        text::bar_text,
+        window_width_strip::{WidthSegment, WindowWidthStrip},
     },
 };
 
@@ -67,14 +72,9 @@ fn sidebar_row<'a>(
     niri: &niri::Snapshot,
     p: &niri::WorkspaceIndicator,
 ) -> Element<'a, WorkspacesMessage> {
-    let label_over_markers = column![
-        inline_label(config, p),
-        window_markers(config, niri, p.id, Position::Bottom)
-            .align(Alignment::End)
-            .view()
-    ]
-    .width(Length::Shrink);
-    row![label_over_markers, urgency_line(config, p, Position::Left)]
+    let label_over_windows =
+        column![inline_label(config, p), window_widths(config, niri, p.id)].width(Length::Shrink);
+    row![label_over_windows, urgency_line(config, p, Position::Left)]
         .spacing(config.spacing.widget_spacing_px)
         .height(config.bar.height_px)
         .align_y(Alignment::Center)
@@ -149,6 +149,16 @@ fn hit_area<'a>(
     )
 }
 
+fn window_color(config: &Config, w: &niri::WinEntry, unfocused: Color) -> Color {
+    if w.is_urgent {
+        config.palette.urgent
+    } else if w.is_focused {
+        config.palette.focus
+    } else {
+        unfocused
+    }
+}
+
 fn window_markers(
     config: &Config,
     niri: &niri::Snapshot,
@@ -158,17 +168,21 @@ fn window_markers(
     let colors = niri
         .windows_on_workspace(workspace)
         .iter()
-        .map(|w| {
-            if w.is_urgent {
-                config.palette.urgent
-            } else if w.is_focused {
-                config.palette.focus
-            } else {
-                config.palette.inactive
-            }
-        })
+        .map(|w| window_color(config, w, config.palette.inactive))
         .collect();
     MarkerTrack::new(colors, config.widget_sizes.indicator_thickness_px, position)
+}
+
+fn window_widths(config: &Config, niri: &niri::Snapshot, workspace: u64) -> WindowWidthStrip {
+    let segments = niri
+        .windows_on_workspace(workspace)
+        .iter()
+        .map(|w| WidthSegment {
+            width: w.layout.tile_size.width,
+            color: window_color(config, w, config.palette.dim),
+        })
+        .collect();
+    WindowWidthStrip::new(segments, config.widget_sizes.indicator_thickness_px)
 }
 
 fn urgency_line<'a>(

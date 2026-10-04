@@ -37,6 +37,7 @@ pub mod widget_state;
 pub mod window_icon;
 pub mod window_list_viewport;
 pub mod window_title;
+pub mod window_width_strip;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
 
