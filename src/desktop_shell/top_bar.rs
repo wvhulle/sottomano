@@ -169,9 +169,7 @@ impl DesktopShell {
     pub(super) fn top_center_groups(&self) -> [WidgetGroup<'_, Message>; 2] {
         let config = &self.config;
         [
-            self.clock_group
-                .widget_group(config)
-                .map_messages(Message::Clock),
+            self.clock_group.widget_group().map_messages(Message::Clock),
             self.notification_group
                 .widget_group(
                     config,

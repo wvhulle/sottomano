@@ -18,7 +18,10 @@ use crate::{
     config::Config,
     desktop_shell::{Message, monitor_surfaces::Position},
     state::ShellSettings,
-    widgets::popup_connector::{notch, notch_blur_rows, notch_region},
+    widgets::{
+        popup_connector::{notch, notch_blur_rows, notch_region},
+        region_reporter::RegionRoles,
+    },
 };
 
 const MORPH: Duration = Duration::from_millis(160);
@@ -28,6 +31,12 @@ pub struct PopupFrame {
     pub bounds: Rectangle,
     pub notch_rows: Vec<Rectangle>,
     pub settled: bool,
+}
+
+impl PopupFrame {
+    pub fn rects(&self) -> impl Iterator<Item = Rectangle> {
+        once(self.bounds).chain(self.notch_rows.iter().copied())
+    }
 }
 
 pub struct Rendering<'a> {
@@ -207,6 +216,21 @@ impl<'a> AnchoredPopup<'a> {
         state.progress >= 1.0 && self.is_live()
     }
 
+    fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
+        let settled = self.is_settled(state);
+        let notch_rows = if settled {
+            let notch_bounds = layout.children().next().unwrap().bounds();
+            notch_blur_rows(notch_bounds, self.position)
+        } else {
+            Vec::new()
+        };
+        PopupFrame {
+            bounds: state.current + Vector::new(layout.bounds().x, layout.bounds().y),
+            notch_rows,
+            settled,
+        }
+    }
+
     fn live_view<'t>(
         &'t mut self,
         tree: &'t mut Tree,
@@ -384,6 +408,14 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
+        let state: &MorphState = tree.state.downcast_ref();
+        let roles = RegionRoles {
+            blurred: true,
+            corner_radius: self.radius,
+            ..RegionRoles::default()
+        };
+        let mut blur_rows = roles.blur_rows(self.frame(state, layout).rects());
+        operation.custom(None, layout.bounds(), &mut blur_rows);
         self.views_mut(tree, layout).for_each(|rendering| {
             rendering.widget.as_widget_mut().operate(
                 rendering.state,
@@ -426,18 +458,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             shell.invalidate_layout();
             shell.request_redraw();
         }
-        let settled = self.is_settled(state);
-        let notch_rows = if settled {
-            let notch_bounds = layout.children().next().unwrap().bounds();
-            notch_blur_rows(notch_bounds, self.position)
-        } else {
-            Vec::new()
-        };
-        let frame = PopupFrame {
-            bounds: state.current + Vector::new(layout.bounds().x, layout.bounds().y),
-            notch_rows,
-            settled,
-        };
+        let frame = self.frame(state, layout);
         if state.published.as_ref() != Some(&frame) {
             state.published = Some(frame.clone());
             shell.publish((self.on_frame)(frame));

@@ -1,3 +1,5 @@
+use chrono::Locale;
+
 use crate::{
     data::{
         notifications::model::{ExpireTimeout, NotifAction, NotificationData},
@@ -43,6 +45,7 @@ impl<Message> ReadingAlert<Message> {
         hover_target: HoverTarget,
         widget: Option<&dyn BarWidget>,
         on_body_clicked: Message,
+        locale: Locale,
     ) -> Option<Self> {
         let widget = widget?;
         let ReadingAlertThreshold::NotifyFromSeverity {
@@ -57,7 +60,7 @@ impl<Message> ReadingAlert<Message> {
             hover_target,
             severity,
             summary_text,
-            body_text: widget.label(),
+            body_text: widget.localized_label(locale),
             on_body_clicked,
             action_buttons: Vec::new(),
         })
@@ -170,6 +173,7 @@ mod tests {
             HoverTarget::BatteryTime,
             Some(&FixedReading { state, threshold }),
             0,
+            Locale::default(),
         )
     }
 

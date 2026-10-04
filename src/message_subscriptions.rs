@@ -37,8 +37,7 @@ use crate::{
     },
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, journal_group::JournalGroup,
-        media_group::MediaGroup, net_interfaces_group::NetInterfacesGroup, tray_group::TrayGroup,
-        window_group::WindowGroup,
+        net_interfaces_group::NetInterfacesGroup, tray_group::TrayGroup, window_group::WindowGroup,
     },
     widgets::idle::{self, IdleTrigger},
 };
@@ -111,7 +110,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .subscription()
             .map(Message::ColorTemperature),
         state.dark_mode_group.subscription().map(Message::DarkMode),
-        MediaGroup::subscription().map(Message::Media),
+        state.media_group.subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         idle_subscription(state),
         AudioGroup::subscription().map(Message::Audio),

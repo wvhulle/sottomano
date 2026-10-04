@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use chrono::Locale;
 use iced::{
     Element,
     widget::{button, mouse_area},
@@ -132,7 +133,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         self
     }
 
-    pub(super) fn alert(&self, on_body_clicked: M) -> Option<ReadingAlert<M>>
+    pub(super) fn alert(&self, on_body_clicked: M, locale: Locale) -> Option<ReadingAlert<M>>
     where
         M: Clone,
     {
@@ -141,8 +142,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         else {
             return None;
         };
-        let alert =
-            ReadingAlert::from_widget_state(target.clone(), Some(*widget), on_body_clicked)?;
+        let alert = ReadingAlert::from_widget_state(
+            target.clone(),
+            Some(*widget),
+            on_body_clicked,
+            locale,
+        )?;
         Some(
             self.alert_action_buttons
                 .iter()

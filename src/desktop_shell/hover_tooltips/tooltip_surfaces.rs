@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter::once};
+use std::collections::HashMap;
 
 use iced::{
     Element, Rectangle, Task,
@@ -18,32 +18,25 @@ use crate::{
             tooltip_content::TooltipContent,
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
-        monitor_surfaces::{PanelEdge, Position, ShellElement, base_settings, input_region},
+        monitor_surfaces::{PanelEdge, Position, base_settings, input_region, input_regions},
     },
     state::{ShellSettings, niri_rules::StyledSurface},
     widgets::{
         anchored_popup::{PopupFrame, Rendering, anchored_popup},
         favicon::Favicons,
-        region_reporter::{RegionRoles, ReportedRegion},
         tooltip_body::Tooltip,
     },
 };
 
 const HIDE_GRACE: Duration = Duration::from_millis(250);
 
-fn tooltip_region(surface: Id, frame: PopupFrame, corner_radius: f32) -> Message {
-    Message::ElementRegions {
-        window: surface,
-        element: ShellElement::HoverTooltip,
-        region: ReportedRegion {
-            rects: once(frame.bounds).chain(frame.notch_rows).collect(),
-            roles: RegionRoles {
-                takes_input: frame.settled,
-                blurred: true,
-                corner_radius,
-            },
-        },
-    }
+fn tooltip_input_region(surface: Id, frame: &PopupFrame) -> Message {
+    let rects = if frame.settled {
+        frame.rects().collect()
+    } else {
+        Vec::new()
+    };
+    input_regions(surface, rects)
 }
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
@@ -242,7 +235,7 @@ impl TooltipHost {
             return None;
         }
         let corner_radius = shell_settings.overlays.corner_radius;
-        let on_frame = move |frame| tooltip_region(surface, frame, corner_radius.top_left);
+        let on_frame = move |frame| tooltip_input_region(surface, &frame);
         let Some(placement) = self
             .transition
             .placement()

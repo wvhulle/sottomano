@@ -1,47 +1,63 @@
+use std::cmp::Ordering;
+
 use chrono::{DateTime, Local, Locale, Offset};
 use chrono_tz::Tz;
 
-use super::clock_reading::ClockReading;
-use crate::{
-    desktop_shell::hover_tooltips::HoverTarget,
-    widgets::{
-        localized_time::TimePart,
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Tooltip, row},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    localized_time::TimePart,
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{TooltipBody, row},
 };
 
 pub struct ZoneTime(pub DateTime<Tz>);
 
 impl ZoneTime {
-    pub fn reading(&self, locale: Locale) -> ClockReading {
-        ClockReading {
-            icon: Phosphor::GlobeHemisphereWest(Weight::Regular).into(),
-            label: format!(
-                "{} {}",
-                city_name(self.0.timezone()),
-                TimePart::TimeOfDay.format_in_own_zone(&self.0, locale)
-            ),
-            target: HoverTarget::ZoneTime(self.0.timezone()),
-        }
+    pub fn zone(&self) -> Tz {
+        self.0.timezone()
     }
 
-    pub fn tooltip(&self, locale: Locale) -> Tooltip {
-        Tooltip::table(vec![
-            row("Zone", self.0.timezone().name()),
+    fn local(&self) -> DateTime<Local> {
+        self.0.with_timezone(&Local)
+    }
+
+    fn seconds_ahead_of_local(&self) -> i32 {
+        self.0.offset().fix().local_minus_utc() - self.local().offset().local_minus_utc()
+    }
+
+    fn day_relative_to_local(&self) -> &'static str {
+        match self.0.date_naive().cmp(&self.local().date_naive()) {
+            Ordering::Less => "Previous day",
+            Ordering::Equal => "Same day",
+            Ordering::Greater => "Next day",
+        }
+    }
+}
+
+impl BarWidget for ZoneTime {
+    fn icon(&self) -> Glyph {
+        Phosphor::GlobeHemisphereWest(Weight::Regular).into()
+    }
+
+    fn localized_label(&self, locale: Locale) -> Option<String> {
+        Some(format!(
+            "{} {}",
+            city_name(self.zone()),
+            TimePart::TimeOfDay.format_in_own_zone(&self.0, locale)
+        ))
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        TooltipBody::rows(vec![
+            row("Zone", self.zone().name()),
             row("Abbreviation", self.0.format("%Z").to_string()),
             row("UTC offset", self.0.format("%:z").to_string()),
-            row("Date", TimePart::Date.format_in_own_zone(&self.0, locale)),
+            row("Day", self.day_relative_to_local()),
             row(
                 "Offset from local",
                 signed_hours_and_minutes(self.seconds_ahead_of_local()),
             ),
         ])
-    }
-
-    fn seconds_ahead_of_local(&self) -> i32 {
-        let local_offset = self.0.with_timezone(&Local).offset().local_minus_utc();
-        self.0.offset().fix().local_minus_utc() - local_offset
     }
 }
 

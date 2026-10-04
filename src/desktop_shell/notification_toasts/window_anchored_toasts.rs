@@ -19,7 +19,7 @@ use super::{
     toast_lifecycle::NotificationMessage,
     toast_placement::{AnchoredToast, ToastAnchor},
 };
-use crate::config::ToastConfig;
+use crate::{config::ToastConfig, widgets::region_reporter::RegionRoles};
 
 const MOTION: Duration = Duration::from_millis(160);
 
@@ -28,12 +28,18 @@ impl<'a> WindowAnchoredToasts<'a> {
         window: Id,
         toasts: Vec<AnchoredToast<'a>>,
         bar_clearance: Padding,
+        card_corner_radius: f32,
         config: &ToastConfig,
     ) -> Self {
         toasts.into_iter().fold(
             Self {
                 window,
                 bar_clearance,
+                card_roles: RegionRoles {
+                    takes_input: true,
+                    blurred: true,
+                    corner_radius: card_corner_radius,
+                },
                 ids: Vec::new(),
                 anchors: Vec::new(),
                 cards: Vec::new(),
@@ -60,6 +66,7 @@ impl<'a> From<WindowAnchoredToasts<'a>> for Element<'a, NotificationMessage> {
 pub struct WindowAnchoredToasts<'a> {
     window: Id,
     bar_clearance: Padding,
+    card_roles: RegionRoles,
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
@@ -203,6 +210,12 @@ fn snapped(bounds: Rectangle) -> Rectangle {
     }
 }
 
+fn card_rects(layout: Layout<'_>) -> impl Iterator<Item = Rectangle> {
+    layout
+        .children()
+        .map(|card_layout| snapped(card_layout.bounds()))
+}
+
 struct CardView<'t, 'a> {
     widget: &'t Element<'a, NotificationMessage>,
     state: &'t Tree,
@@ -341,6 +354,8 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
+        let mut blur_rows = self.card_roles.blur_rows(card_rects(layout));
+        operation.custom(None, layout.bounds(), &mut blur_rows);
         self.views_mut(tree, layout).for_each(|card| {
             card.widget
                 .as_widget_mut()
@@ -384,11 +399,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         state.frame = *frame;
         let drifting = state.drift.advance(*frame);
 
-        let rects = layout
-            .children()
-            .map(|card_layout| snapped(card_layout.bounds()))
-            .collect();
-        if let Some(rects) = state.region.changed(rects) {
+        if let Some(rects) = state.region.changed(card_rects(layout).collect()) {
             shell.publish(NotificationMessage::CardBoundsChanged { window, rects });
             shell.request_redraw();
         }

@@ -8,7 +8,6 @@ pub struct WidgetSizes {
     pub indicator_thickness_px: f32,
     pub tooltip_value_width_px: f32,
     pub workspace_preview_scale: f32,
-    pub window_width_strip_scale: f32,
 }
 
 impl Default for WidgetSizes {
@@ -18,7 +17,6 @@ impl Default for WidgetSizes {
             indicator_thickness_px: 2.4,
             tooltip_value_width_px: 620.0,
             workspace_preview_scale: 0.19,
-            window_width_strip_scale: 0.015,
         }
     }
 }

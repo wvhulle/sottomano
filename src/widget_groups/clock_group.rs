@@ -1,4 +1,3 @@
-mod clock_reading;
 mod local_date;
 mod local_time;
 mod zone_time;
@@ -15,6 +14,8 @@ use crate::{
     config::Config,
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
+        bar_widget::BarWidget,
+        group_item::GroupItem,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
@@ -23,7 +24,9 @@ use crate::{
 const TICK: Duration = Duration::from_secs(1);
 
 pub struct ClockGroup {
-    now: DateTime<Local>,
+    time: LocalTime,
+    date: LocalDate,
+    zone_times: Vec<ZoneTime>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -35,17 +38,20 @@ pub enum ClockMessage {
 
 impl Default for ClockGroup {
     fn default() -> Self {
+        let now = Local::now();
         Self {
-            now: Local::now(),
+            time: LocalTime(now),
+            date: LocalDate(now),
+            zone_times: Vec::new(),
             expansion: GroupExpansion::default(),
         }
     }
 }
 
 impl ClockGroup {
-    pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
+    pub fn update(&mut self, msg: ClockMessage, config: &Config) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Tick(now) => self.now = now,
+            ClockMessage::Tick(now) => self.tick(now, &config.other_time_zones),
             ClockMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -67,29 +73,36 @@ impl ClockGroup {
         })
     }
 
-    fn zone_time(&self, zone: Tz) -> ZoneTime {
-        ZoneTime(self.now.with_timezone(&zone))
+    fn tick(&mut self, now: DateTime<Local>, other_time_zones: &[Tz]) {
+        self.time = LocalTime(now);
+        self.date = LocalDate(now);
+        self.zone_times = other_time_zones
+            .iter()
+            .map(|zone| ZoneTime(now.with_timezone(zone)))
+            .collect();
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget, config: &Config) -> Option<Tooltip> {
-        match target {
-            HoverTarget::LocalTime => Some(LocalTime(self.now).tooltip(config.locale)),
-            HoverTarget::LocalDate => Some(LocalDate(self.now).tooltip(config.locale)),
-            HoverTarget::ZoneTime(zone) => Some(self.zone_time(*zone).tooltip(config.locale)),
-            _ => None,
-        }
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        let body = match target {
+            HoverTarget::LocalTime => self.time.tooltip(),
+            HoverTarget::LocalDate => self.date.tooltip(),
+            HoverTarget::ZoneTime(zone) => self
+                .zone_times
+                .iter()
+                .find(|zone_time| zone_time.zone() == *zone)?
+                .tooltip(),
+            _ => return None,
+        };
+        Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, ClockMessage> {
+    pub fn widget_group(&self) -> WidgetGroup<'_, ClockMessage> {
         WidgetGroup::new(&self.expansion, ClockMessage::Expansion)
-            .item(LocalTime(self.now).reading(config.locale).item(config))
-            .item(LocalDate(self.now).reading(config.locale).item(config))
-            .items(
-                config
-                    .other_time_zones
-                    .iter()
-                    .map(|&zone| self.zone_time(zone).reading(config.locale).item(config)),
-            )
+            .item(GroupItem::reading(&self.time, HoverTarget::LocalTime))
+            .item(GroupItem::reading(&self.date, HoverTarget::LocalDate))
+            .items(self.zone_times.iter().map(|zone_time| {
+                GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
+            }))
     }
 }
 

@@ -2,8 +2,8 @@ pub mod workspace_preview;
 pub mod workspace_tooltip;
 
 use iced::{
-    Alignment, Color, Element, Length, padding,
-    widget::{Column, Row, Space, Text, button, column, container, row, stack},
+    Alignment, Color, Element, Length,
+    widget::{Column, Row, Text, button, column, row},
 };
 
 use crate::{
@@ -15,13 +15,8 @@ use crate::{
         monitor_surfaces::Position,
     },
     widgets::{
-        activity_line::edge_activity_line,
-        flat_button,
-        focus_indicator::focus_indicator,
-        marker_track::MarkerTrack,
-        pager_slot::PagerSlot,
-        text::bar_text,
-        window_width_strip::{WidthSegment, WindowWidthStrip},
+        activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
+        marker_track::MarkerTrack, pager_slot::PagerSlot, text::bar_text,
     },
 };
 
@@ -53,8 +48,10 @@ pub fn vertical_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let rows = workspaces.iter().map(|p| sidebar_row(config, p));
-    let labels = indicated(
+    let rows = workspaces
+        .iter()
+        .map(|p| hit_area(p, sidebar_row(config, niri, p), config));
+    Some(indicated(
         Column::with_children(rows)
             .spacing(config.spacing.widget_spacing_px)
             .align_x(Alignment::End)
@@ -62,41 +59,24 @@ pub fn vertical_view<'a>(
         workspaces,
         config,
         Position::Left,
-    );
-    let full_width_windows = Column::with_children(
-        workspaces
-            .iter()
-            .map(|p| hit_area(p, sidebar_windows(config, niri, p.id), config)),
-    )
-    .spacing(config.spacing.widget_spacing_px);
-    Some(stack![labels, full_width_windows].into())
-}
-
-fn sidebar_windows<'a>(
-    config: &Config,
-    niri: &niri::Snapshot,
-    workspace: u64,
-) -> Element<'a, WorkspacesMessage> {
-    let urgency_line_clearance =
-        config.spacing.widget_spacing_px + config.widget_sizes.indicator_thickness_px;
-    container(window_widths(config, niri, workspace))
-        .padding(padding::right(urgency_line_clearance))
-        .align_right(Length::Fill)
-        .align_bottom(config.bar.height_px)
-        .clip(true)
-        .into()
+    ))
 }
 
 fn sidebar_row<'a>(
     config: &Config,
+    niri: &niri::Snapshot,
     p: &niri::WorkspaceIndicator,
 ) -> Element<'a, WorkspacesMessage> {
-    let window_strip_slot = Space::new().height(config.widget_sizes.indicator_thickness_px);
-    let label_over_windows = column![inline_label(config, p), window_strip_slot];
-    row![label_over_windows, urgency_line(config, p, Position::Left)]
+    let label_over_markers = column![
+        inline_label(config, p),
+        window_markers(config, niri, p.id, Position::Bottom).view()
+    ]
+    .width(Length::Shrink)
+    .align_x(Alignment::Center);
+    row![label_over_markers, urgency_line(config, p, Position::Left)]
         .spacing(config.spacing.widget_spacing_px)
         .height(config.bar.height_px)
-        .align_y(Alignment::End)
+        .align_y(Alignment::Center)
         .into()
 }
 
@@ -190,18 +170,6 @@ fn window_markers(
         .map(|w| window_color(config, w, config.palette.inactive))
         .collect();
     MarkerTrack::new(colors, config.widget_sizes.indicator_thickness_px, position)
-}
-
-fn window_widths(config: &Config, niri: &niri::Snapshot, workspace: u64) -> WindowWidthStrip {
-    let segments = niri
-        .windows_on_workspace(workspace)
-        .iter()
-        .map(|w| WidthSegment {
-            width_px: w.layout.tile_size.width * config.widget_sizes.window_width_strip_scale,
-            color: window_color(config, w, config.palette.dim),
-        })
-        .collect();
-    WindowWidthStrip::new(segments, config.widget_sizes.indicator_thickness_px)
 }
 
 fn urgency_line<'a>(

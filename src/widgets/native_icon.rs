@@ -3,7 +3,7 @@ use iced::{
     widget::{container, image, svg},
 };
 
-use crate::{data::source::tray::IconSource, widgets::svg_icon::PHOSPHOR_INK_FRACTION};
+use crate::{data::source::tray::IconSource, widgets::phosphor::PHOSPHOR_INK_FRACTION};
 
 pub const NATIVE_TO_PHOSPHOR_SCALE: f32 = PHOSPHOR_INK_FRACTION / (224.0 / 232.0);
 

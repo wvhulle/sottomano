@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use chrono::Locale;
 use iced::{
     Alignment, Element, Padding,
     time::Duration,
@@ -184,21 +185,21 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         }
     }
 
-    pub fn alerts(&self) -> Vec<ReadingAlert<M>>
+    pub fn alerts(&self, locale: Locale) -> Vec<ReadingAlert<M>>
     where
         M: Clone,
     {
         self.items
             .iter()
-            .filter_map(|item| item.alert((self.on_expansion)(ExpansionMessage::Expand)))
+            .filter_map(|item| item.alert((self.on_expansion)(ExpansionMessage::Expand), locale))
             .collect()
     }
 
-    fn highest_alert_severity(&self) -> Severity
+    fn highest_alert_severity(&self, locale: Locale) -> Severity
     where
         M: Clone,
     {
-        self.alerts()
+        self.alerts(locale)
             .iter()
             .map(|alert| alert.severity)
             .max()
@@ -209,7 +210,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
     where
         M: Clone,
     {
-        let edge_severity = self.highest_alert_severity();
+        let edge_severity = self.highest_alert_severity(config.locale);
         let Self {
             expansion,
             on_expansion,
