@@ -118,7 +118,7 @@ impl DesktopShell {
             .map(|element| element.map(Message::from))
     }
 
-    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 6] {
+    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 7] {
         let config = &self.config;
         [
             self.weather_group
@@ -127,9 +127,12 @@ impl DesktopShell {
             self.battery_group
                 .widget_group(config)
                 .map_messages(Message::Battery),
-            self.system_group
+            self.processor_group
                 .widget_group()
-                .map_messages(Message::System),
+                .map_messages(Message::Processor),
+            self.storage_group
+                .widget_group()
+                .map_messages(Message::Storage),
             self.net_interfaces_group
                 .widget_group()
                 .map_messages(Message::NetInterfaces),
