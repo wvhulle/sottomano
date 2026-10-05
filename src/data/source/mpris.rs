@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, str::FromStr, time::Instant};
 
 use iced::{
     Subscription,
@@ -10,6 +10,7 @@ use iced::{
     stream,
     widget::image,
 };
+use reqwest::Url;
 use tokio::time::{Duration, sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
@@ -88,7 +89,14 @@ impl Progress {
         Some(length.saturating_sub(self.played(status, now)?))
     }
 
-    fn played(self, status: Status, now: Instant) -> Option<Duration> {
+    pub fn length(self) -> Option<Duration> {
+        match self {
+            Self::Untimed => None,
+            Self::Timed { length, .. } => Some(length),
+        }
+    }
+
+    pub fn played(self, status: Status, now: Instant) -> Option<Duration> {
         let Self::Timed {
             position,
             sampled_at,
@@ -113,6 +121,7 @@ pub struct Media {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub url: Option<Url>,
     pub status: Status,
     pub progress: Progress,
     pub art: Option<image::Handle>,
@@ -143,6 +152,10 @@ fn artist(metadata: &HashMap<String, OwnedValue>) -> Option<String> {
         .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
         .map(|artists| artists.join(", "))
         .filter(|artists| !artists.is_empty())
+}
+
+fn parsed<T: FromStr>(metadata: &HashMap<String, OwnedValue>, key: &str) -> Option<T> {
+    string(metadata, key)?.parse().ok()
 }
 
 fn length(metadata: &HashMap<String, OwnedValue>) -> Option<Duration> {
@@ -316,6 +329,7 @@ async fn read_all(
             title: string(&metadata, "xesam:title"),
             artist: artist(&metadata),
             album: string(&metadata, "xesam:album"),
+            url: parsed(&metadata, "xesam:url"),
             progress: Progress::sample(length(&metadata), position),
             art: handle,
             can_next,
