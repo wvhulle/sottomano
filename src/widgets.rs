@@ -31,6 +31,7 @@ pub mod svg_icon;
 pub mod text;
 pub mod toggle_control;
 pub mod tooltip_body;
+pub mod uniform_width_column;
 pub mod weather_icons;
 pub mod widget_group;
 pub mod widget_state;
