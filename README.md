@@ -160,6 +160,26 @@ ones are rejected rather than ignored.
 clock group shows the time in each of those cities next to the local time and
 date. An empty list hides them.
 
+`[temperature.cpu]` and `[temperature.drive]` pick the sensor behind the CPU
+and drive temperature readings and when they turn warning or critical. Without
+them the CPU reading comes from `coretemp`, `k10temp` or `zenpower`, or else
+from a CPU or SoC thermal zone as on ARM boards, and the drive reading from the
+hwmon chip of the disk holding `/`, preferring its `Composite` sensor. The
+thresholds follow the limits the hardware reports, and fixed defaults when it
+reports none. `sensor` names a chip from `/sys/class/hwmon/*/name` and,
+optionally, a `temp*_label`; `warning_celsius` and `critical_celsius` override
+either threshold on its own:
+
+```toml
+[temperature.cpu]
+sensor = { chip = "k10temp", label = "Tctl" }
+critical_celsius = 90
+
+[temperature.drive]
+sensor = { chip = "drivetemp" }
+warning_celsius = 55
+```
+
 The bar watches the file and applies every change in place, including a symlink
 swapped to point elsewhere. An invalid file raises a critical toast with the
 error and the bar keeps its previous configuration (defaults when it starts on

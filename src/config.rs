@@ -5,6 +5,7 @@ pub mod locale;
 pub mod palette;
 pub mod secrets;
 pub mod spacing;
+pub mod temperature;
 pub mod toasts;
 pub mod tray;
 mod watch;

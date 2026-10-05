@@ -6,6 +6,7 @@ pub mod memory_usage_gauge;
 use iced::{Subscription, Task};
 
 use crate::{
+    config::temperature::SensorConfig,
     data::source::{
         disk::{
             self, Disk,
@@ -43,12 +44,12 @@ pub enum StorageMessage {
 }
 
 impl StorageGroup {
-    pub fn subscription() -> Subscription<StorageMessage> {
+    pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<StorageMessage> {
         Subscription::batch([
             polling::<Memory>(()).map(StorageMessage::Memory),
             polling::<Disk>(()).map(StorageMessage::Disk),
             polling::<DiskActivity>(()).map(StorageMessage::DiskActivity),
-            polling::<DriveHealth>(()).map(StorageMessage::DriveHealth),
+            polling::<DriveHealth>(drive_sensor.clone()).map(StorageMessage::DriveHealth),
         ])
     }
 

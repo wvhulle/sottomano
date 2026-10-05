@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{path::Path, time::Duration};
 
 use tokio::task::spawn_blocking;
 use uom::si::f64::ThermodynamicTemperature;
@@ -11,20 +8,26 @@ use super::{
     btrfs::{BtrfsFilesystem, DeviceErrors},
     mount::{KernelDevice, RootMount},
 };
-use crate::data::source::{
-    Source,
-    sysfs_sensors::{
-        list_dir, read_i64, read_trimmed,
-        temperature::{ThermalLimit, celsius_from_millidegrees},
+use crate::{
+    config::temperature::{SensorChoice, SensorConfig, ThresholdOverrides},
+    data::source::{
+        Source,
+        sysfs_sensors::{
+            hwmon::{ChosenSensors, HwmonChip, LimitKind},
+            read_trimmed,
+            temperature::ThermalLimit,
+        },
     },
 };
 
-const COMPOSITE_SENSOR: &str = "temp1";
+const COMPOSITE_LABEL: &str = "Composite";
+const DRIVETEMP_MODULE: &str = "/sys/module/drivetemp";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DriveHealth {
     pub model: String,
     pub temperature: DriveTemperature,
+    pub overrides: ThresholdOverrides,
     pub errors: ErrorTracking,
 }
 
@@ -35,7 +38,13 @@ pub enum DriveTemperature {
         warning: ThermalLimit,
         critical: ThermalLimit,
     },
-    Unreported,
+    Unreported(MissingSensor),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MissingSensor {
+    DrivetempNotLoaded,
+    NotExposed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,66 +56,72 @@ pub enum ErrorTracking {
 impl Source for DriveHealth {
     type Error = Error;
 
-    type Key = ();
+    type Key = SensorConfig;
 
     const NAME: &'static str = "drive_health";
     const INTERVAL: Duration = Duration::from_secs(60);
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_drive_health)
+    async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {
+        spawn_blocking(move || read_drive_health(&config))
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_drive_health() -> Result<DriveHealth, Error> {
+fn read_drive_health(config: &SensorConfig) -> Result<DriveHealth, Error> {
     let mount = RootMount::current()?;
     let device = mount.device()?;
     let disk = device.whole_disk();
     let controller = disk.sysfs_dir().join("device");
     Ok(DriveHealth {
         model: read_trimmed(controller.join("model")).unwrap_or_else(|| disk.name.clone()),
-        temperature: DriveTemperature::of_controller(&controller),
+        temperature: DriveTemperature::read(&config.sensor, &disk, &controller),
+        overrides: config.overrides(),
         errors: ErrorTracking::of(&mount, &device)?,
     })
 }
 
 impl DriveTemperature {
-    fn of_controller(controller: &Path) -> Self {
-        sensor_chips(controller)
-            .into_iter()
-            .find_map(|chip| Self::of_chip(&chip))
-            .unwrap_or(DriveTemperature::Unreported)
+    fn read(choice: &SensorChoice, disk: &KernelDevice, controller: &Path) -> Self {
+        let candidates = match choice {
+            SensorChoice::Automatic => HwmonChip::of_device(controller)
+                .into_iter()
+                .map(|chip| ChosenSensors {
+                    sensors: chip.temperature_sensors(),
+                    chip,
+                })
+                .collect(),
+            SensorChoice::Chip { .. } => HwmonChip::chosen(choice),
+        };
+        candidates
+            .iter()
+            .find_map(Self::of_chosen)
+            .unwrap_or_else(|| DriveTemperature::Unreported(MissingSensor::for_disk(disk)))
     }
 
-    fn of_chip(chip: &Path) -> Option<Self> {
-        let sensor = |suffix: &str| {
-            read_i64(chip.join(format!("{COMPOSITE_SENSOR}_{suffix}")))
-                .map(celsius_from_millidegrees)
-        };
-        let limit =
-            |suffix: &str| sensor(suffix).map_or(ThermalLimit::Unreported, ThermalLimit::Reported);
+    fn of_chosen(chosen: &ChosenSensors) -> Option<Self> {
+        let sensor = chosen
+            .sensors
+            .iter()
+            .find(|sensor| sensor.label == COMPOSITE_LABEL)
+            .or_else(|| chosen.sensors.first())?;
         Some(DriveTemperature::Reported {
-            current: sensor("input")?,
-            warning: limit("max"),
-            critical: limit("crit"),
+            current: chosen.chip.temperature(sensor)?,
+            warning: chosen.chip.limit(sensor, LimitKind::Max),
+            critical: chosen.chip.limit(sensor, LimitKind::Crit),
         })
     }
 }
 
-fn sensor_chips(controller: &Path) -> Vec<PathBuf> {
-    let mut chips: Vec<PathBuf> = list_dir(controller)
-        .into_iter()
-        .filter(|entry| {
-            entry
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("hwmon") && name != "hwmon")
-        })
-        .chain(list_dir(controller.join("hwmon")))
-        .collect();
-    chips.sort();
-    chips
+impl MissingSensor {
+    fn for_disk(disk: &KernelDevice) -> Self {
+        let is_scsi_disk = disk.name.starts_with("sd");
+        if is_scsi_disk && !Path::new(DRIVETEMP_MODULE).exists() {
+            MissingSensor::DrivetempNotLoaded
+        } else {
+            MissingSensor::NotExposed
+        }
+    }
 }
 
 impl ErrorTracking {

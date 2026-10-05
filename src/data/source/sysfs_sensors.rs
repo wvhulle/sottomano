@@ -13,6 +13,7 @@ use self::cpu_clock::FrequencyLimit;
 pub enum Error {
     Unreadable(String),
     Unparsable(String),
+    NoTemperatureSensor,
     Panicked,
 }
 
@@ -21,6 +22,9 @@ impl Display for Error {
         match self {
             Error::Unreadable(path) => write!(f, "cannot read {path}"),
             Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
+            Error::NoTemperatureSensor => {
+                write!(f, "no matching temperature sensor in /sys/class/hwmon")
+            }
             Error::Panicked => write!(f, "sensor read panicked"),
         }
     }
@@ -41,6 +45,7 @@ pub mod cpu_clock;
 pub mod cpu_idle;
 pub mod cpu_topology;
 pub mod cpu_usage;
+pub mod hwmon;
 pub mod memory;
 pub mod temperature;
 

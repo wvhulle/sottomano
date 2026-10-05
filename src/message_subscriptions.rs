@@ -100,8 +100,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         state.battery_group.subscription().map(Message::Battery),
-        state.processor_group.subscription().map(Message::Processor),
-        StorageGroup::subscription().map(Message::Storage),
+        state
+            .processor_group
+            .subscription(&state.config.temperature.cpu)
+            .map(Message::Processor),
+        StorageGroup::subscription(&state.config.temperature.drive).map(Message::Storage),
         ClockGroup::subscription().map(Message::Clock),
         JournalGroup::subscription().map(Message::Journal),
         state.internet_group.subscription().map(Message::Internet),

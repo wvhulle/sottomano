@@ -1,15 +1,13 @@
 use std::iter::once;
 
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{
-        f64::{TemperatureInterval, ThermodynamicTemperature},
-        temperature_interval, thermodynamic_temperature,
-    },
+use uom::si::{
+    f64::{TemperatureInterval, ThermodynamicTemperature},
+    temperature_interval,
 };
 
 use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
+    config::temperature::ThresholdOverrides,
     data::{
         severity::Severity,
         source::sysfs_sensors::temperature::{CoreTemperature, Temperature, ThermalLimit},
@@ -17,6 +15,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::Phosphor,
+        temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
         tooltip_body::{Cell, Row, TableRow, TooltipBody, row, untitled},
         widget_state::WidgetState,
     },
@@ -27,50 +26,22 @@ const CRITICAL_MARGIN_CELSIUS: f64 = 5.0;
 const UNREPORTED_WARNING_CELSIUS: f64 = 70.0;
 const UNREPORTED_CRITICAL_CELSIUS: f64 = 85.0;
 
-fn celsius_text(temperature: ThermodynamicTemperature) -> String {
-    format!(
-        "{:.0}",
-        temperature.into_format_args(thermodynamic_temperature::degree_celsius, Abbreviation)
-    )
-}
-
-fn celsius(degrees: f64) -> ThermodynamicTemperature {
-    ThermodynamicTemperature::new::<thermodynamic_temperature::degree_celsius>(degrees)
-}
-
 fn margin(degrees: f64) -> TemperatureInterval {
     TemperatureInterval::new::<temperature_interval::degree_celsius>(degrees)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct TemperatureThresholds {
-    warning: ThermodynamicTemperature,
-    critical: ThermodynamicTemperature,
-}
-
-impl TemperatureThresholds {
-    fn for_limit(limit: ThermalLimit) -> Self {
-        match limit {
-            ThermalLimit::Reported(throttle) => TemperatureThresholds {
-                warning: throttle - margin(WARNING_MARGIN_CELSIUS),
-                critical: throttle - margin(CRITICAL_MARGIN_CELSIUS),
-            },
-            ThermalLimit::Unreported => TemperatureThresholds {
-                warning: celsius(UNREPORTED_WARNING_CELSIUS),
-                critical: celsius(UNREPORTED_CRITICAL_CELSIUS),
-            },
-        }
-    }
-
-    fn level(self, temperature: ThermodynamicTemperature) -> Severity {
-        if temperature > self.critical {
-            Severity::Critical
-        } else if temperature > self.warning {
-            Severity::Warning
-        } else {
-            Severity::Normal
-        }
-    }
+fn cpu_thresholds(limit: ThermalLimit, overrides: ThresholdOverrides) -> TemperatureThresholds {
+    let from_hardware = match limit {
+        ThermalLimit::Reported(throttle) => TemperatureThresholds {
+            warning: throttle - margin(WARNING_MARGIN_CELSIUS),
+            critical: throttle - margin(CRITICAL_MARGIN_CELSIUS),
+        },
+        ThermalLimit::Unreported => TemperatureThresholds {
+            warning: celsius(UNREPORTED_WARNING_CELSIUS),
+            critical: celsius(UNREPORTED_CRITICAL_CELSIUS),
+        },
+    };
+    from_hardware.overridden_by(overrides)
 }
 
 fn reported_limit(limit: ThermalLimit) -> Option<ThermodynamicTemperature> {
@@ -102,13 +73,13 @@ impl TableRow for CoreTemperature {
     }
 
     fn level(&self) -> Severity {
-        TemperatureThresholds::for_limit(self.limit).level(self.temperature)
+        cpu_thresholds(self.limit, self.overrides).level(self.temperature)
     }
 }
 
 impl Temperature {
     fn thresholds(&self) -> TemperatureThresholds {
-        TemperatureThresholds::for_limit(self.throttle_limit)
+        cpu_thresholds(self.throttle_limit, self.overrides)
     }
 
     fn throttle_row(&self) -> Option<Row> {
@@ -148,6 +119,11 @@ impl BarWidget for Temperature {
                 Some(row("Avg", celsius_text(self.average()))),
                 Some(row("Max", celsius_text(self.hottest()))),
                 self.throttle_row(),
+                Some(row("Warns above", celsius_text(self.thresholds().warning))),
+                Some(row(
+                    "Critical above",
+                    celsius_text(self.thresholds().critical),
+                )),
             ]
             .into_iter()
             .flatten()
@@ -167,7 +143,10 @@ mod tests {
 
     #[test]
     fn reported_limit_sets_thresholds_below_throttling() {
-        let thresholds = TemperatureThresholds::for_limit(ThermalLimit::Reported(celsius(100.0)));
+        let thresholds = cpu_thresholds(
+            ThermalLimit::Reported(celsius(100.0)),
+            ThresholdOverrides::default(),
+        );
         assert_eq!(thresholds.level(celsius(79.0)), Severity::Normal);
         assert_eq!(thresholds.level(celsius(81.0)), Severity::Warning);
         assert_eq!(thresholds.level(celsius(96.0)), Severity::Critical);
@@ -175,7 +154,7 @@ mod tests {
 
     #[test]
     fn unreported_limit_falls_back_to_fixed_thresholds() {
-        let thresholds = TemperatureThresholds::for_limit(ThermalLimit::Unreported);
+        let thresholds = cpu_thresholds(ThermalLimit::Unreported, ThresholdOverrides::default());
         assert_eq!(thresholds.level(celsius(69.0)), Severity::Normal);
         assert_eq!(thresholds.level(celsius(71.0)), Severity::Warning);
         assert_eq!(thresholds.level(celsius(86.0)), Severity::Critical);

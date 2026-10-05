@@ -29,6 +29,7 @@ pub mod simple_icons;
 pub mod slider_control;
 pub mod source_reading;
 pub mod svg_icon;
+pub mod temperature_thresholds;
 pub mod text;
 pub mod toggle_control;
 pub mod tooltip_body;
