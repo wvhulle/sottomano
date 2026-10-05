@@ -1,18 +1,18 @@
 use uom::{
     fmt::DisplayStyle::Abbreviation,
-    si::{
-        f64::{Frequency, Ratio},
-        ratio::percent,
-    },
+    si::{f64::Ratio, ratio::percent},
 };
 
-use super::cpu_clock_label::frequency_text;
+use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
-    data::{severity::Severity, source::sysfs_sensors::cpu_usage::CpuUsage},
+    data::{
+        severity::Severity,
+        source::sysfs_sensors::cpu_usage::{CpuUsage, LoadSplit},
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, TableRow, TooltipBody, row, section, table_section, untitled},
+        tooltip_body::{Cell, TableRow, TooltipBody, row, untitled},
         widget_state::WidgetState,
     },
 };
@@ -34,7 +34,8 @@ fn percent_text(fraction: Ratio) -> String {
 struct CoreReading {
     core: u32,
     busy: Ratio,
-    frequency: Option<Frequency>,
+    split: LoadSplit,
+    deep_idle: Option<Ratio>,
 }
 
 impl CpuUsage {
@@ -44,31 +45,42 @@ impl CpuUsage {
             .map(|load| CoreReading {
                 core: load.core,
                 busy: load.busy,
-                frequency: self
-                    .clock
-                    .cores
+                split: load.split,
+                deep_idle: self
+                    .deep_idle
                     .iter()
-                    .find(|clock| clock.core == load.core)
-                    .map(|clock| clock.frequency),
+                    .find(|idle| idle.core == load.core)
+                    .map(|idle| idle.share),
             })
             .collect()
     }
 }
 
+impl PerCore for CoreReading {
+    fn core(&self) -> u32 {
+        self.core
+    }
+}
+
 impl TableRow for CoreReading {
-    const HEADINGS: &'static [&'static str] = &["Load", "Clock"];
+    const HEADINGS: &'static [&'static str] = &["Load", "User", "Sys", "IO", "IRQ", "Idle"];
 
     fn key(&self) -> Cell {
         format!("Core {}", self.core).into()
     }
 
     fn cells(&self) -> Vec<Cell> {
-        vec![
-            percent_text(self.busy).into(),
-            self.frequency
-                .map_or_else(|| "—".to_owned(), frequency_text)
-                .into(),
+        [
+            self.busy,
+            self.split.user,
+            self.split.system,
+            self.split.iowait,
+            self.split.irq,
         ]
+        .into_iter()
+        .chain(self.deep_idle)
+        .map(|share| percent_text(share).into())
+        .collect()
     }
 
     fn level(&self) -> Severity {
@@ -90,16 +102,11 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let frequencies = self.clock.summary_rows();
-        let frequencies = if frequencies.is_empty() {
-            vec![row("Frequency", "unavailable")]
-        } else {
-            frequencies
-        };
-        TooltipBody::Sections(vec![
-            untitled(vec![row("CPU", percent_text(self.busy))]),
-            section("Frequency", frequencies),
-            table_section("Cores", self.core_readings()),
-        ])
+        TooltipBody::Sections(
+            [untitled(vec![row("CPU", percent_text(self.busy))])]
+                .into_iter()
+                .chain(sections_by_core_kind(&self.topology, self.core_readings()))
+                .collect(),
+        )
     }
 }

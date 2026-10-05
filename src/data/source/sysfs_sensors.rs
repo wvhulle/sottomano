@@ -7,6 +7,8 @@ use std::{
 
 use uom::si::{f64::Frequency, frequency::kilohertz};
 
+use self::cpu_clock::FrequencyLimit;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Unreadable(String),
@@ -35,8 +37,9 @@ pub(super) fn parse_field<T: FromStr>(path: &Path) -> Result<T, Error> {
 }
 
 pub mod battery;
-#[allow(dead_code)]
 pub mod cpu_clock;
+pub mod cpu_idle;
+pub mod cpu_topology;
 pub mod cpu_usage;
 pub mod memory;
 pub mod temperature;
@@ -49,15 +52,25 @@ pub(super) fn core_freqs() -> Vec<cpu_clock::CoreFreq> {
         .filter_map(|dir| {
             let name = dir.file_name()?.to_str()?;
             let core: u32 = cpu_core_index(name)?;
-            let khz = read_i64(dir.join("cpufreq/scaling_cur_freq"))?;
             Some(cpu_clock::CoreFreq {
                 core,
-                frequency: Frequency::new::<kilohertz>(khz as f64),
+                frequency: read_kilohertz(dir.join("cpufreq/scaling_cur_freq"))?,
+                limit: core_frequency_limit(dir)?,
             })
         })
         .collect();
     cores.sort_by_key(|c| c.core);
     cores
+}
+
+fn core_frequency_limit(dir: &Path) -> Option<FrequencyLimit> {
+    let policy_max = read_kilohertz(dir.join("cpufreq/scaling_max_freq"))?;
+    let hardware_max = read_kilohertz(dir.join("cpufreq/cpuinfo_max_freq"))?;
+    Some(FrequencyLimit::from_ceilings(policy_max, hardware_max))
+}
+
+fn read_kilohertz(path: impl AsRef<Path>) -> Option<Frequency> {
+    read_i64(path).map(|khz| Frequency::new::<kilohertz>(khz as f64))
 }
 
 fn cpu_core_index(name: &str) -> Option<u32> {

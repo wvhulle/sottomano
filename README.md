@@ -28,8 +28,13 @@ From left to right, all expanded:
 - **Weather.** Temperature, wind, when rain is due and where you are.
 - **Battery.** Charge, power draw, time until empty or full, and the power
   profile.
-- **System.** CPU load, CPU temperature, memory and disk. The CPU card lists
-  every core's load and clock.
+- **Processor.** CPU load, clock and temperature. Each card lists every core,
+  split into performance and efficient cores on hybrid CPUs: the load card
+  breaks load into user, system, I/O wait, interrupts and deep-idle time, the
+  clock card shows each core's clock next to its cap and warns when a cap
+  holds a core below its hardware maximum, and the temperature card shows each
+  core's temperature.
+- **Storage.** Memory and disk.
 - **Network interfaces.** Ethernet, Bluetooth, Wi-Fi and the mobile modem, one
   reading per link.
 - **Transfer.** Download and upload throughput, WireGuard tunnels and the

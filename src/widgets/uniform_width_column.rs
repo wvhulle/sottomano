@@ -75,10 +75,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for UniformWidthColum
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let width = self.widest_intrinsic_width(&mut tree.children, renderer, limits);
-        let stretched = Limits::new(
-            Size::new(width, 0.0),
-            Size::new(width, limits.max().height),
-        );
+        let stretched = Limits::new(Size::new(width, 0.0), Size::new(width, limits.max().height));
         let mut top = 0.0;
         let nodes = self
             .rows
@@ -185,6 +182,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for UniformWidthColum
         viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, iced::Theme, iced::Renderer>> {
-        overlay::from_children(&mut self.rows, tree, layout, renderer, viewport, translation)
+        overlay::from_children(
+            &mut self.rows,
+            tree,
+            layout,
+            renderer,
+            viewport,
+            translation,
+        )
     }
 }

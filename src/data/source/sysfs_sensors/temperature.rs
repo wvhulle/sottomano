@@ -1,4 +1,4 @@
-use std::{path::Path, time::Duration};
+use std::{collections::HashMap, path::Path, time::Duration};
 
 use tokio::task::spawn_blocking;
 use uom::si::{
@@ -6,7 +6,9 @@ use uom::si::{
     thermodynamic_temperature::{degree_celsius, kelvin},
 };
 
-use super::{Error, list_dir, read_i64, read_trimmed};
+use super::{
+    CPU_FREQ, Error, cpu_core_index, cpu_topology::CpuTopology, list_dir, read_i64, read_trimmed,
+};
 use crate::data::source::Source;
 
 const HWMON: &str = "/sys/class/hwmon";
@@ -19,14 +21,35 @@ pub struct TempReading {
     pub temperature: ThermodynamicTemperature,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CoreTemperature {
+    pub core: u32,
+    pub temperature: ThermodynamicTemperature,
+    pub limit: ThermalLimit,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub readings: Vec<TempReading>,
+    pub cores: Vec<CoreTemperature>,
+    pub throttle_limit: ThermalLimit,
+    pub topology: CpuTopology,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ThermalLimit {
+    Reported(ThermodynamicTemperature),
+    Unreported,
 }
 
 impl Temperature {
     fn temperatures(&self) -> impl Iterator<Item = ThermodynamicTemperature> + '_ {
         self.readings.iter().map(|reading| reading.temperature)
+    }
+
+    pub fn hottest(&self) -> ThermodynamicTemperature {
+        self.temperatures()
+            .fold(self.average(), ThermodynamicTemperature::max)
     }
 
     pub fn average(&self) -> ThermodynamicTemperature {
@@ -39,10 +62,6 @@ impl Temperature {
 
     pub fn lowest(&self) -> Option<ThermodynamicTemperature> {
         self.temperatures().reduce(ThermodynamicTemperature::min)
-    }
-
-    pub fn highest(&self) -> Option<ThermodynamicTemperature> {
-        self.temperatures().reduce(ThermodynamicTemperature::max)
     }
 }
 
@@ -72,7 +91,85 @@ fn read_temperature() -> Result<Temperature, Error> {
     if readings.is_empty() {
         return Err(Error::Unreadable(HWMON.to_owned()));
     }
-    Ok(Temperature { readings })
+    Ok(Temperature {
+        readings,
+        cores: core_temperatures(),
+        throttle_limit: throttle_limit(),
+        topology: CpuTopology::current(),
+    })
+}
+
+fn core_temperatures() -> Vec<CoreTemperature> {
+    let by_physical_core = physical_core_temperatures();
+    let mut cores: Vec<CoreTemperature> = list_dir(CPU_FREQ)
+        .iter()
+        .filter_map(|dir| {
+            let core = cpu_core_index(dir.file_name()?.to_str()?)?;
+            let physical_core: u32 = read_trimmed(dir.join("topology/core_id"))?.parse().ok()?;
+            let reading = by_physical_core.get(&physical_core)?;
+            Some(CoreTemperature {
+                core,
+                temperature: reading.temperature,
+                limit: reading.limit,
+            })
+        })
+        .collect();
+    cores.sort_by_key(|core| core.core);
+    cores
+}
+
+fn throttle_limit() -> ThermalLimit {
+    list_dir(HWMON)
+        .iter()
+        .filter(|chip| is_coretemp(chip))
+        .flat_map(|chip| {
+            temp_labels(chip)
+                .into_iter()
+                .filter_map(move |(index, _)| read_i64(chip.join(format!("temp{index}_crit"))))
+        })
+        .map(celsius_from_millidegrees)
+        .reduce(ThermodynamicTemperature::min)
+        .map_or(ThermalLimit::Unreported, ThermalLimit::Reported)
+}
+
+fn is_coretemp(chip: &Path) -> bool {
+    read_trimmed(chip.join("name")).is_some_and(|name| name.starts_with("coretemp"))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SensorReading {
+    temperature: ThermodynamicTemperature,
+    limit: ThermalLimit,
+}
+
+fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
+    list_dir(HWMON)
+        .iter()
+        .filter(|chip| is_coretemp(chip))
+        .flat_map(|chip| {
+            temp_labels(chip)
+                .into_iter()
+                .filter_map(move |(index, label)| {
+                    let physical_core = label.strip_prefix("Core ")?.parse().ok()?;
+                    let millidegrees = read_i64(chip.join(format!("temp{index}_input")))?;
+                    let reading = SensorReading {
+                        temperature: celsius_from_millidegrees(millidegrees),
+                        limit: sensor_limit(chip, index),
+                    };
+                    Some((physical_core, reading))
+                })
+        })
+        .collect()
+}
+
+fn sensor_limit(chip: &Path, index: u32) -> ThermalLimit {
+    read_i64(chip.join(format!("temp{index}_crit")))
+        .map(celsius_from_millidegrees)
+        .map_or(ThermalLimit::Unreported, ThermalLimit::Reported)
+}
+
+fn celsius_from_millidegrees(millidegrees: i64) -> ThermodynamicTemperature {
+    ThermodynamicTemperature::new::<degree_celsius>(millidegrees as f64 / 1000.0)
 }
 
 fn cpu_temp_readings() -> Vec<TempReading> {
@@ -121,9 +218,7 @@ fn chip_readings(chip: &Path, name: &str, is_coretemp: bool) -> Vec<TempReading>
         .filter_map(|i| read_i64(chip.join(format!("temp{i}_input"))))
         .map(|millidegrees| TempReading {
             chip: name.to_string(),
-            temperature: ThermodynamicTemperature::new::<degree_celsius>(
-                millidegrees as f64 / 1000.0,
-            ),
+            temperature: celsius_from_millidegrees(millidegrees),
         })
         .collect()
 }

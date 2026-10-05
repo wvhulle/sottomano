@@ -17,6 +17,7 @@ use crate::{data::source::weather::Allergen, desktop_shell::monitor_surfaces::Po
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
     Cpu,
+    CpuClock,
     Memory,
     Temperature,
     Disk,

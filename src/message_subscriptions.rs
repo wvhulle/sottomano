@@ -37,7 +37,8 @@ use crate::{
     },
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, journal_group::JournalGroup,
-        net_interfaces_group::NetInterfacesGroup, tray_group::TrayGroup, window_group::WindowGroup,
+        net_interfaces_group::NetInterfacesGroup, storage_group::StorageGroup,
+        tray_group::TrayGroup, window_group::WindowGroup,
     },
     widgets::idle::{self, IdleTrigger},
 };
@@ -99,7 +100,8 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         state.battery_group.subscription().map(Message::Battery),
-        state.system_group.subscription().map(Message::System),
+        state.processor_group.subscription().map(Message::Processor),
+        StorageGroup::subscription().map(Message::Storage),
         ClockGroup::subscription().map(Message::Clock),
         JournalGroup::subscription().map(Message::Journal),
         state.internet_group.subscription().map(Message::Internet),

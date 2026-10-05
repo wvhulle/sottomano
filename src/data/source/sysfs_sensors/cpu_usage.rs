@@ -3,7 +3,11 @@ use std::{fs, thread, time::Duration};
 use tokio::task::spawn_blocking;
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use super::{Error, cpu_clock::CpuClock, cpu_core_index};
+use super::{
+    Error, cpu_core_index,
+    cpu_idle::{CoreDeepIdle, IdleSnapshot},
+    cpu_topology::CpuTopology,
+};
 use crate::data::source::Source;
 
 const CPU_STAT: &str = "/proc/stat";
@@ -13,13 +17,15 @@ const SAMPLE_GAP: Duration = Duration::from_millis(200);
 pub struct CoreLoad {
     pub core: u32,
     pub busy: Ratio,
+    pub split: LoadSplit,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuUsage {
     pub busy: Ratio,
     pub cores: Vec<CoreLoad>,
-    pub clock: CpuClock,
+    pub deep_idle: Vec<CoreDeepIdle>,
+    pub topology: CpuTopology,
 }
 
 impl Source for CpuUsage {
@@ -43,7 +49,8 @@ fn read_cpu_usage() -> Result<CpuUsage, Error> {
     Ok(CpuUsage {
         busy: sample.busy_fraction().ok_or_else(unreadable)?,
         cores: sample.core_loads(),
-        clock: CpuClock::current(),
+        deep_idle: sample.later_idle.deep_idle_since(&sample.earlier_idle),
+        topology: CpuTopology::current(),
     })
 }
 
@@ -51,26 +58,69 @@ pub(crate) fn cpu_busy_frac() -> Option<f64> {
     Some(CpuStatSample::take()?.busy_fraction()?.get::<ratio>())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LoadSplit {
+    pub user: Ratio,
+    pub system: Ratio,
+    pub iowait: Ratio,
+    pub irq: Ratio,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Jiffies {
-    total: i64,
+    user: i64,
+    system: i64,
     idle: i64,
+    iowait: i64,
+    irq: i64,
+    total: i64,
 }
 
 impl Jiffies {
     fn from_counters<'a>(counters: impl Iterator<Item = &'a str>) -> Option<Self> {
         let counters: Vec<i64> = counters.filter_map(|t| t.parse().ok()).collect();
+        let counter = |position: usize| counters.get(position).copied();
         Some(Jiffies {
+            user: counter(0)? + counter(1)?,
+            system: counter(2)?,
+            idle: counter(3)?,
+            iowait: counter(4)?,
+            irq: counter(5)? + counter(6)?,
             total: counters.iter().sum(),
-            idle: *counters.get(3)?,
         })
     }
 
+    fn elapsed_since(&self, earlier: &Jiffies) -> Option<Jiffies> {
+        let elapsed = Jiffies {
+            user: self.user - earlier.user,
+            system: self.system - earlier.system,
+            idle: self.idle - earlier.idle,
+            iowait: self.iowait - earlier.iowait,
+            irq: self.irq - earlier.irq,
+            total: self.total - earlier.total,
+        };
+        (elapsed.total > 0).then_some(elapsed)
+    }
+
+    fn share(&self, part: i64) -> Ratio {
+        Ratio::new::<ratio>((part as f64 / self.total as f64).clamp(0.0, 1.0))
+    }
+
+    fn busy(&self) -> Ratio {
+        self.share(self.total - self.idle)
+    }
+
+    fn split(&self) -> LoadSplit {
+        LoadSplit {
+            user: self.share(self.user),
+            system: self.share(self.system),
+            iowait: self.share(self.iowait),
+            irq: self.share(self.irq),
+        }
+    }
+
     fn busy_fraction_since(&self, earlier: &Jiffies) -> Option<Ratio> {
-        let total = self.total - earlier.total;
-        let idle = self.idle - earlier.idle;
-        (total > 0)
-            .then(|| Ratio::new::<ratio>(((total - idle) as f64 / total as f64).clamp(0.0, 1.0)))
+        Some(self.elapsed_since(earlier)?.busy())
     }
 }
 
@@ -92,9 +142,11 @@ impl CoreJiffies {
 
     fn load_since(&self, earlier: &CpuStat) -> Option<CoreLoad> {
         let before = earlier.cores.iter().find(|c| c.core == self.core)?;
+        let elapsed = self.jiffies.elapsed_since(&before.jiffies)?;
         Some(CoreLoad {
             core: self.core,
-            busy: self.jiffies.busy_fraction_since(&before.jiffies)?,
+            busy: elapsed.busy(),
+            split: elapsed.split(),
         })
     }
 }
@@ -123,14 +175,23 @@ impl CpuStat {
 struct CpuStatSample {
     earlier: CpuStat,
     later: CpuStat,
+    earlier_idle: IdleSnapshot,
+    later_idle: IdleSnapshot,
 }
 
 impl CpuStatSample {
     fn take() -> Option<Self> {
+        let earlier_idle = IdleSnapshot::read();
         let earlier = CpuStat::read()?;
         thread::sleep(SAMPLE_GAP);
+        let later_idle = IdleSnapshot::read();
         let later = CpuStat::read()?;
-        Some(CpuStatSample { earlier, later })
+        Some(CpuStatSample {
+            earlier,
+            later,
+            earlier_idle,
+            later_idle,
+        })
     }
 
     fn busy_fraction(&self) -> Option<Ratio> {
@@ -170,6 +231,17 @@ intr 12400
         CpuStatSample {
             earlier: CpuStat::parse(EARLIER).unwrap(),
             later: CpuStat::parse(LATER).unwrap(),
+            earlier_idle: IdleSnapshot::read(),
+            later_idle: IdleSnapshot::read(),
+        }
+    }
+
+    fn split(user: f64, system: f64) -> LoadSplit {
+        LoadSplit {
+            user: Ratio::new::<ratio>(user),
+            system: Ratio::new::<ratio>(system),
+            iowait: Ratio::new::<ratio>(0.0),
+            irq: Ratio::new::<ratio>(0.0),
         }
     }
 
@@ -179,8 +251,12 @@ intr 12400
         assert_eq!(
             stat.overall,
             Jiffies {
+                user: 100,
+                system: 100,
+                idle: 800,
+                iowait: 0,
+                irq: 0,
                 total: 1000,
-                idle: 800
             }
         );
         assert_eq!(
@@ -201,13 +277,32 @@ intr 12400
             [
                 CoreLoad {
                     core: 0,
-                    busy: Ratio::new::<ratio>(1.0)
+                    busy: Ratio::new::<ratio>(1.0),
+                    split: split(0.9, 0.1),
                 },
                 CoreLoad {
                     core: 1,
-                    busy: Ratio::new::<ratio>(0.0)
+                    busy: Ratio::new::<ratio>(0.0),
+                    split: split(0.0, 0.0),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn iowait_and_irq_are_split_out_of_busy_time() {
+        let earlier = Jiffies::from_counters("0 0 0 0 0 0 0".split(' ')).unwrap();
+        let later = Jiffies::from_counters("10 0 10 50 20 5 5".split(' ')).unwrap();
+        let elapsed = later.elapsed_since(&earlier).unwrap();
+        assert_eq!(elapsed.busy(), Ratio::new::<ratio>(0.5));
+        assert_eq!(
+            elapsed.split(),
+            LoadSplit {
+                user: Ratio::new::<ratio>(0.1),
+                system: Ratio::new::<ratio>(0.1),
+                iowait: Ratio::new::<ratio>(0.2),
+                irq: Ratio::new::<ratio>(0.1),
+            }
         );
     }
 }
