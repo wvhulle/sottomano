@@ -42,10 +42,10 @@ impl BarWidget for ClaudeEnterpriseSpend {
         ]);
         let credit_rows = [
             Some(row("Status", status)),
-            Some(row("Used", self.used.to_string())),
+            Some(row("Used This Month", self.used.to_string())),
             self.limit
                 .as_ref()
-                .map(|limit| row("Limit", limit.to_string())),
+                .map(|limit| row("Monthly Limit", limit.to_string())),
             self.limit
                 .as_ref()
                 .map(|_| row("Percent Used", percent_text(self.used_percent))),
