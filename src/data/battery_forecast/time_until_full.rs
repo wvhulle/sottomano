@@ -23,6 +23,25 @@ struct RemainingBin {
     power: NormalPower,
 }
 
+impl RemainingBin {
+    fn charging_power(
+        &self,
+        deviation: NormalPower,
+        supply: NormalPower,
+        standard_deviations: f64,
+    ) -> Power {
+        if deviation.mean < Power::default() {
+            self.power
+                .shifted_by_deviations(standard_deviations)
+                .min(supply.shifted_by_deviations(standard_deviations))
+        } else {
+            self.power
+                .plus(deviation)
+                .shifted_by_deviations(standard_deviations)
+        }
+    }
+}
+
 struct ChargeTarget {
     capacity: Energy,
     energy_to_fill: Range<Energy>,
@@ -65,13 +84,11 @@ fn fill_time(
     deviation: NormalPower,
     standard_deviations: f64,
 ) -> Option<Time> {
+    let supply = remaining.first()?.power.plus(deviation);
     remaining
         .iter()
         .try_fold(Time::new::<second>(0.0), |total, bin| {
-            let power = bin
-                .power
-                .plus(deviation)
-                .shifted_by_deviations(standard_deviations);
+            let power = bin.charging_power(deviation, supply, standard_deviations);
             (power > Power::new::<watt>(0.0)).then(|| total + bin.energy / power)
         })
 }
@@ -211,6 +228,30 @@ mod tests {
             ..charging_at(0.5)
         };
         assert!(median_minutes(&at_power(40.0), &curve) < median_minutes(&at_power(20.0), &curve));
+    }
+
+    #[test]
+    fn heavy_load_does_not_drive_the_taper_below_zero() {
+        let curve = ChargeCurve {
+            residuals: ResidualProcess {
+                variance: 135.0,
+                lag_covariance: 167.0,
+                previous: None,
+            },
+            ..learned_curve(|soc| {
+                if soc < Ratio::new::<ratio>(0.95) {
+                    Power::new::<watt>(40.0)
+                } else {
+                    Power::new::<watt>(6.5)
+                }
+            })
+        };
+        let at_power = |power_w| Battery {
+            power: Power::new::<watt>(power_w),
+            ..charging_at(0.16)
+        };
+        assert!(time_until_full(&at_power(7.8), &curve).is_some());
+        assert!(median_minutes(&at_power(7.8), &curve) > median_minutes(&at_power(40.0), &curve));
     }
 
     #[test]

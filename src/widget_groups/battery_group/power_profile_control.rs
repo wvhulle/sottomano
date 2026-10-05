@@ -17,7 +17,7 @@ use crate::{
     message_subscriptions::polling,
     state::power,
     widget_groups::battery_group::{
-        estimate_columns::{ESTIMATE_HEADINGS, estimate_cells},
+        estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         power_profile_control::profile_icon::profile_face,
     },
     widgets::{
@@ -228,10 +228,17 @@ impl PowerProfileControl {
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
             active: profile == active_profile,
-            estimate: self.estimates.get(&profile).copied().flatten(),
+            forecast: Forecast::from_estimate(
+                self.estimates.get(&profile).copied().flatten(),
+                Unforecastable::NoDrainHistory,
+            ),
         });
         Some(Tooltip::of(if self.estimates.is_empty() {
-            TooltipBody::rows(lives.map(|life| row(life.title(), "")).into())
+            TooltipBody::rows(
+                lives
+                    .map(|life| row(life.title(), "estimated on battery power"))
+                    .into(),
+            )
         } else {
             TooltipBody::table(lives)
         }))
@@ -245,7 +252,7 @@ impl PowerProfileControl {
 struct ProfileLife {
     profile: Profile,
     active: bool,
-    estimate: Option<Estimate>,
+    forecast: Forecast,
 }
 
 impl ProfileLife {
@@ -266,6 +273,6 @@ impl TableRow for ProfileLife {
     }
 
     fn cells(&self) -> Vec<Cell> {
-        estimate_cells(self.estimate)
+        self.forecast.cells()
     }
 }

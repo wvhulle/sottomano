@@ -17,9 +17,7 @@ use crate::{
         source::sysfs_sensors::battery::{Battery, IdleReason},
     },
     state::charge_power_curve,
-    widget_groups::battery_group::estimate_columns::{
-        ESTIMATE_HEADINGS, duration_text, estimate_cells,
-    },
+    widget_groups::battery_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::{Phosphor, Weight},
@@ -91,24 +89,37 @@ impl BatteryTimeReading {
 
     fn countdown(&self, battery: &Battery, drain: Option<Estimate>) -> Option<Countdown> {
         if battery.is_discharging() {
-            return Some(Countdown::UntilEmpty(drain));
+            return Some(Countdown::UntilEmpty(Forecast::from_estimate(
+                drain,
+                Unforecastable::NoDrainHistory,
+            )));
         }
         battery.is_charging().then(|| Countdown::UntilFull {
             charge_limit: battery.charge_limit,
-            estimate: self
-                .curve
-                .as_ref()
-                .and_then(|curve| time_until_full(battery, curve)),
+            forecast: self.charge_forecast(battery),
         })
+    }
+
+    fn charge_forecast(&self, battery: &Battery) -> Forecast {
+        let Some(curve) = &self.curve else {
+            return Forecast::Unavailable(Unforecastable::LoadingHistory);
+        };
+        if !curve.has_history() {
+            return Forecast::Unavailable(Unforecastable::NoChargeHistory);
+        }
+        Forecast::from_estimate(
+            time_until_full(battery, curve),
+            Unforecastable::ChargerNotKeepingUp,
+        )
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Countdown {
-    UntilEmpty(Option<Estimate>),
+    UntilEmpty(Forecast),
     UntilFull {
         charge_limit: Ratio,
-        estimate: Option<Estimate>,
+        forecast: Forecast,
     },
 }
 
@@ -117,9 +128,9 @@ fn percent_text(fraction: Ratio) -> String {
 }
 
 impl Countdown {
-    fn estimate(self) -> Option<Estimate> {
+    fn forecast(self) -> Forecast {
         match self {
-            Countdown::UntilEmpty(estimate) | Countdown::UntilFull { estimate, .. } => estimate,
+            Countdown::UntilEmpty(forecast) | Countdown::UntilFull { forecast, .. } => forecast,
         }
     }
 }
@@ -137,7 +148,7 @@ impl TableRow for Countdown {
     }
 
     fn cells(&self) -> Vec<Cell> {
-        estimate_cells(self.estimate())
+        self.forecast().cells()
     }
 }
 
@@ -201,18 +212,18 @@ impl BarWidget for BatteryTime {
     fn label(&self) -> Option<String> {
         match self {
             BatteryTime::Idle(idle) => Some(idle.label().to_string()),
-            BatteryTime::Countdown(countdown) => Some(duration_text(countdown.estimate()?.time)),
+            BatteryTime::Countdown(countdown) => Some(countdown.forecast().label()),
         }
     }
 
     fn state(&self) -> WidgetState {
         match self {
-            BatteryTime::Countdown(Countdown::UntilEmpty(Some(estimate)))
+            BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
                 if estimate.time < EMPTY_CRITICAL =>
             {
                 WidgetState::Critical
             }
-            BatteryTime::Countdown(Countdown::UntilEmpty(Some(estimate)))
+            BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
                 if estimate.time < EMPTY_WARNING =>
             {
                 WidgetState::Warning
@@ -244,9 +255,12 @@ mod tests {
     fn row_key_names_the_direction() {
         let until_full = Countdown::UntilFull {
             charge_limit: Ratio::new::<percent>(80.0),
-            estimate: None,
+            forecast: Forecast::Unavailable(Unforecastable::NoChargeHistory),
         };
-        assert_eq!(Countdown::UntilEmpty(None).key(), "Until empty".into());
+        assert_eq!(
+            Countdown::UntilEmpty(Forecast::Unavailable(Unforecastable::NoDrainHistory)).key(),
+            "Until empty".into()
+        );
         assert_eq!(until_full.key(), "Until 80 %".into());
     }
 
