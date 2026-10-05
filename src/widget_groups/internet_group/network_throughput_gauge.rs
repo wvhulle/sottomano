@@ -1,10 +1,7 @@
-use bytesize::ByteSize;
 use uom::si::{
-    f64::{Information, InformationRate, Ratio, Time},
-    information::byte,
+    f64::{InformationRate, Ratio},
     information_rate::{kilobyte_per_second, megabyte_per_second},
     ratio::ratio,
-    time::second,
 };
 
 use crate::{
@@ -18,6 +15,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        rate_text::RateText,
         tooltip_body::{TooltipBody, row},
         widget_state::WidgetState,
     },
@@ -72,15 +70,13 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
             return TooltipBody::rows(vec![row("Connectivity", "none")]);
         }
         TooltipBody::rows(vec![
-            row(D::LABEL, format_rate(self.rate)),
-            row("Peak", format_rate(self.peak_rate)),
+            row(D::LABEL, self.rate.per_second_text()),
+            row("Peak", self.peak_rate.per_second_text()),
             row("Interfaces", self.interfaces.join(", ")),
             row("Connectivity", self.connectivity.label()),
             row(
                 "Capacity",
-                format_rate(InformationRate::new::<megabyte_per_second>(
-                    SCALE_END_MB_PER_S,
-                )),
+                InformationRate::new::<megabyte_per_second>(SCALE_END_MB_PER_S).per_second_text(),
             ),
         ])
     }
@@ -110,38 +106,5 @@ fn connectivity_level(connectivity: Connectivity) -> Severity {
         Connectivity::Full => Severity::Normal,
         Connectivity::Limited | Connectivity::Unknown => Severity::Warning,
         Connectivity::None => Severity::Critical,
-    }
-}
-
-fn format_rate(rate: InformationRate) -> String {
-    let in_one_second: Information = (rate * Time::new::<second>(1.0)).into();
-    let bytes = ByteSize::b(in_one_second.get::<byte>().round() as u64);
-    format!("{}/s", bytes.display().iec())
-}
-
-#[cfg(test)]
-mod tests {
-    use uom::si::information_rate::{byte_per_second, kibibyte_per_second, mebibyte_per_second};
-
-    use super::*;
-
-    #[test]
-    fn small_rates_keep_their_precision() {
-        assert_eq!(
-            format_rate(InformationRate::new::<byte_per_second>(312.0)),
-            "312 B/s"
-        );
-        assert_eq!(
-            format_rate(InformationRate::new::<kibibyte_per_second>(845.2)),
-            "845.2 KiB/s"
-        );
-    }
-
-    #[test]
-    fn large_rates_switch_prefix() {
-        assert_eq!(
-            format_rate(InformationRate::new::<mebibyte_per_second>(1.8)),
-            "1.8 MiB/s"
-        );
     }
 }

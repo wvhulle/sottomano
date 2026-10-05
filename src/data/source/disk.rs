@@ -7,11 +7,24 @@ use std::{
 use bytesize::ByteSize;
 use tokio::task::spawn_blocking;
 
+use self::{
+    btrfs::{BtrfsFilesystem, BtrfsSpace},
+    mount::RootMount,
+};
 use super::Source;
+
+pub mod activity;
+pub mod btrfs;
+pub mod health;
+pub mod mount;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Statvfs(i32),
+    Unreadable(String),
+    Unparsable(String),
+    NotABlockDevice(String),
+    NoBtrfsFilesystemOn(String),
     Panicked,
 }
 
@@ -19,6 +32,14 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Error::Statvfs(code) => write!(f, "statvfs on / failed (errno {code})"),
+            Error::Unreadable(path) => write!(f, "cannot read {path}"),
+            Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
+            Error::NotABlockDevice(source) => {
+                write!(f, "root is mounted from {source}, not a block device")
+            }
+            Error::NoBtrfsFilesystemOn(device) => {
+                write!(f, "no btrfs filesystem found on {device}")
+            }
             Error::Panicked => write!(f, "disk read panicked"),
         }
     }
@@ -28,6 +49,13 @@ impl Display for Error {
 pub struct Disk {
     pub total: ByteSize,
     pub free: ByteSize,
+    pub filesystem: Filesystem,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Filesystem {
+    Btrfs(BtrfsSpace),
+    Other { fs_type: String },
 }
 
 impl Disk {
@@ -49,13 +77,28 @@ impl Source for Disk {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_root_statvfs)
+        spawn_blocking(read_root_disk)
             .await
             .map_err(|_| Error::Panicked)?
     }
 }
 
-fn read_root_statvfs() -> Result<Disk, Error> {
+fn read_root_disk() -> Result<Disk, Error> {
+    read_root_statvfs(read_root_filesystem()?)
+}
+
+fn read_root_filesystem() -> Result<Filesystem, Error> {
+    let mount = RootMount::current()?;
+    if mount.fs_type != "btrfs" {
+        return Ok(Filesystem::Other {
+            fs_type: mount.fs_type,
+        });
+    }
+    let filesystem = BtrfsFilesystem::containing(&mount.device()?)?;
+    Ok(Filesystem::Btrfs(filesystem.space(mount.compression())?))
+}
+
+fn read_root_statvfs(filesystem: Filesystem) -> Result<Disk, Error> {
     let mut stat = unsafe { zeroed::<libc::statvfs>() };
     let rc = unsafe { libc::statvfs(c"/".as_ptr(), &raw mut stat) };
     if rc != 0 {
@@ -65,6 +108,7 @@ fn read_root_statvfs() -> Result<Disk, Error> {
     Ok(Disk {
         total: ByteSize::b(stat.f_blocks as u64 * frsize),
         free: ByteSize::b(stat.f_bavail as u64 * frsize),
+        filesystem,
     })
 }
 
