@@ -5,9 +5,43 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Row, TooltipBody, row},
+        tooltip_body::{Section, TooltipBody, link, row, section},
     },
 };
+
+const OPENSTREETMAP_ZOOM: u8 = 15;
+
+#[derive(Debug, Clone, Copy)]
+enum MapService {
+    GoogleMaps,
+    OpenStreetMap,
+}
+
+impl MapService {
+    const ALL: [Self; 2] = [Self::GoogleMaps, Self::OpenStreetMap];
+
+    const fn name(self) -> &'static str {
+        match self {
+            Self::GoogleMaps => "Google Maps",
+            Self::OpenStreetMap => "OpenStreetMap",
+        }
+    }
+
+    fn url(self, position: Position) -> String {
+        let Position {
+            latitude,
+            longitude,
+        } = position;
+        match self {
+            Self::GoogleMaps => {
+                format!("https://www.google.com/maps/search/?api=1&query={latitude:.6},{longitude:.6}")
+            }
+            Self::OpenStreetMap => format!(
+                "https://www.openstreetmap.org/?mlat={latitude:.6}&mlon={longitude:.6}#map={OPENSTREETMAP_ZOOM}/{latitude:.6}/{longitude:.6}"
+            ),
+        }
+    }
+}
 
 impl BarWidget for Location {
     fn icon(&self) -> Glyph {
@@ -26,55 +60,78 @@ impl BarWidget for Location {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let place = self.geo.place.iter().flat_map(place_rows);
+        let place = self.geo.place.iter().map(place_section);
         let estimate = match &self.geo.origin {
-            Origin::Manual => Vec::new(),
-            Origin::Estimated(estimate) => estimate_rows(estimate),
+            Origin::Manual => None,
+            Origin::Estimated(estimate) => Some(estimate_section(estimate)),
         };
-        TooltipBody::rows(
+        TooltipBody::Sections(
             place
-                .chain(position_rows(self.geo.position))
+                .chain([self.position_section()])
                 .chain(estimate)
-                .chain([row("Source", self.geo.origin.to_string())])
+                .chain([map_section(self.geo.position)])
                 .collect(),
         )
     }
 }
 
-fn place_rows(place: &Place) -> [Row; 3] {
-    [
-        row("Place", place.name.clone()),
-        row("Country", place.country.clone()),
-        row("Distance", format!("{:.2} km", place.distance_km)),
-    ]
+impl Location {
+    fn position_section(&self) -> Section {
+        let position = self.geo.position;
+        section(
+            "Position",
+            vec![
+                row("Latitude", format!("{:.4}", position.latitude)),
+                row("Longitude", format!("{:.4}", position.longitude)),
+                row("Source", self.geo.origin.to_string()),
+            ],
+        )
+    }
 }
 
-fn position_rows(position: Position) -> [Row; 2] {
-    [
-        row("Latitude", format!("{:.4}", position.latitude)),
-        row("Longitude", format!("{:.4}", position.longitude)),
-    ]
+fn place_section(place: &Place) -> Section {
+    section(
+        "Place",
+        vec![
+            row("Name", place.name.clone()),
+            row("Country", place.country.clone()),
+            row("Distance", format!("{:.2} km", place.distance_km)),
+        ],
+    )
 }
 
-fn estimate_rows(estimate: &Estimate) -> Vec<Row> {
+fn estimate_section(estimate: &Estimate) -> Section {
     let observations = estimate.observations;
-    vec![
-        row("Accuracy", accuracy(estimate.accuracy_metres)),
-        row(
-            "Access points",
-            format!(
-                "{} seen, {} submitted",
-                observations.access_points_seen, observations.access_points_submitted
+    section(
+        "Estimate",
+        vec![
+            row("Accuracy", accuracy(estimate.accuracy_metres)),
+            row(
+                "Access points",
+                format!(
+                    "{} seen, {} submitted",
+                    observations.access_points_seen, observations.access_points_submitted
+                ),
             ),
-        ),
-        row(
-            "Cells",
-            format!(
-                "{} seen, {} submitted",
-                observations.cells_seen, observations.cells_submitted
+            row(
+                "Cells",
+                format!(
+                    "{} seen, {} submitted",
+                    observations.cells_seen, observations.cells_submitted
+                ),
             ),
-        ),
-    ]
+        ],
+    )
+}
+
+fn map_section(position: Position) -> Section {
+    section(
+        "Map",
+        MapService::ALL
+            .into_iter()
+            .map(|service| link(service.name(), service.url(position)))
+            .collect(),
+    )
 }
 
 fn accuracy(metres: f64) -> String {

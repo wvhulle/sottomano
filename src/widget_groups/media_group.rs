@@ -26,10 +26,14 @@ use crate::{
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
-        tooltip_body::{Tooltip, row},
+        tooltip_body::{Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
     },
 };
+
+pub mod track_tooltip;
+
+use self::track_tooltip::{playback_section, search_section, track_section};
 
 const SEPARATOR: &str = " · ";
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
@@ -203,23 +207,15 @@ impl MediaGroup {
 
     fn tooltip(&self) -> Option<Tooltip> {
         let media = self.current()?;
-        let mut rows: Vec<_> = [
-            ("Track", &media.title),
-            ("Artist", &media.artist),
-            ("Album", &media.album),
+        let sections = [
+            Some(track_section(media)),
+            Some(playback_section(media, self.status(media), self.now)),
+            search_section(media),
         ]
         .into_iter()
-        .filter_map(|(key, value)| Some(row(key, value.clone()?)))
+        .flatten()
         .collect();
-        rows.push(row("Player", media.identity.clone()));
-        rows.push(row("State", media.status.label()));
-        if let Some(remaining) = media.progress.remaining(self.status(media), self.now) {
-            rows.push(row(
-                "Remaining",
-                humantime::format_duration(Duration::from_secs(remaining.as_secs())).to_string(),
-            ));
-        }
-        Some(Tooltip::table(rows))
+        Some(Tooltip::of(TooltipBody::Sections(sections)))
     }
 
     pub fn widget_group<'a>(
