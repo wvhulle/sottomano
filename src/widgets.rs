@@ -20,6 +20,7 @@ pub mod pager_slot;
 pub mod phosphor;
 pub mod popup_connector;
 pub mod progress_line;
+pub mod rate_text;
 pub mod reading_alert;
 pub mod region_reporter;
 pub mod reveal;

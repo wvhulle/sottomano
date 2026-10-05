@@ -168,7 +168,9 @@ fn sensor_limit(chip: &Path, index: u32) -> ThermalLimit {
         .map_or(ThermalLimit::Unreported, ThermalLimit::Reported)
 }
 
-fn celsius_from_millidegrees(millidegrees: i64) -> ThermodynamicTemperature {
+pub(in crate::data::source) fn celsius_from_millidegrees(
+    millidegrees: i64,
+) -> ThermodynamicTemperature {
     ThermodynamicTemperature::new::<degree_celsius>(millidegrees as f64 / 1000.0)
 }
 
