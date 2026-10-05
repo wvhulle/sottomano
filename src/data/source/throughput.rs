@@ -54,6 +54,13 @@ impl Direction for Download {
 }
 
 #[derive(Debug, Clone)]
+pub struct Total;
+
+impl Direction for Total {
+    const LABEL: &'static str = "Total";
+}
+
+#[derive(Debug, Clone)]
 pub struct Throughput<D: Direction> {
     pub interfaces: Vec<String>,
     pub rate: InformationRate,
@@ -99,6 +106,7 @@ impl<D: Direction> Throughput<D> {
 pub struct Readings {
     pub down: Throughput<Download>,
     pub up: Throughput<Upload>,
+    pub total: Throughput<Total>,
 }
 
 pub fn subscription() -> Subscription<Readings> {
@@ -189,6 +197,10 @@ impl Rates {
     fn raised_by(self, other: Self) -> Self {
         self.combine(other, InformationRate::max)
     }
+
+    fn both_directions(self) -> InformationRate {
+        self.rx + self.tx
+    }
 }
 
 impl Add for Rates {
@@ -237,9 +249,16 @@ fn readings(current: &Sample, rates: Rates, peak: Rates, connectivity: Connectiv
             direction: PhantomData,
         },
         up: Throughput {
-            interfaces,
+            interfaces: interfaces.clone(),
             rate: rates.tx,
             peak_rate: peak.tx,
+            connectivity,
+            direction: PhantomData,
+        },
+        total: Throughput {
+            interfaces,
+            rate: rates.both_directions(),
+            peak_rate: peak.both_directions(),
             connectivity,
             direction: PhantomData,
         },
