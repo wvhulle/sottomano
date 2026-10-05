@@ -99,8 +99,6 @@
         // {
           inherit cargoArtifacts;
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
-          # Mesa lists Rgb10a2Unorm (2-bit alpha) first and iced 0.14 picks it, turning
-          # translucent shadows into flat bands. Drop once iced skips it (upstream ed36c6e107).
           postInstall = ''
             wrapProgram $out/bin/vetrata \
               --prefix PATH : ${gsettingsRuntime.binPath} \
@@ -108,8 +106,7 @@
               --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath commonArgs.buildInputs} \
               --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
               --prefix XDG_DATA_DIRS : ${soundThemeShare} \
-              --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules} \
-              --set vk_wsi_force_bgra8_unorm_first true
+              --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
           '';
           meta.mainProgram = "vetrata";
           meta.platforms = pkgs.lib.platforms.linux;
@@ -136,7 +133,6 @@
         packages =
           commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
-        env.vk_wsi_force_bgra8_unorm_first = "true";
         env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         env.PHOSPHOR_SVG = "${phosphorCore}/assets";
         shellHook = ''
