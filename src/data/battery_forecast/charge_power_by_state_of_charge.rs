@@ -98,6 +98,10 @@ impl ChargeCurve {
         ChargeCurve { bins, residuals }
     }
 
+    pub fn has_history(&self) -> bool {
+        self.bins.iter().any(Option::is_some)
+    }
+
     pub fn interrupted(self) -> Self {
         ChargeCurve {
             residuals: self.residuals.interrupted(),
