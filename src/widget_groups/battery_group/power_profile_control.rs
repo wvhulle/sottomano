@@ -169,16 +169,11 @@ impl PowerProfileControl {
         let Some(models) = self.profile_models.as_mut() else {
             return self.start_loading(&battery.serial);
         };
-        let continued = sample
-            .as_ref()
-            .and_then(|sample| models.remove(&sample.profile));
-        for model in models.values_mut() {
-            *model = model.interrupted();
-        }
         let Some(sample) = sample else {
             return Task::none();
         };
-        let next = continued
+        let next = models
+            .remove(&sample.profile)
             .unwrap_or_else(|| RegressionState::seed(sample.draw))
             .observe(sample.conditions, sample.draw);
         models.insert(sample.profile, next);
