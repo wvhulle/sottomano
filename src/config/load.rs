@@ -14,6 +14,7 @@ use super::{
     locale,
     palette::Palette,
     spacing::Spacing,
+    temperature::TemperatureConfig,
     toasts::ToastConfig,
     tray::TrayConfig,
     widget_sizes::WidgetSizes,
@@ -33,6 +34,7 @@ pub struct Config {
     pub other_time_zones: Vec<Tz>,
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_service: String,
+    pub temperature: TemperatureConfig,
     pub locale: Locale,
     pub working_days: Vec<Weekday>,
 }
@@ -59,6 +61,7 @@ struct UserConfig {
     other_time_zones: Vec<Tz>,
     terminal_command_prefix: Vec<String>,
     color_temperature_service: String,
+    temperature: TemperatureConfig,
     locale: Option<String>,
     working_days: Vec<Weekday>,
 }
@@ -77,6 +80,7 @@ impl Default for UserConfig {
             other_time_zones: vec![Asia::Shanghai],
             terminal_command_prefix: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_service: String::from("screen-temperature.service"),
+            temperature: TemperatureConfig::default(),
             locale: None,
             working_days: vec![
                 Weekday::Mon,
@@ -109,6 +113,7 @@ impl UserConfig {
             other_time_zones: self.other_time_zones,
             terminal_command_prefix: self.terminal_command_prefix,
             color_temperature_service: self.color_temperature_service,
+            temperature: self.temperature,
             locale,
             working_days: self.working_days,
         })

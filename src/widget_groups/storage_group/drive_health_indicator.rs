@@ -1,7 +1,4 @@
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
-};
+use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
     data::{
@@ -9,7 +6,7 @@ use crate::{
         source::{
             disk::{
                 btrfs::DeviceErrors,
-                health::{DriveHealth, DriveTemperature, ErrorTracking},
+                health::{DriveHealth, DriveTemperature, ErrorTracking, MissingSensor},
             },
             sysfs_sensors::temperature::ThermalLimit,
         },
@@ -17,19 +14,15 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::Phosphor,
+        temperature_thresholds::{TemperatureThresholds, celsius_text, reported_or},
         tooltip_body::{Row, Section, TooltipBody, row, section, untitled},
         widget_state::WidgetState,
     },
 };
 
 const ERROR_RESET_COMMAND: &str = "btrfs device stats -z /";
-
-fn celsius_text(temperature: ThermodynamicTemperature) -> String {
-    format!(
-        "{:.0}",
-        temperature.into_format_args(degree_celsius, Abbreviation)
-    )
-}
+const UNREPORTED_WARNING_CELSIUS: f64 = 60.0;
+const UNREPORTED_CRITICAL_CELSIUS: f64 = 70.0;
 
 impl BarWidget for DriveHealth {
     fn icon(&self) -> Glyph {
@@ -37,7 +30,7 @@ impl BarWidget for DriveHealth {
     }
 
     fn state(&self) -> WidgetState {
-        self.temperature.level().max(self.errors.level()).into()
+        self.temperature_level().max(self.errors.level()).into()
     }
 
     fn label(&self) -> Option<String> {
@@ -55,10 +48,45 @@ impl BarWidget for DriveHealth {
         let drive = untitled(
             [row("Drive", self.model.clone())]
                 .into_iter()
-                .chain(self.temperature.rows())
+                .chain(self.temperature_rows())
                 .collect(),
         );
         TooltipBody::Sections(vec![drive, self.errors.section()])
+    }
+}
+
+impl DriveHealth {
+    fn temperature_level(&self) -> Severity {
+        match self.temperature {
+            DriveTemperature::Reported { current, .. } => {
+                self.temperature_thresholds().level(current)
+            }
+            DriveTemperature::Unreported(_) => Severity::Normal,
+        }
+    }
+
+    fn temperature_thresholds(&self) -> TemperatureThresholds {
+        TemperatureThresholds {
+            warning: reported_or(self.temperature.warning(), UNREPORTED_WARNING_CELSIUS),
+            critical: reported_or(self.temperature.critical(), UNREPORTED_CRITICAL_CELSIUS),
+        }
+        .overridden_by(self.overrides)
+    }
+
+    fn temperature_rows(&self) -> Vec<Row> {
+        match self.temperature {
+            DriveTemperature::Reported { current, .. } => {
+                let thresholds = self.temperature_thresholds();
+                vec![
+                    row("Temperature", celsius_text(current)),
+                    row("Warns above", celsius_text(thresholds.warning)),
+                    row("Critical above", celsius_text(thresholds.critical)),
+                ]
+            }
+            DriveTemperature::Unreported(missing) => {
+                vec![row("Temperature", missing.explanation())]
+            }
+        }
     }
 }
 
@@ -66,59 +94,31 @@ impl DriveTemperature {
     fn current(&self) -> Option<ThermodynamicTemperature> {
         match self {
             DriveTemperature::Reported { current, .. } => Some(*current),
-            DriveTemperature::Unreported => None,
+            DriveTemperature::Unreported(_) => None,
         }
     }
 
-    fn level(&self) -> Severity {
+    fn warning(&self) -> ThermalLimit {
         match self {
-            DriveTemperature::Reported {
-                current,
-                warning,
-                critical,
-            } => {
-                if reached(*current, *critical) {
-                    Severity::Critical
-                } else if reached(*current, *warning) {
-                    Severity::Warning
-                } else {
-                    Severity::Normal
-                }
-            }
-            DriveTemperature::Unreported => Severity::Normal,
+            DriveTemperature::Reported { warning, .. } => *warning,
+            DriveTemperature::Unreported(_) => ThermalLimit::Unreported,
         }
     }
 
-    fn rows(&self) -> Vec<Row> {
+    fn critical(&self) -> ThermalLimit {
         match self {
-            DriveTemperature::Reported {
-                current,
-                warning,
-                critical,
-            } => [
-                Some(row("Temperature", celsius_text(*current))),
-                limit_row("Warns at", *warning),
-                limit_row("Critical at", *critical),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
-            DriveTemperature::Unreported => vec![row("Temperature", "not reported")],
+            DriveTemperature::Reported { critical, .. } => *critical,
+            DriveTemperature::Unreported(_) => ThermalLimit::Unreported,
         }
     }
 }
 
-fn reached(current: ThermodynamicTemperature, limit: ThermalLimit) -> bool {
-    match limit {
-        ThermalLimit::Reported(limit) => current >= limit,
-        ThermalLimit::Unreported => false,
-    }
-}
-
-fn limit_row(key: &str, limit: ThermalLimit) -> Option<Row> {
-    match limit {
-        ThermalLimit::Reported(limit) => Some(row(key, celsius_text(limit))),
-        ThermalLimit::Unreported => None,
+impl MissingSensor {
+    fn explanation(self) -> &'static str {
+        match self {
+            MissingSensor::DrivetempNotLoaded => "load the drivetemp kernel module",
+            MissingSensor::NotExposed => "not reported by the drive",
+        }
     }
 }
 

@@ -6,6 +6,7 @@ pub mod cpu_temperature_label;
 use iced::{Subscription, Task};
 
 use crate::{
+    config::temperature::SensorConfig,
     data::source::{
         Source,
         sysfs_sensors::{self, cpu_clock::CpuClock, cpu_usage::CpuUsage, temperature::Temperature},
@@ -38,13 +39,16 @@ pub enum ProcessorMessage {
 }
 
 impl ProcessorGroup {
-    pub fn probe() -> Task<ProcessorMessage> {
-        Task::future(async { ProcessorMessage::Sensors(Temperature::available(&()).await) })
+    pub fn probe(sensor: &SensorConfig) -> Task<ProcessorMessage> {
+        let sensor = sensor.clone();
+        Task::future(
+            async move { ProcessorMessage::Sensors(Temperature::available(&sensor).await) },
+        )
     }
 
-    pub fn subscription(&self) -> Subscription<ProcessorMessage> {
+    pub fn subscription(&self, sensor: &SensorConfig) -> Subscription<ProcessorMessage> {
         let temperature = if self.sensors {
-            polling::<Temperature>(()).map(ProcessorMessage::Temperature)
+            polling::<Temperature>(sensor.clone()).map(ProcessorMessage::Temperature)
         } else {
             Subscription::none()
         };

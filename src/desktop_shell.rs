@@ -23,7 +23,10 @@ use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
-    config::{Config, ConfigFile, LoadError, SecretPaths, bar_size::BarSize, font::ResolvedFont},
+    config::{
+        Config, ConfigFile, LoadError, SecretPaths, bar_size::BarSize, font::ResolvedFont,
+        temperature::SensorConfig,
+    },
     data::{
         sink::{clipboard, sound},
         source::{
@@ -260,7 +263,7 @@ impl DesktopShell {
             blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
             BatteryGroup::probe().map(Message::Battery),
-            ProcessorGroup::probe().map(Message::Processor),
+            ProcessorGroup::probe(&shell.config.temperature.cpu).map(Message::Processor),
             InternetGroup::probe().map(Message::Internet),
             MonitorGroup::probe().map(Message::Monitor),
             DarkModeGroup::probe().map(Message::DarkMode),
@@ -583,7 +586,15 @@ impl DesktopShell {
             self.adopt_font(&previous.font),
             self.adopt_bar_size(&previous.bar),
             self.adopt_color_temperature_service(&previous.color_temperature_service),
+            self.adopt_cpu_temperature_sensor(&previous.temperature.cpu),
         ])
+    }
+
+    fn adopt_cpu_temperature_sensor(&self, previous: &SensorConfig) -> Task<Message> {
+        if &self.config.temperature.cpu == previous {
+            return Task::none();
+        }
+        ProcessorGroup::probe(&self.config.temperature.cpu).map(Message::Processor)
     }
 
     fn adopt_font(&mut self, previous: &ResolvedFont) -> Task<Message> {
