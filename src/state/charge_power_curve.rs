@@ -1,9 +1,9 @@
 use crate::{
-    data::battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin, ResidualProcess},
+    data::battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
     state::{Columns, StoreError, open},
 };
 
-pub(crate) const CREATE_TABLES: [&str; 2] = [
+pub(crate) const SCHEMA: [&str; 2] = [
     "CREATE TABLE IF NOT EXISTS battery_charge_curve (
         battery TEXT NOT NULL,
         bin INTEGER NOT NULL,
@@ -11,11 +11,7 @@ pub(crate) const CREATE_TABLES: [&str; 2] = [
         variance REAL NOT NULL,
         PRIMARY KEY (battery, bin)
     )",
-    "CREATE TABLE IF NOT EXISTS battery_charge_residual (
-        battery TEXT PRIMARY KEY NOT NULL,
-        variance REAL NOT NULL,
-        lag_covariance REAL NOT NULL
-    )",
+    "DROP TABLE IF EXISTS battery_charge_residual",
 ];
 
 pub async fn load(battery: String) -> Box<ChargeCurve> {
@@ -62,20 +58,6 @@ async fn read_curve(conn: &turso::Connection, battery: &str) -> Result<ChargeCur
             variance: columns.real(&row, "variance")?,
         });
     }
-    let mut residual_rows = conn
-        .query(
-            "SELECT variance, lag_covariance FROM battery_charge_residual WHERE battery = ?1",
-            (battery,),
-        )
-        .await?;
-    let columns = Columns::of(&residual_rows);
-    if let Some(row) = residual_rows.next().await? {
-        curve.residuals = ResidualProcess {
-            variance: columns.real(&row, "variance")?,
-            lag_covariance: columns.real(&row, "lag_covariance")?,
-            previous: None,
-        };
-    }
     Ok(curve)
 }
 
@@ -94,17 +76,6 @@ async fn write_bin(
         )
         .await?;
     }
-    conn.execute(
-        "INSERT INTO battery_charge_residual (battery, variance, lag_covariance)
-         VALUES (?1, ?2, ?3)
-         ON CONFLICT(battery) DO UPDATE SET variance = ?2, lag_covariance = ?3",
-        (
-            battery,
-            curve.residuals.variance,
-            curve.residuals.lag_covariance,
-        ),
-    )
-    .await?;
     Ok(())
 }
 
@@ -115,25 +86,20 @@ mod tests {
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
         let conn = database.connect().unwrap();
-        for statement in CREATE_TABLES {
+        for statement in SCHEMA {
             conn.execute(statement, ()).await.unwrap();
         }
         conn
     }
 
     #[tokio::test]
-    async fn bins_and_residual_survive_a_round_trip() {
+    async fn bins_survive_a_round_trip() {
         let conn = connection().await;
         let mut curve = ChargeCurve::default();
         curve.bins[3] = Some(PowerBin {
             mean_w: 28.5,
             variance: 0.7,
         });
-        curve.residuals = ResidualProcess {
-            variance: 2.5,
-            lag_covariance: 1.5,
-            previous: None,
-        };
         write_bin(&conn, "BAT0", 3, &curve).await.unwrap();
 
         assert_eq!(read_curve(&conn, "BAT0").await.unwrap(), curve);

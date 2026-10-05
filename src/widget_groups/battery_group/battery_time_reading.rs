@@ -41,24 +41,20 @@ pub struct CurveLoaded(Box<ChargeCurve>);
 
 impl BatteryTimeReading {
     pub fn learn(&mut self, battery: &Battery) -> Task<CurveLoaded> {
-        let Some(curve) = self.curve.take() else {
+        let Some(curve) = &self.curve else {
             return self.start_loading(&battery.serial);
         };
-        let sample = battery.charging_sample(Power::new::<watt>(MIN_SAMPLE_W));
-        let curve = match sample {
-            Some(sample) => curve.observe(sample.state_of_charge, sample.power),
-            None => curve.interrupted(),
+        let Some(sample) = battery.charging_sample(Power::new::<watt>(MIN_SAMPLE_W)) else {
+            return Task::none();
         };
-        let save = sample.map_or_else(Task::none, |sample| {
-            Task::future(charge_power_curve::save(
-                battery.serial.clone(),
-                bin_of(sample.state_of_charge),
-                curve.clone(),
-            ))
-            .discard()
-        });
-        self.curve = Some(curve);
-        save
+        let curve = curve.clone().observe(sample.state_of_charge, sample.power);
+        self.curve = Some(curve.clone());
+        Task::future(charge_power_curve::save(
+            battery.serial.clone(),
+            bin_of(sample.state_of_charge),
+            curve,
+        ))
+        .discard()
     }
 
     pub fn loaded(&mut self, CurveLoaded(curve): CurveLoaded) {

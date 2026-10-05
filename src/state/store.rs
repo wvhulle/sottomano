@@ -120,7 +120,8 @@ pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), S
     connection.execute(idle::CREATE_TABLE, ()).await?;
     connection.execute(dark_mode::CREATE_TABLE, ()).await?;
     connection.execute(power::CREATE_TABLE, ()).await?;
-    for statement in charge_power_curve::CREATE_TABLES {
+    power::drop_residual_columns(connection).await?;
+    for statement in charge_power_curve::SCHEMA {
         connection.execute(statement, ()).await?;
     }
     connection.execute(rate_limit::CREATE_TABLE, ()).await?;

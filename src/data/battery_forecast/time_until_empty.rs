@@ -4,15 +4,59 @@ use uom::si::f64::{Energy, Power};
 
 use crate::data::{
     battery_forecast::{
-        Estimate, discharge_power_regression::RegressionState, duration_of,
-        normally_distributed_power::NormalPower, self_consistent_horizon::self_consistent_forecast,
+        Estimate,
+        discharge_power_regression::RegressionState,
+        time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
     source::{
-        Source,
         power_profile::{Conditions, Profile},
         sysfs_sensors::battery::Battery,
     },
 };
+
+struct Draining<'a> {
+    live: Option<Power>,
+    active_profile: Profile,
+    conditions: Conditions,
+    profile_models: &'a HashMap<Profile, RegressionState>,
+}
+
+impl Draining<'_> {
+    fn fit(&self, profile: Profile) -> Option<Power> {
+        Some(
+            self.profile_models
+                .get(&profile)?
+                .expected_draw(self.conditions),
+        )
+        .filter(|draw| *draw > Power::default())
+    }
+
+    fn learned_draw(
+        &self,
+        profile: Profile,
+        scenario: Scenario,
+        elapsed: Duration,
+    ) -> Option<Power> {
+        let fit = self.fit(profile)?;
+        let deviation_now = self
+            .live
+            .filter(|_| profile == self.active_profile)
+            .map_or_else(Power::default, |live| live - fit);
+        Some(fit + scenario.deviation_after(deviation_now, elapsed))
+    }
+
+    fn active_draw(&self, scenario: Scenario, elapsed: Duration) -> Option<Power> {
+        self.learned_draw(self.active_profile, scenario, elapsed)
+            .or(self.live)
+    }
+
+    fn draw(&self, profile: Profile, scenario: Scenario, elapsed: Duration) -> Option<Power> {
+        self.learned_draw(profile, scenario, elapsed).or_else(|| {
+            let ratio = profile.scale() / self.active_profile.scale();
+            Some(self.active_draw(scenario, elapsed)? * ratio)
+        })
+    }
+}
 
 pub fn time_until_empty(
     battery: &Battery,
@@ -20,40 +64,29 @@ pub fn time_until_empty(
     conditions: Conditions,
     profile_models: &HashMap<Profile, RegressionState>,
 ) -> HashMap<Profile, Option<Estimate>> {
-    let nothing = Power::default();
-    let live = (battery.is_discharging() && battery.power > nothing).then_some(battery.power);
-    let learned = |profile: Profile, horizon: Duration| {
-        let model = profile_models.get(&profile)?;
-        let current = live.filter(|_| profile == active_profile);
-        Some(model.average_draw_over(horizon, conditions, current))
-            .filter(|draw| draw.mean > nothing)
+    let draining = Draining {
+        live: (battery.is_discharging() && battery.power > Power::default())
+            .then_some(battery.power),
+        active_profile,
+        conditions,
+        profile_models,
     };
-    let active_draw =
-        |horizon| learned(active_profile, horizon).or_else(|| live.map(NormalPower::certain));
+    let has_energy = battery.energy > Energy::default();
     Profile::ALL
         .into_iter()
         .map(|profile| {
-            let ratio = profile.scale() / active_profile.scale();
-            let draw = |horizon| {
-                learned(profile, horizon)
-                    .or_else(|| active_draw(horizon).map(|draw| draw.scaled(ratio)))
-            };
-            (profile, drain(battery.energy, draw))
+            let life = has_energy
+                .then(|| {
+                    estimate(|scenario| {
+                        time_to_move(battery.energy, |elapsed, _| {
+                            draining.draw(profile, scenario, elapsed)
+                        })
+                    })
+                })
+                .flatten();
+            (profile, life)
         })
         .collect()
-}
-
-fn drain(
-    energy: Energy,
-    average_draw_over: impl Fn(Duration) -> Option<NormalPower>,
-) -> Option<Estimate> {
-    if energy <= Energy::default() {
-        return None;
-    }
-    self_consistent_forecast(Battery::INTERVAL, average_draw_over, |draw| {
-        duration_of(energy / draw.mean)
-    })?
-    .time_to_move(energy)
 }
 
 #[cfg(test)]
@@ -69,7 +102,7 @@ mod tests {
 
     use super::*;
     use crate::data::{
-        battery_forecast::discharge_power_regression::{slow_wave, trained},
+        battery_forecast::discharge_power_regression::trained,
         source::sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
     };
 
@@ -112,8 +145,8 @@ mod tests {
             .expect("estimate present")
     }
 
-    fn spread(estimate: Estimate) -> f64 {
-        hrs(estimate.latest.expect("bounded above")) - hrs(estimate.earliest)
+    fn settled_at_ten_watts(conditions: Conditions) -> RegressionState {
+        trained(conditions, repeat_n(Power::new::<watt>(10.0), 500))
     }
 
     #[test]
@@ -136,39 +169,35 @@ mod tests {
     }
 
     #[test]
-    fn interval_tightens_as_filter_learns() {
+    fn heavier_draw_now_is_bounded_by_typical_and_persisting_draw() {
         let conditions = Conditions::new(0.5, 0.3);
-        let battery = on_battery(50.0);
-        let after_one = spread(balanced_life(
-            &battery,
-            conditions,
-            trained(conditions, [Power::new::<watt>(10.0)]),
-        ));
-        let after_many = spread(balanced_life(
-            &battery,
-            conditions,
-            trained(conditions, repeat_n(Power::new::<watt>(10.0), 50)),
-        ));
-        assert!(after_many < after_one, "{after_many} vs {after_one}");
+        let life = balanced_life(&drawing(20.0), conditions, settled_at_ten_watts(conditions));
+        let latest = life.latest.expect("bounded above");
+        assert!(life.earliest < life.time && life.time < latest);
+        assert!(
+            (hrs(life.earliest) - 2.5).abs() < 0.02,
+            "{}",
+            hrs(life.earliest)
+        );
+        assert!((hrs(latest) - 5.0).abs() < 0.02, "{}", hrs(latest));
     }
 
     #[test]
-    fn interval_is_skewed_towards_longer_life() {
+    fn without_a_live_reading_the_scenarios_coincide() {
         let conditions = Conditions::new(0.5, 0.3);
         let life = balanced_life(
             &on_battery(50.0),
             conditions,
-            trained(conditions, slow_wave(3000)),
+            settled_at_ten_watts(conditions),
         );
-        let below = hrs(life.time) - hrs(life.earliest);
-        let above = hrs(life.latest.expect("bounded above")) - hrs(life.time);
-        assert!(above > below, "{below} below vs {above} above");
+        assert_eq!(life.earliest, life.time);
+        assert_eq!(life.latest, Some(life.time));
     }
 
     #[test]
-    fn current_deviation_persists_into_the_forecast() {
+    fn current_deviation_shifts_the_forecast() {
         let conditions = Conditions::new(0.5, 0.3);
-        let model = trained(conditions, slow_wave(3000));
+        let model = settled_at_ten_watts(conditions);
         let life_while_drawing =
             |draw_w| hrs(balanced_life(&drawing(draw_w), conditions, model).time);
         assert!(life_while_drawing(12.0) < life_while_drawing(8.0));
