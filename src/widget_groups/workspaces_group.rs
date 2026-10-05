@@ -3,7 +3,7 @@ pub mod workspace_tooltip;
 
 use iced::{
     Alignment, Color, Element, Length,
-    widget::{Column, Row, Text, button, column, row},
+    widget::{Row, Text, button, column, container, row},
 };
 
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     widgets::{
         activity_line::edge_activity_line, flat_button, focus_indicator::focus_indicator,
         marker_track::MarkerTrack, pager_slot::PagerSlot, text::bar_text,
+        uniform_width_column::uniform_width_column,
     },
 };
 
@@ -52,9 +53,8 @@ pub fn vertical_view<'a>(
         .iter()
         .map(|p| hit_area(p, sidebar_row(config, niri, p), config));
     Some(indicated(
-        Column::with_children(rows)
+        uniform_width_column(rows)
             .spacing(config.spacing.widget_spacing_px)
-            .align_x(Alignment::End)
             .into(),
         workspaces,
         config,
@@ -73,10 +73,13 @@ fn sidebar_row<'a>(
     ]
     .width(Length::Shrink)
     .align_x(Alignment::Center);
-    row![label_over_markers, urgency_line(config, p, Position::Left)]
+    let label_with_urgency = row![label_over_markers, urgency_line(config, p, Position::Left)]
         .spacing(config.spacing.widget_spacing_px)
         .height(config.bar.height_px)
-        .align_y(Alignment::Center)
+        .align_y(Alignment::Center);
+    container(label_with_urgency)
+        .width(Length::Fill)
+        .align_x(Alignment::End)
         .into()
 }
 
