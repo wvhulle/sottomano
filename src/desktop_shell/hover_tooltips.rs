@@ -69,6 +69,7 @@ pub enum HoverTarget {
     IdlePowerDown,
     InternetDown,
     InternetUp,
+    InternetTotal,
     Tailscale,
     Wireguard(String),
     WeatherTemp,

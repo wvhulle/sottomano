@@ -8,7 +8,7 @@ use crate::{
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
-        throughput::{self, Download, Readings, Throughput, Upload},
+        throughput::{self, Download, Readings, Throughput, Total, Upload},
         wireguard::{Wireguard, disconnect},
     },
     desktop_shell::hover_tooltips::HoverTarget,
@@ -17,6 +17,7 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         last_poll::LastPoll,
+        phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
@@ -26,6 +27,7 @@ use crate::{
 pub struct InternetGroup {
     down: LastPoll<Throughput<Download>>,
     up: LastPoll<Throughput<Upload>>,
+    total: LastPoll<Throughput<Total>>,
     wireguard: LastPoll<Wireguard>,
     tailscale: LastPoll<Tailscale>,
     installed: Installed,
@@ -84,6 +86,7 @@ impl InternetGroup {
             InternetMessage::Throughput(readings) => {
                 self.down.load(Some(readings.down));
                 self.up.load(Some(readings.up));
+                self.total.load(Some(readings.total));
             }
             InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
             InternetMessage::Tailscale(reading) => self.tailscale.receive(reading),
@@ -113,6 +116,7 @@ impl InternetGroup {
             }
             HoverTarget::InternetDown => self.down.live_tooltip(),
             HoverTarget::InternetUp => self.up.live_tooltip(),
+            HoverTarget::InternetTotal => self.total.live_tooltip(),
             HoverTarget::Tailscale => self.tailscale.tooltip(),
             _ => None,
         }
@@ -124,6 +128,8 @@ impl InternetGroup {
             .get()
             .map_or(&[][..], |wireguard| &wireguard.tunnels);
         WidgetGroup::new(&self.expansion, InternetMessage::Expansion)
+            .icon(Phosphor::ArrowsDownUp(Weight::Regular))
+            .previewed_reading(self.total.display(), HoverTarget::InternetTotal)
             .reading(self.down.display(), HoverTarget::InternetDown)
             .reading(self.up.display(), HoverTarget::InternetUp)
             .items(tunnels.iter().map(|tunnel| {

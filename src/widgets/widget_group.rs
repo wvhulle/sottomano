@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     data::severity::Severity,
     desktop_shell::{
-        hover_tooltips::{HoverTarget, TooltipMessage},
+        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
     widgets::{
@@ -103,12 +103,41 @@ impl GroupIcon<'_> {
     }
 }
 
+#[derive(Clone)]
+enum PreviewedValue<'a> {
+    Plain(&'a dyn BarWidget),
+    Hoverable {
+        widget: &'a dyn BarWidget,
+        target: HoverTarget,
+    },
+}
+
+impl<'a> PreviewedValue<'a> {
+    fn widget(&self) -> &'a dyn BarWidget {
+        match self {
+            PreviewedValue::Plain(widget) | PreviewedValue::Hoverable { widget, .. } => *widget,
+        }
+    }
+
+    fn hoverable_face<M: 'a>(
+        &self,
+        face: Element<'a, GroupEvent<M>>,
+    ) -> Element<'a, GroupEvent<M>> {
+        match self {
+            PreviewedValue::Plain(_) => face,
+            PreviewedValue::Hoverable { target, .. } => {
+                hoverable(face, target.clone(), GroupEvent::Tooltip)
+            }
+        }
+    }
+}
+
 pub struct WidgetGroup<'a, M> {
     expansion: &'a GroupExpansion,
     on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
     icon: Option<GroupIcon<'a>>,
     items: Vec<GroupItem<'a, M>>,
-    previewed_value: Option<&'a dyn BarWidget>,
+    previewed_value: Option<PreviewedValue<'a>>,
 }
 
 impl<'a, M: 'a> WidgetGroup<'a, M> {
@@ -159,7 +188,17 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
 
     #[must_use]
     pub fn previewed_value(mut self, widget: Option<&'a dyn BarWidget>) -> Self {
-        self.previewed_value = widget;
+        self.previewed_value = widget.map(PreviewedValue::Plain);
+        self
+    }
+
+    #[must_use]
+    pub fn previewed_reading(
+        mut self,
+        widget: Option<&'a dyn BarWidget>,
+        target: HoverTarget,
+    ) -> Self {
+        self.previewed_value = widget.map(|widget| PreviewedValue::Hoverable { widget, target });
         self
     }
 
@@ -245,16 +284,25 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         let toggle = expansion_event(ExpansionMessage::Toggle);
         let hovered = expansion.hovered;
         let animated = expand_animation(expansion.expanded, EXPAND, move |reveal| {
-            let handle = button(
+            let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
-                    collapsing_previewed_value(config, previewed_value, reveal),
+                    collapsing_previewed_value(
+                        config,
+                        previewed_value.as_ref().map(PreviewedValue::widget),
+                        reveal,
+                    ),
                 ])
                 .align_y(Alignment::Center),
             )
             .padding(0)
             .style(flat_button(config.palette.bar_foreground))
-            .on_press(toggle.clone());
+            .on_press(toggle.clone())
+            .into();
+            let handle = match &previewed_value {
+                Some(preview) => preview.hoverable_face(handle),
+                None => handle,
+            };
             let inner = Row::new()
                 .push(handle)
                 .extend(

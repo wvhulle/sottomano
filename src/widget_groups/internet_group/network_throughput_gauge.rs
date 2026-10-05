@@ -9,7 +9,7 @@ use crate::{
         severity::Severity,
         source::{
             net_interfaces::nm::Connectivity,
-            throughput::{Direction, Download, SCALE_END_MB_PER_S, Throughput, Upload},
+            throughput::{Direction, Download, SCALE_END_MB_PER_S, Throughput, Total, Upload},
         },
     },
     widgets::{
@@ -34,6 +34,10 @@ impl DirectionIcon for Upload {
 
 impl DirectionIcon for Download {
     const ICON: Phosphor = Phosphor::DownloadSimple(Weight::Regular);
+}
+
+impl DirectionIcon for Total {
+    const ICON: Phosphor = Phosphor::ArrowsDownUp(Weight::Regular);
 }
 
 fn severity<D: Direction>(throughput: &Throughput<D>) -> Severity {
