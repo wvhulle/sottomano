@@ -95,7 +95,7 @@ fn extra_section(extra: &ExtraUsage) -> Section {
         extra
             .spent
             .as_ref()
-            .map(|spent| row("Spent", spent.to_string())),
+            .map(|spent| row("Spent This Month", spent.to_string())),
         extra
             .monthly_limit
             .as_ref()
