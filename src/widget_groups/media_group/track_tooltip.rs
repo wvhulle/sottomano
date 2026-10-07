@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use reqwest::Url;
 
 use crate::{
-    data::source::mpris::{Media, Status},
+    data::source::mpris::Media,
     widgets::tooltip_body::{Row, Section, link, row, section},
 };
 
@@ -75,8 +75,9 @@ pub fn track_section(media: &Media) -> Section {
     section("Track", tags.chain(source).collect())
 }
 
-pub fn playback_section(media: &Media, status: Status, now: Instant) -> Section {
+pub fn playback_section(media: &Media, now: Instant) -> Section {
     let progress = media.progress;
+    let status = media.status;
     let timing = [
         ("Played", progress.played(status, now)),
         ("Remaining", progress.remaining(status, now)),

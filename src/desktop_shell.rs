@@ -523,7 +523,7 @@ impl DesktopShell {
 
     fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
         let players_changed = matches!(msg, MediaMessage::Reading(_));
-        let task = self.media_group.update(msg, &self.niri).map(Message::Media);
+        let task = self.media_group.update(msg).map(Message::Media);
         if players_changed {
             Task::batch([task, self.resolve_icons()])
         } else {

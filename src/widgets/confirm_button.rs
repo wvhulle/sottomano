@@ -1,11 +1,11 @@
-use iced::{Element, widget::button};
+use iced::{Alignment, Element, widget::row};
 
 use crate::{
     config::Config,
     widgets::{
-        bar_widget::Glyph,
-        flat_button,
+        glyph_button::GlyphButton,
         phosphor::{Phosphor, Weight},
+        source_reading::icon_value_gap,
         widget_state::WidgetState,
     },
 };
@@ -47,23 +47,49 @@ impl ConfirmButton {
         config: &Config,
         opacity: f32,
         active: bool,
+        idle_glyph: Phosphor,
         on_press: Message,
+        on_cancel: Message,
     ) -> Element<'a, Message> {
-        let state = if self.armed {
-            WidgetState::Pending
-        } else {
-            WidgetState::of_toggle(active)
-        };
-        let glyph = if self.armed {
-            Phosphor::Warning(Weight::Regular)
-        } else {
-            Phosphor::Lightning(Weight::Regular)
-        };
-        let color = state.color(&config.palette).scale_alpha(opacity);
-        button(Glyph::from(glyph.with_weight(state.weight())).view(config.font.icon_size_px, color))
-            .padding(0)
-            .style(flat_button(color))
-            .on_press(on_press)
-            .into()
+        if !self.armed {
+            let state = WidgetState::of_toggle(active);
+            return glyph_button(
+                config,
+                opacity,
+                idle_glyph.with_weight(state.weight()),
+                state,
+                on_press,
+            );
+        }
+        row![
+            glyph_button(
+                config,
+                opacity,
+                Phosphor::Check(Weight::Bold),
+                WidgetState::Pending,
+                on_press
+            ),
+            glyph_button(
+                config,
+                opacity,
+                Phosphor::X(Weight::Regular),
+                WidgetState::Off,
+                on_cancel
+            ),
+        ]
+        .spacing(icon_value_gap(config))
+        .align_y(Alignment::Center)
+        .into()
     }
+}
+
+fn glyph_button<'a, Message: 'a + Clone>(
+    config: &Config,
+    opacity: f32,
+    glyph: Phosphor,
+    state: WidgetState,
+    on_press: Message,
+) -> Element<'a, Message> {
+    let color = state.color(&config.palette).scale_alpha(opacity);
+    GlyphButton::new(glyph, config.font.icon_size_px, color, on_press).into()
 }
