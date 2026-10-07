@@ -28,7 +28,7 @@ use zbus::{
     zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
 };
 
-use crate::message_subscriptions::restarting;
+use crate::{data::source::bus::OwnerProcess, message_subscriptions::restarting};
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
 const PLAYERCTLD: &str = "org.mpris.MediaPlayer2.playerctld";
@@ -160,27 +160,6 @@ impl DesktopEntry {
         match self {
             Self::Declared(entry) => Some(entry),
             Self::Undeclared => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OwnerProcess {
-    Identified(u32),
-    Unidentified,
-}
-
-impl OwnerProcess {
-    async fn of_bus(dbus: &DBusProxy<'_>, bus: &str) -> Self {
-        let Ok(name) = BusName::try_from(bus) else {
-            return Self::Unidentified;
-        };
-        match dbus.get_connection_unix_process_id(name).await {
-            Ok(pid) => Self::Identified(pid),
-            Err(e) => {
-                tracing::debug!("mpris {bus}: no owner process: {e}");
-                Self::Unidentified
-            }
         }
     }
 }
@@ -437,6 +416,13 @@ async fn properties(
         .await?)
 }
 
+async fn owner_process(dbus: &DBusProxy<'_>, bus: &str) -> OwnerProcess {
+    match BusName::try_from(bus) {
+        Ok(name) => OwnerProcess::of_bus(dbus, name).await,
+        Err(_) => OwnerProcess::Unidentified,
+    }
+}
+
 async fn read_media(
     connection: &Connection,
     dbus: &DBusProxy<'_>,
@@ -460,7 +446,7 @@ async fn read_media(
     };
     Ok(Media {
         bus: bus.to_owned(),
-        owner: OwnerProcess::of_bus(dbus, bus).await,
+        owner: owner_process(dbus, bus).await,
         identity: root.text("Identity").unwrap_or_else(|| bus.to_owned()),
         desktop_entry: root.text("DesktopEntry").into(),
         title: metadata.text("xesam:title"),

@@ -6,16 +6,19 @@ use std::{
 use iced::widget::image;
 use tokio::sync::mpsc;
 use zbus::{
-    connection,
-    fdo::{RequestNameFlags, RequestNameReply},
+    Connection, connection,
+    fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
+    message::Header,
+    names::BusName,
     object_server::SignalEmitter,
+    proxy::CacheProperties,
     zvariant::{OwnedValue, Value},
 };
 
 use super::model::{
     ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ServerEvent,
 };
-use crate::data::{empty_text::non_empty, severity::Severity};
+use crate::data::{empty_text::non_empty, severity::Severity, source::bus::OwnerProcess};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
@@ -39,7 +42,10 @@ impl NotificationServer {
         actions: Vec<String>,
         hints: HashMap<String, OwnedValue>,
         expire_timeout: i32,
+        #[zbus(header)] header: Header<'_>,
+        #[zbus(connection)] connection: &Connection,
     ) -> u32 {
+        let sender = sender_process(connection, &header).await;
         let id = if replaces_id != 0 {
             replaces_id
         } else {
@@ -55,6 +61,7 @@ impl NotificationServer {
             severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::from_millis(expire_timeout),
             window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
+            sender,
             desktop_entry: hint_str(&hints, "desktop-entry"),
             image: hint_image(&hints),
             suppress_sound: hint_bool(&hints, "suppress-sound"),
@@ -177,6 +184,23 @@ pub async fn serve(
     });
 
     Ok(())
+}
+
+async fn sender_process(connection: &Connection, header: &Header<'_>) -> OwnerProcess {
+    let Some(sender) = header.sender() else {
+        return OwnerProcess::Unidentified;
+    };
+    let dbus = DBusProxy::builder(connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await;
+    match dbus {
+        Ok(dbus) => OwnerProcess::of_bus(&dbus, BusName::from(sender.clone())).await,
+        Err(e) => {
+            tracing::debug!("notifications: bus proxy: {e}");
+            OwnerProcess::Unidentified
+        }
+    }
 }
 
 fn parse_actions(actions: &[String]) -> Vec<NotifAction> {

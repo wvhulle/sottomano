@@ -14,7 +14,7 @@ use super::{
     reading_alert_toasts::{DismissedReadingAlert, ReadingAlertToastChanges, ToastSlotForAlert},
     toast_card,
     toast_lifecycle::{Countdown, Notification, NotificationMessage, ToastOrigin, lifetime},
-    toast_placement::{placement_for, resolve_window_id},
+    toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
     config::{Config, LoadError},
@@ -267,7 +267,8 @@ impl NotificationLayer {
         let now = Instant::now();
         let countdown = lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
             .map(|remaining| Countdown::started(remaining, now));
-        let place = placement_for(&data, placement, shell_settings.overlays, config);
+        let window = ToastWindow::resolve(&data, placement);
+        let place = placement_for(window, placement, shell_settings.overlays, config);
         self.live.push(Notification::appearing(
             *data, origin, icons, countdown, seq, place, now,
         ));
@@ -283,7 +284,7 @@ impl NotificationLayer {
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .showing()
-            .filter(|n| is_stale(&n.data, placement))
+            .filter(|n| is_stale(n, placement))
             .map(|n| n.data.id)
             .collect();
         let closed = self.close_all(stale, close_reason::UNDEFINED);
@@ -502,7 +503,7 @@ impl NotificationLayer {
 
     fn reposition(&mut self, placement: &Placement, config: &Config, overlays: OverlaySettings) {
         self.live.iter_mut().for_each(|notif| {
-            notif.place = placement_for(&notif.data, placement, overlays, config);
+            notif.place = placement_for(notif.place.window, placement, overlays, config);
         });
     }
 }
@@ -528,10 +529,12 @@ fn action_on_window(key: &str, window: u64, placement: &Placement) -> Option<Tas
     }
 }
 
-fn is_stale(data: &NotificationData, placement: &Placement) -> bool {
-    let Some(window) = resolve_window_id(data, placement) else {
-        return false;
-    };
-    let window_owned = data.actions.iter().all(|a| is_window_owned_action(&a.key));
-    window_owned && placement.workspace_of_window(window).is_none()
+fn is_stale(notif: &Notification, placement: &Placement) -> bool {
+    let window = notif.place.window;
+    let window_owned = notif
+        .data
+        .actions
+        .iter()
+        .all(|a| is_window_owned_action(&a.key));
+    window != ToastWindow::Unanchored && window_owned && window.open_in(placement).is_none()
 }
