@@ -32,6 +32,7 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         last_poll::LastPoll,
+        phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
     },
@@ -235,6 +236,11 @@ impl AiGroup {
 
     pub fn widget_group(&self) -> WidgetGroup<'_, AiMessage> {
         WidgetGroup::new(&self.expansion, AiMessage::Expansion)
+            .icon(Phosphor::Robot(Weight::Regular))
+            .previewed_reading(
+                self.claude_usage_windows.present(),
+                HoverTarget::AiClaudeUsageWindows,
+            )
             .reading(
                 self.claude_usage_windows.present(),
                 HoverTarget::AiClaudeUsageWindows,
