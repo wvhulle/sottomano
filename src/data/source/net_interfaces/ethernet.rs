@@ -2,7 +2,10 @@ use iced::futures::{Stream, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
-use crate::data::source::net_interfaces::{nm, nm_readings};
+use crate::data::source::{
+    hardware::Adapter,
+    net_interfaces::{nm, nm_readings},
+};
 
 pub const NAME: &str = "ethernet";
 
@@ -17,6 +20,7 @@ pub struct Link {
     pub dns: Vec<String>,
     pub speed: InformationRate,
     pub mtu: u32,
+    pub adapter: Option<Adapter>,
 }
 
 #[derive(Debug, Clone)]
@@ -31,8 +35,10 @@ impl Ethernet {
 }
 
 async fn link(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<Link> {
+    let adapter = Adapter::of_net_interface(&device.interface);
     if !device.connected {
         return Ok(Link {
+            adapter,
             name: device.interface,
             connected: false,
             connection: None,
@@ -52,6 +58,7 @@ async fn link(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<L
         nm::mtu(&device)
     )?;
     Ok(Link {
+        adapter,
         name: device.interface,
         connected: true,
         connection: connection_id,

@@ -9,6 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        hardware_section::HardwareRows,
         phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
         widget_state::WidgetState,
@@ -44,6 +45,13 @@ impl BarWidget for Bluetooth {
     }
 
     fn tooltip(&self) -> TooltipBody {
+        self.connection_tooltip()
+            .with_section(self.adapter.as_ref().hardware_section())
+    }
+}
+
+impl Bluetooth {
+    fn connection_tooltip(&self) -> TooltipBody {
         if !self.powered {
             return TooltipBody::rows(vec![row("Bluetooth", "off")]);
         }

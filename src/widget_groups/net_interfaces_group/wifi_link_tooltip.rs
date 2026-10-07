@@ -11,6 +11,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        hardware_section::HardwareRows,
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, row, section},
         widget_state::WidgetState,
@@ -33,6 +34,13 @@ impl BarWidget for Wifi {
     }
 
     fn tooltip(&self) -> TooltipBody {
+        self.link_tooltip()
+            .with_section(self.adapter.as_ref().hardware_section())
+    }
+}
+
+impl Wifi {
+    fn link_tooltip(&self) -> TooltipBody {
         let Some(link) = &self.link else {
             return TooltipBody::rows(vec![row("WiFi", "disconnected")]);
         };

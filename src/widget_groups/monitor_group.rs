@@ -162,7 +162,7 @@ impl MonitorGroup {
                 Some(Tooltip::of(backlight_display::tooltip(
                     backlight,
                     brightness,
-                    ConnectedOutput::driving(backlight, outputs),
+                    ConnectedOutput::driving(backlight, outputs).as_ref(),
                 )))
             }
             HoverTarget::ClightAuto => self.clight.tooltip(),

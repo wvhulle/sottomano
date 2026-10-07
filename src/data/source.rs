@@ -17,6 +17,7 @@ pub mod desktop_entries;
 pub mod disk;
 pub mod favicons;
 pub mod gamma;
+pub mod hardware;
 pub mod http;
 pub mod icon_trim;
 pub mod job_view;

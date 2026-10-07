@@ -5,7 +5,10 @@ use crate::{
         backlight::{Backlight, Kind},
         niri::{OutputInfo, OutputMode},
     },
-    widgets::tooltip_body::{Row, row},
+    widgets::{
+        hardware_section::{HardwareRows, reported_rows},
+        tooltip_body::{Row, row},
+    },
 };
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
@@ -33,16 +36,8 @@ impl<'a> ConnectedOutput<'a> {
 
     pub fn rows(&self) -> Vec<Row> {
         let mut rows = vec![row("Output", self.connector.to_owned())];
-        rows.extend(self.product_rows());
         rows.extend(self.geometry_rows());
         rows
-    }
-
-    fn product_rows(&self) -> Vec<Row> {
-        [("Make", &self.info.make), ("Model", &self.info.model)]
-            .into_iter()
-            .filter_map(|(key, value)| Some(row(key, value.clone()?)))
-            .collect()
     }
 
     fn geometry_rows(&self) -> Vec<Row> {
@@ -58,6 +53,16 @@ impl<'a> ConnectedOutput<'a> {
         }
         rows.push(row("Scale", format!("{:.2}", self.info.scale)));
         rows
+    }
+}
+
+impl HardwareRows for ConnectedOutput<'_> {
+    fn hardware_rows(&self) -> Vec<Row> {
+        reported_rows([
+            ("Make", self.info.make.as_ref()),
+            ("Model", self.info.model.as_ref()),
+            ("Serial", self.info.serial.as_ref()),
+        ])
     }
 }
 
@@ -93,22 +98,29 @@ mod tests {
     }
 
     #[test]
-    fn placeholder_model_is_not_shown() {
+    fn readings_and_hardware_are_listed_apart() {
         let outputs = laptop_panel();
-        let rows = ConnectedOutput::driving(&internal_backlight(), &outputs)
-            .expect("internal panel")
-            .rows();
-        assert!(rows.iter().all(|row| row.key != Cell::from("Model")));
+        let output =
+            ConnectedOutput::driving(&internal_backlight(), &outputs).expect("internal panel");
         assert_eq!(
-            rows,
+            output.rows(),
             [
                 row("Output", "eDP-1"),
-                row("Make", "LG Display"),
                 row("Resolution", "1920x1200"),
                 row("Refresh", "60.00 Hz"),
                 row("Scale", "1.20"),
             ]
         );
+        assert_eq!(output.hardware_rows(), [row("Make", "LG Display")]);
+    }
+
+    #[test]
+    fn placeholder_model_is_not_shown() {
+        let outputs = laptop_panel();
+        let hardware = ConnectedOutput::driving(&internal_backlight(), &outputs)
+            .expect("internal panel")
+            .hardware_rows();
+        assert!(hardware.iter().all(|row| row.key != Cell::from("Model")));
     }
 
     #[test]

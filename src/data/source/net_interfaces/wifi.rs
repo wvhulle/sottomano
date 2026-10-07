@@ -2,7 +2,10 @@ use iced::futures::{Stream, try_join};
 use uom::si::f64::{Frequency, InformationRate};
 use zbus::Connection;
 
-use crate::data::source::net_interfaces::{nm, nm_readings};
+use crate::data::source::{
+    hardware::Adapter,
+    net_interfaces::{nm, nm_readings},
+};
 
 pub const NAME: &str = "wifi";
 
@@ -23,7 +26,18 @@ pub struct Link {
 #[derive(Debug, Clone)]
 pub struct Wifi {
     pub device: String,
+    pub adapter: Option<Adapter>,
     pub link: Option<Link>,
+}
+
+impl Wifi {
+    fn unlinked(device: nm::DeviceInfo) -> Self {
+        Wifi {
+            adapter: Adapter::of_net_interface(&device.interface),
+            device: device.interface,
+            link: None,
+        }
+    }
 }
 
 async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
@@ -35,16 +49,10 @@ async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
         return Ok(None);
     };
     if !device.connected {
-        return Ok(Some(Wifi {
-            device: device.interface,
-            link: None,
-        }));
+        return Ok(Some(Wifi::unlinked(device)));
     }
     let Some(ap) = nm::access_point(&connection, &device).await? else {
-        return Ok(Some(Wifi {
-            device: device.interface,
-            link: None,
-        }));
+        return Ok(Some(Wifi::unlinked(device)));
     };
     let (ip, mac, bitrate, mtu) = try_join!(
         nm::ip(&connection, &device),
@@ -53,6 +61,7 @@ async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
         nm::mtu(&device)
     )?;
     Ok(Some(Wifi {
+        adapter: Adapter::of_net_interface(&device.interface),
         device: device.interface,
         link: Some(Link {
             ssid: ap.ssid,

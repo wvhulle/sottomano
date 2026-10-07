@@ -13,6 +13,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        hardware_section::HardwareRows,
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, celsius_text, reported_or},
         tooltip_body::{Row, Section, TooltipBody, row, section, untitled},
@@ -46,12 +47,16 @@ impl BarWidget for DriveHealth {
 
     fn tooltip(&self) -> TooltipBody {
         let drive = untitled(
-            [row("Drive", self.model.clone())]
+            [row("Drive", self.device_name.clone())]
                 .into_iter()
                 .chain(self.temperature_rows())
                 .collect(),
         );
-        TooltipBody::Sections(vec![drive, self.errors.section()])
+        TooltipBody::Sections(vec![
+            drive,
+            self.errors.section(),
+            self.identity.hardware_section(),
+        ])
     }
 }
 

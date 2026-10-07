@@ -103,7 +103,10 @@ mod tests {
     use super::*;
     use crate::data::{
         battery_forecast::discharge_power_regression::trained,
-        source::sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
+        source::{
+            hardware::PowerSupplyIdentity,
+            sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
+        },
     };
 
     fn on_battery(energy_wh: f64) -> Battery {
@@ -117,6 +120,7 @@ mod tests {
             charge_behaviour: ChargeBehaviour::Auto,
             charger: None,
             serial: String::new(),
+            identity: PowerSupplyIdentity::default(),
         }
     }
 
