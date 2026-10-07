@@ -11,7 +11,6 @@ pub struct ToastLifetimeConfig {
     pub low_severity_timeout_ms: u64,
     pub normal_severity_timeout_ms: u64,
     pub critical_severity_timeout_ms: u64,
-    pub level_announcement_timeout_ms: u64,
 }
 
 impl Default for ToastLifetimeConfig {
@@ -20,16 +19,11 @@ impl Default for ToastLifetimeConfig {
             low_severity_timeout_ms: 8_000,
             normal_severity_timeout_ms: 12_000,
             critical_severity_timeout_ms: 0,
-            level_announcement_timeout_ms: 1_500,
         }
     }
 }
 
 impl ToastLifetimeConfig {
-    pub fn level_announcement_timeout(&self) -> Duration {
-        Duration::from_millis(self.level_announcement_timeout_ms)
-    }
-
     pub fn default_timeout_for(&self, severity: Severity) -> Option<Duration> {
         let configured_millis = match severity {
             Severity::Low => self.low_severity_timeout_ms,

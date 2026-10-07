@@ -130,7 +130,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         self
     }
 
-    pub(super) fn level_reading(&self) -> Option<LevelReading> {
+    pub(super) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
         let (ItemKind::Reading { widget, target } | ItemKind::Control { widget, target, .. }) =
             &self.kind
         else {
@@ -140,6 +140,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             hover_target: target.clone(),
             glyph: widget.icon(),
             level,
+            on_body_clicked,
         })
     }
 

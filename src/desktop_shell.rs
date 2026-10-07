@@ -43,7 +43,7 @@ use crate::{
         app_window_focus::AppWindowFocus,
         hover_tooltips::{TooltipHost, TooltipMessage},
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
-        notification_toasts::{NotificationLayer, NotificationMessage},
+        notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
     },
     message_subscriptions::{blocking, niri_action},
     state::{
@@ -77,9 +77,7 @@ use crate::{
         window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
     },
     widgets::{
-        announced_level::LevelReading,
         favicon::Favicons,
-        reading_alert::ReadingAlert,
         text::FontFallbacks,
         widget_group::{GroupEvent, GroupExpansion},
     },
@@ -288,27 +286,17 @@ impl DesktopShell {
         let _span = tracing::trace_span!("update", ?message).entered();
         let tooltip_seq = self.tooltip.seq();
         let dispatched = self.dispatch_message(message);
-        let (reading_alerts, level_readings) = self.reading_alerts_and_levels();
-        let alert_toasts = self.notifications.show_reading_alerts(
-            &reading_alerts,
-            &self.niri,
-            self.desktop_entries.get(),
-            &self.config,
-            &self.shell_settings,
+        let requests = self.all_widget_groups().collect();
+        let widget_toasts = self.notifications.show_widget_toasts(
+            requests,
+            &ToastContext::new(
+                &self.niri,
+                self.desktop_entries.get(),
+                &self.config,
+                &self.shell_settings,
+            ),
         );
-        let level_toasts = self.notifications.announce_level_changes(
-            &level_readings,
-            &self.niri,
-            self.desktop_entries.get(),
-            &self.config,
-            &self.shell_settings,
-        );
-        Task::batch([
-            dispatched,
-            alert_toasts,
-            level_toasts,
-            self.redraw_content(tooltip_seq),
-        ])
+        Task::batch([dispatched, widget_toasts, self.redraw_content(tooltip_seq)])
     }
 
     fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {
@@ -317,17 +305,6 @@ impl DesktopShell {
                 .map(|(panel, _)| panel)
                 .chain(self.tooltip.surfaces_to_redraw(tooltip_seq_before_update))
                 .map(|surface| Task::done(Message::RedrawWindow(surface))),
-        )
-    }
-
-    fn reading_alerts_and_levels(&self) -> (Vec<ReadingAlert<Message>>, Vec<LevelReading>) {
-        self.all_widget_groups().fold(
-            (Vec::new(), Vec::new()),
-            |(mut alerts, mut levels), group| {
-                alerts.extend(group.alerts);
-                levels.extend(group.levels);
-                (alerts, levels)
-            },
         )
     }
 
@@ -662,10 +639,12 @@ impl DesktopShell {
         self.notifications.show_config_error(
             path,
             error,
-            &niri::Placement::derive(&self.niri),
-            self.desktop_entries.get(),
-            &self.config,
-            &self.shell_settings,
+            &ToastContext::new(
+                &self.niri,
+                self.desktop_entries.get(),
+                &self.config,
+                &self.shell_settings,
+            ),
         )
     }
 

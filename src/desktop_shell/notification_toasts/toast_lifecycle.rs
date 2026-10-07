@@ -23,18 +23,22 @@ pub enum ToastOrigin {
     DbusClient,
     ReadingAlert(Box<ReadingAlert<Message>>),
     ConfigError,
-    LevelAnnouncement(Box<LevelReading>),
+    LevelAnnouncement(Box<LevelReading<Message>>),
 }
 
 impl ToastOrigin {
-    pub(super) fn answers_user_input(&self) -> bool {
-        matches!(self, Self::LevelAnnouncement(_))
-    }
-
     pub(super) fn glyph(&self) -> Option<Glyph> {
         match self {
             Self::LevelAnnouncement(reading) => Some(reading.glyph),
             Self::DbusClient | Self::ReadingAlert(_) | Self::ConfigError => None,
+        }
+    }
+
+    pub(super) fn on_body_clicked(&self) -> Option<&Message> {
+        match self {
+            Self::ReadingAlert(alert) => Some(&alert.on_body_clicked),
+            Self::LevelAnnouncement(reading) => Some(&reading.on_body_clicked),
+            Self::DbusClient | Self::ConfigError => None,
         }
     }
 }
@@ -219,7 +223,6 @@ mod tests {
             low_severity_timeout_ms: 8_000,
             normal_severity_timeout_ms: 12_000,
             critical_severity_timeout_ms: 0,
-            level_announcement_timeout_ms: 1_500,
         }
     }
 
