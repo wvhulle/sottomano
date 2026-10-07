@@ -67,10 +67,13 @@ struct TrayItems {
 impl Default for TrayItems {
     fn default() -> Self {
         Self {
-            items: [("Signal", TrayRule::focusing("signal"))]
-                .into_iter()
-                .map(|(id, rule)| (String::from(id), rule))
-                .collect(),
+            items: [
+                ("Signal_status_icon_1", TrayRule::focusing("signal")),
+                ("spotify-client", TrayRule::focusing("spotify")),
+            ]
+            .into_iter()
+            .map(|(id, rule)| (String::from(id), rule))
+            .collect(),
         }
     }
 }
@@ -114,11 +117,6 @@ impl TryFrom<TrayItems> for TrayConfig {
 
 impl TrayConfig {
     pub fn rule(&self, id: &str) -> TrayRule {
-        self.items
-            .iter()
-            .filter(|(pattern, _)| id.contains(pattern.as_str()))
-            .max_by_key(|(pattern, _)| pattern.len())
-            .map(|(_, rule)| rule.clone())
-            .unwrap_or_default()
+        self.items.get(id).cloned().unwrap_or_default()
     }
 }

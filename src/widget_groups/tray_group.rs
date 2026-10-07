@@ -7,8 +7,14 @@ use iced::{
 
 use crate::{
     config::{Config, tray::ClickAction},
-    data::source::tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
-    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
+    data::source::{
+        niri::WindowOwner,
+        tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
+    },
+    desktop_shell::{
+        app_window_focus::AppWindowFocus,
+        hover_tooltips::{HoverTarget, hoverable},
+    },
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
@@ -36,7 +42,7 @@ pub enum TrayMessage {
     Secondary(String),
     FocusWindow {
         window_app_id: String,
-        item_id: String,
+        address: String,
     },
     MenuItemClicked {
         address: String,
@@ -49,10 +55,7 @@ pub enum TrayMessage {
 pub enum Action {
     None,
     MenuItemActivated,
-    FocusWindow {
-        window_app_id: String,
-        item_id: String,
-    },
+    FocusAppWindow(AppWindowFocus<TrayMessage>),
 }
 
 impl TrayGroup {
@@ -84,11 +87,11 @@ impl TrayGroup {
             }
             TrayMessage::FocusWindow {
                 window_app_id,
-                item_id,
-            } => Action::FocusWindow {
-                window_app_id,
-                item_id,
-            },
+                address,
+            } => Action::FocusAppWindow(AppWindowFocus {
+                owner: WindowOwner::App(window_app_id),
+                unmatched: TrayMessage::Activate(address),
+            }),
             TrayMessage::MenuItemClicked {
                 address,
                 menu_path,
@@ -174,7 +177,7 @@ fn click_message(
         ClickAction::SecondaryActivateItem => Some(TrayMessage::Secondary(item.address.clone())),
         ClickAction::FocusAppWindow => window_app_id.map(|app_id| TrayMessage::FocusWindow {
             window_app_id: app_id.clone(),
-            item_id: item.id.clone(),
+            address: item.address.clone(),
         }),
         ClickAction::Ignore => None,
     }
