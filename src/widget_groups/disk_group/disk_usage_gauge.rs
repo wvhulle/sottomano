@@ -21,7 +21,7 @@ const UNALLOCATED_WARN: ByteSize = ByteSize::gib(1);
 
 impl BarWidget for Disk {
     fn icon(&self) -> Glyph {
-        Phosphor::HardDrive(self.state().weight()).into()
+        Phosphor::Database(self.state().weight()).into()
     }
 
     fn state(&self) -> WidgetState {

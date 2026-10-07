@@ -2,6 +2,7 @@ pub mod core_kind_sections;
 pub mod cpu_clock_label;
 pub mod cpu_load_gauge;
 pub mod cpu_temperature_label;
+pub mod memory_usage_gauge;
 
 use iced::{Subscription, Task};
 
@@ -9,7 +10,10 @@ use crate::{
     config::temperature::SensorConfig,
     data::source::{
         Source,
-        sysfs_sensors::{self, cpu_clock::CpuClock, cpu_usage::CpuUsage, temperature::Temperature},
+        sysfs_sensors::{
+            self, cpu_clock::CpuClock, cpu_usage::CpuUsage, memory::Memory,
+            temperature::Temperature,
+        },
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
@@ -21,8 +25,9 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct ProcessorGroup {
+pub struct ComputeGroup {
     cpu: LastPoll<CpuUsage>,
+    memory: LastPoll<Memory>,
     clock: LastPoll<CpuClock>,
     temperature: LastPoll<Temperature>,
     sensors: bool,
@@ -30,51 +35,53 @@ pub struct ProcessorGroup {
 }
 
 #[derive(Debug, Clone)]
-pub enum ProcessorMessage {
+pub enum ComputeMessage {
     Sensors(bool),
     Cpu(Result<CpuUsage, sysfs_sensors::Error>),
+    Memory(Result<Memory, sysfs_sensors::Error>),
     Clock(Result<CpuClock, sysfs_sensors::Error>),
     Temperature(Result<Temperature, sysfs_sensors::Error>),
     Expansion(ExpansionMessage),
 }
 
-impl ProcessorGroup {
-    pub fn probe(sensor: &SensorConfig) -> Task<ProcessorMessage> {
+impl ComputeGroup {
+    pub fn probe(sensor: &SensorConfig) -> Task<ComputeMessage> {
         let sensor = sensor.clone();
-        Task::future(
-            async move { ProcessorMessage::Sensors(Temperature::available(&sensor).await) },
-        )
+        Task::future(async move { ComputeMessage::Sensors(Temperature::available(&sensor).await) })
     }
 
-    pub fn subscription(&self, sensor: &SensorConfig) -> Subscription<ProcessorMessage> {
+    pub fn subscription(&self, sensor: &SensorConfig) -> Subscription<ComputeMessage> {
         let temperature = if self.sensors {
-            polling::<Temperature>(sensor.clone()).map(ProcessorMessage::Temperature)
+            polling::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature)
         } else {
             Subscription::none()
         };
         Subscription::batch([
-            polling::<CpuUsage>(()).map(ProcessorMessage::Cpu),
-            polling::<CpuClock>(()).map(ProcessorMessage::Clock),
+            polling::<CpuUsage>(()).map(ComputeMessage::Cpu),
+            polling::<Memory>(()).map(ComputeMessage::Memory),
+            polling::<CpuClock>(()).map(ComputeMessage::Clock),
             temperature,
         ])
     }
 
-    pub fn update(&mut self, msg: ProcessorMessage) -> Task<ProcessorMessage> {
+    pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
         match msg {
-            ProcessorMessage::Sensors(sensors) => self.sensors = sensors,
-            ProcessorMessage::Cpu(reading) => self.cpu.receive(reading),
-            ProcessorMessage::Clock(reading) => self.clock.receive(reading),
-            ProcessorMessage::Temperature(reading) => self.temperature.receive(reading),
-            ProcessorMessage::Expansion(m) => {
+            ComputeMessage::Sensors(sensors) => self.sensors = sensors,
+            ComputeMessage::Cpu(reading) => self.cpu.receive(reading),
+            ComputeMessage::Memory(reading) => self.memory.receive(reading),
+            ComputeMessage::Clock(reading) => self.clock.receive(reading),
+            ComputeMessage::Temperature(reading) => self.temperature.receive(reading),
+            ComputeMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
         }
         Task::none()
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, ProcessorMessage> {
-        WidgetGroup::new(&self.expansion, ProcessorMessage::Expansion)
+    pub fn widget_group(&self) -> WidgetGroup<'_, ComputeMessage> {
+        WidgetGroup::new(&self.expansion, ComputeMessage::Expansion)
             .reading(self.cpu.display(), HoverTarget::Cpu)
+            .reading(self.memory.display(), HoverTarget::Memory)
             .reading(self.clock.display(), HoverTarget::CpuClock)
             .reading(self.temperature.display(), HoverTarget::Temperature)
     }
@@ -82,6 +89,7 @@ impl ProcessorGroup {
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Cpu => self.cpu.tooltip(),
+            HoverTarget::Memory => self.memory.tooltip(),
             HoverTarget::CpuClock => self.clock.tooltip(),
             HoverTarget::Temperature => self.temperature.tooltip(),
             _ => None,

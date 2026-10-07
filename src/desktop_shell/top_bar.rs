@@ -116,12 +116,12 @@ impl DesktopShell {
             self.battery_group
                 .widget_group(config)
                 .place_on_bar(Message::Battery, config, top),
-            self.processor_group
+            self.compute_group
                 .widget_group()
-                .place_on_bar(Message::Processor, config, top),
-            self.storage_group
+                .place_on_bar(Message::Compute, config, top),
+            self.disk_group
                 .widget_group()
-                .place_on_bar(Message::Storage, config, top),
+                .place_on_bar(Message::Disk, config, top),
             self.net_interfaces_group.widget_group().place_on_bar(
                 Message::NetInterfaces,
                 config,

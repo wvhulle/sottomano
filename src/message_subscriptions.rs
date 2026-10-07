@@ -36,8 +36,8 @@ use crate::{
         notification_toasts::NotificationMessage,
     },
     widget_groups::{
-        audio_group::AudioGroup, clock_group::ClockGroup, journal_group::JournalGroup,
-        net_interfaces_group::NetInterfacesGroup, storage_group::StorageGroup,
+        audio_group::AudioGroup, clock_group::ClockGroup, disk_group::DiskGroup,
+        journal_group::JournalGroup, net_interfaces_group::NetInterfacesGroup,
         tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
@@ -100,10 +100,10 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         state.battery_group.subscription().map(Message::Battery),
         state
-            .processor_group
+            .compute_group
             .subscription(&state.config.temperature.cpu)
-            .map(Message::Processor),
-        StorageGroup::subscription(&state.config.temperature.drive).map(Message::Storage),
+            .map(Message::Compute),
+        DiskGroup::subscription(&state.config.temperature.drive).map(Message::Disk),
         ClockGroup::subscription().map(Message::Clock),
         JournalGroup::subscription().map(Message::Journal),
         state.internet_group.subscription().map(Message::Internet),

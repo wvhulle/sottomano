@@ -103,9 +103,9 @@ impl DesktopShell {
             )
             .unwrap_or_else(Tooltip::empty);
         }
-        self.processor_group
+        self.compute_group
             .tooltip_for(target)
-            .or_else(|| self.storage_group.tooltip_for(target))
+            .or_else(|| self.disk_group.tooltip_for(target))
             .or_else(|| self.battery_group.tooltip_for(target))
             .or_else(|| self.clock_group.tooltip_for(target))
             .or_else(|| self.journal_group.tooltip_for(target))
