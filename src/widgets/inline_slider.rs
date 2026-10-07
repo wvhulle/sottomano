@@ -2,8 +2,8 @@ use std::ops::RangeInclusive;
 
 use iced::{
     Color, Element, Point, Rectangle, Renderer, Size, Theme,
-    mouse::Cursor,
-    widget::{Slider, canvas, slider, stack},
+    mouse::{Cursor, ScrollDelta},
+    widget::{Slider, canvas, mouse_area, slider, stack},
 };
 
 use crate::{config::Config, data::severity::Severity};
@@ -23,6 +23,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     level: Severity,
     on_change: impl Fn(f32) -> Message + 'a,
     on_release: Message,
+    on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
 ) -> Element<'a, Message> {
     let accent = match level {
         Severity::Normal => config.palette.focus,
@@ -35,12 +36,13 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         accent,
         track: config.palette.surface_raised,
     };
-    stack![
+    mouse_area(stack![
         interaction_slider(config, range, value, step, on_change, on_release),
         canvas(face)
             .width(config.widget_sizes.slider_width_px)
             .height(Slider::<f32, Message>::DEFAULT_HEIGHT)
-    ]
+    ])
+    .on_scroll(on_scroll)
     .into()
 }
 

@@ -13,7 +13,7 @@ use crate::{
             IdleAction, IdleTrigger, MAX_POSITION, from_position, label_at, label_for, position,
         },
         localized_time::TimePart,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         tooltip_body::{Tooltip, row, time_row},
     },
@@ -29,6 +29,7 @@ fn fire_time(timeout: Duration) -> DateTime<Utc> {
 pub enum TimerMessage {
     Slider(ControlMessage),
     Trigger,
+    Cancel,
 }
 
 pub enum TimerChange {
@@ -111,6 +112,10 @@ impl IdleTimer {
                 Press::Armed => TimerChange::None,
                 Press::Fire => TimerChange::Fire(self.action),
             },
+            TimerMessage::Cancel => {
+                self.button.disarm();
+                TimerChange::None
+            }
         }
     }
 
@@ -132,7 +137,9 @@ impl IdleTimer {
             config,
             reveal,
             self.timeout.is_some(),
+            Phosphor::Lightning(Weight::Regular),
             TimerMessage::Trigger,
+            TimerMessage::Cancel,
         );
         let pair_gap = config.spacing.widget_spacing_px * 0.25;
         Row::with_children([slider, trigger])

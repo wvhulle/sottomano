@@ -32,7 +32,7 @@ use crate::{
 const EXPAND: Duration = Duration::from_millis(90);
 const PIXELS_PER_SCROLL_STEP: f32 = 40.0;
 
-fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
+pub(crate) fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
     match delta {
         ScrollDelta::Lines { y, .. } => {
             if y > 0.0 {
@@ -349,6 +349,7 @@ impl SliderControl {
             self.severity(),
             ControlMessage::Set,
             ControlMessage::Release,
+            ControlMessage::Scroll,
         );
         let readout = button(
             bar_text(&config.font, self.readout_text())
