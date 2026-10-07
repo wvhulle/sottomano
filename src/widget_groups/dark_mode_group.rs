@@ -276,7 +276,7 @@ impl DarkModeGroup {
             ]
         });
         WidgetGroup::new(&self.expansion, DarkModeMessage::Expansion)
-            .icon(Phosphor::CircleHalf(Weight::Regular))
+            .icon(Phosphor::MoonStars(Weight::Regular))
             .previewed_value(self.mode_toggle.reading())
             .item(mode)
             .items(schedule_items.into_iter().flatten())

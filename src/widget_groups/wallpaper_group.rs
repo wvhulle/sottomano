@@ -57,7 +57,7 @@ impl Display for Failure {
 
 impl BarWidget for Lookup {
     fn icon(&self) -> Glyph {
-        Phosphor::Mountains(self.state().weight()).into()
+        Phosphor::Image(self.state().weight()).into()
     }
 
     fn tooltip(&self) -> TooltipBody {

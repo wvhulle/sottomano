@@ -19,11 +19,27 @@ pub fn source_reading<'a, Message: 'a>(
     widget: Option<&dyn BarWidget>,
     opacity: f32,
 ) -> Option<Element<'a, Message>> {
-    let widget = widget?;
+    Some(composed_reading(config, widget?, opacity, reading_value))
+}
+
+pub fn labeled_reading<'a, Message: 'a>(
+    config: &Config,
+    widget: &dyn BarWidget,
+    opacity: f32,
+) -> Element<'a, Message> {
+    composed_reading(config, widget, opacity, label_value)
+}
+
+fn composed_reading<'a, Message: 'a>(
+    config: &Config,
+    widget: &dyn BarWidget,
+    opacity: f32,
+    value: fn(&Config, &dyn BarWidget, Color) -> Option<Element<'a, Message>>,
+) -> Element<'a, Message> {
     let color = reading_color(config, widget).scale_alpha(opacity);
     let icon = widget.icon().view(config.font.icon_size_px, color);
 
-    let reading = match reading_value(config, widget, color) {
+    let reading = match value(config, widget, color) {
         Some(value) => row![icon, value]
             .spacing(icon_value_gap(config))
             .align_y(Alignment::Center)
@@ -32,9 +48,9 @@ pub fn source_reading<'a, Message: 'a>(
     };
 
     if widget.state() == WidgetState::Failed {
-        return Some(reading);
+        return reading;
     }
-    Some(badged(config, reading, widget.badge(), color))
+    badged(config, reading, widget.badge(), color)
 }
 
 pub fn icon_value_gap(config: &Config) -> f32 {
@@ -51,9 +67,7 @@ pub fn reading_value<'a, Message: 'a>(
     color: Color,
 ) -> Option<Element<'a, Message>> {
     if widget.state() == WidgetState::Failed {
-        return Some(
-            Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.font.icon_size_px, color),
-        );
+        return Some(failure_marker(config, color));
     }
     match widget.gauge() {
         Some(fill) => Some(
@@ -61,11 +75,34 @@ pub fn reading_value<'a, Message: 'a>(
                 .live(widget.live_gauge().unwrap_or(fill))
                 .into(),
         ),
-        None => widget
-            .localized_label(config.locale)
-            .filter(|label| !label.is_empty())
-            .map(|label| bar_text(&config.font, label).color(color).into()),
+        None => label_text(config, widget, color),
     }
+}
+
+fn label_value<'a, Message: 'a>(
+    config: &Config,
+    widget: &dyn BarWidget,
+    color: Color,
+) -> Option<Element<'a, Message>> {
+    if widget.state() == WidgetState::Failed {
+        return Some(failure_marker(config, color));
+    }
+    label_text(config, widget, color)
+}
+
+fn label_text<'a, Message: 'a>(
+    config: &Config,
+    widget: &dyn BarWidget,
+    color: Color,
+) -> Option<Element<'a, Message>> {
+    widget
+        .localized_label(config.locale)
+        .filter(|label| !label.is_empty())
+        .map(|label| bar_text(&config.font, label).color(color).into())
+}
+
+fn failure_marker<'a, Message: 'a>(config: &Config, color: Color) -> Element<'a, Message> {
+    Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.font.icon_size_px, color)
 }
 
 fn badged<'a, Message: 'a>(
