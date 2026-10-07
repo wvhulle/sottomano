@@ -16,7 +16,7 @@ use crate::{
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
-        process::{self, Forest, Inspection, Process, Watched},
+        process::{self, Forest, Inspection, Process},
     },
     desktop_shell::{
         hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
@@ -77,13 +77,11 @@ pub enum Action {
 }
 
 impl WindowList {
-    pub fn subscription(watched_window: Option<Watched>) -> Subscription<WindowListMessage> {
-        let watched = match watched_window {
-            Some(window) => Subscription::batch([
-                process::subscription().map(WindowListMessage::ProcessesScanned),
-                process::inspection(window).map(WindowListMessage::ProcessInspected),
-            ]),
-            None => Subscription::none(),
+    pub fn subscription(watching_window: bool) -> Subscription<WindowListMessage> {
+        let watched = if watching_window {
+            process::subscription().map(WindowListMessage::ProcessesScanned)
+        } else {
+            Subscription::none()
         };
         Subscription::batch([
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),

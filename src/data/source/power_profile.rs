@@ -1,10 +1,13 @@
 use std::time::Duration;
 
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, StreamExt};
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{Source, sysfs_sensors};
+use crate::{
+    data::source::{Source, sysfs_sensors},
+    message_subscriptions::restarting,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Profile {
@@ -131,18 +134,14 @@ pub async fn available() -> bool {
 }
 
 pub fn active_profiles() -> impl Stream<Item = Profile> + Send {
-    stream::once(async {
-        let connection = zbus::Connection::system().await?;
-        let daemon = PowerProfilesProxy::new(&connection).await?;
-        Ok::<_, zbus::Error>(daemon.receive_active_profile_changed().await)
-    })
-    .flat_map(|changes| match changes {
-        Ok(changes) => changes
-            .filter_map(|change| async move { Profile::from_name(&change.get().await.ok()?) })
-            .left_stream(),
-        Err(error) => {
-            tracing::warn!("power profiles: no active profile stream: {error}");
-            stream::empty().right_stream()
-        }
-    })
+    restarting("power profiles", active_profile_changes)
+}
+
+async fn active_profile_changes() -> zbus::Result<impl Stream<Item = Profile>> {
+    let connection = zbus::Connection::system().await?;
+    let daemon = PowerProfilesProxy::new(&connection).await?;
+    Ok(daemon
+        .receive_active_profile_changed()
+        .await
+        .filter_map(|change| async move { Profile::from_name(&change.get().await.ok()?) }))
 }

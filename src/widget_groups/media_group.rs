@@ -115,6 +115,9 @@ impl MediaGroup {
                 {
                     self.forced = None;
                 }
+                if let Some(media) = self.current().cloned() {
+                    self.seek_bar.player_reported(&media, self.now);
+                }
             }
             MediaMessage::Expansion(m) => {
                 self.expansion.update(m);
@@ -128,7 +131,7 @@ impl MediaGroup {
                 let Some(command) = self.seek_bar.update(message, &media, self.now) else {
                     return Task::none();
                 };
-                return self.send(command);
+                return self.seek(command);
             }
             MediaMessage::CancelQuit => self.quit_button.disarm(),
             MediaMessage::Quit => match self.quit_button.press() {
@@ -156,11 +159,25 @@ impl MediaGroup {
     }
 
     fn send(&self, command: Command) -> Task<MediaMessage> {
+        self.dispatch(command).discard()
+    }
+
+    fn seek(&self, command: Command) -> Task<MediaMessage> {
+        self.dispatch(command).then(|accepted| {
+            if accepted {
+                Task::none()
+            } else {
+                Task::done(MediaMessage::Seek(SeekMessage::Rejected))
+            }
+        })
+    }
+
+    fn dispatch(&self, command: Command) -> Task<bool> {
         let Some(media) = self.current() else {
             return Task::none();
         };
         let bus = media.bus.clone();
-        blocking("mpris control", move || mpris::control(&bus, command)).discard()
+        blocking("mpris control", move || mpris::control(&bus, command))
     }
 
     pub fn icon_keys(&self) -> Vec<String> {

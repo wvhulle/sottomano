@@ -1,14 +1,17 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    future::ready,
+};
 
 use iced::{
     Subscription,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, stream::select},
-    stream,
+    futures::{Stream, StreamExt, stream::select},
 };
-use tokio::time::{Duration, sleep};
 use zbus::{
     Connection, MatchRule, MessageStream, fdo::DBusProxy, message::Type, zvariant::OwnedValue,
 };
+
+use crate::message_subscriptions::restarting;
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
 const UPDATE: &str = "Update";
@@ -84,6 +87,14 @@ struct Registry {
 }
 
 impl Registry {
+    fn apply(&mut self, signal: Signal) -> Option<LauncherEntries> {
+        let changed = match signal {
+            Signal::Update { sender, uri, entry } => self.update(sender, &uri, entry),
+            Signal::OwnerLost(sender) => self.forget_owner(&sender),
+        };
+        changed.then(|| self.entries.clone())
+    }
+
     fn update(&mut self, sender: Option<String>, uri: &str, entry: LauncherEntry) -> bool {
         let Some(key) = app_key(uri) else {
             return false;
@@ -118,19 +129,14 @@ enum Signal {
 }
 
 pub fn subscription() -> Subscription<LauncherEntries> {
-    Subscription::run(|| {
-        stream::channel(16, |mut output: Sender<LauncherEntries>| async move {
-            loop {
-                if let Err(e) = watch(&mut output).await {
-                    tracing::warn!("launcher entry: {e}");
-                }
-                sleep(Duration::from_secs(2)).await;
-            }
-        })
-    })
+    Subscription::run(entries)
 }
 
-async fn watch(output: &mut Sender<LauncherEntries>) -> zbus::Result<()> {
+fn entries() -> impl Stream<Item = LauncherEntries> {
+    restarting("launcher entry", connect)
+}
+
+async fn connect() -> zbus::Result<impl Stream<Item = LauncherEntries>> {
     let connection = Connection::session().await?;
     let dbus = DBusProxy::new(&connection).await?;
 
@@ -154,18 +160,11 @@ async fn watch(output: &mut Sender<LauncherEntries>) -> zbus::Result<()> {
 
     connection.request_name(LAUNCHER_NAME).await?;
 
-    let mut registry = Registry::default();
-    let mut signals = select(Box::pin(updates), Box::pin(owners));
-    while let Some(signal) = signals.next().await {
-        let changed = match signal {
-            Signal::Update { sender, uri, entry } => registry.update(sender, &uri, entry),
-            Signal::OwnerLost(sender) => registry.forget_owner(&sender),
-        };
-        if changed && output.send(registry.entries.clone()).await.is_err() {
-            break;
-        }
-    }
-    Ok(())
+    Ok(select(updates, owners)
+        .scan(Registry::default(), |registry, signal| {
+            ready(Some(registry.apply(signal)))
+        })
+        .filter_map(ready))
 }
 
 fn update_signal(message: &zbus::Message) -> Option<Signal> {

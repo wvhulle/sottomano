@@ -3,11 +3,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use iced::futures::{
-    Stream, StreamExt,
-    future::join_all,
-    stream::{self, BoxStream},
-};
+use iced::futures::{Stream, StreamExt, future::join_all, stream};
 use serde::Deserialize;
 use systemd::journal::{Journal, JournalRecord, OpenOptions};
 use tokio::sync::mpsc;
@@ -16,6 +12,8 @@ use zbus::{
     proxy::CacheProperties,
     zvariant::{OwnedObjectPath, Type},
 };
+
+use crate::message_subscriptions::restarting;
 
 const HORIZON: Duration = Duration::from_secs(3600);
 const AGE_OUT_RECHECK: Duration = Duration::from_secs(60);
@@ -171,37 +169,19 @@ pub struct FailedUnitInfo {
 }
 
 pub fn failed_stream(per_user: bool) -> impl Stream<Item = Vec<FailedUnitInfo>> {
-    stream::once(watch_failed(per_user)).flatten()
+    restarting("journal", move || watch_failed(per_user))
 }
 
-async fn watch_failed(user: bool) -> BoxStream<'static, Vec<FailedUnitInfo>> {
-    let connection = match connect(user).await {
-        Ok(connection) => connection,
-        Err(e) => {
-            tracing::warn!("journal: systemd connect failed: {e}");
-            return stream::empty().boxed();
-        }
-    };
-    let manager = match ManagerProxy::new(&connection).await {
-        Ok(manager) => manager,
-        Err(e) => {
-            tracing::warn!("journal: systemd manager proxy failed: {e}");
-            return stream::empty().boxed();
-        }
-    };
+async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedUnitInfo>>> {
+    let connection = connect(user).await?;
+    let manager = ManagerProxy::new(&connection).await?;
     if let Err(e) = manager.subscribe().await {
         tracing::warn!("journal: systemd subscribe failed: {e}");
     }
-    let signals = match systemd_signals(&connection).await {
-        Ok(signals) => signals,
-        Err(e) => {
-            tracing::warn!("journal: systemd signal match failed: {e}");
-            return stream::empty().boxed();
-        }
-    };
-    let initial = stream::once(failed_units(manager.clone()));
-    let updates = signals.then(move |()| failed_units(manager.clone()));
-    initial.chain(updates).boxed()
+    let signals = systemd_signals(&connection).await?;
+    Ok(stream::iter([()])
+        .chain(signals)
+        .then(move |()| failed_units(manager.clone())))
 }
 
 async fn connect(user: bool) -> zbus::Result<zbus::Connection> {

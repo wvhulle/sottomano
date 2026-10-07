@@ -1,7 +1,8 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    fmt, io,
+    env, fmt, io,
+    path::PathBuf,
     rc::Rc,
     sync::{
         Arc,
@@ -11,11 +12,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::{
-    Subscription,
-    futures::{SinkExt, channel::mpsc::Sender},
-    stream::channel,
-};
+use iced::{Subscription, futures::Stream};
+use inotify::{Inotify, WatchMask};
 use pipewire::{
     channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
     context::Context,
@@ -40,15 +38,18 @@ use pipewire::{
     },
     types::ObjectType,
 };
-use tokio::{sync::watch, time::sleep};
-use tokio_stream::{StreamExt as _, wrappers::WatchStream};
+use tokio::sync::{oneshot, watch};
+use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
+
+use crate::message_subscriptions::restarting;
 
 mod meter;
 
 pub use meter::Peaks;
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
-const PIPEWIRE_RETRY_DELAY: Duration = Duration::from_secs(2);
+const DEFAULT_REMOTE: &str = "pipewire-0";
+const SOCKET_EVENT_BUFFER_BYTES: usize = 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
@@ -166,39 +167,73 @@ impl Commands {
 }
 
 pub fn subscription() -> Subscription<AudioEvent> {
-    Subscription::run_with("audio", |_| {
-        channel(16, move |mut output: Sender<AudioEvent>| async move {
-            loop {
-                serve_until_pipewire_stops(&mut output).await;
-                sleep(PIPEWIRE_RETRY_DELAY).await;
-            }
-        })
-    })
+    Subscription::run(audio_events)
 }
 
-async fn serve_until_pipewire_stops(output: &mut Sender<AudioEvent>) {
+fn audio_events() -> impl Stream<Item = AudioEvent> {
+    restarting("audio", connect)
+}
+
+async fn connect() -> io::Result<impl Stream<Item = AudioEvent>> {
+    pipewire_socket_present().await?;
     let (states, updates) = watch::channel(AudioState::default());
     let (peaks, peak_updates) = watch::channel(Peaks::default());
     let (commands, requests) = command_channel::<Command>();
-    if let Err(e) = thread::Builder::new()
+    let (connected, pipewire_connected) = oneshot::channel();
+    thread::Builder::new()
         .name("pipewire-audio".to_owned())
-        .spawn(move || run(&states, &peaks, requests))
-    {
-        tracing::error!("audio: pipewire thread spawn failed: {e}");
-        return;
-    }
-    let connected = AudioEvent::Connected(Commands { sender: commands });
-    if output.send(connected).await.is_err() {
-        return;
-    }
-    let mut events = WatchStream::from_changes(updates)
+        .spawn(move || run(&states, &peaks, requests, connected))?;
+    pipewire_connected
+        .await
+        .map_err(|_| io::Error::other("pipewire connect failed"))?;
+    let changes = WatchStream::from_changes(updates)
         .map(AudioEvent::State)
         .merge(WatchStream::from_changes(peak_updates).map(AudioEvent::Peaks));
-    while let Some(event) = events.next().await {
-        if output.send(event).await.is_err() {
-            return;
-        }
+    Ok(stream::iter([AudioEvent::Connected(Commands { sender: commands })]).chain(changes))
+}
+
+async fn pipewire_socket_present() -> io::Result<()> {
+    let socket = pipewire_socket()?;
+    let Some(name) = socket.file_name() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("pipewire socket {} has no file name", socket.display()),
+        ));
+    };
+    let Some(directory) = socket.parent() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("pipewire socket {} has no directory", socket.display()),
+        ));
+    };
+    let inotify = Inotify::init()?;
+    inotify.watches().add(directory, WatchMask::CREATE)?;
+    if socket.exists() {
+        return Ok(());
     }
+    inotify
+        .into_event_stream([0u8; SOCKET_EVENT_BUFFER_BYTES])?
+        .filter(|event| match event {
+            Ok(event) => event.name.as_deref() == Some(name),
+            Err(_) => true,
+        })
+        .next()
+        .await
+        .transpose()?;
+    Ok(())
+}
+
+fn pipewire_socket() -> io::Result<PathBuf> {
+    let Some(directory) =
+        env::var_os("PIPEWIRE_RUNTIME_DIR").or_else(|| env::var_os("XDG_RUNTIME_DIR"))
+    else {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "neither PIPEWIRE_RUNTIME_DIR nor XDG_RUNTIME_DIR is set",
+        ));
+    };
+    let remote = env::var_os("PIPEWIRE_REMOTE").unwrap_or_else(|| DEFAULT_REMOTE.into());
+    Ok(PathBuf::from(directory).join(remote))
 }
 
 struct Command {
@@ -707,10 +742,11 @@ fn run(
     states: &watch::Sender<AudioState>,
     peaks: &watch::Sender<Peaks>,
     commands: CommandReceiver<Command>,
+    connected: oneshot::Sender<()>,
 ) {
     pipewire::init();
     let states = Rc::new(states.clone());
-    if let Err(e) = serve(&states, peaks, commands) {
+    if let Err(e) = serve(&states, peaks, commands, connected) {
         tracing::error!("audio: pipewire connect failed: {e}");
     }
     states.send_replace(AudioState::default());
@@ -721,10 +757,12 @@ fn serve(
     states: &Publisher,
     peaks: &watch::Sender<Peaks>,
     commands: CommandReceiver<Command>,
+    connected: oneshot::Sender<()>,
 ) -> Result<(), pipewire::Error> {
     let main_loop = MainLoop::new(None)?;
     let context = Context::new(&main_loop)?;
     let core = context.connect(None)?;
+    let _ = connected.send(());
     let registry = Rc::new(core.get_registry()?);
     let _meters = meter::attach(&core, peaks);
     let session = Shared::default();

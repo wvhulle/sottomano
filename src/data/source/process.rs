@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    future::pending,
+    future::ready,
     mem::zeroed,
     ops::Add,
     path::PathBuf,
@@ -10,8 +10,7 @@ use std::{
 use bytesize::ByteSize;
 use iced::{
     Subscription,
-    futures::{SinkExt, Stream, channel::mpsc::Sender},
-    stream,
+    futures::{Stream, StreamExt, stream},
 };
 use procfs::{
     Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
@@ -214,28 +213,18 @@ pub fn subscription() -> Subscription<Forest> {
 }
 
 fn scan() -> impl Stream<Item = Forest> {
-    stream::channel(1, |mut output: Sender<Forest>| async move {
-        let capacity = CpuCapacity::current();
-        let mut samples = CpuSamples::none_yet();
-        loop {
-            match spawn_blocking(move || sample(&samples, capacity)).await {
-                Ok(Sampled {
-                    forest,
-                    samples: next,
-                }) => {
-                    samples = next;
-                    if output.send(forest).await.is_err() {
-                        return;
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("process scan: {e}");
-                    samples = CpuSamples::none_yet();
-                }
+    let capacity = CpuCapacity::current();
+    stream::unfold(CpuSamples::none_yet(), move |samples| async move {
+        sleep(SCAN_INTERVAL).await;
+        match spawn_blocking(move || sample(&samples, capacity)).await {
+            Ok(Sampled { forest, samples }) => Some((Some(forest), samples)),
+            Err(e) => {
+                tracing::warn!("process scan: {e}");
+                Some((None, CpuSamples::none_yet()))
             }
-            sleep(SCAN_INTERVAL).await;
         }
     })
+    .filter_map(ready)
 }
 
 fn by_parent(nodes: impl IntoIterator<Item = Process>) -> HashMap<i32, Vec<Process>> {
@@ -302,16 +291,8 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     })
 }
 
-pub fn inspection(watched: Watched) -> Subscription<Inspection> {
-    Subscription::run_with(watched, |watched| {
-        let watched = watched.clone();
-        stream::channel(1, move |mut output: Sender<Inspection>| async move {
-            if let Ok(Some(inspected)) = spawn_blocking(move || inspect(&watched)).await {
-                let _ = output.send(inspected).await;
-            }
-            pending::<()>().await;
-        })
-    })
+pub async fn inspected(watched: Watched) -> Option<Inspection> {
+    spawn_blocking(move || inspect(&watched)).await.ok()?
 }
 
 fn binary_name(process: &Proc) -> Option<String> {

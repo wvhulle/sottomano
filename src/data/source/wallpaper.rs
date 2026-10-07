@@ -1,6 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
+    ffi::OsString,
     fmt::{Display, Formatter, Result as FmtResult},
     fs, io,
     path::{Path, PathBuf},
@@ -8,18 +9,18 @@ use std::{
 
 use iced::{
     Subscription,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender, future::ready},
-    stream,
+    futures::{Stream, StreamExt, TryStreamExt, future::ready, stream},
 };
 use icu_locale_core::Locale;
-use inotify::{EventMask, Inotify, WatchMask};
+use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;
-use tokio::time::{Duration, sleep};
 use uom::si::{angle::degree, f64::Angle};
 
-use crate::data::source::{ai::read_secret, command, http};
+use crate::{
+    data::source::{ai::read_secret, command, http},
+    message_subscriptions::restarting,
+};
 
-const WATCH_RETRY: Duration = Duration::from_secs(2);
 const EVENT_BUFFER_BYTES: usize = 1024;
 
 const UNSPLASH_PHOTO_ENDPOINT: &str = "https://api.unsplash.com/photos/";
@@ -130,96 +131,137 @@ struct SearchedPage {
 }
 
 pub fn subscription() -> Subscription<Result<Option<String>, command::Error>> {
-    Subscription::run(|| {
-        stream::channel(
-            4,
-            |mut output: Sender<Result<Option<String>, command::Error>>| async move {
-                loop {
-                    if let Err(e) = watch(&mut output).await {
-                        tracing::warn!("wallpaper watch: {e}");
-                    }
-                    sleep(WATCH_RETRY).await;
-                }
-            },
-        )
-    })
+    Subscription::run(wallpapers)
 }
 
-async fn watch(
-    output: &mut Sender<Result<Option<String>, command::Error>>,
-) -> Result<(), io::Error> {
-    let roots = cache_roots();
-    if roots.is_empty() {
+fn wallpapers() -> impl Stream<Item = Result<Option<String>, command::Error>> {
+    restarting("wallpaper watch", watch)
+}
+
+async fn watch() -> io::Result<impl Stream<Item = Result<Option<String>, command::Error>>> {
+    let Some(base) = cache_base() else {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            "no wallpaper cache directory to watch",
+            "no cache directory to watch for wallpaper daemons",
         ));
+    };
+    let inotify = Inotify::init()?;
+    let layout = CacheLayout::watched(&mut inotify.watches(), &base)?;
+    let changes = inotify
+        .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
+        .inspect_err(|e| tracing::warn!("wallpaper watch: {e}"))
+        .take_while(|event| ready(event.is_ok()))
+        .filter_map(|event| ready(event.ok()))
+        .map(move |event| layout.change(&event))
+        .take_while(|change| ready(matches!(change, CacheChange::Wallpaper(_))))
+        .filter_map(|change| ready(change.wallpaper()));
+    Ok(stream::iter([Requested::Unknown])
+        .chain(changes)
+        .then(requested_or_displayed))
+}
+
+struct CacheLayout {
+    base: WatchDescriptor,
+    roots: HashSet<WatchDescriptor>,
+    versions: HashMap<WatchDescriptor, PathBuf>,
+}
+
+enum CacheChange {
+    Wallpaper(Requested),
+    Layout,
+}
+
+impl CacheChange {
+    fn wallpaper(self) -> Option<Requested> {
+        match self {
+            Self::Wallpaper(requested) => Some(requested),
+            Self::Layout => None,
+        }
+    }
+}
+
+enum Requested {
+    Cached(String),
+    Unknown,
+}
+
+impl CacheLayout {
+    fn watched(watches: &mut Watches, base: &Path) -> io::Result<Self> {
+        let mut layout = Self {
+            base: watches.add(base, WatchMask::CREATE)?,
+            roots: HashSet::new(),
+            versions: HashMap::new(),
+        };
+        WALLPAPER_DAEMONS
+            .map(|daemon| base.join(daemon))
+            .iter()
+            .filter(|root| root.is_dir())
+            .for_each(|root| layout.watch_root(watches, root));
+        Ok(layout)
     }
 
-    let inotify = Inotify::init()?;
-    let mut watches = inotify.watches();
-    let mut directories = HashMap::new();
-    for root in &roots {
-        if let Err(e) = watches.add(root, WatchMask::CREATE) {
-            tracing::warn!("wallpaper watch {}: {e}", root.display());
+    fn watch_root(&mut self, watches: &mut Watches, root: &Path) {
+        match watches.add(root, WatchMask::CREATE) {
+            Ok(descriptor) => {
+                self.roots.insert(descriptor);
+            }
+            Err(e) => tracing::warn!("wallpaper watch {}: {e}", root.display()),
         }
-        for version in version_directories(root) {
+        version_directories(root).into_iter().for_each(|version| {
             match watches.add(&version, WatchMask::CLOSE_WRITE) {
                 Ok(descriptor) => {
-                    directories.insert(descriptor, version);
+                    self.versions.insert(descriptor, version);
                 }
                 Err(e) => tracing::warn!("wallpaper watch {}: {e}", version.display()),
             }
-        }
-    }
-
-    let mut changes = inotify
-        .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
-        .take_while(|event| {
-            ready(
-                !event
-                    .as_ref()
-                    .is_ok_and(|event| event.mask.contains(EventMask::ISDIR)),
-            )
         });
-
-    output
-        .send(displayed_path().await)
-        .await
-        .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))?;
-
-    while let Some(event) = changes.next().await {
-        let event = event?;
-        let requested = directories
-            .get(&event.wd)
-            .zip(event.name.as_ref())
-            .map(|(directory, entry)| directory.join(entry))
-            .and_then(|entry| fs::read(entry).ok())
-            .and_then(|cached| {
-                let requested = cached.rsplit(|byte| *byte == 0).next()?;
-                String::from_utf8(requested.to_vec()).ok()
-            })
-            .filter(|requested| Path::new(requested).is_file());
-        let reading = match requested {
-            Some(path) => Ok(Some(path)),
-            None => displayed_path().await,
-        };
-        output
-            .send(reading)
-            .await
-            .map_err(|e| io::Error::new(io::ErrorKind::BrokenPipe, e))?;
     }
-    Ok(())
+
+    fn change(&self, event: &Event<OsString>) -> CacheChange {
+        if self.reshaped_by(event) {
+            return CacheChange::Layout;
+        }
+        let requested = self
+            .requested_path(event)
+            .map_or(Requested::Unknown, Requested::Cached);
+        CacheChange::Wallpaper(requested)
+    }
+
+    fn reshaped_by(&self, event: &Event<OsString>) -> bool {
+        if !event.mask.contains(EventMask::ISDIR) {
+            return false;
+        }
+        if self.roots.contains(&event.wd) {
+            return true;
+        }
+        event.wd == self.base
+            && event
+                .name
+                .as_ref()
+                .is_some_and(|name| WALLPAPER_DAEMONS.iter().any(|daemon| name == daemon))
+    }
+
+    fn requested_path(&self, event: &Event<OsString>) -> Option<String> {
+        let directory = self.versions.get(&event.wd)?;
+        let cached = fs::read(directory.join(event.name.as_ref()?)).ok()?;
+        let requested = cached.rsplit(|byte| *byte == 0).next()?;
+        let requested = String::from_utf8(requested.to_vec()).ok()?;
+        Path::new(&requested).is_file().then_some(requested)
+    }
 }
 
-fn cache_roots() -> Vec<PathBuf> {
-    let base = env::var_os("XDG_CACHE_HOME")
+async fn requested_or_displayed(requested: Requested) -> Result<Option<String>, command::Error> {
+    match requested {
+        Requested::Cached(path) => Ok(Some(path)),
+        Requested::Unknown => displayed_path().await,
+    }
+}
+
+fn cache_base() -> Option<PathBuf> {
+    env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
-        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
-    base.into_iter()
-        .flat_map(|base| WALLPAPER_DAEMONS.map(|daemon| base.join(daemon)))
-        .filter(|root| root.is_dir())
-        .collect()
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .filter(|base| base.is_dir())
 }
 
 fn version_directories(root: &Path) -> Vec<PathBuf> {

@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{Stream, StreamExt, stream, stream::select};
+use iced::futures::{Stream, StreamExt, stream::select};
 use tokio::{
     task::spawn_blocking,
     time::{MissedTickBehavior, interval},
@@ -25,7 +25,7 @@ use super::{
     Error, POWER_SUPPLY, first_power_supply, list_dir, parse_field, read_field, read_i64,
     read_trimmed,
 };
-use crate::data::source::Source;
+use crate::{data::source::Source, message_subscriptions::restarting};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeBehaviour {
@@ -201,18 +201,13 @@ trait DisplayDevice {
 }
 
 fn supply_state_changes() -> impl Stream<Item = ()> + Send {
-    stream::once(async {
-        let connection = Connection::system().await?;
-        let device = DisplayDeviceProxy::new(&connection).await?;
-        Ok::<_, zbus::Error>(device.receive_state_changed().await)
-    })
-    .flat_map(|changes| match changes {
-        Ok(changes) => changes.map(|_| ()).left_stream(),
-        Err(error) => {
-            tracing::warn!("upower: plug and unplug only noticed on the next poll: {error}");
-            stream::empty().right_stream()
-        }
-    })
+    restarting("upower supply state", supply_state_signals)
+}
+
+async fn supply_state_signals() -> zbus::Result<impl Stream<Item = ()>> {
+    let connection = Connection::system().await?;
+    let device = DisplayDeviceProxy::new(&connection).await?;
+    Ok(device.receive_state_changed().await.map(drop))
 }
 
 fn read_battery() -> Result<Battery, Error> {

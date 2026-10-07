@@ -43,14 +43,23 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.primary_size() * SECONDARY_CONTROL_SCALE
     }
 
-    fn toggle_color(&self, active: bool) -> Color {
-        WidgetState::of_toggle(active)
+    fn foreground(&self) -> Color {
+        WidgetState::On
             .color(&self.config.palette)
             .scale_alpha(self.reveal)
     }
 
-    fn foreground(&self) -> Color {
-        self.toggle_color(true)
+    fn toggle<'a>(&self, icon: Phosphor, active: bool, command: Command) -> Element<'a, Message>
+    where
+        Message: 'a,
+    {
+        let state = WidgetState::of_toggle(active);
+        self.control(
+            icon.with_weight(state.weight()),
+            self.secondary_size(),
+            state.color(&self.config.palette).scale_alpha(self.reveal),
+            command,
+        )
     }
 
     fn control<'a>(
@@ -73,10 +82,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         let Setting::Supported(shuffled) = self.media.shuffle else {
             return None;
         };
-        Some(self.control(
+        Some(self.toggle(
             Phosphor::Shuffle(Weight::Regular),
-            self.secondary_size(),
-            self.toggle_color(shuffled),
+            shuffled,
             Command::SetShuffle(!shuffled),
         ))
     }
@@ -158,10 +166,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
             LoopMode::Off | LoopMode::Playlist => Phosphor::Repeat(Weight::Regular),
             LoopMode::Track => Phosphor::RepeatOnce(Weight::Regular),
         };
-        Some(self.control(
+        Some(self.toggle(
             glyph,
-            self.secondary_size(),
-            self.toggle_color(mode != LoopMode::Off),
+            mode != LoopMode::Off,
             Command::SetLoopMode(mode.cycled()),
         ))
     }
