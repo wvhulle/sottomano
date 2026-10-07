@@ -10,6 +10,7 @@ use crate::{
     config::temperature::SensorConfig,
     data::source::{
         Source,
+        hardware::HostHardware,
         sysfs_sensors::{
             self, cpu_clock::CpuClock, cpu_usage::CpuUsage, memory::Memory,
             temperature::Temperature,
@@ -18,6 +19,7 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
+        hardware_section::HardwareRows,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
@@ -31,12 +33,14 @@ pub struct ComputeGroup {
     clock: LastPoll<CpuClock>,
     temperature: LastPoll<Temperature>,
     sensors: bool,
+    hardware: HostHardware,
     pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ComputeMessage {
     Sensors(bool),
+    Identified(HostHardware),
     Cpu(Result<CpuUsage, sysfs_sensors::Error>),
     Memory(Result<Memory, sysfs_sensors::Error>),
     Clock(Result<CpuClock, sysfs_sensors::Error>),
@@ -47,7 +51,12 @@ pub enum ComputeMessage {
 impl ComputeGroup {
     pub fn probe(sensor: &SensorConfig) -> Task<ComputeMessage> {
         let sensor = sensor.clone();
-        Task::future(async move { ComputeMessage::Sensors(Temperature::available(&sensor).await) })
+        Task::batch([
+            Task::future(
+                async move { ComputeMessage::Sensors(Temperature::available(&sensor).await) },
+            ),
+            Task::future(HostHardware::identify()).map(ComputeMessage::Identified),
+        ])
     }
 
     pub fn subscription(&self, sensor: &SensorConfig) -> Subscription<ComputeMessage> {
@@ -67,6 +76,7 @@ impl ComputeGroup {
     pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
         match msg {
             ComputeMessage::Sensors(sensors) => self.sensors = sensors,
+            ComputeMessage::Identified(hardware) => self.hardware = hardware,
             ComputeMessage::Cpu(reading) => self.cpu.receive(reading),
             ComputeMessage::Memory(reading) => self.memory.receive(reading),
             ComputeMessage::Clock(reading) => self.clock.receive(reading),
@@ -88,10 +98,16 @@ impl ComputeGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Cpu => self.cpu.tooltip(),
-            HoverTarget::Memory => self.memory.tooltip(),
+            HoverTarget::Cpu => self
+                .cpu
+                .tooltip_with_section(self.hardware.cpu.hardware_section()),
+            HoverTarget::Memory => self
+                .memory
+                .tooltip_with_section(self.hardware.memory.hardware_section()),
             HoverTarget::CpuClock => self.clock.tooltip(),
-            HoverTarget::Temperature => self.temperature.tooltip(),
+            HoverTarget::Temperature => self
+                .temperature
+                .tooltip_with_section(self.hardware.cpu.hardware_section()),
             _ => None,
         }
     }

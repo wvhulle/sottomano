@@ -4,7 +4,7 @@ use crate::{
     data::source::Source,
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
-        tooltip_body::{RefreshInfo, Tooltip, TooltipBody, row},
+        tooltip_body::{RefreshInfo, Section, Tooltip, TooltipBody, row},
         widget_state::WidgetState,
     },
 };
@@ -115,6 +115,10 @@ impl<S: Occasional> LastPoll<S> {
 impl<S: Source + BarWidget> LastPoll<S> {
     pub fn tooltip(&self) -> Option<Tooltip> {
         self.tooltip_with(self.display()?.tooltip())
+    }
+
+    pub fn tooltip_with_section(&self, extra: Section) -> Option<Tooltip> {
+        self.tooltip_with(self.display()?.tooltip().with_section(extra))
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {

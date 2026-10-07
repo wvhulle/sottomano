@@ -7,7 +7,10 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::data::source::net_interfaces::{interface, managed_objects_readings, prop};
+use crate::data::source::{
+    hardware::{Adapter, ModemIdentity, reported},
+    net_interfaces::{Properties, interface, managed_objects_readings, prop},
+};
 
 pub const NAME: &str = "mobile-broadband";
 
@@ -19,7 +22,7 @@ const BEARER: &str = "org.freedesktop.ModemManager1.Bearer";
 
 #[derive(Debug, Clone)]
 pub struct Mobile {
-    pub model: Option<String>,
+    pub identity: ModemIdentity,
     pub operator: Option<String>,
     pub technology: Vec<String>,
     pub signal: Option<i64>,
@@ -149,6 +152,10 @@ fn bearer_info(objects: &ManagedObjects, path: &OwnedObjectPath) -> BearerInfo {
     }
 }
 
+fn reported_prop(properties: &Properties, key: &str) -> Option<String> {
+    reported(&prop::<String>(properties, key)?)
+}
+
 fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     let interfaces = objects
         .values()
@@ -165,7 +172,12 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     let signal = prop::<(u32, bool)>(modem, "SignalQuality");
 
     Some(Mobile {
-        model: prop::<String>(modem, "Model"),
+        identity: ModemIdentity {
+            manufacturer: reported_prop(modem, "Manufacturer"),
+            model: reported_prop(modem, "Model"),
+            revision: reported_prop(modem, "Revision"),
+            adapter: prop::<String>(modem, "Device").and_then(Adapter::of_device),
+        },
         operator: modem_3gpp
             .and_then(|iface| prop::<String>(iface, "OperatorName"))
             .filter(|operator| !operator.is_empty()),

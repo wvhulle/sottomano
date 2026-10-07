@@ -25,7 +25,10 @@ use super::{
     Error, POWER_SUPPLY, first_power_supply, list_dir, parse_field, read_field, read_i64,
     read_trimmed,
 };
-use crate::{data::source::Source, message_subscriptions::restarting};
+use crate::{
+    data::source::{Source, hardware::PowerSupplyIdentity},
+    message_subscriptions::restarting,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeBehaviour {
@@ -98,6 +101,7 @@ pub struct Battery {
     pub charge_behaviour: ChargeBehaviour,
     pub charger: Option<ChargerLimit>,
     pub serial: String,
+    pub identity: PowerSupplyIdentity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -230,6 +234,7 @@ fn read_battery() -> Result<Battery, Error> {
             .iter()
             .find_map(|supply| ChargerLimit::of_supply(supply)),
         serial: read_trimmed(dir.join("serial_number")).unwrap_or_default(),
+        identity: PowerSupplyIdentity::of_supply(&dir),
     })
 }
 
@@ -281,6 +286,7 @@ mod tests {
             charge_behaviour: ChargeBehaviour::Auto,
             charger: None,
             serial: String::new(),
+            identity: PowerSupplyIdentity::default(),
         }
     }
 

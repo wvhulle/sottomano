@@ -12,6 +12,7 @@ pub mod focus_indicator;
 pub mod gauge;
 pub mod glyph_button;
 pub mod group_item;
+pub mod hardware_section;
 pub mod idle;
 pub mod inline_slider;
 pub mod last_poll;

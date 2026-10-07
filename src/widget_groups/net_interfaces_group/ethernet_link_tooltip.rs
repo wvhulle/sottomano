@@ -5,6 +5,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        hardware_section::HardwareRows,
         phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, row, section},
         widget_state::WidgetState,
@@ -61,5 +62,6 @@ fn link_sections(link: &Link, prefixed: bool) -> Vec<Section> {
         address_section(&key, "IPv6", link.ipv6.as_ref()),
         dns_section(&key, &link.dns),
         link_stats_section(&key, "Link", "Link Speed", link.speed, link.mtu),
+        section(key("Hardware"), link.adapter.as_ref().hardware_rows()),
     ]
 }

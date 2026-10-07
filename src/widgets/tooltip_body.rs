@@ -211,6 +211,17 @@ impl TooltipBody {
         }])
     }
 
+    #[must_use]
+    pub fn with_section(self, extra: Section) -> Self {
+        match self {
+            TooltipBody::Sections(mut sections) => {
+                sections.push(extra);
+                TooltipBody::Sections(sections)
+            }
+            TooltipBody::Text { .. } | TooltipBody::Workspace(_) | TooltipBody::TrayMenu(_) => self,
+        }
+    }
+
     fn is_empty(&self) -> bool {
         match self {
             TooltipBody::Sections(sections) => {

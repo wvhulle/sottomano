@@ -22,6 +22,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
+        hardware_section::HardwareRows,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
@@ -131,7 +132,12 @@ impl BatteryGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Battery => self.battery.tooltip(),
+            HoverTarget::Battery => self.battery.tooltip_with_section(
+                self.battery
+                    .get()
+                    .map(|battery| &battery.identity)
+                    .hardware_section(),
+            ),
             HoverTarget::PowerDraw => self.battery.tooltip_with(self.draw.as_ref()?.tooltip()),
             HoverTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
             _ => self.power_profile.tooltip_for(target),

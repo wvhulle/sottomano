@@ -12,9 +12,9 @@ use crate::{
     config::temperature::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::source::{
         Source,
+        hardware::DriveIdentity,
         sysfs_sensors::{
             hwmon::{ChosenSensors, HwmonChip, LimitKind},
-            read_trimmed,
             temperature::ThermalLimit,
         },
     },
@@ -25,7 +25,8 @@ const DRIVETEMP_MODULE: &str = "/sys/module/drivetemp";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DriveHealth {
-    pub model: String,
+    pub device_name: String,
+    pub identity: DriveIdentity,
     pub temperature: DriveTemperature,
     pub overrides: ThresholdOverrides,
     pub errors: ErrorTracking,
@@ -74,7 +75,8 @@ fn read_drive_health(config: &SensorConfig) -> Result<DriveHealth, Error> {
     let disk = device.whole_disk();
     let controller = disk.sysfs_dir().join("device");
     Ok(DriveHealth {
-        model: read_trimmed(controller.join("model")).unwrap_or_else(|| disk.name.clone()),
+        device_name: disk.name.clone(),
+        identity: DriveIdentity::of_controller(&controller),
         temperature: DriveTemperature::read(&config.sensor, &disk, &controller),
         overrides: config.overrides(),
         errors: ErrorTracking::of(&mount, &device)?,

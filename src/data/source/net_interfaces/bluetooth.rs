@@ -1,7 +1,10 @@
 use iced::futures::Stream;
 use zbus::fdo::ManagedObjects;
 
-use crate::data::source::net_interfaces::{interface, managed_objects_readings, prop};
+use crate::data::source::{
+    hardware::Adapter,
+    net_interfaces::{interface, managed_objects_readings, prop},
+};
 
 pub const NAME: &str = "bluetooth";
 
@@ -24,6 +27,7 @@ pub struct Bluetooth {
     pub powered: bool,
     pub connected: Vec<Device>,
     pub paired: usize,
+    pub adapter: Option<Adapter>,
 }
 
 fn rssi_quality(dbm: i64) -> i64 {
@@ -45,11 +49,16 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
         .filter_map(|interfaces| interface(interfaces, ADAPTER))
         .map(|adapter| prop::<bool>(adapter, "Powered").unwrap_or(false))
         .reduce(|any, powered| any || powered)?;
+    let adapter = objects
+        .iter()
+        .filter(|(_, interfaces)| interface(interfaces, ADAPTER).is_some())
+        .find_map(|(path, _)| Adapter::of_bluetooth_controller(path.as_str().rsplit('/').next()?));
     if !powered {
         return Some(Bluetooth {
             powered: false,
             connected: Vec::new(),
             paired: 0,
+            adapter,
         });
     }
 
@@ -86,6 +95,7 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
         powered: true,
         connected,
         paired,
+        adapter,
     })
 }
 

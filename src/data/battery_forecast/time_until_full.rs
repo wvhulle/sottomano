@@ -63,7 +63,10 @@ mod tests {
     use super::*;
     use crate::data::{
         battery_forecast::charge_power_by_state_of_charge::learned_curve,
-        source::sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
+        source::{
+            hardware::PowerSupplyIdentity,
+            sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
+        },
     };
 
     const CAPACITY_WH: f64 = 50.0;
@@ -79,6 +82,7 @@ mod tests {
             charge_behaviour: ChargeBehaviour::Auto,
             charger: None,
             serial: String::new(),
+            identity: PowerSupplyIdentity::default(),
         }
     }
 

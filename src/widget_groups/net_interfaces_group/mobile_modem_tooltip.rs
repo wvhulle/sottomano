@@ -6,6 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        hardware_section::HardwareRows,
         phosphor::Phosphor,
         tooltip_body::{Row, Section, TooltipBody, row, section},
         widget_state::WidgetState,
@@ -40,18 +41,13 @@ impl BarWidget for Mobile {
                 status_section(self)
             },
             section("Data", transfer_rows(self)),
+            self.identity.hardware_section(),
         ])
     }
 }
 
 fn modem_rows(mobile: &Mobile) -> Vec<Row> {
     let mut rows = Vec::new();
-    rows.extend(
-        mobile
-            .model
-            .as_ref()
-            .map(|model| row("Modem Model", model.clone())),
-    );
     rows.extend(
         mobile
             .operator
