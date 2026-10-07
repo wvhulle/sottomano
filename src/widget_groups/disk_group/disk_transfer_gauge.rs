@@ -23,11 +23,11 @@ pub trait TransferIcon: TransferDirection {
 }
 
 impl TransferIcon for Reading {
-    const ICON: Phosphor = Phosphor::FileArrowUp(Weight::Regular);
+    const ICON: Phosphor = Phosphor::TrayArrowUp(Weight::Regular);
 }
 
 impl TransferIcon for Writing {
-    const ICON: Phosphor = Phosphor::FileArrowDown(Weight::Regular);
+    const ICON: Phosphor = Phosphor::TrayArrowDown(Weight::Regular);
 }
 
 fn background_rate() -> InformationRate {
