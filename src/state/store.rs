@@ -112,7 +112,9 @@ async fn build() -> Result<Store, StoreError> {
 }
 
 pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), StoreError> {
-    connection.execute(launches::CREATE_TABLE, ()).await?;
+    for statement in launches::SCHEMA {
+        connection.execute(statement, ()).await?;
+    }
     connection.execute(shell_settings::CREATE_TABLE, ()).await?;
     connection
         .execute(overlay_settings::CREATE_TABLE, ())

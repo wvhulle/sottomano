@@ -36,6 +36,11 @@ pub struct WorkspaceIndicator {
     pub is_urgent: bool,
 }
 
+pub struct ActiveWorkspace<'a> {
+    pub output: &'a str,
+    pub name: Option<&'a str>,
+}
+
 #[derive(Default)]
 pub struct Snapshot {
     workspaces: HashMap<String, Vec<WorkspaceIndicator>>,
@@ -108,13 +113,14 @@ impl Snapshot {
         self.active.get(output).copied()
     }
 
-    pub fn active_workspace_name(&self, output: &str) -> Option<&str> {
-        let id = self.active_workspace_id(output)?;
-        self.workspaces
-            .get(output)?
-            .iter()
-            .find(|indicator| indicator.id == id)
-            .and_then(|indicator| indicator.name.as_deref())
+    pub fn active_workspaces(&self) -> impl Iterator<Item = ActiveWorkspace<'_>> {
+        self.workspaces.iter().filter_map(|(output, indicators)| {
+            let indicator = indicators.iter().find(|indicator| indicator.is_active)?;
+            Some(ActiveWorkspace {
+                output,
+                name: indicator.name.as_deref(),
+            })
+        })
     }
 
     pub fn open_app_ids(&self, output: &str) -> Vec<String> {

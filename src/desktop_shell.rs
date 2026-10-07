@@ -35,7 +35,7 @@ use crate::{
             command::blocking::run,
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
-            launch_tracker::{Buckets, LaunchTracker},
+            launch_tracker::{Launch, LaunchTracker},
             niri,
         },
     },
@@ -74,7 +74,7 @@ use crate::{
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
         weather_group::{WeatherGroup, WeatherMessage},
-        window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
+        window_group::{self, WindowGroup, WindowGroupMessage},
     },
     widgets::{
         favicon::Favicons,
@@ -159,7 +159,7 @@ pub enum Message {
     Audio(AudioMessage),
     Ai(AiMessage),
     WindowGroup(WindowGroupMessage),
-    TrackerLoaded(Buckets),
+    TrackerLoaded(Vec<Launch>),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     IconsResolved(ResolvedIcons),
     FaviconsResolved(HashMap<String, RawFavicon>),
@@ -312,7 +312,7 @@ impl DesktopShell {
         match message {
             Message::Output(change) => self.apply_output_change(change),
             Message::WindowGroup(msg) => self.update_window_group(msg),
-            Message::TrackerLoaded(buckets) => self.load_launch_tracker(buckets),
+            Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
             Message::ReloadDesktopEntries => {
                 desktop_entries::load().map(Message::DesktopEntriesLoaded)
@@ -479,8 +479,8 @@ impl DesktopShell {
         Task::none()
     }
 
-    fn load_launch_tracker(&mut self, buckets: Buckets) -> Task<Message> {
-        self.launch_tracker.load_from(buckets);
+    fn load_launch_tracker(&mut self, launches: Vec<Launch>) -> Task<Message> {
+        self.launch_tracker.load_from(launches);
         self.refresh_quick_launch()
     }
 
@@ -699,8 +699,8 @@ impl DesktopShell {
                     | niri_ipc::Event::WorkspaceActivated { .. }
             );
             focus_change |= matches!(event, niri_ipc::Event::WindowFocusChanged { .. });
-            if let Some(delta) = self.launch_tracker.observe(&event) {
-                tasks.push(Task::future(state::launches::record(delta)).discard());
+            if let Some(launch) = self.launch_tracker.observe(&event) {
+                tasks.push(Task::future(state::launches::record(launch)).discard());
             }
             let _ = self.niri.apply(event);
         }
@@ -730,24 +730,16 @@ impl DesktopShell {
             return Task::none();
         };
         let now = Utc::now();
-        let mut outputs: Vec<String> = self
-            .surfaces
-            .values()
-            .map(|surface| surface.output.clone())
-            .collect();
-        outputs.sort_unstable();
-        outputs.dedup();
-        let ranked = outputs
-            .into_iter()
-            .filter_map(|output| {
-                let workspace = self.niri_snapshot.active_workspace_name(&output)?;
-                let open = self.niri_snapshot.open_app_ids(&output);
-                let apps = self
-                    .launch_tracker
-                    .rank(workspace, &open, MAX_ITEMS, now, |app_id| {
-                        entries.is_launchable(app_id)
-                    });
-                (!apps.is_empty()).then_some((output, apps))
+        let ranked = self
+            .niri_snapshot
+            .active_workspaces()
+            .filter_map(|active| {
+                let workspace = active.name?;
+                let open = self.niri_snapshot.open_app_ids(active.output);
+                let apps = self.launch_tracker.rank(workspace, &open, now, |app_id| {
+                    entries.is_launchable(app_id)
+                });
+                (!apps.is_empty()).then(|| (active.output.to_owned(), apps))
             })
             .collect();
         self.window_group.set_ranked(ranked);

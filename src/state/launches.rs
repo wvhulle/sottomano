@@ -1,85 +1,83 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::{
-    data::source::launch_tracker::{Buckets, LaunchDelta, Record},
+    data::source::launch_tracker::Launch,
     state::{Columns, StoreError, open},
 };
 
 const TTL_DAYS: i64 = 60;
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS launches (
-    workspace TEXT NOT NULL,
-    app_id TEXT NOT NULL,
-    count INTEGER NOT NULL,
-    last_used TEXT NOT NULL,
-    PRIMARY KEY (workspace, app_id)
-)";
+pub(crate) const SCHEMA: [&str; 2] = [
+    "CREATE TABLE IF NOT EXISTS launch_events (
+        workspace TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        launched_at TEXT NOT NULL
+    )",
+    "DROP TABLE IF EXISTS launches",
+];
 
-pub async fn load() -> Buckets {
+pub async fn load() -> Vec<Launch> {
     match try_load().await {
-        Ok(buckets) => buckets,
+        Ok(launches) => launches,
         Err(e) => {
             tracing::warn!("launch store: load failed: {e}");
-            Buckets::new()
+            Vec::new()
         }
     }
 }
 
-pub async fn record(delta: LaunchDelta) {
-    if let Err(e) = try_record(&delta).await {
+pub async fn record(launch: Launch) {
+    if let Err(e) = try_record(&launch).await {
         tracing::warn!("launch store: record failed: {e}");
     }
 }
 
-async fn try_load() -> Result<Buckets, StoreError> {
+async fn try_load() -> Result<Vec<Launch>, StoreError> {
     let conn = open().await?;
-    read_buckets(&conn).await
+    read_launches(&conn).await
 }
 
-async fn read_buckets(conn: &turso::Connection) -> Result<Buckets, StoreError> {
+async fn read_launches(conn: &turso::Connection) -> Result<Vec<Launch>, StoreError> {
     let cutoff = (Utc::now() - Duration::days(TTL_DAYS)).to_rfc3339();
-    conn.execute("DELETE FROM launches WHERE last_used < ?1", (cutoff,))
-        .await?;
+    conn.execute(
+        "DELETE FROM launch_events WHERE launched_at < ?1",
+        (cutoff,),
+    )
+    .await?;
     let mut rows = conn
         .query(
-            "SELECT workspace, app_id, count, last_used FROM launches",
+            "SELECT workspace, app_id, launched_at FROM launch_events",
             (),
         )
         .await?;
     let columns = Columns::of(&rows);
-    let mut buckets = Buckets::new();
+    let mut launches = Vec::new();
     while let Some(row) = rows.next().await? {
-        let workspace = columns.text(&row, "workspace")?;
-        let app_id = columns.text(&row, "app_id")?;
-        let count = u64::try_from(columns.integer(&row, "count")?).unwrap_or(0);
-        let Ok(last_used) = DateTime::parse_from_rfc3339(&columns.text(&row, "last_used")?) else {
+        let Ok(launched_at) = DateTime::parse_from_rfc3339(&columns.text(&row, "launched_at")?)
+        else {
             continue;
         };
-        buckets.entry(workspace).or_default().insert(
-            app_id,
-            Record {
-                count,
-                last_used: last_used.with_timezone(&Utc),
-            },
-        );
+        launches.push(Launch {
+            workspace: columns.text(&row, "workspace")?,
+            app_id: columns.text(&row, "app_id")?,
+            launched_at: launched_at.with_timezone(&Utc),
+        });
     }
-    Ok(buckets)
+    Ok(launches)
 }
 
-async fn try_record(delta: &LaunchDelta) -> Result<(), StoreError> {
+async fn try_record(launch: &Launch) -> Result<(), StoreError> {
     let conn = open().await?;
-    write_delta(&conn, delta).await
+    write_launch(&conn, launch).await
 }
 
-async fn write_delta(conn: &turso::Connection, delta: &LaunchDelta) -> Result<(), StoreError> {
+async fn write_launch(conn: &turso::Connection, launch: &Launch) -> Result<(), StoreError> {
     conn.execute(
-        "INSERT INTO launches (workspace, app_id, count, last_used) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(workspace, app_id) DO UPDATE SET count = ?3, last_used = ?4",
+        "INSERT INTO launch_events (workspace, app_id, launched_at) VALUES (?1, ?2, ?3)",
         (
-            delta.workspace.clone(),
-            delta.app_id.clone(),
-            i64::try_from(delta.count).unwrap_or(i64::MAX),
-            delta.last_used.to_rfc3339(),
+            launch.workspace.clone(),
+            launch.app_id.clone(),
+            launch.launched_at.to_rfc3339(),
         ),
     )
     .await?;
@@ -88,36 +86,42 @@ async fn write_delta(conn: &turso::Connection, delta: &LaunchDelta) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use chrono::{Duration, Utc};
 
-    use super::{CREATE_TABLE, LaunchDelta, read_buckets, write_delta};
+    use super::{Launch, SCHEMA, read_launches, write_launch};
 
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
         let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
+        for statement in SCHEMA {
+            conn.execute(statement, ()).await.unwrap();
+        }
         conn
     }
 
-    #[tokio::test]
-    async fn a_delta_survives_a_round_trip() {
-        let conn = connection().await;
-        let last_used = Utc::now();
-        write_delta(
-            &conn,
-            &LaunchDelta {
-                workspace: "web".to_owned(),
-                app_id: "firefox".to_owned(),
-                count: 7,
-                last_used,
-            },
-        )
-        .await
-        .unwrap();
+    fn firefox_on_web(minutes_ago: i64) -> Launch {
+        Launch {
+            workspace: "web".to_owned(),
+            app_id: "firefox".to_owned(),
+            launched_at: Utc::now() - Duration::minutes(minutes_ago),
+        }
+    }
 
-        let buckets = read_buckets(&conn).await.unwrap();
-        let record = &buckets["web"]["firefox"];
-        assert_eq!(record.count, 7);
-        assert_eq!(record.last_used.timestamp(), last_used.timestamp());
+    #[tokio::test]
+    async fn a_launch_survives_a_round_trip() {
+        let conn = connection().await;
+        let launch = firefox_on_web(0);
+        write_launch(&conn, &launch).await.unwrap();
+
+        assert_eq!(read_launches(&conn).await.unwrap(), vec![launch]);
+    }
+
+    #[tokio::test]
+    async fn repeated_launches_accumulate() {
+        let conn = connection().await;
+        write_launch(&conn, &firefox_on_web(5)).await.unwrap();
+        write_launch(&conn, &firefox_on_web(0)).await.unwrap();
+
+        assert_eq!(read_launches(&conn).await.unwrap().len(), 2);
     }
 }
