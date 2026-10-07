@@ -110,19 +110,17 @@ impl NotificationLayer {
         ordered.sort_by_key(|n| Reverse((n.place.anchor.is_window_bound(), n.seq)));
         let toasts = ordered
             .into_iter()
-            .map(|notif| {
-                let reveal = notif.reveal(now);
-                AnchoredToast {
-                    id: notif.data.id,
-                    anchor: notif.place.anchor,
-                    card: reveal_y(
-                        ToastCard::new(notif, config, theme, settings)
-                            .hovered(self.hovered == Some(notif.data.id))
-                            .reveal(reveal),
-                        reveal,
-                    ),
-                    animating: notif.is_animating(now),
-                }
+            .map(|notif| AnchoredToast {
+                id: notif.data.id,
+                anchor: notif.place.anchor,
+                card: reveal_y(
+                    ToastCard::new(notif, config, theme, settings)
+                        .hovered(self.hovered == Some(notif.data.id))
+                        .reveal(notif.opacity(now)),
+                    notif.slot(now),
+                    notif.scale(now),
+                ),
+                animating: notif.is_animating(now),
             })
             .collect();
         WindowAnchoredToasts::new(

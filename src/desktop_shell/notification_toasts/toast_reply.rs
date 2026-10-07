@@ -3,7 +3,7 @@ use std::mem;
 use iced::{Task, time::Instant, window::Id};
 use iced_exwlshell::reexport::KeyboardInteractivity;
 
-use super::NotificationLayer;
+use super::{NotificationLayer, toast_lifecycle::ExitPace};
 use crate::{
     data::notifications::model::{Outbound, close_reason},
     desktop_shell::Message,
@@ -104,7 +104,7 @@ impl NotificationLayer {
         if text.trim().is_empty() {
             return Task::none();
         }
-        let withdrawn = self.withdraw_showing([id]);
+        let withdrawn = self.withdraw_showing([id], ExitPace::Dismissed);
         let closed = withdrawn
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))

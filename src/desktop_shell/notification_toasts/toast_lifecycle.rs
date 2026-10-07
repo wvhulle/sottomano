@@ -10,7 +10,9 @@ use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply:
 use crate::{
     config::toasts::ToastLifetimeConfig,
     data::{
-        notifications::model::{ExpireTimeout, NotifHandle, NotificationData, ServerEvent},
+        notifications::model::{
+            ExpireTimeout, NotifHandle, NotificationData, ServerEvent, close_reason,
+        },
         severity::Severity,
     },
     desktop_shell::{Message, hover_tooltips::HoverTarget},
@@ -18,6 +20,32 @@ use crate::{
 };
 
 const PRESENCE: Duration = Duration::from_millis(90);
+const SHRUNK_SCALE: f32 = 0.95;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExitPace {
+    Dismissed,
+    Faded,
+}
+
+impl ExitPace {
+    fn fade(self) -> Duration {
+        match self {
+            Self::Dismissed => Duration::from_millis(140),
+            Self::Faded => Duration::from_millis(220),
+        }
+    }
+}
+
+impl From<u32> for ExitPace {
+    fn from(close_reason: u32) -> Self {
+        if close_reason == close_reason::DISMISSED {
+            Self::Dismissed
+        } else {
+            Self::Faded
+        }
+    }
+}
 
 pub enum ToastOrigin {
     DbusClient,
@@ -77,7 +105,8 @@ pub struct Notification {
     pub(super) countdown: Option<Countdown>,
     pub(super) seq: u64,
     pub(super) reply_draft: String,
-    presence: Animation<bool>,
+    visibility: Animation<bool>,
+    slot: Animation<bool>,
 }
 
 impl Notification {
@@ -99,10 +128,8 @@ impl Notification {
             countdown,
             seq,
             reply_draft: String::new(),
-            presence: Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(PRESENCE)
-                .go(true, now),
+            visibility: appearing(now),
+            slot: appearing(now),
         }
     }
 
@@ -139,26 +166,57 @@ impl Notification {
         matches!(self.origin, ToastOrigin::DbusClient)
     }
 
-    pub(super) fn withdraw(&mut self, now: Instant) {
+    pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace) {
         self.countdown = None;
-        self.presence.go_mut(false, now);
+        self.visibility = fading_out(now, pace);
+        self.slot = collapsing_after_fade(now, pace);
     }
 
     pub(super) fn is_withdrawing(&self) -> bool {
-        !self.presence.value()
+        !self.visibility.value()
     }
 
     pub(super) fn has_faded(&self, now: Instant) -> bool {
-        self.is_withdrawing() && !self.presence.is_animating(now)
+        !self.slot.value() && !self.slot.is_animating(now)
     }
 
     pub(super) fn is_animating(&self, now: Instant) -> bool {
-        self.presence.is_animating(now)
+        self.visibility.is_animating(now) || self.slot.is_animating(now)
     }
 
-    pub fn reveal(&self, now: Instant) -> f32 {
-        self.presence.interpolate(0.0, 1.0, now)
+    pub fn opacity(&self, now: Instant) -> f32 {
+        self.visibility.interpolate(0.0, 1.0, now)
     }
+
+    pub fn scale(&self, now: Instant) -> f32 {
+        self.visibility.interpolate(SHRUNK_SCALE, 1.0, now)
+    }
+
+    pub fn slot(&self, now: Instant) -> f32 {
+        self.slot.interpolate(0.0, 1.0, now)
+    }
+}
+
+fn appearing(now: Instant) -> Animation<bool> {
+    Animation::new(false)
+        .easing(Easing::EaseOutCubic)
+        .duration(PRESENCE)
+        .go(true, now)
+}
+
+fn fading_out(now: Instant, pace: ExitPace) -> Animation<bool> {
+    Animation::new(true)
+        .easing(Easing::EaseIn)
+        .duration(pace.fade())
+        .go(false, now)
+}
+
+fn collapsing_after_fade(now: Instant, pace: ExitPace) -> Animation<bool> {
+    Animation::new(true)
+        .easing(Easing::EaseInOut)
+        .very_quick()
+        .delay(pace.fade() * 3 / 5)
+        .go(false, now)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -224,6 +282,25 @@ mod tests {
             normal_severity_timeout_ms: 12_000,
             critical_severity_timeout_ms: 0,
         }
+    }
+
+    #[test]
+    fn the_slot_stays_open_while_the_card_fades_and_closes_after() {
+        let now = Instant::now();
+        let fade = fading_out(now, ExitPace::Dismissed);
+        let slot = collapsing_after_fade(now, ExitPace::Dismissed);
+        let midway = now + Duration::from_millis(50);
+        assert!(fade.interpolate(0.0, 1.0, midway) < 1.0);
+        assert!((slot.interpolate(0.0, 1.0, midway) - 1.0).abs() < f32::EPSILON);
+        assert!(slot.is_animating(midway));
+        assert!(!slot.is_animating(now + Duration::from_millis(250)));
+    }
+
+    #[test]
+    fn dismissed_toasts_leave_faster_than_expired_ones() {
+        assert!(ExitPace::Dismissed.fade() < ExitPace::Faded.fade());
+        assert_eq!(ExitPace::from(close_reason::DISMISSED), ExitPace::Dismissed);
+        assert_eq!(ExitPace::from(close_reason::EXPIRED), ExitPace::Faded);
     }
 
     #[test]
