@@ -1,6 +1,9 @@
 use std::{collections::HashSet, fmt, fs, io, sync::Arc};
 
-use iced::Font;
+use iced::{
+    Font,
+    font::{Style, Weight},
+};
 use serde::Deserialize;
 use ttf_parser::FaceParsingError;
 
@@ -34,6 +37,20 @@ pub struct ResolvedFont {
 }
 
 impl ResolvedFont {
+    pub fn bold(&self) -> Font {
+        Font {
+            weight: Weight::Bold,
+            ..self.iced_font
+        }
+    }
+
+    pub fn italic(&self) -> Font {
+        Font {
+            style: Style::Italic,
+            ..self.iced_font
+        }
+    }
+
     pub fn has_same_face_as(&self, other: &Self) -> bool {
         self.data == other.data
     }

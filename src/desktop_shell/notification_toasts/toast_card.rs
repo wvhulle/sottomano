@@ -5,7 +5,6 @@ use std::{
 
 use iced::{
     Alignment, Border, Color, ContentFit, Element, Font, Length, Shadow, Theme, border,
-    font::Weight,
     widget::{
         Column, Row, Space, button, container, image, mouse_area, progress_bar, rich_text, svg,
         text_input,
@@ -270,10 +269,7 @@ impl ToastCard<'_> {
             .push(
                 bar_text(font, data.summary.clone())
                     .color(text)
-                    .font(Font {
-                        weight: Weight::Bold,
-                        ..font.iced_font
-                    })
+                    .font(font.bold())
                     .width(Length::Fill),
             );
         if let Some(app_name) = &data.app_name {

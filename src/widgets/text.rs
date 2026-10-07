@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use iced::{
     Color, Font, Task,
     advanced::text as advanced_text,
-    font::Style,
     task::Handle,
     widget::{
         Text, span, text,
@@ -23,12 +22,7 @@ pub fn column_heading<'a>(
     title: impl IntoFragment<'a>,
     color: Color,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
-    bar_text(font, title)
-        .font(Font {
-            style: Style::Italic,
-            ..font.iced_font
-        })
-        .color(color)
+    bar_text(font, title).font(font.italic()).color(color)
 }
 
 pub fn bar_text<'a>(
