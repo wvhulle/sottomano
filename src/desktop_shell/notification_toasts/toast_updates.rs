@@ -99,6 +99,26 @@ impl NotificationLayer {
         shell_settings: &ShellSettings,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
+        let handled = self.handle(
+            message,
+            placement,
+            entries,
+            config,
+            shell_settings,
+            panel_on,
+        );
+        Task::batch([handled, self.release_orphaned_keyboard()])
+    }
+
+    fn handle(
+        &mut self,
+        message: NotificationMessage,
+        placement: &Placement,
+        entries: Option<&DesktopEntries>,
+        config: &Config,
+        shell_settings: &ShellSettings,
+        panel_on: &dyn Fn(&str) -> Option<Id>,
+    ) -> Task<Message> {
         match message {
             NotificationMessage::Connected(handle) => {
                 self.handle = Some(handle);
@@ -136,7 +156,33 @@ impl NotificationLayer {
                 self.close_all([id], close_reason::CLOSED_BY_CALL)
             }
             NotificationMessage::Tick => self.expire(),
+            NotificationMessage::Reply { id, message } => self.update_reply(id, message, panel_on),
+            NotificationMessage::OpenFile(id) => self.open_previewed_file(id),
+            NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
         }
+    }
+
+    fn previewed_file(&self, id: u32) -> Option<String> {
+        self.showing()
+            .find(|n| n.data.id == id)?
+            .icons
+            .previewed_file()
+            .map(|file| file.to_string_lossy().into_owned())
+    }
+
+    fn open_previewed_file(&mut self, id: u32) -> Task<Message> {
+        let Some(file) = self.previewed_file(id) else {
+            return Task::none();
+        };
+        Task::batch([
+            Task::done(Message::OpenUrl(file)),
+            self.close_all([id], close_reason::DISMISSED),
+        ])
+    }
+
+    fn copy_previewed_file_path(&self, id: u32) -> Task<Message> {
+        self.previewed_file(id)
+            .map_or_else(Task::none, |file| Task::done(Message::CopyText(file)))
     }
 
     pub fn show_reading_alerts(
@@ -248,31 +294,40 @@ impl NotificationLayer {
             return Task::none();
         }
         let id = data.id;
-        self.live.retain(|n| n.data.id != id);
         let mut tasks = Vec::new();
         if let Some(window) = data.window_id_hint {
             let superseded: Vec<u32> = self
                 .showing()
+                .filter(|n| n.data.id != id)
                 .filter(|n| n.data.window_id_hint == Some(window))
                 .filter(|n| n.data.app_name == data.app_name)
                 .map(|n| n.data.id)
                 .collect();
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED));
         }
-        if notifications.sound && !data.suppress_sound {
-            tasks.push(sound::play(&data, self.sound_theme.as_deref()));
-        }
         let icons = toast_card::resolve_icons(&data, entries);
-        let seq = self.next_seq;
-        self.next_seq += 1;
         let now = Instant::now();
         let countdown = lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
             .map(|remaining| Countdown::started(remaining, now));
         let window = ToastWindow::resolve(&data, placement);
         let place = placement_for(window, placement, shell_settings.overlays, config);
-        self.live.push(Notification::appearing(
-            *data, origin, icons, countdown, seq, place, now,
-        ));
+        let shown = self
+            .live
+            .iter_mut()
+            .find(|n| n.data.id == id && !n.is_withdrawing());
+        if let Some(shown) = shown {
+            shown.replace_content(*data, origin, icons, countdown, place);
+        } else {
+            if notifications.sound && !data.suppress_sound {
+                tasks.push(sound::play(&data, self.sound_theme.as_deref()));
+            }
+            self.live.retain(|n| n.data.id != id);
+            let seq = self.next_seq;
+            self.next_seq += 1;
+            self.live.push(Notification::appearing(
+                *data, origin, icons, countdown, seq, place, now,
+            ));
+        }
         self.sync_countdowns(now);
         Task::batch(tasks)
     }
@@ -290,7 +345,7 @@ impl NotificationLayer {
             .collect();
         let closed = self.close_all(stale, close_reason::UNDEFINED);
         self.reposition(placement, config, overlays);
-        closed
+        Task::batch([closed, self.release_orphaned_keyboard()])
     }
 
     pub fn prune(&mut self) {
@@ -310,12 +365,12 @@ impl NotificationLayer {
         closed
     }
 
-    fn sync_countdowns(&mut self, now: Instant) {
+    pub(super) fn sync_countdowns(&mut self, now: Instant) {
         let hovered = self.hovered;
         self.live.iter_mut().for_each(|notif| {
-            let under_pointer = hovered == Some(notif.data.id);
+            let held = hovered == Some(notif.data.id) || !notif.reply_draft.is_empty();
             notif.countdown = notif.countdown.map(|countdown| {
-                if under_pointer {
+                if held {
                     countdown.paused(now)
                 } else {
                     countdown.resumed(now)
@@ -324,7 +379,10 @@ impl NotificationLayer {
         });
     }
 
-    fn withdraw_showing(&mut self, candidates: impl IntoIterator<Item = u32>) -> Vec<u32> {
+    pub(super) fn withdraw_showing(
+        &mut self,
+        candidates: impl IntoIterator<Item = u32>,
+    ) -> Vec<u32> {
         let now = Instant::now();
         let closing: Vec<u32> = candidates
             .into_iter()
@@ -487,7 +545,7 @@ impl NotificationLayer {
         }
     }
 
-    fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Message> {
+    pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Message> {
         match &self.handle {
             Some(handle) if !outbound.is_empty() => {
                 let sender = handle.sender();
