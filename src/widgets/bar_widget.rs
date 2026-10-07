@@ -5,6 +5,7 @@ use uom::si::f64::Ratio;
 use crate::{
     data::severity::Severity,
     widgets::{
+        announced_level::AnnouncedLevel,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
@@ -83,6 +84,10 @@ pub trait BarWidget {
 
     fn live_gauge(&self) -> Option<Ratio> {
         self.gauge()
+    }
+
+    fn announced_level(&self) -> Option<AnnouncedLevel> {
+        None
     }
 
     fn tooltip(&self) -> TooltipBody;

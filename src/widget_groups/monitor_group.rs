@@ -96,6 +96,7 @@ impl MonitorGroup {
                             )
                             .scroll_step(STEP)
                             .readout(|value| format!("{}%", as_percent(value)))
+                            .announces_level("Brightness")
                         })
                         .update(ControlMessage::Reading(percent_f(backlight.percent)));
                 }

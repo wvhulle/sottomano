@@ -8,6 +8,7 @@ use crate::{
     config::Config,
     desktop_shell::hover_tooltips::{HoverTarget, hoverable},
     widgets::{
+        announced_level::LevelReading,
         bar_widget::BarWidget,
         flat_button,
         reading_alert::{ReadingAlert, ReadingAlertActionButton},
@@ -127,6 +128,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             on_button_pressed,
         });
         self
+    }
+
+    pub(super) fn level_reading(&self) -> Option<LevelReading> {
+        let (ItemKind::Reading { widget, target } | ItemKind::Control { widget, target, .. }) =
+            &self.kind
+        else {
+            return None;
+        };
+        widget.announced_level().map(|level| LevelReading {
+            hover_target: target.clone(),
+            glyph: widget.icon(),
+            level,
+        })
     }
 
     pub(super) fn alert(&self, on_body_clicked: M, locale: Locale) -> Option<ReadingAlert<M>>

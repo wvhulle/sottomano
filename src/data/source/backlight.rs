@@ -1,11 +1,17 @@
 use std::{collections::HashSet, fs, time::Duration};
 
-use iced::Subscription;
+use iced::{
+    Subscription,
+    futures::{Stream, StreamExt},
+};
 use serde::{Deserialize, Serialize};
 use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy, zvariant::Type};
 
-use crate::{data::source::clight, message_subscriptions::poll_every};
+use crate::{
+    data::source::clight,
+    message_subscriptions::{poll_every, restarting},
+};
 
 #[proxy(
     interface = "org.clightd.clightd.Backlight",
@@ -15,6 +21,8 @@ use crate::{data::source::clight, message_subscriptions::poll_every};
 trait ClightdBacklight {
     fn get_all(&self, serial: &str) -> zbus::Result<Vec<BacklightReading>>;
     fn set(&self, target: f64, smooth: Smooth, serial: &str) -> zbus::Result<bool>;
+    #[zbus(signal)]
+    fn changed(&self, serial: &str, fraction: f64) -> zbus::Result<()>;
 }
 
 #[derive(Debug, Deserialize, Type)]
@@ -46,7 +54,20 @@ pub struct Backlight {
 const INTERVAL: Duration = Duration::from_secs(10);
 
 pub fn subscription() -> Subscription<Vec<Backlight>> {
-    poll_every("backlight", INTERVAL, polled_backlights)
+    Subscription::batch([
+        poll_every("backlight", INTERVAL, polled_backlights),
+        Subscription::run(signalled_backlights),
+    ])
+}
+
+fn signalled_backlights() -> impl Stream<Item = Vec<Backlight>> {
+    restarting("backlight changed signal", backlight_changes).then(|()| polled_backlights())
+}
+
+async fn backlight_changes() -> zbus::Result<impl Stream<Item = ()>> {
+    let connection = zbus::Connection::system().await?;
+    let backlight = ClightdBacklightProxy::new(&connection).await?;
+    Ok(backlight.receive_changed().await?.map(|_| ()))
 }
 
 async fn polled_backlights() -> Vec<Backlight> {

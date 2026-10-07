@@ -15,6 +15,7 @@ use crate::{
     },
     widgets::{
         activity_line::activity_line,
+        announced_level::LevelReading,
         bar_widget::{BarWidget, Glyph},
         expand_animation::expand_animation,
         flat_button,
@@ -136,6 +137,7 @@ impl<'a> PreviewedValue<'a> {
 pub struct GroupViewWithAlerts<'a, Outer> {
     pub element: Option<Element<'a, GroupEvent<Outer>>>,
     pub alerts: Vec<ReadingAlert<Outer>>,
+    pub levels: Vec<LevelReading>,
 }
 
 pub struct WidgetGroup<'a, M> {
@@ -223,6 +225,11 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         M: Clone,
     {
         let alerts = self.alerts(config.locale);
+        let levels = self
+            .items
+            .iter()
+            .filter_map(GroupItem::level_reading)
+            .collect();
         let highest_alert_severity = alerts
             .iter()
             .map(|alert| alert.severity)
@@ -236,6 +243,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
                 .into_iter()
                 .map(|alert| alert.map_messages(lift_message))
                 .collect(),
+            levels,
         }
     }
 

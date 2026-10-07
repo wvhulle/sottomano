@@ -1,4 +1,5 @@
 pub mod body_markup;
+pub mod level_announcement_toasts;
 pub mod reading_alert_toasts;
 pub mod toast_anchor_geometry;
 pub mod toast_card;
@@ -11,6 +12,7 @@ pub mod window_anchored_toasts;
 use std::cmp::Reverse;
 
 use iced::{Padding, Theme, time::Instant};
+use level_announcement_toasts::SeenLevel;
 use reading_alert_toasts::{
     DismissedReadingAlert, ReadingAlertToastChanges, ShownReadingAlertToast,
     plan_reading_alert_toast_changes,
@@ -41,6 +43,7 @@ pub struct NotificationLayer {
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
     dismissed_reading_alerts: Vec<DismissedReadingAlert>,
+    seen_levels: Vec<SeenLevel>,
 }
 
 impl NotificationLayer {

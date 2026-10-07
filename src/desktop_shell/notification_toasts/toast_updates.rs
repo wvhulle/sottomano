@@ -11,8 +11,9 @@ use tokio::{sync::mpsc, time::timeout};
 
 use super::{
     DEFAULT_ACTION, NotificationLayer,
+    level_announcement_toasts::{levels_changed_outside_the_bar, seen_levels},
     reading_alert_toasts::{DismissedReadingAlert, ReadingAlertToastChanges, ToastSlotForAlert},
-    toast_card,
+    toast_card::{self, CardIcons},
     toast_lifecycle::{Countdown, Notification, NotificationMessage, ToastOrigin, lifetime},
     toast_placement::{ToastWindow, placement_for},
 };
@@ -28,7 +29,7 @@ use crate::{
     message_subscriptions::niri_action,
     state::{self, NotificationSettings, OverlaySettings, ShellSettings},
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
-    widgets::reading_alert::ReadingAlert,
+    widgets::{announced_level::LevelReading, reading_alert::ReadingAlert},
 };
 
 const CONFIG_ERROR_TOAST_ID: u32 = 0;
@@ -204,6 +205,43 @@ impl NotificationLayer {
         self.apply_reading_alert_toast_changes(changes, &placement, entries, config, shell_settings)
     }
 
+    pub fn announce_level_changes(
+        &mut self,
+        current_levels: &[LevelReading],
+        niri: &EventStreamState,
+        entries: Option<&DesktopEntries>,
+        config: &Config,
+        shell_settings: &ShellSettings,
+    ) -> Task<Message> {
+        let changed: Vec<LevelReading> =
+            levels_changed_outside_the_bar(current_levels, &self.seen_levels)
+                .into_iter()
+                .cloned()
+                .collect();
+        self.seen_levels = seen_levels(current_levels);
+        if changed.is_empty() {
+            return Task::none();
+        }
+        let placement = Placement::derive(niri);
+        let lifetime = config.toasts.lifetime.level_announcement_timeout();
+        let mut tasks = Vec::with_capacity(changed.len());
+        for reading in changed {
+            let toast_id = self
+                .showing()
+                .find(|n| n.announces_level_of(&reading.hover_target))
+                .map_or_else(|| self.fresh_reading_alert_toast_id(), |n| n.data.id);
+            tasks.push(self.serve(
+                Box::new(reading.toast_notification_data(toast_id, lifetime)),
+                ToastOrigin::LevelAnnouncement(Box::new(reading)),
+                &placement,
+                entries,
+                config,
+                shell_settings,
+            ));
+        }
+        Task::batch(tasks)
+    }
+
     pub fn show_config_error(
         &mut self,
         path: &Path,
@@ -290,7 +328,7 @@ impl NotificationLayer {
         shell_settings: &ShellSettings,
     ) -> Task<Message> {
         let notifications = &shell_settings.notifications;
-        if notifications.do_not_disturb {
+        if notifications.do_not_disturb && !origin.answers_user_input() {
             return Task::none();
         }
         let id = data.id;
@@ -305,7 +343,10 @@ impl NotificationLayer {
                 .collect();
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED));
         }
-        let icons = toast_card::resolve_icons(&data, entries);
+        let icons = origin.glyph().map_or_else(
+            || toast_card::resolve_icons(&data, entries),
+            CardIcons::of_glyph,
+        );
         let now = Instant::now();
         let countdown = lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
             .map(|remaining| Countdown::started(remaining, now));
