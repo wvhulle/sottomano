@@ -15,7 +15,7 @@ use crate::{
 
 impl BarWidget for Gamma {
     fn icon(&self) -> Glyph {
-        Phosphor::CircleHalf(self.state().weight()).into()
+        Phosphor::ThermometerHot(self.state().weight()).into()
     }
 
     fn gauge(&self) -> Option<Ratio> {

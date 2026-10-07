@@ -243,7 +243,7 @@ impl AudioGroup {
 
     pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, AudioMessage> {
         WidgetGroup::new(&self.expansion, AudioMessage::Expansion)
-            .icon_colored_by(Phosphor::Faders(Weight::Regular), &self.sink_control)
+            .icon_colored_by(Phosphor::Waveform(Weight::Regular), &self.sink_control)
             .previewed_value(
                 self.sink
                     .as_ref()

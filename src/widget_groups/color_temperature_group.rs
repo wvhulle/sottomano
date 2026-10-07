@@ -16,6 +16,7 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
+        bar_widget::BarWidget,
         group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
@@ -72,7 +73,7 @@ impl ColorTemperatureGroup {
             .slider_step(WARMTH_STEP)
             .readout_width(52.0)
             .readout(|value| format!("{}K", as_kelvin(value)))
-            .label(|value| Some(format!("{}K", as_kelvin(value)))),
+            .label_with_gauge(|value| Some(format!("{}K", as_kelvin(value)))),
             auto: ToggleControl::default(),
             relay: false,
             expansion: GroupExpansion::default(),
@@ -117,6 +118,10 @@ impl ColorTemperatureGroup {
                 self.relay = relay;
                 Task::none()
             }
+            ColorTemperatureMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => self
+                .update(ColorTemperatureMessage::Warmth(ControlMessage::Scroll(
+                    delta,
+                ))),
             ColorTemperatureMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_controls();
@@ -193,8 +198,11 @@ impl ColorTemperatureGroup {
                 GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim),
             ]
         });
+        let gamma_available = self.gamma.get().is_some();
         WidgetGroup::new(&self.expansion, ColorTemperatureMessage::Expansion)
-            .icon(Phosphor::Thermometer(Weight::Regular))
+            .icon(Phosphor::ThermometerHot(Weight::Regular))
+            .previewed_value(gamma_available.then_some(&self.warmth as &dyn BarWidget))
+            .forward_handle_scroll(gamma_available)
             .items(gamma_sliders.into_iter().flatten())
             .item(GroupItem::toggle(
                 &self.auto,

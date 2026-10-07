@@ -23,7 +23,7 @@ use crate::{
         inline_slider::inline_slider,
         phosphor::Phosphor,
         reveal::reveal_x,
-        source_reading::source_reading,
+        source_reading::{labeled_reading, source_reading},
         text::bar_text,
         tooltip_body::TooltipBody,
         widget_state::WidgetState,
@@ -199,6 +199,12 @@ impl SliderControl {
     }
 
     #[must_use]
+    pub fn label_with_gauge(mut self, format: fn(f32) -> Option<String>) -> Self {
+        self.label = Some(format);
+        self
+    }
+
+    #[must_use]
     pub fn icon_only(mut self) -> Self {
         self.gauge = false;
         self
@@ -240,10 +246,16 @@ impl SliderControl {
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn percent_of_range(&self) -> u8 {
+        (self.fraction_of_range() * 100.0).round() as u8
+    }
+
+    fn fraction_of_range(&self) -> f32 {
         let span = self.range.end() - self.range.start();
-        ((self.current() - self.range.start()) / span * 100.0)
-            .round()
-            .clamp(0.0, 100.0) as u8
+        ((self.current() - self.range.start()) / span).clamp(0.0, 1.0)
+    }
+
+    fn range_fill(&self) -> Ratio {
+        Ratio::new::<ratio::ratio>(f64::from(self.fraction_of_range()))
     }
 
     pub fn close(&mut self) {
@@ -404,8 +416,11 @@ impl SliderControl {
     }
 
     fn collapsed_view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
-        let reading = source_reading(config, Some(self as &dyn BarWidget), reveal)
-            .unwrap_or_else(|| Row::new().into());
+        let reading = match self.label {
+            Some(_) => labeled_reading(config, self, reveal),
+            None => source_reading(config, Some(self as &dyn BarWidget), reveal)
+                .unwrap_or_else(|| Row::new().into()),
+        };
         let hover = hoverable(reading, self.target.clone(), ControlMessage::Tooltip);
         let mut area = mouse_area(hover)
             .on_press(ControlMessage::Press)
@@ -435,8 +450,7 @@ impl BarWidget for SliderControl {
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        self.gauge
-            .then(|| Ratio::new::<ratio::percent>(f64::from(self.current())))
+        self.gauge.then(|| self.range_fill())
     }
 
     fn live_gauge(&self) -> Option<Ratio> {
