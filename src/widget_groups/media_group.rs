@@ -1,11 +1,11 @@
 use std::time::{Duration, Instant};
 
 use iced::{
-    Alignment, Element, Font, Subscription, Task,
-    font::Style as FontStyle,
+    Alignment, Element, Subscription, Task,
     time::every,
     widget::{Row, button, image, rich_text, svg, text::Span},
 };
+use uom::si::f64::Ratio;
 
 use crate::{
     config::Config,
@@ -42,7 +42,6 @@ use self::{
     transport_controls::TransportControls,
 };
 
-const SEPARATOR: &str = " · ";
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
 
 pub struct MediaGroup {
@@ -272,6 +271,10 @@ impl MediaGroup {
                     .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
             })
         });
+        let gauge_fraction = media
+            .progress
+            .fraction(media.status, self.now)
+            .filter(|_| !(seekable && self.expansion.is_expanded()));
         let session = !self.session_controls(config, media, 1.0).is_empty();
         let session = session.then(|| {
             GroupItem::element(move |reveal| self.session_controls(config, media, reveal).into())
@@ -280,7 +283,7 @@ impl MediaGroup {
             .forward_handle_scroll(seekable)
             .item(GroupItem::hoverable_element(move |_| {
                 hoverable(
-                    track_face(config, media, opacity, self.now).map(GroupEvent::Group),
+                    track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
                     HoverTarget::Media,
                     GroupEvent::Tooltip,
                 )
@@ -313,11 +316,15 @@ impl MediaGroup {
 }
 
 fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaMessage> {
-    let label = GroupItem::element(move |reveal| {
-        rich_text(label_spans(config, media, reveal))
-            .size(config.font.text_size_px)
-            .line_height(LINE_HEIGHT)
-            .into()
+    let label = GroupItem::hoverable_element(move |reveal| {
+        hoverable(
+            rich_text(label_spans(config, media, reveal))
+                .size(config.font.text_size_px)
+                .line_height(LINE_HEIGHT)
+                .into(),
+            HoverTarget::Media,
+            GroupEvent::Tooltip,
+        )
     });
     if media.capabilities.raise {
         label.on_press(MediaMessage::Command(Command::Raise))
@@ -330,11 +337,11 @@ fn track_face<'a>(
     config: &Config,
     media: &Media,
     opacity: f32,
-    now: Instant,
+    gauge_fraction: Option<Ratio>,
 ) -> Element<'a, MediaMessage> {
     let side = config.font.icon_size_px;
     let cover = track_cover(config, media, opacity, side);
-    let Some(fraction) = media.progress.fraction(media.status, now) else {
+    let Some(fraction) = gauge_fraction else {
         return cover;
     };
     let color = config.palette.bar_foreground.scale_alpha(opacity);
@@ -395,23 +402,10 @@ fn source_icon<'a>(
 }
 
 fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>> {
-    let base = config.font.iced_font;
-    let italic = Font {
-        style: FontStyle::Italic,
-        ..base
-    };
-    let lead = config.palette.inactive.scale_alpha(reveal);
-    let main = config.palette.bar_foreground.scale_alpha(reveal);
-    let Some(artist) = &media.artist else {
-        let title = media.title.as_ref().unwrap_or(&media.identity);
-        return vec![colored_span(title.clone(), base, main)];
-    };
-    let Some(title) = &media.title else {
-        return vec![colored_span(artist.clone(), italic, main)];
-    };
-    vec![
-        colored_span(artist.clone(), italic, lead),
-        colored_span(SEPARATOR.to_owned(), base, lead),
-        colored_span(title.clone(), base, main),
-    ]
+    let title = media.title.as_ref().unwrap_or(&media.identity);
+    vec![colored_span(
+        title.clone(),
+        config.font.iced_font,
+        config.palette.bar_foreground.scale_alpha(reveal),
+    )]
 }
