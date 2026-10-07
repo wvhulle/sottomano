@@ -292,7 +292,8 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
         let toggle = expansion_event(ExpansionMessage::Toggle);
         let cursor_hovering = expansion.cursor_hovering;
-        let animated = expand_animation(expansion.expanded, EXPANSION_DURATION, move |reveal| {
+        let expanded = expansion.expanded;
+        let animated = expand_animation(expanded, EXPANSION_DURATION, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
@@ -329,7 +330,13 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
                 .align_y(Alignment::Center);
             PagerSlot::new(
                 inner.into(),
-                edge_indicator(config, highest_alert_severity, cursor_hovering, reveal),
+                edge_indicator(
+                    config,
+                    highest_alert_severity,
+                    cursor_hovering,
+                    expanded,
+                    reveal,
+                ),
             )
             .view(config, bar_position)
         });
@@ -373,16 +380,26 @@ fn edge_indicator<'a, Message: 'a>(
     config: &Config,
     alert_severity: Severity,
     cursor_hovering: bool,
+    expanded: bool,
     reveal: f32,
 ) -> Element<'a, Message> {
+    let thickness = config.widget_sizes.indicator_thickness_px;
     let base = if cursor_hovering { 0.5 } else { 0.2 };
-    let color = match alert_severity {
-        Severity::Low | Severity::Normal => config.palette.focus,
-        Severity::Warning | Severity::Critical => alert_severity.color(&config.palette),
-    };
-    activity_line(
-        color,
-        base + (1.0 - base) * reveal,
-        config.widget_sizes.indicator_thickness_px,
-    )
+    let revealing_opacity = base + (1.0 - base) * reveal;
+    match alert_severity {
+        Severity::Low | Severity::Normal if expanded => {
+            activity_line(config.palette.focus, revealing_opacity, thickness)
+        }
+        Severity::Low | Severity::Normal if cursor_hovering => {
+            activity_line(config.palette.bar_foreground, base, thickness)
+        }
+        Severity::Low | Severity::Normal => {
+            activity_line(config.palette.bar_foreground, 0.12, thickness)
+        }
+        Severity::Warning | Severity::Critical => activity_line(
+            alert_severity.color(&config.palette),
+            revealing_opacity,
+            thickness,
+        ),
+    }
 }
