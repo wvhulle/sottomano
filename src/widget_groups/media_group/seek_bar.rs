@@ -185,7 +185,9 @@ mod tests {
     use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 
     use super::*;
-    use crate::data::source::mpris::{Capabilities, DesktopEntry, Progress, Setting, Status};
+    use crate::data::source::mpris::{
+        Capabilities, DesktopEntry, OwnerProcess, Progress, Setting, Status,
+    };
 
     fn track(path: &str) -> SeekMode {
         SeekMode::Absolute(OwnedObjectPath::from(ObjectPath::try_from(path).unwrap()))
@@ -194,6 +196,7 @@ mod tests {
     fn paused_at(position: Duration, seek_mode: SeekMode, now: Instant) -> Media {
         Media {
             bus: "org.mpris.MediaPlayer2.test".to_owned(),
+            owner: OwnerProcess::Unidentified,
             identity: "test".to_owned(),
             desktop_entry: DesktopEntry::Undeclared,
             title: Some("track".to_owned()),

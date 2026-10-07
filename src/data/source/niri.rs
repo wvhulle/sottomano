@@ -234,7 +234,24 @@ pub struct Placement {
 struct WindowIdentity {
     id: u64,
     app_id: Option<String>,
-    title: Option<String>,
+    pid: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WindowOwner {
+    App(String),
+    Process(u32),
+}
+
+impl WindowIdentity {
+    fn owned_by(&self, owner: &WindowOwner) -> bool {
+        match owner {
+            WindowOwner::App(app_id) => self.app_id.as_ref() == Some(app_id),
+            WindowOwner::Process(pid) => self
+                .pid
+                .is_some_and(|window_pid| u32::try_from(window_pid) == Ok(*pid)),
+        }
+    }
 }
 
 impl Placement {
@@ -283,7 +300,7 @@ impl Placement {
             windows.push(WindowIdentity {
                 id: w.id,
                 app_id: w.app_id.clone(),
-                title: w.title.clone(),
+                pid: w.pid,
             });
         }
 
@@ -399,29 +416,9 @@ fn horizontal_edge(window_col: Option<usize>, ws_focused_col: Option<usize>) -> 
 }
 
 impl Placement {
-    pub fn window_by_source(&self, app_ids: &[String], title: Option<&str>) -> Option<u64> {
-        let app_id_needles: Vec<String> = app_ids
-            .iter()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_lowercase())
-            .collect();
-        let mut app_match = self.windows.iter().filter(|w| {
-            w.app_id
-                .as_ref()
-                .map(|a| a.to_lowercase())
-                .is_some_and(|a| !a.is_empty() && app_id_needles.contains(&a))
-        });
-        if let Some(only) = unique(&mut app_match) {
-            return Some(only.id);
-        }
-
-        let needle = title?.to_lowercase();
-        let mut title_match = self.windows.iter().filter(|w| {
-            w.title
-                .as_ref()
-                .is_some_and(|t| !t.is_empty() && t.to_lowercase().contains(&needle))
-        });
-        unique(&mut title_match).map(|w| w.id)
+    pub fn window_owned_by(&self, owner: &WindowOwner) -> Option<u64> {
+        let mut matching = self.windows.iter().filter(|window| window.owned_by(owner));
+        unique(&mut matching).map(|window| window.id)
     }
 }
 

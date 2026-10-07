@@ -12,9 +12,13 @@ use crate::{
     data::source::{
         desktop_entries::DesktopIndex,
         mpris,
-        mpris::{Command, Media, Progress, Status},
+        mpris::{Command, Media, OwnerProcess, Progress, Status},
+        niri::WindowOwner,
     },
-    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
+    desktop_shell::{
+        app_window_focus::AppWindowFocus,
+        hover_tooltips::{HoverTarget, hoverable},
+    },
     message_subscriptions::blocking,
     widgets::{
         bar_widget::Glyph,
@@ -76,6 +80,12 @@ pub enum MediaMessage {
     Quit,
     CancelQuit,
     Source(String),
+    RaiseByMpris,
+}
+
+pub enum Action {
+    Run(Task<MediaMessage>),
+    FocusAppWindow(AppWindowFocus<MediaMessage>),
 }
 
 impl MediaGroup {
@@ -103,7 +113,7 @@ impl MediaGroup {
             .or_else(|| self.players.first())
     }
 
-    pub fn update(&mut self, msg: MediaMessage) -> Task<MediaMessage> {
+    pub fn update(&mut self, msg: MediaMessage) -> Action {
         match msg {
             MediaMessage::Tick(now) => self.now = now,
             MediaMessage::Reading(reading) => {
@@ -119,21 +129,23 @@ impl MediaGroup {
                 }
             }
             MediaMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
-                return self.seek_by(SeekMessage::Scroll(delta));
+                return Action::Run(self.seek_by(SeekMessage::Scroll(delta)));
             }
             MediaMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
             MediaMessage::Source(bus) => return self.select(bus),
-            MediaMessage::Command(command) => return self.send(command),
-            MediaMessage::Seek(message) => return self.seek_by(message),
+            MediaMessage::Command(Command::Raise) => return self.raise(),
+            MediaMessage::RaiseByMpris => return Action::Run(self.raise_by_mpris()),
+            MediaMessage::Command(command) => return Action::Run(self.send(command)),
+            MediaMessage::Seek(message) => return Action::Run(self.seek_by(message)),
             MediaMessage::CancelQuit => self.quit_button.disarm(),
             MediaMessage::Quit => match self.quit_button.press() {
                 Press::Armed => {}
-                Press::Fire => return self.send(Command::Quit),
+                Press::Fire => return Action::Run(self.send(Command::Quit)),
             },
         }
-        Task::none()
+        Action::Run(Task::none())
     }
 
     fn seek_by(&mut self, message: SeekMessage) -> Task<MediaMessage> {
@@ -146,20 +158,35 @@ impl MediaGroup {
         self.seek(command)
     }
 
-    fn select(&mut self, bus: String) -> Task<MediaMessage> {
+    fn select(&mut self, bus: String) -> Action {
         let Some(current) = self.current() else {
-            return Task::none();
+            return Action::Run(Task::none());
         };
-        if current.bus != bus {
-            self.forced = Some(bus);
-            self.seek_bar.reset();
-            self.quit_button.disarm();
-            return Task::none();
+        if current.bus == bus {
+            return self.raise();
         }
-        if current.capabilities.raise {
-            return self.send(Command::Raise);
+        self.forced = Some(bus);
+        self.seek_bar.reset();
+        self.quit_button.disarm();
+        Action::Run(Task::none())
+    }
+
+    fn raise(&self) -> Action {
+        let Some(OwnerProcess::Identified(pid)) = self.current().map(|media| media.owner) else {
+            return Action::Run(self.raise_by_mpris());
+        };
+        Action::FocusAppWindow(AppWindowFocus {
+            owner: WindowOwner::Process(pid),
+            unmatched: MediaMessage::RaiseByMpris,
+        })
+    }
+
+    fn raise_by_mpris(&self) -> Task<MediaMessage> {
+        if self.current().is_some_and(|media| media.capabilities.raise) {
+            self.send(Command::Raise)
+        } else {
+            Task::none()
         }
-        Task::none()
     }
 
     fn send(&self, command: Command) -> Task<MediaMessage> {
@@ -326,7 +353,7 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
             GroupEvent::Tooltip,
         )
     });
-    if media.capabilities.raise {
+    if media.owner != OwnerProcess::Unidentified || media.capabilities.raise {
         label.on_press(MediaMessage::Command(Command::Raise))
     } else {
         label

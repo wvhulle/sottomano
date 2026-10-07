@@ -5,7 +5,7 @@ use crate::{
     config::Config,
     data::{
         notifications::model::NotificationData,
-        source::niri::{HEdge, Placement, VEdge},
+        source::niri::{HEdge, Placement, VEdge, WindowOwner},
     },
     state::OverlaySettings,
 };
@@ -54,16 +54,11 @@ pub struct AnchoredToast<'a> {
 }
 
 pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Option<u64> {
-    if let Some(hint) = data.window_id_hint {
-        return Some(hint);
-    }
-    let app_ids: Vec<String> = data
-        .desktop_entry
-        .iter()
-        .chain(&data.app_name)
-        .cloned()
-        .collect();
-    placement.window_by_source(&app_ids, data.app_name.as_deref())
+    data.window_id_hint.or_else(|| {
+        data.desktop_entry
+            .clone()
+            .and_then(|entry| placement.window_owned_by(&WindowOwner::App(entry)))
+    })
 }
 
 pub fn placement_for(

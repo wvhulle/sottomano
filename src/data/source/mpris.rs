@@ -22,7 +22,7 @@ use zbus::{
     blocking::Connection as BlockingConnection,
     fdo::{DBusProxy, NameOwnerChanged, PropertiesProxy},
     message::Type,
-    names::InterfaceName,
+    names::{BusName, InterfaceName},
     proxy,
     proxy::CacheProperties,
     zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
@@ -164,6 +164,27 @@ impl DesktopEntry {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnerProcess {
+    Identified(u32),
+    Unidentified,
+}
+
+impl OwnerProcess {
+    async fn of_bus(dbus: &DBusProxy<'_>, bus: &str) -> Self {
+        let Ok(name) = BusName::try_from(bus) else {
+            return Self::Unidentified;
+        };
+        match dbus.get_connection_unix_process_id(name).await {
+            Ok(pid) => Self::Identified(pid),
+            Err(e) => {
+                tracing::debug!("mpris {bus}: no owner process: {e}");
+                Self::Unidentified
+            }
+        }
+    }
+}
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Capabilities {
@@ -284,6 +305,7 @@ impl Progress {
 #[derive(Debug, Clone)]
 pub struct Media {
     pub bus: String,
+    pub owner: OwnerProcess,
     pub identity: String,
     pub desktop_entry: DesktopEntry,
     pub title: Option<String>,
@@ -415,7 +437,12 @@ async fn properties(
         .await?)
 }
 
-async fn read_media(connection: &Connection, bus: &str, art: &mut ArtCache) -> zbus::Result<Media> {
+async fn read_media(
+    connection: &Connection,
+    dbus: &DBusProxy<'_>,
+    bus: &str,
+    art: &mut ArtCache,
+) -> zbus::Result<Media> {
     let root = properties(connection, bus, ROOT_INTERFACE).await?;
     let player = properties(connection, bus, PLAYER_INTERFACE).await?;
     let Some(status) = player.text("PlaybackStatus") else {
@@ -433,6 +460,7 @@ async fn read_media(connection: &Connection, bus: &str, art: &mut ArtCache) -> z
     };
     Ok(Media {
         bus: bus.to_owned(),
+        owner: OwnerProcess::of_bus(dbus, bus).await,
         identity: root.text("Identity").unwrap_or_else(|| bus.to_owned()),
         desktop_entry: root.text("DesktopEntry").into(),
         title: metadata.text("xesam:title"),
@@ -465,8 +493,8 @@ struct PlayerScan<'a> {
 }
 
 impl PlayerScan<'_> {
-    async fn include(mut self, connection: &Connection, bus: String) -> Self {
-        match read_media(connection, &bus, self.art).await {
+    async fn include(mut self, connection: &Connection, dbus: &DBusProxy<'_>, bus: String) -> Self {
+        match read_media(connection, dbus, &bus, self.art).await {
             Ok(media) => self.players.push(media),
             Err(e) => tracing::debug!("mpris {bus}: {e}"),
         }
@@ -487,7 +515,7 @@ async fn read_all(connection: &Connection, dbus: &DBusProxy<'_>, art: &mut ArtCa
         art,
     };
     iter(mpris_names(dbus).await)
-        .fold(scan, |scan, bus| scan.include(connection, bus))
+        .fold(scan, |scan, bus| scan.include(connection, dbus, bus))
         .await
         .finish()
 }

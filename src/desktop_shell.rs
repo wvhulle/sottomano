@@ -1,3 +1,4 @@
+pub mod app_window_focus;
 pub mod bottom_bar;
 pub mod hover_tooltips;
 pub mod monitor_layout;
@@ -39,6 +40,7 @@ use crate::{
         },
     },
     desktop_shell::{
+        app_window_focus::AppWindowFocus,
         hover_tooltips::{TooltipHost, TooltipMessage},
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage},
@@ -58,7 +60,7 @@ use crate::{
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_group::{JournalGroup, JournalMessage},
-        media_group::{MediaGroup, MediaMessage},
+        media_group::{self, MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         niri_window_group::{NiriWindowGroup, NiriWindowMessage},
@@ -523,7 +525,12 @@ impl DesktopShell {
 
     fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
         let players_changed = matches!(msg, MediaMessage::Reading(_));
-        let task = self.media_group.update(msg).map(Message::Media);
+        let task = match self.media_group.update(msg) {
+            media_group::Action::Run(task) => task.map(Message::Media),
+            media_group::Action::FocusAppWindow(focus) => {
+                self.focus_app_window(focus, Message::Media)
+            }
+        };
         if players_changed {
             Task::batch([task, self.resolve_icons()])
         } else {
@@ -535,19 +542,21 @@ impl DesktopShell {
         match self.tray_group.update(msg) {
             tray_group::Action::None => Task::none(),
             tray_group::Action::MenuItemActivated => self.dismiss_tooltip(),
-            tray_group::Action::FocusWindow {
-                window_app_id,
-                item_id,
-            } => self.focus_tray_window(&window_app_id, &item_id),
+            tray_group::Action::FocusAppWindow(focus) => {
+                self.focus_app_window(focus, Message::Tray)
+            }
         }
     }
 
-    fn focus_tray_window(&self, window_app_id: &str, item_id: &str) -> Task<Message> {
-        let candidates = [String::from(window_app_id)];
-        let Some(window) = niri::Placement::derive(&self.niri).window_by_source(&candidates, None)
-        else {
-            tracing::debug!("tray: {item_id}: no window with app_id {window_app_id}");
-            return Task::none();
+    fn focus_app_window<M: Send + 'static>(
+        &self,
+        focus: AppWindowFocus<M>,
+        lift: fn(M) -> Message,
+    ) -> Task<Message> {
+        let placement = niri::Placement::derive(&self.niri);
+        let Some(window) = placement.window_owned_by(&focus.owner) else {
+            tracing::debug!("no single window owned by {:?}", focus.owner);
+            return Task::done(lift(focus.unmatched));
         };
         niri_action(niri_ipc::Action::FocusWindow { id: window })
     }
