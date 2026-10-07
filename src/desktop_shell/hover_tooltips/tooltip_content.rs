@@ -5,11 +5,10 @@ use std::{
 
 use chrono::Locale;
 use iced::{
-    Color, Element, Font, Padding,
+    Color, Element, Padding,
     alignment::{Horizontal, Vertical},
     border::Radius,
-    font::{Style as FontStyle, Weight},
-    widget::{Column, Container, Space, container, table},
+    widget::{Column, Container, Space, Text, container, table},
 };
 
 use crate::{
@@ -50,6 +49,7 @@ const COLUMN_GAP_PX: f32 = 14.0;
 const FOOTER_GAP_PX: f32 = 6.0;
 const SECTION_GAP_PX: f32 = 8.0;
 const TRAY_MENU_WIDTH_PX: f32 = 250.0;
+const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
 const FOOTER_SCALE: f32 = 0.85;
@@ -111,14 +111,10 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn footer(&self, info: RefreshInfo) -> Element<'static, Message> {
-        let italic = Font {
-            style: FontStyle::Italic,
-            ..self.config.font.iced_font
-        };
         container(
             bar_text(&self.config.font, footer_text(info, self.now))
                 .size(self.config.font.text_size_px * FOOTER_SCALE)
-                .font(italic)
+                .font(self.config.font.italic())
                 .color(self.dim()),
         )
         .padding(FOOTER_PADDING)
@@ -165,50 +161,47 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
+    fn bold_title(&self, title: &str) -> Text<'static> {
+        bar_text(&self.config.font, title.to_owned())
+            .font(self.config.font.bold())
+            .color(self.foreground())
+    }
+
     fn text(&self, title: &str, body: Option<&str>) -> Element<'static, Message> {
-        let bold = Font {
-            weight: Weight::Bold,
-            ..self.config.font.iced_font
-        };
         let max_width = self.config.widget_sizes.tooltip_value_width_px;
-        let mut column = Column::new().spacing(ROW_SPACING_PX).push(
-            container(
-                bar_text(&self.config.font, title.to_owned())
-                    .font(bold)
-                    .color(self.foreground()),
-            )
-            .max_width(max_width),
-        );
-        if let Some(body) = body {
-            column = column.push(cell(
-                &self.config.font,
-                body.to_owned(),
-                self.dim(),
-                max_width,
-            ));
-        }
-        column.into()
+        let title = container(self.bold_title(title)).max_width(max_width);
+        let body = body.map(|body| cell(&self.config.font, body.to_owned(), self.dim(), max_width));
+
+        Column::with_children(once(title).chain(body).map(Element::from))
+            .spacing(ROW_SPACING_PX)
+            .into()
     }
 
     fn sections(&self, sections: &[Section]) -> Element<'static, Message> {
-        let italic = Font {
-            style: FontStyle::Italic,
-            ..self.config.font.iced_font
-        };
-        let heading = self.config.palette.inactive;
-        let divider = self.config.palette.surface_raised;
-        let font = self.config.font.clone();
+        let filled = sections
+            .iter()
+            .filter(|section| !section.body.is_empty())
+            .map(|section| self.section(section));
 
-        let filled = sections.iter().filter(|section| !section.body.is_empty());
-        let mut column = Column::new().spacing(SECTION_GAP_PX);
-        for section in filled {
-            let mut group = Column::new().spacing(ROW_SPACING_PX);
-            if let Some(title) = &section.title {
-                group = group.push(bar_text(&font, title.clone()).font(italic).color(heading));
-            }
-            column = column.push(inset(group.push(self.body(&section.body)).into()));
-        }
-        section_column(column, divider, DIVIDER_THICKNESS_PX)
+        section_column(
+            Column::with_children(filled).spacing(SECTION_SEPARATION_PX),
+            self.config.palette.dim,
+            DIVIDER_THICKNESS_PX,
+        )
+    }
+
+    fn section(&self, section: &Section) -> Element<'static, Message> {
+        let title = section.title.as_deref().map(|title| {
+            container(self.bold_title(title))
+                .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0))
+                .into()
+        });
+
+        inset(
+            Column::with_children(title.into_iter().chain(once(self.body(&section.body))))
+                .spacing(ROW_SPACING_PX)
+                .into(),
+        )
     }
 
     fn body(&self, body: &SectionBody) -> Element<'static, Message> {
@@ -232,20 +225,15 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
-        let dim = self.dim();
-        let cell_view = self.cell_view();
         let widest = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
 
-        key_value_table(
-            rows.iter().cloned(),
-            move |entry: Row| cell_view.key(entry.key, dim),
+        self.key_value_table(
+            rows,
             (0..widest).map(|position| self.cell_column(position, Space::new().into())),
         )
     }
 
     fn headed_table(&self, headings: &[String], rows: &[Row]) -> Element<'static, Message> {
-        let dim = self.dim();
-        let cell_view = self.cell_view();
         let widest = rows
             .iter()
             .map(|row| row.cells.len())
@@ -254,20 +242,36 @@ impl<'a> TooltipContent<'a> {
             .unwrap_or(0);
         let heading_color = self.config.palette.inactive;
 
-        key_value_table(
-            rows.iter().cloned(),
-            move |entry: Row| cell_view.key(entry.key, dim),
+        self.key_value_table(
+            rows,
             (0..widest).map(|position| {
-                let heading = headings.get(position).map_or_else(
-                    || Space::new().into(),
-                    |heading| {
-                        column_heading(&self.config.font, heading.clone(), heading_color).into()
-                    },
-                );
-                self.cell_column(position, heading)
+                let heading = headings.get(position).map(|heading| {
+                    column_heading(&self.config.font, heading.clone(), heading_color)
+                });
+                self.cell_column(position, heading.into())
                     .align_x(Horizontal::Right)
             }),
         )
+    }
+
+    fn key_value_table(
+        &self,
+        rows: &[Row],
+        values: impl IntoIterator<Item = table::Column<'static, 'static, Row, Message>>,
+    ) -> Element<'static, Message> {
+        let dim = self.dim();
+        let cell_view = self.cell_view();
+        let key_column = table::column(Space::new(), move |entry: Row| {
+            cell_view.key(entry.key, dim)
+        })
+        .align_x(Horizontal::Right)
+        .align_y(Vertical::Top);
+
+        table::table(once(key_column).chain(values), rows.iter().cloned())
+            .separator(0.0)
+            .padding_x(COLUMN_GAP_PX / 2.0)
+            .padding_y(ROW_SPACING_PX / 2.0)
+            .into()
     }
 
     fn cell_column(
@@ -278,13 +282,14 @@ impl<'a> TooltipContent<'a> {
         let palette = self.config.palette.clone();
         let cell_view = self.cell_view();
 
-        value_column(heading, move |mut entry: Row| {
+        table::column(heading, move |mut entry: Row| {
             if position >= entry.cells.len() {
                 return Space::new().into();
             }
             let foreground = entry.level.color(&palette);
             cell_view.value(entry.cells.swap_remove(position), foreground)
         })
+        .align_y(Vertical::Top)
     }
 }
 
@@ -300,17 +305,13 @@ impl CellView {
     fn key(&self, key: Cell, color: Color) -> Element<'static, Message> {
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) | Cell::Link(text) => {
-                cell(&self.font, text, color, self.max_width).into()
-            }
-            Cell::Time { at, part } => cell(
-                &self.font,
-                part.format(&at, self.locale),
-                color,
-                self.max_width,
-            )
-            .into(),
+            Cell::Text(text) | Cell::Link(text) => self.text(text, color).into(),
+            Cell::Time { at, part } => self.text(part.format(&at, self.locale), color).into(),
         }
+    }
+
+    fn text(&self, text: String, color: Color) -> Container<'static, Message> {
+        cell(&self.font, text, color, self.max_width)
     }
 
     fn value(&self, value: Cell, color: Color) -> Element<'static, Message> {
@@ -323,7 +324,7 @@ impl CellView {
     }
 
     fn openable_link(&self, url: String) -> Element<'static, Message> {
-        let value = cell(&self.font, url.clone(), self.link, self.max_width);
+        let value = self.text(url.clone(), self.link);
         openable(value, url, Message::OpenUrl, self.link)
     }
 
@@ -332,34 +333,12 @@ impl CellView {
     }
 
     fn copyable_text(&self, text: String, color: Color) -> Element<'static, Message> {
-        let value = cell(&self.font, text.clone(), color, self.max_width);
+        let value = self.text(text.clone(), color);
         if text.trim().is_empty() {
             return value.into();
         }
         copyable(value, text, Message::CopyText, self.flash)
     }
-}
-
-fn key_value_table<'b, T: Clone + 'static>(
-    rows: impl IntoIterator<Item = T>,
-    key: impl Fn(T) -> Element<'static, Message> + 'b,
-    values: impl IntoIterator<Item = table::Column<'static, 'b, T, Message>>,
-) -> Element<'static, Message> {
-    let key_column = table::column(Space::new(), key)
-        .align_x(Horizontal::Right)
-        .align_y(Vertical::Top);
-    table::table(once(key_column).chain(values), rows)
-        .separator(0.0)
-        .padding_x(COLUMN_GAP_PX / 2.0)
-        .padding_y(ROW_SPACING_PX / 2.0)
-        .into()
-}
-
-fn value_column<'b, T: 'static>(
-    heading: Element<'static, Message>,
-    view: impl Fn(T) -> Element<'static, Message> + 'b,
-) -> table::Column<'static, 'b, T, Message> {
-    table::column(heading, view).align_y(Vertical::Top)
 }
 
 fn cell(

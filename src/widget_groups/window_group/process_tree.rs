@@ -2,9 +2,8 @@ use std::{collections::BTreeSet, time::Duration};
 
 use bytesize::ByteSize;
 use iced::{
-    Alignment, Color, Element, Font, Padding,
+    Alignment, Color, Element, Padding,
     alignment::{Horizontal, Vertical},
-    font::Weight,
     mouse::Interaction,
     widget::{Row, Space, container, mouse_area, table},
 };
@@ -158,10 +157,7 @@ impl<'a> ProcessTree<'a> {
         let dim = self.dim();
         let tint = self.tint();
         let font = self.config.font.clone();
-        let bold = Font {
-            weight: Weight::Bold,
-            ..self.config.font.iced_font
-        };
+        let bold = self.config.font.bold();
 
         table::table(
             [

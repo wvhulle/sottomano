@@ -1,4 +1,4 @@
-use iced::{Font, font::Style as FontStyle, widget::text::Span};
+use iced::{Font, widget::text::Span};
 
 use crate::{
     config::{Config, font::ResolvedFont},
@@ -41,11 +41,7 @@ pub fn title_runs(
     let Some(lead) = &parts.lead else {
         return main;
     };
-    let italic = Font {
-        style: FontStyle::Italic,
-        ..font.iced_font
-    };
-    let lead = runs(lead, italic, TitleRole::Lead);
+    let lead = runs(lead, font.italic(), TitleRole::Lead);
     let separator = runs(SEPARATOR, font.iced_font, TitleRole::Lead);
     if lead_first {
         lead.into_iter().chain(separator).chain(main).collect()
