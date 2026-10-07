@@ -12,7 +12,9 @@ use super::{
     DEFAULT_ACTION, NotificationLayer, ToastContext, WidgetToastRequests,
     reading_alert_toasts::{DismissedReadingAlert, ReadingAlertToastChanges, ToastSlotForAlert},
     toast_card::{self, CardIcons},
-    toast_lifecycle::{Countdown, Notification, NotificationMessage, ToastOrigin, lifetime},
+    toast_lifecycle::{
+        Countdown, ExitPace, Notification, NotificationMessage, ToastOrigin, lifetime,
+    },
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
@@ -380,6 +382,7 @@ impl NotificationLayer {
     pub(super) fn withdraw_showing(
         &mut self,
         candidates: impl IntoIterator<Item = u32>,
+        pace: ExitPace,
     ) -> Vec<u32> {
         let now = Instant::now();
         let closing: Vec<u32> = candidates
@@ -389,7 +392,7 @@ impl NotificationLayer {
         self.live
             .iter_mut()
             .filter(|n| closing.contains(&n.data.id))
-            .for_each(|n| n.withdraw(now));
+            .for_each(|n| n.withdraw(now, pace));
         self.prune_hover();
         closing
     }
@@ -400,7 +403,7 @@ impl NotificationLayer {
         reason: u32,
     ) -> Task<Message> {
         let closed = self
-            .withdraw_showing(candidates)
+            .withdraw_showing(candidates, reason.into())
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))
             .map(|id| Outbound::Closed { id, reason })
@@ -505,7 +508,7 @@ impl NotificationLayer {
         }
 
         outbound.extend(
-            self.withdraw_showing([id])
+            self.withdraw_showing([id], ExitPace::Dismissed)
                 .into_iter()
                 .map(|id| Outbound::Closed {
                     id,

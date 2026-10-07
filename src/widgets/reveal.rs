@@ -1,5 +1,5 @@
 use iced::{
-    Element, Event, Length, Rectangle, Size, Vector,
+    Element, Event, Length, Rectangle, Size, Transformation, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -19,25 +19,28 @@ pub fn reveal_x<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
 ) -> Element<'a, Message> {
-    reveal(content, fraction, Axis::Horizontal)
+    reveal(content, fraction, Axis::Horizontal, 1.0)
 }
 
 pub fn reveal_y<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
+    scale: f32,
 ) -> Element<'a, Message> {
-    reveal(content, fraction, Axis::Vertical)
+    reveal(content, fraction, Axis::Vertical, scale)
 }
 
 fn reveal<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     fraction: f32,
     axis: Axis,
+    scale: f32,
 ) -> Element<'a, Message> {
     Element::new(Reveal {
         content: content.into(),
         fraction: fraction.clamp(0.0, 1.0),
         axis,
+        scale,
     })
 }
 
@@ -45,6 +48,16 @@ struct Reveal<'a, Message> {
     content: Element<'a, Message>,
     fraction: f32,
     axis: Axis,
+    scale: f32,
+}
+
+impl<Message> Reveal<'_, Message> {
+    fn scaling_about_centre(&self, bounds: Rectangle) -> Transformation {
+        let centre = Vector::new(bounds.center_x(), bounds.center_y());
+        Transformation::translate(centre.x, centre.y)
+            * Transformation::scale(self.scale)
+            * Transformation::translate(-centre.x, -centre.y)
+    }
 }
 
 pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
@@ -146,10 +159,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
         viewport: &Rectangle,
     ) {
         let child = layout.children().next().unwrap();
+        let scaling = self.scaling_about_centre(child.bounds());
         let paint = |renderer: &mut iced::Renderer, visible: &Rectangle| {
-            self.content
-                .as_widget()
-                .draw(tree, renderer, theme, style, child, cursor, visible);
+            renderer.with_transformation(scaling, |renderer| {
+                self.content
+                    .as_widget()
+                    .draw(tree, renderer, theme, style, child, cursor, visible);
+            });
         };
         match self.clip(layout.bounds(), viewport) {
             Some(clip) => {
