@@ -251,12 +251,13 @@ impl NotificationLayer {
         self.live.retain(|n| n.data.id != id);
         let mut tasks = Vec::new();
         if let Some(window) = data.window_id_hint {
-            let dupes: Vec<u32> = self
+            let superseded: Vec<u32> = self
                 .showing()
                 .filter(|n| n.data.window_id_hint == Some(window))
+                .filter(|n| n.data.app_name == data.app_name)
                 .map(|n| n.data.id)
                 .collect();
-            tasks.push(self.close_all(dupes, close_reason::DISMISSED));
+            tasks.push(self.close_all(superseded, close_reason::UNDEFINED));
         }
         if notifications.sound && !data.suppress_sound {
             tasks.push(sound::play(&data, self.sound_theme.as_deref()));

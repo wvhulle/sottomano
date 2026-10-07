@@ -28,6 +28,18 @@ struct NotificationServer {
     events: mpsc::Sender<ServerEvent>,
 }
 
+impl NotificationServer {
+    fn replaced_or_fresh_id(&self, replaces_id: u32) -> u32 {
+        let issued_by_this_server =
+            replaces_id != 0 && replaces_id < self.next_id.load(Ordering::Relaxed);
+        if issued_by_this_server {
+            replaces_id
+        } else {
+            self.next_id.fetch_add(1, Ordering::Relaxed)
+        }
+    }
+}
+
 #[zbus::interface(name = "org.freedesktop.Notifications")]
 #[allow(clippy::unused_async_trait_impl, clippy::unused_self)]
 impl NotificationServer {
@@ -46,11 +58,7 @@ impl NotificationServer {
         #[zbus(connection)] connection: &Connection,
     ) -> u32 {
         let sender = sender_process(connection, &header).await;
-        let id = if replaces_id != 0 {
-            replaces_id
-        } else {
-            self.next_id.fetch_add(1, Ordering::Relaxed)
-        };
+        let id = self.replaced_or_fresh_id(replaces_id);
         let data = NotificationData {
             id,
             app_name: non_empty(app_name),
