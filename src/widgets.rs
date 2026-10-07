@@ -1,5 +1,6 @@
 pub mod activity_line;
 pub mod anchored_popup;
+pub mod announced_level;
 pub mod bar_widget;
 pub mod confirm_button;
 pub mod context_menu;

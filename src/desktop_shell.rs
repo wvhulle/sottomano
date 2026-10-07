@@ -77,6 +77,7 @@ use crate::{
         window_group::{self, WindowGroup, WindowGroupMessage, quick_launch::MAX_ITEMS},
     },
     widgets::{
+        announced_level::LevelReading,
         favicon::Favicons,
         reading_alert::ReadingAlert,
         text::FontFallbacks,
@@ -287,14 +288,27 @@ impl DesktopShell {
         let _span = tracing::trace_span!("update", ?message).entered();
         let tooltip_seq = self.tooltip.seq();
         let dispatched = self.dispatch_message(message);
+        let (reading_alerts, level_readings) = self.reading_alerts_and_levels();
         let alert_toasts = self.notifications.show_reading_alerts(
-            &self.reading_alerts(),
+            &reading_alerts,
             &self.niri,
             self.desktop_entries.get(),
             &self.config,
             &self.shell_settings,
         );
-        Task::batch([dispatched, alert_toasts, self.redraw_content(tooltip_seq)])
+        let level_toasts = self.notifications.announce_level_changes(
+            &level_readings,
+            &self.niri,
+            self.desktop_entries.get(),
+            &self.config,
+            &self.shell_settings,
+        );
+        Task::batch([
+            dispatched,
+            alert_toasts,
+            level_toasts,
+            self.redraw_content(tooltip_seq),
+        ])
     }
 
     fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {
@@ -306,10 +320,15 @@ impl DesktopShell {
         )
     }
 
-    fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {
-        self.all_widget_groups()
-            .flat_map(|group| group.alerts)
-            .collect()
+    fn reading_alerts_and_levels(&self) -> (Vec<ReadingAlert<Message>>, Vec<LevelReading>) {
+        self.all_widget_groups().fold(
+            (Vec::new(), Vec::new()),
+            |(mut alerts, mut levels), group| {
+                alerts.extend(group.alerts);
+                levels.extend(group.levels);
+                (alerts, levels)
+            },
+        )
     }
 
     fn dispatch_message(&mut self, message: Message) -> Task<Message> {

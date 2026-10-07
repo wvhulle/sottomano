@@ -71,7 +71,8 @@ impl Default for AudioGroup {
             .relative_scroll()
             .right_click(true)
             .readout(|value| format!("{}%", as_percent(value)))
-            .thresholds(80.0, 95.0, true),
+            .thresholds(80.0, 95.0, true)
+            .announces_level("Speaker"),
             source_control: SliderControl::new(
                 RANGE,
                 HoverTarget::AudioSource,
@@ -82,7 +83,8 @@ impl Default for AudioGroup {
             .right_click(true)
             .readout(|value| format!("{}%", as_percent(value)))
             .glyph(input_glyph)
-            .thresholds(50.0, 15.0, false),
+            .thresholds(50.0, 15.0, false)
+            .announces_level("Microphone"),
         }
     }
 }

@@ -97,6 +97,11 @@ impl DeviceSetting {
             .then_some(self.device_feedback.reported_value)
     }
 
+    pub fn follows_device(&self) -> bool {
+        matches!(self.user_request, UserRequest::FollowingDevice)
+            && !self.outgoing_write.is_outstanding()
+    }
+
     pub fn drag_moved_to(&mut self, requested_value: f32) -> Option<Write> {
         self.user_request = UserRequest::DraggingTo { requested_value };
         self.write_requested_value()

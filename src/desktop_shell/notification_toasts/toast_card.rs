@@ -23,7 +23,10 @@ use crate::{
     },
     desktop_shell::hover_tooltips::relative,
     state::ShellSettings,
-    widgets::text::{LINE_HEIGHT, bar_text},
+    widgets::{
+        bar_widget::Glyph,
+        text::{LINE_HEIGHT, bar_text},
+    },
 };
 
 const PADDING_PX: f32 = 10.0;
@@ -39,6 +42,7 @@ const PROGRESS_GIRTH_PX: f32 = 6.0;
 pub enum CardIcon {
     Raster(image::Handle),
     Svg(svg::Handle),
+    Glyph(Glyph),
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +75,13 @@ pub struct CardIcons {
 }
 
 impl CardIcons {
+    pub fn of_glyph(glyph: Glyph) -> Self {
+        Self {
+            image: CardImage::Icon(CardIcon::Glyph(glyph)),
+            badge: None,
+        }
+    }
+
     pub fn previewed_file(&self) -> Option<&Path> {
         match &self.image {
             CardImage::Preview { file, .. } => Some(file),
@@ -168,6 +179,7 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
     fn from(card: ToastCard<'_>) -> Self {
         let id = card.notif.data.id;
         let style = card.style();
+        let text = style.text_color.unwrap_or_default();
         let mut body_row = Row::new()
             .spacing(BODY_ROW_SPACING)
             .align_y(Alignment::Center);
@@ -175,10 +187,11 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
             &card.notif.icons,
             &card.config.toasts.card_size,
             card.reveal,
+            text,
         ) {
             body_row = body_row.push(icon);
         }
-        body_row = body_row.push(card.column(style.text_color.unwrap_or_default()));
+        body_row = body_row.push(card.column(text));
 
         let framed_card = container(body_row)
             .width(Length::Fixed(card.config.toasts.card_size.card_width_px))
@@ -300,6 +313,7 @@ impl ToastCard<'_> {
                 icon,
                 self.config.toasts.card_size.image_preview_max_height_px,
                 self.reveal,
+                text,
             ));
         }
         if let Progress::Percent(percent) = data.progress {
@@ -447,23 +461,29 @@ fn icon_slot<'a>(
     icons: &CardIcons,
     card_size: &ToastCardSizeConfig,
     reveal: f32,
+    text: Color,
 ) -> Option<Element<'a, NotificationMessage>> {
     let CardImage::Icon(image) = &icons.image else {
         return icons
             .badge
             .as_ref()
-            .map(|badge| icon_widget(badge, card_size.icon_size_px, reveal));
+            .map(|badge| icon_widget(badge, card_size.icon_size_px, reveal, text));
     };
     let main_size = card_size.icon_size_px;
-    let main = icon_widget(image, main_size, reveal);
+    let main = icon_widget(image, main_size, reveal, text);
     let Some(badge) = &icons.badge else {
         return Some(main);
     };
-    let overlay = container(icon_widget(badge, card_size.app_badge_size_px, reveal))
-        .width(main_size)
-        .height(main_size)
-        .align_x(Alignment::Start)
-        .align_y(Alignment::Start);
+    let overlay = container(icon_widget(
+        badge,
+        card_size.app_badge_size_px,
+        reveal,
+        text,
+    ))
+    .width(main_size)
+    .height(main_size)
+    .align_x(Alignment::Start)
+    .align_y(Alignment::Start);
     Some(iced::widget::stack![main, overlay].clip(true).into())
 }
 
@@ -471,6 +491,7 @@ fn preview_widget<'a>(
     icon: &CardIcon,
     max_height: f32,
     reveal: f32,
+    text: Color,
 ) -> Element<'a, NotificationMessage> {
     let preview: Element<'a, NotificationMessage> = match icon {
         CardIcon::Raster(handle) => image(handle.clone())
@@ -483,6 +504,7 @@ fn preview_widget<'a>(
             .content_fit(ContentFit::ScaleDown)
             .opacity(reveal)
             .into(),
+        CardIcon::Glyph(glyph) => glyph.view(max_height, text.scale_alpha(reveal)),
     };
     container(preview).max_height(max_height).into()
 }
@@ -498,8 +520,14 @@ fn progress_widget<'a>(percent: u8, text: Color) -> Element<'a, NotificationMess
         .into()
 }
 
-fn icon_widget<'a>(icon: &CardIcon, size: f32, reveal: f32) -> Element<'a, NotificationMessage> {
+fn icon_widget<'a>(
+    icon: &CardIcon,
+    size: f32,
+    reveal: f32,
+    text: Color,
+) -> Element<'a, NotificationMessage> {
     match icon {
+        CardIcon::Glyph(glyph) => glyph.view(size, text.scale_alpha(reveal)),
         CardIcon::Raster(handle) => image(handle.clone())
             .width(size)
             .height(size)

@@ -15,6 +15,7 @@ use crate::{
     desktop_shell::hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
     message_subscriptions::blocking,
     widgets::{
+        announced_level::{AnnouncedLevel, LevelAnnouncement},
         bar_widget::{BarWidget, Glyph},
         device_setting::{DeviceSetting, Nudge, Write},
         expand_animation::expand_animation,
@@ -76,6 +77,7 @@ pub struct SliderControl {
     target: HoverTarget,
     right_click: bool,
     relative_scroll: bool,
+    level_announcement: Option<LevelAnnouncement>,
 }
 
 #[derive(Default)]
@@ -161,6 +163,7 @@ impl SliderControl {
             target,
             right_click: false,
             relative_scroll: false,
+            level_announcement: None,
         }
     }
 
@@ -227,6 +230,17 @@ impl SliderControl {
     pub fn relative_scroll(mut self) -> Self {
         self.relative_scroll = true;
         self
+    }
+
+    #[must_use]
+    pub fn announces_level(mut self, summary_text: &'static str) -> Self {
+        self.level_announcement = Some(LevelAnnouncement::new(summary_text));
+        self
+    }
+
+    fn fill(&self) -> Ratio {
+        let span = self.range.end() - self.range.start();
+        Ratio::new::<ratio::ratio>(f64::from((self.current() - self.range.start()) / span))
     }
 
     pub fn close(&mut self) {
@@ -303,8 +317,14 @@ impl SliderControl {
                 into_action(self.device_setting.relative_write_finished(resolved))
             }
             ControlMessage::Reading(reading) => {
+                let followed_device = self.device_setting.follows_device();
+                let shown_before = self.current();
                 self.device_setting
                     .device_reported(reading, self.slider_step);
+                let moved = (self.current() - shown_before).abs() >= self.slider_step / 2.0;
+                if let Some(announcement) = &mut self.level_announcement {
+                    announcement.device_reported(followed_device && moved);
+                }
                 Action::None
             }
             ControlMessage::Level(level) => {
@@ -312,7 +332,11 @@ impl SliderControl {
                 Action::None
             }
             ControlMessage::Disabled(disabled) => {
+                let toggled = disabled != self.disabled;
                 self.disabled = disabled;
+                if let Some(announcement) = &mut self.level_announcement {
+                    announcement.device_reported(toggled);
+                }
                 Action::None
             }
             ControlMessage::Right => Action::Right,
@@ -415,6 +439,12 @@ impl BarWidget for SliderControl {
     fn live_gauge(&self) -> Option<Ratio> {
         self.gauge()
             .map(|fill| fill * Ratio::new::<ratio::ratio>(f64::from(self.live)))
+    }
+
+    fn announced_level(&self) -> Option<AnnouncedLevel> {
+        self.level_announcement
+            .as_ref()?
+            .level(self.fill(), self.disabled, self.readout_text())
     }
 
     fn tooltip(&self) -> TooltipBody {

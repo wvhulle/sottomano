@@ -13,8 +13,8 @@ use crate::{
         notifications::model::{ExpireTimeout, NotifHandle, NotificationData, ServerEvent},
         severity::Severity,
     },
-    desktop_shell::Message,
-    widgets::reading_alert::ReadingAlert,
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    widgets::{announced_level::LevelReading, bar_widget::Glyph, reading_alert::ReadingAlert},
 };
 
 const PRESENCE: Duration = Duration::from_millis(90);
@@ -23,6 +23,20 @@ pub enum ToastOrigin {
     DbusClient,
     ReadingAlert(Box<ReadingAlert<Message>>),
     ConfigError,
+    LevelAnnouncement(Box<LevelReading>),
+}
+
+impl ToastOrigin {
+    pub(super) fn answers_user_input(&self) -> bool {
+        matches!(self, Self::LevelAnnouncement(_))
+    }
+
+    pub(super) fn glyph(&self) -> Option<Glyph> {
+        match self {
+            Self::LevelAnnouncement(reading) => Some(reading.glyph),
+            Self::DbusClient | Self::ReadingAlert(_) | Self::ConfigError => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -107,8 +121,14 @@ impl Notification {
     pub(super) fn reading_alert(&self) -> Option<&ReadingAlert<Message>> {
         match &self.origin {
             ToastOrigin::ReadingAlert(alert) => Some(alert),
-            ToastOrigin::DbusClient | ToastOrigin::ConfigError => None,
+            ToastOrigin::DbusClient
+            | ToastOrigin::ConfigError
+            | ToastOrigin::LevelAnnouncement(_) => None,
         }
+    }
+
+    pub(super) fn announces_level_of(&self, hover_target: &HoverTarget) -> bool {
+        matches!(&self.origin, ToastOrigin::LevelAnnouncement(reading) if reading.hover_target == *hover_target)
     }
 
     pub(super) fn sent_by_dbus_client(&self) -> bool {
@@ -199,6 +219,7 @@ mod tests {
             low_severity_timeout_ms: 8_000,
             normal_severity_timeout_ms: 12_000,
             critical_severity_timeout_ms: 0,
+            level_announcement_timeout_ms: 1_500,
         }
     }
 
