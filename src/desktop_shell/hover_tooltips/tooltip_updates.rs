@@ -1,13 +1,16 @@
-use iced::Task;
+use iced::{Rectangle, Task};
 
 use crate::{
-    data::source::process::Watched,
+    data::source::process::{self, Watched},
     desktop_shell::{
         DesktopShell, Message,
         hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
-    widget_groups::workspaces_group::workspace_tooltip,
+    widget_groups::{
+        window_group::{WindowGroupMessage, window_list::WindowListMessage},
+        workspaces_group::workspace_tooltip,
+    },
     widgets::tooltip_body::Tooltip,
 };
 
@@ -31,18 +34,35 @@ impl DesktopShell {
                 if let Some(intent) = self.tooltip.defer_switch(&parent, &target, anchor) {
                     return intent;
                 }
-                self.tooltip.open(&parent, target, anchor);
-                Task::none()
+                self.open_tooltip(&parent, target, anchor)
             }
             TooltipMessage::SwitchIntentElapsed { seq } => {
-                if let Some(pending) = self.tooltip.take_pending_switch(seq) {
-                    self.tooltip
-                        .open(&pending.parent, pending.target, pending.anchor);
-                }
-                Task::none()
+                let Some(pending) = self.tooltip.take_pending_switch(seq) else {
+                    return Task::none();
+                };
+                self.open_tooltip(&pending.parent, pending.target, pending.anchor)
             }
             other => self.tooltip.update(other),
         }
+    }
+
+    fn open_tooltip(
+        &mut self,
+        parent: &PanelEdge,
+        target: HoverTarget,
+        anchor: Rectangle,
+    ) -> Task<Message> {
+        self.tooltip.open(parent, target, anchor);
+        let Some(watched) = self.watched_window() else {
+            return Task::none();
+        };
+        Task::future(process::inspected(watched))
+            .and_then(Task::done)
+            .map(|inspection| {
+                Message::WindowGroup(WindowGroupMessage::WindowList(
+                    WindowListMessage::ProcessInspected(inspection),
+                ))
+            })
     }
 
     fn tooltip_departure(&self) -> Option<Departed> {

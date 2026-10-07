@@ -1,11 +1,9 @@
 use std::env;
 
-use iced::futures::{
-    Stream, StreamExt,
-    future::ready,
-    stream::{self, BoxStream},
-};
+use iced::futures::{Stream, StreamExt, future::ready};
 use zbus::{blocking, proxy};
+
+use crate::message_subscriptions::restarting;
 
 #[proxy(
     interface = "org.freedesktop.login1.Manager",
@@ -47,19 +45,10 @@ pub fn lock() {
 }
 
 pub fn resumes() -> impl Stream<Item = ()> {
-    stream::once(async {
-        match resume_signals().await {
-            Ok(resumes) => resumes.boxed(),
-            Err(e) => {
-                tracing::warn!("resume signal: {e}");
-                stream::empty().boxed()
-            }
-        }
-    })
-    .flatten()
+    restarting("resume signal", resume_signals)
 }
 
-async fn resume_signals() -> zbus::Result<BoxStream<'static, ()>> {
+async fn resume_signals() -> zbus::Result<impl Stream<Item = ()>> {
     let connection = zbus::Connection::system().await?;
     let manager = ManagerProxy::new(&connection).await?;
     let resumes = manager
@@ -69,5 +58,5 @@ async fn resume_signals() -> zbus::Result<BoxStream<'static, ()>> {
             let resumed = signal.args().is_ok_and(|args| !*args.start());
             ready(resumed.then_some(()))
         });
-    Ok(resumes.boxed())
+    Ok(resumes)
 }

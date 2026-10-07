@@ -1,6 +1,6 @@
 use std::{thread, time::Duration};
 
-use iced::Task;
+use iced::{Task, task};
 
 use crate::{
     config::Config,
@@ -10,7 +10,7 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         idle::{
-            IdleAction, IdleTrigger, perform,
+            IdleAction, IdleTrigger, perform, perform_when_idle,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
         phosphor::{Phosphor, Weight},
@@ -44,6 +44,7 @@ pub struct IdleTimeoutsGroup {
     screen_off: IdleTimer,
     standby: IdleTimer,
     power_down: IdleTimer,
+    idle_watcher: Option<task::Handle>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -81,6 +82,7 @@ impl Default for IdleTimeoutsGroup {
                 IdleAction::PowerOff,
                 true,
             ),
+            idle_watcher: None,
             expansion: GroupExpansion::default(),
         }
     }
@@ -136,7 +138,7 @@ impl IdleTimeoutsGroup {
                 self.screen_off.set_timeout(timeouts.screen_off);
                 self.standby.set_timeout(timeouts.standby);
                 self.power_down.set_timeout(timeouts.power_down);
-                Task::none()
+                self.rearm()
             }
             IdleTimeoutsMessage::Expansion(m) => {
                 if self.expansion.update(m) {
@@ -150,13 +152,15 @@ impl IdleTimeoutsGroup {
                     self.close_others(kind);
                     Task::none()
                 }
-                TimerChange::Persist(value) => Task::future(state::idle::save(self.timeouts()))
-                    .map(move |ok| {
+                TimerChange::Persist(value) => {
+                    let persist = Task::future(state::idle::save(self.timeouts())).map(move |ok| {
                         IdleTimeoutsMessage::Timer(
                             kind,
                             TimerMessage::Slider(ControlMessage::Persisted { value, ok }),
                         )
-                    }),
+                    });
+                    Task::batch([persist, self.rearm()])
+                }
                 TimerChange::Fire(action) => {
                     self.close_others(kind);
                     blocking("idle action", move || {
@@ -185,7 +189,15 @@ impl IdleTimeoutsGroup {
             .map(|(_, timer)| timer.tooltip())
     }
 
-    pub fn triggers(&self) -> Vec<IdleTrigger> {
+    fn rearm(&mut self) -> Task<IdleTimeoutsMessage> {
+        let (watcher, handle) = Task::future(perform_when_idle(self.triggers()))
+            .discard()
+            .abortable();
+        self.idle_watcher = Some(handle.abort_on_drop());
+        watcher
+    }
+
+    fn triggers(&self) -> Vec<IdleTrigger> {
         self.entries()
             .into_iter()
             .filter_map(|(_, timer)| timer.trigger())

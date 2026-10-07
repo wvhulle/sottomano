@@ -4,10 +4,7 @@ pub mod umbra_dark_mode;
 use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use iced::{
-    Subscription, Task,
-    futures::{Stream, StreamExt, stream},
-};
+use iced::{Subscription, Task, task};
 use tokio::time::sleep;
 
 use crate::{
@@ -47,7 +44,13 @@ pub struct DarkModeGroup {
     auto_switch_toggle: AutoSwitchToggle,
     sunrise_offset_slider: SliderControl,
     sunset_offset_slider: SliderControl,
+    armed_switch: Option<ArmedSwitch>,
     pub(crate) expansion: GroupExpansion,
+}
+
+struct ArmedSwitch {
+    at: DateTime<Utc>,
+    _timer: task::Handle,
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +74,7 @@ impl Default for DarkModeGroup {
                 WeatherIcon::Sunrise,
             ),
             sunset_offset_slider: new_offset_slider(HoverTarget::SunsetOffset, WeatherIcon::Sunset),
+            armed_switch: None,
             expansion: GroupExpansion::default(),
         }
     }
@@ -85,22 +89,42 @@ impl DarkModeGroup {
     }
 
     pub fn subscription(&self) -> Subscription<DarkModeMessage> {
-        let upcoming_switch = match self.auto_switch_toggle.status_at(Utc::now()) {
-            ScheduleStatus::Following { upcoming, .. } => {
-                Subscription::run_with(upcoming.switch_time, wait_until_switch)
-            }
-            ScheduleStatus::Disarmed
-            | ScheduleStatus::AwaitingLocationFix
-            | ScheduleStatus::NoSunEvents => Subscription::none(),
-        };
         Subscription::batch([
             self.mode_toggle
                 .subscription(())
                 .map(DarkModeMessage::ModeToggle),
             Subscription::run(Location::published).map(DarkModeMessage::LocationFix),
             Subscription::run(logind::resumes).map(|()| DarkModeMessage::SwitchDue),
-            upcoming_switch,
         ])
+    }
+
+    fn upcoming_switch(&self) -> Option<DateTime<Utc>> {
+        match self.auto_switch_toggle.status_at(Utc::now()) {
+            ScheduleStatus::Following { upcoming, .. } => Some(upcoming.switch_time),
+            ScheduleStatus::Disarmed
+            | ScheduleStatus::AwaitingLocationFix
+            | ScheduleStatus::NoSunEvents => None,
+        }
+    }
+
+    fn rearm_switch(&mut self) -> Task<DarkModeMessage> {
+        let upcoming = self.upcoming_switch();
+        if self.armed_switch.as_ref().map(|armed| armed.at) == upcoming {
+            return Task::none();
+        }
+        let Some(at) = upcoming else {
+            self.armed_switch = None;
+            return Task::none();
+        };
+        let remaining = (at - Utc::now()).to_std().unwrap_or_default();
+        let (timer, handle) = Task::future(sleep(remaining + SWITCH_TIMER_MARGIN))
+            .map(|()| DarkModeMessage::SwitchDue)
+            .abortable();
+        self.armed_switch = Some(ArmedSwitch {
+            at,
+            _timer: handle.abort_on_drop(),
+        });
+        timer
     }
 
     fn close_controls(&mut self) {
@@ -115,6 +139,11 @@ impl DarkModeGroup {
     }
 
     pub fn update(&mut self, msg: DarkModeMessage) -> Task<DarkModeMessage> {
+        let handled = self.handle(msg);
+        Task::batch([handled, self.rearm_switch()])
+    }
+
+    fn handle(&mut self, msg: DarkModeMessage) -> Task<DarkModeMessage> {
         match msg {
             DarkModeMessage::ScheduleLoaded(saved) => {
                 self.auto_switch_toggle.saved_schedule = saved;
@@ -269,11 +298,6 @@ fn new_offset_slider(target: HoverTarget, icon: WeatherIcon) -> SliderControl {
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)
         .readout(|minutes| format_offset_minutes(minutes_to_time_delta(minutes)))
-}
-
-fn wait_until_switch(switch_time: &DateTime<Utc>) -> impl Stream<Item = DarkModeMessage> + use<> {
-    let remaining = (*switch_time - Utc::now()).to_std().unwrap_or_default();
-    stream::once(sleep(remaining + SWITCH_TIMER_MARGIN)).map(|()| DarkModeMessage::SwitchDue)
 }
 
 fn minutes_to_time_delta(minutes: f32) -> TimeDelta {

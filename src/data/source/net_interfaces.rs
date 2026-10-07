@@ -22,6 +22,8 @@ use zbus::{
     zvariant::OwnedValue,
 };
 
+use crate::message_subscriptions::restarting;
+
 pub(crate) type Properties = HashMap<String, OwnedValue>;
 
 const SIGNAL_BURST_LIMIT: usize = 64;
@@ -44,31 +46,11 @@ pub(crate) fn kept_readings<T>(
 pub(crate) fn once_then_per_burst(
     subscribed_signals: impl Stream<Item = ()>,
 ) -> impl Stream<Item = ()> {
-    stream::once(ready(())).chain(
+    stream::iter([()]).chain(
         subscribed_signals
             .ready_chunks(SIGNAL_BURST_LIMIT)
-            .map(|_| ()),
+            .map(drop),
     )
-}
-
-fn once_subscribed<T, S>(
-    label: &'static str,
-    subscribe: impl Future<Output = zbus::Result<S>>,
-) -> impl Stream<Item = Option<T>>
-where
-    S: Stream<Item = Option<T>>,
-{
-    stream::once(subscribe)
-        .filter_map(move |subscribed| {
-            ready(match subscribed {
-                Ok(readings) => Some(readings),
-                Err(e) => {
-                    tracing::warn!("{label}: watch failed: {e}");
-                    None
-                }
-            })
-        })
-        .flatten()
 }
 
 pub(crate) fn nm_readings<T, F>(
@@ -79,7 +61,7 @@ where
     T: Send + 'static,
     F: Future<Output = zbus::Result<Option<T>>> + Send + 'static,
 {
-    once_subscribed(label, subscribe_nm(label, read))
+    restarting(label, move || subscribe_nm(label, read))
 }
 
 async fn subscribe_nm<T, F>(
@@ -102,10 +84,9 @@ pub(crate) fn managed_objects_readings<T: Send + 'static>(
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
 ) -> impl Stream<Item = Option<T>> {
-    once_subscribed(
-        label,
-        subscribe_managed_objects(label, service, path, reading),
-    )
+    restarting(label, move || {
+        subscribe_managed_objects(label, service, path, reading)
+    })
 }
 
 async fn subscribe_managed_objects<T: Send + 'static>(

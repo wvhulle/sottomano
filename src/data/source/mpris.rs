@@ -10,12 +10,12 @@ use iced::{
     futures::{
         Stream, StreamExt,
         future::ready,
-        stream::{self, BoxStream, iter, select},
+        stream::{self, iter, select},
     },
     widget::image,
 };
 use reqwest::Url;
-use tokio::time::{Duration, sleep};
+use tokio::time::Duration;
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
     Connection, MatchRule, MessageStream,
@@ -28,14 +28,14 @@ use zbus::{
     zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
 };
 
+use crate::message_subscriptions::restarting;
+
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
 const PLAYERCTLD: &str = "org.mpris.MediaPlayer2.playerctld";
 const PATH: &str = "/org/mpris/MediaPlayer2";
 const ROOT_INTERFACE: &str = "org.mpris.MediaPlayer2";
 const PLAYER_INTERFACE: &str = "org.mpris.MediaPlayer2.Player";
 const NO_TRACK: &str = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
-const RECONNECT_DELAY: Duration = Duration::from_secs(2);
-
 type Properties = HashMap<String, OwnedValue>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -546,63 +546,44 @@ pub fn subscription() -> Subscription<Vec<Media>> {
 }
 
 fn readings() -> impl Stream<Item = Vec<Media>> {
-    stream::repeat_with(session_readings).flatten()
+    restarting("mpris", connect)
 }
 
-fn session_readings() -> impl Stream<Item = Vec<Media>> {
-    stream::once(Session::connect())
-        .filter_map(connected)
-        .flat_map(Session::readings)
-        .chain(stream::once(sleep(RECONNECT_DELAY)).filter_map(|()| ready(None)))
-}
-
-async fn connected(session: zbus::Result<Session>) -> Option<Session> {
-    match session {
-        Ok(session) => Some(session),
-        Err(e) => {
-            tracing::warn!("mpris: {e}");
-            None
-        }
-    }
-}
-
-struct Session {
+struct Session<Changes> {
     connection: Connection,
     dbus: DBusProxy<'static>,
-    changes: BoxStream<'static, ()>,
+    changes: Changes,
     art: ArtCache,
 }
 
-impl Session {
-    async fn connect() -> zbus::Result<Self> {
-        let connection = Connection::session().await?;
-        let dbus = DBusProxy::new(&connection).await?;
-        let properties = signals(
-            &connection,
-            "org.freedesktop.DBus.Properties",
-            "PropertiesChanged",
-        )
+async fn connect() -> zbus::Result<impl Stream<Item = Vec<Media>>> {
+    let connection = Connection::session().await?;
+    let dbus = DBusProxy::new(&connection).await?;
+    let properties = signals(
+        &connection,
+        "org.freedesktop.DBus.Properties",
+        "PropertiesChanged",
+    )
+    .await?
+    .map(drop);
+    let seeks = signals(&connection, PLAYER_INTERFACE, "Seeked")
         .await?
         .map(drop);
-        let seeks = signals(&connection, PLAYER_INTERFACE, "Seeked")
-            .await?
-            .map(drop);
-        let owners = dbus
-            .receive_name_owner_changed()
-            .await?
-            .filter(|signal| ready(names_player(signal)))
-            .map(drop);
-        let initial = stream::once(ready(()));
-        Ok(Self {
-            changes: initial
-                .chain(select(select(properties, seeks), owners))
-                .boxed(),
-            connection,
-            dbus,
-            art: ArtCache::new(),
-        })
-    }
+    let owners = dbus
+        .receive_name_owner_changed()
+        .await?
+        .filter(|signal| ready(names_player(signal)))
+        .map(drop);
+    let session = Session {
+        changes: stream::iter([()]).chain(select(select(properties, seeks), owners)),
+        connection,
+        dbus,
+        art: ArtCache::new(),
+    };
+    Ok(session.readings())
+}
 
+impl<Changes: Stream<Item = ()> + Unpin + Send> Session<Changes> {
     fn readings(self) -> impl Stream<Item = Vec<Media>> {
         stream::unfold(self, |mut session| async move {
             let players = session.next_reading().await?;
@@ -636,10 +617,10 @@ fn names_player(signal: &NameOwnerChanged) -> bool {
         .is_ok_and(|args| args.name().as_str().starts_with(PREFIX))
 }
 
-pub fn control(bus: &str, command: Command) {
-    if let Err(e) = send_command(bus, command) {
-        tracing::warn!("mpris {bus}: {e}");
-    }
+pub fn control(bus: &str, command: Command) -> bool {
+    send_command(bus, command)
+        .inspect_err(|e| tracing::warn!("mpris {bus}: {e}"))
+        .is_ok()
 }
 
 fn send_command(bus: &str, command: Command) -> zbus::Result<()> {

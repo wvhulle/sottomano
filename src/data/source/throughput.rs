@@ -1,23 +1,20 @@
 use std::{
     collections::BTreeMap,
     fs,
+    future::ready,
     marker::PhantomData,
     ops::Add,
     path::Path,
-    pin::pin,
     time::{Duration, Instant},
 };
 
 use bytesize::ByteSize;
 use iced::{
     Subscription,
-    futures::{SinkExt, StreamExt, channel::mpsc::Sender},
-    stream::channel,
+    futures::{Stream, StreamExt, stream::select},
 };
-use tokio::{
-    select,
-    time::{MissedTickBehavior, interval},
-};
+use tokio::time::{MissedTickBehavior, interval};
+use tokio_stream::wrappers::IntervalStream;
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,
@@ -31,6 +28,7 @@ use crate::data::source::net_interfaces::{
     nm_readings,
 };
 
+const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
 const SCALE_START_KB_PER_S: f64 = 100.0;
 pub const SCALE_END_MB_PER_S: f64 = 125.0;
@@ -110,24 +108,26 @@ pub struct Readings {
 }
 
 pub fn subscription() -> Subscription<Readings> {
-    Subscription::run_with("throughput", |_| {
-        channel(16, |mut output: Sender<Readings>| async move {
-            let mut uplinks = pin!(nm_readings("throughput", nm::uplink));
-            let mut ticks = interval(Duration::from_secs(1));
-            ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
-            let mut session = Session::default();
-            loop {
-                select! {
-                    Some(Some(uplink)) = uplinks.next() => session.relink(uplink),
-                    _ = ticks.tick(), if session.is_carrying() => {}
-                    else => break,
-                }
-                if output.send(session.sample()).await.is_err() {
-                    break;
-                }
-            }
+    Subscription::run(readings_over_time)
+}
+
+fn readings_over_time() -> impl Stream<Item = Readings> {
+    let relinks = nm_readings("throughput", nm::uplink)
+        .filter_map(ready)
+        .map(Pulse::Relink);
+    let mut ticks = interval(SAMPLE_INTERVAL);
+    ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    let elapsed = IntervalStream::new(ticks).map(|_| Pulse::Elapsed);
+    select(relinks, elapsed)
+        .scan(Session::default(), |session, pulse| {
+            ready(Some(session.advance(pulse)))
         })
-    })
+        .filter_map(ready)
+}
+
+enum Pulse {
+    Relink(Uplink),
+    Elapsed,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -150,6 +150,16 @@ struct Session {
 }
 
 impl Session {
+    fn advance(&mut self, pulse: Pulse) -> Option<Readings> {
+        match pulse {
+            Pulse::Relink(uplink) => {
+                self.relink(uplink);
+                Some(self.sample())
+            }
+            Pulse::Elapsed => self.is_carrying().then(|| self.sample()),
+        }
+    }
+
     fn relink(&mut self, uplink: Uplink) {
         self.interfaces = uplink
             .activated_interfaces

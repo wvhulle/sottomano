@@ -2,11 +2,14 @@ mod local_date;
 mod local_time;
 mod zone_time;
 
-use std::time::Duration;
+use std::{convert::identity, time::Duration};
 
 use chrono::{DateTime, Local};
 use chrono_tz::Tz;
-use iced::{Subscription, Task, futures::channel::mpsc::Sender, stream};
+use iced::{
+    Subscription, Task,
+    futures::{Stream, StreamExt, stream},
+};
 use tokio::time::sleep;
 
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
@@ -60,17 +63,7 @@ impl ClockGroup {
     }
 
     pub fn subscription() -> Subscription<ClockMessage> {
-        use iced::futures::SinkExt;
-        Subscription::run(|| {
-            stream::channel(1, |mut output: Sender<ClockMessage>| async move {
-                loop {
-                    sleep(until_next_boundary(Local::now(), TICK)).await;
-                    if output.send(ClockMessage::Tick(Local::now())).await.is_err() {
-                        return;
-                    }
-                }
-            })
-        })
+        Subscription::run(ticks)
     }
 
     fn tick(&mut self, now: DateTime<Local>, other_time_zones: &[Tz]) {
@@ -104,6 +97,15 @@ impl ClockGroup {
                 GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
             }))
     }
+}
+
+fn ticks() -> impl Stream<Item = ClockMessage> {
+    stream::repeat_with(tick_at_next_boundary).then(identity)
+}
+
+async fn tick_at_next_boundary() -> ClockMessage {
+    sleep(until_next_boundary(Local::now(), TICK)).await;
+    ClockMessage::Tick(Local::now())
 }
 
 fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {

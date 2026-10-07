@@ -10,7 +10,7 @@ use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{
     config::toasts::ToastLifetimeConfig,
     data::{
-        notifications::model::{ExpireTimeout, NotifHandle, NotificationData},
+        notifications::model::{ExpireTimeout, NotifHandle, NotificationData, ServerEvent},
         severity::Severity,
     },
     desktop_shell::Message,
@@ -36,6 +36,15 @@ pub enum NotificationMessage {
     ActionClicked { id: u32, key: String },
     DefaultActivated { id: u32, token: Option<String> },
     Tick,
+}
+
+impl From<ServerEvent> for NotificationMessage {
+    fn from(event: ServerEvent) -> Self {
+        match event {
+            ServerEvent::Notify(data) => Self::Served(data),
+            ServerEvent::CloseRequested(id) => Self::CloseRequested(id),
+        }
+    }
 }
 
 pub struct Notification {

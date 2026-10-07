@@ -8,13 +8,9 @@ use std::{
 
 use iced::{
     Subscription,
-    futures::{SinkExt, channel::mpsc::Sender},
-    stream,
+    futures::{Stream, stream},
 };
-use tokio::{
-    sync::watch,
-    time::{Duration, sleep},
-};
+use tokio::sync::watch;
 use zbus::{
     Connection, connection,
     fdo::{self, RequestNameFlags, RequestNameReply},
@@ -22,10 +18,11 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
+use crate::message_subscriptions::restarting;
+
 const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
 const KUISERVER_NAME: &str = "org.kde.kuiserver";
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Jobs {
     by_app: HashMap<String, u8>,
@@ -321,20 +318,27 @@ impl JobView {
 }
 
 pub fn subscription() -> Subscription<Jobs> {
-    Subscription::run(|| {
-        stream::channel(16, |mut output: Sender<Jobs>| async move {
-            loop {
-                if let Err(e) = serve(&mut output).await {
-                    tracing::warn!("job view: {e}");
-                }
-                sleep(Duration::from_secs(2)).await;
-            }
-        })
-    })
+    Subscription::run(jobs)
 }
 
-async fn serve(output: &mut Sender<Jobs>) -> zbus::Result<()> {
-    let (states, mut updates) = watch::channel(Jobs::default());
+fn jobs() -> impl Stream<Item = Jobs> {
+    restarting("job view", serve)
+}
+
+struct Served {
+    _connection: Connection,
+    updates: watch::Receiver<Jobs>,
+}
+
+impl Served {
+    async fn next_jobs(&mut self) -> Option<Jobs> {
+        self.updates.changed().await.ok()?;
+        Some(self.updates.borrow_and_update().clone())
+    }
+}
+
+async fn serve() -> zbus::Result<impl Stream<Item = Jobs>> {
+    let (states, updates) = watch::channel(Jobs::default());
     let tracker = Arc::new(Tracker {
         jobs: Mutex::default(),
         states,
@@ -359,13 +363,14 @@ async fn serve(output: &mut Sender<Jobs>) -> zbus::Result<()> {
     claim(&connection, SERVER_NAME).await?;
     claim(&connection, KUISERVER_NAME).await?;
 
-    while updates.changed().await.is_ok() {
-        let jobs = updates.borrow_and_update().clone();
-        if output.send(jobs).await.is_err() {
-            break;
-        }
-    }
-    Ok(())
+    let served = Served {
+        _connection: connection,
+        updates,
+    };
+    Ok(stream::unfold(served, |mut served| async move {
+        let jobs = served.next_jobs().await?;
+        Some((jobs, served))
+    }))
 }
 
 async fn claim(connection: &Connection, name: &str) -> zbus::Result<()> {
