@@ -152,7 +152,9 @@ impl<'a> AnchoredPopup<'a> {
 
     fn resting(&self, size: Size, surface: Size) -> Rectangle {
         let centered_on_anchor = |anchor_center: f32, extent: f32, room: f32| {
-            (anchor_center - extent / 2.0).clamp(0.0, (room - extent).max(0.0))
+            (anchor_center - extent / 2.0)
+                .min(room - extent - self.popup_gap)
+                .max(self.popup_gap)
         };
         let top_left = match self.position {
             Position::Top => Point::new(

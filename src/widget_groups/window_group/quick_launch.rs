@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-pub const MAX_ITEMS: usize = 4;
+const MAX_ITEMS: usize = 4;
 const RESTING_OPACITY: f32 = 0.65;
 
 #[derive(Default)]
@@ -77,12 +77,18 @@ impl QuickLaunch {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
         WidgetGroup::new(&self.expansion, QuickLaunchMessage::Expansion)
             .icon(Phosphor::Rocket(Weight::Regular))
-            .items(app_ids.iter().filter_map(|app_id| {
-                icon_slot(config, index, app_id, 1.0)?;
-                Some(GroupItem::element(move |reveal| {
-                    icon_slot(config, index, app_id, reveal).unwrap_or_else(|| Row::new().into())
-                }))
-            }))
+            .items(
+                app_ids
+                    .iter()
+                    .filter_map(|app_id| {
+                        icon_slot(config, index, app_id, 1.0)?;
+                        Some(GroupItem::element(move |reveal| {
+                            icon_slot(config, index, app_id, reveal)
+                                .unwrap_or_else(|| Row::new().into())
+                        }))
+                    })
+                    .take(MAX_ITEMS),
+            )
     }
 }
 
