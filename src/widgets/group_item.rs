@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use chrono::Locale;
 use iced::{
     Element,
@@ -20,9 +18,8 @@ use crate::{
     },
 };
 
-type DrawItem<'a, M> = Rc<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 
-#[derive(Clone)]
 enum ItemKind<'a, M> {
     Reading {
         widget: &'a dyn BarWidget,
@@ -38,7 +35,6 @@ enum ItemKind<'a, M> {
     },
 }
 
-#[derive(Clone)]
 pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<M>,
@@ -68,7 +64,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self::of_kind(ItemKind::Control {
             widget,
             target,
-            draw: Rc::new(draw),
+            draw: Box::new(draw),
         })
     }
 
@@ -104,7 +100,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub fn hoverable_element(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
         Self::of_kind(ItemKind::Element {
-            draw: Rc::new(draw),
+            draw: Box::new(draw),
         })
     }
 
@@ -160,66 +156,26 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         )
     }
 
-    pub(super) fn map_messages<Lifted: 'a>(
-        self,
-        lift: &Rc<dyn Fn(M) -> Lifted + 'a>,
-    ) -> GroupItem<'a, Lifted> {
-        let lift_draw = |draw: DrawItem<'a, M>| -> DrawItem<'a, Lifted> {
-            let lift = Rc::clone(lift);
-            Rc::new(move |reveal| {
-                let lift = Rc::clone(&lift);
-                draw(reveal).map(move |event| event.map(|message| lift(message)))
-            })
-        };
-        GroupItem {
-            kind: match self.kind {
-                ItemKind::Reading { widget, target } => ItemKind::Reading { widget, target },
-                ItemKind::Control {
-                    widget,
-                    target,
-                    draw,
-                } => ItemKind::Control {
-                    widget,
-                    target,
-                    draw: lift_draw(draw),
-                },
-                ItemKind::Element { draw } => ItemKind::Element {
-                    draw: lift_draw(draw),
-                },
-            },
-            on_press: self.on_press.map(|message| lift(message)),
-            on_right_press: self.on_right_press.map(|message| lift(message)),
-            alert_action_buttons: self
-                .alert_action_buttons
-                .into_iter()
-                .map(|button| ReadingAlertActionButton {
-                    button_label: button.button_label,
-                    on_button_pressed: lift(button.on_button_pressed),
-                })
-                .collect(),
-        }
-    }
-
-    pub(super) fn view(self, config: &Config, reveal: f32) -> Option<Element<'a, GroupEvent<M>>>
+    pub(super) fn view(&self, config: &Config, reveal: f32) -> Option<Element<'a, GroupEvent<M>>>
     where
         M: Clone,
     {
-        let mut element = match self.kind {
+        let mut element = match &self.kind {
             ItemKind::Reading { widget, target } => hoverable(
-                source_reading(config, Some(widget), reveal)?,
-                target,
+                source_reading(config, Some(*widget), reveal)?,
+                target.clone(),
                 GroupEvent::Tooltip,
             ),
             ItemKind::Control { draw, .. } | ItemKind::Element { draw } => draw(reveal),
         };
-        if let Some(message) = self.on_press {
+        if let Some(message) = self.on_press.clone() {
             element = button(element)
                 .padding(0)
                 .style(flat_button(config.palette.bar_foreground))
                 .on_press(GroupEvent::Group(message))
                 .into();
         }
-        if let Some(message) = self.on_right_press {
+        if let Some(message) = self.on_right_press.clone() {
             element = mouse_area(element)
                 .on_right_press(GroupEvent::Group(message))
                 .into();

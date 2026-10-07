@@ -1,8 +1,7 @@
-use std::rc::Rc;
-
 use chrono::Locale;
 use iced::{
     Alignment, Element, Padding,
+    mouse::ScrollDelta,
     time::Duration,
     widget::{Row, button, container, mouse_area},
 };
@@ -27,7 +26,7 @@ use crate::{
     },
 };
 
-const EXPAND: Duration = Duration::from_millis(90);
+const EXPANSION_DURATION: Duration = Duration::from_millis(90);
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExpansionMessage {
@@ -36,12 +35,13 @@ pub enum ExpansionMessage {
     CursorEntered,
     CursorExited,
     Collapse,
+    HandleScrolled(ScrollDelta),
 }
 
 #[derive(Default)]
 pub struct GroupExpansion {
     expanded: bool,
-    hovered: bool,
+    cursor_hovering: bool,
 }
 
 impl GroupExpansion {
@@ -50,9 +50,10 @@ impl GroupExpansion {
         match msg {
             ExpansionMessage::Toggle => self.expanded = !self.expanded,
             ExpansionMessage::Expand => self.expanded = true,
-            ExpansionMessage::CursorEntered => self.hovered = true,
-            ExpansionMessage::CursorExited => self.hovered = false,
+            ExpansionMessage::CursorEntered => self.cursor_hovering = true,
+            ExpansionMessage::CursorExited => self.cursor_hovering = false,
             ExpansionMessage::Collapse => self.expanded = false,
+            ExpansionMessage::HandleScrolled(_) => {}
         }
         was_expanded && !self.is_expanded()
     }
@@ -83,21 +84,21 @@ impl<M> GroupEvent<M> {
 
 #[derive(Clone, Copy)]
 enum GroupIcon<'a> {
-    Plain(Glyph),
-    ColoredByWidget {
+    PlainIcon(Glyph),
+    IconColoredByReading {
         glyph: Glyph,
-        widget: &'a dyn BarWidget,
+        reading: &'a dyn BarWidget,
     },
 }
 
 impl GroupIcon<'_> {
     fn view<'a, M: 'a>(self, config: &Config) -> Element<'a, M> {
         match self {
-            GroupIcon::Plain(glyph) => {
+            GroupIcon::PlainIcon(glyph) => {
                 glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
             }
-            GroupIcon::ColoredByWidget { glyph, widget } => {
-                glyph.view(config.font.icon_size_px, reading_color(config, widget))
+            GroupIcon::IconColoredByReading { glyph, reading } => {
+                glyph.view(config.font.icon_size_px, reading_color(config, reading))
             }
         }
     }
@@ -132,39 +133,43 @@ impl<'a> PreviewedValue<'a> {
     }
 }
 
+pub struct GroupViewWithAlerts<'a, Outer> {
+    pub element: Option<Element<'a, GroupEvent<Outer>>>,
+    pub alerts: Vec<ReadingAlert<Outer>>,
+}
+
 pub struct WidgetGroup<'a, M> {
     expansion: &'a GroupExpansion,
-    on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
+    on_expansion: fn(ExpansionMessage) -> M,
     icon: Option<GroupIcon<'a>>,
     items: Vec<GroupItem<'a, M>>,
     previewed_value: Option<PreviewedValue<'a>>,
+    forward_handle_scroll: bool,
 }
 
 impl<'a, M: 'a> WidgetGroup<'a, M> {
-    pub fn new(
-        expansion: &'a GroupExpansion,
-        on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
-    ) -> Self {
+    pub fn new(expansion: &'a GroupExpansion, on_expansion: fn(ExpansionMessage) -> M) -> Self {
         Self {
             expansion,
-            on_expansion: Rc::new(on_expansion),
+            on_expansion,
             icon: None,
             items: Vec::new(),
             previewed_value: None,
+            forward_handle_scroll: false,
         }
     }
 
     #[must_use]
     pub fn icon(mut self, icon: impl Into<Glyph>) -> Self {
-        self.icon = Some(GroupIcon::Plain(icon.into()));
+        self.icon = Some(GroupIcon::PlainIcon(icon.into()));
         self
     }
 
     #[must_use]
-    pub fn icon_colored_by(mut self, icon: impl Into<Glyph>, widget: &'a dyn BarWidget) -> Self {
-        self.icon = Some(GroupIcon::ColoredByWidget {
+    pub fn icon_colored_by(mut self, icon: impl Into<Glyph>, reading: &'a dyn BarWidget) -> Self {
+        self.icon = Some(GroupIcon::IconColoredByReading {
             glyph: icon.into(),
-            widget,
+            reading,
         });
         self
     }
@@ -202,29 +207,39 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         self
     }
 
-    pub fn map_messages<Lifted: 'a>(
+    #[must_use]
+    pub fn forward_handle_scroll(mut self, enabled: bool) -> Self {
+        self.forward_handle_scroll = enabled;
+        self
+    }
+
+    pub fn place_on_bar<Outer: 'a>(
         self,
-        lift: impl Fn(M) -> Lifted + 'a,
-    ) -> WidgetGroup<'a, Lifted> {
-        let lift: Rc<dyn Fn(M) -> Lifted + 'a> = Rc::new(lift);
-        let on_expansion = self.on_expansion;
-        WidgetGroup {
-            expansion: self.expansion,
-            on_expansion: Rc::new({
-                let lift = Rc::clone(&lift);
-                move |message| lift(on_expansion(message))
-            }),
-            icon: self.icon,
-            items: self
-                .items
+        lift_message: fn(M) -> Outer,
+        config: &'a Config,
+        bar_position: Position,
+    ) -> GroupViewWithAlerts<'a, Outer>
+    where
+        M: Clone,
+    {
+        let alerts = self.alerts(config.locale);
+        let highest_alert_severity = alerts
+            .iter()
+            .map(|alert| alert.severity)
+            .max()
+            .unwrap_or_default();
+        GroupViewWithAlerts {
+            element: self
+                .view(config, bar_position, highest_alert_severity)
+                .map(|element| element.map(move |event| event.map(lift_message))),
+            alerts: alerts
                 .into_iter()
-                .map(|item| item.map_messages(&lift))
+                .map(|alert| alert.map_messages(lift_message))
                 .collect(),
-            previewed_value: self.previewed_value,
         }
     }
 
-    pub fn alerts(&self, locale: Locale) -> Vec<ReadingAlert<M>>
+    fn alerts(&self, locale: Locale) -> Vec<ReadingAlert<M>>
     where
         M: Clone,
     {
@@ -234,28 +249,22 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             .collect()
     }
 
-    fn highest_alert_severity(&self, locale: Locale) -> Severity
+    fn view(
+        self,
+        config: &'a Config,
+        bar_position: Position,
+        highest_alert_severity: Severity,
+    ) -> Option<Element<'a, GroupEvent<M>>>
     where
         M: Clone,
     {
-        self.alerts(locale)
-            .iter()
-            .map(|alert| alert.severity)
-            .max()
-            .unwrap_or_default()
-    }
-
-    pub fn view(self, config: &'a Config, position: Position) -> Option<Element<'a, GroupEvent<M>>>
-    where
-        M: Clone,
-    {
-        let edge_severity = self.highest_alert_severity(config.locale);
         let Self {
             expansion,
             on_expansion,
             icon,
             items,
             previewed_value,
+            forward_handle_scroll,
         } = self;
         let mut items = items.into_iter().peekable();
         items.peek()?;
@@ -264,26 +273,17 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             None => items.next()?,
         };
         let content: Vec<GroupItem<'a, M>> = items.collect();
-        let draw_face = move || {
-            face.clone()
-                .view(config, 1.0)
-                .unwrap_or_else(|| Row::new().into())
-        };
+        let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
-            Row::with_children(
-                content
-                    .iter()
-                    .cloned()
-                    .filter_map(|item| item.view(config, reveal)),
-            )
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
+            Row::with_children(content.iter().filter_map(|item| item.view(config, reveal)))
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
         };
         let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
         let toggle = expansion_event(ExpansionMessage::Toggle);
-        let hovered = expansion.hovered;
-        let animated = expand_animation(expansion.expanded, EXPAND, move |reveal| {
+        let cursor_hovering = expansion.cursor_hovering;
+        let animated = expand_animation(expansion.expanded, EXPANSION_DURATION, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
@@ -303,6 +303,15 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
                 Some(preview) => preview.hoverable_face(handle),
                 None => handle,
             };
+            let handle = if forward_handle_scroll {
+                mouse_area(handle)
+                    .on_scroll(move |delta| {
+                        expansion_event(ExpansionMessage::HandleScrolled(delta))
+                    })
+                    .into()
+            } else {
+                handle
+            };
             let inner = Row::new()
                 .push(handle)
                 .extend(
@@ -311,9 +320,9 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
                 .align_y(Alignment::Center);
             PagerSlot::new(
                 inner.into(),
-                edge_indicator(config, edge_severity, hovered, reveal),
+                edge_indicator(config, highest_alert_severity, cursor_hovering, reveal),
             )
-            .view(config, position)
+            .view(config, bar_position)
         });
         Some(
             mouse_area(animated)
@@ -354,10 +363,10 @@ fn revealed_content<'a, Message: 'a>(
 fn edge_indicator<'a, Message: 'a>(
     config: &Config,
     alert_severity: Severity,
-    hovered: bool,
+    cursor_hovering: bool,
     reveal: f32,
 ) -> Element<'a, Message> {
-    let base = if hovered { 0.5 } else { 0.2 };
+    let base = if cursor_hovering { 0.5 } else { 0.2 };
     let color = match alert_severity {
         Severity::Low | Severity::Normal => config.palette.focus,
         Severity::Warning | Severity::Critical => alert_severity.color(&config.palette),
