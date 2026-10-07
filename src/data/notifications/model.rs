@@ -3,7 +3,7 @@ use std::{fmt, time::Duration};
 use iced::widget::image;
 use tokio::sync::mpsc;
 
-use crate::data::severity::Severity;
+use crate::data::{severity::Severity, source::bus::OwnerProcess};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpireTimeout {
@@ -46,6 +46,7 @@ pub struct NotificationData {
     pub severity: Severity,
     pub expire_timeout: ExpireTimeout,
     pub window_id_hint: Option<u64>,
+    pub sender: OwnerProcess,
     pub desktop_entry: Option<String>,
     pub image: Option<NotifImage>,
     pub suppress_sound: bool,

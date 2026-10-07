@@ -1,5 +1,7 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
+use zbus::{fdo::DBusProxy, names::BusName};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Connect(String),
@@ -15,6 +17,26 @@ impl Display for Error {
             Error::Call(detail) => write!(f, "{detail}"),
             Error::Absent => write!(f, "service not running"),
             Error::Panicked => write!(f, "bus call panicked"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OwnerProcess {
+    Identified(u32),
+    #[default]
+    Unidentified,
+}
+
+impl OwnerProcess {
+    pub async fn of_bus(dbus: &DBusProxy<'_>, bus: BusName<'_>) -> Self {
+        let described = bus.to_string();
+        match dbus.get_connection_unix_process_id(bus).await {
+            Ok(pid) => Self::Identified(pid),
+            Err(e) => {
+                tracing::debug!("{described}: no owner process: {e}");
+                Self::Unidentified
+            }
         }
     }
 }

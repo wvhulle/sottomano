@@ -10,9 +10,10 @@ use uom::si::f64::Ratio;
 use crate::{
     config::Config,
     data::source::{
+        bus::OwnerProcess,
         desktop_entries::DesktopIndex,
         mpris,
-        mpris::{Command, Media, OwnerProcess, Progress, Status},
+        mpris::{Command, Media, Progress, Status},
         niri::WindowOwner,
     },
     desktop_shell::{

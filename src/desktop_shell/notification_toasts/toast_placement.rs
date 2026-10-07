@@ -5,7 +5,10 @@ use crate::{
     config::Config,
     data::{
         notifications::model::NotificationData,
-        source::niri::{HEdge, Placement, VEdge, WindowOwner},
+        source::{
+            bus::OwnerProcess,
+            niri::{HEdge, Placement, VEdge, WindowOwner},
+        },
     },
     state::OverlaySettings,
 };
@@ -42,6 +45,7 @@ impl ToastAnchor {
 }
 
 pub struct ToastPlacement {
+    pub window: ToastWindow,
     pub output: Option<String>,
     pub anchor: ToastAnchor,
 }
@@ -53,29 +57,56 @@ pub struct AnchoredToast<'a> {
     pub animating: bool,
 }
 
-pub fn resolve_window_id(data: &NotificationData, placement: &Placement) -> Option<u64> {
-    data.window_id_hint.or_else(|| {
-        data.desktop_entry
-            .clone()
-            .and_then(|entry| placement.window_owned_by(&WindowOwner::App(entry)))
-    })
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToastWindow {
+    Anchored(u64),
+    Unanchored,
+}
+
+impl ToastWindow {
+    pub fn resolve(data: &NotificationData, placement: &Placement) -> Self {
+        let resolved = data
+            .window_id_hint
+            .or_else(|| sender_window(data.sender, placement))
+            .or_else(|| {
+                data.desktop_entry
+                    .clone()
+                    .and_then(|entry| placement.window_owned_by(&WindowOwner::App(entry)))
+            });
+        tracing::debug!("toast {}: window {resolved:?}", data.id);
+        resolved.map_or(Self::Unanchored, Self::Anchored)
+    }
+
+    pub fn open_in(self, placement: &Placement) -> Option<u64> {
+        match self {
+            Self::Anchored(id) => placement.workspace_of_window(id).map(|_| id),
+            Self::Unanchored => None,
+        }
+    }
+}
+
+fn sender_window(sender: OwnerProcess, placement: &Placement) -> Option<u64> {
+    match sender {
+        OwnerProcess::Identified(pid) => placement.window_owned_by(&WindowOwner::Process(pid)),
+        OwnerProcess::Unidentified => None,
+    }
 }
 
 pub fn placement_for(
-    data: &NotificationData,
+    window: ToastWindow,
     placement: &Placement,
     overlays: OverlaySettings,
     config: &Config,
 ) -> ToastPlacement {
     let id = overlays
         .toast_spatial_layout
-        .then(|| resolve_window_id(data, placement))
-        .flatten()
-        .filter(|&id| placement.workspace_of_window(id).is_some());
+        .then(|| window.open_in(placement))
+        .flatten();
 
     let Some(id) = id else {
         let fallback_corner = config.toasts.placement.fallback_corner;
         return ToastPlacement {
+            window,
             output: fallback_output(placement),
             anchor: ToastAnchor::Edge {
                 vertical: fallback_corner.vertical_edge(),
@@ -93,7 +124,11 @@ pub fn placement_for(
             horizontal: edge.horizontal,
         },
     };
-    ToastPlacement { output, anchor }
+    ToastPlacement {
+        window,
+        output,
+        anchor,
+    }
 }
 
 fn fallback_output(placement: &Placement) -> Option<String> {

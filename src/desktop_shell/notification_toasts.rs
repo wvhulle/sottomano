@@ -17,7 +17,7 @@ use reading_alert_toasts::{
 use toast_card::ToastCard;
 use toast_lifecycle::Countdown;
 pub use toast_lifecycle::{Notification, NotificationMessage};
-use toast_placement::{AnchoredToast, resolve_window_id};
+use toast_placement::AnchoredToast;
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
@@ -114,8 +114,7 @@ impl NotificationLayer {
 
     fn window_of(&self, id: u32, placement: &Placement) -> Option<u64> {
         let notif = self.showing().find(|n| n.data.id == id)?;
-        resolve_window_id(&notif.data, placement)
-            .filter(|&w| placement.workspace_of_window(w).is_some())
+        notif.place.window.open_in(placement)
     }
 
     fn declares_default_action(&self, id: u32) -> bool {

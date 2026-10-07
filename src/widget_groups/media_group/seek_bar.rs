@@ -185,8 +185,9 @@ mod tests {
     use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 
     use super::*;
-    use crate::data::source::mpris::{
-        Capabilities, DesktopEntry, OwnerProcess, Progress, Setting, Status,
+    use crate::data::source::{
+        bus::OwnerProcess,
+        mpris::{Capabilities, DesktopEntry, Progress, Setting, Status},
     };
 
     fn track(path: &str) -> SeekMode {
