@@ -119,20 +119,15 @@ impl MediaGroup {
                     self.seek_bar.player_reported(&media, self.now);
                 }
             }
+            MediaMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
+                return self.seek_by(SeekMessage::Scroll(delta));
+            }
             MediaMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
             MediaMessage::Source(bus) => return self.select(bus),
             MediaMessage::Command(command) => return self.send(command),
-            MediaMessage::Seek(message) => {
-                let Some(media) = self.current().cloned() else {
-                    return Task::none();
-                };
-                let Some(command) = self.seek_bar.update(message, &media, self.now) else {
-                    return Task::none();
-                };
-                return self.seek(command);
-            }
+            MediaMessage::Seek(message) => return self.seek_by(message),
             MediaMessage::CancelQuit => self.quit_button.disarm(),
             MediaMessage::Quit => match self.quit_button.press() {
                 Press::Armed => {}
@@ -140,6 +135,16 @@ impl MediaGroup {
             },
         }
         Task::none()
+    }
+
+    fn seek_by(&mut self, message: SeekMessage) -> Task<MediaMessage> {
+        let Some(media) = self.current().cloned() else {
+            return Task::none();
+        };
+        let Some(command) = self.seek_bar.update(message, &media, self.now) else {
+            return Task::none();
+        };
+        self.seek(command)
     }
 
     fn select(&mut self, bus: String) -> Task<MediaMessage> {
@@ -259,22 +264,20 @@ impl MediaGroup {
                     .unwrap_or_else(|| Row::new().into())
             })
         });
-        let seek = self
-            .seek_bar
-            .view(config, media, self.now)
-            .is_some()
-            .then(|| {
-                GroupItem::element(move |_| {
-                    self.seek_bar
-                        .view(config, media, self.now)
-                        .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
-                })
-            });
+        let seekable = self.seek_bar.view(config, media, self.now).is_some();
+        let seek = seekable.then(|| {
+            GroupItem::element(move |_| {
+                self.seek_bar
+                    .view(config, media, self.now)
+                    .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
+            })
+        });
         let session = !self.session_controls(config, media, 1.0).is_empty();
         let session = session.then(|| {
             GroupItem::element(move |reveal| self.session_controls(config, media, reveal).into())
         });
         group
+            .forward_handle_scroll(seekable)
             .item(GroupItem::hoverable_element(move |_| {
                 hoverable(
                     track_face(config, media, opacity, self.now).map(GroupEvent::Group),

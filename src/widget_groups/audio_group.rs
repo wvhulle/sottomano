@@ -138,6 +138,9 @@ impl AudioGroup {
                 Task::none()
             }
             AudioMessage::Control(kind, m) => self.update_control(kind, m),
+            AudioMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
+                self.update_control(ControlKind::Sink, ControlMessage::Scroll(delta))
+            }
             AudioMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_sliders();
@@ -244,6 +247,7 @@ impl AudioGroup {
                     .as_ref()
                     .map(|_| &self.sink_control as &dyn BarWidget),
             )
+            .forward_handle_scroll(self.sink.is_some())
             .item(self.sink.as_ref().map(|_| {
                 GroupItem::slider(&self.sink_control, config, |m| {
                     AudioMessage::Control(ControlKind::Sink, m)

@@ -7,7 +7,7 @@ use std::{
     ops::RangeInclusive,
 };
 
-use iced::{Subscription, Task};
+use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
 
 use crate::{
@@ -73,6 +73,9 @@ impl MonitorGroup {
 
     pub fn update(&mut self, msg: MonitorMessage) -> Task<MonitorMessage> {
         match msg {
+            MonitorMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
+                self.scroll_all_backlights(delta)
+            }
             MonitorMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_controls();
@@ -102,6 +105,15 @@ impl MonitorGroup {
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
             MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
         }
+    }
+
+    fn scroll_all_backlights(&mut self, delta: ScrollDelta) -> Task<MonitorMessage> {
+        let serials: Vec<String> = self.sliders.keys().cloned().collect();
+        Task::batch(
+            serials
+                .into_iter()
+                .map(|serial| self.update_backlight(serial, ControlMessage::Scroll(delta))),
+        )
     }
 
     fn update_backlight(&mut self, serial: String, m: ControlMessage) -> Task<MonitorMessage> {
@@ -170,6 +182,7 @@ impl MonitorGroup {
         WidgetGroup::new(&self.expansion, MonitorMessage::Expansion)
             .icon(Phosphor::Lightbulb(Weight::Regular))
             .previewed_value(previewed_value)
+            .forward_handle_scroll(!self.sliders.is_empty())
             .items(self.backlights.iter().filter_map(|backlight| {
                 let slider = self.sliders.get(&backlight.serial)?;
                 let serial = backlight.serial.clone();

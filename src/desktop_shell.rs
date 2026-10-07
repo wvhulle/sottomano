@@ -306,7 +306,7 @@ impl DesktopShell {
 
     fn reading_alerts(&self) -> Vec<ReadingAlert<Message>> {
         self.all_widget_groups()
-            .flat_map(|group| group.alerts(self.config.locale))
+            .flat_map(|group| group.alerts)
             .collect()
     }
 

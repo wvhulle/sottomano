@@ -8,13 +8,13 @@ use crate::{
     desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
     widgets::{
         region_reporter::{RegionRoles, region_reporter},
-        widget_group::WidgetGroup,
+        widget_group::GroupViewWithAlerts,
     },
 };
 
 impl DesktopShell {
     pub(super) fn top_bar(&self) -> Element<'_, Message> {
-        let cluster = |groups: Vec<_>| self.widget_group_cluster(groups, Position::Top);
+        let cluster = |groups: Vec<_>| self.widget_group_cluster(groups);
         let clusters = row![
             cluster(self.top_start_groups().into()),
             Space::new().width(Length::Fill),
@@ -100,90 +100,98 @@ impl DesktopShell {
 
     pub(super) fn widget_group_cluster<'a>(
         &'a self,
-        groups: Vec<WidgetGroup<'a, Message>>,
-        position: Position,
+        groups: Vec<GroupViewWithAlerts<'a, Message>>,
     ) -> Element<'a, Message> {
-        let rendered = self.rendered_widget_groups(groups, position).collect();
+        let rendered = rendered_widget_groups(groups).collect();
         self.group_cluster(rendered)
     }
 
-    pub(super) fn rendered_widget_groups<'a>(
-        &'a self,
-        groups: impl IntoIterator<Item = WidgetGroup<'a, Message>>,
-        position: Position,
-    ) -> impl Iterator<Item = Element<'a, Message>> {
-        groups
-            .into_iter()
-            .filter_map(move |group| group.view(&self.config, position))
-            .map(|element| element.map(Message::from))
-    }
-
-    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 7] {
+    pub(super) fn top_start_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 7] {
         let config = &self.config;
+        let top = Position::Top;
         [
             self.weather_group
                 .widget_group()
-                .map_messages(Message::Weather),
+                .place_on_bar(Message::Weather, config, top),
             self.battery_group
                 .widget_group(config)
-                .map_messages(Message::Battery),
+                .place_on_bar(Message::Battery, config, top),
             self.processor_group
                 .widget_group()
-                .map_messages(Message::Processor),
+                .place_on_bar(Message::Processor, config, top),
             self.storage_group
                 .widget_group()
-                .map_messages(Message::Storage),
-            self.net_interfaces_group
-                .widget_group()
-                .map_messages(Message::NetInterfaces),
+                .place_on_bar(Message::Storage, config, top),
+            self.net_interfaces_group.widget_group().place_on_bar(
+                Message::NetInterfaces,
+                config,
+                top,
+            ),
             self.journal_group
                 .widget_group(config)
-                .map_messages(Message::Journal),
+                .place_on_bar(Message::Journal, config, top),
             self.internet_group
                 .widget_group()
-                .map_messages(Message::Internet),
+                .place_on_bar(Message::Internet, config, top),
         ]
     }
 
-    pub(super) fn top_center_groups(&self) -> [WidgetGroup<'_, Message>; 2] {
+    pub(super) fn top_center_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 2] {
         let config = &self.config;
+        let top = Position::Top;
         [
-            self.clock_group.widget_group().map_messages(Message::Clock),
+            self.clock_group
+                .widget_group()
+                .place_on_bar(Message::Clock, config, top),
             self.notification_group
                 .widget_group(
                     config,
                     &self.shell_settings.notifications,
                     self.notifications.live_count(),
                 )
-                .map_messages(Message::NotificationGroup),
+                .place_on_bar(Message::NotificationGroup, config, top),
         ]
     }
 
-    pub(super) fn top_end_groups(&self) -> [WidgetGroup<'_, Message>; 8] {
+    pub(super) fn top_end_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 8] {
         let config = &self.config;
+        let top = Position::Top;
         [
-            self.ai_group.widget_group().map_messages(Message::Ai),
+            self.ai_group
+                .widget_group()
+                .place_on_bar(Message::Ai, config, top),
             self.monitor_group
                 .widget_group(config)
-                .map_messages(Message::Monitor),
+                .place_on_bar(Message::Monitor, config, top),
             self.dark_mode_group
                 .widget_group(config)
-                .map_messages(Message::DarkMode),
+                .place_on_bar(Message::DarkMode, config, top),
             self.color_temperature_group
                 .widget_group(config)
-                .map_messages(Message::ColorTemperature),
-            self.idle_timeouts_group
-                .widget_group(config)
-                .map_messages(Message::IdleTimeouts),
+                .place_on_bar(Message::ColorTemperature, config, top),
+            self.idle_timeouts_group.widget_group(config).place_on_bar(
+                Message::IdleTimeouts,
+                config,
+                top,
+            ),
             self.wallpaper_group
                 .widget_group()
-                .map_messages(Message::Wallpaper),
+                .place_on_bar(Message::Wallpaper, config, top),
             self.media_group
                 .widget_group(config, &self.desktop_entries)
-                .map_messages(Message::Media),
+                .place_on_bar(Message::Media, config, top),
             self.audio_group
                 .widget_group(config)
-                .map_messages(Message::Audio),
+                .place_on_bar(Message::Audio, config, top),
         ]
     }
+}
+
+pub(super) fn rendered_widget_groups<'a>(
+    groups: impl IntoIterator<Item = GroupViewWithAlerts<'a, Message>>,
+) -> impl Iterator<Item = Element<'a, Message>> {
+    groups
+        .into_iter()
+        .filter_map(|group| group.element)
+        .map(|element| element.map(Message::from))
 }
