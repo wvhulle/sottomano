@@ -6,7 +6,7 @@ use iced::{
     time::{Duration, Instant},
 };
 
-use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
+use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply::ReplyMessage};
 use crate::{
     config::toasts::ToastLifetimeConfig,
     data::{
@@ -35,6 +35,9 @@ pub enum NotificationMessage {
     Dismiss(u32),
     ActionClicked { id: u32, key: String },
     DefaultActivated { id: u32, token: Option<String> },
+    Reply { id: u32, message: ReplyMessage },
+    OpenFile(u32),
+    CopyFilePath(u32),
     Tick,
 }
 
@@ -55,6 +58,7 @@ pub struct Notification {
     pub(super) place: ToastPlacement,
     pub(super) countdown: Option<Countdown>,
     pub(super) seq: u64,
+    pub(super) reply_draft: String,
     presence: Animation<bool>,
 }
 
@@ -76,11 +80,28 @@ impl Notification {
             place,
             countdown,
             seq,
+            reply_draft: String::new(),
             presence: Animation::new(false)
                 .easing(Easing::EaseOutCubic)
                 .duration(PRESENCE)
                 .go(true, now),
         }
+    }
+
+    pub(super) fn replace_content(
+        &mut self,
+        data: NotificationData,
+        origin: ToastOrigin,
+        icons: CardIcons,
+        countdown: Option<Countdown>,
+        place: ToastPlacement,
+    ) {
+        self.data = data;
+        self.origin = origin;
+        self.created_at = SystemTime::now();
+        self.icons = icons;
+        self.countdown = countdown;
+        self.place = place;
     }
 
     pub(super) fn reading_alert(&self) -> Option<&ReadingAlert<Message>> {

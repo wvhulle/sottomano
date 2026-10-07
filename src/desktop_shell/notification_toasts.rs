@@ -4,6 +4,7 @@ pub mod toast_anchor_geometry;
 pub mod toast_card;
 pub mod toast_lifecycle;
 pub mod toast_placement;
+pub mod toast_reply;
 pub mod toast_updates;
 pub mod window_anchored_toasts;
 
@@ -18,6 +19,7 @@ use toast_card::ToastCard;
 use toast_lifecycle::Countdown;
 pub use toast_lifecycle::{Notification, NotificationMessage};
 use toast_placement::AnchoredToast;
+use toast_reply::ReplyFocus;
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
@@ -37,6 +39,7 @@ pub struct NotificationLayer {
     live: Vec<Notification>,
     next_seq: u64,
     hovered: Option<u32>,
+    reply_focus: ReplyFocus,
     dismissed_reading_alerts: Vec<DismissedReadingAlert>,
 }
 

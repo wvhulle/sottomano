@@ -16,12 +16,14 @@ use zbus::{
 };
 
 use super::model::{
-    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ServerEvent,
+    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, Progress, ReplyPrompt,
+    ServerEvent,
 };
 use crate::data::{empty_text::non_empty, severity::Severity, source::bus::OwnerProcess};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";
+const INLINE_REPLY: &str = "inline-reply";
 
 struct NotificationServer {
     next_id: AtomicU32,
@@ -59,13 +61,18 @@ impl NotificationServer {
     ) -> u32 {
         let sender = sender_process(connection, &header).await;
         let id = self.replaced_or_fresh_id(replaces_id);
+        let (reply_actions, actions): (Vec<NotifAction>, Vec<NotifAction>) =
+            parse_actions(&actions)
+                .into_iter()
+                .partition(|action| action.key == INLINE_REPLY);
         let data = NotificationData {
             id,
             app_name: non_empty(app_name),
             app_icon: non_empty(app_icon),
             summary,
             body: non_empty(body),
-            actions: parse_actions(&actions),
+            reply: reply_prompt(reply_actions.first(), &hints),
+            actions,
             severity: parse_urgency(&hints),
             expire_timeout: ExpireTimeout::from_millis(expire_timeout),
             window_id_hint: hint_window_id(&hints, "x-niri-window-id"),
@@ -76,6 +83,7 @@ impl NotificationServer {
             sound_file: hint_str(&hints, "sound-file"),
             category: hint_str(&hints, "category"),
             resident: hint_bool(&hints, "resident"),
+            progress: hint_progress(&hints),
         };
         if let Err(e) = self.events.send(ServerEvent::Notify(Box::new(data))).await {
             tracing::error!("notifications: dropping Notify: {e}");
@@ -94,10 +102,9 @@ impl NotificationServer {
             "body",
             "body-markup",
             "actions",
-            "action-icons",
             "icon-static",
             "persistence",
-            "inline-reply",
+            INLINE_REPLY,
         ]
         .iter()
         .map(ToString::to_string)
@@ -112,6 +119,13 @@ impl NotificationServer {
             "1.2".to_owned(),
         )
     }
+
+    #[zbus(signal)]
+    async fn notification_replied(
+        emitter: &SignalEmitter<'_>,
+        id: u32,
+        text: &str,
+    ) -> zbus::Result<()>;
 
     #[zbus(signal)]
     async fn notification_closed(
@@ -179,6 +193,9 @@ pub async fn serve(
                 }
                 Outbound::ActionInvoked { id, key } => {
                     NotificationServer::action_invoked(&emitter, id, &key).await
+                }
+                Outbound::Replied { id, text } => {
+                    NotificationServer::notification_replied(&emitter, id, &text).await
                 }
                 Outbound::Closed { id, reason } => {
                     NotificationServer::notification_closed(&emitter, id, reason).await
@@ -251,6 +268,25 @@ fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Progress {
+    hints
+        .get("value")
+        .and_then(|v| v.downcast_ref::<i32>().ok())
+        .map_or(Progress::Absent, Progress::from_hint)
+}
+
+fn reply_prompt(action: Option<&NotifAction>, hints: &HashMap<String, OwnedValue>) -> ReplyPrompt {
+    let Some(action) = action else {
+        return ReplyPrompt::NotOffered;
+    };
+    ReplyPrompt::Offered {
+        placeholder: hint_str(hints, "x-kde-reply-placeholder-text")
+            .unwrap_or_else(|| action.label.clone()),
+        submit: hint_str(hints, "x-kde-reply-submit-button-text")
+            .unwrap_or_else(|| "Send".to_owned()),
+    }
+}
+
 fn hint_image(hints: &HashMap<String, OwnedValue>) -> Option<NotifImage> {
     if let Some(handle) = ["image-data", "image_data"]
         .iter()
@@ -305,4 +341,61 @@ fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
         u32::try_from(height).ok()?,
         rgba,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use zbus::zvariant::{OwnedValue, Str};
+
+    use super::{NotifAction, ReplyPrompt, reply_prompt};
+
+    fn reply_action() -> NotifAction {
+        NotifAction {
+            key: "inline-reply".to_owned(),
+            label: "Reply".to_owned(),
+        }
+    }
+
+    fn text(value: &str) -> OwnedValue {
+        OwnedValue::from(Str::from(value.to_owned()))
+    }
+
+    #[test]
+    fn reply_without_inline_reply_action_is_not_offered() {
+        assert_eq!(reply_prompt(None, &HashMap::new()), ReplyPrompt::NotOffered);
+    }
+
+    #[test]
+    fn reply_falls_back_to_action_label_and_send() {
+        assert_eq!(
+            reply_prompt(Some(&reply_action()), &HashMap::new()),
+            ReplyPrompt::Offered {
+                placeholder: "Reply".to_owned(),
+                submit: "Send".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn reply_takes_kde_hint_texts() {
+        let hints = HashMap::from([
+            (
+                "x-kde-reply-placeholder-text".to_owned(),
+                text("Type an SMS"),
+            ),
+            (
+                "x-kde-reply-submit-button-text".to_owned(),
+                text("Send SMS"),
+            ),
+        ]);
+        assert_eq!(
+            reply_prompt(Some(&reply_action()), &hints),
+            ReplyPrompt::Offered {
+                placeholder: "Type an SMS".to_owned(),
+                submit: "Send SMS".to_owned(),
+            }
+        );
+    }
 }

@@ -1,16 +1,23 @@
-use std::{path::PathBuf, time::SystemTime};
-
-use iced::{
-    Alignment, Border, Color, Element, Font, Length, Shadow, Theme, border,
-    font::Weight,
-    widget::{Column, Row, Space, button, container, image, mouse_area, rich_text, svg},
+use std::{
+    path::{Path, PathBuf},
+    time::SystemTime,
 };
 
-use super::{Notification, NotificationMessage, body_markup};
+use iced::{
+    Alignment, Border, Color, ContentFit, Element, Font, Length, Shadow, Theme, border,
+    font::Weight,
+    widget::{
+        Column, Row, Space, button, container, image, mouse_area, progress_bar, rich_text, svg,
+        text_input,
+    },
+};
+use reqwest::Url;
+
+use super::{Notification, NotificationMessage, body_markup, toast_reply::ReplyMessage};
 use crate::{
     config::{Config, Palette, toasts::ToastCardSizeConfig},
     data::{
-        notifications::model::{NotifAction, NotifImage, NotificationData},
+        notifications::model::{NotifAction, NotifImage, NotificationData, Progress, ReplyPrompt},
         severity::Severity,
         source::app_icon::DesktopEntries,
     },
@@ -26,6 +33,7 @@ const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const BORDER_WIDTH_PX: f32 = 1.5;
+const PROGRESS_GIRTH_PX: f32 = 6.0;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -33,45 +41,90 @@ pub enum CardIcon {
     Svg(svg::Handle),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
+pub enum CardImage {
+    Preview { icon: CardIcon, file: PathBuf },
+    Icon(CardIcon),
+    Absent,
+}
+
+impl CardImage {
+    fn of_file(file: PathBuf) -> Self {
+        Self::Preview {
+            icon: CardIcon::at(&file),
+            file,
+        }
+    }
+
+    fn named(name: &str, entries: Option<&DesktopEntries>) -> Self {
+        match icon_file(name) {
+            Some(file) => Self::of_file(file),
+            None => themed_icon(name, entries).map_or(Self::Absent, Self::Icon),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CardIcons {
-    pub image: Option<CardIcon>,
+    pub image: CardImage,
     pub badge: Option<CardIcon>,
 }
 
+impl CardIcons {
+    pub fn previewed_file(&self) -> Option<&Path> {
+        match &self.image {
+            CardImage::Preview { file, .. } => Some(file),
+            CardImage::Icon(_) | CardImage::Absent => None,
+        }
+    }
+}
+
+impl CardIcon {
+    fn at(path: &Path) -> Self {
+        let is_svg = path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg") || ext.eq_ignore_ascii_case("svgz"));
+        if is_svg {
+            Self::Svg(svg::Handle::from_path(path))
+        } else {
+            Self::Raster(image::Handle::from_path(path))
+        }
+    }
+}
+
 pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
+    let app_icon_file = data.app_icon.as_deref().and_then(icon_file);
     let image = match &data.image {
-        Some(NotifImage::Rgba(handle)) => Some(CardIcon::Raster(handle.clone())),
-        Some(NotifImage::Named(name)) => resolve_name(name, entries),
-        None => None,
+        Some(NotifImage::Rgba(handle)) => CardImage::Icon(CardIcon::Raster(handle.clone())),
+        Some(NotifImage::Named(name)) => CardImage::named(name, entries),
+        None => app_icon_file.map_or(CardImage::Absent, CardImage::of_file),
     };
     let badge = data
         .app_icon
         .as_deref()
+        .filter(|name| icon_file(name).is_none())
         .or(data.desktop_entry.as_deref())
-        .and_then(|name| resolve_name(name, entries));
+        .and_then(|name| themed_icon(name, entries));
     CardIcons { image, badge }
 }
 
-fn resolve_name(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon> {
-    let path = if name.starts_with('/') {
-        PathBuf::from(name)
-    } else if let Some(rest) = name.strip_prefix("file://") {
-        PathBuf::from(rest)
-    } else {
-        let entries = entries?;
-        entries
-            .theme_icon(name)
-            .or_else(|| entries.icon_for(name))?
-    };
-    let is_svg = path
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("svg") || ext.eq_ignore_ascii_case("svgz"));
-    Some(if is_svg {
-        CardIcon::Svg(svg::Handle::from_path(path))
-    } else {
-        CardIcon::Raster(image::Handle::from_path(path))
-    })
+fn themed_icon(name: &str, entries: Option<&DesktopEntries>) -> Option<CardIcon> {
+    let entries = entries?;
+    let path = entries
+        .theme_icon(name)
+        .or_else(|| entries.icon_for(name))?;
+    Some(CardIcon::at(&path))
+}
+
+fn icon_file(name: &str) -> Option<PathBuf> {
+    if name.starts_with('/') {
+        return Some(PathBuf::from(name));
+    }
+    Url::parse(name)
+        .ok()
+        .filter(|url| url.scheme() == "file")?
+        .to_file_path()
+        .ok()
 }
 
 pub struct ToastCard<'a> {
@@ -179,16 +232,15 @@ impl ToastCard<'_> {
 impl ToastCard<'_> {
     fn column<'b>(&self, text: Color) -> Column<'b, NotificationMessage> {
         let data = &self.notif.data;
-        let id = data.id;
         let font = &self.config.font;
-        let palette = &self.config.palette;
 
         let button_actions: Vec<&NotifAction> = data
             .actions
             .iter()
             .filter(|a| a.key != "default" && !a.label.trim().is_empty())
             .collect();
-        let has_actions = !button_actions.is_empty();
+        let previewed = self.notif.icons.previewed_file().is_some();
+        let has_actions = !button_actions.is_empty() || previewed;
         let has_body = data.body.is_some();
         let reltime = relative(self.notif.created_at, SystemTime::now());
         let reltime_span = |visible: bool| {
@@ -243,25 +295,118 @@ impl ToastCard<'_> {
                 None => body,
             });
         }
+        if let CardImage::Preview { icon, .. } = &self.notif.icons.image {
+            column = column.push(preview_widget(
+                icon,
+                self.config.toasts.card_size.image_preview_max_height_px,
+                self.reveal,
+            ));
+        }
+        if let Progress::Percent(percent) = data.progress {
+            column = column.push(progress_widget(percent, text));
+        }
+        if let ReplyPrompt::Offered {
+            placeholder,
+            submit,
+        } = &data.reply
+        {
+            column = column.push(self.reply_row(placeholder, submit.clone(), text));
+        }
         if has_actions {
-            let mut actions = Row::new().spacing(6.0).align_y(Alignment::Center);
-            for action in &button_actions {
-                actions = actions.push(self.action_button(
-                    action.label.clone(),
-                    NotificationMessage::ActionClicked {
-                        id,
-                        key: action.key.clone(),
-                    },
-                    action_tint(&action.key, palette),
-                ));
-            }
-            actions = actions.push(Space::new().width(Length::Fill));
-            if let Some(time) = reltime_span(true) {
-                actions = actions.push(time);
-            }
-            column = column.push(actions);
+            let actions = self
+                .actions_row(&button_actions, previewed, text)
+                .push(Space::new().width(Length::Fill));
+            column = column.push(match reltime_span(true) {
+                Some(time) => actions.push(time),
+                None => actions,
+            });
         }
         column
+    }
+
+    fn actions_row<'b>(
+        &self,
+        button_actions: &[&NotifAction],
+        previewed: bool,
+        text: Color,
+    ) -> Row<'b, NotificationMessage> {
+        let id = self.notif.data.id;
+        let palette = &self.config.palette;
+        let app_buttons = button_actions.iter().map(|action| {
+            self.action_button(
+                action.label.clone(),
+                NotificationMessage::ActionClicked {
+                    id,
+                    key: action.key.clone(),
+                },
+                action_tint(&action.key, palette),
+                text,
+            )
+        });
+        let file_buttons = previewed
+            .then(|| {
+                [
+                    self.action_button(
+                        "Open".to_owned(),
+                        NotificationMessage::OpenFile(id),
+                        palette.success,
+                        text,
+                    ),
+                    self.action_button(
+                        "Copy path".to_owned(),
+                        NotificationMessage::CopyFilePath(id),
+                        palette.success,
+                        text,
+                    ),
+                ]
+            })
+            .into_iter()
+            .flatten();
+        Row::with_children(app_buttons.chain(file_buttons))
+            .spacing(6.0)
+            .align_y(Alignment::Center)
+    }
+
+    fn reply_row<'b>(
+        &self,
+        placeholder: &str,
+        submit: String,
+        text: Color,
+    ) -> Element<'b, NotificationMessage> {
+        let id = self.notif.data.id;
+        let font = &self.config.font;
+        let radius = self.settings.overlays.corner_radius;
+        let reply = move |message| NotificationMessage::Reply { id, message };
+        let field = text_input(placeholder, &self.notif.reply_draft)
+            .font(font.iced_font)
+            .size(font.text_size_px)
+            .padding(BUTTON_PADDING)
+            .on_input(move |draft| reply(ReplyMessage::Edited(draft)))
+            .on_submit(reply(ReplyMessage::Submitted))
+            .style(move |_, _| text_input::Style {
+                background: text.scale_alpha(0.12).into(),
+                border: border::rounded(radius)
+                    .color(text.scale_alpha(0.5))
+                    .width(1.0),
+                icon: text,
+                placeholder: text.scale_alpha(0.6),
+                value: text,
+                selection: text.scale_alpha(0.3),
+            });
+        let row = Row::new()
+            .spacing(6.0)
+            .align_y(Alignment::Center)
+            .push(field)
+            .push(self.action_button(
+                submit,
+                reply(ReplyMessage::Submitted),
+                self.config.palette.success,
+                text,
+            ));
+        mouse_area(row)
+            .on_enter(reply(ReplyMessage::PointerEntered))
+            .on_exit(reply(ReplyMessage::PointerLeft))
+            .into()
     }
 
     fn action_button<'b>(
@@ -269,22 +414,23 @@ impl ToastCard<'_> {
         label: String,
         message: NotificationMessage,
         tint: Color,
+        text: Color,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.font;
         let radius = self.settings.overlays.corner_radius;
-        button(bar_text(font, label).size(font.text_size_px).color(tint))
+        button(bar_text(font, label).size(font.text_size_px).color(text))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {
                 let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
                 button::Style {
                     background: Some(
                         Color {
-                            a: if hovered { 0.22 } else { 0.12 },
+                            a: if hovered { 0.4 } else { 0.25 },
                             ..tint
                         }
                         .into(),
                     ),
-                    text_color: tint,
+                    text_color: text,
                     border: Border {
                         radius,
                         ..Default::default()
@@ -302,25 +448,54 @@ fn icon_slot<'a>(
     card_size: &ToastCardSizeConfig,
     reveal: f32,
 ) -> Option<Element<'a, NotificationMessage>> {
-    match (&icons.image, &icons.badge) {
-        (Some(image), badge) => {
-            let main_size = card_size.image_size_px;
-            let main = icon_widget(image, main_size, reveal);
-            Some(match badge {
-                Some(badge) => {
-                    let overlay = container(icon_widget(badge, card_size.badge_size_px, reveal))
-                        .width(main_size)
-                        .height(main_size)
-                        .align_x(Alignment::Start)
-                        .align_y(Alignment::Start);
-                    iced::widget::stack![main, overlay].clip(true).into()
-                }
-                None => main,
-            })
-        }
-        (None, Some(badge)) => Some(icon_widget(badge, card_size.app_icon_size_px, reveal)),
-        (None, None) => None,
-    }
+    let CardImage::Icon(image) = &icons.image else {
+        return icons
+            .badge
+            .as_ref()
+            .map(|badge| icon_widget(badge, card_size.icon_size_px, reveal));
+    };
+    let main_size = card_size.icon_size_px;
+    let main = icon_widget(image, main_size, reveal);
+    let Some(badge) = &icons.badge else {
+        return Some(main);
+    };
+    let overlay = container(icon_widget(badge, card_size.app_badge_size_px, reveal))
+        .width(main_size)
+        .height(main_size)
+        .align_x(Alignment::Start)
+        .align_y(Alignment::Start);
+    Some(iced::widget::stack![main, overlay].clip(true).into())
+}
+
+fn preview_widget<'a>(
+    icon: &CardIcon,
+    max_height: f32,
+    reveal: f32,
+) -> Element<'a, NotificationMessage> {
+    let preview: Element<'a, NotificationMessage> = match icon {
+        CardIcon::Raster(handle) => image(handle.clone())
+            .width(Length::Fill)
+            .content_fit(ContentFit::ScaleDown)
+            .opacity(reveal)
+            .into(),
+        CardIcon::Svg(handle) => svg(handle.clone())
+            .width(Length::Fill)
+            .content_fit(ContentFit::ScaleDown)
+            .opacity(reveal)
+            .into(),
+    };
+    container(preview).max_height(max_height).into()
+}
+
+fn progress_widget<'a>(percent: u8, text: Color) -> Element<'a, NotificationMessage> {
+    progress_bar(0.0..=100.0, f32::from(percent))
+        .girth(PROGRESS_GIRTH_PX)
+        .style(move |_| progress_bar::Style {
+            background: text.scale_alpha(0.2).into(),
+            bar: text.into(),
+            border: border::rounded(PROGRESS_GIRTH_PX / 2.0),
+        })
+        .into()
 }
 
 fn icon_widget<'a>(icon: &CardIcon, size: f32, reveal: f32) -> Element<'a, NotificationMessage> {
@@ -343,5 +518,36 @@ fn action_tint(key: &str, palette: &Palette) -> Color {
         "quit" | "deny" | "end" | "reject" => palette.urgent,
         "stop" | "cancel" | "later" | "snooze" => palette.warning,
         _ => palette.success,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::icon_file;
+
+    #[test]
+    fn percent_encoded_file_url_resolves_to_decoded_path() {
+        assert_eq!(
+            icon_file("file:///home/u/Pictures/Screenshot%20from%202026-10-07.png"),
+            Some(PathBuf::from(
+                "/home/u/Pictures/Screenshot from 2026-10-07.png"
+            ))
+        );
+    }
+
+    #[test]
+    fn absolute_path_is_taken_as_is() {
+        assert_eq!(
+            icon_file("/usr/share/icons/a b.png"),
+            Some(PathBuf::from("/usr/share/icons/a b.png"))
+        );
+    }
+
+    #[test]
+    fn theme_icon_name_is_not_a_file() {
+        assert_eq!(icon_file("dialog-information"), None);
+        assert_eq!(icon_file("https://example.com/a.png"), None);
     }
 }

@@ -53,6 +53,31 @@ pub struct NotificationData {
     pub sound_file: Option<String>,
     pub category: Option<String>,
     pub resident: bool,
+    pub progress: Progress,
+    pub reply: ReplyPrompt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Progress {
+    Percent(u8),
+    #[default]
+    Absent,
+}
+
+impl Progress {
+    pub fn from_hint(value: i32) -> Self {
+        Self::Percent(u8::try_from(value.clamp(0, 100)).unwrap_or(100))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ReplyPrompt {
+    Offered {
+        placeholder: String,
+        submit: String,
+    },
+    #[default]
+    NotOffered,
 }
 
 #[derive(Debug)]
@@ -72,6 +97,7 @@ pub mod close_reason {
 pub enum Outbound {
     ActivationToken { id: u32, token: String },
     ActionInvoked { id: u32, key: String },
+    Replied { id: u32, text: String },
     Closed { id: u32, reason: u32 },
 }
 
@@ -91,5 +117,17 @@ impl NotifHandle {
 impl fmt::Debug for NotifHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("NotifHandle")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Progress;
+
+    #[test]
+    fn progress_hint_is_clamped_to_percent_range() {
+        assert_eq!(Progress::from_hint(-5), Progress::Percent(0));
+        assert_eq!(Progress::from_hint(42), Progress::Percent(42));
+        assert_eq!(Progress::from_hint(250), Progress::Percent(100));
     }
 }
