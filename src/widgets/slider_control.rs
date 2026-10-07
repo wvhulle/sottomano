@@ -238,9 +238,12 @@ impl SliderControl {
         self
     }
 
-    fn fill(&self) -> Ratio {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    fn percent_of_range(&self) -> u8 {
         let span = self.range.end() - self.range.start();
-        Ratio::new::<ratio::ratio>(f64::from((self.current() - self.range.start()) / span))
+        ((self.current() - self.range.start()) / span * 100.0)
+            .round()
+            .clamp(0.0, 100.0) as u8
     }
 
     pub fn close(&mut self) {
@@ -442,9 +445,14 @@ impl BarWidget for SliderControl {
     }
 
     fn announced_level(&self) -> Option<AnnouncedLevel> {
-        self.level_announcement
-            .as_ref()?
-            .level(self.fill(), self.disabled, self.readout_text())
+        let announcement = self.level_announcement.as_ref()?;
+        let readout = self.readout_text();
+        let body_text = if self.disabled {
+            format!("Muted · {readout}")
+        } else {
+            readout
+        };
+        announcement.level(self.percent_of_range(), body_text)
     }
 
     fn tooltip(&self) -> TooltipBody {

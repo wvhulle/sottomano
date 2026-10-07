@@ -1,5 +1,4 @@
 pub mod body_markup;
-pub mod level_announcement_toasts;
 pub mod reading_alert_toasts;
 pub mod toast_anchor_geometry;
 pub mod toast_card;
@@ -12,7 +11,7 @@ pub mod window_anchored_toasts;
 use std::cmp::Reverse;
 
 use iced::{Padding, Theme, time::Instant};
-use level_announcement_toasts::SeenLevel;
+use niri_ipc::state::EventStreamState;
 use reading_alert_toasts::{
     DismissedReadingAlert, ReadingAlertToastChanges, ShownReadingAlertToast,
     plan_reading_alert_toast_changes,
@@ -26,13 +25,60 @@ use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
     config::Config,
-    data::{notifications::model::NotifHandle, source::niri::Placement},
+    data::{
+        notifications::model::NotifHandle,
+        source::{app_icon::DesktopEntries, niri::Placement},
+    },
     desktop_shell::Message,
     state::ShellSettings,
-    widgets::{reading_alert::ReadingAlert, reveal::reveal_y},
+    widgets::{
+        announced_level::LevelReading, reading_alert::ReadingAlert, reveal::reveal_y,
+        widget_group::GroupViewWithAlerts,
+    },
 };
 
 const DEFAULT_ACTION: &str = "default";
+
+pub struct ToastContext<'a> {
+    pub placement: Placement,
+    pub entries: Option<&'a DesktopEntries>,
+    pub config: &'a Config,
+    pub shell_settings: &'a ShellSettings,
+}
+
+impl<'a> ToastContext<'a> {
+    pub fn new(
+        niri: &EventStreamState,
+        entries: Option<&'a DesktopEntries>,
+        config: &'a Config,
+        shell_settings: &'a ShellSettings,
+    ) -> Self {
+        Self {
+            placement: Placement::derive(niri),
+            entries,
+            config,
+            shell_settings,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct WidgetToastRequests {
+    alerts: Vec<ReadingAlert<Message>>,
+    levels: Vec<LevelReading<Message>>,
+}
+
+impl<'a> FromIterator<GroupViewWithAlerts<'a, Message>> for WidgetToastRequests {
+    fn from_iter<I: IntoIterator<Item = GroupViewWithAlerts<'a, Message>>>(groups: I) -> Self {
+        groups
+            .into_iter()
+            .fold(Self::default(), |mut requests, group| {
+                requests.alerts.extend(group.alerts);
+                requests.levels.extend(group.levels);
+                requests
+            })
+    }
+}
 
 #[derive(Default)]
 pub struct NotificationLayer {
@@ -43,7 +89,7 @@ pub struct NotificationLayer {
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
     dismissed_reading_alerts: Vec<DismissedReadingAlert>,
-    seen_levels: Vec<SeenLevel>,
+    previous_levels: Vec<LevelReading<Message>>,
 }
 
 impl NotificationLayer {
@@ -128,15 +174,15 @@ impl NotificationLayer {
             .any(|n| n.data.id == id && n.data.actions.iter().any(|a| a.key == DEFAULT_ACTION))
     }
 
-    fn reading_alert_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
-        let alert = self
-            .showing()
-            .find(|n| n.data.id == toast_id)?
-            .reading_alert()?;
+    fn shell_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
+        let notif = self.showing().find(|n| n.data.id == toast_id)?;
         if action_key == DEFAULT_ACTION {
-            return Some(alert.on_body_clicked.clone());
+            return notif.origin.on_body_clicked().cloned();
         }
-        alert.action_button_pressed(action_key).cloned()
+        notif
+            .reading_alert()?
+            .action_button_pressed(action_key)
+            .cloned()
     }
 
     fn plan_reading_alert_toasts(

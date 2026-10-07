@@ -106,9 +106,6 @@ impl<Message> ReadingAlert<Message> {
 
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
-            id: toast_id,
-            app_name: Some("vetrata".to_owned()),
-            summary: self.summary_text.to_owned(),
             body: self.body_text.clone(),
             actions: self
                 .action_buttons
@@ -121,7 +118,7 @@ impl<Message> ReadingAlert<Message> {
                 .collect(),
             severity: self.severity,
             expire_timeout: ExpireTimeout::Never,
-            ..NotificationData::default()
+            ..NotificationData::from_shell(toast_id, self.summary_text)
         }
     }
 }

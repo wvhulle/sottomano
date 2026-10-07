@@ -137,7 +137,7 @@ impl<'a> PreviewedValue<'a> {
 pub struct GroupViewWithAlerts<'a, Outer> {
     pub element: Option<Element<'a, GroupEvent<Outer>>>,
     pub alerts: Vec<ReadingAlert<Outer>>,
-    pub levels: Vec<LevelReading>,
+    pub levels: Vec<LevelReading<Outer>>,
 }
 
 pub struct WidgetGroup<'a, M> {
@@ -228,7 +228,8 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         let levels = self
             .items
             .iter()
-            .filter_map(GroupItem::level_reading)
+            .filter_map(|item| item.level_reading((self.on_expansion)(ExpansionMessage::Expand)))
+            .map(|level| level.map_messages(lift_message))
             .collect();
         let highest_alert_severity = alerts
             .iter()

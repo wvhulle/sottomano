@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, iter, mem, path::Path};
 
 use iced::{
     Task,
@@ -6,12 +6,10 @@ use iced::{
     window::Id,
 };
 use iced_exwlshell::reexport::ActivationTokenSink;
-use niri_ipc::state::EventStreamState;
 use tokio::{sync::mpsc, time::timeout};
 
 use super::{
-    DEFAULT_ACTION, NotificationLayer,
-    level_announcement_toasts::{levels_changed_outside_the_bar, seen_levels},
+    DEFAULT_ACTION, NotificationLayer, ToastContext, WidgetToastRequests,
     reading_alert_toasts::{DismissedReadingAlert, ReadingAlertToastChanges, ToastSlotForAlert},
     toast_card::{self, CardIcons},
     toast_lifecycle::{Countdown, Notification, NotificationMessage, ToastOrigin, lifetime},
@@ -23,11 +21,11 @@ use crate::{
         notifications::model::{ExpireTimeout, NotificationData, Outbound, close_reason},
         severity::Severity,
         sink::sound,
-        source::{app_icon::DesktopEntries, niri::Placement},
+        source::niri::Placement,
     },
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
-    state::{self, NotificationSettings, OverlaySettings, ShellSettings},
+    state::{self, NotificationSettings, OverlaySettings},
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
     widgets::{announced_level::LevelReading, reading_alert::ReadingAlert},
 };
@@ -42,17 +40,18 @@ fn is_window_owned_action(key: &str) -> bool {
 
 impl DesktopShell {
     pub(crate) fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
-        let placement = Placement::derive(&self.niri);
         let panels: HashMap<String, Id> = self
             .panels()
             .map(|(id, output)| (output.to_owned(), id))
             .collect();
         self.notifications.update(
             msg,
-            &placement,
-            self.desktop_entries.get(),
-            &self.config,
-            &self.shell_settings,
+            &ToastContext::new(
+                &self.niri,
+                self.desktop_entries.get(),
+                &self.config,
+                &self.shell_settings,
+            ),
             &|output| panels.get(output).copied(),
         )
     }
@@ -94,45 +93,26 @@ impl NotificationLayer {
     pub fn update(
         &mut self,
         message: NotificationMessage,
-        placement: &Placement,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        context: &ToastContext,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
-        let handled = self.handle(
-            message,
-            placement,
-            entries,
-            config,
-            shell_settings,
-            panel_on,
-        );
+        let handled = self.handle(message, context, panel_on);
         Task::batch([handled, self.release_orphaned_keyboard()])
     }
 
     fn handle(
         &mut self,
         message: NotificationMessage,
-        placement: &Placement,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        context: &ToastContext,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
+        let placement = &context.placement;
         match message {
             NotificationMessage::Connected(handle) => {
                 self.handle = Some(handle);
                 Task::none()
             }
-            NotificationMessage::Served(data) => self.serve(
-                data,
-                ToastOrigin::DbusClient,
-                placement,
-                entries,
-                config,
-                shell_settings,
-            ),
+            NotificationMessage::Served(data) => self.serve(data, ToastOrigin::DbusClient, context),
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, placement, panel_on)
             }
@@ -186,88 +166,68 @@ impl NotificationLayer {
             .map_or_else(Task::none, |file| Task::done(Message::CopyText(file)))
     }
 
-    pub fn show_reading_alerts(
+    pub fn show_widget_toasts(
+        &mut self,
+        requests: WidgetToastRequests,
+        context: &ToastContext,
+    ) -> Task<Message> {
+        let alert_toasts = self.show_reading_alerts(&requests.alerts, context);
+        let previous_levels = mem::replace(&mut self.previous_levels, requests.levels.clone());
+        let level_toasts = requests
+            .levels
+            .into_iter()
+            .filter(|reading| reading.changed_since(&previous_levels))
+            .map(|reading| self.announce_level(reading, context));
+        Task::batch(iter::once(alert_toasts).chain(level_toasts))
+    }
+
+    fn show_reading_alerts(
         &mut self,
         active_alerts: &[ReadingAlert<Message>],
-        niri: &EventStreamState,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        context: &ToastContext,
     ) -> Task<Message> {
-        if shell_settings.notifications.do_not_disturb {
+        if context.shell_settings.notifications.do_not_disturb {
             return Task::none();
         }
         let changes = self.plan_reading_alert_toasts(active_alerts);
         if changes.is_empty() {
             return Task::none();
         }
-        let placement = Placement::derive(niri);
-        self.apply_reading_alert_toast_changes(changes, &placement, entries, config, shell_settings)
+        self.apply_reading_alert_toast_changes(changes, context)
     }
 
-    pub fn announce_level_changes(
+    fn announce_level(
         &mut self,
-        current_levels: &[LevelReading],
-        niri: &EventStreamState,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        reading: LevelReading<Message>,
+        context: &ToastContext,
     ) -> Task<Message> {
-        let changed: Vec<LevelReading> =
-            levels_changed_outside_the_bar(current_levels, &self.seen_levels)
-                .into_iter()
-                .cloned()
-                .collect();
-        self.seen_levels = seen_levels(current_levels);
-        if changed.is_empty() {
-            return Task::none();
-        }
-        let placement = Placement::derive(niri);
-        let lifetime = config.toasts.lifetime.level_announcement_timeout();
-        let mut tasks = Vec::with_capacity(changed.len());
-        for reading in changed {
-            let toast_id = self
-                .showing()
-                .find(|n| n.announces_level_of(&reading.hover_target))
-                .map_or_else(|| self.fresh_reading_alert_toast_id(), |n| n.data.id);
-            tasks.push(self.serve(
-                Box::new(reading.toast_notification_data(toast_id, lifetime)),
-                ToastOrigin::LevelAnnouncement(Box::new(reading)),
-                &placement,
-                entries,
-                config,
-                shell_settings,
-            ));
-        }
-        Task::batch(tasks)
+        let toast_id = self
+            .showing()
+            .find(|n| n.announces_level_of(&reading.hover_target))
+            .map_or_else(|| self.fresh_reading_alert_toast_id(), |n| n.data.id);
+        self.serve(
+            Box::new(reading.toast_notification_data(toast_id)),
+            ToastOrigin::LevelAnnouncement(Box::new(reading)),
+            context,
+        )
     }
 
     pub fn show_config_error(
         &mut self,
         path: &Path,
         error: &LoadError,
-        placement: &Placement,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        context: &ToastContext,
     ) -> Task<Message> {
         let data = NotificationData {
-            id: CONFIG_ERROR_TOAST_ID,
-            app_name: Some("vetrata".to_owned()),
-            summary: format!("Invalid configuration in {}", path.display()),
             body: Some(error.to_string()),
             severity: Severity::Critical,
             expire_timeout: ExpireTimeout::Never,
-            ..NotificationData::default()
+            ..NotificationData::from_shell(
+                CONFIG_ERROR_TOAST_ID,
+                format!("Invalid configuration in {}", path.display()),
+            )
         };
-        self.serve(
-            Box::new(data),
-            ToastOrigin::ConfigError,
-            placement,
-            entries,
-            config,
-            shell_settings,
-        )
+        self.serve(Box::new(data), ToastOrigin::ConfigError, context)
     }
 
     pub fn withdraw_config_error(&mut self) -> Task<Message> {
@@ -277,10 +237,7 @@ impl NotificationLayer {
     fn apply_reading_alert_toast_changes(
         &mut self,
         changes: ReadingAlertToastChanges<Message>,
-        placement: &Placement,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        context: &ToastContext,
     ) -> Task<Message> {
         self.dismissed_reading_alerts.retain(|dismissed| {
             !changes
@@ -297,10 +254,7 @@ impl NotificationLayer {
             self.serve(
                 Box::new(to_show.alert.toast_notification_data(toast_id)),
                 ToastOrigin::ReadingAlert(Box::new(to_show.alert)),
-                placement,
-                entries,
-                config,
-                shell_settings,
+                context,
             )
         }));
         Task::batch(tasks)
@@ -322,13 +276,16 @@ impl NotificationLayer {
         &mut self,
         data: Box<NotificationData>,
         origin: ToastOrigin,
-        placement: &Placement,
-        entries: Option<&DesktopEntries>,
-        config: &Config,
-        shell_settings: &ShellSettings,
+        context: &ToastContext,
     ) -> Task<Message> {
+        let ToastContext {
+            placement,
+            entries,
+            config,
+            shell_settings,
+        } = context;
         let notifications = &shell_settings.notifications;
-        if notifications.do_not_disturb && !origin.answers_user_input() {
+        if notifications.do_not_disturb {
             return Task::none();
         }
         let id = data.id;
@@ -344,7 +301,7 @@ impl NotificationLayer {
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED));
         }
         let icons = origin.glyph().map_or_else(
-            || toast_card::resolve_icons(&data, entries),
+            || toast_card::resolve_icons(&data, *entries),
             CardIcons::of_glyph,
         );
         let now = Instant::now();
@@ -463,10 +420,10 @@ impl NotificationLayer {
         placement: &Placement,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
-        if let Some(reading_alert_message) = self.reading_alert_message_for(id, key) {
+        if let Some(shell_message) = self.shell_message_for(id, key) {
             self.remember_dismissed_reading_alert(id);
             return Task::batch([
-                Task::done(reading_alert_message),
+                Task::done(shell_message),
                 self.close_all([id], close_reason::DISMISSED),
             ]);
         }

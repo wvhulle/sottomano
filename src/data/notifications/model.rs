@@ -57,6 +57,17 @@ pub struct NotificationData {
     pub reply: ReplyPrompt,
 }
 
+impl NotificationData {
+    pub fn from_shell(id: u32, summary: impl Into<String>) -> Self {
+        Self {
+            id,
+            app_name: Some("vetrata".to_owned()),
+            summary: summary.into(),
+            ..Self::default()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Progress {
     Percent(u8),
