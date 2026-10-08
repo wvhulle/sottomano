@@ -121,6 +121,10 @@ impl<S: Source + BarWidget> LastPoll<S> {
         self.tooltip_with(self.display()?.tooltip().with_section(extra))
     }
 
+    pub fn tooltip_with_sections(&self, extra: Vec<Section>) -> Option<Tooltip> {
+        self.tooltip_with(self.display()?.tooltip().with_sections(extra))
+    }
+
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
         self.display()?;
         let tooltip = Tooltip {

@@ -1,7 +1,7 @@
 use crate::{
     data::source::hardware::{
-        Adapter, CpuModel, CpuSignature, DriveIdentity, MemoryModuleGroup, MemoryModules,
-        ModemIdentity, PowerSupplyIdentity,
+        Adapter, CacheLevel, CpuModel, CpuTopology, DriveIdentity, MemoryModuleGroup,
+        MemoryModules, ModemIdentity, PowerSupplyIdentity,
     },
     widgets::tooltip_body::{Row, Section, link, row, section},
 };
@@ -35,34 +35,48 @@ pub fn reported_rows<'a>(
         .collect()
 }
 
-impl HardwareRows for CpuModel {
-    fn hardware_rows(&self) -> Vec<Row> {
-        let mut rows = reported_rows([
-            ("Vendor", self.vendor.as_ref()),
-            ("Model", self.name.as_ref()),
-        ]);
-        rows.extend(self.signature.map(CpuSignature::rows).unwrap_or_default());
-        rows
+impl CpuModel {
+    pub fn hardware_sections(&self) -> Vec<Section> {
+        vec![
+            section("Processor", self.processor_rows()),
+            section("Topology", self.topology.rows()),
+            section("Cache", self.caches.0.iter().map(CacheLevel::row).collect()),
+        ]
+    }
+
+    fn processor_rows(&self) -> Vec<Row> {
+        reported_rows([
+            ("Model", self.identity.name.as_ref()),
+            (
+                "Microarchitecture",
+                self.architecture.microarchitecture.as_ref(),
+            ),
+            ("Process", self.architecture.process.as_ref()),
+            ("Released", self.architecture.released.as_ref()),
+            ("x86-64 level", self.architecture.x86_64_level.as_ref()),
+            ("Microcode", self.identity.microcode.as_ref()),
+        ])
     }
 }
 
-impl CpuSignature {
+impl CpuTopology {
     fn rows(self) -> Vec<Row> {
-        match self {
-            CpuSignature::X86 {
-                family,
-                model,
-                stepping,
-            } => vec![
-                row("Family", family.to_string()),
-                row("Model number", model.to_string()),
-                row("Stepping", stepping.to_string()),
-            ],
-            CpuSignature::Arm { implementer, part } => vec![
-                row("Implementer", format!("0x{implementer:02x}")),
-                row("Part", format!("0x{part:03x}")),
-            ],
-        }
+        [("Cores", self.cores), ("Threads", self.threads)]
+            .into_iter()
+            .filter_map(|(key, count)| Some(row(key, count?.to_string())))
+            .collect()
+    }
+}
+
+impl CacheLevel {
+    fn row(&self) -> Row {
+        let instances = self
+            .instances
+            .iter()
+            .map(|same_size| format!("{} × {}", same_size.count, same_size.size.display().iec()))
+            .collect::<Vec<_>>()
+            .join(" + ");
+        row(self.position.to_string(), instances)
     }
 }
 

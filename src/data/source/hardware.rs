@@ -1,15 +1,30 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
 };
 
 use bytesize::ByteSize;
+use serde_json::Value;
 use tokio::task::spawn_blocking;
+
+use crate::data::source::command;
 
 const UDEV_DATA: &str = "/run/udev/data";
 const CPU_INFO: &str = "/proc/cpuinfo";
+const CPU_DEVICES: &str = "/sys/devices/system/cpu";
+const INXI_PROGRAM: &str = "inxi";
+const INXI_CPU_REPORT_ARGS: [&str; 8] = [
+    "--tty",
+    "--cpu",
+    "-xxx",
+    "-a",
+    "--output",
+    "json",
+    "--output-file",
+    "print",
+];
 const FIRMWARE_PLACEHOLDERS: [&str; 9] = [
     "",
     "Not Specified",
@@ -238,78 +253,235 @@ impl HostHardware {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CpuSignature {
-    X86 {
-        family: u32,
-        model: u32,
-        stepping: u32,
-    },
-    Arm {
-        implementer: u32,
-        part: u32,
-    },
+fn cpuinfo_field<'a>(core: &'a str, name: &str) -> Option<&'a str> {
+    core.lines().find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        (key.trim() == name).then(|| value.trim())
+    })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CpuModel {
-    pub vendor: Option<String>,
-    pub name: Option<String>,
-    pub signature: Option<CpuSignature>,
+    pub identity: CpuIdentity,
+    pub architecture: CpuArchitecture,
+    pub topology: CpuTopology,
+    pub caches: CacheHierarchy,
 }
 
 impl CpuModel {
     pub fn current() -> Self {
-        Self::parse(&fs::read_to_string(CPU_INFO).unwrap_or_default())
-    }
-
-    fn parse(cpuinfo: &str) -> Self {
+        let cpuinfo = fs::read_to_string(CPU_INFO).unwrap_or_default();
         let first_core = cpuinfo.split("\n\n").next().unwrap_or_default();
-        let field = |name: &str| {
-            first_core.lines().find_map(|line| {
-                let (key, value) = line.split_once(':')?;
-                (key.trim() == name).then(|| value.trim())
-            })
-        };
         CpuModel {
-            vendor: field("vendor_id").map(vendor_name),
-            name: field("model name").and_then(|name| reported(&without_trademarks(name))),
-            signature: Self::x86_signature(&field).or_else(|| Self::arm_signature(&field)),
+            identity: CpuIdentity::parse(first_core),
+            architecture: CpuArchitecture::current(),
+            topology: CpuTopology::parse(first_core),
+            caches: CacheHierarchy::current(),
         }
     }
+}
 
-    fn x86_signature<'a>(field: &impl Fn(&str) -> Option<&'a str>) -> Option<CpuSignature> {
-        Some(CpuSignature::X86 {
-            family: field("cpu family")?.parse().ok()?,
-            model: field("model")?.parse().ok()?,
-            stepping: field("stepping")?.parse().ok()?,
-        })
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CpuIdentity {
+    pub name: Option<String>,
+    pub microcode: Option<String>,
+}
+
+impl CpuIdentity {
+    fn parse(first_core: &str) -> Self {
+        let field = |name| cpuinfo_field(first_core, name).map(str::to_owned);
+        CpuIdentity {
+            name: field("model name"),
+            microcode: field("microcode"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CpuTopology {
+    pub cores: Option<u32>,
+    pub threads: Option<u32>,
+}
+
+impl CpuTopology {
+    fn parse(first_core: &str) -> Self {
+        let count = |name| cpuinfo_field(first_core, name)?.parse().ok();
+        CpuTopology {
+            cores: count("cpu cores"),
+            threads: count("siblings"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CpuArchitecture {
+    pub microarchitecture: Option<String>,
+    pub process: Option<String>,
+    pub released: Option<String>,
+    pub x86_64_level: Option<String>,
+}
+
+impl CpuArchitecture {
+    fn current() -> Self {
+        command::blocking::output(INXI_PROGRAM, &INXI_CPU_REPORT_ARGS)
+            .ok()
+            .flatten()
+            .and_then(|report| serde_json::from_str(&report).ok())
+            .map(|report| Self::from_inxi_report(&report))
+            .unwrap_or_default()
     }
 
-    fn arm_signature<'a>(field: &impl Fn(&str) -> Option<&'a str>) -> Option<CpuSignature> {
-        let hex = |name| u32::from_str_radix(field(name)?.strip_prefix("0x")?, 16).ok();
-        Some(CpuSignature::Arm {
-            implementer: hex("CPU implementer")?,
-            part: hex("CPU part")?,
+    fn from_inxi_report(report: &Value) -> Self {
+        let field = |name| inxi_field(report, name);
+        CpuArchitecture {
+            microarchitecture: field("arch"),
+            process: field("process"),
+            released: field("built"),
+            x86_64_level: field("level"),
+        }
+    }
+}
+
+fn inxi_field(report: &Value, name: &str) -> Option<String> {
+    match report {
+        Value::Array(entries) => entries.iter().find_map(|entry| inxi_field(entry, name)),
+        Value::Object(fields) => fields.iter().find_map(|(key, value)| {
+            match key.rsplit_once('#').map(|(_, field_name)| field_name) {
+                Some(field_name) if field_name == name => inxi_scalar(value),
+                _ => inxi_field(value, name),
+            }
+        }),
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => None,
+    }
+}
+
+fn inxi_scalar(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => Some(text.clone()),
+        Value::Number(number) => Some(number.to_string()),
+        Value::Null | Value::Bool(_) | Value::Array(_) | Value::Object(_) => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CacheKind {
+    Data,
+    Instruction,
+    Unified,
+}
+
+impl CacheKind {
+    fn from_sysfs(kind: &str) -> Option<Self> {
+        match kind {
+            "Data" => Some(CacheKind::Data),
+            "Instruction" => Some(CacheKind::Instruction),
+            "Unified" => Some(CacheKind::Unified),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CachePosition {
+    pub level: u8,
+    pub kind: CacheKind,
+}
+
+impl Display for CachePosition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let level = self.level;
+        match self.kind {
+            CacheKind::Data => write!(f, "L{level} data"),
+            CacheKind::Instruction => write!(f, "L{level} instruction"),
+            CacheKind::Unified => write!(f, "L{level}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct CacheInstance {
+    position: CachePosition,
+    size: ByteSize,
+    shared_cpus: String,
+}
+
+impl CacheInstance {
+    fn read(index: &Path) -> Option<Self> {
+        let text = |name| Some(fs::read_to_string(index.join(name)).ok()?.trim().to_owned());
+        let number = |name| text(name)?.parse::<u64>().ok();
+        Some(CacheInstance {
+            position: CachePosition {
+                level: text("level")?.parse().ok()?,
+                kind: CacheKind::from_sysfs(&text("type")?)?,
+            },
+            size: ByteSize::b(
+                number("ways_of_associativity")?
+                    * number("number_of_sets")?
+                    * number("coherency_line_size")?
+                    * number("physical_line_partition")?,
+            ),
+            shared_cpus: text("shared_cpu_list")?,
         })
     }
 }
 
-fn vendor_name(vendor_id: &str) -> String {
-    match vendor_id {
-        "GenuineIntel" => "Intel".to_owned(),
-        "AuthenticAMD" => "AMD".to_owned(),
-        other => other.to_owned(),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CacheInstances {
+    pub size: ByteSize,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CacheLevel {
+    pub position: CachePosition,
+    pub instances: Vec<CacheInstances>,
+}
+
+impl CacheLevel {
+    fn of_instances(instances: &[CacheInstance]) -> Self {
+        CacheLevel {
+            position: instances[0].position,
+            instances: instances
+                .chunk_by(|a, b| a.size == b.size)
+                .map(|same_size| CacheInstances {
+                    size: same_size[0].size,
+                    count: same_size.len(),
+                })
+                .collect(),
+        }
     }
 }
 
-fn without_trademarks(name: &str) -> String {
-    ["(R)", "(TM)", "(tm)", "(r)"]
-        .iter()
-        .fold(name.to_owned(), |name, mark| name.replace(mark, ""))
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CacheHierarchy(pub Vec<CacheLevel>);
+
+impl CacheHierarchy {
+    fn current() -> Self {
+        let instances = fs::read_dir(CPU_DEVICES)
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .filter_map(|cpu| fs::read_dir(cpu.path().join("cache")).ok())
+            .flatten()
+            .filter_map(Result::ok)
+            .filter_map(|index| CacheInstance::read(&index.path()));
+        Self::from_instances(instances)
+    }
+
+    fn from_instances(instances: impl IntoIterator<Item = CacheInstance>) -> Self {
+        let mut distinct: Vec<CacheInstance> = instances
+            .into_iter()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        distinct.sort_by(|a, b| a.position.cmp(&b.position).then(b.size.cmp(&a.size)));
+        Self(
+            distinct
+                .chunk_by(|a, b| a.position == b.position)
+                .map(CacheLevel::of_instances)
+                .collect(),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -390,9 +562,11 @@ impl MemorySlot {
 mod tests {
     use super::*;
 
-    const LUNAR_LAKE_CPUINFO: &str = "processor\t: 0\nvendor_id\t: GenuineIntel\ncpu family\t: \
-                                      6\nmodel\t\t: 189\nmodel name\t: Intel(R) Core(TM) Ultra 7 \
-                                      258V\nstepping\t: 1\n\nprocessor\t: 1\n";
+    const RAPHAEL_CPUINFO_CORE: &str = "processor\t: 0\nvendor_id\t: AuthenticAMD\nmodel name\t: \
+                                        AMD Ryzen 9 7950X3D 16-Core Processor\nmicrocode\t: \
+                                        0xa60120c\nsiblings\t: 32\ncpu cores\t: 16\n";
+
+    const RAPHAEL_INXI_REPORT: &str = r#"[{"000#1#0#CPU":[{"004#1#2#arch":"Zen 4","008#0#2#built":"2022+","009#0#2#process":"TSMC n5 (5nm)","006#1#2#level":"v4","002#0#2#bits":64},{"018#1#3#cores":16}]}]"#;
 
     const SOLDERED_LPDDR5: &str = "\
 E:MEMORY_DEVICE_0_SIZE=4294967296
@@ -411,30 +585,85 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
 ";
 
     #[test]
-    fn x86_cpuinfo_yields_clean_name_and_signature() {
+    fn cpuinfo_yields_name_microcode_and_topology() {
         assert_eq!(
-            CpuModel::parse(LUNAR_LAKE_CPUINFO),
-            CpuModel {
-                vendor: Some("Intel".to_owned()),
-                name: Some("Intel Core Ultra 7 258V".to_owned()),
-                signature: Some(CpuSignature::X86 {
-                    family: 6,
-                    model: 189,
-                    stepping: 1
-                }),
+            CpuIdentity::parse(RAPHAEL_CPUINFO_CORE),
+            CpuIdentity {
+                name: Some("AMD Ryzen 9 7950X3D 16-Core Processor".to_owned()),
+                microcode: Some("0xa60120c".to_owned()),
+            }
+        );
+        assert_eq!(
+            CpuTopology::parse(RAPHAEL_CPUINFO_CORE),
+            CpuTopology {
+                cores: Some(16),
+                threads: Some(32),
             }
         );
     }
 
     #[test]
-    fn arm_cpuinfo_yields_implementer_and_part() {
-        let cpuinfo = "processor\t: 0\nCPU implementer\t: 0x41\nCPU part\t: 0xd0b\n";
+    fn inxi_report_fields_are_found_by_name() {
+        let report = serde_json::from_str(RAPHAEL_INXI_REPORT).unwrap();
         assert_eq!(
-            CpuModel::parse(cpuinfo).signature,
-            Some(CpuSignature::Arm {
-                implementer: 0x41,
-                part: 0xd0b
-            })
+            CpuArchitecture::from_inxi_report(&report),
+            CpuArchitecture {
+                microarchitecture: Some("Zen 4".to_owned()),
+                process: Some("TSMC n5 (5nm)".to_owned()),
+                released: Some("2022+".to_owned()),
+                x86_64_level: Some("v4".to_owned()),
+            }
+        );
+    }
+
+    #[test]
+    fn shared_caches_are_counted_once_and_grouped_by_size() {
+        let unified = |level, size, shared_cpus: &str| CacheInstance {
+            position: CachePosition {
+                level,
+                kind: CacheKind::Unified,
+            },
+            size,
+            shared_cpus: shared_cpus.to_owned(),
+        };
+        let instances = [
+            unified(2, ByteSize::mib(1), "0,16"),
+            unified(2, ByteSize::mib(1), "1,17"),
+            unified(3, ByteSize::mib(32), "8-15,24-31"),
+            unified(2, ByteSize::mib(1), "0,16"),
+            unified(3, ByteSize::mib(96), "0-7,16-23"),
+            unified(3, ByteSize::mib(96), "0-7,16-23"),
+        ];
+        assert_eq!(
+            CacheHierarchy::from_instances(instances),
+            CacheHierarchy(vec![
+                CacheLevel {
+                    position: CachePosition {
+                        level: 2,
+                        kind: CacheKind::Unified,
+                    },
+                    instances: vec![CacheInstances {
+                        size: ByteSize::mib(1),
+                        count: 2,
+                    }],
+                },
+                CacheLevel {
+                    position: CachePosition {
+                        level: 3,
+                        kind: CacheKind::Unified,
+                    },
+                    instances: vec![
+                        CacheInstances {
+                            size: ByteSize::mib(96),
+                            count: 1,
+                        },
+                        CacheInstances {
+                            size: ByteSize::mib(32),
+                            count: 1,
+                        },
+                    ],
+                },
+            ])
         );
     }
 
