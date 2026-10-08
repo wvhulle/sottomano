@@ -213,9 +213,14 @@ impl TooltipBody {
 
     #[must_use]
     pub fn with_section(self, extra: Section) -> Self {
+        self.with_sections(vec![extra])
+    }
+
+    #[must_use]
+    pub fn with_sections(self, extra: Vec<Section>) -> Self {
         match self {
             TooltipBody::Sections(mut sections) => {
-                sections.push(extra);
+                sections.extend(extra);
                 TooltipBody::Sections(sections)
             }
             TooltipBody::Text { .. } | TooltipBody::Workspace(_) | TooltipBody::TrayMenu(_) => self,

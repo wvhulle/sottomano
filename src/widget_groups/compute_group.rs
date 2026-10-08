@@ -100,14 +100,12 @@ impl ComputeGroup {
         match target {
             HoverTarget::Cpu => self
                 .cpu
-                .tooltip_with_section(self.hardware.cpu.hardware_section()),
+                .tooltip_with_sections(self.hardware.cpu.hardware_sections()),
             HoverTarget::Memory => self
                 .memory
                 .tooltip_with_section(self.hardware.memory.hardware_section()),
             HoverTarget::CpuClock => self.clock.tooltip(),
-            HoverTarget::Temperature => self
-                .temperature
-                .tooltip_with_section(self.hardware.cpu.hardware_section()),
+            HoverTarget::Temperature => self.temperature.tooltip(),
             _ => None,
         }
     }

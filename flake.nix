@@ -83,6 +83,7 @@
           networkmanager
           modemmanager
           bluez
+          inxi
           wireplumber
           pipewire
           wireguard-tools
