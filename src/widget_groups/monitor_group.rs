@@ -172,10 +172,7 @@ impl MonitorGroup {
         }
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, MonitorMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, MonitorMessage> {
         let backlight_sliders: Vec<&'a SliderControl> = self
             .backlights
             .iter()
@@ -202,7 +199,6 @@ impl MonitorGroup {
         WidgetGroup::new(
             &self.expansion,
             MonitorMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Lightbulb(Weight::Regular).into()),
                 preview: previewed_value.map(PreviewedValue::Plain),

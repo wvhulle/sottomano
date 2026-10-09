@@ -5,7 +5,6 @@ pub mod tailscale_mesh_tooltip;
 pub mod wireguard_tunnel_tooltip;
 
 use crate::{
-    config::Config,
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
@@ -125,10 +124,7 @@ impl InternetGroup {
         }
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, InternetMessage>> {
+    pub fn widget_group<'a>(&'a self) -> WidgetGroup<'a, InternetMessage> {
         let tunnels = self
             .wireguard
             .get()
@@ -160,7 +156,6 @@ impl InternetGroup {
         WidgetGroup::new(
             &self.expansion,
             InternetMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::ArrowsDownUp(Weight::Regular).into()),
                 preview: self

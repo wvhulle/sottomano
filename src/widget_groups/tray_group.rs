@@ -160,7 +160,7 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, TrayMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, TrayMessage> {
         let items: Vec<GroupItem<'a, TrayMessage>> = self
             .visible(config)
             .into_iter()
@@ -169,7 +169,6 @@ impl TrayGroup {
         WidgetGroup::new(
             &self.expansion,
             TrayMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::DotsThreeVertical(Weight::Regular).into()),
                 preview: None,

@@ -160,7 +160,7 @@ impl PanelAppearanceGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> Option<WidgetGroup<'a, PanelAppearanceMessage>> {
+    ) -> WidgetGroup<'a, PanelAppearanceMessage> {
         let items: Vec<GroupItem<'a, PanelAppearanceMessage>> = Knob::ALL
             .into_iter()
             .map(|knob| {
@@ -172,7 +172,6 @@ impl PanelAppearanceGroup {
         WidgetGroup::new(
             &self.expansion,
             PanelAppearanceMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Rows(Weight::Regular).into()),
                 preview: None,

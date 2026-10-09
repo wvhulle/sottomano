@@ -274,8 +274,19 @@ impl MediaGroup {
         &'a self,
         config: &'a Config,
         index: &'a DesktopIndex,
-    ) -> Option<WidgetGroup<'a, MediaMessage>> {
-        let media = self.current()?;
+    ) -> WidgetGroup<'a, MediaMessage> {
+        let Some(media) = self.current() else {
+            return WidgetGroup::new(
+                &self.expansion,
+                MediaMessage::Expansion,
+                GroupHandle {
+                    face: HandleFace::FirstItem,
+                    preview: None,
+                    forwards_scroll: false,
+                },
+                &[Option::<GroupItem<'a, MediaMessage>>::None; 0],
+            );
+        };
         let opacity = if media.status == Status::Playing {
             1.0
         } else {
@@ -310,9 +321,13 @@ impl MediaGroup {
         WidgetGroup::new(
             &self.expansion,
             MediaMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(GroupItem::element(move |_| {
+                face: HandleFace::FirstItem,
+                preview: None,
+                forwards_scroll: seekable,
+            },
+            &[
+                Some(GroupItem::element(move |_| {
                     hoverable(
                         track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
                         HoverTarget::Media,
@@ -320,10 +335,6 @@ impl MediaGroup {
                         GroupEvent::Tooltip,
                     )
                 })),
-                preview: None,
-                forwards_scroll: seekable,
-            },
-            &[
                 Some(track_label(config, media)),
                 seek,
                 Some(GroupItem::element(move |reveal| {

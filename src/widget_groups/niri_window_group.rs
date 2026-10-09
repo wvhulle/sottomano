@@ -142,10 +142,7 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, NiriWindowMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, NiriWindowMessage> {
         let items: Vec<GroupItem<'a, NiriWindowMessage>> = Knob::ALL
             .into_iter()
             .map(|knob| {
@@ -157,7 +154,6 @@ impl NiriWindowGroup {
         WidgetGroup::new(
             &self.expansion,
             NiriWindowMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::AppWindow(Weight::Regular).into()),
                 preview: None,

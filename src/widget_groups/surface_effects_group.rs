@@ -207,7 +207,7 @@ impl SurfaceEffectsGroup {
         config: &'a Config,
         shadow: ShadowStyle,
         styling: NiriStyling,
-    ) -> Option<WidgetGroup<'a, SurfaceEffectsMessage>> {
+    ) -> WidgetGroup<'a, SurfaceEffectsMessage> {
         let slider_items = ShadowKnob::ALL.into_iter().map(|knob| {
             GroupItem::slider(self.slider(knob), config, move |control| {
                 SurfaceEffectsMessage::Slider(knob, control)
@@ -242,7 +242,6 @@ impl SurfaceEffectsGroup {
         WidgetGroup::new(
             &self.expansion,
             SurfaceEffectsMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Sparkle(Weight::Regular).into()),
                 preview: None,

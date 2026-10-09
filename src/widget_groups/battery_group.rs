@@ -144,10 +144,7 @@ impl BatteryGroup {
         }
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, BatteryMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, BatteryMessage> {
         let time_item = self.time_widget().map(|time| GroupItem {
             alert_action_buttons: self
                 .power_profile
@@ -169,13 +166,13 @@ impl BatteryGroup {
         WidgetGroup::new(
             &self.expansion,
             BatteryMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(self.battery.reading_item(HoverTarget::Battery)?),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },
             &[
+                self.battery.reading_item(HoverTarget::Battery),
                 self.draw
                     .as_ref()
                     .map(|draw| GroupItem::reading(draw as &dyn BarWidget, HoverTarget::PowerDraw)),

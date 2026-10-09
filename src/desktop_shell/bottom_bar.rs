@@ -66,38 +66,29 @@ impl DesktopShell {
         [
             self.shell_layout_group
                 .widget_group(config, &shell_settings.layout)
-                .map_or_else(GroupViewWithAlerts::empty, |group| {
-                    group.place_on_bar(Message::ShellLayout, config, bottom)
-                }),
+                .place_on_bar(Message::ShellLayout, config, bottom),
             self.panel_appearance_group
                 .widget_group(config)
-                .map_or_else(GroupViewWithAlerts::empty, |group| {
-                    group.place_on_bar(Message::PanelAppearance, config, bottom)
-                }),
+                .place_on_bar(Message::PanelAppearance, config, bottom),
             self.overlay_group
                 .widget_group(config, shell_settings.overlays)
-                .map_or_else(GroupViewWithAlerts::empty, |group| {
-                    group.place_on_bar(Message::Overlay, config, bottom)
-                }),
+                .place_on_bar(Message::Overlay, config, bottom),
             self.surface_effects_group
                 .widget_group(config, shell_settings.shadow, self.niri_rules.styling())
-                .map_or_else(GroupViewWithAlerts::empty, |group| {
-                    group.place_on_bar(Message::SurfaceEffects, config, bottom)
-                }),
-            self.niri_window_group
-                .widget_group(config)
-                .map_or_else(GroupViewWithAlerts::empty, |group| {
-                    group.place_on_bar(Message::NiriWindow, config, bottom)
-                }),
+                .place_on_bar(Message::SurfaceEffects, config, bottom),
+            self.niri_window_group.widget_group(config).place_on_bar(
+                Message::NiriWindow,
+                config,
+                bottom,
+            ),
         ]
     }
 
     pub(super) fn bottom_end_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 1] {
-        [self
-            .tray_group
-            .widget_group(&self.config)
-            .map_or_else(GroupViewWithAlerts::empty, |group| {
-                group.place_on_bar(Message::Tray, &self.config, Position::Bottom)
-            })]
+        [self.tray_group.widget_group(&self.config).place_on_bar(
+            Message::Tray,
+            &self.config,
+            Position::Bottom,
+        )]
     }
 }

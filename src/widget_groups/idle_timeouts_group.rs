@@ -207,10 +207,7 @@ impl IdleTimeoutsGroup {
             .collect()
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, IdleTimeoutsMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, IdleTimeoutsMessage> {
         let items = self.entries().map(|(kind, timer)| {
             GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
                 timer.view(config, reveal).map(move |m| match m {
@@ -222,7 +219,6 @@ impl IdleTimeoutsGroup {
         WidgetGroup::new(
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Timer(Weight::Regular).into()),
                 preview: Some(PreviewedValue::Plain(self.lock.reading())),

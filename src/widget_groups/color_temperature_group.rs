@@ -200,7 +200,7 @@ impl ColorTemperatureGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> Option<WidgetGroup<'a, ColorTemperatureMessage>> {
+    ) -> WidgetGroup<'a, ColorTemperatureMessage> {
         let gamma_available = self.gamma.get().is_some();
         let items: Vec<Option<GroupItem<'a, ColorTemperatureMessage>>> = [
             gamma_available
@@ -217,7 +217,6 @@ impl ColorTemperatureGroup {
         WidgetGroup::new(
             &self.expansion,
             ColorTemperatureMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::ThermometerHot(Weight::Regular).into()),
                 preview: gamma_available

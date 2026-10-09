@@ -75,7 +75,7 @@ impl QuickLaunch {
         index: &'a DesktopIndex,
         output: &str,
         config: &'a Config,
-    ) -> Option<WidgetGroup<'a, QuickLaunchMessage>> {
+    ) -> WidgetGroup<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
         let items: Vec<GroupItem<'a, QuickLaunchMessage>> = app_ids
             .iter()
@@ -92,7 +92,6 @@ impl QuickLaunch {
         WidgetGroup::new(
             &self.expansion,
             QuickLaunchMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Rocket(Weight::Regular).into()),
                 preview: None,

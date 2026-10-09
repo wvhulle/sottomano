@@ -7,7 +7,6 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
-    config::Config,
     data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
@@ -83,10 +82,7 @@ impl WeatherGroup {
         }
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, WeatherMessage>> {
+    pub fn widget_group(&self) -> WidgetGroup<'_, WeatherMessage> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 Some(GroupItem::reading(
@@ -95,7 +91,8 @@ impl WeatherGroup {
                 ))
             })
         });
-        let items: Vec<Option<GroupItem<'a, WeatherMessage>>> = [
+        let items: Vec<_> = [
+            self.temp.reading_item(HoverTarget::WeatherTemp),
             self.wind.reading_item(HoverTarget::WeatherWind),
             self.rain
                 .present()
@@ -113,9 +110,8 @@ impl WeatherGroup {
         WidgetGroup::new(
             &self.expansion,
             WeatherMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(self.temp.reading_item(HoverTarget::WeatherTemp)?),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },

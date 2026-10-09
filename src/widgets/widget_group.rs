@@ -83,33 +83,19 @@ impl<M> GroupEvent<M> {
     }
 }
 
-pub struct GroupHandle<'a, M> {
-    pub face: HandleFace<'a, M>,
+pub struct GroupHandle<'a> {
+    pub face: HandleFace<'a>,
     pub preview: Option<PreviewedValue<'a>>,
     pub forwards_scroll: bool,
 }
 
-pub enum HandleFace<'a, M> {
+pub enum HandleFace<'a> {
     Icon(Glyph),
     IconColoredBy {
         glyph: Glyph,
         reading: &'a dyn BarWidget,
     },
-    Item(GroupItem<'a, M>),
-}
-
-impl<'a, M: 'a> HandleFace<'a, M> {
-    fn into_item(self, config: &'a Config) -> GroupItem<'a, M> {
-        match self {
-            HandleFace::Icon(glyph) => GroupItem::element(move |_| {
-                glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
-            }),
-            HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
-                glyph.view(config.font.icon_size_px, reading_color(config, reading))
-            }),
-            HandleFace::Item(item) => item,
-        }
-    }
+    FirstItem,
 }
 
 #[derive(Clone)]
@@ -153,20 +139,10 @@ pub struct GroupViewWithAlerts<'a, Outer> {
     pub levels: Vec<LevelReading<Outer>>,
 }
 
-impl<Outer> GroupViewWithAlerts<'_, Outer> {
-    pub fn empty() -> Self {
-        Self {
-            element: None,
-            alerts: Vec::new(),
-            levels: Vec::new(),
-        }
-    }
-}
-
 pub struct WidgetGroup<'a, M> {
     expansion: &'a GroupExpansion,
     on_expansion: fn(ExpansionMessage) -> M,
-    face: GroupItem<'a, M>,
+    face: HandleFace<'a>,
     items: Vec<GroupItem<'a, M>>,
     alerts: Vec<ReadingAlert<M>>,
     previewed_value: Option<PreviewedValue<'a>>,
@@ -177,31 +153,23 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
     pub fn new<Item: Into<Option<GroupItem<'a, M>>> + Clone>(
         expansion: &'a GroupExpansion,
         on_expansion: fn(ExpansionMessage) -> M,
-        config: &'a Config,
-        handle: GroupHandle<'a, M>,
+        handle: GroupHandle<'a>,
         items: &[Item],
-    ) -> Option<Self>
+    ) -> Self
     where
         M: Clone,
     {
         let items: Vec<GroupItem<'a, M>> = items.iter().cloned().filter_map(Into::into).collect();
-        let has_content = match handle.face {
-            HandleFace::Icon(_) | HandleFace::IconColoredBy { .. } => !items.is_empty(),
-            HandleFace::Item(_) => true,
-        };
-        if !has_content {
-            return None;
-        }
         let alerts = items.iter().flat_map(|item| item.alerts.clone()).collect();
-        Some(Self {
+        Self {
             expansion,
             on_expansion,
-            face: handle.face.into_item(config),
+            face: handle.face,
             items,
             alerts,
             previewed_value: handle.preview,
             forward_handle_scroll: handle.forwards_scroll,
-        })
+        }
     }
 
     pub fn place_on_bar<Outer: 'a>(
@@ -226,10 +194,9 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             .max()
             .unwrap_or_default();
         GroupViewWithAlerts {
-            element: Some(
-                self.view(config, bar_position, highest_alert_severity)
-                    .map(move |event| event.map(lift_message)),
-            ),
+            element: self
+                .view(config, bar_position, highest_alert_severity)
+                .map(|element| element.map(move |event| event.map(lift_message))),
             alerts: alerts
                 .into_iter()
                 .map(|alert| alert.map_messages(lift_message))
@@ -254,7 +221,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         config: &'a Config,
         bar_position: Position,
         highest_alert_severity: Severity,
-    ) -> Element<'a, GroupEvent<M>>
+    ) -> Option<Element<'a, GroupEvent<M>>>
     where
         M: Clone,
     {
@@ -262,11 +229,23 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             expansion,
             on_expansion,
             face,
-            items,
+            mut items,
             alerts: _,
             previewed_value,
             forward_handle_scroll,
         } = self;
+        if items.is_empty() {
+            return None;
+        }
+        let face = match face {
+            HandleFace::Icon(glyph) => GroupItem::element(move |_| {
+                glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
+            }),
+            HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
+                glyph.view(config.font.icon_size_px, reading_color(config, reading))
+            }),
+            HandleFace::FirstItem => items.remove(0),
+        };
         let content = items;
         let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
@@ -326,10 +305,12 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             )
             .view(config, bar_position)
         });
-        mouse_area(animated)
-            .on_enter(expansion_event(ExpansionMessage::CursorEntered))
-            .on_exit(expansion_event(ExpansionMessage::CursorExited))
-            .into()
+        Some(
+            mouse_area(animated)
+                .on_enter(expansion_event(ExpansionMessage::CursorEntered))
+                .on_exit(expansion_event(ExpansionMessage::CursorExited))
+                .into(),
+        )
     }
 }
 

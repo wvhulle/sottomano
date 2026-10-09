@@ -203,12 +203,11 @@ impl SystemdManagerGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> Option<WidgetGroup<'a, SystemdManagerMessage>> {
+    ) -> WidgetGroup<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
         WidgetGroup::new(
             &self.expansion,
             SystemdManagerMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::IconColoredBy {
                     glyph: Phosphor::Heartbeat(Weight::Regular).into(),

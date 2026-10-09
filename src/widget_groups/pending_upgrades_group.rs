@@ -68,20 +68,18 @@ impl PendingUpgradesGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> Option<WidgetGroup<'a, PendingUpgradesMessage>> {
-        if !self.categories().iter().any(Option::is_some) {
-            return None;
-        }
+    ) -> WidgetGroup<'a, PendingUpgradesMessage> {
+        let has_categories = self.categories().iter().any(Option::is_some);
         WidgetGroup::new(
             &self.expansion,
             PendingUpgradesMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(GroupItem::reading(self, HoverTarget::PendingUpgrades)),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },
             &[
+                has_categories.then(|| GroupItem::reading(self, HoverTarget::PendingUpgrades)),
                 self.firmware
                     .get()
                     .map(|firmware| firmware.group_item(config)),

@@ -89,21 +89,22 @@ impl ClockGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, ClockMessage>> {
+    pub fn widget_group(&self) -> WidgetGroup<'_, ClockMessage> {
         let zone_items = self.zone_times.iter().map(|zone_time| {
             GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
         });
-        let items: Vec<GroupItem<'a, ClockMessage>> =
-            [GroupItem::reading(&self.date, HoverTarget::LocalDate)]
-                .into_iter()
-                .chain(zone_items)
-                .collect();
+        let items: Vec<_> = [
+            GroupItem::reading(&self.time, HoverTarget::LocalTime),
+            GroupItem::reading(&self.date, HoverTarget::LocalDate),
+        ]
+        .into_iter()
+        .chain(zone_items)
+        .collect();
         WidgetGroup::new(
             &self.expansion,
             ClockMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(GroupItem::reading(&self.time, HoverTarget::LocalTime)),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },

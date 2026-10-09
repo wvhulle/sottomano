@@ -70,13 +70,8 @@ impl JournalEventsGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, JournalEventsMessage>> {
-        if !self.kinds().iter().any(Option::is_some) {
-            return None;
-        }
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, JournalEventsMessage> {
+        let has_kinds = self.kinds().iter().any(Option::is_some);
         let opens_log = |widget: &'a dyn BarWidget, target, journalctl_args| GroupItem {
             on_press: Some(Press {
                 does: TerminalJournal::PRESS_HINT,
@@ -90,13 +85,13 @@ impl JournalEventsGroup {
         WidgetGroup::new(
             &self.expansion,
             JournalEventsMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(GroupItem::reading(self, HoverTarget::JournalEvents)),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },
             &[
+                has_kinds.then(|| GroupItem::reading(self, HoverTarget::JournalEvents)),
                 self.kernel.get().map(|kernel| {
                     opens_log(
                         kernel,
