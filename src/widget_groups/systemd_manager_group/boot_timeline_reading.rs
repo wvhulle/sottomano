@@ -9,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -32,7 +32,14 @@ impl TableRow for UnitActivation {
 
 impl BootPhase {
     fn row(self) -> Row {
-        row(self.stage.name(), elapsed_text(self.duration)).with_hint(self.stage.meaning())
+        Row::new(
+            self.stage.name(),
+            &[
+                elapsed_text(self.duration).into(),
+                Cell::Hint(self.stage.meaning().to_owned()),
+            ],
+            Severity::Normal,
+        )
     }
 }
 
@@ -46,7 +53,8 @@ impl BarWidget for BootPhases {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(self.present().into_iter().map(BootPhase::row).collect())
+        let phases: Vec<Row> = self.present().into_iter().map(BootPhase::row).collect();
+        TooltipBody::sections(&[Section::untitled(&phases)])
     }
 }
 
@@ -67,12 +75,14 @@ impl RankedActivations {
     }
 
     fn table(&self, title: &str) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            table_section(title, self.slowest_first.iter().cloned()).with_caption(
+        TooltipBody::sections(&[Section::table(
+            (
+                title,
                 "Time from starting to active, for units up before startup finished. Devices and \
                  units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
             ),
-        ])
+            &self.slowest_first,
+        )])
     }
 }
 

@@ -13,7 +13,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -39,18 +39,18 @@ impl BarWidget for ClaudeUsageWindows {
 
     fn tooltip(&self) -> TooltipBody {
         let now = Utc::now();
-        let mut sections = vec![
-            untitled(vec![row("Plan", self.plan.clone())]),
-            window_section("Session", &self.session, self.session_pace(now), now),
-            window_section("Weekly", &self.weekly, self.weekly_pace(now), now),
-        ];
-        sections.extend(
-            self.sonnet
-                .as_ref()
-                .map(|sonnet| window_section("Weekly Sonnet", sonnet, self.sonnet_pace(now), now)),
-        );
-        sections.extend(self.extra.as_ref().map(extra_section));
-        TooltipBody::Sections(sections)
+        TooltipBody::sections(&[
+            Section::untitled(&[("Plan", &self.plan)]),
+            window_section("Session", Some(&self.session), self.session_pace(now), now),
+            window_section("Weekly", Some(&self.weekly), self.weekly_pace(now), now),
+            window_section(
+                "Weekly Sonnet",
+                self.sonnet.as_ref(),
+                self.sonnet_pace(now),
+                now,
+            ),
+            extra_section(self.extra.as_ref()),
+        ])
     }
 }
 
@@ -62,50 +62,66 @@ impl Occasional for ClaudeUsageWindows {
 
 fn window_section(
     title: &str,
-    window: &WindowUsage,
+    window: Option<&WindowUsage>,
     pace: Option<Pace>,
     now: DateTime<Utc>,
 ) -> Section {
-    let rows = [
-        Some(row("Used", percent_text(window.utilization))),
-        pace.map(|pace| match pace {
-            Pace::Lasts { at_reset } => row("Projected At Reset", percent_text(at_reset)),
-            Pace::RunsOut { at } => row("Runs Out In", countdown(at, now)),
-        }),
-        Some(row(
-            "Resets In",
-            window
-                .resets_at
-                .map_or_else(|| "—".to_owned(), |at| countdown(at, now)),
-        )),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    section(title, rows)
+    Section::titled(
+        title,
+        &[
+            (
+                "Used",
+                window.map(|window| percent_text(window.utilization)),
+            ),
+            (
+                "Projected At Reset",
+                pace.and_then(|pace| match pace {
+                    Pace::Lasts { at_reset } => Some(percent_text(at_reset)),
+                    Pace::RunsOut { .. } => None,
+                }),
+            ),
+            (
+                "Runs Out In",
+                pace.and_then(|pace| match pace {
+                    Pace::RunsOut { at } => Some(countdown(at, now)),
+                    Pace::Lasts { .. } => None,
+                }),
+            ),
+            (
+                "Resets In",
+                window.map(|window| {
+                    window
+                        .resets_at
+                        .map_or_else(|| "—".to_owned(), |at| countdown(at, now))
+                }),
+            ),
+        ],
+    )
 }
 
-fn extra_section(extra: &ExtraUsage) -> Section {
-    let status = match &extra.status {
-        ExtraStatus::Enabled => "enabled".to_owned(),
-        ExtraStatus::Disabled(reason) => reason.clone(),
-    };
-    let rows = [
-        Some(row("Status", status)),
-        extra
-            .spent
-            .as_ref()
-            .map(|spent| row("Spent This Month", spent.to_string())),
-        extra
-            .monthly_limit
-            .as_ref()
-            .map(|limit| row("Monthly Limit", limit.to_string())),
-        extra
-            .used_percent
-            .map(|used| row("Used", percent_text(used))),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    section("Extra Usage", rows)
+fn extra_section(extra: Option<&ExtraUsage>) -> Section {
+    Section::titled(
+        "Extra Usage",
+        &[
+            (
+                "Status",
+                extra.map(|extra| match &extra.status {
+                    ExtraStatus::Enabled => "enabled".to_owned(),
+                    ExtraStatus::Disabled(reason) => reason.clone(),
+                }),
+            ),
+            (
+                "Spent This Month",
+                extra.and_then(|extra| extra.spent.as_ref().map(ToString::to_string)),
+            ),
+            (
+                "Monthly Limit",
+                extra.and_then(|extra| extra.monthly_limit.as_ref().map(ToString::to_string)),
+            ),
+            (
+                "Used",
+                extra.and_then(|extra| extra.used_percent.map(percent_text)),
+            ),
+        ],
+    )
 }

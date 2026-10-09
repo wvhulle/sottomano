@@ -11,11 +11,11 @@ use crate::{
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         last_poll::LastPoll,
         phosphor::Phosphor,
-        tooltip_body::{Tooltip, TooltipBody, section},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -70,34 +70,49 @@ impl JournalEventsGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, JournalEventsMessage> {
-        let summary = self
-            .kinds()
-            .iter()
-            .any(Option::is_some)
-            .then_some(self as &dyn BarWidget);
-        let opens_log = |widget: &'a dyn BarWidget, target, journalctl_args| {
-            GroupItem::reading(widget, target).on_press(
-                TerminalJournal::PRESS_HINT,
-                JournalEventsMessage::OpenLog(TerminalJournal::following(config, journalctl_args)),
-            )
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, JournalEventsMessage>> {
+        if !self.kinds().iter().any(Option::is_some) {
+            return None;
+        }
+        let opens_log = |widget: &'a dyn BarWidget, target, journalctl_args| GroupItem {
+            on_press: Some(Press {
+                does: TerminalJournal::PRESS_HINT,
+                message: JournalEventsMessage::OpenLog(TerminalJournal::following(
+                    config,
+                    journalctl_args,
+                )),
+            }),
+            ..GroupItem::reading(widget, target)
         };
-        WidgetGroup::new(&self.expansion, JournalEventsMessage::Expansion)
-            .reading(summary, HoverTarget::JournalEvents)
-            .item(self.kernel.get().map(|kernel| {
-                opens_log(
-                    kernel,
-                    HoverTarget::JournalKernel,
-                    KernelErrors::follow_log_args(),
-                )
-            }))
-            .item(self.service_errors.get().map(|service_errors| {
-                opens_log(
-                    service_errors,
-                    HoverTarget::JournalServiceErrors,
-                    service_errors.follow_log_args(),
-                )
-            }))
+        WidgetGroup::new(
+            &self.expansion,
+            JournalEventsMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(GroupItem::reading(self, HoverTarget::JournalEvents)),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &[
+                self.kernel.get().map(|kernel| {
+                    opens_log(
+                        kernel,
+                        HoverTarget::JournalKernel,
+                        KernelErrors::follow_log_args(),
+                    )
+                }),
+                self.service_errors.get().map(|service_errors| {
+                    opens_log(
+                        service_errors,
+                        HoverTarget::JournalServiceErrors,
+                        service_errors.follow_log_args(),
+                    )
+                }),
+            ],
+        )
     }
 
     fn kinds(&self) -> [Option<&dyn BarWidget>; 2] {
@@ -134,15 +149,22 @@ impl BarWidget for JournalEventsGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![section(
+        TooltipBody::sections(&[Section::titled(
             "Last hour",
-            [
-                self.kernel.get().map(KernelErrors::count_row),
-                self.service_errors.get().map(ServiceErrors::count_row),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
+            &[
+                (
+                    "Kernel errors",
+                    self.kernel
+                        .get()
+                        .map(|errors| errors.oldest_first.len().to_string()),
+                ),
+                (
+                    "Service errors",
+                    self.service_errors
+                        .get()
+                        .map(|errors| errors.entry_count.to_string()),
+                ),
+            ],
         )])
     }
 }

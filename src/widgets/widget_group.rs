@@ -83,30 +83,37 @@ impl<M> GroupEvent<M> {
     }
 }
 
-#[derive(Clone, Copy)]
-enum GroupIcon<'a> {
-    PlainIcon(Glyph),
-    IconColoredByReading {
+pub struct GroupHandle<'a, M> {
+    pub face: HandleFace<'a, M>,
+    pub preview: Option<PreviewedValue<'a>>,
+    pub forwards_scroll: bool,
+}
+
+pub enum HandleFace<'a, M> {
+    Icon(Glyph),
+    IconColoredBy {
         glyph: Glyph,
         reading: &'a dyn BarWidget,
     },
+    Item(GroupItem<'a, M>),
 }
 
-impl GroupIcon<'_> {
-    fn view<'a, M: 'a>(self, config: &Config) -> Element<'a, M> {
+impl<'a, M: 'a> HandleFace<'a, M> {
+    fn into_item(self, config: &'a Config) -> GroupItem<'a, M> {
         match self {
-            GroupIcon::PlainIcon(glyph) => {
+            HandleFace::Icon(glyph) => GroupItem::element(move |_| {
                 glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
-            }
-            GroupIcon::IconColoredByReading { glyph, reading } => {
+            }),
+            HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
                 glyph.view(config.font.icon_size_px, reading_color(config, reading))
-            }
+            }),
+            HandleFace::Item(item) => item,
         }
     }
 }
 
 #[derive(Clone)]
-enum PreviewedValue<'a> {
+pub enum PreviewedValue<'a> {
     Plain(&'a dyn BarWidget),
     Hoverable {
         widget: &'a dyn BarWidget,
@@ -146,87 +153,55 @@ pub struct GroupViewWithAlerts<'a, Outer> {
     pub levels: Vec<LevelReading<Outer>>,
 }
 
+impl<Outer> GroupViewWithAlerts<'_, Outer> {
+    pub fn empty() -> Self {
+        Self {
+            element: None,
+            alerts: Vec::new(),
+            levels: Vec::new(),
+        }
+    }
+}
+
 pub struct WidgetGroup<'a, M> {
     expansion: &'a GroupExpansion,
     on_expansion: fn(ExpansionMessage) -> M,
-    icon: Option<GroupIcon<'a>>,
+    face: GroupItem<'a, M>,
     items: Vec<GroupItem<'a, M>>,
-    standalone_alerts: Vec<ReadingAlert<M>>,
+    alerts: Vec<ReadingAlert<M>>,
     previewed_value: Option<PreviewedValue<'a>>,
     forward_handle_scroll: bool,
 }
 
 impl<'a, M: 'a> WidgetGroup<'a, M> {
-    pub fn new(expansion: &'a GroupExpansion, on_expansion: fn(ExpansionMessage) -> M) -> Self {
-        Self {
+    pub fn new<Item: Into<Option<GroupItem<'a, M>>> + Clone>(
+        expansion: &'a GroupExpansion,
+        on_expansion: fn(ExpansionMessage) -> M,
+        config: &'a Config,
+        handle: GroupHandle<'a, M>,
+        items: &[Item],
+    ) -> Option<Self>
+    where
+        M: Clone,
+    {
+        let items: Vec<GroupItem<'a, M>> = items.iter().cloned().filter_map(Into::into).collect();
+        let has_content = match handle.face {
+            HandleFace::Icon(_) | HandleFace::IconColoredBy { .. } => !items.is_empty(),
+            HandleFace::Item(_) => true,
+        };
+        if !has_content {
+            return None;
+        }
+        let alerts = items.iter().flat_map(|item| item.alerts.clone()).collect();
+        Some(Self {
             expansion,
             on_expansion,
-            icon: None,
-            items: Vec::new(),
-            standalone_alerts: Vec::new(),
-            previewed_value: None,
-            forward_handle_scroll: false,
-        }
-    }
-
-    #[must_use]
-    pub fn icon(mut self, icon: impl Into<Glyph>) -> Self {
-        self.icon = Some(GroupIcon::PlainIcon(icon.into()));
-        self
-    }
-
-    #[must_use]
-    pub fn icon_colored_by(mut self, icon: impl Into<Glyph>, reading: &'a dyn BarWidget) -> Self {
-        self.icon = Some(GroupIcon::IconColoredByReading {
-            glyph: icon.into(),
-            reading,
-        });
-        self
-    }
-
-    #[must_use]
-    pub fn item(mut self, item: impl Into<Option<GroupItem<'a, M>>>) -> Self {
-        self.items.extend(item.into());
-        self
-    }
-
-    #[must_use]
-    pub fn reading(self, widget: Option<&'a dyn BarWidget>, target: HoverTarget) -> Self {
-        self.item(widget.map(|widget| GroupItem::reading(widget, target)))
-    }
-
-    #[must_use]
-    pub fn items(mut self, items: impl IntoIterator<Item = GroupItem<'a, M>>) -> Self {
-        self.items.extend(items);
-        self
-    }
-
-    #[must_use]
-    pub fn standalone_alerts(mut self, alerts: impl IntoIterator<Item = ReadingAlert<M>>) -> Self {
-        self.standalone_alerts.extend(alerts);
-        self
-    }
-
-    #[must_use]
-    pub fn previewed_value(mut self, widget: Option<&'a dyn BarWidget>) -> Self {
-        self.previewed_value = widget.map(PreviewedValue::Plain);
-        self
-    }
-
-    #[must_use]
-    pub fn previewed_reading(
-        mut self,
-        widget: Option<&'a dyn BarWidget>,
-        target: HoverTarget,
-    ) -> Self {
-        self.previewed_value = widget.map(|widget| PreviewedValue::Hoverable { widget, target });
-        self
-    }
-
-    #[must_use]
-    pub fn forward_handle_scroll(mut self, enabled: bool) -> Self {
-        self.forward_handle_scroll = enabled;
-        self
+            face: handle.face.into_item(config),
+            items,
+            alerts,
+            previewed_value: handle.preview,
+            forward_handle_scroll: handle.forwards_scroll,
+        })
     }
 
     pub fn place_on_bar<Outer: 'a>(
@@ -251,9 +226,10 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             .max()
             .unwrap_or_default();
         GroupViewWithAlerts {
-            element: self
-                .view(config, bar_position, highest_alert_severity)
-                .map(|element| element.map(move |event| event.map(lift_message))),
+            element: Some(
+                self.view(config, bar_position, highest_alert_severity)
+                    .map(move |event| event.map(lift_message)),
+            ),
             alerts: alerts
                 .into_iter()
                 .map(|alert| alert.map_messages(lift_message))
@@ -269,7 +245,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         self.items
             .iter()
             .filter_map(|item| item.alert((self.on_expansion)(ExpansionMessage::Expand), locale))
-            .chain(self.standalone_alerts.iter().cloned())
+            .chain(self.alerts.iter().cloned())
             .collect()
     }
 
@@ -278,26 +254,20 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         config: &'a Config,
         bar_position: Position,
         highest_alert_severity: Severity,
-    ) -> Option<Element<'a, GroupEvent<M>>>
+    ) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
         let Self {
             expansion,
             on_expansion,
-            icon,
+            face,
             items,
-            standalone_alerts: _,
+            alerts: _,
             previewed_value,
             forward_handle_scroll,
         } = self;
-        let mut items = items.into_iter().peekable();
-        items.peek()?;
-        let face = match icon {
-            Some(icon) => GroupItem::element(move |_| icon.view(config)),
-            None => items.next()?,
-        };
-        let content: Vec<GroupItem<'a, M>> = items.collect();
+        let content = items;
         let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
             Row::with_children(content.iter().filter_map(|item| item.view(config, reveal)))
@@ -356,12 +326,10 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             )
             .view(config, bar_position)
         });
-        Some(
-            mouse_area(animated)
-                .on_enter(expansion_event(ExpansionMessage::CursorEntered))
-                .on_exit(expansion_event(ExpansionMessage::CursorExited))
-                .into(),
-        )
+        mouse_area(animated)
+            .on_enter(expansion_event(ExpansionMessage::CursorEntered))
+            .on_exit(expansion_event(ExpansionMessage::CursorExited))
+            .into()
     }
 }
 

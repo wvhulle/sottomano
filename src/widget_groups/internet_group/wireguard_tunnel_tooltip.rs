@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Row, TooltipBody, row},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -14,7 +14,7 @@ impl BarWidget for Wireguard {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(Vec::new())
+        TooltipBody::sections(&[])
     }
 }
 
@@ -43,23 +43,17 @@ impl BarWidget for Tunnel {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(if self.server {
-            server_rows(self)
+        if self.server {
+            self.server_tooltip()
         } else {
-            client_rows(self)
-        })
+            self.client_tooltip()
+        }
     }
 }
 
-fn server_rows(tunnel: &Tunnel) -> Vec<Row> {
-    let mut rows = vec![row(&tunnel.name, "server"), row("IP", tunnel.ip.clone())];
-    rows.extend(tunnel.port.map(|port| row("port", port.to_string())));
-    rows.push(row(
-        "clients",
-        format!("{}/{}", tunnel.connected_peers(), tunnel.peers.len()),
-    ));
-    rows.extend(
-        tunnel
+impl Tunnel {
+    fn server_tooltip(&self) -> TooltipBody {
+        let connected_peers: Vec<(&str, &String)> = self
             .peers
             .iter()
             .filter(|peer| peer.connected())
@@ -67,29 +61,47 @@ fn server_rows(tunnel: &Tunnel) -> Vec<Row> {
                 let key = if peer.endpoint.is_empty() {
                     "peer"
                 } else {
-                    &peer.endpoint
+                    peer.endpoint.as_str()
                 };
-                row(key, peer.allowed_ips.clone())
-            }),
-    );
-    rows
-}
-
-fn client_rows(tunnel: &Tunnel) -> Vec<Row> {
-    let mut rows = vec![row(&tunnel.name, "client")];
-    let Some(peer) = tunnel.peers.first() else {
-        return rows;
-    };
-    if !peer.endpoint.is_empty() {
-        rows.push(row("server", peer.endpoint.clone()));
+                (key, &peer.allowed_ips)
+            })
+            .collect();
+        TooltipBody::sections(&[
+            Section::untitled(&[
+                (self.name.as_str(), Some("server".to_owned())),
+                ("IP", Some(self.ip.clone())),
+                ("port", self.port.map(|port| port.to_string())),
+                (
+                    "clients",
+                    Some(format!("{}/{}", self.connected_peers(), self.peers.len())),
+                ),
+            ]),
+            Section::untitled(&connected_peers),
+        ])
     }
-    rows.push(row("IP", tunnel.ip.clone()));
-    rows.push(row(
-        "handshake",
-        peer.handshake_ago
-            .map_or_else(|| "never".to_string(), |ago| format!("{ago}s ago")),
-    ));
-    rows.push(row("received", peer.rx.display().iec().to_string()));
-    rows.push(row("sent", peer.tx.display().iec().to_string()));
-    rows
+
+    fn client_tooltip(&self) -> TooltipBody {
+        let peer = self.peers.first();
+        TooltipBody::sections(&[Section::untitled(&[
+            (self.name.as_str(), Some("client".to_owned())),
+            (
+                "server",
+                peer.map(|peer| peer.endpoint.clone())
+                    .filter(|endpoint| !endpoint.is_empty()),
+            ),
+            ("IP", peer.map(|_| self.ip.clone())),
+            (
+                "handshake",
+                peer.map(|peer| {
+                    peer.handshake_ago
+                        .map_or_else(|| "never".to_string(), |ago| format!("{ago}s ago"))
+                }),
+            ),
+            (
+                "received",
+                peer.map(|peer| peer.rx.display().iec().to_string()),
+            ),
+            ("sent", peer.map(|peer| peer.tx.display().iec().to_string())),
+        ])])
+    }
 }

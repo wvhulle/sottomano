@@ -9,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -37,19 +37,19 @@ impl BarWidget for ClaudeCcusagePeriods {
     fn tooltip(&self) -> TooltipBody {
         let recent = &self.recent;
         let today = recent.today.since;
-        TooltipBody::Sections(vec![
-            untitled(vec![
-                row("Source", "ccusage, local Claude Code logs"),
-                row("Cost Basis", "API list prices"),
-                row("Working Days", self.working_days_text()),
-                row("Projection", "cost per working day so far, today included"),
+        TooltipBody::sections(&[
+            Section::untitled(&[
+                ("Source", "ccusage, local Claude Code logs"),
+                ("Cost Basis", "API list prices"),
+                ("Working Days", &self.working_days_text()),
+                ("Projection", "cost per working day so far, today included"),
             ]),
-            section(
+            Section::titled(
                 "Today",
-                vec![
-                    row("Cost", dollars(recent.today.usage.cost)),
-                    row("Tokens", token_count(recent.today.usage.tokens)),
-                    row("Models", recent.today.usage.models.clone()),
+                &[
+                    ("Cost", dollars(recent.today.usage.cost)),
+                    ("Tokens", token_count(recent.today.usage.tokens)),
+                    ("Models", recent.today.usage.models.clone()),
                 ],
             ),
             self.period_section(
@@ -76,16 +76,18 @@ impl ClaudeCcusagePeriods {
     }
 
     fn period_section(&self, title: String, period: &Period, today: NaiveDate) -> Section {
-        let rows = [
-            Some(row("Cost", dollars(period.usage.cost))),
-            period
-                .projected_cost(today, &self.working_days)
-                .map(|projected| row("Projected Cost", dollars(projected))),
-            Some(row("Tokens", token_count(period.usage.tokens))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        section(title, rows)
+        Section::titled(
+            title,
+            &[
+                ("Cost", Some(dollars(period.usage.cost))),
+                (
+                    "Projected Cost",
+                    period
+                        .projected_cost(today, &self.working_days)
+                        .map(dollars),
+                ),
+                ("Tokens", Some(token_count(period.usage.tokens))),
+            ],
+        )
     }
 }

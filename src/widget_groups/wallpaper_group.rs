@@ -7,7 +7,7 @@ use iced::{Subscription, Task};
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
-    config::SecretPaths,
+    config::{Config, SecretPaths},
     data::source::{
         command,
         wallpaper::{self, Position, Wallpaper},
@@ -15,11 +15,12 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
         simple_icons::SimpleIcon,
-        tooltip_body::{Tooltip, TooltipBody, link, row, section},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Cell, Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -61,7 +62,7 @@ impl BarWidget for Lookup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![row("File", self.photo.file_name.clone())])
+        TooltipBody::sections(&[Section::untitled(&[("File", self.photo.file_name.clone())])])
     }
 }
 
@@ -96,24 +97,27 @@ impl BarWidget for Place {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut rows = vec![row("Where", self.name.clone())];
-        if let Some(position) = self.position {
-            rows.push(row(
+        TooltipBody::sections(&[Section::untitled(&[
+            ("Where", Some(self.name.clone())),
+            (
                 "Latitude",
-                format!(
-                    "{:.5}",
-                    position.latitude.into_format_args(degree, Abbreviation)
-                ),
-            ));
-            rows.push(row(
+                self.position.map(|position| {
+                    format!(
+                        "{:.5}",
+                        position.latitude.into_format_args(degree, Abbreviation)
+                    )
+                }),
+            ),
+            (
                 "Longitude",
-                format!(
-                    "{:.5}",
-                    position.longitude.into_format_args(degree, Abbreviation)
-                ),
-            ));
-        }
-        TooltipBody::rows(rows)
+                self.position.map(|position| {
+                    format!(
+                        "{:.5}",
+                        position.longitude.into_format_args(degree, Abbreviation)
+                    )
+                }),
+            ),
+        ])])
     }
 }
 
@@ -127,17 +131,16 @@ impl BarWidget for Article {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut sections = vec![section(
-            "Wikipedia",
-            vec![
-                row("Article", self.title.clone()),
-                link("Link", self.url.clone()),
-            ],
-        )];
-        if let Some(summary) = &self.summary {
-            sections.push(section("Summary", vec![row(" ", summary.clone())]));
-        }
-        TooltipBody::Sections(sections)
+        TooltipBody::sections(&[
+            Section::titled(
+                "Wikipedia",
+                &[
+                    ("Article", Cell::from(&self.title)),
+                    ("Link", Cell::Link(self.url.clone())),
+                ],
+            ),
+            Section::titled("Summary", &[(" ", &self.summary)]),
+        ])
     }
 }
 
@@ -151,16 +154,17 @@ impl BarWidget for Photo {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut credit = vec![row("File", self.file_name.clone())];
-        if let Some(photographer) = &self.photographer {
-            credit.push(row("Photographer", photographer.clone()));
-        }
-        credit.push(link("Unsplash", self.url.clone()));
-        let mut sections = vec![section("Photo", credit)];
-        if let Some(caption) = &self.caption {
-            sections.push(section("Caption", vec![row(" ", caption.clone())]));
-        }
-        TooltipBody::Sections(sections)
+        TooltipBody::sections(&[
+            Section::titled(
+                "Photo",
+                &[
+                    ("File", Cell::from(&self.file_name)),
+                    ("Photographer", Cell::from(&self.photographer)),
+                    ("Unsplash", Cell::Link(self.url.clone())),
+                ],
+            ),
+            Section::titled("Caption", &[(" ", &self.caption)]),
+        ])
     }
 }
 
@@ -287,25 +291,29 @@ impl WallpaperGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, WallpaperMessage> {
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, WallpaperMessage>> {
         let lookup = self.lookup.get();
-        WidgetGroup::new(&self.expansion, WallpaperMessage::Expansion)
-            .reading(self.lookup.display(), HoverTarget::Wallpaper)
-            .reading(
+        WidgetGroup::new(
+            &self.expansion,
+            WallpaperMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(self.lookup.reading_item(HoverTarget::Wallpaper)?),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &[
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
-                    .map(|place| place as &dyn BarWidget),
-                HoverTarget::WallpaperPlace,
-            )
-            .reading(
+                    .map(|place| GroupItem::reading(place, HoverTarget::WallpaperPlace)),
                 lookup
                     .and_then(|lookup| lookup.article.as_ref())
-                    .map(|article| article as &dyn BarWidget),
-                HoverTarget::WallpaperArticle,
-            )
-            .reading(
-                lookup.map(|lookup| &lookup.photo as &dyn BarWidget),
-                HoverTarget::WallpaperPhoto,
-            )
+                    .map(|article| GroupItem::reading(article, HoverTarget::WallpaperArticle)),
+                lookup.map(|lookup| GroupItem::reading(&lookup.photo, HoverTarget::WallpaperPhoto)),
+            ],
+        )
     }
 }

@@ -14,8 +14,10 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{Tooltip, row},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Cell, Section, Tooltip, TooltipBody},
+        widget_group::{
+            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+        },
     },
 };
 
@@ -227,39 +229,43 @@ impl AudioGroup {
             ControlKind::Sink => (self.sink.as_ref()?, &self.sink_control),
             ControlKind::Source => (self.source.as_ref()?, &self.source_control),
         };
-        let rows = [
-            Some(row(kind.label(), control.readout_text())),
-            Some(row("State", if reading.muted { "muted" } else { "active" })),
-            reading
-                .device
-                .as_ref()
-                .map(|device| row("Device", device.clone())),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        Some(Tooltip::table(rows))
+        let state = if reading.muted { "muted" } else { "active" };
+        Some(Tooltip::of(TooltipBody::sections(&[Section::untitled(&[
+            (kind.label(), Cell::from(control.readout_text())),
+            ("State", Cell::from(state)),
+            ("Device", Cell::from(&reading.device)),
+        ])])))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, AudioMessage> {
-        WidgetGroup::new(&self.expansion, AudioMessage::Expansion)
-            .icon_colored_by(Phosphor::Waveform(Weight::Regular), &self.sink_control)
-            .previewed_value(
-                self.sink
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, AudioMessage>> {
+        WidgetGroup::new(
+            &self.expansion,
+            AudioMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::IconColoredBy {
+                    glyph: Phosphor::Waveform(Weight::Regular).into(),
+                    reading: &self.sink_control,
+                },
+                preview: self
+                    .sink
                     .as_ref()
-                    .map(|_| &self.sink_control as &dyn BarWidget),
-            )
-            .forward_handle_scroll(self.sink.is_some())
-            .item(self.sink.as_ref().map(|_| {
-                GroupItem::slider(&self.sink_control, config, |m| {
-                    AudioMessage::Control(ControlKind::Sink, m)
-                })
-            }))
-            .item(self.source.as_ref().map(|_| {
-                GroupItem::slider(&self.source_control, config, |m| {
-                    AudioMessage::Control(ControlKind::Source, m)
-                })
-            }))
+                    .map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)),
+                forwards_scroll: self.sink.is_some(),
+            },
+            &[
+                self.sink.as_ref().map(|_| {
+                    GroupItem::slider(&self.sink_control, config, |m| {
+                        AudioMessage::Control(ControlKind::Sink, m)
+                    })
+                }),
+                self.source.as_ref().map(|_| {
+                    GroupItem::slider(&self.source_control, config, |m| {
+                        AudioMessage::Control(ControlKind::Source, m)
+                    })
+                }),
+            ],
+        )
     }
 
     pub fn collapse(&mut self) {

@@ -10,15 +10,16 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        reading_alert::ReadingAlertActionButton,
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-const LABEL: &str = "Firmware upgrades";
+pub const LABEL: &str = "Firmware upgrades";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirmwareUpgradeList {
@@ -30,18 +31,26 @@ impl FirmwareUpgradeList {
         (!upgrades.is_empty()).then_some(Self { upgrades })
     }
 
+    pub fn count(&self) -> usize {
+        self.upgrades.len()
+    }
+
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, PendingUpgradesMessage> {
         let install = PendingUpgradesMessage::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        GroupItem::reading(self, HoverTarget::FirmwareUpgrades)
-            .on_press("run fwupdmgr update in a terminal", install.clone())
-            .alert_action_button("Install", install)
-    }
-
-    pub fn count_row(&self) -> Row {
-        row(LABEL, self.upgrades.len().to_string())
+        GroupItem {
+            on_press: Some(Press {
+                does: "run fwupdmgr update in a terminal",
+                message: install.clone(),
+            }),
+            alert_action_buttons: vec![ReadingAlertActionButton {
+                button_label: "Install".to_owned(),
+                on_button_pressed: install,
+            }],
+            ..GroupItem::reading(self, HoverTarget::FirmwareUpgrades)
+        }
     }
 }
 
@@ -80,7 +89,7 @@ impl BarWidget for FirmwareUpgradeList {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![table_section(LABEL, self.upgrades.iter())])
+        TooltipBody::sections(&[Section::table(LABEL, self.upgrades.iter())])
     }
 }
 

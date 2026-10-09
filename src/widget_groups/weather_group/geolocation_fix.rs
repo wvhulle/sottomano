@@ -5,7 +5,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody, link, row, section},
+        tooltip_body::{Cell, Section, TooltipBody},
     },
 };
 
@@ -60,78 +60,82 @@ impl BarWidget for Location {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let place = self.geo.place.iter().map(place_section);
         let estimate = match &self.geo.origin {
             Origin::Manual => None,
-            Origin::Estimated(estimate) => Some(estimate_section(estimate)),
+            Origin::Estimated(estimate) => Some(estimate),
         };
-        TooltipBody::Sections(
-            place
-                .chain([self.position_section()])
-                .chain(estimate)
-                .chain([map_section(self.geo.position)])
-                .collect(),
-        )
+        TooltipBody::sections(&[
+            place_section(self.geo.place.as_ref()),
+            self.position_section(),
+            estimate_section(estimate),
+            map_section(self.geo.position),
+        ])
     }
 }
 
 impl Location {
     fn position_section(&self) -> Section {
         let position = self.geo.position;
-        section(
+        Section::titled(
             "Position",
-            vec![
-                row("Latitude", format!("{:.4}", position.latitude)),
-                row("Longitude", format!("{:.4}", position.longitude)),
-                row("Source", self.geo.origin.to_string()),
+            &[
+                ("Latitude", format!("{:.4}", position.latitude)),
+                ("Longitude", format!("{:.4}", position.longitude)),
+                ("Source", self.geo.origin.to_string()),
             ],
         )
     }
 }
 
-fn place_section(place: &Place) -> Section {
-    section(
+fn place_section(place: Option<&Place>) -> Section {
+    Section::titled(
         "Place",
-        vec![
-            row("Name", place.name.clone()),
-            row("Country", place.country.clone()),
-            row("Distance", format!("{:.2} km", place.distance_km)),
+        &[
+            ("Name", place.map(|place| place.name.clone())),
+            ("Country", place.map(|place| place.country.clone())),
+            (
+                "Distance",
+                place.map(|place| format!("{:.2} km", place.distance_km)),
+            ),
         ],
     )
 }
 
-fn estimate_section(estimate: &Estimate) -> Section {
-    let observations = estimate.observations;
-    section(
-        "Estimate",
-        vec![
-            row("Accuracy", accuracy(estimate.accuracy_metres)),
-            row(
-                "Access points",
-                format!(
-                    "{} seen, {} submitted",
-                    observations.access_points_seen, observations.access_points_submitted
-                ),
+fn estimate_section(estimate: Option<&Estimate>) -> Section {
+    let observations = estimate.map(|estimate| estimate.observations);
+    Section::titled(
+        ("Estimate", "A Wi-Fi and cell fix through BeaconDB."),
+        &[
+            (
+                "Accuracy",
+                estimate.map(|estimate| accuracy(estimate.accuracy_metres)),
             ),
-            row(
+            (
+                "Access points",
+                observations.map(|observations| {
+                    format!(
+                        "{} seen, {} submitted",
+                        observations.access_points_seen, observations.access_points_submitted
+                    )
+                }),
+            ),
+            (
                 "Cells",
-                format!(
-                    "{} seen, {} submitted",
-                    observations.cells_seen, observations.cells_submitted
-                ),
+                observations.map(|observations| {
+                    format!(
+                        "{} seen, {} submitted",
+                        observations.cells_seen, observations.cells_submitted
+                    )
+                }),
             ),
         ],
     )
-    .with_caption("A Wi-Fi and cell fix through BeaconDB.")
 }
 
 fn map_section(position: Position) -> Section {
-    section(
+    Section::titled(
         "Map",
-        MapService::ALL
-            .into_iter()
-            .map(|service| link(service.name(), service.url(position)))
-            .collect(),
+        &MapService::ALL.map(|service| (service.name(), Cell::Link(service.url(position)))),
     )
 }
 

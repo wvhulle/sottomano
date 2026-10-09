@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use crate::{
     data::{
         severity::Severity,
@@ -8,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, section},
+        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -39,12 +41,6 @@ impl TableRow for KernelOccurrence {
     }
 }
 
-impl KernelErrors {
-    pub fn count_row(&self) -> Row {
-        row("Kernel errors", self.oldest_first.len().to_string())
-    }
-}
-
 impl BarWidget for KernelErrors {
     fn icon(&self) -> Glyph {
         Phosphor::LinuxLogo(self.state().weight()).into()
@@ -70,24 +66,26 @@ impl BarWidget for KernelErrors {
 
     fn tooltip(&self) -> TooltipBody {
         let hidden = self.oldest_first.len().saturating_sub(TOOLTIP_ROWS);
-        let hidden_notice = (hidden > 0).then(|| row("", format!("{hidden} earlier not shown")));
-        let latest = self.oldest_first[hidden..].iter().map(TableRow::row);
-        TooltipBody::Sections(vec![
-            section(
+        let hidden_notice = Row::from((
+            "",
+            (hidden > 0).then(|| format!("{hidden} earlier not shown")),
+        ));
+        let rows: Vec<Row> = once(hidden_notice)
+            .chain(self.oldest_first[hidden..].iter().map(TableRow::row))
+            .collect();
+        TooltipBody::sections(&[Section::titled(
+            (
                 "Kernel log",
-                hidden_notice.into_iter().chain(latest).collect(),
-            )
-            .with_caption("Kernel messages at warning or worse in the last hour, repeats merged."),
-        ])
+                "Kernel messages at warning or worse in the last hour, repeats merged.",
+            ),
+            &rows,
+        )])
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        iter::once,
-        time::{Duration, SystemTime},
-    };
+    use std::time::{Duration, SystemTime};
 
     use super::*;
     use crate::{data::source::kernel_errors::KernelEntry, widgets::tooltip_body::SectionBody};
@@ -108,10 +106,10 @@ mod tests {
         let TooltipBody::Sections(sections) = errors.tooltip() else {
             panic!("expected sections");
         };
-        let SectionBody::Rows(rows) = &sections[0].body else {
+        let SectionBody::Rows(rows) = sections[0].body() else {
             panic!("expected rows");
         };
-        let values: Vec<Cell> = rows.iter().map(|row| row.cells[0].clone()).collect();
+        let values: Vec<Cell> = rows.iter().map(|row| row.cells()[0].clone()).collect();
         let expected: Vec<Cell> = once("2 earlier not shown".to_string())
             .chain((2..17).map(|secs| format!("message {secs}")))
             .map(Cell::from)

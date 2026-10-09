@@ -8,11 +8,14 @@ use uom::{
 };
 
 use crate::{
-    data::source::weather::{HourlyTemperature, Temperature},
+    data::{
+        severity::Severity,
+        source::weather::{HourlyTemperature, Temperature},
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
-        tooltip_body::{Cell, TableRow, TooltipBody, cells, row, section, table_section, untitled},
+        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
         weather_icons::WeatherIcon,
     },
 };
@@ -31,26 +34,27 @@ impl BarWidget for Temperature {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            untitled(vec![cells(
+        TooltipBody::sections(&[
+            Section::untitled(&[Row::new(
                 "Conditions",
-                vec![
+                &[
                     WeatherIcon::from(self.condition).into(),
                     self.condition.to_string().into(),
                 ],
+                Severity::Normal,
             )]),
-            section(
+            Section::titled(
                 "Temperature",
-                vec![
-                    row("Now", celsius_text(self.temp)),
-                    row("Feels like", celsius_text(self.feels)),
-                    row("Today's low", celsius_text(self.temp_min)),
-                    row("Today's high", celsius_text(self.temp_max)),
-                    row("Humidity", percent_text(self.humidity)),
+                &[
+                    ("Now", celsius_text(self.temp)),
+                    ("Feels like", celsius_text(self.feels)),
+                    ("Today's low", celsius_text(self.temp_min)),
+                    ("Today's high", celsius_text(self.temp_max)),
+                    ("Humidity", percent_text(self.humidity)),
                 ],
             ),
-            table_section("Earlier", &self.hourly.earlier),
-            table_section("Later", &self.hourly.later),
+            Section::table("Earlier", &self.hourly.earlier),
+            Section::table("Later", &self.hourly.later),
         ])
     }
 }

@@ -16,30 +16,29 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         localized_time::TimePart,
         reading_alert::ReadingAlert,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
 impl<S: ScopeAppearance> Failed<S> {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, S::FAILED_TARGET).on_press(
-            TerminalJournal::PRESS_HINT,
-            SystemdManagerMessage::OpenLog(TerminalJournal::following(
-                config,
-                self.follow_log_args(),
-            )),
-        )
+        let open_log =
+            |args| SystemdManagerMessage::OpenLog(TerminalJournal::following(config, args));
+        GroupItem {
+            on_press: Some(Press {
+                does: TerminalJournal::PRESS_HINT,
+                message: open_log(self.follow_log_args()),
+            }),
+            alerts: self.unit_alerts(open_log, config.locale).collect(),
+            ..GroupItem::reading(self, S::FAILED_TARGET)
+        }
     }
 
-    pub fn count_row(&self) -> Row {
-        row(S::FAILED_LABEL, self.units.len().to_string())
-    }
-
-    pub fn unit_alerts<M>(
+    fn unit_alerts<M>(
         &self,
         open_log: impl Fn(Vec<String>) -> M,
         locale: Locale,
@@ -85,8 +84,12 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn tooltip(&self) -> TooltipBody {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
-        TooltipBody::Sections(vec![table_section(S::FAILED_LABEL, units).with_caption(
-            "Units in the failed state now; each toasts until it recovers.",
+        TooltipBody::sections(&[Section::table(
+            (
+                S::FAILED_LABEL,
+                "Units in the failed state now; each toasts until it recovers.",
+            ),
+            units,
         )])
     }
 }
@@ -154,10 +157,10 @@ mod tests {
     }
 
     fn section_keys(section: &Section) -> Vec<Cell> {
-        let SectionBody::Columns { rows, .. } = &section.body else {
+        let SectionBody::Columns { rows, .. } = section.body() else {
             panic!("expected a table");
         };
-        rows.iter().map(|row| row.key.clone()).collect()
+        rows.iter().map(|row| row.key().clone()).collect()
     }
 
     #[test]

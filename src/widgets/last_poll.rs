@@ -2,9 +2,11 @@ use std::{fmt::Display, time::SystemTime};
 
 use crate::{
     data::source::Source,
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
-        tooltip_body::{RefreshInfo, Section, Tooltip, TooltipBody, row},
+        group_item::GroupItem,
+        tooltip_body::{RefreshInfo, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -24,7 +26,7 @@ impl BarWidget for FailedReading {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![row("Error", self.message.clone())])
+        TooltipBody::sections(&[Section::untitled(&[("Error", self.message.clone())])])
     }
 }
 
@@ -69,6 +71,11 @@ impl<S: BarWidget> LastPoll<S> {
         self.failure
             .as_ref()
             .map(|failure| failure as &dyn BarWidget)
+    }
+
+    pub fn reading_item<M: 'static>(&self, target: HoverTarget) -> Option<GroupItem<'_, M>> {
+        self.display()
+            .map(|widget| GroupItem::reading(widget, target))
     }
 
     pub fn live_tooltip(&self) -> Option<Tooltip> {
@@ -117,12 +124,13 @@ impl<S: Source + BarWidget> LastPoll<S> {
         self.tooltip_with(self.display()?.tooltip())
     }
 
-    pub fn tooltip_with_section(&self, extra: Section) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip().with_section(extra))
-    }
-
-    pub fn tooltip_with_sections(&self, extra: Vec<Section>) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip().with_sections(extra))
+    pub fn tooltip_with_sections(&self, extra: &[Section]) -> Option<Tooltip> {
+        match self.display()?.tooltip() {
+            TooltipBody::Sections(sections) => self.tooltip_with(TooltipBody::sections(
+                &[sections.as_slice(), extra].concat(),
+            )),
+            other => self.tooltip_with(other),
+        }
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {

@@ -9,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -34,27 +34,30 @@ impl BarWidget for ClaudeCcusageBlock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let source = untitled(vec![
-            row("Source", "ccusage, local Claude Code logs"),
-            row("Cost Basis", "API list prices"),
+        let source = Section::untitled(&[
+            ("Source", "ccusage, local Claude Code logs"),
+            ("Cost Basis", "API list prices"),
         ]);
         let Some(block) = &self.active else {
-            return TooltipBody::Sections(vec![source]);
+            return TooltipBody::sections(&[source]);
         };
-        let rows = [
-            Some(row("Cost", dollars(block.cost))),
-            block
-                .cost_per_hour
-                .map(|rate| row("Burn Rate", format!("{}/h", dollars(rate)))),
-            block
-                .projected_cost
-                .map(|projected| row("Projected Cost", dollars(projected))),
-            Some(row("Ends In", countdown(block.ends_at, Utc::now()))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        TooltipBody::Sections(vec![source, section("Active 5-Hour Block", rows)])
+        TooltipBody::sections(&[
+            source,
+            Section::titled(
+                "Active 5-Hour Block",
+                &[
+                    ("Cost", Some(dollars(block.cost))),
+                    (
+                        "Burn Rate",
+                        block
+                            .cost_per_hour
+                            .map(|rate| format!("{}/h", dollars(rate))),
+                    ),
+                    ("Projected Cost", block.projected_cost.map(dollars)),
+                    ("Ends In", Some(countdown(block.ends_at, Utc::now()))),
+                ],
+            ),
+        ])
     }
 }
 

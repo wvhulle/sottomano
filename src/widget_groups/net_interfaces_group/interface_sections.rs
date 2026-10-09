@@ -5,7 +5,7 @@ use uom::{
 
 use crate::{
     data::{severity::Severity, source::net_interfaces::nm::AddressBlock},
-    widgets::tooltip_body::{Section, row, section},
+    widgets::tooltip_body::Section,
 };
 
 pub fn signal_level(quality: i64) -> Severity {
@@ -21,31 +21,27 @@ pub fn address_section(
     label: &str,
     block: Option<&AddressBlock>,
 ) -> Section {
-    let Some(block) = block else {
-        return section(key(label), Vec::new());
-    };
     let mask_label = if label == "IPv6" {
         "Prefix Length"
     } else {
         "Subnet Mask"
     };
-    let mut rows = vec![
-        row("Address", block.address.clone()),
-        row(mask_label, block.mask.clone()),
-    ];
-    if let Some(gateway) = &block.gateway {
-        rows.push(row("Gateway (Router)", gateway.clone()));
-    }
-    section(key(label), rows)
+    Section::titled(
+        key(label),
+        &[
+            ("Address", block.map(|block| block.address.clone())),
+            (mask_label, block.map(|block| block.mask.clone())),
+            (
+                "Gateway (Router)",
+                block.and_then(|block| block.gateway.clone()),
+            ),
+        ],
+    )
 }
 
 pub fn dns_section(key: &impl Fn(&str) -> String, servers: &[String]) -> Section {
-    let Some((first, rest)) = servers.split_first() else {
-        return section(key("DNS"), Vec::new());
-    };
-    let mut rows = vec![row("Server", first.clone())];
-    rows.extend(rest.iter().map(|server| row("Server", server.clone())));
-    section(key("DNS"), rows)
+    let rows: Vec<(&str, &String)> = servers.iter().map(|server| ("Server", server)).collect();
+    Section::titled(key("DNS"), &rows)
 }
 
 pub fn link_stats_section(
@@ -55,15 +51,19 @@ pub fn link_stats_section(
     rate: InformationRate,
     mtu: u32,
 ) -> Section {
-    let rate_row = (rate > InformationRate::default()).then(|| {
-        row(
-            rate_label,
-            format!(
-                "{:.0}",
-                rate.into_format_args(megabit_per_second, Abbreviation)
+    Section::titled(
+        key(title),
+        &[
+            (
+                rate_label,
+                (rate > InformationRate::default()).then(|| {
+                    format!(
+                        "{:.0}",
+                        rate.into_format_args(megabit_per_second, Abbreviation)
+                    )
+                }),
             ),
-        )
-    });
-    let mtu_row = (mtu > 0).then(|| row("Max Packet Size (MTU)", mtu.to_string()));
-    section(key(title), rate_row.into_iter().chain(mtu_row).collect())
+            ("Max Packet Size (MTU)", (mtu > 0).then(|| mtu.to_string())),
+        ],
+    )
 }

@@ -9,7 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{TooltipBody, row, time_row},
+        tooltip_body::{Cell, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -130,19 +130,19 @@ impl BarWidget for AutoSwitchToggle {
     fn tooltip(&self) -> TooltipBody {
         let upcoming = match self.status_at(Utc::now()) {
             ScheduleStatus::Disarmed => {
-                return TooltipBody::rows(vec![row("Auto-switch", "off")]);
+                return TooltipBody::sections(&[Section::untitled(&[("Auto-switch", "off")])]);
             }
             ScheduleStatus::AwaitingLocationFix => {
-                return TooltipBody::rows(vec![
-                    row("Auto-switch", "on"),
-                    row("Next", "waiting for a location fix"),
-                ]);
+                return TooltipBody::sections(&[Section::untitled(&[
+                    ("Auto-switch", "on"),
+                    ("Next", "waiting for a location fix"),
+                ])]);
             }
             ScheduleStatus::NoSunEvents => {
-                return TooltipBody::rows(vec![
-                    row("Auto-switch", "on"),
-                    row("Next", "no sunrise or sunset soon"),
-                ]);
+                return TooltipBody::sections(&[Section::untitled(&[
+                    ("Auto-switch", "on"),
+                    ("Next", "no sunrise or sunset soon"),
+                ])]);
             }
             ScheduleStatus::Following { upcoming, .. } => upcoming,
         };
@@ -150,19 +150,26 @@ impl BarWidget for AutoSwitchToggle {
             .saved_schedule
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
-        TooltipBody::rows(vec![
-            row("Auto-switch", "on"),
-            time_row(
-                upcoming.target_mode.sun_event_label(),
-                upcoming.switch_time - offset,
-                TimePart::TimeOfDay,
+        TooltipBody::sections(&[Section::untitled(&[
+            ("Auto-switch".to_owned(), Cell::from("on")),
+            (
+                upcoming.target_mode.sun_event_label().to_owned(),
+                Cell::Time {
+                    at: upcoming.switch_time - offset,
+                    part: TimePart::TimeOfDay,
+                },
             ),
-            row("Offset", format_offset_minutes(offset)),
-            time_row(
-                &format!("Switch to {}", upcoming.target_mode.umbra_name()),
-                upcoming.switch_time,
-                TimePart::TimeOfDay,
+            (
+                "Offset".to_owned(),
+                Cell::from(format_offset_minutes(offset)),
             ),
-        ])
+            (
+                format!("Switch to {}", upcoming.target_mode.umbra_name()),
+                Cell::Time {
+                    at: upcoming.switch_time,
+                    part: TimePart::TimeOfDay,
+                },
+            ),
+        ])])
     }
 }

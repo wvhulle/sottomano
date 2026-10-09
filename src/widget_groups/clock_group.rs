@@ -20,7 +20,7 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -89,13 +89,26 @@ impl ClockGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, ClockMessage> {
-        WidgetGroup::new(&self.expansion, ClockMessage::Expansion)
-            .item(GroupItem::reading(&self.time, HoverTarget::LocalTime))
-            .item(GroupItem::reading(&self.date, HoverTarget::LocalDate))
-            .items(self.zone_times.iter().map(|zone_time| {
-                GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
-            }))
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, ClockMessage>> {
+        let zone_items = self.zone_times.iter().map(|zone_time| {
+            GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
+        });
+        let items: Vec<GroupItem<'a, ClockMessage>> =
+            [GroupItem::reading(&self.date, HoverTarget::LocalDate)]
+                .into_iter()
+                .chain(zone_items)
+                .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            ClockMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(GroupItem::reading(&self.time, HoverTarget::LocalTime)),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &items,
+        )
     }
 }
 

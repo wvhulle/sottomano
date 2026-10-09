@@ -12,8 +12,8 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::icon_toggle_item,
-        tooltip_body::{Tooltip, row},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -128,19 +128,26 @@ impl OverlayGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget, overlays: OverlaySettings) -> Option<Tooltip> {
         if *target == HoverTarget::ToastSpatialLayout {
-            return Some(Tooltip::table(vec![row(
-                "Notifications",
-                if overlays.toast_spatial_layout {
-                    "beside the window that sent them"
-                } else {
-                    "in the screen corner"
-                },
-            )]));
+            return Some(Tooltip::of(TooltipBody::sections(&[Section::untitled(&[
+                (
+                    "Notifications",
+                    if overlays.toast_spatial_layout {
+                        "beside the window that sent them"
+                    } else {
+                        "in the screen corner"
+                    },
+                ),
+            ])])));
         }
         OverlayKnob::ALL
             .into_iter()
             .find(|knob| knob.target() == *target)
-            .map(|knob| Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())]))
+            .map(|knob| {
+                Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
+                    knob.label(),
+                    self.slider(knob).readout_text(),
+                )])]))
+            })
     }
 
     pub fn update(&mut self, msg: OverlayMessage, overlays: &mut OverlaySettings) -> Action {
@@ -179,29 +186,37 @@ impl OverlayGroup {
         &'a self,
         config: &'a Config,
         overlays: OverlaySettings,
-    ) -> WidgetGroup<'a, OverlayMessage> {
+    ) -> Option<WidgetGroup<'a, OverlayMessage>> {
         let spatial_layout_icon = if overlays.toast_spatial_layout {
             Phosphor::TextAlignCenter(Weight::Regular)
         } else {
             Phosphor::TextAlignRight(Weight::Regular)
         };
-        OverlayKnob::ALL.into_iter().fold(
-            WidgetGroup::new(&self.expansion, OverlayMessage::Expansion)
-                .icon(Phosphor::Stack(Weight::Regular))
-                .item(icon_toggle_item(
-                    config,
-                    spatial_layout_icon,
-                    overlays.toast_spatial_layout,
-                    OverlayMessage::ToggleToastSpatialLayout,
-                    HoverTarget::ToastSpatialLayout,
-                )),
-            |group, knob| {
-                group.item(GroupItem::slider(
-                    self.slider(knob),
-                    config,
-                    move |control| OverlayMessage::Slider(knob, control),
-                ))
+        let slider_items = OverlayKnob::ALL.into_iter().map(|knob| {
+            GroupItem::slider(self.slider(knob), config, move |control| {
+                OverlayMessage::Slider(knob, control)
+            })
+        });
+        let items: Vec<GroupItem<'a, OverlayMessage>> = [icon_toggle_item(
+            config,
+            spatial_layout_icon,
+            overlays.toast_spatial_layout,
+            OverlayMessage::ToggleToastSpatialLayout,
+            HoverTarget::ToastSpatialLayout,
+        )]
+        .into_iter()
+        .chain(slider_items)
+        .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            OverlayMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Stack(Weight::Regular).into()),
+                preview: None,
+                forwards_scroll: false,
             },
+            &items,
         )
     }
 }

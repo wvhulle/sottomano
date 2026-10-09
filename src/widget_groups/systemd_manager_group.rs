@@ -34,8 +34,10 @@ use crate::{
         group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{
+            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+        },
         widget_state::WidgetState,
     },
 };
@@ -201,86 +203,47 @@ impl SystemdManagerGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, SystemdManagerMessage> {
-        let open_log =
-            |args| SystemdManagerMessage::OpenLog(TerminalJournal::following(config, args));
+    ) -> Option<WidgetGroup<'a, SystemdManagerMessage>> {
         let boot = self.boot.get();
-        let boot_phases = boot.map(|boot| &boot.phases as &dyn BarWidget);
-        WidgetGroup::new(&self.expansion, SystemdManagerMessage::Expansion)
-            .icon_colored_by(Phosphor::Heartbeat(Weight::Regular), self)
-            .previewed_reading(boot_phases, HoverTarget::SystemdBootPhases)
-            .reading(boot_phases, HoverTarget::SystemdBootPhases)
-            .reading(
-                boot.map(|boot| &boot.system_startup as &dyn BarWidget),
-                HoverTarget::SystemdSystemStartup,
-            )
-            .reading(
+        WidgetGroup::new(
+            &self.expansion,
+            SystemdManagerMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::IconColoredBy {
+                    glyph: Phosphor::Heartbeat(Weight::Regular).into(),
+                    reading: self,
+                },
+                preview: boot.map(|boot| PreviewedValue::Hoverable {
+                    widget: &boot.phases,
+                    target: HoverTarget::SystemdBootPhases,
+                }),
+                forwards_scroll: false,
+            },
+            &[
+                boot.map(|boot| GroupItem::reading(&boot.phases, HoverTarget::SystemdBootPhases)),
+                boot.map(|boot| {
+                    GroupItem::reading(&boot.system_startup, HoverTarget::SystemdSystemStartup)
+                }),
                 boot.and_then(|boot| boot.user_startup.as_ref())
-                    .map(|user| user as &dyn BarWidget),
-                HoverTarget::SystemdUserStartup,
-            )
-            .item(
+                    .map(|user| GroupItem::reading(user, HoverTarget::SystemdUserStartup)),
                 self.slow_system_jobs
                     .get()
                     .map(|jobs| jobs.group_item(config)),
-            )
-            .item(
                 self.slow_user_jobs
                     .get()
                     .map(|jobs| jobs.group_item(config)),
-            )
-            .item(
                 self.failed_system
                     .get()
                     .map(|failed| failed.group_item(config)),
-            )
-            .item(
                 self.failed_user
                     .get()
                     .map(|failed| failed.group_item(config)),
-            )
-            .item(self.oom_kills.get().map(|oom_kills| {
-                GroupItem::reading(oom_kills, HoverTarget::SystemdOomKills).on_press(
-                    TerminalJournal::PRESS_HINT,
-                    open_log(OomKills::follow_log_args()),
-                )
-            }))
-            .item(self.coredumps.get().map(|coredumps| {
-                GroupItem::reading(coredumps, HoverTarget::SystemdCoredumps).on_press(
-                    TerminalJournal::PRESS_HINT,
-                    open_log(Coredumps::follow_log_args()),
-                )
-            }))
-            .item(self.last_shutdown.get().map(|last_shutdown| {
-                GroupItem::reading(last_shutdown, HoverTarget::SystemdLastShutdown).on_press(
-                    TerminalJournal::PRESS_HINT,
-                    open_log(last_shutdown.follow_log_args()),
-                )
-            }))
-            .standalone_alerts(
-                self.slow_system_jobs
-                    .get()
-                    .into_iter()
-                    .flat_map(|jobs| jobs.job_alerts(open_log, config.locale)),
-            )
-            .standalone_alerts(
-                self.slow_user_jobs
-                    .get()
-                    .into_iter()
-                    .flat_map(|jobs| jobs.job_alerts(open_log, config.locale)),
-            )
-            .standalone_alerts(
-                self.failed_system
-                    .get()
-                    .into_iter()
-                    .flat_map(|failed| failed.unit_alerts(open_log, config.locale)),
-            )
-            .standalone_alerts(
-                self.failed_user
-                    .get()
-                    .into_iter()
-                    .flat_map(|failed| failed.unit_alerts(open_log, config.locale)),
-            )
+                self.oom_kills.get().map(|kills| kills.group_item(config)),
+                self.coredumps.get().map(|dumps| dumps.group_item(config)),
+                self.last_shutdown.get().map(|last| last.group_item(config)),
+            ],
+        )
     }
 
     fn current_health(&self) -> [Option<&dyn BarWidget>; 6] {
@@ -314,19 +277,44 @@ impl BarWidget for SystemdManagerGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(
-            [
-                self.slow_system_jobs.get().map(SlowJobs::count_row),
-                self.slow_user_jobs.get().map(SlowJobs::count_row),
-                self.failed_system.get().map(Failed::count_row),
-                self.failed_user.get().map(Failed::count_row),
-                self.oom_kills.get().map(OomKills::count_row),
-                self.coredumps.get().map(Coredumps::count_row),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
-        )
+        TooltipBody::sections(&[Section::untitled(&[
+            (
+                System::SLOW_JOBS_LABEL,
+                self.slow_system_jobs
+                    .get()
+                    .map(|jobs| jobs.jobs.len().to_string()),
+            ),
+            (
+                User::SLOW_JOBS_LABEL,
+                self.slow_user_jobs
+                    .get()
+                    .map(|jobs| jobs.jobs.len().to_string()),
+            ),
+            (
+                System::FAILED_LABEL,
+                self.failed_system
+                    .get()
+                    .map(|failed| failed.units.len().to_string()),
+            ),
+            (
+                User::FAILED_LABEL,
+                self.failed_user
+                    .get()
+                    .map(|failed| failed.units.len().to_string()),
+            ),
+            (
+                "OOM kills",
+                self.oom_kills
+                    .get()
+                    .map(|kills| kills.entries.len().to_string()),
+            ),
+            (
+                "Coredumps",
+                self.coredumps
+                    .get()
+                    .map(|dumps| dumps.entries.len().to_string()),
+            ),
+        ])])
     }
 }
 

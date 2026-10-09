@@ -111,36 +111,50 @@ impl DesktopShell {
         let top = Position::Top;
         [
             self.weather_group
-                .widget_group()
-                .place_on_bar(Message::Weather, config, top),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Weather, config, top)
+                }),
             self.battery_group
                 .widget_group(config)
-                .place_on_bar(Message::Battery, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Battery, config, top)
+                }),
             self.compute_group
-                .widget_group()
-                .place_on_bar(Message::Compute, config, top),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Compute, config, top)
+                }),
             self.disk_group
-                .widget_group()
-                .place_on_bar(Message::Disk, config, top),
-            self.net_interfaces_group.widget_group().place_on_bar(
-                Message::NetInterfaces,
-                config,
-                top,
-            ),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Disk, config, top)
+                }),
+            self.net_interfaces_group
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::NetInterfaces, config, top)
+                }),
             self.systemd_manager_group
                 .widget_group(config)
-                .place_on_bar(Message::SystemdManager, config, top),
-            self.journal_events_group.widget_group(config).place_on_bar(
-                Message::JournalEvents,
-                config,
-                top,
-            ),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::SystemdManager, config, top)
+                }),
+            self.journal_events_group
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::JournalEvents, config, top)
+                }),
             self.pending_upgrades_group
                 .widget_group(config)
-                .place_on_bar(Message::PendingUpgrades, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::PendingUpgrades, config, top)
+                }),
             self.internet_group
-                .widget_group()
-                .place_on_bar(Message::Internet, config, top),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Internet, config, top)
+                }),
         ]
     }
 
@@ -149,15 +163,19 @@ impl DesktopShell {
         let top = Position::Top;
         [
             self.clock_group
-                .widget_group()
-                .place_on_bar(Message::Clock, config, top),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Clock, config, top)
+                }),
             self.notification_group
                 .widget_group(
                     config,
                     &self.shell_settings.notifications,
                     self.notifications.live_count(),
                 )
-                .place_on_bar(Message::NotificationGroup, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::NotificationGroup, config, top)
+                }),
         ]
     }
 
@@ -166,31 +184,45 @@ impl DesktopShell {
         let top = Position::Top;
         [
             self.ai_group
-                .widget_group()
-                .place_on_bar(Message::Ai, config, top),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Ai, config, top)
+                }),
             self.monitor_group
                 .widget_group(config)
-                .place_on_bar(Message::Monitor, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Monitor, config, top)
+                }),
             self.dark_mode_group
                 .widget_group(config)
-                .place_on_bar(Message::DarkMode, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::DarkMode, config, top)
+                }),
             self.color_temperature_group
                 .widget_group(config)
-                .place_on_bar(Message::ColorTemperature, config, top),
-            self.idle_timeouts_group.widget_group(config).place_on_bar(
-                Message::IdleTimeouts,
-                config,
-                top,
-            ),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::ColorTemperature, config, top)
+                }),
+            self.idle_timeouts_group
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::IdleTimeouts, config, top)
+                }),
             self.wallpaper_group
-                .widget_group()
-                .place_on_bar(Message::Wallpaper, config, top),
+                .widget_group(config)
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Wallpaper, config, top)
+                }),
             self.media_group
                 .widget_group(config, &self.desktop_entries)
-                .place_on_bar(Message::Media, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Media, config, top)
+                }),
             self.audio_group
                 .widget_group(config)
-                .place_on_bar(Message::Audio, config, top),
+                .map_or_else(GroupViewWithAlerts::empty, |group| {
+                    group.place_on_bar(Message::Audio, config, top)
+                }),
         ]
     }
 }

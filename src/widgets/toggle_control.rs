@@ -7,7 +7,7 @@ use crate::{
     message_subscriptions::{blocking, polling},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::Tooltip,
@@ -35,18 +35,23 @@ pub fn icon_toggle_item<M: Clone + 'static>(
     press: M,
     target: HoverTarget,
 ) -> GroupItem<'_, M> {
-    GroupItem::hoverable_element(move |_| {
-        hoverable(
-            icon_toggle_glyph(config, icon, enabled),
-            target.clone(),
-            PressHints {
-                left: Some(TOGGLE_PRESS_HINT),
-                ..PressHints::default()
-            },
-            GroupEvent::Tooltip,
-        )
-    })
-    .on_press(TOGGLE_PRESS_HINT, press)
+    GroupItem {
+        on_press: Some(Press {
+            does: TOGGLE_PRESS_HINT,
+            message: press,
+        }),
+        ..GroupItem::element(move |_| {
+            hoverable(
+                icon_toggle_glyph(config, icon, enabled),
+                target.clone(),
+                PressHints {
+                    left: Some(TOGGLE_PRESS_HINT),
+                    ..PressHints::default()
+                },
+                GroupEvent::Tooltip,
+            )
+        })
+    }
 }
 
 pub trait Toggle: Source + BarWidget {

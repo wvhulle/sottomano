@@ -26,12 +26,14 @@ use crate::{
         confirm_button::{ConfirmButton, Press},
         flat_button,
         gauge::Gauge,
-        group_item::GroupItem,
+        group_item::{GroupItem, Press as GroupPress},
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, WidgetGroup,
+        },
     },
 };
 
@@ -261,26 +263,19 @@ impl MediaGroup {
 
     fn tooltip(&self) -> Option<Tooltip> {
         let media = self.current()?;
-        let sections = [
-            Some(track_section(media)),
-            Some(playback_section(media, self.now)),
+        Some(Tooltip::of(TooltipBody::sections(&[
+            track_section(media),
+            playback_section(media, self.now),
             search_section(media),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        Some(Tooltip::of(TooltipBody::Sections(sections)))
+        ])))
     }
 
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
         index: &'a DesktopIndex,
-    ) -> WidgetGroup<'a, MediaMessage> {
-        let group = WidgetGroup::new(&self.expansion, MediaMessage::Expansion);
-        let Some(media) = self.current() else {
-            return group;
-        };
+    ) -> Option<WidgetGroup<'a, MediaMessage>> {
+        let media = self.current()?;
         let opacity = if media.status == Status::Playing {
             1.0
         } else {
@@ -290,6 +285,7 @@ impl MediaGroup {
             GroupItem::element(move |reveal| {
                 self.sources(config, index, media, reveal)
                     .unwrap_or_else(|| Row::new().into())
+                    .map(GroupEvent::Group)
             })
         });
         let seekable = self.seek_bar.view(config, media, self.now).is_some();
@@ -298,33 +294,51 @@ impl MediaGroup {
                 self.seek_bar
                     .view(config, media, self.now)
                     .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
+                    .map(GroupEvent::Group)
             })
         });
         let gauge_fraction = media
             .progress
             .fraction(media.status, self.now)
             .filter(|_| !(seekable && self.expansion.is_expanded()));
-        let session = !self.session_controls(config, media, 1.0).is_empty();
-        let session = session.then(|| {
-            GroupItem::element(move |reveal| self.session_controls(config, media, reveal).into())
+        let session = (!self.session_controls(config, media, 1.0).is_empty()).then(|| {
+            GroupItem::element(move |reveal| {
+                Element::<MediaMessage>::from(self.session_controls(config, media, reveal))
+                    .map(GroupEvent::Group)
+            })
         });
-        group
-            .forward_handle_scroll(seekable)
-            .item(GroupItem::hoverable_element(move |_| {
-                hoverable(
-                    track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
-                    HoverTarget::Media,
-                    PressHints::default(),
-                    GroupEvent::Tooltip,
-                )
-            }))
-            .item(track_label(config, media))
-            .item(seek)
-            .item(GroupItem::element(move |reveal| {
-                TransportControls::new(config, media, reveal, MediaMessage::Command).into()
-            }))
-            .item(session)
-            .item(sources)
+        WidgetGroup::new(
+            &self.expansion,
+            MediaMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(GroupItem::element(move |_| {
+                    hoverable(
+                        track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
+                        HoverTarget::Media,
+                        PressHints::default(),
+                        GroupEvent::Tooltip,
+                    )
+                })),
+                preview: None,
+                forwards_scroll: seekable,
+            },
+            &[
+                Some(track_label(config, media)),
+                seek,
+                Some(GroupItem::element(move |reveal| {
+                    Element::<MediaMessage>::from(TransportControls::new(
+                        config,
+                        media,
+                        reveal,
+                        MediaMessage::Command,
+                    ))
+                    .map(GroupEvent::Group)
+                })),
+                session,
+                sources,
+            ],
+        )
     }
 
     fn session_controls<'a>(
@@ -351,7 +365,7 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
         left: raisable.then_some(RAISE_PLAYER_HINT),
         ..PressHints::default()
     };
-    let label = GroupItem::hoverable_element(move |reveal| {
+    let label = GroupItem::element(move |reveal| {
         hoverable(
             rich_text(label_spans(config, media, reveal))
                 .size(config.font.text_size_px)
@@ -363,7 +377,13 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
         )
     });
     if raisable {
-        label.on_press(RAISE_PLAYER_HINT, MediaMessage::Command(Command::Raise))
+        GroupItem {
+            on_press: Some(GroupPress {
+                does: RAISE_PLAYER_HINT,
+                message: MediaMessage::Command(Command::Raise),
+            }),
+            ..label
+        }
     } else {
         label
     }

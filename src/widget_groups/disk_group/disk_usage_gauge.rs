@@ -10,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -40,13 +40,13 @@ impl BarWidget for Disk {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let capacity = untitled(vec![
-            row("Mount", "/"),
-            row("Used", format!("{}%", self.used_pct())),
-            row("Free", self.free.display().iec().to_string()),
-            row("Total", self.total.display().iec().to_string()),
+        let capacity = Section::untitled(&[
+            ("Mount", "/".to_owned()),
+            ("Used", format!("{}%", self.used_pct())),
+            ("Free", self.free.display().iec().to_string()),
+            ("Total", self.total.display().iec().to_string()),
         ]);
-        TooltipBody::Sections(vec![capacity, self.filesystem.section()])
+        TooltipBody::sections(&[capacity, self.filesystem.section()])
     }
 }
 
@@ -72,25 +72,25 @@ impl Disk {
 impl Filesystem {
     fn section(&self) -> Section {
         match self {
-            Filesystem::Btrfs(space) => section(
+            Filesystem::Btrfs(space) => Section::titled(
                 "Btrfs",
-                vec![
-                    row("Compression", space.compression.to_string()),
-                    row(
+                &[
+                    ("Compression", space.compression.to_string()),
+                    (
                         "Unallocated space",
                         space.unallocated.display().iec().to_string(),
                     ),
-                    row(
+                    (
                         "Metadata in use",
                         space.metadata.used.display().iec().to_string(),
                     ),
-                    row(
+                    (
                         "Metadata reserved",
                         space.metadata.allocated.display().iec().to_string(),
                     ),
                 ],
             ),
-            Filesystem::Other { fs_type } => untitled(vec![row("Filesystem", fs_type.clone())]),
+            Filesystem::Other { fs_type } => Section::untitled(&[("Filesystem", fs_type.clone())]),
         }
     }
 }

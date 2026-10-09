@@ -1,16 +1,16 @@
 use crate::{
     data::source::hardware::{
-        Adapter, CacheLevel, CpuModel, CpuTopology, DriveIdentity, MemoryModuleGroup,
-        MemoryModules, ModemIdentity, PowerSupplyIdentity,
+        Adapter, CacheLevel, CpuModel, DriveIdentity, MemoryModuleGroup, MemoryModules,
+        ModemIdentity, PowerSupplyIdentity,
     },
-    widgets::tooltip_body::{Row, Section, link, row, section},
+    widgets::tooltip_body::{Cell, Row, Section},
 };
 
 pub trait HardwareRows {
     fn hardware_rows(&self) -> Vec<Row>;
 
     fn hardware_section(&self) -> Section {
-        section("Hardware", self.hardware_rows())
+        Section::titled("Hardware", &self.hardware_rows())
     }
 }
 
@@ -26,45 +26,33 @@ impl<H: HardwareRows> HardwareRows for Option<H> {
     }
 }
 
-pub fn reported_rows<'a>(
-    facts: impl IntoIterator<Item = (&'static str, Option<&'a String>)>,
-) -> Vec<Row> {
-    facts
-        .into_iter()
-        .filter_map(|(key, value)| Some(row(key, value?.clone())))
-        .collect()
-}
-
 impl CpuModel {
-    pub fn hardware_sections(&self) -> Vec<Section> {
-        vec![
-            section("Processor", self.processor_rows()),
-            section("Topology", self.topology.rows()),
-            section("Cache", self.caches.0.iter().map(CacheLevel::row).collect()),
-        ]
-    }
-
-    fn processor_rows(&self) -> Vec<Row> {
-        reported_rows([
-            ("Model", self.identity.name.as_ref()),
-            (
-                "Microarchitecture",
-                self.architecture.microarchitecture.as_ref(),
+    pub fn hardware_sections(&self) -> [Section; 3] {
+        let caches: Vec<Row> = self.caches.0.iter().map(CacheLevel::row).collect();
+        [
+            Section::titled(
+                "Processor",
+                &[
+                    ("Model", &self.identity.name),
+                    ("Microarchitecture", &self.architecture.microarchitecture),
+                    ("Process", &self.architecture.process),
+                    ("Released", &self.architecture.released),
+                    ("x86-64 level", &self.architecture.x86_64_level),
+                    ("Microcode", &self.identity.microcode),
+                ],
             ),
-            ("Process", self.architecture.process.as_ref()),
-            ("Released", self.architecture.released.as_ref()),
-            ("x86-64 level", self.architecture.x86_64_level.as_ref()),
-            ("Microcode", self.identity.microcode.as_ref()),
-        ])
-    }
-}
-
-impl CpuTopology {
-    fn rows(self) -> Vec<Row> {
-        [("Cores", self.cores), ("Threads", self.threads)]
-            .into_iter()
-            .filter_map(|(key, count)| Some(row(key, count?.to_string())))
-            .collect()
+            Section::titled(
+                "Topology",
+                &[
+                    ("Cores", self.topology.cores.map(|count| count.to_string())),
+                    (
+                        "Threads",
+                        self.topology.threads.map(|count| count.to_string()),
+                    ),
+                ],
+            ),
+            Section::titled("Cache", &caches),
+        ]
     }
 }
 
@@ -76,7 +64,7 @@ impl CacheLevel {
             .map(|same_size| format!("{} × {}", same_size.count, same_size.size.display().iec()))
             .collect::<Vec<_>>()
             .join(" + ");
-        row(self.position.to_string(), instances)
+        (self.position.to_string(), instances).into()
     }
 }
 
@@ -89,76 +77,86 @@ impl HardwareRows for MemoryModules {
 impl MemoryModuleGroup {
     fn rows(&self) -> Vec<Row> {
         let module = &self.module;
-        let mut rows = reported_rows([
-            ("Manufacturer", module.manufacturer.as_ref()),
-            ("Part number", module.part_number.as_ref()),
-            ("Type", module.kind.as_ref()),
-        ]);
-        rows.extend(
-            module
-                .speed_mts
-                .map(|speed| row("Speed", format!("{speed} MT/s"))),
-        );
-        rows.push(row("Module size", module.size.display().iec().to_string()));
-        rows.push(row("Modules", self.count.to_string()));
-        rows
+        [
+            ("Manufacturer", module.manufacturer.clone()),
+            ("Part number", module.part_number.clone()),
+            ("Type", module.kind.clone()),
+            (
+                "Speed",
+                module.speed_mts.map(|speed| format!("{speed} MT/s")),
+            ),
+            ("Module size", Some(module.size.display().iec().to_string())),
+            ("Modules", Some(self.count.to_string())),
+        ]
+        .map(Row::from)
+        .into()
     }
 }
 
 impl HardwareRows for DriveIdentity {
     fn hardware_rows(&self) -> Vec<Row> {
-        reported_rows([
-            ("Model", self.model.as_ref()),
-            ("Serial", self.serial.as_ref()),
-            ("Firmware", self.firmware.as_ref()),
-        ])
+        [
+            ("Model", &self.model),
+            ("Serial", &self.serial),
+            ("Firmware", &self.firmware),
+        ]
+        .map(Row::from)
+        .into()
     }
 }
 
 impl HardwareRows for PowerSupplyIdentity {
     fn hardware_rows(&self) -> Vec<Row> {
-        reported_rows([
-            ("Manufacturer", self.manufacturer.as_ref()),
-            ("Model", self.model.as_ref()),
-            ("Serial", self.serial.as_ref()),
-            ("Technology", self.technology.as_ref()),
-        ])
+        [
+            ("Manufacturer", &self.manufacturer),
+            ("Model", &self.model),
+            ("Serial", &self.serial),
+            ("Technology", &self.technology),
+        ]
+        .map(Row::from)
+        .into()
     }
 }
 
 impl HardwareRows for ModemIdentity {
     fn hardware_rows(&self) -> Vec<Row> {
-        let mut rows = reported_rows([
-            ("Manufacturer", self.manufacturer.as_ref()),
-            ("Model", self.model.as_ref()),
-            ("Firmware", self.revision.as_ref()),
-        ]);
-        rows.extend(
+        [
+            [
+                ("Manufacturer", &self.manufacturer),
+                ("Model", &self.model),
+                ("Firmware", &self.revision),
+            ]
+            .map(Row::from)
+            .to_vec(),
             self.adapter
                 .as_ref()
                 .map(Adapter::bus_rows)
                 .unwrap_or_default(),
-        );
-        rows
+        ]
+        .concat()
     }
 }
 
 impl HardwareRows for Adapter {
     fn hardware_rows(&self) -> Vec<Row> {
-        let mut rows = reported_rows([
-            ("Vendor", self.vendor.as_ref()),
-            ("Model", self.model.as_ref()),
-        ]);
-        rows.extend(self.bus_rows());
-        rows
+        [
+            [("Vendor", &self.vendor), ("Model", &self.model)]
+                .map(Row::from)
+                .to_vec(),
+            self.bus_rows(),
+        ]
+        .concat()
     }
 }
 
 impl Adapter {
     fn bus_rows(&self) -> Vec<Row> {
-        let mut rows = vec![row(self.bus_id.bus_name(), self.bus_id.to_string())];
-        rows.extend(reported_rows([("Driver", self.driver.as_ref())]));
-        rows.push(link("Lookup", self.bus_id.lookup_url()));
-        rows
+        [
+            (self.bus_id.bus_name(), Cell::from(self.bus_id.to_string())),
+            ("Driver", Cell::from(&self.driver)),
+            ("Lookup", Cell::Link(self.bus_id.lookup_url())),
+        ]
+        .map(Row::from)
+        .into()
     }
 }

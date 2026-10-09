@@ -7,6 +7,7 @@ pub mod mobile_modem_tooltip;
 pub mod wifi_link_tooltip;
 
 use crate::{
+    config::Config,
     data::source::net_interfaces::{
         bluetooth::{self, Bluetooth},
         ethernet::{self, Ethernet},
@@ -20,7 +21,9 @@ use crate::{
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+        },
         widget_state::WidgetState,
     },
 };
@@ -76,14 +79,26 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, NetInterfacesMessage> {
-        WidgetGroup::new(&self.expansion, NetInterfacesMessage::Expansion)
-            .icon(Phosphor::Link(Weight::Regular))
-            .previewed_value(self.preferred_uplink())
-            .reading(self.bluetooth.display(), HoverTarget::Bluetooth)
-            .reading(self.ethernet.display(), HoverTarget::Ethernet)
-            .reading(self.wifi.display(), HoverTarget::Wifi)
-            .reading(self.mobile.display(), HoverTarget::Mobile)
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, NetInterfacesMessage>> {
+        WidgetGroup::new(
+            &self.expansion,
+            NetInterfacesMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Link(Weight::Regular).into()),
+                preview: self.preferred_uplink().map(PreviewedValue::Plain),
+                forwards_scroll: false,
+            },
+            &[
+                self.bluetooth.reading_item(HoverTarget::Bluetooth),
+                self.ethernet.reading_item(HoverTarget::Ethernet),
+                self.wifi.reading_item(HoverTarget::Wifi),
+                self.mobile.reading_item(HoverTarget::Mobile),
+            ],
+        )
     }
 
     fn preferred_uplink(&self) -> Option<&dyn BarWidget> {

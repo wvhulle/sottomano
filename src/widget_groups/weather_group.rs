@@ -7,6 +7,7 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
+    config::Config,
     data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
@@ -15,7 +16,7 @@ use crate::{
         group_item::GroupItem,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -82,20 +83,43 @@ impl WeatherGroup {
         }
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, WeatherMessage> {
-        WidgetGroup::new(&self.expansion, WeatherMessage::Expansion)
-            .reading(self.temp.display(), HoverTarget::WeatherTemp)
-            .reading(self.wind.display(), HoverTarget::WeatherWind)
-            .reading(self.rain.present(), HoverTarget::WeatherRain)
-            .items(self.pollen.get().into_iter().flat_map(|pollen| {
-                pollen.airborne().map(|concentration| {
-                    GroupItem::reading(
-                        concentration as &dyn BarWidget,
-                        HoverTarget::Allergen(concentration.allergen),
-                    )
-                })
-            }))
-            .reading(self.pollen.failure(), HoverTarget::Pollen)
-            .reading(self.location.display(), HoverTarget::Location)
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, WeatherMessage>> {
+        let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
+            pollen.airborne().map(|concentration| {
+                Some(GroupItem::reading(
+                    concentration as &dyn BarWidget,
+                    HoverTarget::Allergen(concentration.allergen),
+                ))
+            })
+        });
+        let items: Vec<Option<GroupItem<'a, WeatherMessage>>> = [
+            self.wind.reading_item(HoverTarget::WeatherWind),
+            self.rain
+                .present()
+                .map(|widget| GroupItem::reading(widget, HoverTarget::WeatherRain)),
+        ]
+        .into_iter()
+        .chain(airborne_items)
+        .chain([
+            self.pollen
+                .failure()
+                .map(|widget| GroupItem::reading(widget, HoverTarget::Pollen)),
+            self.location.reading_item(HoverTarget::Location),
+        ])
+        .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            WeatherMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(self.temp.reading_item(HoverTarget::WeatherTemp)?),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &items,
+        )
     }
 }

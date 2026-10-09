@@ -16,7 +16,10 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupEvent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, PreviewedValue,
+            WidgetGroup,
+        },
     },
 };
 
@@ -204,17 +207,28 @@ impl IdleTimeoutsGroup {
             .collect()
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, IdleTimeoutsMessage> {
-        WidgetGroup::new(&self.expansion, IdleTimeoutsMessage::Expansion)
-            .icon(Phosphor::Timer(Weight::Regular))
-            .previewed_value(Some(self.lock.reading()))
-            .items(self.entries().map(|(kind, timer)| {
-                GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
-                    timer.view(config, reveal).map(move |m| match m {
-                        TimerMessage::Slider(ControlMessage::Tooltip(t)) => GroupEvent::Tooltip(t),
-                        m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
-                    })
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, IdleTimeoutsMessage>> {
+        let items = self.entries().map(|(kind, timer)| {
+            GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
+                timer.view(config, reveal).map(move |m| match m {
+                    TimerMessage::Slider(ControlMessage::Tooltip(t)) => GroupEvent::Tooltip(t),
+                    m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
                 })
-            }))
+            })
+        });
+        WidgetGroup::new(
+            &self.expansion,
+            IdleTimeoutsMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Timer(Weight::Regular).into()),
+                preview: Some(PreviewedValue::Plain(self.lock.reading())),
+                forwards_scroll: false,
+            },
+            &items,
+        )
     }
 }

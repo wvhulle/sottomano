@@ -153,7 +153,7 @@ mod tests {
         }
 
         fn tooltip(&self) -> TooltipBody {
-            TooltipBody::rows(Vec::new())
+            TooltipBody::sections(&[])
         }
     }
 

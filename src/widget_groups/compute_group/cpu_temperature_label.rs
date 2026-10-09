@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use uom::si::{
     f64::{TemperatureInterval, ThermodynamicTemperature},
     temperature_interval,
@@ -16,7 +14,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, untitled},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -82,9 +80,8 @@ impl Temperature {
         cpu_thresholds(self.throttle_limit, self.overrides)
     }
 
-    fn throttle_row(&self) -> Option<Row> {
-        reported_limit(self.throttle_limit)
-            .map(|throttle| row("Throttles at", celsius_text(throttle)))
+    fn throttle_text(&self) -> Option<String> {
+        reported_limit(self.throttle_limit).map(celsius_text)
     }
 }
 
@@ -111,28 +108,25 @@ impl BarWidget for Temperature {
     fn tooltip(&self) -> TooltipBody {
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
-        let summary = untitled(
-            [
-                Some(row("Chips", chips.join(", "))),
-                Some(row("Samples", self.readings.len().to_string())),
-                self.lowest().map(|lowest| row("Min", celsius_text(lowest))),
-                Some(row("Avg", celsius_text(self.average()))),
-                Some(row("Max", celsius_text(self.hottest()))),
-                self.throttle_row(),
-                Some(row("Warns above", celsius_text(self.thresholds().warning))),
-                Some(row(
-                    "Critical above",
-                    celsius_text(self.thresholds().critical),
-                )),
+        let summary = Section::untitled(&[
+            ("Chips", Some(chips.join(", "))),
+            ("Samples", Some(self.readings.len().to_string())),
+            ("Min", self.lowest().map(celsius_text)),
+            ("Avg", Some(celsius_text(self.average()))),
+            ("Max", Some(celsius_text(self.hottest()))),
+            ("Throttles at", self.throttle_text()),
+            ("Warns above", Some(celsius_text(self.thresholds().warning))),
+            (
+                "Critical above",
+                Some(celsius_text(self.thresholds().critical)),
+            ),
+        ]);
+        TooltipBody::sections(
+            &[
+                vec![summary],
+                sections_by_core_kind(&self.topology, self.cores.clone()),
             ]
-            .into_iter()
-            .flatten()
-            .collect(),
-        );
-        TooltipBody::Sections(
-            once(summary)
-                .chain(sections_by_core_kind(&self.topology, self.cores.clone()))
-                .collect(),
+            .concat(),
         )
     }
 }

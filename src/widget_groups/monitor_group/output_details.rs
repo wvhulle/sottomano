@@ -5,10 +5,7 @@ use crate::{
         backlight::{Backlight, Kind},
         niri::{OutputInfo, OutputMode},
     },
-    widgets::{
-        hardware_section::{HardwareRows, reported_rows},
-        tooltip_body::{Row, row},
-    },
+    widgets::{hardware_section::HardwareRows, tooltip_body::Row},
 };
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
@@ -35,41 +32,40 @@ impl<'a> ConnectedOutput<'a> {
     }
 
     pub fn rows(&self) -> Vec<Row> {
-        let mut rows = vec![row("Output", self.connector.to_owned())];
-        rows.extend(self.geometry_rows());
-        rows
-    }
-
-    fn geometry_rows(&self) -> Vec<Row> {
-        let mut rows = Vec::new();
-        if let Some(OutputMode {
-            width,
-            height,
-            refresh_hz,
-        }) = self.info.mode
-        {
-            rows.push(row("Resolution", format!("{width}x{height}")));
-            rows.push(row("Refresh", format!("{refresh_hz:.2} Hz")));
-        }
-        rows.push(row("Scale", format!("{:.2}", self.info.scale)));
-        rows
+        let mode = self.info.mode;
+        [
+            ("Output", Some(self.connector.to_owned())),
+            (
+                "Resolution",
+                mode.map(|OutputMode { width, height, .. }| format!("{width}x{height}")),
+            ),
+            (
+                "Refresh",
+                mode.map(|OutputMode { refresh_hz, .. }| format!("{refresh_hz:.2} Hz")),
+            ),
+            ("Scale", Some(format!("{:.2}", self.info.scale))),
+        ]
+        .map(Row::from)
+        .into()
     }
 }
 
 impl HardwareRows for ConnectedOutput<'_> {
     fn hardware_rows(&self) -> Vec<Row> {
-        reported_rows([
-            ("Make", self.info.make.as_ref()),
-            ("Model", self.info.model.as_ref()),
-            ("Serial", self.info.serial.as_ref()),
-        ])
+        [
+            ("Make", &self.info.make),
+            ("Model", &self.info.model),
+            ("Serial", &self.info.serial),
+        ]
+        .map(Row::from)
+        .into()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::tooltip_body::Cell;
+    use crate::widgets::tooltip_body::{Cell, Section, SectionBody};
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(
@@ -103,15 +99,18 @@ mod tests {
         let output =
             ConnectedOutput::driving(&internal_backlight(), &outputs).expect("internal panel");
         assert_eq!(
-            output.rows(),
-            [
-                row("Output", "eDP-1"),
-                row("Resolution", "1920x1200"),
-                row("Refresh", "60.00 Hz"),
-                row("Scale", "1.20"),
-            ]
+            Section::untitled(&output.rows()),
+            Section::untitled(&[
+                ("Output", "eDP-1"),
+                ("Resolution", "1920x1200"),
+                ("Refresh", "60.00 Hz"),
+                ("Scale", "1.20"),
+            ])
         );
-        assert_eq!(output.hardware_rows(), [row("Make", "LG Display")]);
+        assert_eq!(
+            output.hardware_section(),
+            Section::titled("Hardware", &[("Make", "LG Display")])
+        );
     }
 
     #[test]
@@ -119,8 +118,11 @@ mod tests {
         let outputs = laptop_panel();
         let hardware = ConnectedOutput::driving(&internal_backlight(), &outputs)
             .expect("internal panel")
-            .hardware_rows();
-        assert!(hardware.iter().all(|row| row.key != Cell::from("Model")));
+            .hardware_section();
+        let SectionBody::Rows(rows) = hardware.body() else {
+            panic!("expected rows");
+        };
+        assert!(rows.iter().all(|row| *row.key() != Cell::from("Model")));
     }
 
     #[test]

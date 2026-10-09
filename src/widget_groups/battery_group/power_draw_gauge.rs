@@ -13,7 +13,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody, row, section},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -46,28 +46,35 @@ impl PowerDraw {
         )
     }
 
-    fn breakdown_on_battery(&self) -> Vec<Section> {
-        vec![section(
+    fn breakdown_on_battery(&self) -> TooltipBody {
+        TooltipBody::sections(&[Section::titled(
             "Battery feeds",
-            vec![row("Laptop", power_text(self.power))],
-        )]
+            &[("Laptop", power_text(self.power))],
+        )])
     }
 
-    fn breakdown_on_ac(&self) -> Vec<Section> {
+    fn breakdown_on_ac(&self) -> TooltipBody {
         let laptop = self.expected_laptop.map_or_else(
-            || row("Laptop", "not measured"),
-            |laptop| row("Laptop (estimated)", power_text(laptop)),
+            || ("Laptop", "not measured".to_owned()),
+            |laptop| ("Laptop (estimated)", power_text(laptop)),
         );
-        let charger = self.charger.map(|limit| {
-            section(
+        let feeds = Section::titled(
+            "Charger feeds",
+            &[laptop, ("Battery", power_text(self.power))],
+        );
+        let Some(limit) = self.charger else {
+            return TooltipBody::sections(&[feeds]);
+        };
+        TooltipBody::sections(&[
+            Section::titled(
                 "Charger",
-                vec![
-                    row("Limit", power_text(limit.power())),
-                    row(
+                &[
+                    ("Limit", power_text(limit.power())),
+                    (
                         "Voltage",
                         format!("{:.0}", limit.voltage.into_format_args(volt, Abbreviation)),
                     ),
-                    row(
+                    (
                         "Current",
                         format!(
                             "{:.2}",
@@ -75,13 +82,9 @@ impl PowerDraw {
                         ),
                     ),
                 ],
-            )
-        });
-        let feeds = section(
-            "Charger feeds",
-            vec![laptop, row("Battery", power_text(self.power))],
-        );
-        charger.into_iter().chain([feeds]).collect()
+            ),
+            feeds,
+        ])
     }
 }
 
@@ -115,11 +118,11 @@ impl BarWidget for PowerDraw {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(if self.on_battery() {
+        if self.on_battery() {
             self.breakdown_on_battery()
         } else {
             self.breakdown_on_ac()
-        })
+        }
     }
 }
 
@@ -145,20 +148,20 @@ mod tests {
     fn on_ac_shows_the_charger_then_what_it_feeds() {
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
-            vec![
-                section(
+            TooltipBody::sections(&[
+                Section::titled(
                     "Charger",
-                    vec![
-                        row("Limit", "65.0 W"),
-                        row("Voltage", "20 V"),
-                        row("Current", "3.25 A"),
+                    &[
+                        ("Limit", "65.0 W"),
+                        ("Voltage", "20 V"),
+                        ("Current", "3.25 A"),
                     ],
                 ),
-                section(
+                Section::titled(
                     "Charger feeds",
-                    vec![row("Laptop (estimated)", "8.9 W"), row("Battery", "19.7 W"),],
+                    &[("Laptop (estimated)", "8.9 W"), ("Battery", "19.7 W")],
                 ),
-            ]
+            ])
         );
     }
 
@@ -166,7 +169,7 @@ mod tests {
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
             draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            vec![section("Battery feeds", vec![row("Laptop", "19.7 W")])]
+            TooltipBody::sections(&[Section::titled("Battery feeds", &[("Laptop", "19.7 W")])])
         );
     }
 }

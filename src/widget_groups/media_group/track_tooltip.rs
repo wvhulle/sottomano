@@ -4,7 +4,7 @@ use reqwest::Url;
 
 use crate::{
     data::source::mpris::Media,
-    widgets::tooltip_body::{Row, Section, link, row, section},
+    widgets::tooltip_body::{Cell, Section},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,61 +64,63 @@ fn path_segment(value: &str) -> String {
 }
 
 pub fn track_section(media: &Media) -> Section {
-    let tags = [
-        ("Title", &media.title),
-        ("Artist", &media.artist),
-        ("Album", &media.album),
-    ]
-    .into_iter()
-    .filter_map(|(key, value)| Some(row(key, value.clone()?)));
-    let source = media.url.iter().map(|url| link("Source", url.as_str()));
-    section("Track", tags.chain(source).collect())
+    Section::titled(
+        "Track",
+        &[
+            ("Title", Cell::from(&media.title)),
+            ("Artist", Cell::from(&media.artist)),
+            ("Album", Cell::from(&media.album)),
+            (
+                "Source",
+                media
+                    .url
+                    .as_ref()
+                    .map_or(Cell::Missing, |url| Cell::Link(url.to_string())),
+            ),
+        ],
+    )
 }
 
 pub fn playback_section(media: &Media, now: Instant) -> Section {
     let progress = media.progress;
     let status = media.status;
-    let timing = [
-        ("Played", progress.played(status, now)),
-        ("Remaining", progress.remaining(status, now)),
-        ("Length", progress.length()),
-    ]
-    .into_iter()
-    .filter_map(|(key, duration)| Some(duration_row(key, duration?)));
-    section(
+    Section::titled(
         "Playback",
-        [
-            row("Player", media.identity.clone()),
-            row("State", status.label()),
-        ]
-        .into_iter()
-        .chain(timing)
-        .collect(),
+        &[
+            ("Player", Some(media.identity.clone())),
+            ("State", Some(status.label().to_owned())),
+            ("Played", progress.played(status, now).map(duration_text)),
+            (
+                "Remaining",
+                progress.remaining(status, now).map(duration_text),
+            ),
+            ("Length", progress.length().map(duration_text)),
+        ],
     )
 }
 
-pub fn search_section(media: &Media) -> Option<Section> {
-    let title = media.title.as_ref()?;
-    let query = media
-        .artist
-        .as_ref()
-        .map_or_else(|| title.clone(), |artist| format!("{artist} {title}"));
+pub fn search_section(media: &Media) -> Section {
+    let query = media.title.as_ref().map(|title| {
+        media
+            .artist
+            .as_ref()
+            .map_or_else(|| title.clone(), |artist| format!("{artist} {title}"))
+    });
     let playing_on = media.url.as_ref().and_then(SearchPlatform::hosting);
-    Some(section(
+    Section::titled(
         "Search",
-        SearchPlatform::ALL
-            .into_iter()
-            .filter(|platform| Some(*platform) != playing_on)
-            .map(|platform| link(platform.name(), platform.url(&query)))
-            .collect(),
-    ))
+        &SearchPlatform::ALL.map(|platform| {
+            let link = query
+                .as_ref()
+                .filter(|_| Some(platform) != playing_on)
+                .map_or(Cell::Missing, |query| Cell::Link(platform.url(query)));
+            (platform.name(), link)
+        }),
+    )
 }
 
-fn duration_row(key: &str, duration: Duration) -> Row {
-    row(
-        key,
-        humantime::format_duration(Duration::from_secs(duration.as_secs())).to_string(),
-    )
+fn duration_text(duration: Duration) -> String {
+    humantime::format_duration(Duration::from_secs(duration.as_secs())).to_string()
 }
 
 #[cfg(test)]

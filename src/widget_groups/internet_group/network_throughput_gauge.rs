@@ -16,7 +16,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         rate_text::RateText,
-        tooltip_body::{TooltipBody, row},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -71,18 +71,18 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
 
     fn tooltip(&self) -> TooltipBody {
         if self.interfaces.is_empty() {
-            return TooltipBody::rows(vec![row("Connectivity", "none")]);
+            return TooltipBody::sections(&[Section::untitled(&[("Connectivity", "none")])]);
         }
-        TooltipBody::rows(vec![
-            row(D::LABEL, self.rate.per_second_text()),
-            row("Peak", self.peak_rate.per_second_text()),
-            row("Interfaces", self.interfaces.join(", ")),
-            row("Connectivity", self.connectivity.label()),
-            row(
+        TooltipBody::sections(&[Section::untitled(&[
+            (D::LABEL, self.rate.per_second_text()),
+            ("Peak", self.peak_rate.per_second_text()),
+            ("Interfaces", self.interfaces.join(", ")),
+            ("Connectivity", self.connectivity.label().to_owned()),
+            (
                 "Capacity",
                 InformationRate::new::<megabyte_per_second>(SCALE_END_MB_PER_S).per_second_text(),
             ),
-        ])
+        ])])
     }
 }
 
