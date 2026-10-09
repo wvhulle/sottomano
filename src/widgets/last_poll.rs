@@ -128,11 +128,11 @@ impl<S: Source + BarWidget> LastPoll<S> {
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
         self.display()?;
         let tooltip = Tooltip {
-            body,
             footer: self.last_refreshed.map(|last| RefreshInfo {
                 every: S::INTERVAL,
                 last,
             }),
+            ..Tooltip::of(body)
         };
         (!tooltip.is_empty()).then_some(tooltip)
     }

@@ -11,7 +11,7 @@ use crate::{
     data::source::niri,
     desktop_shell::{
         Message,
-        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+        hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
     widgets::{
@@ -147,6 +147,14 @@ fn hit_area<'a>(
     hoverable(
         pressable.into(),
         HoverTarget::Workspace(p.id),
+        PressHints {
+            left: Some(if p.is_active {
+                "toggle the overview"
+            } else {
+                "switch to this workspace"
+            }),
+            ..PressHints::default()
+        },
         WorkspacesMessage::Tooltip,
     )
 }

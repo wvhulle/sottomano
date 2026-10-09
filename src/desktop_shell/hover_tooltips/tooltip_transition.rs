@@ -1,7 +1,10 @@
 use iced::Rectangle;
 
 use crate::{
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{
+        hover_tooltips::{HoverTarget, PressHints},
+        monitor_surfaces::Position,
+    },
     widgets::tooltip_body::Tooltip,
 };
 
@@ -14,6 +17,7 @@ pub struct Placement {
 
 pub struct Occupant {
     pub target: HoverTarget,
+    pub press_hints: PressHints,
     pub placement: Placement,
 }
 

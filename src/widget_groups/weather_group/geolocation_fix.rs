@@ -122,6 +122,7 @@ fn estimate_section(estimate: &Estimate) -> Section {
             ),
         ],
     )
+    .with_caption("A Wi-Fi and cell fix through BeaconDB.")
 }
 
 fn map_section(position: Position) -> Section {

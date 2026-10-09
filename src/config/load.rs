@@ -5,8 +5,8 @@ use std::{
 
 use chrono::{Locale, Weekday};
 use chrono_tz::{Asia, Tz};
-use serde::Deserialize;
-use toml::de;
+use serde::{Deserialize, Serialize};
+use toml::{de, ser};
 
 use super::{
     bar_size::BarSize,
@@ -49,7 +49,7 @@ impl Config {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct UserConfig {
     palette: Palette,
@@ -173,6 +173,10 @@ impl ConfigFile {
     }
 }
 
+pub fn default_config_toml() -> Result<String, ser::Error> {
+    toml::to_string(&UserConfig::default())
+}
+
 pub fn config_home() -> PathBuf {
     env::var_os("XDG_CONFIG_HOME")
         .filter(|value| !value.is_empty())
@@ -191,7 +195,7 @@ mod tests {
 
     use chrono_tz::Asia;
 
-    use super::{ConfigFile, LoadError, UserConfig};
+    use super::{ConfigFile, LoadError, UserConfig, default_config_toml};
 
     fn file_containing(test: &str, toml: &str) -> ConfigFile {
         let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
@@ -228,5 +232,12 @@ mod tests {
         let error = file.load().unwrap_err();
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
         assert!(matches!(error, LoadError::UnknownLocale(ref name) if name == "xx_nowhere"));
+    }
+
+    #[test]
+    fn the_printed_default_config_reads_back_unchanged() {
+        let printed = default_config_toml().unwrap();
+        let read_back: UserConfig = toml::from_str(&printed).unwrap();
+        assert_eq!(toml::to_string(&read_back).unwrap(), printed);
     }
 }

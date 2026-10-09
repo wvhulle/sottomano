@@ -19,7 +19,7 @@ use crate::{
         process::{self, Forest, Inspection, Process},
     },
     desktop_shell::{
-        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+        hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
     widget_groups::window_group::process_tree::Folding,
@@ -240,20 +240,32 @@ fn window_button<'a>(
         Some(ticks) => slot.ticks(ticks),
         None => slot,
     };
+    let maximize_toggles = win.is_focused && !win.layout.is_floating;
     let pressable = button(slot.view(config, position))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
-        .on_press(if win.is_focused && !win.layout.is_floating {
+        .on_press(if maximize_toggles {
             WindowListMessage::MaximizeToggled
         } else {
             WindowListMessage::Clicked(win.id)
         });
+    let audio_pid = win.pid.filter(|_| extras.audio.is_some());
+    let press_hints = PressHints {
+        left: Some(if maximize_toggles {
+            "maximize or restore"
+        } else {
+            "focus the window"
+        }),
+        middle: audio_pid.map(|_| "mute or unmute its audio"),
+        ..PressHints::default()
+    };
     let hover = hoverable(
         pressable.into(),
         HoverTarget::Window(win.id),
+        press_hints,
         WindowListMessage::Tooltip,
     );
-    let Some(pid) = win.pid.filter(|_| extras.audio.is_some()) else {
+    let Some(pid) = audio_pid else {
         return hover;
     };
     mouse_area(hover)

@@ -240,16 +240,22 @@ impl SystemdManagerGroup {
                     .map(|failed| failed.group_item(config)),
             )
             .item(self.oom_kills.get().map(|oom_kills| {
-                GroupItem::reading(oom_kills, HoverTarget::SystemdOomKills)
-                    .on_press(open_log(OomKills::follow_log_args()))
+                GroupItem::reading(oom_kills, HoverTarget::SystemdOomKills).on_press(
+                    TerminalJournal::PRESS_HINT,
+                    open_log(OomKills::follow_log_args()),
+                )
             }))
             .item(self.coredumps.get().map(|coredumps| {
-                GroupItem::reading(coredumps, HoverTarget::SystemdCoredumps)
-                    .on_press(open_log(Coredumps::follow_log_args()))
+                GroupItem::reading(coredumps, HoverTarget::SystemdCoredumps).on_press(
+                    TerminalJournal::PRESS_HINT,
+                    open_log(Coredumps::follow_log_args()),
+                )
             }))
             .item(self.last_shutdown.get().map(|last_shutdown| {
-                GroupItem::reading(last_shutdown, HoverTarget::SystemdLastShutdown)
-                    .on_press(open_log(last_shutdown.follow_log_args()))
+                GroupItem::reading(last_shutdown, HoverTarget::SystemdLastShutdown).on_press(
+                    TerminalJournal::PRESS_HINT,
+                    open_log(last_shutdown.follow_log_args()),
+                )
             }))
             .standalone_alerts(
                 self.slow_system_jobs

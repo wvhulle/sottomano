@@ -36,7 +36,7 @@ impl FirmwareUpgradeList {
             ["fwupdmgr", "update"].map(String::from),
         ));
         GroupItem::reading(self, HoverTarget::FirmwareUpgrades)
-            .on_press(install.clone())
+            .on_press("run fwupdmgr update in a terminal", install.clone())
             .alert_action_button("Install", install)
     }
 

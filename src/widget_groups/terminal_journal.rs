@@ -8,6 +8,8 @@ pub struct TerminalJournal {
 }
 
 impl TerminalJournal {
+    pub const PRESS_HINT: &str = "open the journal in a terminal";
+
     pub fn following(config: &Config, journalctl_args: Vec<String>) -> Self {
         Self {
             terminal: TerminalCommand::running(

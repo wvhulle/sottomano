@@ -4,12 +4,12 @@ use iced::{
     Font,
     font::{Style, Weight},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ttf_parser::FaceParsingError;
 
 use crate::data::source::command;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FontChoice {
     pub name: Option<String>,

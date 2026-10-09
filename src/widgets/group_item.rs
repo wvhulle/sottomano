@@ -6,7 +6,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
         announced_level::LevelReading,
         bar_widget::BarWidget,
@@ -14,7 +14,7 @@ use crate::{
         reading_alert::{ReadingAlert, ReadingAlertActionButton},
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
-        toggle_control::{Toggle, ToggleControl, ToggleMessage},
+        toggle_control::{TOGGLE_PRESS_HINT, Toggle, ToggleControl, ToggleMessage},
         widget_group::GroupEvent,
     },
 };
@@ -40,6 +40,7 @@ pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<M>,
     on_right_press: Option<M>,
+    press_hints: PressHints,
     alert_action_buttons: Vec<ReadingAlertActionButton<M>>,
 }
 
@@ -49,6 +50,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind,
             on_press: None,
             on_right_press: None,
+            press_hints: PressHints::default(),
             alert_action_buttons: Vec::new(),
         }
     }
@@ -90,9 +92,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         target: HoverTarget,
         on_toggle: impl Fn(ToggleMessage<S>) -> M,
     ) -> Option<Self> {
-        toggle
-            .reading()
-            .map(|reading| Self::reading(reading, target).on_press(on_toggle(ToggleMessage::Press)))
+        toggle.reading().map(|reading| {
+            Self::reading(reading, target)
+                .on_press(TOGGLE_PRESS_HINT, on_toggle(ToggleMessage::Press))
+        })
     }
 
     pub fn element(draw: impl Fn(f32) -> Element<'a, M> + 'a) -> Self {
@@ -106,14 +109,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn on_press(mut self, message: M) -> Self {
+    pub fn on_press(mut self, does: &'static str, message: M) -> Self {
         self.on_press = Some(message);
+        self.press_hints.left = Some(does);
         self
     }
 
     #[must_use]
-    pub fn on_right_press(mut self, message: M) -> Self {
+    pub fn on_right_press(mut self, does: &'static str, message: M) -> Self {
         self.on_right_press = Some(message);
+        self.press_hints.right = Some(does);
         self
     }
 
@@ -179,6 +184,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             ItemKind::Reading { widget, target } => hoverable(
                 source_reading(config, Some(*widget), reveal)?,
                 target.clone(),
+                self.press_hints,
                 GroupEvent::Tooltip,
             ),
             ItemKind::Control { draw, .. } | ItemKind::Element { draw } => draw(reveal),

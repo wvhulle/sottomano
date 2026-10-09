@@ -18,7 +18,7 @@ use crate::{
     },
     desktop_shell::{
         app_window_focus::AppWindowFocus,
-        hover_tooltips::{HoverTarget, hoverable},
+        hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
     message_subscriptions::blocking,
     widgets::{
@@ -48,6 +48,7 @@ use self::{
 };
 
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
+const RAISE_PLAYER_HINT: &str = "bring the player's window forward";
 
 pub struct MediaGroup {
     players: Vec<Media>,
@@ -313,6 +314,7 @@ impl MediaGroup {
                 hoverable(
                     track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
                     HoverTarget::Media,
+                    PressHints::default(),
                     GroupEvent::Tooltip,
                 )
             }))
@@ -344,6 +346,11 @@ impl MediaGroup {
 }
 
 fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaMessage> {
+    let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
+    let press_hints = PressHints {
+        left: raisable.then_some(RAISE_PLAYER_HINT),
+        ..PressHints::default()
+    };
     let label = GroupItem::hoverable_element(move |reveal| {
         hoverable(
             rich_text(label_spans(config, media, reveal))
@@ -351,11 +358,12 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
                 .line_height(LINE_HEIGHT)
                 .into(),
             HoverTarget::Media,
+            press_hints,
             GroupEvent::Tooltip,
         )
     });
-    if media.owner != OwnerProcess::Unidentified || media.capabilities.raise {
-        label.on_press(MediaMessage::Command(Command::Raise))
+    if raisable {
+        label.on_press(RAISE_PLAYER_HINT, MediaMessage::Command(Command::Raise))
     } else {
         label
     }

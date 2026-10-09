@@ -8,12 +8,12 @@ use iced::{
     Color, Element, Padding,
     alignment::{Horizontal, Vertical},
     border::Radius,
-    widget::{Column, Container, Space, Text, container, table},
+    widget::{Column, Container, Space, Text, container, row, table},
 };
 
 use crate::{
     config::{Config, font::ResolvedFont},
-    desktop_shell::Message,
+    desktop_shell::{Message, hover_tooltips::GestureHint},
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
@@ -53,6 +53,7 @@ const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
 const FOOTER_SCALE: f32 = 0.85;
+const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
     right: 6.0 + CONTENT_INSET_PX,
@@ -85,14 +86,35 @@ impl<'a> TooltipContent<'a> {
     }
 
     pub fn view(self) -> Element<'static, Message> {
-        let grid = self.grid();
-        let body = match self.tooltip.footer {
-            Some(info) => Column::with_children([grid, self.footer(info)])
-                .spacing(FOOTER_GAP_PX)
-                .into(),
-            None => grid,
-        };
+        let gestures = self.tooltip.press_hints.gestures();
+        let press_hint = (!gestures.is_empty()).then(|| self.gesture_hints(&gestures));
+        let refresh = self
+            .tooltip
+            .footer
+            .map(|info| self.footer(footer_text(info, self.now)));
+        let body =
+            Column::with_children(press_hint.into_iter().chain([self.grid()]).chain(refresh))
+                .spacing(FOOTER_GAP_PX);
         container(body).padding(SHELL_PADDING).into()
+    }
+
+    fn gesture_hints(&self, gestures: &[GestureHint]) -> Element<'static, Message> {
+        let icon_size = self.config.font.text_size_px * FOOTER_SCALE;
+        let dim = self.dim();
+        container(
+            row(gestures.iter().map(|hint| {
+                row([
+                    Glyph::from(hint.gesture.glyph()).view(icon_size, dim),
+                    self.annotation(hint.does.to_owned()).into(),
+                ])
+                .spacing(GESTURE_ICON_GAP_PX)
+                .align_y(Vertical::Center)
+                .into()
+            }))
+            .spacing(COLUMN_GAP_PX),
+        )
+        .padding(FOOTER_PADDING)
+        .into()
     }
 
     fn foreground(&self) -> Color {
@@ -110,15 +132,20 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn footer(&self, info: RefreshInfo) -> Element<'static, Message> {
-        container(
-            bar_text(&self.config.font, footer_text(info, self.now))
-                .size(self.config.font.text_size_px * FOOTER_SCALE)
-                .font(self.config.font.italic())
-                .color(self.dim()),
-        )
-        .padding(FOOTER_PADDING)
-        .into()
+    fn footer(&self, text: String) -> Element<'static, Message> {
+        container(self.annotation(text))
+            .padding(FOOTER_PADDING)
+            .into()
+    }
+
+    fn small_dim_text(&self, text: String) -> Text<'static> {
+        bar_text(&self.config.font, text)
+            .size(self.config.font.text_size_px * FOOTER_SCALE)
+            .color(self.dim())
+    }
+
+    fn annotation(&self, text: String) -> Text<'static> {
+        self.small_dim_text(text).font(self.config.font.italic())
     }
 
     fn grid(&self) -> Element<'static, Message> {
@@ -191,16 +218,28 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn section(&self, section: &Section) -> Element<'static, Message> {
+        let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
         let title = section.title.as_deref().map(|title| {
             container(self.bold_title(title))
-                .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0))
+                .padding(title_padding)
+                .into()
+        });
+        let caption = section.caption.clone().map(|caption| {
+            container(self.small_dim_text(caption))
+                .max_width(self.config.widget_sizes.tooltip_value_width_px)
+                .padding(title_padding)
                 .into()
         });
 
         inset(
-            Column::with_children(title.into_iter().chain(once(self.body(&section.body))))
-                .spacing(ROW_SPACING_PX)
-                .into(),
+            Column::with_children(
+                title
+                    .into_iter()
+                    .chain(caption)
+                    .chain(once(self.body(&section.body))),
+            )
+            .spacing(ROW_SPACING_PX)
+            .into(),
         )
     }
 
@@ -221,6 +260,7 @@ impl<'a> TooltipContent<'a> {
             locale: self.config.locale,
             flash: self.flash(),
             link: self.config.palette.info,
+            hint: self.dim(),
         }
     }
 
@@ -299,6 +339,7 @@ struct CellView {
     locale: Locale,
     flash: Color,
     link: Color,
+    hint: Color,
 }
 
 impl CellView {
@@ -306,6 +347,7 @@ impl CellView {
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) | Cell::Link(text) => self.text(text, color).into(),
+            Cell::Hint(text) => self.text(text, self.hint).into(),
             Cell::Time { at, part } => self.text(part.format(&at, self.locale), color).into(),
             Cell::Missing => Space::new().into(),
         }
@@ -321,6 +363,7 @@ impl CellView {
             Cell::Text(text) => self.copyable_text(text, color),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
             Cell::Link(url) => self.openable_link(url),
+            Cell::Hint(text) => self.text(text, self.hint).into(),
             Cell::Missing => Space::new().into(),
         }
     }

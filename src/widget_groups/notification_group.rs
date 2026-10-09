@@ -8,7 +8,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         source_reading::source_reading,
-        toggle_control::icon_toggle_glyph,
+        toggle_control::{TOGGLE_PRESS_HINT, icon_toggle_glyph},
         tooltip_body::TooltipBody,
         widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
@@ -108,5 +108,5 @@ fn toggle_item(
     toggle: NotificationToggle,
 ) -> GroupItem<'_, NotificationGroupMessage> {
     GroupItem::element(move |_| icon_toggle_glyph(config, icon, enabled))
-        .on_press(NotificationGroupMessage::Toggle(toggle))
+        .on_press(TOGGLE_PRESS_HINT, NotificationGroupMessage::Toggle(toggle))
 }

@@ -1,13 +1,13 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TemperatureConfig {
     pub cpu: SensorConfig,
     pub drive: SensorConfig,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SensorConfig {
     pub sensor: SensorChoice,
@@ -55,7 +55,7 @@ pub enum Threshold {
     Celsius(u16),
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct ChipSpec {
     chip: String,
@@ -74,6 +74,30 @@ impl From<ChipSpec> for SensorChoice {
 impl From<u16> for Threshold {
     fn from(celsius: u16) -> Self {
         Threshold::Celsius(celsius)
+    }
+}
+
+impl Serialize for Threshold {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Threshold::FromHardware => serializer.serialize_none(),
+            Threshold::Celsius(celsius) => serializer.serialize_some(celsius),
+        }
+    }
+}
+
+impl Serialize for SensorChoice {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            SensorChoice::Automatic => serializer.serialize_none(),
+            SensorChoice::Chip { chip, label } => serializer.serialize_some(&ChipSpec {
+                chip: chip.clone(),
+                label: match label {
+                    SensorLabel::Any => None,
+                    SensorLabel::Named(name) => Some(name.clone()),
+                },
+            }),
+        }
     }
 }
 

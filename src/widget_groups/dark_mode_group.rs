@@ -270,7 +270,10 @@ impl DarkModeGroup {
         let schedule_items = mode.is_some().then(|| {
             [
                 GroupItem::reading(&self.auto_switch_toggle, HoverTarget::DarkModeSchedule)
-                    .on_press(DarkModeMessage::ToggleAutoSwitch),
+                    .on_press(
+                        "switch following sunrise and sunset on or off",
+                        DarkModeMessage::ToggleAutoSwitch,
+                    ),
                 self.offset_slider_item(config, ColorMode::Light),
                 self.offset_slider_item(config, ColorMode::Dark),
             ]

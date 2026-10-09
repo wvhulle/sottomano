@@ -12,6 +12,7 @@ use crate::{
         severity::Severity,
         source::{process::Process, tray::MenuNode},
     },
+    desktop_shell::hover_tooltips::PressHints,
     widget_groups::window_group::process_tree::Folding,
     widgets::{bar_widget::Glyph, localized_time::TimePart, window_title::TitleRun},
 };
@@ -22,6 +23,7 @@ pub enum Cell {
     Glyph(Glyph),
     Time { at: DateTime<Utc>, part: TimePart },
     Link(String),
+    Hint(String),
     Missing,
 }
 
@@ -30,6 +32,14 @@ pub struct Row {
     pub key: Cell,
     pub cells: Vec<Cell>,
     pub level: Severity,
+}
+
+impl Row {
+    #[must_use]
+    pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
+        self.cells.push(Cell::Hint(hint.into()));
+        self
+    }
 }
 
 impl<Text: Into<String>> From<Text> for Cell {
@@ -130,12 +140,22 @@ impl SectionBody {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Section {
     pub title: Option<String>,
+    pub caption: Option<String>,
     pub body: SectionBody,
+}
+
+impl Section {
+    #[must_use]
+    pub fn with_caption(mut self, caption: impl Into<String>) -> Self {
+        self.caption = Some(caption.into());
+        self
+    }
 }
 
 pub fn section(title: impl Into<String>, rows: Vec<Row>) -> Section {
     Section {
         title: Some(title.into()),
+        caption: None,
         body: SectionBody::Rows(rows),
     }
 }
@@ -143,6 +163,7 @@ pub fn section(title: impl Into<String>, rows: Vec<Row>) -> Section {
 pub fn untitled(rows: Vec<Row>) -> Section {
     Section {
         title: None,
+        caption: None,
         body: SectionBody::Rows(rows),
     }
 }
@@ -153,6 +174,7 @@ pub fn table_section<R: TableRow>(
 ) -> Section {
     Section {
         title: Some(title.into()),
+        caption: None,
         body: columns(rows),
     }
 }
@@ -160,6 +182,7 @@ pub fn table_section<R: TableRow>(
 pub fn tree_section(title: impl Into<String>, root: Process, folding: Folding) -> Section {
     Section {
         title: Some(title.into()),
+        caption: None,
         body: SectionBody::Tree { root, folding },
     }
 }
@@ -208,6 +231,7 @@ impl TooltipBody {
     pub fn table<R: TableRow>(rows: impl IntoIterator<Item = R>) -> Self {
         TooltipBody::Sections(vec![Section {
             title: None,
+            caption: None,
             body: columns(rows),
         }])
     }
@@ -251,6 +275,7 @@ pub struct RefreshInfo {
 pub struct Tooltip {
     pub body: TooltipBody,
     pub footer: Option<RefreshInfo>,
+    pub press_hints: PressHints,
 }
 
 impl Tooltip {
@@ -259,7 +284,17 @@ impl Tooltip {
     }
 
     pub fn of(body: TooltipBody) -> Self {
-        Self { body, footer: None }
+        Self {
+            body,
+            footer: None,
+            press_hints: PressHints::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_press_hints(mut self, press_hints: PressHints) -> Self {
+        self.press_hints = press_hints;
+        self
     }
 
     pub fn table(rows: Vec<Row>) -> Self {

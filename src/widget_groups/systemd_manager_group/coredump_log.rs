@@ -63,9 +63,10 @@ impl BarWidget for Coredumps {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![table_section(
-            "Coredumps",
-            self.entries.iter().cloned(),
-        )])
+        TooltipBody::Sections(vec![
+            table_section("Coredumps", self.entries.iter().cloned()).with_caption(
+                "Programs that crashed in the last hour, as recorded by systemd-coredump.",
+            ),
+        ])
     }
 }
