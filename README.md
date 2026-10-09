@@ -125,8 +125,11 @@ process.
   that closes once the unit recovers. Clicking opens the journal for them.
 - **Journal events.** Kernel errors, coredumps, OOM kills and service errors
   from the last hour, each opening its journal on click.
+- **Pending upgrades.** Firmware upgrades that fwupd offers, with the installed
+  and offered version and the release's urgency. Clicking runs
+  `fwupdmgr update` in a terminal.
 
-Both only show up when something is wrong.
+These only show up when something needs attention.
 - **Notifications.** The speech bubble next to the clock.
 
 ## Run
@@ -152,6 +155,10 @@ Import `homeModules.default` from the flake. It installs the package, writes
 (the layer rules vetrata writes for its own surfaces) and, unless
 `services.vetrata.systemdUnit` is disabled, a systemd user service bound to
 `graphical-session.target`.
+
+Several widgets read system daemons a home-manager module cannot start. On
+NixOS, import `nixosModules.default` and set `programs.vetrata.enable = true`
+to turn on fwupd, UPower and power-profiles-daemon.
 
 ## Configure
 

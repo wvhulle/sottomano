@@ -53,6 +53,8 @@ pub enum HoverTarget {
     JournalCoredumps,
     JournalOomKills,
     JournalServiceErrors,
+    PendingUpgrades,
+    FirmwareUpgrades,
     Bluetooth,
     Ethernet,
     Wifi,

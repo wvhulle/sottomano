@@ -130,6 +130,8 @@
         ];
       };
 
+      nixosModules.default = ./nixos-module.nix;
+
       devShells.${system}.default = craneLib.devShell {
         packages =
           commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
