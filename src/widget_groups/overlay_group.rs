@@ -186,7 +186,7 @@ impl OverlayGroup {
         &'a self,
         config: &'a Config,
         overlays: OverlaySettings,
-    ) -> Option<WidgetGroup<'a, OverlayMessage>> {
+    ) -> WidgetGroup<'a, OverlayMessage> {
         let spatial_layout_icon = if overlays.toast_spatial_layout {
             Phosphor::TextAlignCenter(Weight::Regular)
         } else {
@@ -210,7 +210,6 @@ impl OverlayGroup {
         WidgetGroup::new(
             &self.expansion,
             OverlayMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Stack(Weight::Regular).into()),
                 preview: None,

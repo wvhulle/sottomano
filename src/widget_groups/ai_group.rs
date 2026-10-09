@@ -15,7 +15,7 @@ use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::{Config, SecretPaths},
+    config::SecretPaths,
     data::source::{
         Source,
         ai::{
@@ -237,7 +237,7 @@ impl AiGroup {
         }
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, AiMessage>> {
+    pub fn widget_group(&self) -> WidgetGroup<'_, AiMessage> {
         let claude_usage_windows = self
             .claude_usage_windows
             .present()
@@ -245,7 +245,6 @@ impl AiGroup {
         WidgetGroup::new(
             &self.expansion,
             AiMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Robot(Weight::Regular).into()),
                 preview: self

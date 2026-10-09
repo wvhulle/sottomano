@@ -7,7 +7,7 @@ use iced::{Subscription, Task};
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
-    config::{Config, SecretPaths},
+    config::SecretPaths,
     data::source::{
         command,
         wallpaper::{self, Position, Wallpaper},
@@ -291,21 +291,18 @@ impl WallpaperGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, WallpaperMessage>> {
+    pub fn widget_group(&self) -> WidgetGroup<'_, WallpaperMessage> {
         let lookup = self.lookup.get();
         WidgetGroup::new(
             &self.expansion,
             WallpaperMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(self.lookup.reading_item(HoverTarget::Wallpaper)?),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },
             &[
+                self.lookup.reading_item(HoverTarget::Wallpaper),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
                     .map(|place| GroupItem::reading(place, HoverTarget::WallpaperPlace)),

@@ -263,10 +263,7 @@ impl DarkModeGroup {
         )])]))
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, DarkModeMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, DarkModeMessage> {
         let mode = GroupItem::toggle(
             &self.mode_toggle,
             HoverTarget::DarkMode,
@@ -292,7 +289,6 @@ impl DarkModeGroup {
         WidgetGroup::new(
             &self.expansion,
             DarkModeMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::MoonStars(Weight::Regular).into()),
                 preview: self.mode_toggle.reading().map(PreviewedValue::Plain),

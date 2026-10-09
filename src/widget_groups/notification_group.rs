@@ -40,7 +40,7 @@ impl NotificationGroup {
         config: &'a Config,
         notification_settings: &NotificationSettings,
         live: usize,
-    ) -> Option<WidgetGroup<'a, NotificationGroupMessage>> {
+    ) -> WidgetGroup<'a, NotificationGroupMessage> {
         let status = NotificationStatus {
             dnd: notification_settings.do_not_disturb,
             live,
@@ -53,17 +53,17 @@ impl NotificationGroup {
         WidgetGroup::new(
             &self.expansion,
             NotificationGroupMessage::Expansion,
-            config,
             GroupHandle {
-                face: HandleFace::Item(GroupItem::element(move |reveal| {
-                    source_reading(config, Some(&status), reveal)
-                        .unwrap_or_else(|| Row::new().into())
-                        .map(GroupEvent::Group)
-                })),
+                face: HandleFace::FirstItem,
                 preview: None,
                 forwards_scroll: false,
             },
             &[
+                GroupItem::element(move |reveal| {
+                    source_reading(config, Some(&status), reveal)
+                        .unwrap_or_else(|| Row::new().into())
+                        .map(GroupEvent::Group)
+                }),
                 toggle_item(
                     config,
                     Phosphor::Prohibit(Weight::Regular),

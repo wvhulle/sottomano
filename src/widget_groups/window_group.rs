@@ -95,11 +95,8 @@ impl WindowGroup {
         let quick_launch = self
             .quick_launch
             .widget_group(icons.entries, output, config)
-            .and_then(|group| {
-                group
-                    .place_on_bar(WindowGroupMessage::QuickLaunch, config, position)
-                    .element
-            });
+            .place_on_bar(WindowGroupMessage::QuickLaunch, config, position)
+            .element;
         let window_list = self
             .window_list
             .view(niri, icons, audio, output, config, position)

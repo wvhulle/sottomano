@@ -237,11 +237,10 @@ impl AudioGroup {
         ])])))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, AudioMessage>> {
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, AudioMessage> {
         WidgetGroup::new(
             &self.expansion,
             AudioMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::IconColoredBy {
                     glyph: Phosphor::Waveform(Weight::Regular).into(),

@@ -7,7 +7,6 @@ pub mod mobile_modem_tooltip;
 pub mod wifi_link_tooltip;
 
 use crate::{
-    config::Config,
     data::source::net_interfaces::{
         bluetooth::{self, Bluetooth},
         ethernet::{self, Ethernet},
@@ -79,14 +78,10 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn widget_group<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> Option<WidgetGroup<'a, NetInterfacesMessage>> {
+    pub fn widget_group(&self) -> WidgetGroup<'_, NetInterfacesMessage> {
         WidgetGroup::new(
             &self.expansion,
             NetInterfacesMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Link(Weight::Regular).into()),
                 preview: self.preferred_uplink().map(PreviewedValue::Plain),

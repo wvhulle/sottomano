@@ -161,11 +161,10 @@ impl ShellLayoutGroup {
         &'a self,
         config: &'a Config,
         shell_layout: &ShellLayout,
-    ) -> Option<WidgetGroup<'a, ShellLayoutMessage>> {
+    ) -> WidgetGroup<'a, ShellLayoutMessage> {
         WidgetGroup::new(
             &self.expansion,
             ShellLayoutMessage::Expansion,
-            config,
             GroupHandle {
                 face: HandleFace::Icon(Phosphor::Layout(Weight::Regular).into()),
                 preview: None,
