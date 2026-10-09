@@ -7,13 +7,17 @@ use iced::{
 use tokio::task::spawn_blocking;
 
 pub mod boot_timeline_reading;
+pub mod coredump_log;
 pub mod failed_unit_log;
 pub mod last_shutdown_reading;
+pub mod oom_kill_log;
 pub mod running_job_reading;
 
 use crate::{
     config::{Config, systemd::SystemdConfig},
     data::source::{
+        coredumps::Coredumps,
+        oom_kills::OomKills,
         previous_shutdown::{LastShutdown, read_last_shutdown},
         systemd_manager::{
             System, UnitScope, User,
@@ -23,6 +27,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -100,6 +105,8 @@ pub struct SystemdManagerGroup {
     slow_system_jobs: LastPoll<SlowJobs<System>>,
     slow_user_jobs: LastPoll<SlowJobs<User>>,
     last_shutdown: LastPoll<LastShutdown>,
+    coredumps: LastPoll<Coredumps>,
+    oom_kills: LastPoll<OomKills>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -111,6 +118,8 @@ pub enum SystemdManagerMessage {
     SlowSystemJobs(Option<SlowJobs<System>>),
     SlowUserJobs(Option<SlowJobs<User>>),
     LastShutdown(Option<LastShutdown>),
+    Coredumps(Option<Coredumps>),
+    OomKills(Option<OomKills>),
     OpenLog(TerminalJournal),
     Expansion(ExpansionMessage),
 }
@@ -149,6 +158,8 @@ impl SystemdManagerGroup {
                         .map(SystemdManagerMessage::LastShutdown)
                 },
             ),
+            journal_subscription(Coredumps::from_entries, SystemdManagerMessage::Coredumps),
+            journal_subscription(OomKills::from_entries, SystemdManagerMessage::OomKills),
         ])
     }
 
@@ -160,6 +171,8 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::SlowSystemJobs(reading) => self.slow_system_jobs.load(reading),
             SystemdManagerMessage::SlowUserJobs(reading) => self.slow_user_jobs.load(reading),
             SystemdManagerMessage::LastShutdown(reading) => self.last_shutdown.load(reading),
+            SystemdManagerMessage::Coredumps(reading) => self.coredumps.load(reading),
+            SystemdManagerMessage::OomKills(reading) => self.oom_kills.load(reading),
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -178,6 +191,8 @@ impl SystemdManagerGroup {
             HoverTarget::SystemdSlowSystemJobs => self.slow_system_jobs.get()?.tooltip(),
             HoverTarget::SystemdSlowUserJobs => self.slow_user_jobs.get()?.tooltip(),
             HoverTarget::SystemdLastShutdown => self.last_shutdown.get()?.tooltip(),
+            HoverTarget::SystemdCoredumps => self.coredumps.get()?.tooltip(),
+            HoverTarget::SystemdOomKills => self.oom_kills.get()?.tooltip(),
             _ => return None,
         };
         Some(Tooltip::of(body))
@@ -224,6 +239,14 @@ impl SystemdManagerGroup {
                     .get()
                     .map(|failed| failed.group_item(config)),
             )
+            .item(self.oom_kills.get().map(|oom_kills| {
+                GroupItem::reading(oom_kills, HoverTarget::SystemdOomKills)
+                    .on_press(open_log(OomKills::follow_log_args()))
+            }))
+            .item(self.coredumps.get().map(|coredumps| {
+                GroupItem::reading(coredumps, HoverTarget::SystemdCoredumps)
+                    .on_press(open_log(Coredumps::follow_log_args()))
+            }))
             .item(self.last_shutdown.get().map(|last_shutdown| {
                 GroupItem::reading(last_shutdown, HoverTarget::SystemdLastShutdown)
                     .on_press(open_log(last_shutdown.follow_log_args()))
@@ -254,12 +277,14 @@ impl SystemdManagerGroup {
             )
     }
 
-    fn current_health(&self) -> [Option<&dyn BarWidget>; 4] {
+    fn current_health(&self) -> [Option<&dyn BarWidget>; 6] {
         [
             self.slow_system_jobs.get().map(|w| w as &dyn BarWidget),
             self.slow_user_jobs.get().map(|w| w as &dyn BarWidget),
             self.failed_system.get().map(|w| w as &dyn BarWidget),
             self.failed_user.get().map(|w| w as &dyn BarWidget),
+            self.oom_kills.get().map(|w| w as &dyn BarWidget),
+            self.coredumps.get().map(|w| w as &dyn BarWidget),
         ]
     }
 }
@@ -289,6 +314,8 @@ impl BarWidget for SystemdManagerGroup {
                 self.slow_user_jobs.get().map(SlowJobs::count_row),
                 self.failed_system.get().map(Failed::count_row),
                 self.failed_user.get().map(Failed::count_row),
+                self.oom_kills.get().map(OomKills::count_row),
+                self.coredumps.get().map(Coredumps::count_row),
             ]
             .into_iter()
             .flatten()

@@ -8,6 +8,7 @@ use iced::futures::{
 use zbus::proxy::CacheProperties;
 
 use super::{ManagerProxy, UnitRow, connect, manager_signal, signals_matching, unit_proxy};
+use crate::data::severity::Severity;
 
 const SLOWEST_UNIT_COUNT: usize = 10;
 const SHORTEST_REPORTED_ACTIVATION: Duration = Duration::from_millis(100);
@@ -69,7 +70,7 @@ impl BootPhases {
 pub struct UnitActivation {
     pub name: String,
     pub duration: Duration,
-    pub slow: bool,
+    pub severity: Severity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,7 +82,7 @@ impl RankedActivations {
     pub fn slow_count(&self) -> usize {
         self.slowest_first
             .iter()
-            .filter(|activation| activation.slow)
+            .filter(|activation| activation.severity > Severity::Normal)
             .count()
     }
 }
@@ -263,7 +264,11 @@ fn slowest_before_finish(
             Some(UnitActivation {
                 name: stamps.name,
                 duration,
-                slow: duration >= slow_unit,
+                severity: if duration >= slow_unit {
+                    Severity::Warning
+                } else {
+                    Severity::Normal
+                },
             })
         })
         .collect();
@@ -333,14 +338,17 @@ mod tests {
             Duration::from_secs(37),
             Duration::from_secs(5),
         );
-        let names: Vec<(&str, bool)> = slowest
+        let names: Vec<(&str, Severity)> = slowest
             .slowest_first
             .iter()
-            .map(|activation| (activation.name.as_str(), activation.slow))
+            .map(|activation| (activation.name.as_str(), activation.severity))
             .collect();
         assert_eq!(
             names,
-            [("systemd-rfkill.service", true), ("dbus.service", false)]
+            [
+                ("systemd-rfkill.service", Severity::Warning),
+                ("dbus.service", Severity::Normal)
+            ]
         );
     }
 }

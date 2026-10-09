@@ -1,21 +1,13 @@
-use iced::{Subscription, Task, futures::StreamExt};
-use tokio_stream::wrappers::ReceiverStream;
+use iced::{Subscription, Task};
 
-pub mod coredump_log;
 pub mod kernel_error_log;
-pub mod oom_kill_log;
 pub mod service_error_log;
 
 use crate::{
     config::Config,
-    data::source::{
-        coredumps::Coredumps,
-        journal::{JournalEvent, journal_events},
-        kernel_errors::KernelErrors,
-        oom_kills::OomKills,
-        service_errors::ServiceErrors,
-    },
+    data::source::{kernel_errors::KernelErrors, service_errors::ServiceErrors},
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -33,8 +25,6 @@ pub const MESSAGE_CAP: usize = 100;
 #[derive(Default)]
 pub struct JournalEventsGroup {
     kernel: LastPoll<KernelErrors>,
-    coredumps: LastPoll<Coredumps>,
-    oom_kills: LastPoll<OomKills>,
     service_errors: LastPoll<ServiceErrors>,
     pub(crate) expansion: GroupExpansion,
 }
@@ -42,8 +32,6 @@ pub struct JournalEventsGroup {
 #[derive(Debug, Clone)]
 pub enum JournalEventsMessage {
     Kernel(Option<KernelErrors>),
-    Coredumps(Option<Coredumps>),
-    OomKills(Option<OomKills>),
     ServiceErrors(Option<ServiceErrors>),
     OpenLog(TerminalJournal),
     Expansion(ExpansionMessage),
@@ -52,10 +40,8 @@ pub enum JournalEventsMessage {
 impl JournalEventsGroup {
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            events_subscription(KernelErrors::from_entries, JournalEventsMessage::Kernel),
-            events_subscription(Coredumps::from_entries, JournalEventsMessage::Coredumps),
-            events_subscription(OomKills::from_entries, JournalEventsMessage::OomKills),
-            events_subscription(
+            journal_subscription(KernelErrors::from_entries, JournalEventsMessage::Kernel),
+            journal_subscription(
                 ServiceErrors::from_entries,
                 JournalEventsMessage::ServiceErrors,
             ),
@@ -65,8 +51,6 @@ impl JournalEventsGroup {
     pub fn update(&mut self, msg: JournalEventsMessage) -> Task<JournalEventsMessage> {
         match msg {
             JournalEventsMessage::Kernel(reading) => self.kernel.load(reading),
-            JournalEventsMessage::Coredumps(reading) => self.coredumps.load(reading),
-            JournalEventsMessage::OomKills(reading) => self.oom_kills.load(reading),
             JournalEventsMessage::ServiceErrors(reading) => self.service_errors.load(reading),
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {
@@ -79,8 +63,6 @@ impl JournalEventsGroup {
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         let body = match target {
             HoverTarget::JournalKernel => self.kernel.get()?.tooltip(),
-            HoverTarget::JournalCoredumps => self.coredumps.get()?.tooltip(),
-            HoverTarget::JournalOomKills => self.oom_kills.get()?.tooltip(),
             HoverTarget::JournalServiceErrors => self.service_errors.get()?.tooltip(),
             HoverTarget::JournalEvents => self.tooltip(),
             _ => return None,
@@ -108,20 +90,6 @@ impl JournalEventsGroup {
                     KernelErrors::follow_log_args(),
                 )
             }))
-            .item(self.coredumps.get().map(|coredumps| {
-                opens_log(
-                    coredumps,
-                    HoverTarget::JournalCoredumps,
-                    Coredumps::follow_log_args(),
-                )
-            }))
-            .item(self.oom_kills.get().map(|oom_kills| {
-                opens_log(
-                    oom_kills,
-                    HoverTarget::JournalOomKills,
-                    OomKills::follow_log_args(),
-                )
-            }))
             .item(self.service_errors.get().map(|service_errors| {
                 opens_log(
                     service_errors,
@@ -131,11 +99,9 @@ impl JournalEventsGroup {
             }))
     }
 
-    fn kinds(&self) -> [Option<&dyn BarWidget>; 4] {
+    fn kinds(&self) -> [Option<&dyn BarWidget>; 2] {
         [
             self.kernel.get().map(|w| w as &dyn BarWidget),
-            self.coredumps.get().map(|w| w as &dyn BarWidget),
-            self.oom_kills.get().map(|w| w as &dyn BarWidget),
             self.service_errors.get().map(|w| w as &dyn BarWidget),
         ]
     }
@@ -171,8 +137,6 @@ impl BarWidget for JournalEventsGroup {
             "Last hour",
             [
                 self.kernel.get().map(KernelErrors::count_row),
-                self.coredumps.get().map(Coredumps::count_row),
-                self.oom_kills.get().map(OomKills::count_row),
                 self.service_errors.get().map(ServiceErrors::count_row),
             ]
             .into_iter()
@@ -180,13 +144,4 @@ impl BarWidget for JournalEventsGroup {
             .collect(),
         )])
     }
-}
-
-fn events_subscription<E: JournalEvent, R: 'static>(
-    from_entries: fn(Vec<E>) -> Option<R>,
-    map: fn(Option<R>) -> JournalEventsMessage,
-) -> Subscription<JournalEventsMessage> {
-    Subscription::run_with((E::NAME, from_entries, map), |&(_, from_entries, map)| {
-        ReceiverStream::new(journal_events::<E>()).map(move |entries| map(from_entries(entries)))
-    })
 }

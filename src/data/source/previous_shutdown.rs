@@ -10,7 +10,10 @@ use systemd::{
     journal::{JournalRecord, OpenOptions},
 };
 
-use crate::data::source::journal::{OwningUnit, either_of, field};
+use crate::data::{
+    severity::Severity,
+    source::journal::{OwningUnit, either_of, field},
+};
 
 const SHUTDOWN_MESSAGE_ID: &str = "98268866d1d54a499c4e98921d93bc40";
 const UNIT_STOPPING_MESSAGE_ID: &str = "de5b426a63be47a7b6ac3eaac82e2f6f";
@@ -22,7 +25,7 @@ pub enum StopOutcome {
     Finished {
         duration: Duration,
         job_result: String,
-        slow: bool,
+        severity: Severity,
     },
     Unfinished,
 }
@@ -96,7 +99,11 @@ impl LastShutdown {
                             outcome: StopOutcome::Finished {
                                 duration,
                                 job_result,
-                                slow: duration >= slow_stop,
+                                severity: if duration >= slow_stop {
+                                    Severity::Warning
+                                } else {
+                                    Severity::Normal
+                                },
                             },
                         });
                     }
@@ -264,7 +271,7 @@ mod tests {
                     outcome: StopOutcome::Finished {
                         duration: Duration::from_secs(8),
                         job_result: "done".to_owned(),
-                        slow: true,
+                        severity: Severity::Warning,
                     },
                 },
             ]

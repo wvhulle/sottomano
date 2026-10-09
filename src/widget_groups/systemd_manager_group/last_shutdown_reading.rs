@@ -15,10 +15,10 @@ use crate::{
 const COMPLETED_JOB_RESULT: &str = "done";
 
 impl StopOutcome {
-    fn level(&self) -> Severity {
+    fn severity(&self) -> Severity {
         match self {
-            StopOutcome::Unfinished | StopOutcome::Finished { slow: true, .. } => Severity::Warning,
-            StopOutcome::Finished { slow: false, .. } => Severity::Normal,
+            StopOutcome::Unfinished => Severity::Warning,
+            StopOutcome::Finished { severity, .. } => *severity,
         }
     }
 }
@@ -49,7 +49,7 @@ impl TableRow for UnitStop {
     }
 
     fn level(&self) -> Severity {
-        self.outcome.level()
+        self.outcome.severity()
     }
 }
 
@@ -65,10 +65,10 @@ impl BarWidget for LastShutdown {
     fn state(&self) -> WidgetState {
         self.slowest_stops
             .iter()
-            .map(|stop| stop.outcome.level())
+            .map(|stop| stop.outcome.severity())
             .max()
-            .filter(|level| *level > Severity::Normal)
-            .map_or(WidgetState::Idle, WidgetState::from)
+            .unwrap_or_default()
+            .into()
     }
 
     fn tooltip(&self) -> TooltipBody {

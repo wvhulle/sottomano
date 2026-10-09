@@ -26,11 +26,7 @@ impl TableRow for UnitActivation {
     }
 
     fn level(&self) -> Severity {
-        if self.slow {
-            Severity::Warning
-        } else {
-            Severity::Normal
-        }
+        self.severity
     }
 }
 
@@ -62,11 +58,12 @@ impl RankedActivations {
     }
 
     fn slowness_state(&self) -> WidgetState {
-        if self.slow_count() > 0 {
-            WidgetState::Warning
-        } else {
-            WidgetState::Idle
-        }
+        self.slowest_first
+            .iter()
+            .map(|activation| activation.severity)
+            .max()
+            .unwrap_or_default()
+            .into()
     }
 
     fn table(&self, title: &str) -> TooltipBody {
