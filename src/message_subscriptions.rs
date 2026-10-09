@@ -30,7 +30,11 @@ use crate::{
             server,
         },
         sink::clipboard,
-        source::{Source, desktop_entries, niri},
+        source::{
+            Source, desktop_entries,
+            journal::{JournalEvent, journal_events},
+            niri,
+        },
     },
     desktop_shell::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
@@ -207,6 +211,16 @@ fn emit_reading_changes<S: Clone + PartialEq, E>(
             ready(Some(emit.then_some(reading)))
         })
         .filter_map(ready)
+}
+
+pub(crate) fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
+    from_entries: fn(Vec<E>) -> Option<R>,
+    map: fn(Option<R>) -> M,
+) -> Subscription<M> {
+    Subscription::run_with((E::NAME, from_entries, map), |&(_, from_entries, map)| {
+        use iced::futures::StreamExt;
+        ReceiverStream::new(journal_events::<E>()).map(move |entries| map(from_entries(entries)))
+    })
 }
 
 pub(crate) fn polling<S: Source>(key: S::Key) -> Subscription<Result<S, S::Error>> {

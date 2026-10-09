@@ -40,9 +40,11 @@ From left to right, all expanded:
 - **Systemd manager.** How long this boot took, with its phases and the
   slowest system and user units. Jobs that keep starting or stopping past a
   threshold, each with its own toast. Failed system and user units, each
-  toasting until the unit recovers. How long the last shutdown took and which
-  stops held it up, while the previous boot is still in the journal. Clicking
-  a reading opens the journal behind it.
+  toasting until the unit recovers. Units whose processes the OOM killer
+  ended, and programs that crashed in the last hour (needs systemd-coredump,
+  NixOS's default). How long the last shutdown took and which stops held it
+  up, while the previous boot is still in the journal. Clicking a reading
+  opens the journal behind it.
 - **Transfer.** Download and upload throughput, WireGuard tunnels and the
   Tailscale mesh with its peer count.
 - **Panel settings.** The panel's own look and layout: float offset, tint,
@@ -127,8 +129,8 @@ process.
 
 ### Out of sight
 
-- **Journal events.** Kernel errors, coredumps, OOM kills and service errors
-  from the last hour, each opening its journal on click.
+- **Journal events.** Kernel errors and service errors from the last hour,
+  with their messages, each opening its journal on click.
 - **Pending upgrades.** Firmware upgrades that fwupd offers, with the installed
   and offered version and the release's urgency. Clicking runs
   `fwupdmgr update` in a terminal.
