@@ -162,35 +162,64 @@ pub fn field<'a>(record: &'a JournalRecord, name: &str) -> Option<&'a str> {
     record.get(name).map(String::as_str)
 }
 
-impl Severity {
-    fn least_urgent_journal_priority(self) -> Option<u8> {
+pub fn either_of(matches: impl IntoIterator<Item = String>) -> impl Iterator<Item = String> {
+    matches
+        .into_iter()
+        .enumerate()
+        .flat_map(|(index, matcher)| {
+            (index > 0)
+                .then(|| String::from("+"))
+                .into_iter()
+                .chain([matcher])
+        })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum JournalPriority {
+    Emergency,
+    Alert,
+    Critical,
+    Error,
+    Warning,
+    Notice,
+    Info,
+    Debug,
+}
+
+impl JournalPriority {
+    const MOST_URGENT_FIRST: [Self; 8] = [
+        JournalPriority::Emergency,
+        JournalPriority::Alert,
+        JournalPriority::Critical,
+        JournalPriority::Error,
+        JournalPriority::Warning,
+        JournalPriority::Notice,
+        JournalPriority::Info,
+        JournalPriority::Debug,
+    ];
+
+    pub fn of_record(record: &JournalRecord) -> Option<Self> {
+        let number: usize = field(record, "PRIORITY")?.parse().ok()?;
+        Self::MOST_URGENT_FIRST.get(number).copied()
+    }
+
+    pub fn severity(self) -> Severity {
         match self {
-            Severity::Critical => Some(3),
-            Severity::Warning => Some(4),
-            Severity::Low | Severity::Normal => None,
+            JournalPriority::Emergency | JournalPriority::Alert | JournalPriority::Critical => {
+                Severity::Critical
+            }
+            JournalPriority::Error | JournalPriority::Warning => Severity::Warning,
+            JournalPriority::Notice => Severity::Normal,
+            JournalPriority::Info | JournalPriority::Debug => Severity::Low,
         }
     }
 
-    pub fn of_journal_record(record: &JournalRecord) -> Option<Self> {
-        let priority: u8 = field(record, "PRIORITY")?.parse().ok()?;
-        [Severity::Critical, Severity::Warning]
-            .into_iter()
-            .find(|severity| {
-                severity
-                    .least_urgent_journal_priority()
-                    .is_some_and(|least_urgent| priority <= least_urgent)
-            })
-    }
-
-    pub fn match_journal_priorities(self, journal: &mut Journal) -> io::Result<()> {
-        let least_urgent = self.least_urgent_journal_priority().ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "severity has no journal priority",
-            )
-        })?;
-        for priority in 0..=least_urgent {
-            journal.match_add("PRIORITY", priority.to_string())?;
+    pub fn match_this_urgent_or_more(self, journal: &mut Journal) -> io::Result<()> {
+        for (number, priority) in Self::MOST_URGENT_FIRST.into_iter().enumerate() {
+            if priority > self {
+                break;
+            }
+            journal.match_add("PRIORITY", number.to_string())?;
         }
         Ok(())
     }
@@ -266,5 +295,24 @@ mod tests {
             Some(Duration::from_mins(5))
         );
         assert!(!window.drop_expired(now));
+    }
+
+    #[test]
+    fn severity_follows_the_syslog_level_names() {
+        let severity_of = |priority: &str| {
+            let record: JournalRecord = [("PRIORITY".to_owned(), priority.to_owned())].into();
+            JournalPriority::of_record(&record).map(JournalPriority::severity)
+        };
+        assert_eq!(
+            ["2", "3", "4", "5", "6", "8"].map(severity_of),
+            [
+                Some(Severity::Critical),
+                Some(Severity::Warning),
+                Some(Severity::Warning),
+                Some(Severity::Normal),
+                Some(Severity::Low),
+                None
+            ]
+        );
     }
 }

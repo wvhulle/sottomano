@@ -14,6 +14,7 @@ use super::{
     locale,
     palette::Palette,
     spacing::Spacing,
+    systemd::SystemdConfig,
     temperature::TemperatureConfig,
     toasts::ToastConfig,
     tray::TrayConfig,
@@ -35,6 +36,7 @@ pub struct Config {
     pub terminal_command_prefix: Vec<String>,
     pub color_temperature_service: String,
     pub temperature: TemperatureConfig,
+    pub systemd: SystemdConfig,
     pub locale: Locale,
     pub working_days: Vec<Weekday>,
 }
@@ -62,6 +64,7 @@ struct UserConfig {
     terminal_command_prefix: Vec<String>,
     color_temperature_service: String,
     temperature: TemperatureConfig,
+    systemd: SystemdConfig,
     locale: Option<String>,
     working_days: Vec<Weekday>,
 }
@@ -81,6 +84,7 @@ impl Default for UserConfig {
             terminal_command_prefix: ["kitty", "-e"].map(String::from).to_vec(),
             color_temperature_service: String::from("screen-temperature.service"),
             temperature: TemperatureConfig::default(),
+            systemd: SystemdConfig::default(),
             locale: None,
             working_days: vec![
                 Weekday::Mon,
@@ -114,6 +118,7 @@ impl UserConfig {
             terminal_command_prefix: self.terminal_command_prefix,
             color_temperature_service: self.color_temperature_service,
             temperature: self.temperature,
+            systemd: self.systemd,
             locale,
             working_days: self.working_days,
         })

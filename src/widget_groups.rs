@@ -19,7 +19,7 @@ pub mod panel_appearance_group;
 pub mod pending_upgrades_group;
 pub mod shell_layout_group;
 pub mod surface_effects_group;
-pub mod systemd_units_group;
+pub mod systemd_manager_group;
 pub mod terminal_command;
 pub mod terminal_journal;
 pub mod tray_group;

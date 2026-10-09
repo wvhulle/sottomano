@@ -42,7 +42,7 @@ impl TableRow for UnitErrors {
 
 impl ServiceErrors {
     pub fn count_row(&self) -> Row {
-        row("Service errors", self.entries.len().to_string())
+        row("Service errors", self.entry_count.to_string())
     }
 }
 
@@ -52,19 +52,22 @@ impl BarWidget for ServiceErrors {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.by_unit().len()).ok()
+        u32::try_from(self.by_unit_oldest_first.len()).ok()
     }
 
     fn state(&self) -> WidgetState {
-        self.entries
+        self.by_unit_oldest_first
             .iter()
-            .map(|entry| entry.severity)
+            .map(|errors| errors.severity)
             .max()
             .unwrap_or_default()
             .into()
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![table_section("Service errors", self.by_unit())])
+        TooltipBody::Sections(vec![table_section(
+            "Service errors",
+            self.by_unit_oldest_first.iter().cloned(),
+        )])
     }
 }

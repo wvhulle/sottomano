@@ -72,7 +72,7 @@ use crate::{
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
-        systemd_units_group::{SystemdUnitsGroup, SystemdUnitsMessage},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage},
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
         weather_group::{WeatherGroup, WeatherMessage},
@@ -103,7 +103,7 @@ pub struct DesktopShell {
     pub(crate) niri_window_group: NiriWindowGroup,
     pub(crate) clock_group: ClockGroup,
     pub(crate) notification_group: NotificationGroup,
-    pub(crate) systemd_units_group: SystemdUnitsGroup,
+    pub(crate) systemd_manager_group: SystemdManagerGroup,
     pub(crate) journal_events_group: JournalEventsGroup,
     pub(crate) pending_upgrades_group: PendingUpgradesGroup,
     pub(crate) internet_group: InternetGroup,
@@ -146,7 +146,7 @@ pub enum Message {
     NiriWindow(NiriWindowMessage),
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
-    SystemdUnits(SystemdUnitsMessage),
+    SystemdManager(SystemdManagerMessage),
     JournalEvents(JournalEventsMessage),
     PendingUpgrades(PendingUpgradesMessage),
     Internet(InternetMessage),
@@ -227,7 +227,7 @@ impl DesktopShell {
             niri_window_group: NiriWindowGroup::default(),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
-            systemd_units_group: SystemdUnitsGroup::default(),
+            systemd_manager_group: SystemdManagerGroup::default(),
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
             internet_group: InternetGroup::default(),
@@ -351,7 +351,7 @@ impl DesktopShell {
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
             Message::Clock(msg) => self.update_clock(msg),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
-            Message::SystemdUnits(msg) => self.update_systemd_units(msg),
+            Message::SystemdManager(msg) => self.update_systemd_manager(msg),
             Message::JournalEvents(msg) => self.update_journal_events(msg),
             Message::PendingUpgrades(msg) => self.update_pending_upgrades(msg),
             Message::NetInterfaces(msg) => self.update_net_interfaces(msg),
@@ -419,10 +419,10 @@ impl DesktopShell {
         }
     }
 
-    fn update_systemd_units(&mut self, msg: SystemdUnitsMessage) -> Task<Message> {
-        self.systemd_units_group
+    fn update_systemd_manager(&mut self, msg: SystemdManagerMessage) -> Task<Message> {
+        self.systemd_manager_group
             .update(msg)
-            .map(Message::SystemdUnits)
+            .map(Message::SystemdManager)
     }
 
     fn update_pending_upgrades(&mut self, msg: PendingUpgradesMessage) -> Task<Message> {
@@ -702,7 +702,7 @@ impl DesktopShell {
             &mut self.tray_group.expansion,
             &mut self.ai_group.expansion,
             &mut self.notification_group.expansion,
-            &mut self.systemd_units_group.expansion,
+            &mut self.systemd_manager_group.expansion,
             &mut self.journal_events_group.expansion,
             &mut self.pending_upgrades_group.expansion,
         ]

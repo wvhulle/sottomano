@@ -41,7 +41,7 @@ impl TableRow for KernelOccurrence {
 
 impl KernelErrors {
     pub fn count_row(&self) -> Row {
-        row("Kernel errors", self.occurrences().len().to_string())
+        row("Kernel errors", self.oldest_first.len().to_string())
     }
 }
 
@@ -52,27 +52,26 @@ impl BarWidget for KernelErrors {
 
     fn badge(&self) -> Option<u32> {
         let distinct = self
-            .occurrences()
+            .oldest_first
             .iter()
-            .filter(|occurrence| occurrence.severity == Severity::Critical)
+            .filter(|occurrence| occurrence.severity >= Severity::Warning)
             .count();
         u32::try_from(distinct).ok().filter(|count| *count > 0)
     }
 
     fn state(&self) -> WidgetState {
-        self.entries
+        self.oldest_first
             .iter()
-            .map(|entry| entry.severity)
+            .map(|occurrence| occurrence.severity)
             .max()
             .unwrap_or_default()
             .into()
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let chronological = self.occurrences();
-        let hidden = chronological.len().saturating_sub(TOOLTIP_ROWS);
+        let hidden = self.oldest_first.len().saturating_sub(TOOLTIP_ROWS);
         let hidden_notice = (hidden > 0).then(|| row("", format!("{hidden} earlier not shown")));
-        let latest = chronological[hidden..].iter().map(TableRow::row);
+        let latest = self.oldest_first[hidden..].iter().map(TableRow::row);
         TooltipBody::Sections(vec![section(
             "Kernel log",
             hidden_notice.into_iter().chain(latest).collect(),
@@ -92,8 +91,8 @@ mod tests {
 
     #[test]
     fn tooltip_lists_latest_messages_oldest_first_after_a_hidden_notice() {
-        let errors = KernelErrors {
-            entries: (0..17)
+        let errors = KernelErrors::from_entries(
+            (0..17)
                 .rev()
                 .map(|secs| KernelEntry {
                     at: SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
@@ -101,7 +100,8 @@ mod tests {
                     severity: Severity::Critical,
                 })
                 .collect(),
-        };
+        )
+        .expect("errors present");
         let TooltipBody::Sections(sections) = errors.tooltip() else {
             panic!("expected sections");
         };

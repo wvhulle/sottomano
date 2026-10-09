@@ -37,6 +37,12 @@ From left to right, all expanded:
 - **Disks.** Disk usage, read and write throughput, and drive health.
 - **Network interfaces.** Ethernet, Bluetooth, Wi-Fi and the mobile modem, one
   reading per link.
+- **Systemd manager.** How long this boot took, with its phases and the
+  slowest system and user units. Jobs that keep starting or stopping past a
+  threshold, each with its own toast. Failed system and user units, each
+  toasting until the unit recovers. How long the last shutdown took and which
+  stops held it up, while the previous boot is still in the journal. Clicking
+  a reading opens the journal behind it.
 - **Transfer.** Download and upload throughput, WireGuard tunnels and the
   Tailscale mesh with its peer count.
 - **Panel settings.** The panel's own look and layout: float offset, tint,
@@ -121,8 +127,6 @@ process.
 
 ### Out of sight
 
-- **Systemd units.** Failed system and user units, each raising its own toast
-  that closes once the unit recovers. Clicking opens the journal for them.
 - **Journal events.** Kernel errors, coredumps, OOM kills and service errors
   from the last hour, each opening its journal on click.
 - **Pending upgrades.** Firmware upgrades that fwupd offers, with the installed
@@ -189,6 +193,11 @@ critical_celsius = 90
 sensor = { chip = "drivetemp" }
 warning_celsius = 55
 ```
+
+`[systemd]` sets when the systemd manager group calls something slow:
+`slow_job_secs` (10) for a job still running, `slow_boot_unit_secs` (5) for a
+unit's activation during boot and `slow_shutdown_stop_secs` (5) for a unit's
+stop during the last shutdown.
 
 The bar watches the file and applies every change in place, including a symlink
 swapped to point elsewhere. An invalid file raises a critical toast with the

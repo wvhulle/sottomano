@@ -2,7 +2,10 @@ use std::{io, time::SystemTime};
 
 use systemd::journal::{Journal, JournalRecord};
 
-use crate::data::source::journal::{JournalEvent, OwningUnit, field};
+use crate::data::{
+    severity::Severity,
+    source::journal::{JournalEvent, JournalPriority, OwningUnit, field},
+};
 
 const COREDUMP_MESSAGE_ID: &str = "fc2e22bc6ee647b6b90729ab34a250b1";
 
@@ -13,6 +16,7 @@ pub struct CoredumpEntry {
     pub signal: String,
     pub pid: String,
     pub unit: Option<OwningUnit>,
+    pub severity: Severity,
 }
 
 impl JournalEvent for CoredumpEntry {
@@ -31,6 +35,7 @@ impl JournalEvent for CoredumpEntry {
             signal: field(record, "COREDUMP_SIGNAL_NAME")?.to_owned(),
             pid: field(record, "COREDUMP_PID")?.to_owned(),
             unit: OwningUnit::from_fields(record, "COREDUMP_UNIT", "COREDUMP_USER_UNIT"),
+            severity: JournalPriority::of_record(record)?.severity(),
         })
     }
 
@@ -66,6 +71,7 @@ mod tests {
     fn a_user_process_coredump_belongs_to_its_user_unit() {
         let record: JournalRecord = [
             ("MESSAGE_ID", COREDUMP_MESSAGE_ID),
+            ("PRIORITY", "2"),
             ("COREDUMP_COMM", "firefox"),
             ("COREDUMP_SIGNAL_NAME", "SIGSEGV"),
             ("COREDUMP_PID", "4121"),
@@ -82,6 +88,7 @@ mod tests {
                 signal: "SIGSEGV".to_owned(),
                 pid: "4121".to_owned(),
                 unit: Some(OwningUnit::User("app-firefox.scope".to_owned())),
+                severity: Severity::Critical,
             })
         );
     }

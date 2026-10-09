@@ -2,7 +2,10 @@ use std::{collections::HashSet, io, time::SystemTime};
 
 use systemd::journal::{Journal, JournalRecord};
 
-use crate::data::source::journal::{JournalEvent, OwningUnit, field};
+use crate::data::{
+    severity::Severity,
+    source::journal::{JournalEvent, JournalPriority, OwningUnit, field},
+};
 
 const KERNEL_OOM_KILL_MESSAGE_ID: &str = "fe6faa94e7774663a0da52717891d8ef";
 const OOMD_KILL_MESSAGE_ID: &str = "d989611b15e44c9dbf31e3c81256e4ed";
@@ -29,6 +32,7 @@ pub struct OomKillEntry {
     pub unit: OwningUnit,
     pub killer: OomKiller,
     pub reporting_manager_unit: String,
+    pub severity: Severity,
 }
 
 impl JournalEvent for OomKillEntry {
@@ -47,6 +51,7 @@ impl JournalEvent for OomKillEntry {
             unit: OwningUnit::from_fields(record, "UNIT", "USER_UNIT")?,
             killer: OomKiller::of_message_id(field(record, "MESSAGE_ID")?)?,
             reporting_manager_unit: field(record, "_SYSTEMD_UNIT")?.to_owned(),
+            severity: JournalPriority::of_record(record)?.severity(),
         })
     }
 
@@ -95,8 +100,10 @@ mod tests {
 
     fn kill_record(fields: [(&str, &str); 3]) -> OomKillEntry {
         let record: JournalRecord = fields
+            .into_iter()
+            .chain([("PRIORITY", "5")])
             .map(|(key, value)| (key.to_owned(), value.to_owned()))
-            .into();
+            .collect();
         OomKillEntry::from_record(&record, SystemTime::UNIX_EPOCH).expect("an oom kill record")
     }
 
