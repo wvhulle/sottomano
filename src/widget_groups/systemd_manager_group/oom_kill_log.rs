@@ -65,9 +65,10 @@ impl BarWidget for OomKills {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![table_section(
-            "OOM kills",
-            self.entries.iter().cloned(),
-        )])
+        TooltipBody::Sections(vec![
+            table_section("OOM kills", self.entries.iter().cloned()).with_caption(
+                "Units whose processes were killed for lack of memory in the last hour.",
+            ),
+        ])
     }
 }

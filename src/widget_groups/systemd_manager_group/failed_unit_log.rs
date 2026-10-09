@@ -26,9 +26,13 @@ use crate::{
 
 impl<S: ScopeAppearance> Failed<S> {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, S::FAILED_TARGET).on_press(SystemdManagerMessage::OpenLog(
-            TerminalJournal::following(config, self.follow_log_args()),
-        ))
+        GroupItem::reading(self, S::FAILED_TARGET).on_press(
+            TerminalJournal::PRESS_HINT,
+            SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                config,
+                self.follow_log_args(),
+            )),
+        )
     }
 
     pub fn count_row(&self) -> Row {
@@ -81,7 +85,9 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn tooltip(&self) -> TooltipBody {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
-        TooltipBody::Sections(vec![table_section(S::FAILED_LABEL, units)])
+        TooltipBody::Sections(vec![table_section(S::FAILED_LABEL, units).with_caption(
+            "Units in the failed state now; each toasts until it recovers.",
+        )])
     }
 }
 

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_field_names)]
 pub struct SystemdConfig {

@@ -32,7 +32,7 @@ impl TableRow for UnitActivation {
 
 impl BootPhase {
     fn row(self) -> Row {
-        row(self.name, elapsed_text(self.duration))
+        row(self.stage.name(), elapsed_text(self.duration)).with_hint(self.stage.meaning())
     }
 }
 
@@ -67,10 +67,12 @@ impl RankedActivations {
     }
 
     fn table(&self, title: &str) -> TooltipBody {
-        TooltipBody::Sections(vec![table_section(
-            title,
-            self.slowest_first.iter().cloned(),
-        )])
+        TooltipBody::Sections(vec![
+            table_section(title, self.slowest_first.iter().cloned()).with_caption(
+                "Time from starting to active, for units up before startup finished. Devices and \
+                 units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
+            ),
+        ])
     }
 }
 

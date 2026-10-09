@@ -1,3 +1,4 @@
+mod command_line;
 mod config;
 mod data;
 mod desktop_shell;
@@ -8,6 +9,8 @@ mod widgets;
 
 use std::{error::Error, sync::Arc};
 
+use clap::Parser;
+use command_line::CommandLine;
 use config::{Config, ConfigFile, SecretPaths};
 use desktop_shell::DesktopShell;
 use iced_exwlshell::{
@@ -19,6 +22,11 @@ use state::niri_rules::NiriRulesFile;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let command_line = CommandLine::parse();
+    if command_line.describes_setup() {
+        return command_line.print_setup(&config::config_home());
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new("error,vetrata=warn,exwlshellev=warn,iced_exwlshell=warn")

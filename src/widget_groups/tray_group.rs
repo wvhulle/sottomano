@@ -13,7 +13,7 @@ use crate::{
     },
     desktop_shell::{
         app_window_focus::AppWindowFocus,
-        hover_tooltips::{HoverTarget, hoverable},
+        hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
     widgets::{
         activity_line::activity_line,
@@ -211,22 +211,43 @@ fn item_view<'a>(
         glyph
     };
 
+    let rule = config.tray.rule(&item.id);
+    let app_id = rule.window_app_id.as_ref();
+    let left = click_message(rule.left_click, app_id, item);
+    let middle = click_message(rule.middle_click, app_id, item);
+    let right = click_message(rule.right_click, app_id, item);
+    let press_hints = PressHints {
+        left: left.as_ref().map(|_| rule.left_click.press_hint()),
+        middle: middle.as_ref().map(|_| rule.middle_click.press_hint()),
+        right: right.as_ref().map(|_| rule.right_click.press_hint()),
+        ..PressHints::default()
+    };
     let hover = hoverable(
         marked,
         HoverTarget::Tray(item.address.clone()),
+        press_hints,
         GroupEvent::Tooltip,
     );
-    let rule = config.tray.rule(&item.id);
-    let app_id = rule.window_app_id.as_ref();
     let mut clickable = mouse_area(hover);
-    if let Some(message) = click_message(rule.left_click, app_id, item) {
+    if let Some(message) = left {
         clickable = clickable.on_press(GroupEvent::Group(message));
     }
-    if let Some(message) = click_message(rule.middle_click, app_id, item) {
+    if let Some(message) = middle {
         clickable = clickable.on_middle_press(GroupEvent::Group(message));
     }
-    if let Some(message) = click_message(rule.right_click, app_id, item) {
+    if let Some(message) = right {
         clickable = clickable.on_right_press(GroupEvent::Group(message));
     }
     clickable.into()
+}
+
+impl ClickAction {
+    fn press_hint(self) -> &'static str {
+        match self {
+            ClickAction::ActivateItem => "activate",
+            ClickAction::SecondaryActivateItem => "secondary action",
+            ClickAction::FocusAppWindow => "focus its window",
+            ClickAction::Ignore => "nothing",
+        }
+    }
 }

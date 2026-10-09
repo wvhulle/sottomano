@@ -65,9 +65,12 @@ impl BarWidget for ServiceErrors {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![table_section(
-            "Service errors",
-            self.by_unit_oldest_first.iter().cloned(),
-        )])
+        TooltipBody::Sections(vec![
+            table_section("Service errors", self.by_unit_oldest_first.iter().cloned())
+                .with_caption(
+                    "Journal entries at err or worse from .service units in the last hour, newest \
+                     message per service.",
+                ),
+        ])
     }
 }

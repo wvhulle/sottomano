@@ -77,9 +77,10 @@ impl JournalEventsGroup {
             .any(Option::is_some)
             .then_some(self as &dyn BarWidget);
         let opens_log = |widget: &'a dyn BarWidget, target, journalctl_args| {
-            GroupItem::reading(widget, target).on_press(JournalEventsMessage::OpenLog(
-                TerminalJournal::following(config, journalctl_args),
-            ))
+            GroupItem::reading(widget, target).on_press(
+                TerminalJournal::PRESS_HINT,
+                JournalEventsMessage::OpenLog(TerminalJournal::following(config, journalctl_args)),
+            )
         };
         WidgetGroup::new(&self.expansion, JournalEventsMessage::Expansion)
             .reading(summary, HoverTarget::JournalEvents)

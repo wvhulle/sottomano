@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::data::severity::Severity;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_field_names)]
 pub struct ToastLifetimeConfig {

@@ -24,8 +24,39 @@ pub struct BootPhases {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BootStage {
+    Firmware,
+    Loader,
+    Kernel,
+    Initrd,
+    Userspace,
+}
+
+impl BootStage {
+    pub fn name(self) -> &'static str {
+        match self {
+            BootStage::Firmware => "firmware",
+            BootStage::Loader => "loader",
+            BootStage::Kernel => "kernel",
+            BootStage::Initrd => "initrd",
+            BootStage::Userspace => "userspace",
+        }
+    }
+
+    pub fn meaning(self) -> &'static str {
+        match self {
+            BootStage::Firmware => "UEFI, before the boot loader",
+            BootStage::Loader => "boot loader picking and loading the kernel",
+            BootStage::Kernel => "kernel until it hands over to initrd or userspace",
+            BootStage::Initrd => "early userspace that mounts the root file system",
+            BootStage::Userspace => "systemd starting units until the default target",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BootPhase {
-    pub name: &'static str,
+    pub stage: BootStage,
     pub duration: Duration,
 }
 
@@ -50,14 +81,14 @@ impl BootPhases {
 
     pub fn present(&self) -> Vec<BootPhase> {
         [
-            ("firmware", self.firmware),
-            ("loader", self.loader),
-            ("kernel", Some(self.kernel)),
-            ("initrd", self.initrd),
-            ("userspace", Some(self.userspace)),
+            (BootStage::Firmware, self.firmware),
+            (BootStage::Loader, self.loader),
+            (BootStage::Kernel, Some(self.kernel)),
+            (BootStage::Initrd, self.initrd),
+            (BootStage::Userspace, Some(self.userspace)),
         ]
         .into_iter()
-        .filter_map(|(name, duration)| duration.map(|duration| BootPhase { name, duration }))
+        .filter_map(|(stage, duration)| duration.map(|duration| BootPhase { stage, duration }))
         .collect()
     }
 
@@ -302,19 +333,19 @@ mod tests {
             phases.present(),
             [
                 BootPhase {
-                    name: "firmware",
+                    stage: BootStage::Firmware,
                     duration: Duration::from_secs(26),
                 },
                 BootPhase {
-                    name: "kernel",
+                    stage: BootStage::Kernel,
                     duration: Duration::from_millis(500),
                 },
                 BootPhase {
-                    name: "initrd",
+                    stage: BootStage::Initrd,
                     duration: Duration::from_millis(3500),
                 },
                 BootPhase {
-                    name: "userspace",
+                    stage: BootStage::Userspace,
                     duration: Duration::from_secs(33),
                 },
             ]

@@ -13,18 +13,20 @@ use iced::{
 
 use crate::desktop_shell::{
     Message,
-    hover_tooltips::{HoverTarget, TooltipMessage},
+    hover_tooltips::{HoverTarget, PressHints, TooltipMessage},
     monitor_surfaces::Position,
 };
 
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
+    press_hints: PressHints,
     wrap: impl Fn(TooltipMessage) -> M + 'a,
 ) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
         target,
+        press_hints,
         wrap: Box::new(wrap),
     })
 }
@@ -36,14 +38,17 @@ pub fn on_surface(
     content: Element<'_, Message>,
 ) -> Element<'_, Message> {
     content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor { target, anchor }) => {
-            Message::Tooltip(TooltipMessage::Enter {
-                surface,
-                position,
-                target,
-                anchor: anchor + origin_in_overlay,
-            })
-        }
+        Message::Tooltip(TooltipMessage::EnterAnchor {
+            target,
+            anchor,
+            press_hints,
+        }) => Message::Tooltip(TooltipMessage::Enter {
+            surface,
+            position,
+            target,
+            anchor: anchor + origin_in_overlay,
+            press_hints,
+        }),
         other => other,
     })
 }
@@ -51,6 +56,7 @@ pub fn on_surface(
 struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
+    press_hints: PressHints,
     wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
 }
 
@@ -138,6 +144,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
                 TooltipMessage::EnterAnchor {
                     target: self.target.clone(),
                     anchor,
+                    press_hints: self.press_hints,
                 }
             } else {
                 TooltipMessage::Exit {

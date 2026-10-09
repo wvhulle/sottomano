@@ -3,7 +3,7 @@ use iced::{Element, Subscription, Task};
 use crate::{
     config::Config,
     data::source::Source,
-    desktop_shell::hover_tooltips::{HoverTarget, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, PressHints, hoverable},
     message_subscriptions::{blocking, polling},
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -15,6 +15,8 @@ use crate::{
         widget_state::WidgetState,
     },
 };
+
+pub const TOGGLE_PRESS_HINT: &str = "switch on or off";
 
 pub fn icon_toggle_glyph<'a, M: 'a>(
     config: &Config,
@@ -37,10 +39,14 @@ pub fn icon_toggle_item<M: Clone + 'static>(
         hoverable(
             icon_toggle_glyph(config, icon, enabled),
             target.clone(),
+            PressHints {
+                left: Some(TOGGLE_PRESS_HINT),
+                ..PressHints::default()
+            },
             GroupEvent::Tooltip,
         )
     })
-    .on_press(press)
+    .on_press(TOGGLE_PRESS_HINT, press)
 }
 
 pub trait Toggle: Source + BarWidget {

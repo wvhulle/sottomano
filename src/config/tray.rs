@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ClickAction {
     #[default]
@@ -12,7 +12,7 @@ pub enum ClickAction {
     Ignore,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TrayRule {
     pub hide_icon: bool,
@@ -52,13 +52,13 @@ impl TrayRule {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(try_from = "TrayItems")]
 pub struct TrayConfig {
     items: BTreeMap<String, TrayRule>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct TrayItems {
     items: BTreeMap<String, TrayRule>,

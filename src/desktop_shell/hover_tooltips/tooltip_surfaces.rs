@@ -14,7 +14,7 @@ use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{
-            HoverTarget, TooltipMessage,
+            HoverTarget, PressHints, TooltipMessage,
             tooltip_content::TooltipContent,
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
@@ -35,6 +35,7 @@ pub struct PendingSwitch {
     pub parent: PanelEdge,
     pub target: HoverTarget,
     pub anchor: Rectangle,
+    pub press_hints: PressHints,
     seq: u64,
 }
 
@@ -67,6 +68,7 @@ impl TooltipHost {
         parent: &PanelEdge,
         target: &HoverTarget,
         anchor: Rectangle,
+        press_hints: PressHints,
     ) -> Option<Task<Message>> {
         let current = self.transition.current()?;
         if !parent.position.is_vertical() || &current.target == target {
@@ -79,6 +81,7 @@ impl TooltipHost {
             parent: parent.clone(),
             target: target.clone(),
             anchor,
+            press_hints,
             seq,
         });
         Some(
@@ -91,7 +94,13 @@ impl TooltipHost {
         self.pending_switch.take_if(|pending| pending.seq == seq)
     }
 
-    pub fn open(&mut self, parent: &PanelEdge, target: HoverTarget, anchor: Rectangle) {
+    pub fn open(
+        &mut self,
+        parent: &PanelEdge,
+        target: HoverTarget,
+        anchor: Rectangle,
+        press_hints: PressHints,
+    ) {
         self.pending_switch = None;
         self.transition.cancel_leave();
         if self
@@ -103,6 +112,7 @@ impl TooltipHost {
         }
         self.transition.show(Occupant {
             target,
+            press_hints,
             placement: Placement {
                 anchor,
                 position: parent.position,
@@ -215,8 +225,11 @@ impl TooltipHost {
     }
 
     pub fn departure(&self, content: Tooltip) -> Option<Departed> {
-        let placement = self.transition.current()?.placement.clone();
-        Some(Departed::new(content, placement))
+        let current = self.transition.current()?;
+        Some(Departed::new(
+            content.with_press_hints(current.press_hints),
+            current.placement.clone(),
+        ))
     }
 
     pub fn view<'a>(
@@ -254,8 +267,13 @@ impl TooltipHost {
         }
         if let Some(current) = self.transition.current() {
             renderings.push(Rendering::incoming(hoverable_content(
-                TooltipContent::new(&content(&current.target), config, corner_radius, favicons)
-                    .view(),
+                TooltipContent::new(
+                    &content(&current.target).with_press_hints(current.press_hints),
+                    config,
+                    corner_radius,
+                    favicons,
+                )
+                .view(),
             )));
         }
         Some(

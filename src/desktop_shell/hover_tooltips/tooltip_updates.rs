@@ -4,7 +4,7 @@ use crate::{
     data::source::process::{self, Watched},
     desktop_shell::{
         DesktopShell, Message,
-        hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
+        hover_tooltips::{HoverTarget, PressHints, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
     widget_groups::{
@@ -22,6 +22,7 @@ impl DesktopShell {
                 position,
                 target,
                 anchor,
+                press_hints,
             } => {
                 let content = self.tooltip_for(&target);
                 let Some(host) = self.surfaces.get(&surface).filter(|_| !content.is_empty()) else {
@@ -31,16 +32,24 @@ impl DesktopShell {
                     output: host.output.clone(),
                     position,
                 };
-                if let Some(intent) = self.tooltip.defer_switch(&parent, &target, anchor) {
+                if let Some(intent) =
+                    self.tooltip
+                        .defer_switch(&parent, &target, anchor, press_hints)
+                {
                     return intent;
                 }
-                self.open_tooltip(&parent, target, anchor)
+                self.open_tooltip(&parent, target, anchor, press_hints)
             }
             TooltipMessage::SwitchIntentElapsed { seq } => {
                 let Some(pending) = self.tooltip.take_pending_switch(seq) else {
                     return Task::none();
                 };
-                self.open_tooltip(&pending.parent, pending.target, pending.anchor)
+                self.open_tooltip(
+                    &pending.parent,
+                    pending.target,
+                    pending.anchor,
+                    pending.press_hints,
+                )
             }
             other => self.tooltip.update(other),
         }
@@ -51,8 +60,9 @@ impl DesktopShell {
         parent: &PanelEdge,
         target: HoverTarget,
         anchor: Rectangle,
+        press_hints: PressHints,
     ) -> Task<Message> {
-        self.tooltip.open(parent, target, anchor);
+        self.tooltip.open(parent, target, anchor, press_hints);
         let Some(watched) = self.watched_window() else {
             return Task::none();
         };

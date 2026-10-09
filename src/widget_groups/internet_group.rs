@@ -134,11 +134,14 @@ impl InternetGroup {
             .reading(self.up.display(), HoverTarget::InternetUp)
             .items(tunnels.iter().map(|tunnel| {
                 GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
-                    .on_right_press(InternetMessage::Disconnect(tunnel.name.clone()))
+                    .on_right_press(
+                        "disconnect the tunnel",
+                        InternetMessage::Disconnect(tunnel.name.clone()),
+                    )
             }))
             .item(self.tailscale.display().map(|tailscale| {
                 GroupItem::reading(tailscale, HoverTarget::Tailscale)
-                    .on_press(InternetMessage::OpenTailscale)
+                    .on_press("open Tailscale", InternetMessage::OpenTailscale)
             }))
     }
 }

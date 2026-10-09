@@ -12,7 +12,7 @@ use uom::si::{f64::Ratio, ratio};
 use crate::{
     config::Config,
     data::severity::Severity,
-    desktop_shell::hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+    desktop_shell::hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     message_subscriptions::blocking,
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
@@ -75,7 +75,7 @@ pub struct SliderControl {
     glyph: Option<fn(f32, bool) -> Phosphor>,
     thresholds: SeverityThresholds,
     target: HoverTarget,
-    right_click: bool,
+    right_click: Option<&'static str>,
     relative_scroll: bool,
     level_announcement: Option<LevelAnnouncement>,
 }
@@ -161,7 +161,7 @@ impl SliderControl {
             glyph: None,
             thresholds: SeverityThresholds::default(),
             target,
-            right_click: false,
+            right_click: None,
             relative_scroll: false,
             level_announcement: None,
         }
@@ -227,8 +227,8 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn right_click(mut self, on: bool) -> Self {
-        self.right_click = on;
+    pub fn right_click(mut self, does: &'static str) -> Self {
+        self.right_click = Some(does);
         self
     }
 
@@ -409,7 +409,7 @@ impl SliderControl {
         ])
         .align_y(Alignment::Center);
         let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
-        if self.right_click {
+        if self.right_click.is_some() {
             area = area.on_right_press(ControlMessage::Right);
         }
         area.into()
@@ -421,11 +421,22 @@ impl SliderControl {
             None => source_reading(config, Some(self as &dyn BarWidget), reveal)
                 .unwrap_or_else(|| Row::new().into()),
         };
-        let hover = hoverable(reading, self.target.clone(), ControlMessage::Tooltip);
+        let press_hints = PressHints {
+            left: Some("open the slider"),
+            right: self.right_click,
+            scroll: Some("adjust"),
+            ..PressHints::default()
+        };
+        let hover = hoverable(
+            reading,
+            self.target.clone(),
+            press_hints,
+            ControlMessage::Tooltip,
+        );
         let mut area = mouse_area(hover)
             .on_press(ControlMessage::Press)
             .on_scroll(ControlMessage::Scroll);
-        if self.right_click {
+        if self.right_click.is_some() {
             area = area.on_right_press(ControlMessage::Right);
         }
         area.into()

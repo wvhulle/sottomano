@@ -69,7 +69,7 @@ impl Default for AudioGroup {
             )
             .scroll_step(SCROLL_STEP)
             .relative_scroll()
-            .right_click(true)
+            .right_click("mute or unmute")
             .readout(|value| format!("{}%", as_percent(value)))
             .thresholds(80.0, 95.0, true)
             .announces_level("Speaker"),
@@ -80,7 +80,7 @@ impl Default for AudioGroup {
             )
             .scroll_step(SCROLL_STEP)
             .relative_scroll()
-            .right_click(true)
+            .right_click("mute or unmute")
             .readout(|value| format!("{}%", as_percent(value)))
             .glyph(input_glyph)
             .thresholds(50.0, 15.0, false)

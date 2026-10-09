@@ -72,10 +72,13 @@ impl BarWidget for KernelErrors {
         let hidden = self.oldest_first.len().saturating_sub(TOOLTIP_ROWS);
         let hidden_notice = (hidden > 0).then(|| row("", format!("{hidden} earlier not shown")));
         let latest = self.oldest_first[hidden..].iter().map(TableRow::row);
-        TooltipBody::Sections(vec![section(
-            "Kernel log",
-            hidden_notice.into_iter().chain(latest).collect(),
-        )])
+        TooltipBody::Sections(vec![
+            section(
+                "Kernel log",
+                hidden_notice.into_iter().chain(latest).collect(),
+            )
+            .with_caption("Kernel messages at warning or worse in the last hour, repeats merged."),
+        ])
     }
 }
 

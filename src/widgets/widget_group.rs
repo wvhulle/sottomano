@@ -10,7 +10,7 @@ use crate::{
     config::Config,
     data::severity::Severity,
     desktop_shell::{
-        hover_tooltips::{HoverTarget, TooltipMessage, hoverable},
+        hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
     widgets::{
@@ -127,9 +127,15 @@ impl<'a> PreviewedValue<'a> {
     ) -> Element<'a, GroupEvent<M>> {
         match self {
             PreviewedValue::Plain(_) => face,
-            PreviewedValue::Hoverable { target, .. } => {
-                hoverable(face, target.clone(), GroupEvent::Tooltip)
-            }
+            PreviewedValue::Hoverable { target, .. } => hoverable(
+                face,
+                target.clone(),
+                PressHints {
+                    left: Some("expand or collapse the group"),
+                    ..PressHints::default()
+                },
+                GroupEvent::Tooltip,
+            ),
         }
     }
 }

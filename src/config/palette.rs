@@ -1,7 +1,7 @@
 use iced::{Color, Theme, theme};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct Palette {
     #[serde(with = "css_color")]
@@ -74,9 +74,15 @@ fn to_iced(dynamic: color::DynamicColor) -> Color {
 mod css_color {
     use std::str::FromStr;
 
-    use serde::{Deserialize, Deserializer, de::Error as _};
+    use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
 
     use super::{Color, to_iced};
+
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    pub fn serialize<S: Serializer>(iced: &Color, s: S) -> Result<S::Ok, S::Error> {
+        let srgb = color::AlphaColor::<color::Srgb>::new([iced.r, iced.g, iced.b, iced.a]);
+        s.collect_str(&format_args!("{:x}", srgb.to_rgba8()))
+    }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Color, D::Error> {
         let s = String::deserialize(d)?;
