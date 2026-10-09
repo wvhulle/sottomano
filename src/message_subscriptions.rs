@@ -29,6 +29,7 @@ use crate::{
             model::{NotifHandle, Outbound, ServerEvent},
             server,
         },
+        sink::clipboard,
         source::{Source, desktop_entries, niri},
     },
     desktop_shell::{
@@ -37,8 +38,8 @@ use crate::{
     },
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, disk_group::DiskGroup,
-        journal_group::JournalGroup, net_interfaces_group::NetInterfacesGroup,
-        tray_group::TrayGroup, window_group::WindowGroup,
+        journal_events_group::JournalEventsGroup, net_interfaces_group::NetInterfacesGroup,
+        systemd_units_group::SystemdUnitsGroup, tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
 
@@ -105,7 +106,8 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(Message::Compute),
         DiskGroup::subscription(&state.config.temperature.drive).map(Message::Disk),
         ClockGroup::subscription().map(Message::Clock),
-        JournalGroup::subscription().map(Message::Journal),
+        SystemdUnitsGroup::subscription().map(Message::SystemdUnits),
+        JournalEventsGroup::subscription().map(Message::JournalEvents),
         state.internet_group.subscription().map(Message::Internet),
         NetInterfacesGroup::subscription().map(Message::NetInterfaces),
         state.monitor_group.subscription().map(Message::Monitor),
@@ -250,6 +252,10 @@ where
 
 pub(crate) fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     blocking("niri action", move || niri::send_action(&action)).discard()
+}
+
+pub(crate) fn copy_to_clipboard(text: String) -> Task<Message> {
+    blocking("clipboard", move || clipboard::write(&text)).discard()
 }
 
 fn niri_subscription() -> Subscription<Message> {

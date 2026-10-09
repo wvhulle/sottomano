@@ -307,6 +307,7 @@ impl CellView {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) | Cell::Link(text) => self.text(text, color).into(),
             Cell::Time { at, part } => self.text(part.format(&at, self.locale), color).into(),
+            Cell::Missing => Space::new().into(),
         }
     }
 
@@ -320,6 +321,7 @@ impl CellView {
             Cell::Text(text) => self.copyable_text(text, color),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
             Cell::Link(url) => self.openable_link(url),
+            Cell::Missing => Space::new().into(),
         }
     }
 

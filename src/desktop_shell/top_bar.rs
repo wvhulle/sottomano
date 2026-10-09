@@ -106,7 +106,7 @@ impl DesktopShell {
         self.group_cluster(rendered)
     }
 
-    pub(super) fn top_start_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 7] {
+    pub(super) fn top_start_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 8] {
         let config = &self.config;
         let top = Position::Top;
         [
@@ -127,9 +127,16 @@ impl DesktopShell {
                 config,
                 top,
             ),
-            self.journal_group
-                .widget_group(config)
-                .place_on_bar(Message::Journal, config, top),
+            self.systemd_units_group.widget_group(config).place_on_bar(
+                Message::SystemdUnits,
+                config,
+                top,
+            ),
+            self.journal_events_group.widget_group(config).place_on_bar(
+                Message::JournalEvents,
+                config,
+                top,
+            ),
             self.internet_group
                 .widget_group()
                 .place_on_bar(Message::Internet, config, top),

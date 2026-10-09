@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::Locale;
 
 use crate::{
@@ -22,7 +24,7 @@ pub struct ReadingAlertActionButton<Message> {
 pub struct ReadingAlert<Message> {
     pub hover_target: HoverTarget,
     pub severity: Severity,
-    pub summary_text: &'static str,
+    pub summary_text: Cow<'static, str>,
     pub body_text: Option<String>,
     pub on_body_clicked: Message,
     pub action_buttons: Vec<ReadingAlertActionButton<Message>>,
@@ -59,7 +61,7 @@ impl<Message> ReadingAlert<Message> {
         (severity > Severity::Normal && severity >= minimum_severity).then(|| Self {
             hover_target,
             severity,
-            summary_text,
+            summary_text: Cow::Borrowed(summary_text),
             body_text: widget.localized_label(locale),
             on_body_clicked,
             action_buttons: Vec::new(),
@@ -118,7 +120,7 @@ impl<Message> ReadingAlert<Message> {
                 .collect(),
             severity: self.severity,
             expire_timeout: ExpireTimeout::Never,
-            ..NotificationData::from_shell(toast_id, self.summary_text)
+            ..NotificationData::from_shell(toast_id, self.summary_text.clone())
         }
     }
 }

@@ -1,294 +1,270 @@
 use std::{
-    fs, thread,
+    collections::VecDeque,
+    io, thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use iced::futures::{Stream, StreamExt, future::join_all, stream};
-use serde::Deserialize;
-use systemd::journal::{Journal, JournalRecord, OpenOptions};
+use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc;
-use zbus::{
-    message, proxy,
-    proxy::CacheProperties,
-    zvariant::{OwnedObjectPath, Type},
-};
 
-use crate::message_subscriptions::restarting;
+use crate::data::severity::Severity;
 
-const HORIZON: Duration = Duration::from_secs(3600);
-const AGE_OUT_RECHECK: Duration = Duration::from_secs(60);
-const WARNING_PRIORITY: u8 = 4;
+pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum KernelSeverity {
-    Critical,
-    Error,
-    Warning,
+pub trait JournalEvent: Clone + Send + 'static {
+    const NAME: &'static str;
+    const OPENS_USER_JOURNALS: bool;
+
+    fn add_matches(journal: &mut Journal) -> io::Result<()>;
+
+    fn from_record(record: &JournalRecord, at: SystemTime) -> Option<Self>;
+
+    fn at(&self) -> SystemTime;
 }
 
-impl KernelSeverity {
-    fn from_priority(priority: u8) -> Option<Self> {
-        match priority {
-            0..=2 => Some(KernelSeverity::Critical),
-            3 => Some(KernelSeverity::Error),
-            WARNING_PRIORITY => Some(KernelSeverity::Warning),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct KernelEntry {
-    pub at: SystemTime,
-    pub message: String,
-    pub severity: KernelSeverity,
-}
-
-pub fn kernel_errors() -> mpsc::Receiver<Vec<KernelEntry>> {
+pub fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Vec<E>> {
     let (tx, rx) = mpsc::channel(16);
     thread::spawn(move || {
-        let Some(mut journal) = open_kernel_journal() else {
-            tracing::warn!("journal: kernel journal open failed");
-            return;
+        let mut journal = match WindowedJournal::<E>::open() {
+            Ok(journal) => journal,
+            Err(e) => {
+                tracing::warn!("journal: {} open failed: {e}", E::NAME);
+                return;
+            }
         };
-        if tx.blocking_send(scan_kernel_errors(&mut journal)).is_err() {
-            return;
-        }
-        loop {
-            match journal.wait(Some(AGE_OUT_RECHECK)) {
-                Ok(_) => {
-                    if tx.blocking_send(scan_kernel_errors(&mut journal)).is_err() {
-                        return;
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("journal: kernel wait ended: {e}");
-                    return;
-                }
+        while tx.blocking_send(journal.events()).is_ok() {
+            if let Err(e) = journal.wait_for_window_change() {
+                tracing::warn!("journal: {} wait ended: {e}", E::NAME);
+                return;
             }
         }
     });
     rx
 }
 
-fn open_kernel_journal() -> Option<Journal> {
-    let mut journal = OpenOptions::default().system(true).open().ok()?;
-    journal.match_add("_TRANSPORT", "kernel").ok()?;
-    for priority in 0..=WARNING_PRIORITY {
-        journal.match_add("PRIORITY", priority.to_string()).ok()?;
+struct WindowedJournal<E> {
+    journal: Journal,
+    window: EventWindow<E>,
+}
+
+impl<E: JournalEvent> WindowedJournal<E> {
+    fn open() -> io::Result<Self> {
+        let mut journal = OpenOptions::default()
+            .system(true)
+            .current_user(E::OPENS_USER_JOURNALS)
+            .open()?;
+        E::add_matches(&mut journal)?;
+        let mut windowed = Self {
+            journal,
+            window: EventWindow::default(),
+        };
+        windowed.rebuild_from_horizon()?;
+        Ok(windowed)
     }
-    Some(journal)
-}
 
-fn scan_kernel_errors(journal: &mut Journal) -> Vec<KernelEntry> {
-    let Some(cutoff_usec) = horizon_cutoff_usec() else {
-        return Vec::new();
-    };
-    if journal.seek_realtime_usec(cutoff_usec).is_err() {
-        return Vec::new();
+    fn events(&self) -> Vec<E> {
+        self.window.events.iter().cloned().collect()
     }
-    let mut entries = Vec::new();
-    while let Ok(Some(record)) = journal.next_entry() {
-        let at = journal.timestamp().unwrap_or_else(|_| SystemTime::now());
-        entries.extend(kernel_entry(&record, at));
+
+    fn wait_for_window_change(&mut self) -> io::Result<()> {
+        loop {
+            let timeout = self.window.time_until_next_expiry(SystemTime::now());
+            let appended = match self.journal.wait(timeout)? {
+                JournalWaitResult::Append => self.read_appended(),
+                JournalWaitResult::Invalidate => {
+                    self.rebuild_from_horizon()?;
+                    true
+                }
+                JournalWaitResult::Nop => false,
+            };
+            let expired = self.window.drop_expired(SystemTime::now());
+            if appended || expired {
+                return Ok(());
+            }
+        }
     }
-    entries
-}
 
-fn kernel_entry(record: &JournalRecord, at: SystemTime) -> Option<KernelEntry> {
-    let severity = record
-        .get("PRIORITY")
-        .and_then(|priority| priority.parse().ok())
-        .and_then(KernelSeverity::from_priority)?;
-    Some(KernelEntry {
-        at,
-        message: record.get("MESSAGE")?.clone(),
-        severity,
-    })
-}
-
-fn horizon_cutoff_usec() -> Option<u64> {
-    let cutoff = SystemTime::now().checked_sub(HORIZON)?;
-    u64::try_from(cutoff.duration_since(UNIX_EPOCH).ok()?.as_micros()).ok()
-}
-
-#[proxy(
-    interface = "org.freedesktop.systemd1.Manager",
-    default_service = "org.freedesktop.systemd1",
-    default_path = "/org/freedesktop/systemd1",
-    gen_blocking = false
-)]
-trait Manager {
-    fn list_units_filtered(&self, states: &[&str]) -> zbus::Result<Vec<UnitRow>>;
-    fn subscribe(&self) -> zbus::Result<()>;
-}
-
-#[proxy(
-    interface = "org.freedesktop.systemd1.Unit",
-    default_service = "org.freedesktop.systemd1",
-    gen_blocking = false
-)]
-trait Unit {
-    #[zbus(property)]
-    fn state_change_timestamp_monotonic(&self) -> zbus::Result<u64>;
-}
-
-#[proxy(
-    interface = "org.freedesktop.systemd1.Service",
-    default_service = "org.freedesktop.systemd1",
-    gen_blocking = false
-)]
-trait Service {
-    #[zbus(property)]
-    fn result(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn exec_main_status(&self) -> zbus::Result<i32>;
-}
-
-#[derive(Debug, Deserialize, Type)]
-#[allow(dead_code)]
-struct UnitRow {
-    name: String,
-    description: String,
-    load_state: String,
-    active_state: String,
-    sub_state: String,
-    following: String,
-    unit_path: OwnedObjectPath,
-    job_id: u32,
-    job_type: String,
-    job_path: OwnedObjectPath,
-}
-
-#[derive(Debug, Clone)]
-pub struct FailedUnitInfo {
-    pub name: String,
-    pub result: String,
-    pub status: i32,
-    pub at: Option<SystemTime>,
-}
-
-pub fn failed_stream(per_user: bool) -> impl Stream<Item = Vec<FailedUnitInfo>> {
-    restarting("journal", move || watch_failed(per_user))
-}
-
-async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedUnitInfo>>> {
-    let connection = connect(user).await?;
-    let manager = ManagerProxy::new(&connection).await?;
-    if let Err(e) = manager.subscribe().await {
-        tracing::warn!("journal: systemd subscribe failed: {e}");
+    fn rebuild_from_horizon(&mut self) -> io::Result<()> {
+        self.window = EventWindow::default();
+        let cutoff_usec = horizon_cutoff_usec().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "system clock precedes the event horizon",
+            )
+        })?;
+        self.journal.seek_realtime_usec(cutoff_usec)?;
+        self.read_appended();
+        Ok(())
     }
-    let signals = systemd_signals(&connection).await?;
-    Ok(stream::iter([()])
-        .chain(signals)
-        .then(move |()| failed_units(manager.clone())))
-}
 
-async fn connect(user: bool) -> zbus::Result<zbus::Connection> {
-    if user {
-        zbus::Connection::session().await
-    } else {
-        zbus::Connection::system().await
+    fn read_appended(&mut self) -> bool {
+        let mut appended = false;
+        while let Ok(Some(record)) = self.journal.next_entry() {
+            let event = self
+                .journal
+                .timestamp()
+                .ok()
+                .and_then(|at| E::from_record(&record, at));
+            if let Some(event) = event {
+                self.window.events.push_back(event);
+                appended = true;
+            }
+        }
+        appended
     }
 }
 
-async fn systemd_signals(
-    connection: &zbus::Connection,
-) -> zbus::Result<impl Stream<Item = ()> + use<>> {
-    let rule = zbus::MatchRule::builder()
-        .msg_type(message::Type::Signal)
-        .sender("org.freedesktop.systemd1")?
-        .build();
-    let stream = zbus::MessageStream::for_match_rule(rule, connection, Some(64)).await?;
-    Ok(stream.ready_chunks(64).map(|_| ()))
+struct EventWindow<E> {
+    events: VecDeque<E>,
 }
 
-async fn failed_units(manager: ManagerProxy<'static>) -> Vec<FailedUnitInfo> {
-    let Ok(rows) = manager.list_units_filtered(&["failed"]).await else {
-        return Vec::new();
-    };
-    let uptime = uptime();
-    let now = SystemTime::now();
-    let connection = manager.inner().connection();
-    join_all(
-        rows.into_iter()
-            .map(|row| failed_unit(connection, row, uptime, now)),
-    )
-    .await
-}
-
-async fn failed_unit(
-    connection: &zbus::Connection,
-    row: UnitRow,
-    uptime: Option<Duration>,
-    now: SystemTime,
-) -> FailedUnitInfo {
-    let UnitDetails {
-        result,
-        status,
-        changed_us,
-    } = details(connection, row.unit_path)
-        .await
-        .unwrap_or_else(|_| UnitDetails::unknown());
-    FailedUnitInfo {
-        name: row.name,
-        result,
-        status,
-        at: uptime.and_then(|uptime| failed_at(changed_us, uptime, now)),
-    }
-}
-
-fn failed_at(changed_us: u64, uptime: Duration, now: SystemTime) -> Option<SystemTime> {
-    if changed_us == 0 {
-        return None;
-    }
-    let age = uptime.checked_sub(Duration::from_micros(changed_us))?;
-    now.checked_sub(age)
-}
-
-struct UnitDetails {
-    result: String,
-    status: i32,
-    changed_us: u64,
-}
-
-impl UnitDetails {
-    fn unknown() -> Self {
+impl<E> Default for EventWindow<E> {
+    fn default() -> Self {
         Self {
-            result: "failed".to_string(),
-            status: 0,
-            changed_us: 0,
+            events: VecDeque::new(),
         }
     }
 }
 
-async fn details(
-    connection: &zbus::Connection,
-    path: OwnedObjectPath,
-) -> zbus::Result<UnitDetails> {
-    let unit = UnitProxy::builder(connection)
-        .path(path.clone())?
-        .cache_properties(CacheProperties::No)
-        .build()
-        .await?;
-    let service = ServiceProxy::builder(connection)
-        .path(path)?
-        .cache_properties(CacheProperties::No)
-        .build()
-        .await?;
-    let unknown = UnitDetails::unknown();
-    Ok(UnitDetails {
-        result: service.result().await.unwrap_or(unknown.result),
-        status: service.exec_main_status().await.unwrap_or(unknown.status),
-        changed_us: unit
-            .state_change_timestamp_monotonic()
-            .await
-            .unwrap_or(unknown.changed_us),
-    })
+impl<E: JournalEvent> EventWindow<E> {
+    fn expiry_of(event: &E) -> SystemTime {
+        event.at() + EVENT_HORIZON
+    }
+
+    fn drop_expired(&mut self, now: SystemTime) -> bool {
+        let before = self.events.len();
+        while self
+            .events
+            .front()
+            .is_some_and(|oldest| Self::expiry_of(oldest) <= now)
+        {
+            self.events.pop_front();
+        }
+        self.events.len() != before
+    }
+
+    fn time_until_next_expiry(&self, now: SystemTime) -> Option<Duration> {
+        let oldest = self.events.front()?;
+        Some(
+            Self::expiry_of(oldest)
+                .duration_since(now)
+                .unwrap_or(Duration::ZERO),
+        )
+    }
 }
 
-fn uptime() -> Option<Duration> {
-    let content = fs::read_to_string("/proc/uptime").ok()?;
-    let secs: f64 = content.split_whitespace().next()?.parse().ok()?;
-    Some(Duration::from_secs_f64(secs))
+fn horizon_cutoff_usec() -> Option<u64> {
+    let cutoff = SystemTime::now().checked_sub(EVENT_HORIZON)?;
+    u64::try_from(cutoff.duration_since(UNIX_EPOCH).ok()?.as_micros()).ok()
+}
+
+pub fn field<'a>(record: &'a JournalRecord, name: &str) -> Option<&'a str> {
+    record.get(name).map(String::as_str)
+}
+
+impl Severity {
+    fn least_urgent_journal_priority(self) -> Option<u8> {
+        match self {
+            Severity::Critical => Some(3),
+            Severity::Warning => Some(4),
+            Severity::Low | Severity::Normal => None,
+        }
+    }
+
+    pub fn of_journal_record(record: &JournalRecord) -> Option<Self> {
+        let priority: u8 = field(record, "PRIORITY")?.parse().ok()?;
+        [Severity::Critical, Severity::Warning]
+            .into_iter()
+            .find(|severity| {
+                severity
+                    .least_urgent_journal_priority()
+                    .is_some_and(|least_urgent| priority <= least_urgent)
+            })
+    }
+
+    pub fn match_journal_priorities(self, journal: &mut Journal) -> io::Result<()> {
+        let least_urgent = self.least_urgent_journal_priority().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "severity has no journal priority",
+            )
+        })?;
+        for priority in 0..=least_urgent {
+            journal.match_add("PRIORITY", priority.to_string())?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OwningUnit {
+    System(String),
+    User(String),
+}
+
+impl OwningUnit {
+    pub fn from_fields(
+        record: &JournalRecord,
+        system_field: &str,
+        user_field: &str,
+    ) -> Option<Self> {
+        field(record, user_field)
+            .map(|name| OwningUnit::User(name.to_owned()))
+            .or_else(|| field(record, system_field).map(|name| OwningUnit::System(name.to_owned())))
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            OwningUnit::System(name) | OwningUnit::User(name) => name,
+        }
+    }
+
+    pub fn logged_by_match(&self) -> String {
+        match self {
+            OwningUnit::System(name) => format!("_SYSTEMD_UNIT={name}"),
+            OwningUnit::User(name) => format!("_SYSTEMD_USER_UNIT={name}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct Stamped(SystemTime);
+
+    impl JournalEvent for Stamped {
+        const NAME: &'static str = "stamped";
+        const OPENS_USER_JOURNALS: bool = false;
+
+        fn add_matches(_journal: &mut Journal) -> io::Result<()> {
+            Ok(())
+        }
+
+        fn from_record(_record: &JournalRecord, at: SystemTime) -> Option<Self> {
+            Some(Self(at))
+        }
+
+        fn at(&self) -> SystemTime {
+            self.0
+        }
+    }
+
+    #[test]
+    fn expired_events_leave_the_window_and_the_next_expiry_follows_the_oldest_survivor() {
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let minutes = |count: u64| start + Duration::from_secs(count * 60);
+        let mut window = EventWindow {
+            events: [0, 10, 30].map(|at| Stamped(minutes(at))).into(),
+        };
+        let now = minutes(65);
+        assert!(window.drop_expired(now));
+        assert_eq!(window.events, [Stamped(minutes(10)), Stamped(minutes(30))]);
+        assert_eq!(
+            window.time_until_next_expiry(now),
+            Some(Duration::from_mins(5))
+        );
+        assert!(!window.drop_expired(now));
+    }
 }

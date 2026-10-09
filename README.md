@@ -121,9 +121,12 @@ process.
 
 ### Out of sight
 
-- **Systemd health.** Failed units and kernel errors appear as a group of their
-  own, which opens the journal for them. It only shows up when something is
-  wrong.
+- **Systemd units.** Failed system and user units, each raising its own toast
+  that closes once the unit recovers. Clicking opens the journal for them.
+- **Journal events.** Kernel errors, coredumps, OOM kills and service errors
+  from the last hour, each opening its journal on click.
+
+Both only show up when something is wrong.
 - **Notifications.** The speech bubble next to the clock.
 
 ## Run

@@ -29,7 +29,7 @@ use crate::{
         temperature::SensorConfig,
     },
     data::{
-        sink::{clipboard, sound},
+        sink::sound,
         source::{
             app_icon::{self, DesktopEntries},
             command::blocking::run,
@@ -45,7 +45,7 @@ use crate::{
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
     },
-    message_subscriptions::{blocking, niri_action},
+    message_subscriptions::{blocking, copy_to_clipboard, niri_action},
     state::{
         self, ShellSettings,
         niri_rules::{NiriRulesFile, StoredRules},
@@ -61,7 +61,7 @@ use crate::{
         disk_group::{DiskGroup, DiskMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
-        journal_group::{JournalGroup, JournalMessage},
+        journal_events_group::{JournalEventsGroup, JournalEventsMessage},
         media_group::{self, MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
@@ -71,6 +71,7 @@ use crate::{
         panel_appearance_group::{PanelAppearanceGroup, PanelAppearanceMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
+        systemd_units_group::{SystemdUnitsGroup, SystemdUnitsMessage},
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
         weather_group::{WeatherGroup, WeatherMessage},
@@ -101,7 +102,8 @@ pub struct DesktopShell {
     pub(crate) niri_window_group: NiriWindowGroup,
     pub(crate) clock_group: ClockGroup,
     pub(crate) notification_group: NotificationGroup,
-    pub(crate) journal_group: JournalGroup,
+    pub(crate) systemd_units_group: SystemdUnitsGroup,
+    pub(crate) journal_events_group: JournalEventsGroup,
     pub(crate) internet_group: InternetGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) monitor_group: MonitorGroup,
@@ -142,7 +144,8 @@ pub enum Message {
     NiriWindow(NiriWindowMessage),
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
-    Journal(JournalMessage),
+    SystemdUnits(SystemdUnitsMessage),
+    JournalEvents(JournalEventsMessage),
     Internet(InternetMessage),
     NetInterfaces(NetInterfacesMessage),
     Monitor(MonitorMessage),
@@ -221,7 +224,8 @@ impl DesktopShell {
             niri_window_group: NiriWindowGroup::default(),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
-            journal_group: JournalGroup::default(),
+            systemd_units_group: SystemdUnitsGroup::default(),
+            journal_events_group: JournalEventsGroup::default(),
             internet_group: InternetGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
             monitor_group: MonitorGroup::default(),
@@ -343,7 +347,8 @@ impl DesktopShell {
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
             Message::Clock(msg) => self.update_clock(msg),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
-            Message::Journal(msg) => self.journal_group.update(msg).map(Message::Journal),
+            Message::SystemdUnits(msg) => self.update_systemd_units(msg),
+            Message::JournalEvents(msg) => self.update_journal_events(msg),
             Message::NetInterfaces(msg) => self.update_net_interfaces(msg),
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
@@ -375,9 +380,7 @@ impl DesktopShell {
             }
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
-            Message::CopyText(text) => {
-                blocking("clipboard", move || clipboard::write(&text)).discard()
-            }
+            Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => Task::batch([
                 self.dismiss_tooltip(),
                 blocking("open url", move || run("xdg-open", &[&url])).discard(),
@@ -409,6 +412,18 @@ impl DesktopShell {
             | Message::RedrawWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    fn update_systemd_units(&mut self, msg: SystemdUnitsMessage) -> Task<Message> {
+        self.systemd_units_group
+            .update(msg)
+            .map(Message::SystemdUnits)
+    }
+
+    fn update_journal_events(&mut self, msg: JournalEventsMessage) -> Task<Message> {
+        self.journal_events_group
+            .update(msg)
+            .map(Message::JournalEvents)
     }
 
     fn update_clock(&mut self, msg: ClockMessage) -> Task<Message> {
@@ -676,7 +691,8 @@ impl DesktopShell {
             &mut self.tray_group.expansion,
             &mut self.ai_group.expansion,
             &mut self.notification_group.expansion,
-            &mut self.journal_group.expansion,
+            &mut self.systemd_units_group.expansion,
+            &mut self.journal_events_group.expansion,
         ]
         .map(GroupExpansion::collapse);
     }

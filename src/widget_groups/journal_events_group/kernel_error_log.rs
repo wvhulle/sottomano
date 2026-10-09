@@ -1,35 +1,19 @@
 use crate::{
     data::{
         severity::Severity,
-        source::{
-            journal::KernelSeverity,
-            kernel_errors::{KernelErrors, KernelOccurrence},
-        },
+        source::kernel_errors::{KernelErrors, KernelOccurrence},
     },
+    widget_groups::journal_events_group::MESSAGE_CAP,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, TableRow, TooltipBody, row, section},
+        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, section},
         widget_state::WidgetState,
     },
 };
 
-const MESSAGE_CAP: usize = 200;
 const TOOLTIP_ROWS: usize = 15;
-
-impl KernelSeverity {
-    fn level(self) -> Severity {
-        match self {
-            KernelSeverity::Critical | KernelSeverity::Error => Severity::Critical,
-            KernelSeverity::Warning => Severity::Warning,
-        }
-    }
-
-    fn counts_toward_badge(self) -> bool {
-        self != KernelSeverity::Warning
-    }
-}
 
 impl TableRow for KernelOccurrence {
     const HEADINGS: &'static [&'static str] = &[];
@@ -51,7 +35,13 @@ impl TableRow for KernelOccurrence {
     }
 
     fn level(&self) -> Severity {
-        self.severity.level()
+        self.severity
+    }
+}
+
+impl KernelErrors {
+    pub fn count_row(&self) -> Row {
+        row("Kernel errors", self.occurrences().len().to_string())
     }
 }
 
@@ -64,7 +54,7 @@ impl BarWidget for KernelErrors {
         let distinct = self
             .occurrences()
             .iter()
-            .filter(|occurrence| occurrence.severity.counts_toward_badge())
+            .filter(|occurrence| occurrence.severity == Severity::Critical)
             .count();
         u32::try_from(distinct).ok().filter(|count| *count > 0)
     }
@@ -72,7 +62,7 @@ impl BarWidget for KernelErrors {
     fn state(&self) -> WidgetState {
         self.entries
             .iter()
-            .map(|entry| entry.severity.level())
+            .map(|entry| entry.severity)
             .max()
             .unwrap_or_default()
             .into()
@@ -98,7 +88,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{data::source::journal::KernelEntry, widgets::tooltip_body::SectionBody};
+    use crate::{data::source::kernel_errors::KernelEntry, widgets::tooltip_body::SectionBody};
 
     #[test]
     fn tooltip_lists_latest_messages_oldest_first_after_a_hidden_notice() {
@@ -108,7 +98,7 @@ mod tests {
                 .map(|secs| KernelEntry {
                     at: SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
                     message: format!("message {secs}"),
-                    severity: KernelSeverity::Error,
+                    severity: Severity::Critical,
                 })
                 .collect(),
         };
