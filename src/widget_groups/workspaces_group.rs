@@ -21,8 +21,6 @@ use crate::{
     },
 };
 
-const SUPERSCRIPT_SCALE: f32 = 0.7;
-
 #[derive(Debug, Clone)]
 pub enum WorkspacesMessage {
     Clicked { id: u64, is_active: bool },
@@ -211,7 +209,7 @@ fn has_superscript(p: &niri::WorkspaceIndicator) -> bool {
 
 fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator) -> Text<'a> {
     bar_text(&config.font, p.idx.to_string())
-        .size(config.font.text_size_px * SUPERSCRIPT_SCALE)
+        .size(config.font.small_text_size_px)
         .color(config.palette.inactive)
 }
 

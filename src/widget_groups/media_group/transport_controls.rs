@@ -11,8 +11,6 @@ use crate::{
     },
 };
 
-const SECONDARY_CONTROL_SCALE: f32 = 0.8;
-
 pub struct TransportControls<'c, Message> {
     config: &'c Config,
     media: &'c Media,
@@ -39,10 +37,6 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.config.font.icon_size_px
     }
 
-    fn secondary_size(&self) -> f32 {
-        self.primary_size() * SECONDARY_CONTROL_SCALE
-    }
-
     fn foreground(&self) -> Color {
         WidgetState::On
             .color(&self.config.palette)
@@ -56,7 +50,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         let state = WidgetState::of_toggle(active);
         self.control(
             icon.with_weight(state.weight()),
-            self.secondary_size(),
+            self.primary_size(),
             state.color(&self.config.palette).scale_alpha(self.reveal),
             command,
         )
@@ -96,7 +90,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.media.capabilities.go_previous.then(|| {
             self.control(
                 Phosphor::SkipBack(Weight::Fill),
-                self.secondary_size(),
+                self.primary_size(),
                 self.foreground(),
                 Command::Previous,
             )
@@ -148,7 +142,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.media.capabilities.go_next.then(|| {
             self.control(
                 Phosphor::SkipForward(Weight::Fill),
-                self.secondary_size(),
+                self.primary_size(),
                 self.foreground(),
                 Command::Next,
             )

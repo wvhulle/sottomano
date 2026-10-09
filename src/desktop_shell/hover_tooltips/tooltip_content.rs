@@ -52,7 +52,6 @@ const TRAY_MENU_WIDTH_PX: f32 = 250.0;
 const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
-const FOOTER_SCALE: f32 = 0.85;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
@@ -99,7 +98,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn gesture_hints(&self, gestures: &[GestureHint]) -> Element<'static, Message> {
-        let icon_size = self.config.font.text_size_px * FOOTER_SCALE;
+        let icon_size = self.config.font.small_text_size_px;
         let dim = self.dim();
         container(
             row(gestures.iter().map(|hint| {
@@ -140,7 +139,7 @@ impl<'a> TooltipContent<'a> {
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
         bar_text(&self.config.font, text)
-            .size(self.config.font.text_size_px * FOOTER_SCALE)
+            .size(self.config.font.small_text_size_px)
             .color(self.dim())
     }
 
@@ -226,7 +225,7 @@ impl<'a> TooltipContent<'a> {
         });
         let caption = section.caption.clone().map(|caption| {
             container(self.small_dim_text(caption))
-                .max_width(self.config.widget_sizes.tooltip_value_width_px)
+                .max_width(self.config.widget_sizes.tooltip_caption_width_px)
                 .padding(title_padding)
                 .into()
         });

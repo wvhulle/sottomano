@@ -155,6 +155,7 @@ mod tests {
         let font = ResolvedFont {
             iced_font: Font::DEFAULT,
             text_size_px: 14.0,
+            small_text_size_px: 12.0,
             icon_size_px: 14.0,
             data: Arc::from([].as_slice()),
             covered: Arc::new(HashSet::new()),

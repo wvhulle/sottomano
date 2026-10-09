@@ -20,7 +20,6 @@ use crate::{
 const TILE_GAP_PX: f32 = 3.0;
 const TILE_LABEL_GAP_PX: f32 = 5.0;
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;
-const TILE_LABEL_SCALE: f32 = 0.8;
 const TILE_BORDER_PX: f32 = 2.0;
 const TILE_FILL_ALPHA: f32 = 0.18;
 const TILE_HOVER_FILL_ALPHA: f32 = 0.34;
@@ -150,7 +149,7 @@ impl<'a> WorkspaceSchematic<'a> {
 
     fn label(&self, tile: &PreviewTile) -> Element<'static, Message> {
         rich_text(title_spans(self.config, &tile.title, 1.0))
-            .size(self.config.font.text_size_px * TILE_LABEL_SCALE)
+            .size(self.config.font.small_text_size_px)
             .line_height(LINE_HEIGHT)
             .wrapping(Wrapping::WordOrGlyph)
             .into()
