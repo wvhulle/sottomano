@@ -1,30 +1,25 @@
 use iced::Task;
 
-use crate::{config::Config, data::source::niri, message_subscriptions::blocking};
+use crate::{config::Config, widget_groups::terminal_command::TerminalCommand};
 
 #[derive(Debug, Clone)]
 pub struct TerminalJournal {
-    command: Vec<String>,
+    terminal: TerminalCommand,
 }
 
 impl TerminalJournal {
     pub fn following(config: &Config, journalctl_args: Vec<String>) -> Self {
         Self {
-            command: config
-                .terminal_command_prefix
-                .iter()
-                .cloned()
-                .chain(["journalctl".to_string()])
-                .chain(journalctl_args)
-                .collect(),
+            terminal: TerminalCommand::running(
+                config,
+                ["journalctl".to_string()]
+                    .into_iter()
+                    .chain(journalctl_args),
+            ),
         }
     }
 
     pub fn open<M: Send + 'static>(self) -> Task<M> {
-        let command = self.command;
-        blocking("journal log terminal", move || {
-            niri::send_action(&niri_ipc::Action::Spawn { command });
-        })
-        .discard()
+        self.terminal.open()
     }
 }

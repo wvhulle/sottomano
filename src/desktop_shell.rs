@@ -69,6 +69,7 @@ use crate::{
         notification_group::{NotificationGroup, NotificationGroupMessage},
         overlay_group::{self, OverlayGroup, OverlayMessage},
         panel_appearance_group::{PanelAppearanceGroup, PanelAppearanceMessage},
+        pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
         systemd_units_group::{SystemdUnitsGroup, SystemdUnitsMessage},
@@ -104,6 +105,7 @@ pub struct DesktopShell {
     pub(crate) notification_group: NotificationGroup,
     pub(crate) systemd_units_group: SystemdUnitsGroup,
     pub(crate) journal_events_group: JournalEventsGroup,
+    pub(crate) pending_upgrades_group: PendingUpgradesGroup,
     pub(crate) internet_group: InternetGroup,
     pub(crate) net_interfaces_group: NetInterfacesGroup,
     pub(crate) monitor_group: MonitorGroup,
@@ -146,6 +148,7 @@ pub enum Message {
     NotificationGroup(NotificationGroupMessage),
     SystemdUnits(SystemdUnitsMessage),
     JournalEvents(JournalEventsMessage),
+    PendingUpgrades(PendingUpgradesMessage),
     Internet(InternetMessage),
     NetInterfaces(NetInterfacesMessage),
     Monitor(MonitorMessage),
@@ -226,6 +229,7 @@ impl DesktopShell {
             notification_group: NotificationGroup::default(),
             systemd_units_group: SystemdUnitsGroup::default(),
             journal_events_group: JournalEventsGroup::default(),
+            pending_upgrades_group: PendingUpgradesGroup::default(),
             internet_group: InternetGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
             monitor_group: MonitorGroup::default(),
@@ -349,6 +353,7 @@ impl DesktopShell {
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::SystemdUnits(msg) => self.update_systemd_units(msg),
             Message::JournalEvents(msg) => self.update_journal_events(msg),
+            Message::PendingUpgrades(msg) => self.update_pending_upgrades(msg),
             Message::NetInterfaces(msg) => self.update_net_interfaces(msg),
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
@@ -418,6 +423,12 @@ impl DesktopShell {
         self.systemd_units_group
             .update(msg)
             .map(Message::SystemdUnits)
+    }
+
+    fn update_pending_upgrades(&mut self, msg: PendingUpgradesMessage) -> Task<Message> {
+        self.pending_upgrades_group
+            .update(msg)
+            .map(Message::PendingUpgrades)
     }
 
     fn update_journal_events(&mut self, msg: JournalEventsMessage) -> Task<Message> {
@@ -693,6 +704,7 @@ impl DesktopShell {
             &mut self.notification_group.expansion,
             &mut self.systemd_units_group.expansion,
             &mut self.journal_events_group.expansion,
+            &mut self.pending_upgrades_group.expansion,
         ]
         .map(GroupExpansion::collapse);
     }
