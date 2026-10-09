@@ -5,6 +5,7 @@ pub mod tailscale_mesh_tooltip;
 pub mod wireguard_tunnel_tooltip;
 
 use crate::{
+    config::Config,
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
@@ -15,11 +16,13 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+        },
     },
 };
 
@@ -122,26 +125,54 @@ impl InternetGroup {
         }
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, InternetMessage> {
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, InternetMessage>> {
         let tunnels = self
             .wireguard
             .get()
             .map_or(&[][..], |wireguard| &wireguard.tunnels);
-        WidgetGroup::new(&self.expansion, InternetMessage::Expansion)
-            .icon(Phosphor::ArrowsDownUp(Weight::Regular))
-            .previewed_reading(self.total.display(), HoverTarget::InternetTotal)
-            .reading(self.down.display(), HoverTarget::InternetDown)
-            .reading(self.up.display(), HoverTarget::InternetUp)
-            .items(tunnels.iter().map(|tunnel| {
-                GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
-                    .on_right_press(
-                        "disconnect the tunnel",
-                        InternetMessage::Disconnect(tunnel.name.clone()),
-                    )
-            }))
-            .item(self.tailscale.display().map(|tailscale| {
-                GroupItem::reading(tailscale, HoverTarget::Tailscale)
-                    .on_press("open Tailscale", InternetMessage::OpenTailscale)
-            }))
+        let tunnel_items = tunnels.iter().map(|tunnel| {
+            Some(GroupItem {
+                on_right_press: Some(Press {
+                    does: "disconnect the tunnel",
+                    message: InternetMessage::Disconnect(tunnel.name.clone()),
+                }),
+                ..GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
+            })
+        });
+        let tailscale_item = self.tailscale.display().map(|tailscale| GroupItem {
+            on_press: Some(Press {
+                does: "open Tailscale",
+                message: InternetMessage::OpenTailscale,
+            }),
+            ..GroupItem::reading(tailscale, HoverTarget::Tailscale)
+        });
+        let items: Vec<Option<GroupItem<'a, InternetMessage>>> = [
+            self.down.reading_item(HoverTarget::InternetDown),
+            self.up.reading_item(HoverTarget::InternetUp),
+        ]
+        .into_iter()
+        .chain(tunnel_items)
+        .chain([tailscale_item])
+        .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            InternetMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::ArrowsDownUp(Weight::Regular).into()),
+                preview: self
+                    .total
+                    .display()
+                    .map(|widget| PreviewedValue::Hoverable {
+                        widget,
+                        target: HoverTarget::InternetTotal,
+                    }),
+                forwards_scroll: false,
+            },
+            &items,
+        )
     }
 }

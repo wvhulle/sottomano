@@ -13,7 +13,9 @@ use crate::{
         flat_button,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, WidgetGroup,
+        },
     },
 };
 
@@ -73,22 +75,31 @@ impl QuickLaunch {
         index: &'a DesktopIndex,
         output: &str,
         config: &'a Config,
-    ) -> WidgetGroup<'a, QuickLaunchMessage> {
+    ) -> Option<WidgetGroup<'a, QuickLaunchMessage>> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
-        WidgetGroup::new(&self.expansion, QuickLaunchMessage::Expansion)
-            .icon(Phosphor::Rocket(Weight::Regular))
-            .items(
-                app_ids
-                    .iter()
-                    .filter_map(|app_id| {
-                        icon_slot(config, index, app_id, 1.0)?;
-                        Some(GroupItem::element(move |reveal| {
-                            icon_slot(config, index, app_id, reveal)
-                                .unwrap_or_else(|| Row::new().into())
-                        }))
-                    })
-                    .take(MAX_ITEMS),
-            )
+        let items: Vec<GroupItem<'a, QuickLaunchMessage>> = app_ids
+            .iter()
+            .filter_map(|app_id| {
+                icon_slot(config, index, app_id, 1.0)?;
+                Some(GroupItem::element(move |reveal| {
+                    icon_slot(config, index, app_id, reveal)
+                        .unwrap_or_else(|| Row::new().into())
+                        .map(GroupEvent::Group)
+                }))
+            })
+            .take(MAX_ITEMS)
+            .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            QuickLaunchMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Rocket(Weight::Regular).into()),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &items,
+        )
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, TableRow, TooltipBody, row, untitled},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -102,11 +102,12 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(
-            [untitled(vec![row("CPU", percent_text(self.busy))])]
-                .into_iter()
-                .chain(sections_by_core_kind(&self.topology, self.core_readings()))
-                .collect(),
+        TooltipBody::sections(
+            &[
+                vec![Section::untitled(&[("CPU", percent_text(self.busy))])],
+                sections_by_core_kind(&self.topology, self.core_readings()),
+            ]
+            .concat(),
         )
     }
 }

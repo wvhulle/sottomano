@@ -9,8 +9,8 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::icon_toggle_item,
-        tooltip_body::{Tooltip, row},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -21,35 +21,35 @@ pub enum Action {
 }
 
 fn disconnected_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::table(vec![row(
+    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
         "Groups",
         if shell_layout.disconnected_groups {
             "separate frames"
         } else {
             "one bar"
         },
-    )])
+    )])]))
 }
 
 fn auto_collapse_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::table(vec![row(
+    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
         "Groups",
         if shell_layout.auto_collapse_groups {
             "collapse when another window takes focus"
         } else {
             "stay open until the handle is clicked"
         },
-    )])
+    )])]))
 }
 
 fn workspaces_placement_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::table(vec![row(
+    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
         "Workspaces",
         match shell_layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
             WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
         },
-    )])
+    )])]))
 }
 
 pub struct ShellLayoutGroup {
@@ -88,10 +88,9 @@ impl ShellLayoutGroup {
             HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(shell_layout)),
             HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(shell_layout)),
             HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(shell_layout)),
-            HoverTarget::FloatOffset => Some(Tooltip::table(vec![row(
-                "Offset",
-                self.float_offset.readout_text(),
-            )])),
+            HoverTarget::FloatOffset => Some(Tooltip::of(TooltipBody::sections(&[
+                Section::untitled(&[("Offset", self.float_offset.readout_text())]),
+            ]))),
             _ => None,
         }
     }
@@ -162,34 +161,40 @@ impl ShellLayoutGroup {
         &'a self,
         config: &'a Config,
         shell_layout: &ShellLayout,
-    ) -> WidgetGroup<'a, ShellLayoutMessage> {
-        WidgetGroup::new(&self.expansion, ShellLayoutMessage::Expansion)
-            .icon(Phosphor::Layout(Weight::Regular))
-            .item(icon_toggle_item(
-                config,
-                Phosphor::Pill(Weight::Regular),
-                shell_layout.disconnected_groups,
-                ShellLayoutMessage::ToggleDisconnectedGroups,
-                HoverTarget::DisconnectedGroups,
-            ))
-            .item(icon_toggle_item(
-                config,
-                Phosphor::PushPin(Weight::Regular),
-                !shell_layout.auto_collapse_groups,
-                ShellLayoutMessage::ToggleAutoCollapseGroups,
-                HoverTarget::AutoCollapseGroups,
-            ))
-            .item(icon_toggle_item(
-                config,
-                Phosphor::SidebarSimple(Weight::Regular),
-                shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
-                ShellLayoutMessage::ToggleWorkspacesPlacement,
-                HoverTarget::WorkspacesPlacement,
-            ))
-            .item(GroupItem::slider(
-                &self.float_offset,
-                config,
-                ShellLayoutMessage::FloatOffset,
-            ))
+    ) -> Option<WidgetGroup<'a, ShellLayoutMessage>> {
+        WidgetGroup::new(
+            &self.expansion,
+            ShellLayoutMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Layout(Weight::Regular).into()),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &[
+                icon_toggle_item(
+                    config,
+                    Phosphor::Pill(Weight::Regular),
+                    shell_layout.disconnected_groups,
+                    ShellLayoutMessage::ToggleDisconnectedGroups,
+                    HoverTarget::DisconnectedGroups,
+                ),
+                icon_toggle_item(
+                    config,
+                    Phosphor::PushPin(Weight::Regular),
+                    !shell_layout.auto_collapse_groups,
+                    ShellLayoutMessage::ToggleAutoCollapseGroups,
+                    HoverTarget::AutoCollapseGroups,
+                ),
+                icon_toggle_item(
+                    config,
+                    Phosphor::SidebarSimple(Weight::Regular),
+                    shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
+                    ShellLayoutMessage::ToggleWorkspacesPlacement,
+                    HoverTarget::WorkspacesPlacement,
+                ),
+                GroupItem::slider(&self.float_offset, config, ShellLayoutMessage::FloatOffset),
+            ],
+        )
     }
 }

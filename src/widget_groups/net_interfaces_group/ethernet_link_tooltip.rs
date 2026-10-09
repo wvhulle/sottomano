@@ -7,7 +7,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         hardware_section::HardwareRows,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody, row, section},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -24,24 +24,24 @@ impl BarWidget for Ethernet {
     fn tooltip(&self) -> TooltipBody {
         let connected = self.connected_count();
         if connected == 0 {
-            return TooltipBody::rows(
-                self.links
-                    .iter()
-                    .map(|link| row(&link.name, "disconnected"))
-                    .collect(),
-            );
-        }
-        TooltipBody::Sections(
-            self.links
+            let disconnected: Vec<(&str, &str)> = self
+                .links
                 .iter()
-                .filter(|link| link.connected)
-                .flat_map(|link| link_sections(link, connected > 1))
-                .collect(),
-        )
+                .map(|link| (link.name.as_str(), "disconnected"))
+                .collect();
+            return TooltipBody::sections(&[Section::untitled(&disconnected)]);
+        }
+        let sections: Vec<Section> = self
+            .links
+            .iter()
+            .filter(|link| link.connected)
+            .flat_map(|link| link_sections(link, connected > 1))
+            .collect();
+        TooltipBody::sections(&sections)
     }
 }
 
-fn link_sections(link: &Link, prefixed: bool) -> Vec<Section> {
+fn link_sections(link: &Link, prefixed: bool) -> [Section; 6] {
     let key = |label: &str| {
         if prefixed {
             format!("{} {label}", link.name)
@@ -49,19 +49,19 @@ fn link_sections(link: &Link, prefixed: bool) -> Vec<Section> {
             label.to_string()
         }
     };
-    let mut identity = vec![row("Interface Name", link.name.clone())];
-    identity.extend(
-        link.connection
-            .as_ref()
-            .map(|connection| row("Network Profile", connection.clone())),
-    );
-    identity.extend(link.mac.as_ref().map(|mac| row("MAC Address", mac.clone())));
-    vec![
-        section(key("Identity"), identity),
+    [
+        Section::titled(
+            key("Identity"),
+            &[
+                ("Interface Name", Some(link.name.clone())),
+                ("Network Profile", link.connection.clone()),
+                ("MAC Address", link.mac.clone()),
+            ],
+        ),
         address_section(&key, "IPv4", link.ipv4.as_ref()),
         address_section(&key, "IPv6", link.ipv6.as_ref()),
         dns_section(&key, &link.dns),
         link_stats_section(&key, "Link", "Link Speed", link.speed, link.mtu),
-        section(key("Hardware"), link.adapter.as_ref().hardware_rows()),
+        Section::titled(key("Hardware"), &link.adapter.hardware_rows()),
     ]
 }

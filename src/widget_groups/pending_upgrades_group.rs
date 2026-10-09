@@ -15,8 +15,8 @@ use crate::{
         group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
-        tooltip_body::{Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -68,24 +68,28 @@ impl PendingUpgradesGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, PendingUpgradesMessage> {
-        let summary = self
-            .categories()
-            .iter()
-            .any(Option::is_some)
-            .then_some(self as &dyn BarWidget);
-        WidgetGroup::new(&self.expansion, PendingUpgradesMessage::Expansion)
-            .reading(summary, HoverTarget::PendingUpgrades)
-            .item(
+    ) -> Option<WidgetGroup<'a, PendingUpgradesMessage>> {
+        if !self.categories().iter().any(Option::is_some) {
+            return None;
+        }
+        WidgetGroup::new(
+            &self.expansion,
+            PendingUpgradesMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(GroupItem::reading(self, HoverTarget::PendingUpgrades)),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &[
                 self.firmware
                     .get()
                     .map(|firmware| firmware.group_item(config)),
-            )
-            .item(
                 self.firmware
                     .failure()
                     .map(|failure| GroupItem::reading(failure, HoverTarget::FirmwareUpgrades)),
-            )
+            ],
+        )
     }
 
     fn categories(&self) -> [Option<&dyn BarWidget>; 1] {
@@ -119,12 +123,11 @@ impl BarWidget for PendingUpgradesGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(
+        TooltipBody::sections(&[Section::untitled(&[(
+            firmware_upgrade_list::LABEL,
             self.firmware
                 .get()
-                .map(FirmwareUpgradeList::count_row)
-                .into_iter()
-                .collect(),
-        )
+                .map(|firmware| firmware.count().to_string()),
+        )])])
     }
 }

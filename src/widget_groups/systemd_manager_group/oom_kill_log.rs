@@ -1,13 +1,19 @@
 use crate::{
+    config::Config,
     data::{
         severity::Severity,
         source::oom_kills::{OomKillEntry, OomKiller, OomKills},
     },
+    desktop_shell::hover_tooltips::HoverTarget,
+    widget_groups::{
+        systemd_manager_group::SystemdManagerMessage, terminal_journal::TerminalJournal,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        group_item::{GroupItem, Press},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -41,8 +47,17 @@ impl TableRow for OomKillEntry {
 }
 
 impl OomKills {
-    pub fn count_row(&self) -> Row {
-        row("OOM kills", self.entries.len().to_string())
+    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+        GroupItem {
+            on_press: Some(Press {
+                does: TerminalJournal::PRESS_HINT,
+                message: SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                    config,
+                    OomKills::follow_log_args(),
+                )),
+            }),
+            ..GroupItem::reading(self, HoverTarget::SystemdOomKills)
+        }
     }
 }
 
@@ -65,10 +80,12 @@ impl BarWidget for OomKills {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            table_section("OOM kills", self.entries.iter().cloned()).with_caption(
+        TooltipBody::sections(&[Section::table(
+            (
+                "OOM kills",
                 "Units whose processes were killed for lack of memory in the last hour.",
             ),
-        ])
+            &self.entries,
+        )])
     }
 }

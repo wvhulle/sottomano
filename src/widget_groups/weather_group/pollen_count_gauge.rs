@@ -5,7 +5,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{TooltipBody, row},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -88,17 +88,17 @@ impl BarWidget for AllergenConcentration {
 
     fn tooltip(&self) -> TooltipBody {
         let thresholds = self.thresholds();
-        TooltipBody::rows(vec![
-            row(
+        TooltipBody::sections(&[Section::untitled(&[
+            (
                 self.allergen.name(),
                 format!("{:.1} grains/m³", self.grains_per_cubic_metre),
             ),
-            row(
+            (
                 "Moderate from",
                 format!("{} grains/m³", thresholds.moderate),
             ),
-            row("High from", format!("{} grains/m³", thresholds.high)),
-        ])
+            ("High from", format!("{} grains/m³", thresholds.high)),
+        ])])
     }
 }
 
@@ -112,7 +112,7 @@ impl BarWidget for Pollen {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(Vec::new())
+        TooltipBody::sections(&[])
     }
 }
 

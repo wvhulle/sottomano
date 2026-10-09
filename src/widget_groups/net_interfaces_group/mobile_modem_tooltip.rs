@@ -8,7 +8,7 @@ use crate::{
         gauge::percent_fill,
         hardware_section::HardwareRows,
         phosphor::Phosphor,
-        tooltip_body::{Row, Section, TooltipBody, row, section},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -33,87 +33,57 @@ impl BarWidget for Mobile {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            section("Modem", modem_rows(self)),
+        let signal_suffix = if self.signal_recent { "" } else { " (cached)" };
+        TooltipBody::sections(&[
+            Section::titled(
+                "Modem",
+                &[
+                    ("Carrier", self.operator.clone()),
+                    (
+                        "Network Type",
+                        (!self.technology.is_empty()).then(|| self.technology.join(", ")),
+                    ),
+                    (
+                        "Signal Strength",
+                        self.signal
+                            .map(|signal| format!("{signal}%{signal_suffix}")),
+                    ),
+                    ("Network Registration", self.registration.clone()),
+                ],
+            ),
             if self.state == CONNECTED {
-                address_section(self)
+                Section::titled(
+                    "Address",
+                    &[("IPv4 Address", &self.ipv4), ("IPv6 Address", &self.ipv6)],
+                )
             } else {
-                status_section(self)
+                Section::titled(
+                    "Status",
+                    &[
+                        ("Connection State", Some(self.state.clone())),
+                        (
+                            "Failure Reason",
+                            self.failed_reason
+                                .clone()
+                                .filter(|_| self.state == "failed"),
+                        ),
+                    ],
+                )
             },
-            section("Data", transfer_rows(self)),
+            Section::titled(
+                "Data",
+                &[
+                    (
+                        "Received (RX)",
+                        self.rx.map(|rx| rx.display().iec().to_string()),
+                    ),
+                    (
+                        "Sent (TX)",
+                        self.tx.map(|tx| tx.display().iec().to_string()),
+                    ),
+                ],
+            ),
             self.identity.hardware_section(),
         ])
     }
-}
-
-fn modem_rows(mobile: &Mobile) -> Vec<Row> {
-    let mut rows = Vec::new();
-    rows.extend(
-        mobile
-            .operator
-            .as_ref()
-            .map(|operator| row("Carrier", operator.clone())),
-    );
-    if !mobile.technology.is_empty() {
-        rows.push(row("Network Type", mobile.technology.join(", ")));
-    }
-    rows.extend(mobile.signal.map(|signal| {
-        let suffix = if mobile.signal_recent {
-            ""
-        } else {
-            " (cached)"
-        };
-        row("Signal Strength", format!("{signal}%{suffix}"))
-    }));
-    rows.extend(
-        mobile
-            .registration
-            .as_ref()
-            .map(|registration| row("Network Registration", registration.clone())),
-    );
-    rows
-}
-
-fn address_section(mobile: &Mobile) -> Section {
-    let mut rows = Vec::new();
-    rows.extend(
-        mobile
-            .ipv4
-            .as_ref()
-            .map(|ip| row("IPv4 Address", ip.clone())),
-    );
-    rows.extend(
-        mobile
-            .ipv6
-            .as_ref()
-            .map(|ip| row("IPv6 Address", ip.clone())),
-    );
-    section("Address", rows)
-}
-
-fn status_section(mobile: &Mobile) -> Section {
-    let mut rows = vec![row("Connection State", mobile.state.clone())];
-    if mobile.state == "failed" {
-        rows.extend(
-            mobile
-                .failed_reason
-                .as_ref()
-                .map(|reason| row("Failure Reason", reason.clone())),
-        );
-    }
-    section("Status", rows)
-}
-
-fn transfer_rows(mobile: &Mobile) -> Vec<Row> {
-    [
-        mobile
-            .rx
-            .map(|rx| row("Received (RX)", rx.display().iec().to_string())),
-        mobile
-            .tx
-            .map(|tx| row("Sent (TX)", tx.display().iec().to_string())),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
 }

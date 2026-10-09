@@ -12,7 +12,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, section},
+        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -29,27 +29,27 @@ fn limit_level(limit: FrequencyLimit) -> Severity {
 }
 
 impl CpuClock {
-    fn summary_rows(&self) -> Vec<Row> {
-        [
-            self.lowest()
-                .map(|lowest| row("min", frequency_text(lowest))),
-            self.average()
-                .map(|average| row("avg", frequency_text(average))),
-            self.highest()
-                .map(|highest| row("max", frequency_text(highest))),
-            self.capped_summary(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+    fn frequency_section(&self) -> Section {
+        Section::titled(
+            "Frequency",
+            &[
+                ("min", self.lowest().map(frequency_text)).into(),
+                ("avg", self.average().map(frequency_text)).into(),
+                ("max", self.highest().map(frequency_text)).into(),
+                self.capped_summary(),
+            ],
+        )
     }
 
-    fn capped_summary(&self) -> Option<Row> {
+    fn capped_summary(&self) -> Row {
         let capped = self.capped_cores();
-        (capped > 0).then(|| Row {
-            level: Severity::Warning,
-            ..row("capped", format!("{capped} of {} cores", self.cores.len()))
-        })
+        Row::new(
+            "capped",
+            &[(capped > 0)
+                .then(|| format!("{capped} of {} cores", self.cores.len()))
+                .into()],
+            Severity::Warning,
+        )
     }
 }
 
@@ -71,11 +71,12 @@ impl BarWidget for CpuClock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(
-            [section("Frequency", self.summary_rows())]
-                .into_iter()
-                .chain(sections_by_core_kind(&self.topology, self.cores.clone()))
-                .collect(),
+        TooltipBody::sections(
+            &[
+                vec![self.frequency_section()],
+                sections_by_core_kind(&self.topology, self.cores.clone()),
+            ]
+            .concat(),
         )
     }
 }

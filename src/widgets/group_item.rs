@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use chrono::Locale;
 use iced::{
     Element,
@@ -19,9 +21,9 @@ use crate::{
     },
 };
 
-type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawItem<'a, M> = Rc<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 
-enum ItemKind<'a, M> {
+pub(crate) enum ItemKind<'a, M> {
     Reading {
         widget: &'a dyn BarWidget,
         target: HoverTarget,
@@ -36,12 +38,42 @@ enum ItemKind<'a, M> {
     },
 }
 
+impl<M> Clone for ItemKind<'_, M> {
+    fn clone(&self) -> Self {
+        match self {
+            ItemKind::Reading { widget, target } => ItemKind::Reading {
+                widget: *widget,
+                target: target.clone(),
+            },
+            ItemKind::Control {
+                widget,
+                target,
+                draw,
+            } => ItemKind::Control {
+                widget: *widget,
+                target: target.clone(),
+                draw: Rc::clone(draw),
+            },
+            ItemKind::Element { draw } => ItemKind::Element {
+                draw: Rc::clone(draw),
+            },
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Press<M> {
+    pub does: &'static str,
+    pub message: M,
+}
+
+#[derive(Clone)]
 pub struct GroupItem<'a, M> {
-    kind: ItemKind<'a, M>,
-    on_press: Option<M>,
-    on_right_press: Option<M>,
-    press_hints: PressHints,
-    alert_action_buttons: Vec<ReadingAlertActionButton<M>>,
+    pub(crate) kind: ItemKind<'a, M>,
+    pub on_press: Option<Press<M>>,
+    pub on_right_press: Option<Press<M>>,
+    pub alert_action_buttons: Vec<ReadingAlertActionButton<M>>,
+    pub alerts: Vec<ReadingAlert<M>>,
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
@@ -50,8 +82,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind,
             on_press: None,
             on_right_press: None,
-            press_hints: PressHints::default(),
             alert_action_buttons: Vec::new(),
+            alerts: Vec::new(),
         }
     }
 
@@ -67,7 +99,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self::of_kind(ItemKind::Control {
             widget,
             target,
-            draw: Box::new(draw),
+            draw: Rc::new(draw),
         })
     }
 
@@ -92,47 +124,27 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         target: HoverTarget,
         on_toggle: impl Fn(ToggleMessage<S>) -> M,
     ) -> Option<Self> {
-        toggle.reading().map(|reading| {
-            Self::reading(reading, target)
-                .on_press(TOGGLE_PRESS_HINT, on_toggle(ToggleMessage::Press))
+        toggle.reading().map(|reading| Self {
+            on_press: Some(Press {
+                does: TOGGLE_PRESS_HINT,
+                message: on_toggle(ToggleMessage::Press),
+            }),
+            ..Self::reading(reading, target)
         })
     }
 
-    pub fn element(draw: impl Fn(f32) -> Element<'a, M> + 'a) -> Self {
-        Self::hoverable_element(move |reveal| draw(reveal).map(GroupEvent::Group))
-    }
-
-    pub fn hoverable_element(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
+    pub fn element(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
         Self::of_kind(ItemKind::Element {
-            draw: Box::new(draw),
+            draw: Rc::new(draw),
         })
     }
 
-    #[must_use]
-    pub fn on_press(mut self, does: &'static str, message: M) -> Self {
-        self.on_press = Some(message);
-        self.press_hints.left = Some(does);
-        self
-    }
-
-    #[must_use]
-    pub fn on_right_press(mut self, does: &'static str, message: M) -> Self {
-        self.on_right_press = Some(message);
-        self.press_hints.right = Some(does);
-        self
-    }
-
-    #[must_use]
-    pub fn alert_action_button(
-        mut self,
-        button_label: impl Into<String>,
-        on_button_pressed: M,
-    ) -> Self {
-        self.alert_action_buttons.push(ReadingAlertActionButton {
-            button_label: button_label.into(),
-            on_button_pressed,
-        });
-        self
+    fn press_hints(&self) -> PressHints {
+        PressHints {
+            left: self.on_press.as_ref().map(|press| press.does),
+            right: self.on_right_press.as_ref().map(|press| press.does),
+            ..PressHints::default()
+        }
     }
 
     pub(super) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
@@ -184,21 +196,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             ItemKind::Reading { widget, target } => hoverable(
                 source_reading(config, Some(*widget), reveal)?,
                 target.clone(),
-                self.press_hints,
+                self.press_hints(),
                 GroupEvent::Tooltip,
             ),
             ItemKind::Control { draw, .. } | ItemKind::Element { draw } => draw(reveal),
         };
-        if let Some(message) = self.on_press.clone() {
+        if let Some(press) = self.on_press.clone() {
             element = button(element)
                 .padding(0)
                 .style(flat_button(config.palette.bar_foreground))
-                .on_press(GroupEvent::Group(message))
+                .on_press(GroupEvent::Group(press.message))
                 .into();
         }
-        if let Some(message) = self.on_right_press.clone() {
+        if let Some(press) = self.on_right_press.clone() {
             element = mouse_area(element)
-                .on_right_press(GroupEvent::Group(message))
+                .on_right_press(GroupEvent::Group(press.message))
                 .into();
         }
         Some(element)

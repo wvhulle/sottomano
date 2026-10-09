@@ -14,11 +14,11 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         localized_time::TimePart,
         phosphor::Phosphor,
         reading_alert::ReadingAlert,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -59,20 +59,19 @@ impl TableRow for SlowJob {
 
 impl<S: ScopeAppearance> SlowJobs<S> {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, S::SLOW_JOBS_TARGET).on_press(
-            TerminalJournal::PRESS_HINT,
-            SystemdManagerMessage::OpenLog(TerminalJournal::following(
-                config,
-                self.follow_log_args(),
-            )),
-        )
+        let open_log =
+            |args| SystemdManagerMessage::OpenLog(TerminalJournal::following(config, args));
+        GroupItem {
+            on_press: Some(Press {
+                does: TerminalJournal::PRESS_HINT,
+                message: open_log(self.follow_log_args()),
+            }),
+            alerts: self.job_alerts(open_log, config.locale).collect(),
+            ..GroupItem::reading(self, S::SLOW_JOBS_TARGET)
+        }
     }
 
-    pub fn count_row(&self) -> Row {
-        row(S::SLOW_JOBS_LABEL, self.jobs.len().to_string())
-    }
-
-    pub fn job_alerts<M>(
+    fn job_alerts<M>(
         &self,
         open_log: impl Fn(Vec<String>) -> M,
         locale: Locale,
@@ -106,10 +105,12 @@ impl<S: ScopeAppearance> BarWidget for SlowJobs<S> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            table_section(S::SLOW_JOBS_LABEL, self.jobs.iter().cloned()).with_caption(
+        TooltipBody::sections(&[Section::table(
+            (
+                S::SLOW_JOBS_LABEL,
                 "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
             ),
-        ])
+            &self.jobs,
+        )])
     }
 }

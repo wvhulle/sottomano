@@ -6,7 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -35,25 +35,29 @@ impl BarWidget for ClaudeEnterpriseSpend {
             ExtraStatus::Enabled => "enabled".to_owned(),
             ExtraStatus::Disabled(reason) => reason.clone(),
         };
-        let organization = untitled(vec![
-            row("Organization", self.organization.clone()),
-            row("Seat Tier", self.seat_tier.clone()),
-            row("Subscription Status", self.subscription_status.clone()),
+        let organization = Section::untitled(&[
+            ("Organization", self.organization.clone()),
+            ("Seat Tier", self.seat_tier.clone()),
+            ("Subscription Status", self.subscription_status.clone()),
         ]);
-        let credit_rows = [
-            Some(row("Status", status)),
-            Some(row("Used This Month", self.used.to_string())),
-            self.limit
-                .as_ref()
-                .map(|limit| row("Monthly Limit", limit.to_string())),
-            self.limit
-                .as_ref()
-                .map(|_| row("Percent Used", percent_text(self.used_percent))),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        TooltipBody::Sections(vec![organization, section("Usage Credits", credit_rows)])
+        TooltipBody::sections(&[
+            organization,
+            Section::titled(
+                "Usage Credits",
+                &[
+                    ("Status", Some(status)),
+                    ("Used This Month", Some(self.used.to_string())),
+                    (
+                        "Monthly Limit",
+                        self.limit.as_ref().map(ToString::to_string),
+                    ),
+                    (
+                        "Percent Used",
+                        self.limit.as_ref().map(|_| percent_text(self.used_percent)),
+                    ),
+                ],
+            ),
+        ])
     }
 }
 

@@ -13,7 +13,7 @@ use crate::{
         gauge::percent_fill,
         hardware_section::HardwareRows,
         phosphor::Phosphor,
-        tooltip_body::{TooltipBody, row, section},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -34,44 +34,37 @@ impl BarWidget for Wifi {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        self.link_tooltip()
-            .with_section(self.adapter.as_ref().hardware_section())
-    }
-}
-
-impl Wifi {
-    fn link_tooltip(&self) -> TooltipBody {
+        let hardware = self.adapter.hardware_section();
         let Some(link) = &self.link else {
-            return TooltipBody::rows(vec![row("WiFi", "disconnected")]);
+            return TooltipBody::sections(&[
+                Section::untitled(&[("WiFi", "disconnected")]),
+                hardware,
+            ]);
         };
         let key = |label: &str| label.to_string();
-        let mut identity = Vec::new();
-        identity.extend(
-            link.ssid
-                .as_ref()
-                .map(|ssid| row("Network Name (SSID)", ssid.clone())),
-        );
-        identity.push(row("Signal Strength", format!("{}%", link.signal)));
-        identity.extend(
-            link.security
-                .as_ref()
-                .map(|security| row("Security Type", security.clone())),
-        );
-        identity.push(row(
-            "Frequency Band",
-            format!(
-                "{:.0}",
-                link.frequency.into_format_args(megahertz, Abbreviation)
+        TooltipBody::sections(&[
+            Section::titled(
+                "Identity",
+                &[
+                    ("Network Name (SSID)", link.ssid.clone()),
+                    ("Signal Strength", Some(format!("{}%", link.signal))),
+                    ("Security Type", link.security.clone()),
+                    (
+                        "Frequency Band",
+                        Some(format!(
+                            "{:.0}",
+                            link.frequency.into_format_args(megahertz, Abbreviation)
+                        )),
+                    ),
+                    ("Interface Name", Some(self.device.clone())),
+                    ("MAC Address", link.mac.clone()),
+                ],
             ),
-        ));
-        identity.push(row("Interface Name", self.device.clone()));
-        identity.extend(link.mac.as_ref().map(|mac| row("MAC Address", mac.clone())));
-        TooltipBody::Sections(vec![
-            section("Identity", identity),
             address_section(&key, "IPv4", link.ipv4.as_ref()),
             address_section(&key, "IPv6", link.ipv6.as_ref()),
             dns_section(&key, &link.dns),
             link_stats_section(&key, "Radio", "Radio Speed", link.bitrate, link.mtu),
+            hardware,
         ])
     }
 }

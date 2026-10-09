@@ -29,22 +29,74 @@ pub enum Cell {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
-    pub key: Cell,
-    pub cells: Vec<Cell>,
-    pub level: Severity,
+    key: Cell,
+    cells: Vec<Cell>,
+    level: Severity,
 }
 
 impl Row {
-    #[must_use]
-    pub fn with_hint(mut self, hint: impl Into<String>) -> Self {
-        self.cells.push(Cell::Hint(hint.into()));
-        self
+    pub fn new(key: impl Into<Cell>, cells: &[Cell], level: Severity) -> Self {
+        Self {
+            key: key.into(),
+            cells: cells.to_vec(),
+            level,
+        }
+    }
+
+    pub fn key(&self) -> &Cell {
+        &self.key
+    }
+
+    pub fn cells(&self) -> &[Cell] {
+        &self.cells
+    }
+
+    pub fn level(&self) -> Severity {
+        self.level
+    }
+
+    fn is_reported(&self) -> bool {
+        self.cells.iter().any(|cell| *cell != Cell::Missing)
     }
 }
 
-impl<Text: Into<String>> From<Text> for Cell {
-    fn from(text: Text) -> Self {
-        Cell::Text(text.into())
+impl<Key: Into<Cell>, Value: Into<Cell>> From<(Key, Value)> for Row {
+    fn from((key, value): (Key, Value)) -> Self {
+        Self {
+            key: key.into(),
+            cells: vec![value.into()],
+            level: Severity::Normal,
+        }
+    }
+}
+
+impl From<String> for Cell {
+    fn from(text: String) -> Self {
+        Cell::Text(text)
+    }
+}
+
+impl From<&str> for Cell {
+    fn from(text: &str) -> Self {
+        Cell::Text(text.to_owned())
+    }
+}
+
+impl From<&String> for Cell {
+    fn from(text: &String) -> Self {
+        Cell::Text(text.clone())
+    }
+}
+
+impl<Value: Into<Cell>> From<Option<Value>> for Cell {
+    fn from(value: Option<Value>) -> Self {
+        value.map_or(Cell::Missing, Into::into)
+    }
+}
+
+impl<Value: Clone + Into<Cell>> From<&Option<Value>> for Cell {
+    fn from(value: &Option<Value>) -> Self {
+        value.clone().into()
     }
 }
 
@@ -95,24 +147,14 @@ fn columns<R: TableRow>(rows: impl IntoIterator<Item = R>) -> SectionBody {
     }
 }
 
-pub fn row(key: impl Into<Cell>, value: impl Into<String>) -> Row {
-    cells(key, vec![Cell::Text(value.into())])
-}
-
-pub fn link(key: impl Into<Cell>, url: impl Into<String>) -> Row {
-    cells(key, vec![Cell::Link(url.into())])
-}
-
-pub fn cells(key: impl Into<Cell>, cells: Vec<Cell>) -> Row {
-    Row {
-        key: key.into(),
-        cells,
-        level: Severity::Normal,
-    }
-}
-
-pub fn time_row(key: &str, at: DateTime<Utc>, part: TimePart) -> Row {
-    cells(key, vec![Cell::Time { at, part }])
+fn plain_rows<R: Into<Row> + Clone>(rows: &[R]) -> SectionBody {
+    SectionBody::Rows(
+        rows.iter()
+            .cloned()
+            .map(Into::into)
+            .filter(Row::is_reported)
+            .collect(),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -139,51 +181,92 @@ impl SectionBody {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Section {
-    pub title: Option<String>,
-    pub caption: Option<String>,
-    pub body: SectionBody,
+    heading: Option<Heading>,
+    body: SectionBody,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Heading {
+    title: String,
+    caption: Option<String>,
+}
+
+impl From<&str> for Heading {
+    fn from(title: &str) -> Self {
+        title.to_owned().into()
+    }
+}
+
+impl From<String> for Heading {
+    fn from(title: String) -> Self {
+        Self {
+            title,
+            caption: None,
+        }
+    }
+}
+
+impl<Title: Into<String>, Caption: Into<String>> From<(Title, Caption)> for Heading {
+    fn from((title, caption): (Title, Caption)) -> Self {
+        Self {
+            title: title.into(),
+            caption: Some(caption.into()),
+        }
+    }
 }
 
 impl Section {
-    #[must_use]
-    pub fn with_caption(mut self, caption: impl Into<String>) -> Self {
-        self.caption = Some(caption.into());
-        self
+    pub fn titled<R: Into<Row> + Clone>(heading: impl Into<Heading>, rows: &[R]) -> Self {
+        Self {
+            heading: Some(heading.into()),
+            body: plain_rows(rows),
+        }
     }
-}
 
-pub fn section(title: impl Into<String>, rows: Vec<Row>) -> Section {
-    Section {
-        title: Some(title.into()),
-        caption: None,
-        body: SectionBody::Rows(rows),
+    pub fn untitled<R: Into<Row> + Clone>(rows: &[R]) -> Self {
+        Self {
+            heading: None,
+            body: plain_rows(rows),
+        }
     }
-}
 
-pub fn untitled(rows: Vec<Row>) -> Section {
-    Section {
-        title: None,
-        caption: None,
-        body: SectionBody::Rows(rows),
+    pub fn table<R: TableRow>(
+        heading: impl Into<Heading>,
+        rows: impl IntoIterator<Item = R>,
+    ) -> Self {
+        Self {
+            heading: Some(heading.into()),
+            body: columns(rows),
+        }
     }
-}
 
-pub fn table_section<R: TableRow>(
-    title: impl Into<String>,
-    rows: impl IntoIterator<Item = R>,
-) -> Section {
-    Section {
-        title: Some(title.into()),
-        caption: None,
-        body: columns(rows),
+    pub fn untitled_table<R: TableRow>(rows: impl IntoIterator<Item = R>) -> Self {
+        Self {
+            heading: None,
+            body: columns(rows),
+        }
     }
-}
 
-pub fn tree_section(title: impl Into<String>, root: Process, folding: Folding) -> Section {
-    Section {
-        title: Some(title.into()),
-        caption: None,
-        body: SectionBody::Tree { root, folding },
+    pub fn tree(heading: impl Into<Heading>, root: Option<&Process>, folding: &Folding) -> Self {
+        Self {
+            heading: Some(heading.into()),
+            body: root.map_or(SectionBody::Rows(Vec::new()), |root| SectionBody::Tree {
+                root: root.clone(),
+                folding: folding.clone(),
+            }),
+        }
+    }
+
+    pub fn title(&self) -> Option<&str> {
+        self.heading.as_ref().map(|heading| heading.title.as_str())
+    }
+
+    pub fn caption(&self) -> Option<&str> {
+        self.heading.as_ref()?.caption.as_deref()
+    }
+
+    pub fn body(&self) -> &SectionBody {
+        &self.body
     }
 }
 
@@ -224,32 +307,8 @@ pub struct TrayMenuBody {
 }
 
 impl TooltipBody {
-    pub fn rows(rows: Vec<Row>) -> Self {
-        TooltipBody::Sections(vec![untitled(rows)])
-    }
-
-    pub fn table<R: TableRow>(rows: impl IntoIterator<Item = R>) -> Self {
-        TooltipBody::Sections(vec![Section {
-            title: None,
-            caption: None,
-            body: columns(rows),
-        }])
-    }
-
-    #[must_use]
-    pub fn with_section(self, extra: Section) -> Self {
-        self.with_sections(vec![extra])
-    }
-
-    #[must_use]
-    pub fn with_sections(self, extra: Vec<Section>) -> Self {
-        match self {
-            TooltipBody::Sections(mut sections) => {
-                sections.extend(extra);
-                TooltipBody::Sections(sections)
-            }
-            TooltipBody::Text { .. } | TooltipBody::Workspace(_) | TooltipBody::TrayMenu(_) => self,
-        }
+    pub fn sections(sections: &[Section]) -> Self {
+        TooltipBody::Sections(sections.to_vec())
     }
 
     fn is_empty(&self) -> bool {
@@ -280,7 +339,7 @@ pub struct Tooltip {
 
 impl Tooltip {
     pub fn empty() -> Self {
-        Self::table(Vec::new())
+        Self::of(TooltipBody::sections(&[]))
     }
 
     pub fn of(body: TooltipBody) -> Self {
@@ -295,10 +354,6 @@ impl Tooltip {
     pub fn with_press_hints(mut self, press_hints: PressHints) -> Self {
         self.press_hints = press_hints;
         self
-    }
-
-    pub fn table(rows: Vec<Row>) -> Self {
-        Self::of(TooltipBody::rows(rows))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -347,19 +402,13 @@ mod tests {
                 moons: 0,
             },
         ];
-        let TooltipBody::Sections(sections) = TooltipBody::table(&planets) else {
-            panic!("expected sections");
-        };
         assert_eq!(
-            sections[0].body,
-            SectionBody::Columns {
+            Section::untitled_table(&planets).body(),
+            &SectionBody::Columns {
                 headings: vec!["Moons".to_string(), String::new()],
                 rows: vec![
-                    cells("Mars", vec!["2".into(), "".into()]),
-                    Row {
-                        level: Severity::Warning,
-                        ..cells("Venus", vec!["0".into(), "".into()])
-                    },
+                    Row::new("Mars", &["2".into(), "".into()], Severity::Normal),
+                    Row::new("Venus", &["0".into(), "".into()], Severity::Warning),
                 ],
             }
         );

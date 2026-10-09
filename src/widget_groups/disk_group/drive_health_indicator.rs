@@ -15,7 +15,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, celsius_text, reported_or},
-        tooltip_body::{Row, Section, TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -45,13 +45,25 @@ impl BarWidget for DriveHealth {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let drive = untitled(
-            [row("Drive", self.device_name.clone())]
-                .into_iter()
-                .chain(self.temperature_rows())
-                .collect(),
-        );
-        TooltipBody::Sections(vec![drive, self.errors.section()])
+        let thresholds = self
+            .temperature
+            .current()
+            .map(|_| self.temperature_thresholds());
+        TooltipBody::sections(&[
+            Section::untitled(&[
+                ("Drive", Some(self.device_name.clone())),
+                ("Temperature", Some(self.temperature.text())),
+                (
+                    "Warns above",
+                    thresholds.map(|thresholds| celsius_text(thresholds.warning)),
+                ),
+                (
+                    "Critical above",
+                    thresholds.map(|thresholds| celsius_text(thresholds.critical)),
+                ),
+            ]),
+            self.errors.section(),
+        ])
     }
 }
 
@@ -72,25 +84,16 @@ impl DriveHealth {
         }
         .overridden_by(self.overrides)
     }
-
-    fn temperature_rows(&self) -> Vec<Row> {
-        match self.temperature {
-            DriveTemperature::Reported { current, .. } => {
-                let thresholds = self.temperature_thresholds();
-                vec![
-                    row("Temperature", celsius_text(current)),
-                    row("Warns above", celsius_text(thresholds.warning)),
-                    row("Critical above", celsius_text(thresholds.critical)),
-                ]
-            }
-            DriveTemperature::Unreported(missing) => {
-                vec![row("Temperature", missing.explanation())]
-            }
-        }
-    }
 }
 
 impl DriveTemperature {
+    fn text(self) -> String {
+        match self {
+            DriveTemperature::Reported { current, .. } => celsius_text(current),
+            DriveTemperature::Unreported(missing) => missing.explanation().to_owned(),
+        }
+    }
+
     fn current(&self) -> Option<ThermodynamicTemperature> {
         match self {
             DriveTemperature::Reported { current, .. } => Some(*current),
@@ -132,23 +135,23 @@ impl ErrorTracking {
 
     fn section(&self) -> Section {
         match self {
-            ErrorTracking::Tracked(errors) => section("I/O errors", error_rows(errors)),
+            ErrorTracking::Tracked(errors) => Section::titled("I/O errors", &error_rows(errors)),
             ErrorTracking::NotTracked => {
-                section("I/O errors", vec![row("Counters", "not tracked")])
+                Section::titled("I/O errors", &[("Counters", "not tracked")])
             }
         }
     }
 }
 
-fn error_rows(errors: &DeviceErrors) -> Vec<Row> {
+fn error_rows(errors: &DeviceErrors) -> Vec<(&'static str, String)> {
     if errors.total() == 0 {
-        return vec![row("Since reset", "none")];
+        return vec![("Since reset", "none".to_owned())];
     }
     errors
         .by_kind()
         .into_iter()
         .filter(|error| error.count > 0)
-        .map(|error| row(error.kind, error.count.to_string()))
-        .chain([row("Reset with", ERROR_RESET_COMMAND)])
+        .map(|error| (error.kind, error.count.to_string()))
+        .chain([("Reset with", ERROR_RESET_COMMAND.to_owned())])
         .collect()
 }

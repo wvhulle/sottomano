@@ -4,7 +4,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody, row, section, untitled},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -26,21 +26,20 @@ impl BarWidget for OpenRouter {
 
     fn tooltip(&self) -> TooltipBody {
         let remaining = self.credits.total - self.credits.used;
-        let mut sections = vec![
-            untitled(vec![row("Today", format!("${} USD", to_cents(self.spend)))]),
-            section(
+        TooltipBody::sections(&[
+            Section::untitled(&[("Today", format!("${} USD", to_cents(self.spend)))]),
+            Section::titled(
                 "Credits",
-                vec![
-                    row("Remaining", format!("${} USD", to_cents(remaining))),
-                    row(
+                &[
+                    ("Remaining", format!("${} USD", to_cents(remaining))),
+                    (
                         "Lifetime Purchased",
                         format!("${} USD", to_cents(self.credits.total)),
                     ),
                 ],
             ),
-        ];
-        sections.extend(model_section(&self.models));
-        TooltipBody::Sections(sections)
+            model_section(&self.models),
+        ])
     }
 }
 
@@ -50,22 +49,20 @@ impl Occasional for OpenRouter {
     }
 }
 
-fn model_section(models: &[(String, f64)]) -> Option<Section> {
-    if models.is_empty() {
-        return None;
-    }
-    let mut rows: Vec<_> = models
-        .iter()
-        .take(LISTED_MODELS)
-        .map(|(name, cost)| row(name, format!("${}", to_cents(*cost))))
-        .collect();
+fn model_section(models: &[(String, f64)]) -> Section {
     let rest: f64 = models
         .iter()
         .skip(LISTED_MODELS)
         .map(|(_, cost)| cost)
         .sum();
-    if rest > 0.0 {
-        rows.push(row("other", format!("${}", to_cents(rest))));
-    }
-    Some(section("By Model Since Midnight", rows))
+    let rows: Vec<(&str, Option<String>)> = models
+        .iter()
+        .take(LISTED_MODELS)
+        .map(|(name, cost)| (name.as_str(), Some(format!("${}", to_cents(*cost)))))
+        .chain([(
+            "other",
+            (rest > 0.0).then(|| format!("${}", to_cents(rest))),
+        )])
+        .collect();
+    Section::titled("By Model Since Midnight", &rows)
 }

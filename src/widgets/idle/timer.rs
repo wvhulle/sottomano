@@ -15,7 +15,7 @@ use crate::{
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Tooltip, row, time_row},
+        tooltip_body::{Cell, Section, Tooltip, TooltipBody},
     },
 };
 
@@ -121,14 +121,19 @@ impl IdleTimer {
 
     pub fn tooltip(&self) -> Tooltip {
         let when = match from_position(self.control.current()) {
-            None => row("State", "disabled"),
-            Some(timeout) => time_row(
-                &format!("{} at", self.action.verb()),
-                fire_time(timeout),
-                TimePart::TimeOfDay,
+            None => ("State".to_owned(), Cell::from("disabled")),
+            Some(timeout) => (
+                format!("{} at", self.action.verb()),
+                Cell::Time {
+                    at: fire_time(timeout),
+                    part: TimePart::TimeOfDay,
+                },
             ),
         };
-        Tooltip::table(vec![when, row("Via", self.action.mechanism())])
+        Tooltip::of(TooltipBody::sections(&[Section::untitled(&[
+            when,
+            ("Via".to_owned(), Cell::from(self.action.mechanism())),
+        ])]))
     }
 
     pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, TimerMessage> {

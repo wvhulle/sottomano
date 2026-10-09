@@ -11,7 +11,7 @@ use crate::{
         gauge::percent_fill,
         hardware_section::HardwareRows,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody, row, section},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -45,45 +45,32 @@ impl BarWidget for Bluetooth {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        self.connection_tooltip()
-            .with_section(self.adapter.as_ref().hardware_section())
-    }
-}
-
-impl Bluetooth {
-    fn connection_tooltip(&self) -> TooltipBody {
+        let hardware = self.adapter.hardware_section();
         if !self.powered {
-            return TooltipBody::rows(vec![row("Bluetooth", "off")]);
+            return TooltipBody::sections(&[Section::untitled(&[("Bluetooth", "off")]), hardware]);
         }
-        let mut sections = vec![section(
+        let overview = Section::titled(
             "Bluetooth",
-            vec![
-                row("Connected", self.connected.len().to_string()),
-                row("Paired", self.paired.to_string()),
+            &[
+                ("Connected", self.connected.len().to_string()),
+                ("Paired", self.paired.to_string()),
             ],
-        )];
-        sections.extend(self.connected.iter().map(device_section));
-        TooltipBody::Sections(sections)
+        );
+        let devices = self.connected.iter().map(device_section);
+        TooltipBody::sections(&[vec![overview], devices.collect(), vec![hardware]].concat())
     }
 }
 
 fn device_section(device: &Device) -> Section {
-    let mut rows = Vec::new();
-    rows.extend(
-        device
-            .address
-            .as_ref()
-            .map(|address| row("Address", address.clone())),
-    );
-    rows.extend(
-        device
-            .signal
-            .map(|signal| row("Signal", format!("{signal}%"))),
-    );
-    rows.extend(
-        device
-            .battery
-            .map(|battery| row("Battery", format!("{battery}%"))),
-    );
-    section(device.name.clone(), rows)
+    Section::titled(
+        device.name.clone(),
+        &[
+            ("Address", device.address.clone()),
+            ("Signal", device.signal.map(|signal| format!("{signal}%"))),
+            (
+                "Battery",
+                device.battery.map(|battery| format!("{battery}%")),
+            ),
+        ],
+    )
 }

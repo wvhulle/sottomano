@@ -22,8 +22,10 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{Tooltip, TooltipBody, row},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{
+            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+        },
     },
 };
 
@@ -176,13 +178,20 @@ impl ColorTemperatureGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::GammaDim => self
-                .gamma
-                .tooltip_with(TooltipBody::rows(vec![row("Dim", self.dim.readout_text())])),
-            HoverTarget::ColorTemperature => self.gamma.tooltip_with(TooltipBody::rows(vec![row(
-                "Temperature",
-                self.warmth.readout_text(),
-            )])),
+            HoverTarget::GammaDim => {
+                self.gamma
+                    .tooltip_with(TooltipBody::sections(&[Section::untitled(&[(
+                        "Dim",
+                        self.dim.readout_text(),
+                    )])]))
+            }
+            HoverTarget::ColorTemperature => {
+                self.gamma
+                    .tooltip_with(TooltipBody::sections(&[Section::untitled(&[(
+                        "Temperature",
+                        self.warmth.readout_text(),
+                    )])]))
+            }
             HoverTarget::AutoColorTemperature => self.auto.tooltip(),
             _ => None,
         }
@@ -191,24 +200,32 @@ impl ColorTemperatureGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, ColorTemperatureMessage> {
-        let gamma_sliders = self.gamma.get().map(|_| {
-            [
-                GroupItem::slider(&self.warmth, config, ColorTemperatureMessage::Warmth),
-                GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim),
-            ]
-        });
+    ) -> Option<WidgetGroup<'a, ColorTemperatureMessage>> {
         let gamma_available = self.gamma.get().is_some();
-        WidgetGroup::new(&self.expansion, ColorTemperatureMessage::Expansion)
-            .icon(Phosphor::ThermometerHot(Weight::Regular))
-            .previewed_value(gamma_available.then_some(&self.warmth as &dyn BarWidget))
-            .forward_handle_scroll(gamma_available)
-            .items(gamma_sliders.into_iter().flatten())
-            .item(GroupItem::toggle(
+        let items: Vec<Option<GroupItem<'a, ColorTemperatureMessage>>> = [
+            gamma_available
+                .then(|| GroupItem::slider(&self.warmth, config, ColorTemperatureMessage::Warmth)),
+            gamma_available
+                .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
+            GroupItem::toggle(
                 &self.auto,
                 HoverTarget::AutoColorTemperature,
                 ColorTemperatureMessage::Auto,
-            ))
+            ),
+        ]
+        .into();
+        WidgetGroup::new(
+            &self.expansion,
+            ColorTemperatureMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::ThermometerHot(Weight::Regular).into()),
+                preview: gamma_available
+                    .then_some(PreviewedValue::Plain(&self.warmth as &dyn BarWidget)),
+                forwards_scroll: gamma_available,
+            },
+            &items,
+        )
     }
 }
 

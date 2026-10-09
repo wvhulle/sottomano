@@ -8,8 +8,8 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        tooltip_body::{Tooltip, row},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -106,7 +106,12 @@ impl PanelAppearanceGroup {
         Knob::ALL
             .into_iter()
             .find(|knob| knob.target() == *target)
-            .map(|knob| Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())]))
+            .map(|knob| {
+                Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
+                    knob.label(),
+                    self.slider(knob).readout_text(),
+                )])]))
+            })
     }
 
     fn close_sliders(&mut self) {
@@ -155,17 +160,25 @@ impl PanelAppearanceGroup {
     pub fn widget_group<'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, PanelAppearanceMessage> {
-        Knob::ALL.into_iter().fold(
-            WidgetGroup::new(&self.expansion, PanelAppearanceMessage::Expansion)
-                .icon(Phosphor::Rows(Weight::Regular)),
-            |group, knob| {
-                group.item(GroupItem::slider(
-                    self.slider(knob),
-                    config,
-                    move |control| PanelAppearanceMessage::Slider(knob, control),
-                ))
+    ) -> Option<WidgetGroup<'a, PanelAppearanceMessage>> {
+        let items: Vec<GroupItem<'a, PanelAppearanceMessage>> = Knob::ALL
+            .into_iter()
+            .map(|knob| {
+                GroupItem::slider(self.slider(knob), config, move |control| {
+                    PanelAppearanceMessage::Slider(knob, control)
+                })
+            })
+            .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            PanelAppearanceMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Rows(Weight::Regular).into()),
+                preview: None,
+                forwards_scroll: false,
             },
+            &items,
         )
     }
 }

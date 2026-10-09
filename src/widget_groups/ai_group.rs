@@ -15,7 +15,7 @@ use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::SecretPaths,
+    config::{Config, SecretPaths},
     data::source::{
         Source,
         ai::{
@@ -31,10 +31,13 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
+        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+        },
     },
 };
 
@@ -234,35 +237,44 @@ impl AiGroup {
         }
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, AiMessage> {
-        WidgetGroup::new(&self.expansion, AiMessage::Expansion)
-            .icon(Phosphor::Robot(Weight::Regular))
-            .previewed_reading(
-                self.claude_usage_windows.present(),
-                HoverTarget::AiClaudeUsageWindows,
-            )
-            .reading(
-                self.claude_usage_windows.present(),
-                HoverTarget::AiClaudeUsageWindows,
-            )
-            .reading(
-                self.claude_enterprise_spend.present(),
-                HoverTarget::AiClaudeEnterpriseSpend,
-            )
-            .reading(
-                self.claude_ccusage_periods.display(),
-                HoverTarget::AiClaudeCcusagePeriods,
-            )
-            .reading(
-                self.claude_ccusage_block.present(),
-                HoverTarget::AiClaudeCcusageBlock,
-            )
-            .reading(
-                self.copilot_metered.present(),
-                HoverTarget::AiCopilotMetered,
-            )
-            .reading(self.copilot_free.display(), HoverTarget::AiCopilotFree)
-            .reading(self.copilot_cli.present(), HoverTarget::AiCopilotCli)
-            .reading(self.openrouter.present(), HoverTarget::AiOpenRouter)
+    pub fn widget_group<'a>(&'a self, config: &'a Config) -> Option<WidgetGroup<'a, AiMessage>> {
+        let claude_usage_windows = self
+            .claude_usage_windows
+            .present()
+            .map(|widget| GroupItem::reading(widget, HoverTarget::AiClaudeUsageWindows));
+        WidgetGroup::new(
+            &self.expansion,
+            AiMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::Robot(Weight::Regular).into()),
+                preview: self
+                    .claude_usage_windows
+                    .present()
+                    .map(PreviewedValue::Plain),
+                forwards_scroll: false,
+            },
+            &[
+                claude_usage_windows,
+                self.claude_enterprise_spend
+                    .present()
+                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiClaudeEnterpriseSpend)),
+                self.claude_ccusage_periods
+                    .reading_item(HoverTarget::AiClaudeCcusagePeriods),
+                self.claude_ccusage_block
+                    .present()
+                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiClaudeCcusageBlock)),
+                self.copilot_metered
+                    .present()
+                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiCopilotMetered)),
+                self.copilot_free.reading_item(HoverTarget::AiCopilotFree),
+                self.copilot_cli
+                    .present()
+                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiCopilotCli)),
+                self.openrouter
+                    .present()
+                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiOpenRouter)),
+            ],
+        )
     }
 }

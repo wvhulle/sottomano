@@ -1,13 +1,19 @@
 use crate::{
+    config::Config,
     data::{
         severity::Severity,
         source::coredumps::{CoredumpEntry, Coredumps},
     },
+    desktop_shell::hover_tooltips::HoverTarget,
+    widget_groups::{
+        systemd_manager_group::SystemdManagerMessage, terminal_journal::TerminalJournal,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        group_item::{GroupItem, Press},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -39,8 +45,17 @@ impl TableRow for CoredumpEntry {
 }
 
 impl Coredumps {
-    pub fn count_row(&self) -> Row {
-        row("Coredumps", self.entries.len().to_string())
+    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+        GroupItem {
+            on_press: Some(Press {
+                does: TerminalJournal::PRESS_HINT,
+                message: SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                    config,
+                    Coredumps::follow_log_args(),
+                )),
+            }),
+            ..GroupItem::reading(self, HoverTarget::SystemdCoredumps)
+        }
     }
 }
 
@@ -63,10 +78,12 @@ impl BarWidget for Coredumps {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            table_section("Coredumps", self.entries.iter().cloned()).with_caption(
+        TooltipBody::sections(&[Section::table(
+            (
+                "Coredumps",
                 "Programs that crashed in the last hour, as recorded by systemd-coredump.",
             ),
-        ])
+            &self.entries,
+        )])
     }
 }

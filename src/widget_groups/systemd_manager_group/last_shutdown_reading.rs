@@ -1,13 +1,19 @@
 use crate::{
+    config::Config,
     data::{
         severity::Severity,
         source::previous_shutdown::{LastShutdown, StopOutcome, UnitStop},
     },
-    widget_groups::systemd_manager_group::elapsed_text,
+    desktop_shell::hover_tooltips::HoverTarget,
+    widget_groups::{
+        systemd_manager_group::{SystemdManagerMessage, elapsed_text},
+        terminal_journal::TerminalJournal,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        group_item::{GroupItem, Press},
         phosphor::Phosphor,
-        tooltip_body::{Cell, TableRow, TooltipBody, table_section},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -72,15 +78,28 @@ impl BarWidget for LastShutdown {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            table_section(
+        TooltipBody::sections(&[Section::table(
+            (
                 "Slowest stops at last shutdown",
-                self.slowest_stops.iter().cloned(),
-            )
-            .with_caption(
                 "From the previous boot's journal: shutdown start to its last entry. Amber stops \
                  crossed slow_shutdown_stop_secs or never finished.",
             ),
-        ])
+            &self.slowest_stops,
+        )])
+    }
+}
+
+impl LastShutdown {
+    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+        GroupItem {
+            on_press: Some(Press {
+                does: TerminalJournal::PRESS_HINT,
+                message: SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                    config,
+                    self.follow_log_args(),
+                )),
+            }),
+            ..GroupItem::reading(self, HoverTarget::SystemdLastShutdown)
+        }
     }
 }

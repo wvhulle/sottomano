@@ -10,8 +10,8 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        tooltip_body::{Tooltip, row},
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        tooltip_body::{Section, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -99,7 +99,12 @@ impl NiriWindowGroup {
         Knob::ALL
             .into_iter()
             .find(|knob| knob.target() == *target)
-            .map(|knob| Tooltip::table(vec![row(knob.label(), self.slider(knob).readout_text())]))
+            .map(|knob| {
+                Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
+                    knob.label(),
+                    self.slider(knob).readout_text(),
+                )])]))
+            })
     }
 
     fn close_sliders(&mut self) {
@@ -137,17 +142,28 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, NiriWindowMessage> {
-        Knob::ALL.into_iter().fold(
-            WidgetGroup::new(&self.expansion, NiriWindowMessage::Expansion)
-                .icon(Phosphor::AppWindow(Weight::Regular)),
-            |group, knob| {
-                group.item(GroupItem::slider(
-                    self.slider(knob),
-                    config,
-                    move |control| NiriWindowMessage::Slider(knob, control),
-                ))
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, NiriWindowMessage>> {
+        let items: Vec<GroupItem<'a, NiriWindowMessage>> = Knob::ALL
+            .into_iter()
+            .map(|knob| {
+                GroupItem::slider(self.slider(knob), config, move |control| {
+                    NiriWindowMessage::Slider(knob, control)
+                })
+            })
+            .collect();
+        WidgetGroup::new(
+            &self.expansion,
+            NiriWindowMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Icon(Phosphor::AppWindow(Weight::Regular).into()),
+                preview: None,
+                forwards_scroll: false,
             },
+            &items,
         )
     }
 }

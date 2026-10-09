@@ -8,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{TooltipBody, row},
+        tooltip_body::{Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -33,22 +33,22 @@ impl BarWidget for Battery {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![
-            row(
+        TooltipBody::sections(&[Section::untitled(&[
+            (
                 "Battery",
                 format!(
                     "{:.0}",
                     self.capacity.into_format_args(percent, Abbreviation)
                 ),
             ),
-            row("Status", self.status.as_str()),
-            row(
+            ("Status", self.status.as_str().to_owned()),
+            (
                 "Remaining",
                 format!(
                     "{:.1}",
                     self.energy.into_format_args(watt_hour, Abbreviation)
                 ),
             ),
-        ])
+        ])])
     }
 }

@@ -206,7 +206,7 @@ impl<'a> TooltipContent<'a> {
     fn sections(&self, sections: &[Section]) -> Element<'static, Message> {
         let filled = sections
             .iter()
-            .filter(|section| !section.body.is_empty())
+            .filter(|section| !section.body().is_empty())
             .map(|section| self.section(section));
 
         section_column(
@@ -218,13 +218,13 @@ impl<'a> TooltipContent<'a> {
 
     fn section(&self, section: &Section) -> Element<'static, Message> {
         let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
-        let title = section.title.as_deref().map(|title| {
+        let title = section.title().map(|title| {
             container(self.bold_title(title))
                 .padding(title_padding)
                 .into()
         });
-        let caption = section.caption.clone().map(|caption| {
-            container(self.small_dim_text(caption))
+        let caption = section.caption().map(|caption| {
+            container(self.small_dim_text(caption.to_owned()))
                 .max_width(self.config.widget_sizes.tooltip_caption_width_px)
                 .padding(title_padding)
                 .into()
@@ -235,7 +235,7 @@ impl<'a> TooltipContent<'a> {
                 title
                     .into_iter()
                     .chain(caption)
-                    .chain(once(self.body(&section.body))),
+                    .chain(once(self.body(section.body()))),
             )
             .spacing(ROW_SPACING_PX)
             .into(),
@@ -264,7 +264,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn table(&self, rows: &[Row]) -> Element<'static, Message> {
-        let widest = rows.iter().map(|row| row.cells.len()).max().unwrap_or(0);
+        let widest = rows.iter().map(|row| row.cells().len()).max().unwrap_or(0);
 
         self.key_value_table(
             rows,
@@ -275,7 +275,7 @@ impl<'a> TooltipContent<'a> {
     fn headed_table(&self, headings: &[String], rows: &[Row]) -> Element<'static, Message> {
         let widest = rows
             .iter()
-            .map(|row| row.cells.len())
+            .map(|row| row.cells().len())
             .chain(once(headings.len()))
             .max()
             .unwrap_or(0);
@@ -301,7 +301,7 @@ impl<'a> TooltipContent<'a> {
         let dim = self.dim();
         let cell_view = self.cell_view();
         let key_column = table::column(Space::new(), move |entry: Row| {
-            cell_view.key(entry.key, dim)
+            cell_view.key(entry.key().clone(), dim)
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);
@@ -321,12 +321,11 @@ impl<'a> TooltipContent<'a> {
         let palette = self.config.palette.clone();
         let cell_view = self.cell_view();
 
-        table::column(heading, move |mut entry: Row| {
-            if position >= entry.cells.len() {
-                return Space::new().into();
+        table::column(heading, move |entry: Row| {
+            match entry.cells().get(position) {
+                Some(value) => cell_view.value(value.clone(), entry.level().color(&palette)),
+                None => Space::new().into(),
             }
-            let foreground = entry.level.color(&palette);
-            cell_view.value(entry.cells.swap_remove(position), foreground)
         })
         .align_y(Vertical::Top)
     }

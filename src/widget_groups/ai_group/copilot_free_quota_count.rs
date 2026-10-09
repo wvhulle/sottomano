@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         simple_icons::SimpleIcon,
-        tooltip_body::{TooltipBody, row, section, time_row, untitled},
+        tooltip_body::{Cell, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -29,20 +29,22 @@ impl BarWidget for CopilotFree {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut remaining = vec![
-            row("Chat", self.chat.to_string()),
-            row("Completions", self.completions.to_string()),
-        ];
-        remaining.extend(
-            self.reset
-                .map(|reset| time_row("Resets", reset, TimePart::Date)),
-        );
-        TooltipBody::Sections(vec![
-            untitled(vec![
-                row("Plan", self.plan.clone()),
-                row("Source", USER_ENDPOINT),
-            ]),
-            section("Remaining", remaining),
+        TooltipBody::sections(&[
+            Section::untitled(&[("Plan", self.plan.as_str()), ("Source", USER_ENDPOINT)]),
+            Section::titled(
+                "Remaining",
+                &[
+                    ("Chat", Cell::from(self.chat.to_string())),
+                    ("Completions", Cell::from(self.completions.to_string())),
+                    (
+                        "Resets",
+                        self.reset.map_or(Cell::Missing, |at| Cell::Time {
+                            at,
+                            part: TimePart::Date,
+                        }),
+                    ),
+                ],
+            ),
         ])
     }
 }

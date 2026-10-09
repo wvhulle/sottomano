@@ -4,7 +4,7 @@ use crate::{
     widgets::{
         hardware_section::HardwareRows,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{TooltipBody, row},
+        tooltip_body::{Row, Section, TooltipBody},
     },
 };
 
@@ -24,11 +24,15 @@ pub fn tooltip(
         Kind::Internal => "Internal",
         Kind::External => "External (DDC)",
     };
-    let mut rows = vec![
-        row("Display", backlight.serial.clone()),
-        row("Type", kind),
-        row("Brightness", brightness),
-    ];
-    rows.extend(output.iter().flat_map(|output| output.rows()));
-    TooltipBody::rows(rows).with_section(output.hardware_section())
+    let display_rows = [
+        ("Display", backlight.serial.clone()),
+        ("Type", kind.to_owned()),
+        ("Brightness", brightness),
+    ]
+    .map(Row::from);
+    let output_rows = output.map(ConnectedOutput::rows).unwrap_or_default();
+    TooltipBody::sections(&[
+        Section::untitled(&[display_rows.as_slice(), &output_rows].concat()),
+        output.hardware_section(),
+    ])
 }

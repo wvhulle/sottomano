@@ -21,7 +21,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, TableRow, TooltipBody, row},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -183,11 +183,11 @@ impl IdleBattery {
     }
 
     fn tooltip(self) -> TooltipBody {
-        TooltipBody::rows(vec![
-            row("Status", self.explanation()),
-            row("Charge", percent_text(self.capacity)),
-            row("Charge limit", percent_text(self.charge_limit)),
-        ])
+        TooltipBody::sections(&[Section::untitled(&[
+            ("Status", self.explanation().to_owned()),
+            ("Charge", percent_text(self.capacity)),
+            ("Charge limit", percent_text(self.charge_limit)),
+        ])])
     }
 }
 
@@ -238,7 +238,9 @@ impl BarWidget for BatteryTime {
     fn tooltip(&self) -> TooltipBody {
         match self {
             BatteryTime::Idle(idle) => idle.tooltip(),
-            BatteryTime::Countdown(countdown) => TooltipBody::table([*countdown]),
+            BatteryTime::Countdown(countdown) => {
+                TooltipBody::sections(&[Section::untitled_table([*countdown])])
+            }
         }
     }
 }

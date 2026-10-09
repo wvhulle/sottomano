@@ -22,7 +22,7 @@ use crate::{
     },
     widgets::{
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, TableRow, Tooltip, TooltipBody, row},
+        tooltip_body::{Cell, Section, TableRow, Tooltip, TooltipBody},
     },
 };
 
@@ -228,15 +228,12 @@ impl PowerProfileControl {
                 Unforecastable::NoDrainHistory,
             ),
         });
-        Some(Tooltip::of(if self.estimates.is_empty() {
-            TooltipBody::rows(
-                lives
-                    .map(|life| row(life.title(), "estimated on battery power"))
-                    .into(),
-            )
+        let section = if self.estimates.is_empty() {
+            Section::untitled(&lives.map(|life| (life.title(), "estimated on battery power")))
         } else {
-            TooltipBody::table(lives)
-        }))
+            Section::untitled_table(lives)
+        };
+        Some(Tooltip::of(TooltipBody::sections(&[section])))
     }
 
     pub fn slider(&self) -> Option<&SliderControl> {

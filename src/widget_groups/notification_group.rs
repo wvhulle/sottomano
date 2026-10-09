@@ -5,12 +5,14 @@ use crate::{
     state::NotificationSettings,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{GroupItem, Press},
         phosphor::{Phosphor, Weight},
         source_reading::source_reading,
         toggle_control::{TOGGLE_PRESS_HINT, icon_toggle_glyph},
         tooltip_body::TooltipBody,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, WidgetGroup,
+        },
         widget_state::WidgetState,
     },
 };
@@ -38,7 +40,7 @@ impl NotificationGroup {
         config: &'a Config,
         notification_settings: &NotificationSettings,
         live: usize,
-    ) -> WidgetGroup<'a, NotificationGroupMessage> {
+    ) -> Option<WidgetGroup<'a, NotificationGroupMessage>> {
         let status = NotificationStatus {
             dnd: notification_settings.do_not_disturb,
             live,
@@ -48,22 +50,34 @@ impl NotificationGroup {
         } else {
             Phosphor::BellSlash(Weight::Regular)
         };
-        WidgetGroup::new(&self.expansion, NotificationGroupMessage::Expansion)
-            .item(GroupItem::element(move |reveal| {
-                source_reading(config, Some(&status), reveal).unwrap_or_else(|| Row::new().into())
-            }))
-            .item(toggle_item(
-                config,
-                Phosphor::Prohibit(Weight::Regular),
-                notification_settings.do_not_disturb,
-                NotificationToggle::DoNotDisturb,
-            ))
-            .item(toggle_item(
-                config,
-                sound_icon,
-                notification_settings.sound,
-                NotificationToggle::Sound,
-            ))
+        WidgetGroup::new(
+            &self.expansion,
+            NotificationGroupMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(GroupItem::element(move |reveal| {
+                    source_reading(config, Some(&status), reveal)
+                        .unwrap_or_else(|| Row::new().into())
+                        .map(GroupEvent::Group)
+                })),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &[
+                toggle_item(
+                    config,
+                    Phosphor::Prohibit(Weight::Regular),
+                    notification_settings.do_not_disturb,
+                    NotificationToggle::DoNotDisturb,
+                ),
+                toggle_item(
+                    config,
+                    sound_icon,
+                    notification_settings.sound,
+                    NotificationToggle::Sound,
+                ),
+            ],
+        )
     }
 }
 
@@ -97,7 +111,7 @@ impl BarWidget for NotificationStatus {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(Vec::new())
+        TooltipBody::sections(&[])
     }
 }
 
@@ -107,6 +121,13 @@ fn toggle_item(
     enabled: bool,
     toggle: NotificationToggle,
 ) -> GroupItem<'_, NotificationGroupMessage> {
-    GroupItem::element(move |_| icon_toggle_glyph(config, icon, enabled))
-        .on_press(TOGGLE_PRESS_HINT, NotificationGroupMessage::Toggle(toggle))
+    GroupItem {
+        on_press: Some(Press {
+            does: TOGGLE_PRESS_HINT,
+            message: NotificationGroupMessage::Toggle(toggle),
+        }),
+        ..GroupItem::element(move |_| {
+            icon_toggle_glyph(config, icon, enabled).map(GroupEvent::Group)
+        })
+    }
 }

@@ -7,7 +7,7 @@ pub mod memory_usage_gauge;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::temperature::SensorConfig,
+    config::{Config, temperature::SensorConfig},
     data::source::{
         Source,
         hardware::HostHardware,
@@ -22,7 +22,7 @@ use crate::{
         hardware_section::HardwareRows,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
 
@@ -88,22 +88,35 @@ impl ComputeGroup {
         Task::none()
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, ComputeMessage> {
-        WidgetGroup::new(&self.expansion, ComputeMessage::Expansion)
-            .reading(self.cpu.display(), HoverTarget::Cpu)
-            .reading(self.memory.display(), HoverTarget::Memory)
-            .reading(self.clock.display(), HoverTarget::CpuClock)
-            .reading(self.temperature.display(), HoverTarget::Temperature)
+    pub fn widget_group<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Option<WidgetGroup<'a, ComputeMessage>> {
+        WidgetGroup::new(
+            &self.expansion,
+            ComputeMessage::Expansion,
+            config,
+            GroupHandle {
+                face: HandleFace::Item(self.cpu.reading_item(HoverTarget::Cpu)?),
+                preview: None,
+                forwards_scroll: false,
+            },
+            &[
+                self.memory.reading_item(HoverTarget::Memory),
+                self.clock.reading_item(HoverTarget::CpuClock),
+                self.temperature.reading_item(HoverTarget::Temperature),
+            ],
+        )
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Cpu => self
                 .cpu
-                .tooltip_with_sections(self.hardware.cpu.hardware_sections()),
+                .tooltip_with_sections(&self.hardware.cpu.hardware_sections()),
             HoverTarget::Memory => self
                 .memory
-                .tooltip_with_section(self.hardware.memory.hardware_section()),
+                .tooltip_with_sections(&[self.hardware.memory.hardware_section()]),
             HoverTarget::CpuClock => self.clock.tooltip(),
             HoverTarget::Temperature => self.temperature.tooltip(),
             _ => None,

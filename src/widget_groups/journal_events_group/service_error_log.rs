@@ -8,7 +8,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, TableRow, TooltipBody, row, table_section},
+        tooltip_body::{Cell, Section, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -40,12 +40,6 @@ impl TableRow for UnitErrors {
     }
 }
 
-impl ServiceErrors {
-    pub fn count_row(&self) -> Row {
-        row("Service errors", self.entry_count.to_string())
-    }
-}
-
 impl BarWidget for ServiceErrors {
     fn icon(&self) -> Glyph {
         Phosphor::WarningCircle(self.state().weight()).into()
@@ -65,12 +59,13 @@ impl BarWidget for ServiceErrors {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::Sections(vec![
-            table_section("Service errors", self.by_unit_oldest_first.iter().cloned())
-                .with_caption(
-                    "Journal entries at err or worse from .service units in the last hour, newest \
-                     message per service.",
-                ),
-        ])
+        TooltipBody::sections(&[Section::table(
+            (
+                "Service errors",
+                "Journal entries at err or worse from .service units in the last hour, newest \
+                 message per service.",
+            ),
+            &self.by_unit_oldest_first,
+        )])
     }
 }

@@ -1,11 +1,14 @@
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::{
-    data::source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
+    data::{
+        severity::Severity,
+        source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::TimePart,
-        tooltip_body::{Cell, TooltipBody, cells, row},
+        tooltip_body::{Cell, Row, Section, TooltipBody},
         weather_icons::WeatherIcon,
     },
 };
@@ -50,19 +53,20 @@ impl BarWidget for Rain {
         } else {
             intensity_text(self.intensity)
         };
-        TooltipBody::rows(vec![
-            row("Rain", now),
-            cells(
+        TooltipBody::sections(&[Section::untitled(&[
+            ("Rain", now).into(),
+            Row::new(
                 "Peak",
-                vec![
+                &[
                     intensity_text(self.peak.intensity).into(),
                     Cell::Time {
                         at: self.peak.at.to_utc(),
                         part: TimePart::TimeOfDay,
                     },
                 ],
+                Severity::Normal,
             ),
-        ])
+        ])])
     }
 }
 

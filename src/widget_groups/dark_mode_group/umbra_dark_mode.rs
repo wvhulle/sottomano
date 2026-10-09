@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         toggle_control::Toggle,
-        tooltip_body::{TooltipBody, row},
+        tooltip_body::{Section, TooltipBody},
     },
 };
 
@@ -18,7 +18,10 @@ impl BarWidget for Umbra {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::rows(vec![row("Mode", if self.dark { "Dark" } else { "Light" })])
+        TooltipBody::sections(&[Section::untitled(&[(
+            "Mode",
+            if self.dark { "Dark" } else { "Light" },
+        )])])
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::TimePart,
         simple_icons::SimpleIcon,
-        tooltip_body::{TooltipBody, row, section, time_row, untitled},
+        tooltip_body::{Cell, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -29,22 +29,24 @@ impl BarWidget for CopilotMetered {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let mut quota = vec![
-            row("Used", to_cents(self.used)),
-            row("Used Share", percent_text(self.percent_used)),
-            row("Remaining", to_cents(self.remaining)),
-            row("Limit", self.limit.to_string()),
-        ];
-        quota.extend(
-            self.reset
-                .map(|reset| time_row("Resets", reset, TimePart::Date)),
-        );
-        TooltipBody::Sections(vec![
-            untitled(vec![
-                row("Plan", self.plan.clone()),
-                row("Source", USER_ENDPOINT),
-            ]),
-            section(self.quota.clone(), quota),
+        TooltipBody::sections(&[
+            Section::untitled(&[("Plan", self.plan.as_str()), ("Source", USER_ENDPOINT)]),
+            Section::titled(
+                self.quota.clone(),
+                &[
+                    ("Used", Cell::from(to_cents(self.used))),
+                    ("Used Share", Cell::from(percent_text(self.percent_used))),
+                    ("Remaining", Cell::from(to_cents(self.remaining))),
+                    ("Limit", Cell::from(self.limit.to_string())),
+                    (
+                        "Resets",
+                        self.reset.map_or(Cell::Missing, |at| Cell::Time {
+                            at,
+                            part: TimePart::Date,
+                        }),
+                    ),
+                ],
+            ),
         ])
     }
 }
