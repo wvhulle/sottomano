@@ -113,7 +113,7 @@ mod tests {
         ReadingAlert {
             hover_target: HoverTarget::BatteryTime,
             severity,
-            summary_text: "",
+            summary_text: "".into(),
             body_text: None,
             on_body_clicked: (),
             action_buttons: Vec::new(),
@@ -191,6 +191,35 @@ mod tests {
         );
         assert_eq!(slots(&risen), [ToastSlotForAlert::OpenNewToast]);
         assert_eq!(risen.dismissals_to_forget, [HoverTarget::BatteryTime]);
+    }
+
+    #[test]
+    fn a_recovered_unit_closes_only_its_own_toast() {
+        let unit = |name: &str| HoverTarget::FailedSystemUnit(name.to_owned());
+        let still_failed = ReadingAlert {
+            hover_target: unit("b.service"),
+            ..active(Severity::Warning)
+        };
+        let shown_a = unit("a.service");
+        let shown_b = unit("b.service");
+        let changes = plan_reading_alert_toast_changes(
+            &[still_failed],
+            &[
+                ShownReadingAlertToast {
+                    toast_id: 1,
+                    hover_target: &shown_a,
+                    severity: Severity::Warning,
+                },
+                ShownReadingAlertToast {
+                    toast_id: 2,
+                    hover_target: &shown_b,
+                    severity: Severity::Warning,
+                },
+            ],
+            &[],
+        );
+        assert_eq!(changes.toast_ids_to_close, [1]);
+        assert!(changes.alerts_to_show.is_empty());
     }
 
     #[test]

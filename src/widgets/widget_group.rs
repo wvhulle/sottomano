@@ -145,6 +145,7 @@ pub struct WidgetGroup<'a, M> {
     on_expansion: fn(ExpansionMessage) -> M,
     icon: Option<GroupIcon<'a>>,
     items: Vec<GroupItem<'a, M>>,
+    standalone_alerts: Vec<ReadingAlert<M>>,
     previewed_value: Option<PreviewedValue<'a>>,
     forward_handle_scroll: bool,
 }
@@ -156,6 +157,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             on_expansion,
             icon: None,
             items: Vec::new(),
+            standalone_alerts: Vec::new(),
             previewed_value: None,
             forward_handle_scroll: false,
         }
@@ -190,6 +192,12 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
     #[must_use]
     pub fn items(mut self, items: impl IntoIterator<Item = GroupItem<'a, M>>) -> Self {
         self.items.extend(items);
+        self
+    }
+
+    #[must_use]
+    pub fn standalone_alerts(mut self, alerts: impl IntoIterator<Item = ReadingAlert<M>>) -> Self {
+        self.standalone_alerts.extend(alerts);
         self
     }
 
@@ -255,6 +263,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
         self.items
             .iter()
             .filter_map(|item| item.alert((self.on_expansion)(ExpansionMessage::Expand), locale))
+            .chain(self.standalone_alerts.iter().cloned())
             .collect()
     }
 
@@ -272,6 +281,7 @@ impl<'a, M: 'a> WidgetGroup<'a, M> {
             on_expansion,
             icon,
             items,
+            standalone_alerts: _,
             previewed_value,
             forward_handle_scroll,
         } = self;

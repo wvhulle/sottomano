@@ -22,6 +22,7 @@ pub enum Cell {
     Glyph(Glyph),
     Time { at: DateTime<Utc>, part: TimePart },
     Link(String),
+    Missing,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

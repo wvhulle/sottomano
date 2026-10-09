@@ -1,6 +1,40 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::{collections::HashMap, io, time::SystemTime};
 
-use crate::data::source::journal::{KernelEntry, KernelSeverity};
+use systemd::journal::{Journal, JournalRecord};
+
+use crate::data::{
+    severity::Severity,
+    source::journal::{JournalEvent, field},
+};
+
+#[derive(Debug, Clone)]
+pub struct KernelEntry {
+    pub at: SystemTime,
+    pub message: String,
+    pub severity: Severity,
+}
+
+impl JournalEvent for KernelEntry {
+    const NAME: &'static str = "kernel";
+    const OPENS_USER_JOURNALS: bool = false;
+
+    fn add_matches(journal: &mut Journal) -> io::Result<()> {
+        journal.match_add("_TRANSPORT", "kernel")?;
+        Severity::Warning.match_journal_priorities(journal)
+    }
+
+    fn from_record(record: &JournalRecord, at: SystemTime) -> Option<Self> {
+        Some(KernelEntry {
+            at,
+            message: field(record, "MESSAGE")?.to_owned(),
+            severity: Severity::of_journal_record(record)?,
+        })
+    }
+
+    fn at(&self) -> SystemTime {
+        self.at
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct KernelErrors {
@@ -12,7 +46,7 @@ pub struct KernelOccurrence {
     pub latest: SystemTime,
     pub message: String,
     pub count: usize,
-    pub severity: KernelSeverity,
+    pub severity: Severity,
 }
 
 impl KernelErrors {
@@ -34,7 +68,7 @@ impl KernelErrors {
                 .and_modify(|occurrence| {
                     occurrence.count += 1;
                     occurrence.latest = occurrence.latest.max(entry.at);
-                    occurrence.severity = occurrence.severity.min(entry.severity);
+                    occurrence.severity = occurrence.severity.max(entry.severity);
                 })
                 .or_insert_with(|| KernelOccurrence {
                     latest: entry.at,
@@ -55,7 +89,7 @@ mod tests {
 
     use super::*;
 
-    fn entry(secs: u64, message: &str, severity: KernelSeverity) -> KernelEntry {
+    fn entry(secs: u64, message: &str, severity: Severity) -> KernelEntry {
         KernelEntry {
             at: SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
             message: message.to_string(),
@@ -67,10 +101,10 @@ mod tests {
     fn repeated_messages_merge_into_one_occurrence_at_their_latest_time() {
         let errors = KernelErrors {
             entries: vec![
-                entry(10, "buffer", KernelSeverity::Error),
-                entry(30, "buffer", KernelSeverity::Error),
-                entry(20, "resume", KernelSeverity::Error),
-                entry(40, "noise", KernelSeverity::Warning),
+                entry(10, "buffer", Severity::Critical),
+                entry(30, "buffer", Severity::Critical),
+                entry(20, "resume", Severity::Critical),
+                entry(40, "noise", Severity::Warning),
             ],
         };
         assert_eq!(
@@ -80,19 +114,19 @@ mod tests {
                     latest: SystemTime::UNIX_EPOCH + Duration::from_secs(20),
                     message: "resume".to_string(),
                     count: 1,
-                    severity: KernelSeverity::Error,
+                    severity: Severity::Critical,
                 },
                 KernelOccurrence {
                     latest: SystemTime::UNIX_EPOCH + Duration::from_secs(30),
                     message: "buffer".to_string(),
                     count: 2,
-                    severity: KernelSeverity::Error,
+                    severity: Severity::Critical,
                 },
                 KernelOccurrence {
                     latest: SystemTime::UNIX_EPOCH + Duration::from_secs(40),
                     message: "noise".to_string(),
                     count: 1,
-                    severity: KernelSeverity::Warning,
+                    severity: Severity::Warning,
                 },
             ]
         );
