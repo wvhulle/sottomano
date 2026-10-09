@@ -7,6 +7,7 @@ pub struct WidgetSizes {
     pub slider_width_px: f32,
     pub indicator_thickness_px: f32,
     pub tooltip_value_width_px: f32,
+    pub tooltip_caption_width_px: f32,
     pub workspace_preview_scale: f32,
 }
 
@@ -16,6 +17,7 @@ impl Default for WidgetSizes {
             slider_width_px: 60.0,
             indicator_thickness_px: 2.4,
             tooltip_value_width_px: 620.0,
+            tooltip_caption_width_px: 300.0,
             workspace_preview_scale: 0.19,
         }
     }

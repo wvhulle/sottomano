@@ -114,7 +114,7 @@ fn badged<'a, Message: 'a>(
     match badge {
         Some(count) if count > 0 => {
             let superscript = text(count.to_string())
-                .size(config.font.text_size_px * 0.62)
+                .size(config.font.small_text_size_px)
                 .font(config.font.iced_font)
                 .color(color);
             Row::with_children([reading, superscript.into()])

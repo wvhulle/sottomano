@@ -26,7 +26,6 @@ const DIVIDER_PADDING: [f32; 2] = [4.0, 0.0];
 const ROW_PADDING: [f32; 2] = [5.0, 8.0];
 const SUBMENU_INDENT: f32 = 16.0;
 const HOVER_ALPHA: f32 = 0.22;
-const CHEVRON_SCALE: f32 = 0.85;
 
 pub fn context_menu<'a, Message: Clone + 'a>(
     config: &Config,
@@ -126,10 +125,9 @@ fn entry<'a, Message: Clone + 'a>(
         } else {
             Phosphor::CaretRight(Weight::Regular)
         };
-        row = row.push(Space::new().width(Length::Fill)).push(
-            Glyph::from(chevron.with_weight(Weight::Regular))
-                .view(icon_size * CHEVRON_SCALE, color),
-        );
+        row = row
+            .push(Space::new().width(Length::Fill))
+            .push(Glyph::from(chevron.with_weight(Weight::Regular)).view(icon_size, color));
     }
 
     let accent = config.palette.focus;

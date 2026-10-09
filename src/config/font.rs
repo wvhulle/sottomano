@@ -14,6 +14,7 @@ use crate::data::source::command;
 pub struct FontChoice {
     pub name: Option<String>,
     pub text_size_px: f32,
+    pub small_text_size_px: f32,
     pub icon_size_px: f32,
 }
 
@@ -22,6 +23,7 @@ impl Default for FontChoice {
         Self {
             name: None,
             text_size_px: 14.0,
+            small_text_size_px: 12.0,
             icon_size_px: 15.5,
         }
     }
@@ -31,6 +33,7 @@ impl Default for FontChoice {
 pub struct ResolvedFont {
     pub iced_font: Font,
     pub text_size_px: f32,
+    pub small_text_size_px: f32,
     pub icon_size_px: f32,
     pub data: Arc<[u8]>,
     pub covered: Arc<HashSet<char>>,
@@ -100,6 +103,7 @@ pub(super) fn resolve(config: &FontChoice) -> Result<ResolvedFont, FontError> {
     Ok(ResolvedFont {
         iced_font: Font::with_name(String::leak(name)),
         text_size_px: config.text_size_px,
+        small_text_size_px: config.small_text_size_px,
         icon_size_px: config.icon_size_px,
         data: Arc::from(bytes),
         covered: Arc::new(covered),

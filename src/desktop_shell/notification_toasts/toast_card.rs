@@ -29,7 +29,6 @@ use crate::{
 };
 
 const PADDING_PX: f32 = 10.0;
-const SUBTEXT_SCALE: f32 = 0.85;
 const COLUMN_SPACING: f32 = 4.0;
 const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
@@ -258,7 +257,7 @@ impl ToastCard<'_> {
         let reltime_span = |visible: bool| {
             visible.then(|| {
                 bar_text(font, reltime.clone())
-                    .size(font.text_size_px * SUBTEXT_SCALE)
+                    .size(font.small_text_size_px)
                     .color(text)
             })
         };
@@ -275,7 +274,7 @@ impl ToastCard<'_> {
         if let Some(app_name) = &data.app_name {
             title = title.push(
                 bar_text(font, app_name.clone())
-                    .size(font.text_size_px * SUBTEXT_SCALE)
+                    .size(font.small_text_size_px)
                     .color(text),
             );
         }
@@ -292,7 +291,7 @@ impl ToastCard<'_> {
                     rich_text(body_markup::body_spans(
                         body,
                         text,
-                        font.text_size_px * SUBTEXT_SCALE,
+                        font.small_text_size_px,
                         font,
                         Font::MONOSPACE,
                     ))
