@@ -7,13 +7,14 @@ pub mod mobile_modem_tooltip;
 pub mod wifi_link_tooltip;
 
 use crate::{
+    config::Config,
     data::source::net_interfaces::{
         bluetooth::{self, Bluetooth},
         ethernet::{self, Ethernet},
         mobile::{self, Mobile},
         wifi::{self, Wifi},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::dbus,
     widgets::{
         bar_widget::BarWidget,
@@ -78,7 +79,12 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, NetInterfacesMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(NetInterfacesMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             NetInterfacesMessage::Expansion,
@@ -93,6 +99,9 @@ impl NetInterfacesGroup {
                 self.wifi.reading_item(HoverTarget::Wifi),
                 self.mobile.reading_item(HoverTarget::Mobile),
             ],
+            config,
+            position,
+            lift,
         )
     }
 

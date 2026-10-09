@@ -2,7 +2,7 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     state::{self, ShellLayout, WorkspacesPlacement},
     widgets::{
         group_item::GroupItem,
@@ -157,11 +157,13 @@ impl ShellLayoutGroup {
         }
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
         shell_layout: &ShellLayout,
-    ) -> WidgetGroup<'a, ShellLayoutMessage> {
+        position: Position,
+        lift: fn(ShellLayoutMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             ShellLayoutMessage::Expansion,
@@ -194,6 +196,9 @@ impl ShellLayoutGroup {
                 ),
                 GroupItem::slider(&self.float_offset, config, ShellLayoutMessage::FloatOffset),
             ],
+            config,
+            position,
+            lift,
         )
     }
 }

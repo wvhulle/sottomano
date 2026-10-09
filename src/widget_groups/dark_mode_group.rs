@@ -17,7 +17,7 @@ use crate::{
         },
         sun_schedule::ColorMode,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::blocking,
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
@@ -263,7 +263,7 @@ impl DarkModeGroup {
         )])]))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, DarkModeMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(DarkModeMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         let mode = GroupItem::toggle(
             &self.mode_toggle,
             HoverTarget::DarkMode,
@@ -295,6 +295,9 @@ impl DarkModeGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 

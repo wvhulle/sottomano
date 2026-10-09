@@ -8,7 +8,7 @@ use crate::{
     desktop_shell::{
         DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
     },
-    widgets::widget_group::GroupViewWithAlerts,
+    widgets::widget_group::WidgetGroup,
 };
 
 impl DesktopShell {
@@ -48,7 +48,7 @@ impl DesktopShell {
 
     pub(super) fn all_widget_groups(
         &self,
-    ) -> impl Iterator<Item = GroupViewWithAlerts<'_, Message>> {
+    ) -> impl Iterator<Item = WidgetGroup<'_, Message>> {
         self.top_start_groups()
             .into_iter()
             .chain(self.top_center_groups())

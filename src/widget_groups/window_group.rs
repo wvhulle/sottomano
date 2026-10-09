@@ -94,8 +94,7 @@ impl WindowGroup {
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         let quick_launch = self
             .quick_launch
-            .widget_group(icons.entries, output, config)
-            .place_on_bar(WindowGroupMessage::QuickLaunch, config, position)
+            .widget_group(icons.entries, output, config, position, WindowGroupMessage::QuickLaunch)
             .element;
         let window_list = self
             .window_list

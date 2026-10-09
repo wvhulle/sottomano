@@ -5,13 +5,13 @@ pub mod drive_health_indicator;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::temperature::SensorConfig,
+    config::{Config, temperature::SensorConfig},
     data::source::disk::{
         self, Disk,
         activity::{DiskActivity, DiskTransfer, Reading, Writing},
         health::DriveHealth,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::polling,
     widgets::{
         hardware_section::HardwareRows,
@@ -66,7 +66,7 @@ impl DiskGroup {
             .receive(reading.map(|activity| activity.write));
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, DiskMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(DiskMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             DiskMessage::Expansion,
@@ -81,6 +81,9 @@ impl DiskGroup {
                 self.disk_write.reading_item(HoverTarget::DiskWrite),
                 self.drive_health.reading_item(HoverTarget::DriveHealth),
             ],
+            config,
+            position,
+            lift,
         )
     }
 

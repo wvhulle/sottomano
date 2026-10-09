@@ -1,4 +1,3 @@
-use chrono::Locale;
 use iced::{
     Alignment, Element, Padding,
     mouse::ScrollDelta,
@@ -133,185 +132,150 @@ impl<'a> PreviewedValue<'a> {
     }
 }
 
-pub struct GroupViewWithAlerts<'a, Outer> {
+pub struct WidgetGroup<'a, Outer> {
     pub element: Option<Element<'a, GroupEvent<Outer>>>,
     pub alerts: Vec<ReadingAlert<Outer>>,
     pub levels: Vec<LevelReading<Outer>>,
 }
 
-pub struct WidgetGroup<'a, M> {
-    expansion: &'a GroupExpansion,
-    on_expansion: fn(ExpansionMessage) -> M,
-    face: HandleFace<'a>,
-    items: Vec<GroupItem<'a, M>>,
-    alerts: Vec<ReadingAlert<M>>,
-    previewed_value: Option<PreviewedValue<'a>>,
-    forward_handle_scroll: bool,
-}
-
-impl<'a, M: 'a> WidgetGroup<'a, M> {
-    pub fn new<Item: Into<Option<GroupItem<'a, M>>> + Clone>(
+impl<'a, M: 'a + Clone> WidgetGroup<'a, M> {
+    pub fn new<Outer: 'a, Item: Into<Option<GroupItem<'a, M>>> + Clone>(
         expansion: &'a GroupExpansion,
         on_expansion: fn(ExpansionMessage) -> M,
         handle: GroupHandle<'a>,
         items: &[Item],
-    ) -> Self
-    where
-        M: Clone,
-    {
-        let items: Vec<GroupItem<'a, M>> = items.iter().cloned().filter_map(Into::into).collect();
-        let alerts = items.iter().flat_map(|item| item.alerts.clone()).collect();
-        Self {
-            expansion,
-            on_expansion,
-            face: handle.face,
-            items,
-            alerts,
-            previewed_value: handle.preview,
-            forward_handle_scroll: handle.forwards_scroll,
-        }
-    }
-
-    pub fn place_on_bar<Outer: 'a>(
-        self,
-        lift_message: fn(M) -> Outer,
         config: &'a Config,
         bar_position: Position,
-    ) -> GroupViewWithAlerts<'a, Outer>
-    where
-        M: Clone,
-    {
-        let alerts = self.alerts(config.locale);
-        let levels = self
-            .items
+        lift: fn(M) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
+        let items: Vec<GroupItem<'a, M>> =
+            items.iter().cloned().filter_map(Into::into).collect();
+        let extra_alerts: Vec<ReadingAlert<M>> =
+            items.iter().flat_map(|item| item.alerts.clone()).collect();
+        let alerts: Vec<ReadingAlert<Outer>> = items
             .iter()
-            .filter_map(|item| item.level_reading((self.on_expansion)(ExpansionMessage::Expand)))
-            .map(|level| level.map_messages(lift_message))
+            .filter_map(|item| {
+                item.alert((on_expansion)(ExpansionMessage::Expand), config.locale)
+            })
+            .chain(extra_alerts)
+            .map(|alert| alert.map_messages(lift))
             .collect();
-        let highest_alert_severity = alerts
+        let levels: Vec<LevelReading<Outer>> = items
             .iter()
-            .map(|alert| alert.severity)
-            .max()
-            .unwrap_or_default();
-        GroupViewWithAlerts {
-            element: self
-                .view(config, bar_position, highest_alert_severity)
-                .map(|element| element.map(move |event| event.map(lift_message))),
-            alerts: alerts
-                .into_iter()
-                .map(|alert| alert.map_messages(lift_message))
-                .collect(),
+            .filter_map(|item| item.level_reading((on_expansion)(ExpansionMessage::Expand)))
+            .map(|level| level.map_messages(lift))
+            .collect();
+        let highest_alert_severity =
+            alerts.iter().map(|alert| alert.severity).max().unwrap_or_default();
+        let element = group_view(
+            expansion,
+            on_expansion,
+            handle.face,
+            items,
+            handle.preview,
+            handle.forwards_scroll,
+            config,
+            bar_position,
+            highest_alert_severity,
+        )
+        .map(|element| element.map(move |event| event.map(lift)));
+        WidgetGroup {
+            element,
+            alerts,
             levels,
         }
     }
+}
 
-    fn alerts(&self, locale: Locale) -> Vec<ReadingAlert<M>>
-    where
-        M: Clone,
-    {
-        self.items
-            .iter()
-            .filter_map(|item| item.alert((self.on_expansion)(ExpansionMessage::Expand), locale))
-            .chain(self.alerts.iter().cloned())
-            .collect()
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
+fn group_view<'a, M: 'a + Clone>(
+    expansion: &'a GroupExpansion,
+    on_expansion: fn(ExpansionMessage) -> M,
+    face: HandleFace<'a>,
+    mut items: Vec<GroupItem<'a, M>>,
+    previewed_value: Option<PreviewedValue<'a>>,
+    forward_handle_scroll: bool,
+    config: &'a Config,
+    bar_position: Position,
+    highest_alert_severity: Severity,
+) -> Option<Element<'a, GroupEvent<M>>> {
+    if items.is_empty() {
+        return None;
     }
-
-    fn view(
-        self,
-        config: &'a Config,
-        bar_position: Position,
-        highest_alert_severity: Severity,
-    ) -> Option<Element<'a, GroupEvent<M>>>
-    where
-        M: Clone,
-    {
-        let Self {
-            expansion,
-            on_expansion,
-            face,
-            mut items,
-            alerts: _,
-            previewed_value,
-            forward_handle_scroll,
-        } = self;
-        if items.is_empty() {
-            return None;
-        }
-        let face = match face {
-            HandleFace::Icon(glyph) => GroupItem::element(move |_| {
-                glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
-            }),
-            HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
-                glyph.view(config.font.icon_size_px, reading_color(config, reading))
-            }),
-            HandleFace::FirstItem => items.remove(0),
-        };
-        let content = items;
-        let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
-        let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
-            Row::with_children(content.iter().filter_map(|item| item.view(config, reveal)))
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into()
-        };
-        let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
-        let toggle = expansion_event(ExpansionMessage::Toggle);
-        let cursor_hovering = expansion.cursor_hovering;
-        let expanded = expansion.expanded;
-        let animated = expand_animation(expanded, EXPANSION_DURATION, move |reveal| {
-            let handle: Element<'a, GroupEvent<M>> = button(
-                Row::with_children([
-                    draw_face(),
-                    collapsing_previewed_value(
-                        config,
-                        previewed_value.as_ref().map(PreviewedValue::widget),
-                        reveal,
-                    ),
-                ])
-                .align_y(Alignment::Center),
-            )
-            .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
-            .on_press(toggle.clone())
-            .into();
-            let handle = match &previewed_value {
-                Some(preview) => preview.hoverable_face(handle),
-                None => handle,
-            };
-            let handle = if forward_handle_scroll {
-                mouse_area(handle)
-                    .on_scroll(move |delta| {
-                        expansion_event(ExpansionMessage::HandleScrolled(delta))
-                    })
-                    .into()
-            } else {
-                handle
-            };
-            let inner = Row::new()
-                .push(handle)
-                .extend(
-                    (reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))),
-                )
-                .align_y(Alignment::Center);
-            PagerSlot::new(
-                inner.into(),
-                edge_indicator(
+    let face = match face {
+        HandleFace::Icon(glyph) => GroupItem::element(move |_| {
+            glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
+        }),
+        HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
+            glyph.view(config.font.icon_size_px, reading_color(config, reading))
+        }),
+        HandleFace::FirstItem => items.remove(0),
+    };
+    let content = items;
+    let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
+    let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
+        Row::with_children(content.iter().filter_map(|item| item.view(config, reveal)))
+            .spacing(config.spacing.widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into()
+    };
+    let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
+    let toggle = expansion_event(ExpansionMessage::Toggle);
+    let cursor_hovering = expansion.cursor_hovering;
+    let expanded = expansion.expanded;
+    let animated = expand_animation(expanded, EXPANSION_DURATION, move |reveal| {
+        let handle: Element<'a, GroupEvent<M>> = button(
+            Row::with_children([
+                draw_face(),
+                collapsing_previewed_value(
                     config,
-                    highest_alert_severity,
-                    cursor_hovering,
-                    expanded,
+                    previewed_value.as_ref().map(PreviewedValue::widget),
                     reveal,
                 ),
-            )
-            .view(config, bar_position)
-        });
-        Some(
-            mouse_area(animated)
-                .on_enter(expansion_event(ExpansionMessage::CursorEntered))
-                .on_exit(expansion_event(ExpansionMessage::CursorExited))
-                .into(),
+            ])
+            .align_y(Alignment::Center),
         )
-    }
+        .padding(0)
+        .style(flat_button(config.palette.bar_foreground))
+        .on_press(toggle.clone())
+        .into();
+        let handle = match &previewed_value {
+            Some(preview) => preview.hoverable_face(handle),
+            None => handle,
+        };
+        let handle = if forward_handle_scroll {
+            mouse_area(handle)
+                .on_scroll(move |delta| {
+                    expansion_event(ExpansionMessage::HandleScrolled(delta))
+                })
+                .into()
+        } else {
+            handle
+        };
+        let inner = Row::new()
+            .push(handle)
+            .extend(
+                (reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))),
+            )
+            .align_y(Alignment::Center);
+        PagerSlot::new(
+            inner.into(),
+            edge_indicator(
+                config,
+                highest_alert_severity,
+                cursor_hovering,
+                expanded,
+                reveal,
+            ),
+        )
+        .view(config, bar_position)
+    });
+    Some(
+        mouse_area(animated)
+            .on_enter(expansion_event(ExpansionMessage::CursorEntered))
+            .on_exit(expansion_event(ExpansionMessage::CursorExited))
+            .into(),
+    )
 }
 
 fn collapsing_previewed_value<'a, Message: 'a>(

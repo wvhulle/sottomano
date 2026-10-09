@@ -5,13 +5,14 @@ pub mod tailscale_mesh_tooltip;
 pub mod wireguard_tunnel_tooltip;
 
 use crate::{
+    config::Config,
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
         throughput::{self, Download, Readings, Throughput, Total, Upload},
         wireguard::{Wireguard, disconnect},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
@@ -124,7 +125,12 @@ impl InternetGroup {
         }
     }
 
-    pub fn widget_group<'a>(&'a self) -> WidgetGroup<'a, InternetMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(InternetMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let tunnels = self
             .wireguard
             .get()
@@ -168,6 +174,9 @@ impl InternetGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

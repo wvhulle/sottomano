@@ -33,7 +33,7 @@ use crate::{
     state::ShellSettings,
     widgets::{
         announced_level::LevelReading, reading_alert::ReadingAlert, reveal::reveal_y,
-        widget_group::GroupViewWithAlerts,
+        widget_group::WidgetGroup,
     },
 };
 
@@ -68,8 +68,8 @@ pub struct WidgetToastRequests {
     levels: Vec<LevelReading<Message>>,
 }
 
-impl<'a> FromIterator<GroupViewWithAlerts<'a, Message>> for WidgetToastRequests {
-    fn from_iter<I: IntoIterator<Item = GroupViewWithAlerts<'a, Message>>>(groups: I) -> Self {
+impl<'a> FromIterator<WidgetGroup<'a, Message>> for WidgetToastRequests {
+    fn from_iter<I: IntoIterator<Item = WidgetGroup<'a, Message>>>(groups: I) -> Self {
         groups
             .into_iter()
             .fold(Self::default(), |mut requests, group| {

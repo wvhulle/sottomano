@@ -5,7 +5,7 @@ pub mod firmware_upgrade_list;
 use crate::{
     config::Config,
     data::source::fwupd::{self, PendingUpgrades},
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widget_groups::{
         pending_upgrades_group::firmware_upgrade_list::FirmwareUpgradeList,
         terminal_command::TerminalCommand,
@@ -65,10 +65,12 @@ impl PendingUpgradesGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, PendingUpgradesMessage> {
+        position: Position,
+        lift: fn(PendingUpgradesMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let has_categories = self.categories().iter().any(Option::is_some);
         WidgetGroup::new(
             &self.expansion,
@@ -87,6 +89,9 @@ impl PendingUpgradesGroup {
                     .failure()
                     .map(|failure| GroupItem::reading(failure, HoverTarget::FirmwareUpgrades)),
             ],
+            config,
+            position,
+            lift,
         )
     }
 

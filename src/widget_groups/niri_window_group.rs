@@ -4,7 +4,7 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     state::niri_rules::{NiriLayout, NiriRulesFile},
     widgets::{
         group_item::GroupItem,
@@ -142,7 +142,12 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, NiriWindowMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(NiriWindowMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let items: Vec<GroupItem<'a, NiriWindowMessage>> = Knob::ALL
             .into_iter()
             .map(|knob| {
@@ -160,6 +165,9 @@ impl NiriWindowGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

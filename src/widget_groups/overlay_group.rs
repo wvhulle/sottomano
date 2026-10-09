@@ -2,7 +2,7 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     state::{
         OverlaySettings,
         overlay_settings::{self, OverlaySetting},
@@ -182,11 +182,13 @@ impl OverlayGroup {
         }
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
         overlays: OverlaySettings,
-    ) -> WidgetGroup<'a, OverlayMessage> {
+        position: Position,
+        lift: fn(OverlayMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let spatial_layout_icon = if overlays.toast_spatial_layout {
             Phosphor::TextAlignCenter(Weight::Regular)
         } else {
@@ -216,6 +218,9 @@ impl OverlayGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

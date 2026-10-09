@@ -13,7 +13,7 @@ use crate::{
         gamma::{self, Gamma},
         screen_temperature::{self, SunFollow},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
@@ -197,10 +197,12 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, ColorTemperatureMessage> {
+        position: Position,
+        lift: fn(ColorTemperatureMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let gamma_available = self.gamma.get().is_some();
         let items: Vec<Option<GroupItem<'a, ColorTemperatureMessage>>> = [
             gamma_available
@@ -224,6 +226,9 @@ impl ColorTemperatureGroup {
                 forwards_scroll: gamma_available,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

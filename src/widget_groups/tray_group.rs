@@ -14,6 +14,7 @@ use crate::{
     desktop_shell::{
         app_window_focus::AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
+        monitor_surfaces::Position,
     },
     widgets::{
         activity_line::activity_line,
@@ -160,7 +161,12 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, TrayMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(TrayMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let items: Vec<GroupItem<'a, TrayMessage>> = self
             .visible(config)
             .into_iter()
@@ -175,6 +181,9 @@ impl TrayGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

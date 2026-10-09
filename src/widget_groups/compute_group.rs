@@ -7,7 +7,7 @@ pub mod memory_usage_gauge;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::temperature::SensorConfig,
+    config::{Config, temperature::SensorConfig},
     data::source::{
         Source,
         hardware::HostHardware,
@@ -16,7 +16,7 @@ use crate::{
             temperature::Temperature,
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::polling,
     widgets::{
         hardware_section::HardwareRows,
@@ -88,7 +88,7 @@ impl ComputeGroup {
         Task::none()
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, ComputeMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(ComputeMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             ComputeMessage::Expansion,
@@ -103,6 +103,9 @@ impl ComputeGroup {
                 self.clock.reading_item(HoverTarget::CpuClock),
                 self.temperature.reading_item(HoverTarget::Temperature),
             ],
+            config,
+            position,
+            lift,
         )
     }
 

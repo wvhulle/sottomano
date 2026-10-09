@@ -4,7 +4,7 @@ use iced::{Task, task};
 
 use crate::{
     config::Config,
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
     widgets::{
@@ -207,7 +207,7 @@ impl IdleTimeoutsGroup {
             .collect()
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, IdleTimeoutsMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(IdleTimeoutsMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         let items = self.entries().map(|(kind, timer)| {
             GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
                 timer.view(config, reveal).map(move |m| match m {
@@ -225,6 +225,9 @@ impl IdleTimeoutsGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

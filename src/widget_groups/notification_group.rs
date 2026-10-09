@@ -2,6 +2,7 @@ use iced::widget::Row;
 
 use crate::{
     config::Config,
+    desktop_shell::monitor_surfaces::Position,
     state::NotificationSettings,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -35,12 +36,14 @@ pub struct NotificationGroup {
 }
 
 impl NotificationGroup {
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
         notification_settings: &NotificationSettings,
         live: usize,
-    ) -> WidgetGroup<'a, NotificationGroupMessage> {
+        position: Position,
+        lift: fn(NotificationGroupMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let status = NotificationStatus {
             dnd: notification_settings.do_not_disturb,
             live,
@@ -77,6 +80,9 @@ impl NotificationGroup {
                     NotificationToggle::Sound,
                 ),
             ],
+            config,
+            position,
+            lift,
         )
     }
 }

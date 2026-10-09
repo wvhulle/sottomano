@@ -19,6 +19,7 @@ use crate::{
     desktop_shell::{
         app_window_focus::AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
+        monitor_surfaces::Position,
     },
     message_subscriptions::blocking,
     widgets::{
@@ -270,11 +271,13 @@ impl MediaGroup {
         ])))
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
         index: &'a DesktopIndex,
-    ) -> WidgetGroup<'a, MediaMessage> {
+        position: Position,
+        lift: fn(MediaMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let Some(media) = self.current() else {
             return WidgetGroup::new(
                 &self.expansion,
@@ -285,6 +288,9 @@ impl MediaGroup {
                     forwards_scroll: false,
                 },
                 &[Option::<GroupItem<'a, MediaMessage>>::None; 0],
+                config,
+                position,
+                lift,
             );
         };
         let opacity = if media.status == Status::Playing {
@@ -349,6 +355,9 @@ impl MediaGroup {
                 session,
                 sources,
             ],
+            config,
+            position,
+            lift,
         )
     }
 

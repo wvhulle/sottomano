@@ -2,7 +2,7 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     state::{
         self, ShadowStyle,
         niri_rules::{NiriRulesFile, NiriStyling},
@@ -202,12 +202,14 @@ impl SurfaceEffectsGroup {
         }
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
         shadow: ShadowStyle,
         styling: NiriStyling,
-    ) -> WidgetGroup<'a, SurfaceEffectsMessage> {
+        position: Position,
+        lift: fn(SurfaceEffectsMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let slider_items = ShadowKnob::ALL.into_iter().map(|knob| {
             GroupItem::slider(self.slider(knob), config, move |control| {
                 SurfaceEffectsMessage::Slider(knob, control)
@@ -248,6 +250,9 @@ impl SurfaceEffectsGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

@@ -26,7 +26,7 @@ use crate::{
             running_jobs::{SlowJobs, slow_jobs_stream},
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
@@ -200,10 +200,12 @@ impl SystemdManagerGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, SystemdManagerMessage> {
+        position: Position,
+        lift: fn(SystemdManagerMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let boot = self.boot.get();
         WidgetGroup::new(
             &self.expansion,
@@ -242,6 +244,9 @@ impl SystemdManagerGroup {
                 self.coredumps.get().map(|dumps| dumps.group_item(config)),
                 self.last_shutdown.get().map(|last| last.group_item(config)),
             ],
+            config,
+            position,
+            lift,
         )
     }
 
