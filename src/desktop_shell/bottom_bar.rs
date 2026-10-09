@@ -9,7 +9,7 @@ use crate::{
     },
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
-    widgets::{widget_group::GroupViewWithAlerts, window_icon::WindowAssets},
+    widgets::{widget_group::WidgetGroup, window_icon::WindowAssets},
 };
 
 impl DesktopShell {
@@ -59,36 +59,26 @@ impl DesktopShell {
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }
 
-    pub(super) fn bottom_start_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 5] {
+    pub(super) fn bottom_start_groups(&self) -> [WidgetGroup<'_, Message>; 5] {
         let config = &self.config;
         let shell_settings = &self.shell_settings;
         let bottom = Position::Bottom;
         [
             self.shell_layout_group
-                .widget_group(config, &shell_settings.layout)
-                .place_on_bar(Message::ShellLayout, config, bottom),
+                .widget_group(config, &shell_settings.layout, bottom, Message::ShellLayout),
             self.panel_appearance_group
-                .widget_group(config)
-                .place_on_bar(Message::PanelAppearance, config, bottom),
+                .widget_group(config, bottom, Message::PanelAppearance),
             self.overlay_group
-                .widget_group(config, shell_settings.overlays)
-                .place_on_bar(Message::Overlay, config, bottom),
+                .widget_group(config, shell_settings.overlays, bottom, Message::Overlay),
             self.surface_effects_group
-                .widget_group(config, shell_settings.shadow, self.niri_rules.styling())
-                .place_on_bar(Message::SurfaceEffects, config, bottom),
-            self.niri_window_group.widget_group(config).place_on_bar(
-                Message::NiriWindow,
-                config,
-                bottom,
-            ),
+                .widget_group(config, shell_settings.shadow, self.niri_rules.styling(), bottom, Message::SurfaceEffects),
+            self.niri_window_group
+                .widget_group(config, bottom, Message::NiriWindow),
         ]
     }
 
-    pub(super) fn bottom_end_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 1] {
-        [self.tray_group.widget_group(&self.config).place_on_bar(
-            Message::Tray,
-            &self.config,
-            Position::Bottom,
-        )]
+    pub(super) fn bottom_end_groups(&self) -> [WidgetGroup<'_, Message>; 1] {
+        [self.tray_group
+            .widget_group(&self.config, Position::Bottom, Message::Tray)]
     }
 }

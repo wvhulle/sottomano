@@ -8,6 +8,7 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
+    desktop_shell::monitor_surfaces::Position,
     message_subscriptions::blocking,
     widgets::{
         flat_button,
@@ -70,12 +71,14 @@ impl QuickLaunch {
         .discard()
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
         config: &'a Config,
-    ) -> WidgetGroup<'a, QuickLaunchMessage> {
+        position: Position,
+        lift: fn(QuickLaunchMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
         let items: Vec<GroupItem<'a, QuickLaunchMessage>> = app_ids
             .iter()
@@ -98,6 +101,9 @@ impl QuickLaunch {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

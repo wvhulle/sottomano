@@ -2,7 +2,7 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     state::{self, PanelAppearance},
     widgets::{
         group_item::GroupItem,
@@ -157,10 +157,12 @@ impl PanelAppearanceGroup {
         }
     }
 
-    pub fn widget_group<'a>(
+    pub fn widget_group<'a, Outer: 'a>(
         &'a self,
         config: &'a Config,
-    ) -> WidgetGroup<'a, PanelAppearanceMessage> {
+        position: Position,
+        lift: fn(PanelAppearanceMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let items: Vec<GroupItem<'a, PanelAppearanceMessage>> = Knob::ALL
             .into_iter()
             .map(|knob| {
@@ -178,6 +180,9 @@ impl PanelAppearanceGroup {
                 forwards_scroll: false,
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

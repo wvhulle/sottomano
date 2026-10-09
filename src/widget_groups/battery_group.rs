@@ -18,7 +18,7 @@ use crate::{
             battery::{self, Battery},
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -144,7 +144,7 @@ impl BatteryGroup {
         }
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, BatteryMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(BatteryMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         let time_item = self.time_widget().map(|time| GroupItem {
             alert_action_buttons: self
                 .power_profile
@@ -179,6 +179,9 @@ impl BatteryGroup {
                 time_item,
                 power_profile_item,
             ],
+            config,
+            position,
+            lift,
         )
     }
 }

@@ -7,12 +7,15 @@ use iced::{Subscription, Task};
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
-    config::SecretPaths,
+    config::{Config, SecretPaths},
     data::source::{
         command,
         wallpaper::{self, Position, Wallpaper},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{
+        hover_tooltips::HoverTarget,
+        monitor_surfaces::Position as BarPosition,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
@@ -291,7 +294,12 @@ impl WallpaperGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, WallpaperMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: BarPosition,
+        lift: fn(WallpaperMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let lookup = self.lookup.get();
         WidgetGroup::new(
             &self.expansion,
@@ -311,6 +319,9 @@ impl WallpaperGroup {
                     .map(|article| GroupItem::reading(article, HoverTarget::WallpaperArticle)),
                 lookup.map(|lookup| GroupItem::reading(&lookup.photo, HoverTarget::WallpaperPhoto)),
             ],
+            config,
+            position,
+            lift,
         )
     }
 }

@@ -6,7 +6,7 @@ pub mod service_error_log;
 use crate::{
     config::Config,
     data::source::{kernel_errors::KernelErrors, service_errors::ServiceErrors},
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
@@ -70,7 +70,12 @@ impl JournalEventsGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, JournalEventsMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(JournalEventsMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
         let opens_log = |widget: &'a dyn BarWidget, target, journalctl_args| GroupItem {
             on_press: Some(Press {
@@ -107,6 +112,9 @@ impl JournalEventsGroup {
                     )
                 }),
             ],
+            config,
+            position,
+            lift,
         )
     }
 

@@ -17,7 +17,7 @@ use crate::{
         clight::Clight,
         niri::OutputInfo,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
@@ -172,7 +172,12 @@ impl MonitorGroup {
         }
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, MonitorMessage> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(MonitorMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let backlight_sliders: Vec<&'a SliderControl> = self
             .backlights
             .iter()
@@ -205,6 +210,9 @@ impl MonitorGroup {
                 forwards_scroll: !self.sliders.is_empty(),
             },
             &items,
+            config,
+            position,
+            lift,
         )
     }
 }

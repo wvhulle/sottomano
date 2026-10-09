@@ -15,7 +15,7 @@ use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::SecretPaths,
+    config::{Config, SecretPaths},
     data::source::{
         Source,
         ai::{
@@ -28,7 +28,7 @@ use crate::{
             openrouter::{self, OpenRouter},
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::polling,
     widgets::{
         group_item::GroupItem,
@@ -237,7 +237,7 @@ impl AiGroup {
         }
     }
 
-    pub fn widget_group(&self) -> WidgetGroup<'_, AiMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(AiMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         let claude_usage_windows = self
             .claude_usage_windows
             .present()
@@ -274,6 +274,9 @@ impl AiGroup {
                     .present()
                     .map(|widget| GroupItem::reading(widget, HoverTarget::AiOpenRouter)),
             ],
+            config,
+            position,
+            lift,
         )
     }
 }

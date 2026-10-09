@@ -7,7 +7,7 @@ use crate::{
     data::source::audio::{
         self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
@@ -237,7 +237,7 @@ impl AudioGroup {
         ])])))
     }
 
-    pub fn widget_group<'a>(&'a self, config: &'a Config) -> WidgetGroup<'a, AudioMessage> {
+    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(AudioMessage) -> Outer) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             AudioMessage::Expansion,
@@ -264,6 +264,9 @@ impl AudioGroup {
                     })
                 }),
             ],
+            config,
+            position,
+            lift,
         )
     }
 

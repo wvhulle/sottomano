@@ -8,7 +8,7 @@ use crate::{
     desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
     widgets::{
         region_reporter::{RegionRoles, region_reporter},
-        widget_group::GroupViewWithAlerts,
+        widget_group::WidgetGroup,
     },
 };
 
@@ -100,103 +100,63 @@ impl DesktopShell {
 
     pub(super) fn widget_group_cluster<'a>(
         &'a self,
-        groups: Vec<GroupViewWithAlerts<'a, Message>>,
+        groups: Vec<WidgetGroup<'a, Message>>,
     ) -> Element<'a, Message> {
         let rendered = rendered_widget_groups(groups).collect();
         self.group_cluster(rendered)
     }
 
-    pub(super) fn top_start_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 9] {
+    pub(super) fn top_start_groups(&self) -> [WidgetGroup<'_, Message>; 9] {
         let config = &self.config;
         let top = Position::Top;
         [
-            self.weather_group
-                .widget_group()
-                .place_on_bar(Message::Weather, config, top),
-            self.battery_group
-                .widget_group(config)
-                .place_on_bar(Message::Battery, config, top),
-            self.compute_group
-                .widget_group()
-                .place_on_bar(Message::Compute, config, top),
-            self.disk_group
-                .widget_group()
-                .place_on_bar(Message::Disk, config, top),
-            self.net_interfaces_group.widget_group().place_on_bar(
-                Message::NetInterfaces,
-                config,
-                top,
-            ),
-            self.systemd_manager_group
-                .widget_group(config)
-                .place_on_bar(Message::SystemdManager, config, top),
-            self.journal_events_group.widget_group(config).place_on_bar(
-                Message::JournalEvents,
-                config,
-                top,
-            ),
-            self.pending_upgrades_group
-                .widget_group(config)
-                .place_on_bar(Message::PendingUpgrades, config, top),
-            self.internet_group
-                .widget_group()
-                .place_on_bar(Message::Internet, config, top),
+            self.weather_group.widget_group(config, top, Message::Weather),
+            self.battery_group.widget_group(config, top, Message::Battery),
+            self.compute_group.widget_group(config, top, Message::Compute),
+            self.disk_group.widget_group(config, top, Message::Disk),
+            self.net_interfaces_group.widget_group(config, top, Message::NetInterfaces),
+            self.systemd_manager_group.widget_group(config, top, Message::SystemdManager),
+            self.journal_events_group.widget_group(config, top, Message::JournalEvents),
+            self.pending_upgrades_group.widget_group(config, top, Message::PendingUpgrades),
+            self.internet_group.widget_group(config, top, Message::Internet),
         ]
     }
 
-    pub(super) fn top_center_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 2] {
+    pub(super) fn top_center_groups(&self) -> [WidgetGroup<'_, Message>; 2] {
         let config = &self.config;
         let top = Position::Top;
         [
-            self.clock_group
-                .widget_group()
-                .place_on_bar(Message::Clock, config, top),
+            self.clock_group.widget_group(config, top, Message::Clock),
             self.notification_group
                 .widget_group(
                     config,
                     &self.shell_settings.notifications,
                     self.notifications.live_count(),
-                )
-                .place_on_bar(Message::NotificationGroup, config, top),
+                    top,
+                    Message::NotificationGroup,
+                ),
         ]
     }
 
-    pub(super) fn top_end_groups(&self) -> [GroupViewWithAlerts<'_, Message>; 8] {
+    pub(super) fn top_end_groups(&self) -> [WidgetGroup<'_, Message>; 8] {
         let config = &self.config;
         let top = Position::Top;
         [
-            self.ai_group
-                .widget_group()
-                .place_on_bar(Message::Ai, config, top),
-            self.monitor_group
-                .widget_group(config)
-                .place_on_bar(Message::Monitor, config, top),
-            self.dark_mode_group
-                .widget_group(config)
-                .place_on_bar(Message::DarkMode, config, top),
-            self.color_temperature_group
-                .widget_group(config)
-                .place_on_bar(Message::ColorTemperature, config, top),
-            self.idle_timeouts_group.widget_group(config).place_on_bar(
-                Message::IdleTimeouts,
-                config,
-                top,
-            ),
-            self.wallpaper_group
-                .widget_group()
-                .place_on_bar(Message::Wallpaper, config, top),
+            self.ai_group.widget_group(config, top, Message::Ai),
+            self.monitor_group.widget_group(config, top, Message::Monitor),
+            self.dark_mode_group.widget_group(config, top, Message::DarkMode),
+            self.color_temperature_group.widget_group(config, top, Message::ColorTemperature),
+            self.idle_timeouts_group.widget_group(config, top, Message::IdleTimeouts),
+            self.wallpaper_group.widget_group(config, top, Message::Wallpaper),
             self.media_group
-                .widget_group(config, &self.desktop_entries)
-                .place_on_bar(Message::Media, config, top),
-            self.audio_group
-                .widget_group(config)
-                .place_on_bar(Message::Audio, config, top),
+                .widget_group(config, &self.desktop_entries, top, Message::Media),
+            self.audio_group.widget_group(config, top, Message::Audio),
         ]
     }
 }
 
 pub(super) fn rendered_widget_groups<'a>(
-    groups: impl IntoIterator<Item = GroupViewWithAlerts<'a, Message>>,
+    groups: impl IntoIterator<Item = WidgetGroup<'a, Message>>,
 ) -> impl Iterator<Item = Element<'a, Message>> {
     groups
         .into_iter()
