@@ -1,0 +1,227 @@
+use std::{
+    collections::{HashMap, HashSet},
+    marker::PhantomData,
+    pin::Pin,
+    time::SystemTime,
+};
+
+use iced::futures::{Stream, StreamExt, future::join_all, stream};
+use zbus::{
+    names::MemberName,
+    proxy,
+    proxy::CacheProperties,
+    zvariant::{OwnedObjectPath, OwnedValue},
+};
+
+use super::{
+    ManagerProxy, UnitRow, UnitScope, connect, manager_signal, signals_matching, state_changed_at,
+    systemd_signal,
+};
+use crate::{data::source::journal::JournalPriority, message_subscriptions::restarting};
+
+pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;
+
+const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
+const ACTIVE_STATE_PROPERTY: &str = "ActiveState";
+const FAILED_STATE: &str = "failed";
+
+#[proxy(
+    interface = "org.freedesktop.systemd1.Service",
+    default_service = "org.freedesktop.systemd1",
+    gen_blocking = false
+)]
+trait Service {
+    #[zbus(property)]
+    fn result(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn exec_main_status(&self) -> zbus::Result<i32>;
+}
+
+#[derive(Debug, Clone)]
+pub struct ServiceOutcome {
+    pub result: String,
+    pub exit_status: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct FailedUnitInfo {
+    pub name: String,
+    pub service_outcome: Option<ServiceOutcome>,
+    pub at: Option<SystemTime>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Failed<S: UnitScope> {
+    pub units: Vec<FailedUnitInfo>,
+    scope: PhantomData<S>,
+}
+
+impl<S: UnitScope> Failed<S> {
+    pub fn from_units(units: Vec<FailedUnitInfo>) -> Option<Self> {
+        (!units.is_empty()).then_some(Self {
+            units,
+            scope: PhantomData,
+        })
+    }
+
+    pub fn follow_log_args(&self) -> Vec<String> {
+        S::follow_units_log_args(self.units.iter().map(|unit| unit.name.as_str()))
+    }
+}
+
+pub fn failed_stream(per_user: bool) -> impl Stream<Item = Vec<FailedUnitInfo>> {
+    restarting("systemd failed units", move || watch_failed(per_user))
+}
+
+async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedUnitInfo>>> {
+    let connection = connect(user).await?;
+    let manager = ManagerProxy::builder(&connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    if let Err(e) = manager.subscribe().await {
+        tracing::warn!("systemd failed units: subscribe failed: {e}");
+    }
+    let unit_signals = signals_matching(
+        &connection,
+        [
+            systemd_signal()?
+                .interface("org.freedesktop.DBus.Properties")?
+                .member("PropertiesChanged")?
+                .arg(0, UNIT_INTERFACE)?
+                .build(),
+            manager_signal("UnitRemoved")?,
+            manager_signal("Reloading")?,
+        ],
+    )
+    .await?
+    .ready_chunks(64)
+    .map(|messages| messages.into_iter().filter_map(Result::ok).collect());
+    Ok(stream::unfold(
+        FailedUnitWatch {
+            manager,
+            unit_signals: Box::pin(unit_signals),
+            last_listing: None,
+        },
+        FailedUnitWatch::next_report,
+    ))
+}
+
+struct FailedUnitWatch {
+    manager: ManagerProxy<'static>,
+    unit_signals: Pin<Box<dyn Stream<Item = Vec<zbus::Message>> + Send>>,
+    last_listing: Option<FailedListing>,
+}
+
+impl FailedUnitWatch {
+    async fn next_report(mut self) -> Option<(Vec<FailedUnitInfo>, Self)> {
+        let listing = match self.last_listing.take() {
+            None => failed_units(&self.manager).await,
+            Some(last_listing) => self.next_listing(last_listing).await?,
+        };
+        let units = listing.units.clone();
+        self.last_listing = Some(listing);
+        Some((units, self))
+    }
+
+    async fn next_listing(&mut self, last_listing: FailedListing) -> Option<FailedListing> {
+        loop {
+            let signals = self.unit_signals.next().await?;
+            if signals.iter().any(|signal| last_listing.touched_by(signal)) {
+                return Some(failed_units(&self.manager).await);
+            }
+        }
+    }
+}
+
+struct FailedListing {
+    units: Vec<FailedUnitInfo>,
+    paths: HashSet<OwnedObjectPath>,
+}
+
+impl FailedListing {
+    fn touched_by(&self, signal: &zbus::Message) -> bool {
+        let header = signal.header();
+        let concerns_listed_unit = || {
+            header
+                .path()
+                .is_some_and(|path| self.paths.iter().any(|listed| listed.as_ref() == *path))
+        };
+        match header.member().map(MemberName::as_str) {
+            Some("PropertiesChanged") => match changed_active_state(signal) {
+                ActiveStateChange::Unchanged => false,
+                ActiveStateChange::To(state) => state == FAILED_STATE || concerns_listed_unit(),
+                ActiveStateChange::Unreadable => true,
+            },
+            Some("UnitRemoved") => signal
+                .body()
+                .deserialize::<(String, OwnedObjectPath)>()
+                .map_or(true, |(_, path)| self.paths.contains(&path)),
+            _ => true,
+        }
+    }
+}
+
+enum ActiveStateChange {
+    Unchanged,
+    To(String),
+    Unreadable,
+}
+
+fn changed_active_state(signal: &zbus::Message) -> ActiveStateChange {
+    let Ok((_, changed, invalidated)) =
+        signal
+            .body()
+            .deserialize::<(String, HashMap<String, OwnedValue>, Vec<String>)>()
+    else {
+        return ActiveStateChange::Unreadable;
+    };
+    match changed.get(ACTIVE_STATE_PROPERTY) {
+        Some(value) => String::try_from(value.clone())
+            .map_or(ActiveStateChange::Unreadable, ActiveStateChange::To),
+        None if invalidated.iter().any(|name| name == ACTIVE_STATE_PROPERTY) => {
+            ActiveStateChange::Unreadable
+        }
+        None => ActiveStateChange::Unchanged,
+    }
+}
+
+async fn failed_units(manager: &ManagerProxy<'static>) -> FailedListing {
+    let Ok(rows) = manager.list_units_filtered(&[FAILED_STATE]).await else {
+        return FailedListing {
+            units: Vec::new(),
+            paths: HashSet::new(),
+        };
+    };
+    let connection = manager.inner().connection();
+    let paths = rows.iter().map(|row| row.unit_path.clone()).collect();
+    FailedListing {
+        units: join_all(rows.into_iter().map(|row| failed_unit(connection, row))).await,
+        paths,
+    }
+}
+
+async fn failed_unit(connection: &zbus::Connection, row: UnitRow) -> FailedUnitInfo {
+    FailedUnitInfo {
+        at: state_changed_at(connection, row.unit_path.clone()).await,
+        service_outcome: service_outcome(connection, row.unit_path).await,
+        name: row.name,
+    }
+}
+
+async fn service_outcome(
+    connection: &zbus::Connection,
+    path: OwnedObjectPath,
+) -> Option<ServiceOutcome> {
+    let service = ServiceProxy::builder(connection)
+        .path(path)
+        .ok()?
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await
+        .ok()?;
+    Some(ServiceOutcome {
+        result: service.result().await.ok()?,
+        exit_status: service.exec_main_status().await.ok()?,
+    })
+}

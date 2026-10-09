@@ -127,11 +127,9 @@ impl DesktopShell {
                 config,
                 top,
             ),
-            self.systemd_units_group.widget_group(config).place_on_bar(
-                Message::SystemdUnits,
-                config,
-                top,
-            ),
+            self.systemd_manager_group
+                .widget_group(config)
+                .place_on_bar(Message::SystemdManager, config, top),
             self.journal_events_group.widget_group(config).place_on_bar(
                 Message::JournalEvents,
                 config,

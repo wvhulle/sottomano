@@ -28,7 +28,7 @@ use crate::{
     },
 };
 
-pub const MESSAGE_CAP: usize = 200;
+pub const MESSAGE_CAP: usize = 100;
 
 #[derive(Default)]
 pub struct JournalEventsGroup {

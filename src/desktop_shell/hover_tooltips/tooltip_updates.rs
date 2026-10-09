@@ -108,7 +108,7 @@ impl DesktopShell {
             .or_else(|| self.disk_group.tooltip_for(target))
             .or_else(|| self.battery_group.tooltip_for(target))
             .or_else(|| self.clock_group.tooltip_for(target))
-            .or_else(|| self.systemd_units_group.tooltip_for(target))
+            .or_else(|| self.systemd_manager_group.tooltip_for(target))
             .or_else(|| self.journal_events_group.tooltip_for(target))
             .or_else(|| self.pending_upgrades_group.tooltip_for(target))
             .or_else(|| self.net_interfaces_group.tooltip_for(target))

@@ -34,7 +34,7 @@ impl TableRow for CoredumpEntry {
     }
 
     fn level(&self) -> Severity {
-        Severity::Critical
+        self.severity
     }
 }
 
@@ -54,7 +54,12 @@ impl BarWidget for Coredumps {
     }
 
     fn state(&self) -> WidgetState {
-        Severity::Critical.into()
+        self.entries
+            .iter()
+            .map(|entry| entry.severity)
+            .max()
+            .unwrap_or_default()
+            .into()
     }
 
     fn tooltip(&self) -> TooltipBody {

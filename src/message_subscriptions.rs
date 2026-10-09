@@ -39,7 +39,7 @@ use crate::{
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, disk_group::DiskGroup,
         journal_events_group::JournalEventsGroup, net_interfaces_group::NetInterfacesGroup,
-        pending_upgrades_group::PendingUpgradesGroup, systemd_units_group::SystemdUnitsGroup,
+        pending_upgrades_group::PendingUpgradesGroup, systemd_manager_group::SystemdManagerGroup,
         tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
@@ -107,7 +107,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(Message::Compute),
         DiskGroup::subscription(&state.config.temperature.drive).map(Message::Disk),
         ClockGroup::subscription().map(Message::Clock),
-        SystemdUnitsGroup::subscription().map(Message::SystemdUnits),
+        SystemdManagerGroup::subscription(&state.config.systemd).map(Message::SystemdManager),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
         PendingUpgradesGroup::subscription().map(Message::PendingUpgrades),
         state.internet_group.subscription().map(Message::Internet),
