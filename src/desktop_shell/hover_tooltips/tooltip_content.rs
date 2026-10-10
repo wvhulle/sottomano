@@ -345,9 +345,9 @@ impl CellView {
     fn key(&self, key: Cell, color: Color) -> Element<'static, Message> {
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) | Cell::Link(text) => self.text(text, color).into(),
+            Cell::Text(text) | Cell::Link(text) => self.copyable_text(text, color),
             Cell::Hint(text) => self.text(text, self.hint).into(),
-            Cell::Time { at, part } => self.text(part.format(&at, self.locale), color).into(),
+            Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
         }
     }
 
