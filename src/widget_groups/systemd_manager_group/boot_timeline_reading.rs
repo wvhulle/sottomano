@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use crate::{
     data::source::systemd_manager::boot_timeline::{
-        BootPhase, BootPhases, RankedActivations, SystemStartup, UnitActivation, UserStartup,
+        BootPhase, BootTimeline, RankedActivations, UnitActivation,
     },
     widget_groups::systemd_manager_group::elapsed_text,
     widgets::{
@@ -29,30 +31,125 @@ impl BootPhase {
     }
 }
 
-impl BarWidget for BootPhases {
+fn timeline_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
+    TableRecord::new(
+        stage.to_owned(),
+        [
+            Some(elapsed_text(took).into()),
+            Some(Cell::Hint(meaning.to_owned())),
+        ],
+    )
+}
+
+impl BootTimeline {
+    fn timeline_records(&self) -> impl Iterator<Item = TableRecord<2>> {
+        let login_gap = self
+            .user_startup
+            .as_ref()
+            .map(|user| user.started_at.saturating_sub(self.system_startup.finish));
+        let session = self.user_startup.as_ref().map(|user| user.duration);
+        self.phases
+            .present()
+            .into_iter()
+            .map(BootPhase::table_record)
+            .chain(login_gap.map(|gap| {
+                timeline_record("login", gap, "waiting for the first user session manager")
+            }))
+            .chain(session.map(|duration| {
+                timeline_record(
+                    "user session",
+                    duration,
+                    "user systemd starting units until the default target",
+                )
+            }))
+    }
+
+    pub fn units(&self) -> StartupUnits<'_> {
+        StartupUnits { timeline: self }
+    }
+}
+
+impl BarWidget for BootTimeline {
     fn icon(&self) -> Glyph {
         Phosphor::RocketLaunch(self.state().weight()).into()
     }
 
     fn label(&self) -> Option<String> {
-        Some(elapsed_text(self.total()))
+        Some(elapsed_text(self.phases.total()))
     }
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[Section::untitled_column_table(
             ["Took", "Meaning"],
-            self.present().into_iter().map(BootPhase::table_record),
+            self.timeline_records(),
         )])
     }
 }
 
-impl RankedActivations {
-    fn slow_badge(&self) -> Option<u32> {
-        u32::try_from(self.slow_count())
-            .ok()
-            .filter(|count| *count > 0)
+pub struct StartupUnits<'a> {
+    timeline: &'a BootTimeline,
+}
+
+impl BarWidget for StartupUnits<'_> {
+    fn icon(&self) -> Glyph {
+        Phosphor::Stack(self.state().weight()).into()
     }
 
+    fn badge(&self) -> Option<u32> {
+        let count = self
+            .timeline
+            .system_startup
+            .slowest_units
+            .slow_count()
+            .saturating_add(
+                self.timeline
+                    .user_startup
+                    .as_ref()
+                    .map_or(0, |user| user.slowest_units.slow_count()),
+            );
+        u32::try_from(count).ok().filter(|count| *count > 0)
+    }
+
+    fn state(&self) -> WidgetState {
+        let user_state = self
+            .timeline
+            .user_startup
+            .as_ref()
+            .map(|user| user.slowest_units.slowness_state());
+        [
+            Some(self.timeline.system_startup.slowest_units.slowness_state()),
+            user_state,
+        ]
+        .into_iter()
+        .flatten()
+        .map(WidgetState::severity)
+        .max()
+        .unwrap_or_default()
+        .into()
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        let user_section = self.timeline.user_startup.as_ref().map(|user| {
+            user.slowest_units
+                .blame_section("Slowest user units at login")
+        });
+        let sections: Vec<Section> = [
+            Some(
+                self.timeline
+                    .system_startup
+                    .slowest_units
+                    .blame_section("Slowest system units at boot"),
+            ),
+            user_section,
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        TooltipBody::sections(&sections)
+    }
+}
+
+impl RankedActivations {
     fn slowness_state(&self) -> WidgetState {
         self.slowest_first
             .iter()
@@ -62,54 +159,14 @@ impl RankedActivations {
             .into()
     }
 
-    fn table(&self, title: &str) -> TooltipBody {
-        TooltipBody::sections(&[Section::dictionary(
+    fn blame_section(&self, title: &str) -> Section {
+        Section::dictionary(
             (
                 title,
                 "Time from starting to active, for units up before startup finished. Devices and \
                  units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
             ),
             self.slowest_first.iter().map(UnitActivation::key_value),
-        )])
-    }
-}
-
-impl BarWidget for SystemStartup {
-    fn icon(&self) -> Glyph {
-        Phosphor::Stack(self.state().weight()).into()
-    }
-
-    fn badge(&self) -> Option<u32> {
-        self.slowest_units.slow_badge()
-    }
-
-    fn state(&self) -> WidgetState {
-        self.slowest_units.slowness_state()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        self.slowest_units.table("Slowest system units at boot")
-    }
-}
-
-impl BarWidget for UserStartup {
-    fn icon(&self) -> Glyph {
-        Phosphor::UserCircle(self.state().weight()).into()
-    }
-
-    fn label(&self) -> Option<String> {
-        Some(elapsed_text(self.duration))
-    }
-
-    fn badge(&self) -> Option<u32> {
-        self.slowest_units.slow_badge()
-    }
-
-    fn state(&self) -> WidgetState {
-        self.slowest_units.slowness_state()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        self.slowest_units.table("Slowest user units at login")
+        )
     }
 }

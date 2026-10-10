@@ -120,11 +120,13 @@ impl RankedActivations {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SystemStartup {
+    pub finish: Duration,
     pub slowest_units: RankedActivations,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserStartup {
+    pub started_at: Duration,
     pub duration: Duration,
     pub slowest_units: RankedActivations,
 }
@@ -167,6 +169,7 @@ async fn system_boot(slow_unit: Duration) -> zbus::Result<BootTimeline> {
     Ok(BootTimeline {
         phases,
         system_startup: SystemStartup {
+            finish: startup.finish,
             slowest_units: startup.slowest_units,
         },
         user_startup: None,
@@ -175,8 +178,10 @@ async fn system_boot(slow_unit: Duration) -> zbus::Result<BootTimeline> {
 
 impl UserStartup {
     fn of(startup: ManagerStartup) -> Option<Self> {
+        let started_at = startup.timestamps.userspace?;
         Some(Self {
-            duration: startup.finish.checked_sub(startup.timestamps.userspace?)?,
+            started_at,
+            duration: startup.finish.checked_sub(started_at)?,
             slowest_units: startup.slowest_units,
         })
     }
