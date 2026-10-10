@@ -1,14 +1,32 @@
 use crate::{
+    config::Config,
     data::source::service_errors::{ServiceErrors, UnitErrors},
-    widget_groups::journal_events_group::MESSAGE_CAP,
+    desktop_shell::hover_tooltips::HoverTarget,
+    widget_groups::{
+        journal_events_group::{JournalEventsMessage, MESSAGE_CAP},
+        terminal_journal::TerminalJournal,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
+
+impl ServiceErrors {
+    pub fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
+        GroupItem::reading(self, HoverTarget::JournalServiceErrors).on_press(
+            TerminalJournal::PRESS_HINT,
+            JournalEventsMessage::OpenLog(TerminalJournal::following(
+                config,
+                self.follow_log_args(),
+            )),
+        )
+    }
+}
 
 impl UnitErrors {
     fn table_record(&self) -> TableRecord<3> {

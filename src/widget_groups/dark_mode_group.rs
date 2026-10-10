@@ -4,7 +4,7 @@ pub mod umbra_dark_mode;
 use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use iced::{Subscription, Task, task};
+use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
         },
         sun_schedule::ColorMode,
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
@@ -25,14 +25,14 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         weather_icons::WeatherIcon,
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -265,57 +265,38 @@ impl DarkModeGroup {
         ])]))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(DarkModeMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let mode = GroupItem::toggle(
-            &self.mode_toggle,
-            HoverTarget::DarkMode,
-            DarkModeMessage::ModeToggle,
-        );
-        let schedule_items: [Option<GroupItem<'a, DarkModeMessage>>; 3] = if mode.is_some() {
-            [
-                Some(GroupItem {
-                    on_press: Some(Press {
-                        does: "switch following sunrise and sunset on or off",
-                        message: DarkModeMessage::ToggleAutoSwitch,
-                    }),
-                    ..GroupItem::reading(&self.auto_switch_toggle, HoverTarget::DarkModeSchedule)
-                }),
-                Some(self.offset_slider_item(config, ColorMode::Light)),
-                Some(self.offset_slider_item(config, ColorMode::Dark)),
-            ]
-        } else {
-            [None, None, None]
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, DarkModeMessage> {
+        let mode_known = self.mode_toggle.reading().is_some();
+        let offset_slider = |edge| {
+            GroupItem::slider(
+                self.offset_slider_for(edge),
+                config,
+                DarkModeMessage::OffsetSlider.with(edge),
+            )
         };
-        let items: Vec<Option<GroupItem<'a, DarkModeMessage>>> =
-            [mode].into_iter().chain(schedule_items).collect();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             DarkModeMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::MoonStars(Weight::Regular).into()),
-                preview: self.mode_toggle.reading().map(PreviewedValue::Plain),
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [
+                self.mode_toggle
+                    .group_item(HoverTarget::DarkMode, DarkModeMessage::ModeToggle),
+                mode_known.then(|| {
+                    GroupItem::reading(&self.auto_switch_toggle, HoverTarget::DarkModeSchedule)
+                        .on_press(
+                            "switch following sunrise and sunset on or off",
+                            DarkModeMessage::ToggleAutoSwitch,
+                        )
+                }),
+                mode_known.then(|| offset_slider(ColorMode::Light)),
+                mode_known.then(|| offset_slider(ColorMode::Dark)),
+            ]
+            .into_iter()
+            .flatten(),
         )
-    }
-
-    fn offset_slider_item<'a>(
-        &'a self,
-        config: &'a Config,
-        edge: ColorMode,
-    ) -> GroupItem<'a, DarkModeMessage> {
-        GroupItem::slider(self.offset_slider_for(edge), config, move |m| {
-            DarkModeMessage::OffsetSlider(edge, m)
-        })
+        .face(HandleFace::Icon(
+            Phosphor::MoonStars(Weight::Regular).into(),
+        ))
+        .preview(self.mode_toggle.reading().map(PreviewedValue::Plain))
     }
 }
 

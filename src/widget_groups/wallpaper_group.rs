@@ -7,12 +7,12 @@ use iced::{Subscription, Task};
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
-    config::{Config, SecretPaths},
+    config::SecretPaths,
     data::source::{
         command,
         wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position as BarPosition},
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
@@ -20,7 +20,7 @@ use crate::{
         phosphor::Phosphor,
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
 
@@ -310,23 +310,13 @@ impl WallpaperGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: BarPosition,
-        lift: fn(WallpaperMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    pub fn group_content(&self) -> GroupContent<'_, WallpaperMessage> {
         let lookup = self.lookup.get();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             WallpaperMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
-                self.lookup.reading_item(HoverTarget::Wallpaper),
+            [
+                self.lookup.group_item(HoverTarget::Wallpaper),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
                     .map(|place| GroupItem::reading(place, HoverTarget::WallpaperPlace)),
@@ -334,10 +324,9 @@ impl WallpaperGroup {
                     .and_then(|lookup| lookup.article.as_ref())
                     .map(|article| GroupItem::reading(article, HoverTarget::WallpaperArticle)),
                 lookup.map(|lookup| GroupItem::reading(&lookup.photo, HoverTarget::WallpaperPhoto)),
-            ],
-            config,
-            position,
-            lift,
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 }

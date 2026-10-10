@@ -8,15 +8,12 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
-    desktop_shell::monitor_surfaces::Position,
     message_subscriptions::blocking,
     widgets::{
         flat_button,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
-        widget_group::{
-            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, WidgetGroup,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
 
@@ -71,40 +68,29 @@ impl QuickLaunch {
         .discard()
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
         config: &'a Config,
-        position: Position,
-        lift: fn(QuickLaunchMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
-        let items: Vec<GroupItem<'a, QuickLaunchMessage>> = app_ids
-            .iter()
-            .filter_map(|app_id| {
-                icon_slot(config, index, app_id, 1.0)?;
-                Some(GroupItem::element(move |reveal| {
-                    icon_slot(config, index, app_id, reveal)
-                        .unwrap_or_else(|| Row::new().into())
-                        .map(GroupEvent::Group)
-                }))
-            })
-            .take(MAX_ITEMS)
-            .collect();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             QuickLaunchMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Rocket(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            app_ids
+                .iter()
+                .filter(|app_id| index.app_icon(app_id).is_some())
+                .take(MAX_ITEMS)
+                .map(move |app_id| {
+                    GroupItem::element(move |reveal| {
+                        icon_slot(config, index, app_id, reveal)
+                            .unwrap_or_else(|| Row::new().into())
+                            .map(GroupEvent::Group)
+                    })
+                }),
         )
+        .face(HandleFace::Icon(Phosphor::Rocket(Weight::Regular).into()))
     }
 }
 

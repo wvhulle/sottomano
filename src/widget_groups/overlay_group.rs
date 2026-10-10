@@ -1,8 +1,8 @@
-use iced::Task;
+use iced::{Function, Task};
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{
         OverlaySettings,
         overlay_settings::{self, OverlaySetting},
@@ -11,9 +11,9 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::icon_toggle_item,
+        toggle_control::IconToggle,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -181,45 +181,29 @@ impl OverlayGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         overlays: OverlaySettings,
-        position: Position,
-        lift: fn(OverlayMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, OverlayMessage> {
         let spatial_layout_icon = if overlays.toast_spatial_layout {
             Phosphor::TextAlignCenter(Weight::Regular)
         } else {
             Phosphor::TextAlignRight(Weight::Regular)
         };
-        let slider_items = OverlayKnob::ALL.into_iter().map(|knob| {
-            GroupItem::slider(self.slider(knob), config, move |control| {
-                OverlayMessage::Slider(knob, control)
-            })
-        });
-        let items: Vec<GroupItem<'a, OverlayMessage>> = [icon_toggle_item(
-            config,
-            spatial_layout_icon,
-            overlays.toast_spatial_layout,
-            OverlayMessage::ToggleToastSpatialLayout,
-            HoverTarget::ToastSpatialLayout,
-        )]
-        .into_iter()
-        .chain(slider_items)
-        .collect();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             OverlayMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Stack(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [GroupItem::toggle(
+                IconToggle::new(spatial_layout_icon, overlays.toast_spatial_layout),
+                HoverTarget::ToastSpatialLayout,
+                OverlayMessage::ToggleToastSpatialLayout,
+            )]
+            .into_iter()
+            .chain(OverlayKnob::ALL.into_iter().map(|knob| {
+                GroupItem::slider(self.slider(knob), config, OverlayMessage::Slider.with(knob))
+            })),
         )
+        .face(HandleFace::Icon(Phosphor::Stack(Weight::Regular).into()))
     }
 }

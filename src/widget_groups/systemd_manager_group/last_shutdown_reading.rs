@@ -11,7 +11,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         phosphor::Phosphor,
         tooltip_body::{Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -79,15 +79,12 @@ impl BarWidget for LastShutdown {
 
 impl LastShutdown {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem {
-            on_press: Some(Press {
-                does: TerminalJournal::PRESS_HINT,
-                message: SystemdManagerMessage::OpenLog(TerminalJournal::following(
-                    config,
-                    self.follow_log_args(),
-                )),
-            }),
-            ..GroupItem::reading(self, HoverTarget::SystemdLastShutdown)
-        }
+        GroupItem::reading(self, HoverTarget::SystemdLastShutdown).on_press(
+            TerminalJournal::PRESS_HINT,
+            SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                config,
+                self.follow_log_args(),
+            )),
+        )
     }
 }

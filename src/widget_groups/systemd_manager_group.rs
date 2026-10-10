@@ -26,7 +26,7 @@ use crate::{
             running_jobs::{SlowJobs, slow_jobs_stream},
         },
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
@@ -36,7 +36,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
         widget_state::WidgetState,
     },
@@ -206,28 +206,15 @@ impl SystemdManagerGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        position: Position,
-        lift: fn(SystemdManagerMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             SystemdManagerMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::IconColoredBy {
-                    glyph: Phosphor::Heartbeat(Weight::Regular).into(),
-                    reading: self,
-                },
-                preview: boot.map(|boot| PreviewedValue::Hoverable {
-                    widget: &boot.phases,
-                    target: HoverTarget::SystemdBootPhases,
-                }),
-                forwards_scroll: false,
-            },
-            &[
+            [
                 boot.map(|boot| GroupItem::reading(&boot.phases, HoverTarget::SystemdBootPhases)),
                 boot.map(|boot| {
                     GroupItem::reading(&boot.system_startup, HoverTarget::SystemdSystemStartup)
@@ -249,11 +236,18 @@ impl SystemdManagerGroup {
                 self.oom_kills.get().map(|kills| kills.group_item(config)),
                 self.coredumps.get().map(|dumps| dumps.group_item(config)),
                 self.last_shutdown.get().map(|last| last.group_item(config)),
-            ],
-            config,
-            position,
-            lift,
+            ]
+            .into_iter()
+            .flatten(),
         )
+        .face(HandleFace::IconColoredBy {
+            glyph: Phosphor::Heartbeat(Weight::Regular).into(),
+            reading: self,
+        })
+        .preview(boot.map(|boot| PreviewedValue::Hoverable {
+            widget: &boot.phases,
+            target: HoverTarget::SystemdBootPhases,
+        }))
     }
 
     fn current_health(&self) -> [Option<&dyn BarWidget>; 6] {

@@ -14,7 +14,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
         reading_alert::ReadingAlert,
@@ -53,14 +53,12 @@ impl<S: ScopeAppearance> SlowJobs<S> {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalJournal::following(config, args));
-        GroupItem {
-            on_press: Some(Press {
-                does: TerminalJournal::PRESS_HINT,
-                message: open_log(self.follow_log_args()),
-            }),
-            alerts: self.job_alerts(open_log, config.locale).collect(),
-            ..GroupItem::reading(self, S::SLOW_JOBS_TARGET)
-        }
+        GroupItem::reading(self, S::SLOW_JOBS_TARGET)
+            .on_press(
+                TerminalJournal::PRESS_HINT,
+                open_log(self.follow_log_args()),
+            )
+            .alerts(self.job_alerts(open_log, config.locale))
     }
 
     fn job_alerts<M>(

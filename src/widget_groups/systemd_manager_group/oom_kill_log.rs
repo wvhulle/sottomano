@@ -7,7 +7,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
@@ -42,16 +42,13 @@ impl OomKillEntry {
 
 impl OomKills {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem {
-            on_press: Some(Press {
-                does: TerminalJournal::PRESS_HINT,
-                message: SystemdManagerMessage::OpenLog(TerminalJournal::following(
-                    config,
-                    OomKills::follow_log_args(),
-                )),
-            }),
-            ..GroupItem::reading(self, HoverTarget::SystemdOomKills)
-        }
+        GroupItem::reading(self, HoverTarget::SystemdOomKills).on_press(
+            TerminalJournal::PRESS_HINT,
+            SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                config,
+                OomKills::follow_log_args(),
+            )),
+        )
     }
 }
 

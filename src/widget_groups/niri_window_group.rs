@@ -1,17 +1,17 @@
 use std::ops::RangeInclusive;
 
-use iced::Task;
+use iced::{Function, Task};
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::niri_rules::{NiriLayout, NiriRulesFile},
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -141,32 +141,20 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(NiriWindowMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let items: Vec<GroupItem<'a, NiriWindowMessage>> = Knob::ALL
-            .into_iter()
-            .map(|knob| {
-                GroupItem::slider(self.slider(knob), config, move |control| {
-                    NiriWindowMessage::Slider(knob, control)
-                })
-            })
-            .collect();
-        WidgetGroup::new(
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, NiriWindowMessage> {
+        GroupContent::new(
             &self.expansion,
             NiriWindowMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::AppWindow(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            Knob::ALL.into_iter().map(|knob| {
+                GroupItem::slider(
+                    self.slider(knob),
+                    config,
+                    NiriWindowMessage::Slider.with(knob),
+                )
+            }),
         )
+        .face(HandleFace::Icon(
+            Phosphor::AppWindow(Weight::Regular).into(),
+        ))
     }
 }

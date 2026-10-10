@@ -16,16 +16,16 @@ use crate::{
         reading_alert::{ReadingAlert, ReadingAlertActionButton},
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
-        toggle_control::{TOGGLE_PRESS_HINT, Toggle, ToggleControl, ToggleMessage},
+        toggle_control::{IconToggle, TOGGLE_PRESS_HINT},
         widget_group::GroupEvent,
     },
 };
 
-type DrawItem<'a, M> = Rc<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 
-pub(crate) enum ItemKind<'a, M> {
+enum ItemKind<'a, M> {
     Reading {
-        widget: &'a dyn BarWidget,
+        widget: Box<dyn BarWidget + 'a>,
         target: HoverTarget,
     },
     Control {
@@ -38,42 +38,69 @@ pub(crate) enum ItemKind<'a, M> {
     },
 }
 
-impl<M> Clone for ItemKind<'_, M> {
-    fn clone(&self) -> Self {
+struct AnnouncingReading<'r> {
+    widget: &'r dyn BarWidget,
+    target: &'r HoverTarget,
+}
+
+impl<'a, M: 'a> ItemKind<'a, M> {
+    fn announcing_reading(&self) -> Option<AnnouncingReading<'_>> {
         match self {
-            ItemKind::Reading { widget, target } => ItemKind::Reading {
+            ItemKind::Reading { widget, target } => Some(AnnouncingReading {
+                widget: widget.as_ref(),
+                target,
+            }),
+            ItemKind::Control { widget, target, .. } => Some(AnnouncingReading {
                 widget: *widget,
-                target: target.clone(),
-            },
+                target,
+            }),
+            ItemKind::Element { .. } => None,
+        }
+    }
+
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> ItemKind<'a, Outer> {
+        let lift_draw = |draw: DrawItem<'a, M>| -> DrawItem<'a, Outer> {
+            Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
+        };
+        match self {
+            ItemKind::Reading { widget, target } => ItemKind::Reading { widget, target },
             ItemKind::Control {
                 widget,
                 target,
                 draw,
             } => ItemKind::Control {
-                widget: *widget,
-                target: target.clone(),
-                draw: Rc::clone(draw),
+                widget,
+                target,
+                draw: lift_draw(draw),
             },
             ItemKind::Element { draw } => ItemKind::Element {
-                draw: Rc::clone(draw),
+                draw: lift_draw(draw),
             },
         }
     }
 }
 
 #[derive(Clone)]
-pub struct Press<M> {
-    pub does: &'static str,
-    pub message: M,
+struct Press<M> {
+    does: &'static str,
+    message: M,
 }
 
-#[derive(Clone)]
+impl<M> Press<M> {
+    fn map<Outer>(self, lift: fn(M) -> Outer) -> Press<Outer> {
+        Press {
+            does: self.does,
+            message: lift(self.message),
+        }
+    }
+}
+
 pub struct GroupItem<'a, M> {
-    pub(crate) kind: ItemKind<'a, M>,
-    pub on_press: Option<Press<M>>,
-    pub on_right_press: Option<Press<M>>,
-    pub alert_action_buttons: Vec<ReadingAlertActionButton<M>>,
-    pub alerts: Vec<ReadingAlert<M>>,
+    kind: ItemKind<'a, M>,
+    on_press: Option<Press<M>>,
+    on_right_press: Option<Press<M>>,
+    alert_action_buttons: Vec<ReadingAlertActionButton<M>>,
+    alerts: Vec<ReadingAlert<M>>,
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
@@ -87,8 +114,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn reading(widget: &'a dyn BarWidget, target: HoverTarget) -> Self {
-        Self::of_kind(ItemKind::Reading { widget, target })
+    pub fn reading(widget: impl BarWidget + 'a, target: HoverTarget) -> Self {
+        Self::of_kind(ItemKind::Reading {
+            widget: Box::new(widget),
+            target,
+        })
     }
 
     pub fn control(
@@ -99,17 +129,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self::of_kind(ItemKind::Control {
             widget,
             target,
-            draw: Rc::new(draw),
+            draw: Box::new(draw),
         })
     }
 
     pub fn slider(
         slider: &'a SliderControl,
         config: &'a Config,
-        on_control: impl Fn(ControlMessage) -> M + Clone + 'a,
+        on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
+        let on_control = Rc::new(on_control);
         Self::control(slider, slider.target().clone(), move |reveal| {
-            let on_control = on_control.clone();
+            let on_control = Rc::clone(&on_control);
             slider
                 .view(config, reveal)
                 .map(move |message| match message {
@@ -119,24 +150,70 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub fn toggle<S: Toggle>(
-        toggle: &'a ToggleControl<S>,
-        target: HoverTarget,
-        on_toggle: impl Fn(ToggleMessage<S>) -> M,
-    ) -> Option<Self> {
-        toggle.reading().map(|reading| Self {
-            on_press: Some(Press {
-                does: TOGGLE_PRESS_HINT,
-                message: on_toggle(ToggleMessage::Press),
-            }),
-            ..Self::reading(reading, target)
+    pub fn element(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
+        Self::of_kind(ItemKind::Element {
+            draw: Box::new(draw),
         })
     }
 
-    pub fn element(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
-        Self::of_kind(ItemKind::Element {
-            draw: Rc::new(draw),
-        })
+    pub fn toggle(toggle: IconToggle, target: HoverTarget, message: M) -> Self {
+        Self::reading(toggle, target).on_press(TOGGLE_PRESS_HINT, message)
+    }
+
+    #[must_use]
+    pub fn on_press(self, does: &'static str, message: M) -> Self {
+        Self {
+            on_press: Some(Press { does, message }),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn on_right_press(self, does: &'static str, message: M) -> Self {
+        Self {
+            on_right_press: Some(Press { does, message }),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn alerts(self, alerts: impl IntoIterator<Item = ReadingAlert<M>>) -> Self {
+        Self {
+            alerts: alerts.into_iter().collect(),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn alert_action_buttons(
+        self,
+        buttons: impl IntoIterator<Item = ReadingAlertActionButton<M>>,
+    ) -> Self {
+        Self {
+            alert_action_buttons: buttons.into_iter().collect(),
+            ..self
+        }
+    }
+
+    pub(super) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
+        GroupItem {
+            kind: self.kind.map(lift),
+            on_press: self.on_press.map(|press| press.map(lift)),
+            on_right_press: self.on_right_press.map(|press| press.map(lift)),
+            alert_action_buttons: self
+                .alert_action_buttons
+                .into_iter()
+                .map(|button| ReadingAlertActionButton {
+                    button_label: button.button_label,
+                    on_button_pressed: lift(button.on_button_pressed),
+                })
+                .collect(),
+            alerts: self
+                .alerts
+                .into_iter()
+                .map(|alert| alert.map_messages(lift))
+                .collect(),
+        }
     }
 
     fn press_hints(&self) -> PressHints {
@@ -148,11 +225,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub(super) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
-        let (ItemKind::Reading { widget, target } | ItemKind::Control { widget, target, .. }) =
-            &self.kind
-        else {
-            return None;
-        };
+        let AnnouncingReading { widget, target } = self.kind.announcing_reading()?;
         widget.announced_level().map(|level| LevelReading {
             hover_target: target.clone(),
             glyph: widget.icon(),
@@ -161,31 +234,38 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub(super) fn alert(&self, on_body_clicked: M, locale: Locale) -> Option<ReadingAlert<M>>
+    pub(super) fn alerts_with_reading(
+        &self,
+        on_body_clicked: M,
+        locale: Locale,
+    ) -> impl Iterator<Item = ReadingAlert<M>>
     where
         M: Clone,
     {
-        let (ItemKind::Reading { widget, target } | ItemKind::Control { widget, target, .. }) =
-            &self.kind
-        else {
-            return None;
-        };
-        let alert = ReadingAlert::from_widget_state(
-            target.clone(),
-            Some(*widget),
-            on_body_clicked,
-            locale,
-        )?;
-        Some(
-            self.alert_action_buttons
-                .iter()
-                .fold(alert, |alert, button| {
-                    alert.with_action_button(
-                        button.button_label.clone(),
-                        button.on_button_pressed.clone(),
+        let reading_alert =
+            self.kind
+                .announcing_reading()
+                .and_then(|AnnouncingReading { widget, target }| {
+                    ReadingAlert::from_widget_state(
+                        target.clone(),
+                        Some(widget),
+                        on_body_clicked,
+                        locale,
                     )
-                }),
-        )
+                });
+        reading_alert
+            .map(|alert| {
+                self.alert_action_buttons
+                    .iter()
+                    .fold(alert, |alert, button| {
+                        alert.with_action_button(
+                            button.button_label.clone(),
+                            button.on_button_pressed.clone(),
+                        )
+                    })
+            })
+            .into_iter()
+            .chain(self.alerts.iter().cloned())
     }
 
     pub(super) fn view(&self, config: &Config, reveal: f32) -> Option<Element<'a, GroupEvent<M>>>
@@ -194,7 +274,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     {
         let mut element = match &self.kind {
             ItemKind::Reading { widget, target } => hoverable(
-                source_reading(config, Some(*widget), reveal)?,
+                source_reading(config, Some(widget.as_ref()), reveal)?,
                 target.clone(),
                 self.press_hints(),
                 GroupEvent::Tooltip,

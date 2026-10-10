@@ -1,13 +1,13 @@
 use std::{collections::HashMap, env, ops::RangeInclusive, sync::Arc, thread, time::Duration};
 
-use iced::{Subscription, Task};
+use iced::{Function, Subscription, Task};
 
 use crate::{
     config::Config,
     data::source::audio::{
         self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
@@ -16,7 +16,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -246,42 +246,39 @@ impl AudioGroup {
         ])))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(AudioMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        WidgetGroup::new(
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, AudioMessage> {
+        GroupContent::new(
             &self.expansion,
             AudioMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::IconColoredBy {
-                    glyph: Phosphor::Waveform(Weight::Regular).into(),
-                    reading: &self.sink_control,
-                },
-                preview: self
-                    .sink
-                    .as_ref()
-                    .map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)),
-                forwards_scroll: self.sink.is_some(),
-            },
-            &[
+            [
                 self.sink.as_ref().map(|_| {
-                    GroupItem::slider(&self.sink_control, config, |m| {
-                        AudioMessage::Control(ControlKind::Sink, m)
-                    })
+                    GroupItem::slider(
+                        &self.sink_control,
+                        config,
+                        AudioMessage::Control.with(ControlKind::Sink),
+                    )
                 }),
                 self.source.as_ref().map(|_| {
-                    GroupItem::slider(&self.source_control, config, |m| {
-                        AudioMessage::Control(ControlKind::Source, m)
-                    })
+                    GroupItem::slider(
+                        &self.source_control,
+                        config,
+                        AudioMessage::Control.with(ControlKind::Source),
+                    )
                 }),
-            ],
-            config,
-            position,
-            lift,
+            ]
+            .into_iter()
+            .flatten(),
         )
+        .face(HandleFace::IconColoredBy {
+            glyph: Phosphor::Waveform(Weight::Regular).into(),
+            reading: &self.sink_control,
+        })
+        .preview(
+            self.sink
+                .as_ref()
+                .map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)),
+        )
+        .forwards_scroll(self.sink.is_some())
     }
 
     pub fn collapse(&mut self) {

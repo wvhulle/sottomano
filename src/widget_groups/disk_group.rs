@@ -5,19 +5,19 @@ pub mod drive_health_indicator;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::{Config, temperature::SensorConfig},
+    config::temperature::SensorConfig,
     data::source::disk::{
         self, Disk,
         activity::{DiskActivity, DiskTransfer, Reading, Writing},
         health::DriveHealth,
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
         hardware_section::HardwareEntries,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
 
@@ -66,29 +66,18 @@ impl DiskGroup {
             .receive(reading.map(|activity| activity.write));
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(DiskMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        WidgetGroup::new(
+    pub fn group_content(&self) -> GroupContent<'_, DiskMessage> {
+        GroupContent::new(
             &self.expansion,
             DiskMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
-                self.usage.reading_item(HoverTarget::Disk),
-                self.disk_read.reading_item(HoverTarget::DiskRead),
-                self.disk_write.reading_item(HoverTarget::DiskWrite),
-                self.drive_health.reading_item(HoverTarget::DriveHealth),
-            ],
-            config,
-            position,
-            lift,
+            [
+                self.usage.group_item(HoverTarget::Disk),
+                self.disk_read.group_item(HoverTarget::DiskRead),
+                self.disk_write.group_item(HoverTarget::DiskWrite),
+                self.drive_health.group_item(HoverTarget::DriveHealth),
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 

@@ -4,11 +4,8 @@ use iced::{
     window::Id,
 };
 
-use crate::{
-    desktop_shell::{
-        DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
-    },
-    widgets::widget_group::WidgetGroup,
+use crate::desktop_shell::{
+    DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
 };
 
 impl DesktopShell {
@@ -44,13 +41,5 @@ impl DesktopShell {
             .padding(float)
         ]
         .into()
-    }
-
-    pub(super) fn all_widget_groups(&self) -> impl Iterator<Item = WidgetGroup<'_, Message>> {
-        self.top_start_groups()
-            .into_iter()
-            .chain(self.top_center_groups())
-            .chain(self.top_end_groups())
-            .chain(self.bottom_end_groups())
     }
 }

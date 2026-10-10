@@ -7,14 +7,13 @@ pub mod mobile_modem_tooltip;
 pub mod wifi_link_tooltip;
 
 use crate::{
-    config::Config,
     data::source::net_interfaces::{
         bluetooth::{self, Bluetooth},
         ethernet::{self, Ethernet},
         mobile::{self, Mobile},
         wifi::{self, Wifi},
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::dbus,
     widgets::{
         bar_widget::BarWidget,
@@ -22,7 +21,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
         widget_state::WidgetState,
     },
@@ -79,30 +78,21 @@ impl NetInterfacesGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(NetInterfacesMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        WidgetGroup::new(
+    pub fn group_content(&self) -> GroupContent<'_, NetInterfacesMessage> {
+        GroupContent::new(
             &self.expansion,
             NetInterfacesMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Link(Weight::Regular).into()),
-                preview: self.preferred_uplink().map(PreviewedValue::Plain),
-                forwards_scroll: false,
-            },
-            &[
-                self.bluetooth.reading_item(HoverTarget::Bluetooth),
-                self.ethernet.reading_item(HoverTarget::Ethernet),
-                self.wifi.reading_item(HoverTarget::Wifi),
-                self.mobile.reading_item(HoverTarget::Mobile),
-            ],
-            config,
-            position,
-            lift,
+            [
+                self.bluetooth.group_item(HoverTarget::Bluetooth),
+                self.ethernet.group_item(HoverTarget::Ethernet),
+                self.wifi.group_item(HoverTarget::Wifi),
+                self.mobile.group_item(HoverTarget::Mobile),
+            ]
+            .into_iter()
+            .flatten(),
         )
+        .face(HandleFace::Icon(Phosphor::Link(Weight::Regular).into()))
+        .preview(self.preferred_uplink().map(PreviewedValue::Plain))
     }
 
     fn preferred_uplink(&self) -> Option<&dyn BarWidget> {

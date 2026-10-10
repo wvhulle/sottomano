@@ -14,7 +14,6 @@ use crate::{
     desktop_shell::{
         app_window_focus::AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
-        monitor_surfaces::Position,
     },
     widgets::{
         activity_line::activity_line,
@@ -23,9 +22,7 @@ use crate::{
         native_icon::native_icon,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
-        widget_group::{
-            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, WidgetGroup,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
 
@@ -161,30 +158,17 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(TrayMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let items: Vec<GroupItem<'a, TrayMessage>> = self
-            .visible(config)
-            .into_iter()
-            .map(|item| GroupItem::element(move |reveal| item_view(config, item, reveal)))
-            .collect();
-        WidgetGroup::new(
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, TrayMessage> {
+        GroupContent::new(
             &self.expansion,
             TrayMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::DotsThreeVertical(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            self.visible(config)
+                .into_iter()
+                .map(|item| GroupItem::element(move |reveal| item_view(config, item, reveal))),
         )
+        .face(HandleFace::Icon(
+            Phosphor::DotsThreeVertical(Weight::Regular).into(),
+        ))
     }
 }
 

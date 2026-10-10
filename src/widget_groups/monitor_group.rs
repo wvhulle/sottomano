@@ -17,7 +17,7 @@ use crate::{
         clight::Clight,
         niri::OutputInfo,
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
@@ -27,7 +27,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -172,12 +172,7 @@ impl MonitorGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(MonitorMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, MonitorMessage> {
         let backlight_sliders: Vec<&'a SliderControl> = self
             .backlights
             .iter()
@@ -187,32 +182,25 @@ impl MonitorGroup {
             .first()
             .map(|slider| *slider as &dyn BarWidget)
             .or(self.clight.reading());
-        let backlight_items = self.backlights.iter().map(|backlight| {
+        let backlight_items = self.backlights.iter().filter_map(|backlight| {
             let slider = self.sliders.get(&backlight.serial)?;
             let serial = backlight.serial.clone();
             Some(GroupItem::slider(slider, config, move |m| {
                 MonitorMessage::Backlight(serial.clone(), m)
             }))
         });
-        let items: Vec<Option<GroupItem<'a, MonitorMessage>>> = backlight_items
-            .chain([GroupItem::toggle(
-                &self.clight,
-                HoverTarget::ClightAuto,
-                MonitorMessage::Clight,
-            )])
-            .collect();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             MonitorMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Lightbulb(Weight::Regular).into()),
-                preview: previewed_value.map(PreviewedValue::Plain),
-                forwards_scroll: !self.sliders.is_empty(),
-            },
-            &items,
-            config,
-            position,
-            lift,
+            backlight_items.chain(
+                self.clight
+                    .group_item(HoverTarget::ClightAuto, MonitorMessage::Clight),
+            ),
         )
+        .face(HandleFace::Icon(
+            Phosphor::Lightbulb(Weight::Regular).into(),
+        ))
+        .preview(previewed_value.map(PreviewedValue::Plain))
+        .forwards_scroll(!self.sliders.is_empty())
     }
 }

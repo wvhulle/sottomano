@@ -15,7 +15,7 @@ use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::{Config, SecretPaths},
+    config::SecretPaths,
     data::source::{
         Source,
         ai::{
@@ -28,15 +28,14 @@ use crate::{
             openrouter::{self, OpenRouter},
         },
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
-        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -231,51 +230,35 @@ impl AiGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(AiMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let claude_usage_windows = self
-            .claude_usage_windows
-            .present()
-            .map(|widget| GroupItem::reading(widget, HoverTarget::AiClaudeUsageWindows));
-        WidgetGroup::new(
+    pub fn group_content(&self) -> GroupContent<'_, AiMessage> {
+        GroupContent::new(
             &self.expansion,
             AiMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Robot(Weight::Regular).into()),
-                preview: self
-                    .claude_usage_windows
-                    .present()
-                    .map(PreviewedValue::Plain),
-                forwards_scroll: false,
-            },
-            &[
-                claude_usage_windows,
+            [
+                self.claude_usage_windows
+                    .present_group_item(HoverTarget::AiClaudeUsageWindows),
                 self.claude_enterprise_spend
-                    .present()
-                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiClaudeEnterpriseSpend)),
+                    .present_group_item(HoverTarget::AiClaudeEnterpriseSpend),
                 self.claude_ccusage_periods
-                    .reading_item(HoverTarget::AiClaudeCcusagePeriods),
+                    .group_item(HoverTarget::AiClaudeCcusagePeriods),
                 self.claude_ccusage_block
-                    .present()
-                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiClaudeCcusageBlock)),
+                    .present_group_item(HoverTarget::AiClaudeCcusageBlock),
                 self.copilot_metered
-                    .present()
-                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiCopilotMetered)),
-                self.copilot_free.reading_item(HoverTarget::AiCopilotFree),
+                    .present_group_item(HoverTarget::AiCopilotMetered),
+                self.copilot_free.group_item(HoverTarget::AiCopilotFree),
                 self.copilot_cli
-                    .present()
-                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiCopilotCli)),
+                    .present_group_item(HoverTarget::AiCopilotCli),
                 self.openrouter
-                    .present()
-                    .map(|widget| GroupItem::reading(widget, HoverTarget::AiOpenRouter)),
-            ],
-            config,
-            position,
-            lift,
+                    .present_group_item(HoverTarget::AiOpenRouter),
+            ]
+            .into_iter()
+            .flatten(),
+        )
+        .face(HandleFace::Icon(Phosphor::Robot(Weight::Regular).into()))
+        .preview(
+            self.claude_usage_windows
+                .present()
+                .map(PreviewedValue::Plain),
         )
     }
 }

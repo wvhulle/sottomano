@@ -18,7 +18,7 @@ use crate::{
             battery::{self, Battery},
         },
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -26,7 +26,7 @@ use crate::{
         last_poll::LastPoll,
         reading_alert::ReadingAlertActionButton,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
 
@@ -113,10 +113,6 @@ impl BatteryGroup {
         task
     }
 
-    fn time_widget(&self) -> Option<&dyn BarWidget> {
-        self.time.as_ref().map(|time| time as &dyn BarWidget)
-    }
-
     fn observe_battery(&mut self) -> Task<BatteryMessage> {
         let Some(battery) = self.battery.get() else {
             return Task::none();
@@ -144,49 +140,36 @@ impl BatteryGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(BatteryMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let time_item = self.time_widget().map(|time| GroupItem {
-            alert_action_buttons: self
-                .power_profile
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, BatteryMessage> {
+        let switch_to_saving_profiles =
+            self.power_profile
                 .profiles_saving_more_power()
                 .map(|profile| ReadingAlertActionButton {
                     button_label: profile.title().to_owned(),
                     on_button_pressed: BatteryMessage::PowerProfile(
                         PowerProfileMessage::SwitchToProfile(profile),
                     ),
-                })
-                .collect(),
-            ..GroupItem::reading(time, HoverTarget::BatteryTime)
-        });
-        let power_profile_item = self.power_profile.slider().map(|slider| {
-            GroupItem::slider(slider, config, |m| {
-                BatteryMessage::PowerProfile(PowerProfileMessage::Control(m))
-            })
-        });
-        WidgetGroup::new(
+                });
+        GroupContent::new(
             &self.expansion,
             BatteryMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
-                self.battery.reading_item(HoverTarget::Battery),
+            [
+                self.battery.group_item(HoverTarget::Battery),
                 self.draw
                     .as_ref()
-                    .map(|draw| GroupItem::reading(draw as &dyn BarWidget, HoverTarget::PowerDraw)),
-                time_item,
-                power_profile_item,
-            ],
-            config,
-            position,
-            lift,
+                    .map(|draw| GroupItem::reading(draw, HoverTarget::PowerDraw)),
+                self.time.as_ref().map(|time| {
+                    GroupItem::reading(time, HoverTarget::BatteryTime)
+                        .alert_action_buttons(switch_to_saving_profiles)
+                }),
+                self.power_profile.slider().map(|slider| {
+                    GroupItem::slider(slider, config, |control| {
+                        BatteryMessage::PowerProfile(PowerProfileMessage::Control(control))
+                    })
+                }),
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 }

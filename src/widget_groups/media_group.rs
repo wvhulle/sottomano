@@ -19,7 +19,6 @@ use crate::{
     desktop_shell::{
         app_window_focus::AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
-        monitor_surfaces::Position,
     },
     message_subscriptions::blocking,
     widgets::{
@@ -27,14 +26,12 @@ use crate::{
         confirm_button::{ConfirmButton, Press},
         flat_button,
         gauge::Gauge,
-        group_item::{GroupItem, Press as GroupPress},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, TooltipBody},
-        widget_group::{
-            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, WidgetGroup,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
 
@@ -271,27 +268,13 @@ impl MediaGroup {
         ])))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         index: &'a DesktopIndex,
-        position: Position,
-        lift: fn(MediaMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, MediaMessage> {
         let Some(media) = self.current() else {
-            return WidgetGroup::new(
-                &self.expansion,
-                MediaMessage::Expansion,
-                GroupHandle {
-                    face: HandleFace::FirstItem,
-                    preview: None,
-                    forwards_scroll: false,
-                },
-                &[Option::<GroupItem<'a, MediaMessage>>::None; 0],
-                config,
-                position,
-                lift,
-            );
+            return GroupContent::new(&self.expansion, MediaMessage::Expansion, []);
         };
         let opacity = if media.status == Status::Playing {
             1.0
@@ -324,15 +307,10 @@ impl MediaGroup {
                     .map(GroupEvent::Group)
             })
         });
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             MediaMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: seekable,
-            },
-            &[
+            [
                 Some(GroupItem::element(move |_| {
                     hoverable(
                         track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
@@ -354,11 +332,12 @@ impl MediaGroup {
                 })),
                 session,
                 sources,
-            ],
-            config,
-            position,
-            lift,
+            ]
+            .into_iter()
+            .flatten(),
         )
+        .face(HandleFace::FirstItem)
+        .forwards_scroll(seekable)
     }
 
     fn session_controls<'a>(
@@ -397,13 +376,7 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
         )
     });
     if raisable {
-        GroupItem {
-            on_press: Some(GroupPress {
-                does: RAISE_PLAYER_HINT,
-                message: MediaMessage::Command(Command::Raise),
-            }),
-            ..label
-        }
+        label.on_press(RAISE_PLAYER_HINT, MediaMessage::Command(Command::Raise))
     } else {
         label
     }

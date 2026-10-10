@@ -2,15 +2,15 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{self, ShellLayout, WorkspacesPlacement},
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::icon_toggle_item,
+        toggle_control::IconToggle,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -166,48 +166,42 @@ impl ShellLayoutGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         shell_layout: &ShellLayout,
-        position: Position,
-        lift: fn(ShellLayoutMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        WidgetGroup::new(
+    ) -> GroupContent<'a, ShellLayoutMessage> {
+        GroupContent::new(
             &self.expansion,
             ShellLayoutMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Layout(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
-                icon_toggle_item(
-                    config,
-                    Phosphor::Pill(Weight::Regular),
-                    shell_layout.disconnected_groups,
-                    ShellLayoutMessage::ToggleDisconnectedGroups,
+            [
+                GroupItem::toggle(
+                    IconToggle::new(
+                        Phosphor::Pill(Weight::Regular),
+                        shell_layout.disconnected_groups,
+                    ),
                     HoverTarget::DisconnectedGroups,
+                    ShellLayoutMessage::ToggleDisconnectedGroups,
                 ),
-                icon_toggle_item(
-                    config,
-                    Phosphor::PushPin(Weight::Regular),
-                    !shell_layout.auto_collapse_groups,
-                    ShellLayoutMessage::ToggleAutoCollapseGroups,
+                GroupItem::toggle(
+                    IconToggle::new(
+                        Phosphor::PushPin(Weight::Regular),
+                        !shell_layout.auto_collapse_groups,
+                    ),
                     HoverTarget::AutoCollapseGroups,
+                    ShellLayoutMessage::ToggleAutoCollapseGroups,
                 ),
-                icon_toggle_item(
-                    config,
-                    Phosphor::SidebarSimple(Weight::Regular),
-                    shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
-                    ShellLayoutMessage::ToggleWorkspacesPlacement,
+                GroupItem::toggle(
+                    IconToggle::new(
+                        Phosphor::SidebarSimple(Weight::Regular),
+                        shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
+                    ),
                     HoverTarget::WorkspacesPlacement,
+                    ShellLayoutMessage::ToggleWorkspacesPlacement,
                 ),
                 GroupItem::slider(&self.float_offset, config, ShellLayoutMessage::FloatOffset),
             ],
-            config,
-            position,
-            lift,
         )
+        .face(HandleFace::Icon(Phosphor::Layout(Weight::Regular).into()))
     }
 }

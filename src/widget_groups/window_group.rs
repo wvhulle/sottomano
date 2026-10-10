@@ -94,14 +94,9 @@ impl WindowGroup {
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         let quick_launch = self
             .quick_launch
-            .widget_group(
-                icons.entries,
-                output,
-                config,
-                position,
-                WindowGroupMessage::QuickLaunch,
-            )
-            .element;
+            .group_content(icons.entries, output, config)
+            .map(WindowGroupMessage::QuickLaunch)
+            .view(config, position);
         let window_list = self
             .window_list
             .view(niri, icons, audio, output, config, position)

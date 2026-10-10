@@ -1,8 +1,8 @@
-use iced::Task;
+use iced::{Function, Task};
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{
         self, ShadowStyle,
         niri_rules::{NiriRulesFile, NiriStyling},
@@ -11,9 +11,9 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::icon_toggle_item,
+        toggle_control::IconToggle,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -200,57 +200,41 @@ impl SurfaceEffectsGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         shadow: ShadowStyle,
         styling: NiriStyling,
-        position: Position,
-        lift: fn(SurfaceEffectsMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let slider_items = ShadowKnob::ALL.into_iter().map(|knob| {
-            GroupItem::slider(self.slider(knob), config, move |control| {
-                SurfaceEffectsMessage::Slider(knob, control)
-            })
-        });
-        let items: Vec<GroupItem<'a, SurfaceEffectsMessage>> = [
-            icon_toggle_item(
-                config,
-                Phosphor::Snowflake(Weight::Regular),
-                styling.blurred,
-                SurfaceEffectsMessage::ToggleBlur,
-                HoverTarget::BlurBackground,
-            ),
-            icon_toggle_item(
-                config,
-                Phosphor::Eye(Weight::Regular),
-                styling.xray,
-                SurfaceEffectsMessage::ToggleXray,
-                HoverTarget::Xray,
-            ),
-            icon_toggle_item(
-                config,
-                Phosphor::SelectionBackground(Weight::Regular),
-                shadow.cast,
-                SurfaceEffectsMessage::ToggleShadow,
-                HoverTarget::DropShadow,
-            ),
-        ]
-        .into_iter()
-        .chain(slider_items)
-        .collect();
-        WidgetGroup::new(
+    ) -> GroupContent<'a, SurfaceEffectsMessage> {
+        GroupContent::new(
             &self.expansion,
             SurfaceEffectsMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Sparkle(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [
+                GroupItem::toggle(
+                    IconToggle::new(Phosphor::Snowflake(Weight::Regular), styling.blurred),
+                    HoverTarget::BlurBackground,
+                    SurfaceEffectsMessage::ToggleBlur,
+                ),
+                GroupItem::toggle(
+                    IconToggle::new(Phosphor::Eye(Weight::Regular), styling.xray),
+                    HoverTarget::Xray,
+                    SurfaceEffectsMessage::ToggleXray,
+                ),
+                GroupItem::toggle(
+                    IconToggle::new(Phosphor::SelectionBackground(Weight::Regular), shadow.cast),
+                    HoverTarget::DropShadow,
+                    SurfaceEffectsMessage::ToggleShadow,
+                ),
+            ]
+            .into_iter()
+            .chain(ShadowKnob::ALL.into_iter().map(|knob| {
+                GroupItem::slider(
+                    self.slider(knob),
+                    config,
+                    SurfaceEffectsMessage::Slider.with(knob),
+                )
+            })),
         )
+        .face(HandleFace::Icon(Phosphor::Sparkle(Weight::Regular).into()))
     }
 }

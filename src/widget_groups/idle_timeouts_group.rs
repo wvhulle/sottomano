@@ -4,7 +4,7 @@ use iced::{Task, task};
 
 use crate::{
     config::Config,
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     state::{self, idle::Timeouts},
     widgets::{
@@ -17,8 +17,7 @@ use crate::{
         slider_control::ControlMessage,
         tooltip_body::Tooltip,
         widget_group::{
-            ExpansionMessage, GroupEvent, GroupExpansion, GroupHandle, HandleFace, PreviewedValue,
-            WidgetGroup,
+            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -207,32 +206,23 @@ impl IdleTimeoutsGroup {
             .collect()
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        position: Position,
-        lift: fn(IdleTimeoutsMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let items = self.entries().map(|(kind, timer)| {
-            GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
-                timer.view(config, reveal).map(move |m| match m {
-                    TimerMessage::Slider(ControlMessage::Tooltip(t)) => GroupEvent::Tooltip(t),
-                    m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
-                })
-            })
-        });
-        WidgetGroup::new(
+    ) -> GroupContent<'a, IdleTimeoutsMessage> {
+        GroupContent::new(
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Timer(Weight::Regular).into()),
-                preview: Some(PreviewedValue::Plain(self.lock.reading())),
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            self.entries().map(|(kind, timer)| {
+                GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
+                    timer.view(config, reveal).map(move |m| match m {
+                        TimerMessage::Slider(ControlMessage::Tooltip(t)) => GroupEvent::Tooltip(t),
+                        m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
+                    })
+                })
+            }),
         )
+        .face(HandleFace::Icon(Phosphor::Timer(Weight::Regular).into()))
+        .preview(Some(PreviewedValue::Plain(self.lock.reading())))
     }
 }
