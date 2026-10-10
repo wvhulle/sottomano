@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{data::battery_forecast::Estimate, widgets::tooltip_body::Cell};
 
-pub const ESTIMATE_HEADINGS: [&str; 3] = ["Median", "Earliest", "Latest"];
+pub const ESTIMATE_HEADINGS: [&str; 3] = ["Earliest", "Median", "Latest"];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Forecast {
@@ -52,11 +52,11 @@ impl Forecast {
     pub fn cells(self) -> [Option<Cell>; 3] {
         match self {
             Forecast::Estimated(estimate) => [
-                Some(duration_cell(estimate.time)),
                 Some(duration_cell(estimate.earliest)),
+                Some(duration_cell(estimate.time)),
                 Some(estimate.latest.map_or_else(|| "∞".into(), duration_cell)),
             ],
-            Forecast::Unavailable(reason) => [Some(reason.explanation().into()), None, None],
+            Forecast::Unavailable(reason) => [None, Some(reason.explanation().into()), None],
         }
     }
 }

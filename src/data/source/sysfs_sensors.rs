@@ -44,6 +44,7 @@ pub mod battery;
 pub mod cpu_clock;
 pub mod cpu_idle;
 pub mod cpu_topology;
+pub mod cpu_tuning;
 pub mod cpu_usage;
 pub mod hwmon;
 pub mod memory;

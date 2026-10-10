@@ -72,6 +72,7 @@ pub enum HoverTarget {
     AudioSink,
     AudioSource,
     PowerProfile,
+    CpuTuning,
     Backlight(String),
     GammaDim,
     ColorTemperature,

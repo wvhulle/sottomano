@@ -17,7 +17,7 @@ use crate::{
         source::sysfs_sensors::battery::{Battery, IdleReason},
     },
     state::charge_power_curve,
-    widget_groups::battery_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+    widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::{Phosphor, Weight},

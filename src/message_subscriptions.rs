@@ -104,7 +104,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
-        state.battery_group.subscription().map(Message::Battery),
+        state.power_group.subscription().map(Message::Power),
         state
             .compute_group
             .subscription(&state.config.temperature.cpu)

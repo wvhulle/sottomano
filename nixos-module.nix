@@ -13,7 +13,7 @@ in
   options.programs.vetrata = {
     enable = lib.mkEnableOption ''
       the system-level pieces vetrata widgets depend on: fwupd for the firmware
-      upgrade reading, UPower for the battery group, power-profiles-daemon for
+      upgrade reading, UPower for the power group, power-profiles-daemon for
       the power profile, the drivetemp kernel module for SATA drive
       temperatures and, when WireGuard is configured, a wheel-only `wg`
       wrapper with CAP_NET_ADMIN so the tunnel widget can run `wg show`.

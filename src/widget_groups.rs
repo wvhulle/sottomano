@@ -1,6 +1,6 @@
 pub mod ai_group;
 pub mod audio_group;
-pub mod battery_group;
+pub mod power_group;
 pub mod clock_group;
 pub mod color_temperature_group;
 pub mod compute_group;
