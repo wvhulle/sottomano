@@ -21,7 +21,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -131,20 +131,18 @@ impl Countdown {
     }
 }
 
-impl TableRow for Countdown {
-    const HEADINGS: &'static [&'static str] = ESTIMATE_HEADINGS;
-
-    fn key(&self) -> Cell {
+impl Countdown {
+    fn key(self) -> String {
         match self {
-            Countdown::UntilEmpty(_) => "Until empty".into(),
+            Countdown::UntilEmpty(_) => "Until empty".to_owned(),
             Countdown::UntilFull { charge_limit, .. } => {
-                format!("Until {}", percent_text(*charge_limit)).into()
+                format!("Until {}", percent_text(charge_limit))
             }
         }
     }
 
-    fn cells(&self) -> Vec<Cell> {
-        self.forecast().cells()
+    fn table_record(self) -> TableRecord<3> {
+        TableRecord::new(self.key(), self.forecast().cells())
     }
 }
 
@@ -183,10 +181,10 @@ impl IdleBattery {
     }
 
     fn tooltip(self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            ("Status", self.explanation().to_owned()),
-            ("Charge", percent_text(self.capacity)),
-            ("Charge limit", percent_text(self.charge_limit)),
+        TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new("Status", self.explanation()),
+            KeyValue::new("Charge", percent_text(self.capacity)),
+            KeyValue::new("Charge limit", percent_text(self.charge_limit)),
         ])])
     }
 }
@@ -239,7 +237,10 @@ impl BarWidget for BatteryTime {
         match self {
             BatteryTime::Idle(idle) => idle.tooltip(),
             BatteryTime::Countdown(countdown) => {
-                TooltipBody::sections(&[Section::untitled_table([*countdown])])
+                TooltipBody::sections(&[Section::untitled_column_table(
+                    ESTIMATE_HEADINGS,
+                    [countdown.table_record()],
+                )])
             }
         }
     }
@@ -257,9 +258,9 @@ mod tests {
         };
         assert_eq!(
             Countdown::UntilEmpty(Forecast::Unavailable(Unforecastable::NoDrainHistory)).key(),
-            "Until empty".into()
+            "Until empty"
         );
-        assert_eq!(until_full.key(), "Until 80 %".into());
+        assert_eq!(until_full.key(), "Until 80 %");
     }
 
     #[test]

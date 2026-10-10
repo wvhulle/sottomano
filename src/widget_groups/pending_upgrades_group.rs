@@ -15,7 +15,7 @@ use crate::{
         group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
         widget_state::WidgetState,
     },
@@ -126,11 +126,8 @@ impl BarWidget for PendingUpgradesGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[(
-            firmware_upgrade_list::LABEL,
-            self.firmware
-                .get()
-                .map(|firmware| firmware.count().to_string()),
-        )])])
+        TooltipBody::sections(&[Section::untitled_dictionary(self.firmware.get().map(
+            |firmware| KeyValue::new(firmware_upgrade_list::LABEL, firmware.count().to_string()),
+        ))])
     }
 }

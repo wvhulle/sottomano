@@ -14,7 +14,7 @@ use crate::{
     desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     message_subscriptions::polling,
     widgets::{
-        hardware_section::HardwareRows,
+        hardware_section::HardwareEntries,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
@@ -66,7 +66,12 @@ impl DiskGroup {
             .receive(reading.map(|activity| activity.write));
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(DiskMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(DiskMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             DiskMessage::Expansion,

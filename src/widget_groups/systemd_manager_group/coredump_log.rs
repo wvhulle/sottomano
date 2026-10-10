@@ -1,9 +1,6 @@
 use crate::{
     config::Config,
-    data::{
-        severity::Severity,
-        source::coredumps::{CoredumpEntry, Coredumps},
-    },
+    data::source::coredumps::{CoredumpEntry, Coredumps},
     desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
         systemd_manager_group::SystemdManagerMessage, terminal_journal::TerminalJournal,
@@ -13,34 +10,26 @@ use crate::{
         group_item::{GroupItem, Press},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl TableRow for CoredumpEntry {
-    const HEADINGS: &'static [&'static str] = &["Process", "Signal", "PID", "Unit"];
-
-    fn key(&self) -> Cell {
-        Cell::Time {
-            at: self.at.into(),
-            part: TimePart::TimeOfDay,
-        }
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![
-            self.command.clone().into(),
-            self.signal.clone().into(),
-            self.pid.clone().into(),
-            self.unit
-                .as_ref()
-                .map_or(Cell::Missing, |unit| unit.name().into()),
-        ]
-    }
-
-    fn level(&self) -> Severity {
-        self.severity
+impl CoredumpEntry {
+    fn table_record(&self) -> TableRecord<4> {
+        TableRecord::new(
+            Cell::Time {
+                at: self.at.into(),
+                part: TimePart::TimeOfDay,
+            },
+            [
+                Some(self.command.clone().into()),
+                Some(self.signal.clone().into()),
+                Some(self.pid.clone().into()),
+                self.unit.as_ref().map(|unit| unit.name().into()),
+            ],
+        )
+        .level(self.severity)
     }
 }
 
@@ -78,12 +67,13 @@ impl BarWidget for Coredumps {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::column_table(
             (
                 "Coredumps",
                 "Programs that crashed in the last hour, as recorded by systemd-coredump.",
             ),
-            &self.entries,
+            ["Process", "Signal", "PID", "Unit"],
+            self.entries.iter().map(CoredumpEntry::table_record),
         )])
     }
 }

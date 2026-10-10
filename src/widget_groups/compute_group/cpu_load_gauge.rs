@@ -12,7 +12,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -62,29 +62,21 @@ impl PerCore for CoreReading {
     }
 }
 
-impl TableRow for CoreReading {
-    const HEADINGS: &'static [&'static str] = &["Load", "User", "Sys", "IO", "IRQ", "Idle"];
-
-    fn key(&self) -> Cell {
-        format!("Core {}", self.core).into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        [
-            self.busy,
-            self.split.user,
-            self.split.system,
-            self.split.iowait,
-            self.split.irq,
-        ]
-        .into_iter()
-        .chain(self.deep_idle)
-        .map(|share| percent_text(share).into())
-        .collect()
-    }
-
-    fn level(&self) -> Severity {
-        busy_level(self.busy)
+impl CoreReading {
+    fn table_record(&self) -> TableRecord<6> {
+        let share = |share: Ratio| Some(Cell::from(percent_text(share)));
+        TableRecord::new(
+            format!("Core {}", self.core),
+            [
+                share(self.busy),
+                share(self.split.user),
+                share(self.split.system),
+                share(self.split.iowait),
+                share(self.split.irq),
+                self.deep_idle.and_then(share),
+            ],
+        )
+        .level(busy_level(self.busy))
     }
 }
 
@@ -104,8 +96,16 @@ impl BarWidget for CpuUsage {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(
             &[
-                vec![Section::untitled(&[("CPU", percent_text(self.busy))])],
-                sections_by_core_kind(&self.topology, self.core_readings()),
+                vec![Section::untitled_dictionary([KeyValue::new(
+                    "CPU",
+                    percent_text(self.busy),
+                )])],
+                sections_by_core_kind(
+                    &self.topology,
+                    self.core_readings(),
+                    ["Load", "User", "Sys", "IO", "IRQ", "Idle"],
+                    CoreReading::table_record,
+                ),
             ]
             .concat(),
         )

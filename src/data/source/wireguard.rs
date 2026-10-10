@@ -9,8 +9,8 @@ const CONNECTED_WINDOW: u64 = 180;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Peer {
-    pub endpoint: String,
-    pub allowed_ips: String,
+    pub endpoint: Option<String>,
+    pub allowed_ips: Option<String>,
     pub handshake_ago: Option<u64>,
     pub rx: ByteSize,
     pub tx: ByteSize,
@@ -27,7 +27,7 @@ impl Peer {
 pub struct Tunnel {
     pub name: String,
     pub server: bool,
-    pub ip: String,
+    pub ip: Option<String>,
     pub port: Option<u32>,
     pub peers: Vec<Peer>,
 }
@@ -56,7 +56,7 @@ impl Source for Wireguard {
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        let interfaces = command::require("wg", &["show", "interfaces"]).await?;
+        let interfaces = command::output("wg", &["show", "interfaces"]).await?;
         let mut tunnels = Vec::new();
         for iface in interfaces.split_whitespace() {
             tunnels.push(read_tunnel(iface).await?);
@@ -66,7 +66,7 @@ impl Source for Wireguard {
 }
 
 async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
-    let dump = command::require("wg", &["show", iface, "dump"]).await?;
+    let dump = command::output("wg", &["show", iface, "dump"]).await?;
     let mut lines = dump.lines();
     let interface = lines.next().ok_or_else(|| command::Error::Failed {
         program: "wg".to_owned(),
@@ -80,23 +80,7 @@ async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    let peers = lines
-        .map(|line| {
-            let f: Vec<&str> = line.split('\t').collect();
-            let handshake: u64 = f.get(4).and_then(|h| h.parse().ok()).unwrap_or(0);
-            Peer {
-                endpoint: f
-                    .get(2)
-                    .filter(|e| **e != "(none)")
-                    .unwrap_or(&"")
-                    .to_string(),
-                allowed_ips: f.get(3).unwrap_or(&"—").to_string(),
-                handshake_ago: (handshake > 0).then(|| now.saturating_sub(handshake)),
-                rx: ByteSize::b(f.get(5).and_then(|v| v.parse().ok()).unwrap_or(0)),
-                tx: ByteSize::b(f.get(6).and_then(|v| v.parse().ok()).unwrap_or(0)),
-            }
-        })
-        .collect();
+    let peers = lines.filter_map(|line| peer(line, now)).collect();
     Ok(Tunnel {
         name: iface.to_string(),
         server: port.is_some(),
@@ -106,11 +90,28 @@ async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
     })
 }
 
-async fn interface_ip(iface: &str) -> String {
+fn peer(dump_line: &str, now: u64) -> Option<Peer> {
+    let fields: Vec<&str> = dump_line.split('\t').collect();
+    let reported = |position: usize| {
+        fields
+            .get(position)
+            .filter(|field| **field != "(none)")
+            .map(ToString::to_string)
+    };
+    let handshake: u64 = fields.get(4)?.parse().ok()?;
+    Some(Peer {
+        endpoint: reported(2),
+        allowed_ips: reported(3),
+        handshake_ago: (handshake > 0).then(|| now.saturating_sub(handshake)),
+        rx: ByteSize::b(fields.get(5)?.parse().ok()?),
+        tx: ByteSize::b(fields.get(6)?.parse().ok()?),
+    })
+}
+
+async fn interface_ip(iface: &str) -> Option<String> {
     command::output("ip", &["-j", "-4", "addr", "show", iface])
         .await
         .ok()
-        .flatten()
         .and_then(|out| serde_json::from_str::<Json>(&out).ok())
         .and_then(|json| {
             let entry = json.as_array()?.first()?;
@@ -119,7 +120,6 @@ async fn interface_ip(iface: &str) -> String {
             let prefix = addr.get("prefixlen").and_then(Json::as_u64).unwrap_or(32);
             Some(format!("{local}/{prefix}"))
         })
-        .unwrap_or_else(|| "—".to_string())
 }
 
 pub fn disconnect(name: &str) -> bool {

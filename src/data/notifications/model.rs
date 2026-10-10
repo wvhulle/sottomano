@@ -2,6 +2,7 @@ use std::{fmt, time::Duration};
 
 use iced::widget::image;
 use tokio::sync::mpsc;
+use uom::si::f64::Ratio;
 
 use crate::data::{severity::Severity, source::bus::OwnerProcess};
 
@@ -53,7 +54,7 @@ pub struct NotificationData {
     pub sound_file: Option<String>,
     pub category: Option<String>,
     pub resident: bool,
-    pub progress: Progress,
+    pub progress: Option<Ratio>,
     pub reply: ReplyPrompt,
 }
 
@@ -65,19 +66,6 @@ impl NotificationData {
             summary: summary.into(),
             ..Self::default()
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Progress {
-    Percent(u8),
-    #[default]
-    Absent,
-}
-
-impl Progress {
-    pub fn from_hint(value: i32) -> Self {
-        Self::Percent(u8::try_from(value.clamp(0, 100)).unwrap_or(100))
     }
 }
 
@@ -128,17 +116,5 @@ impl NotifHandle {
 impl fmt::Debug for NotifHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("NotifHandle")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Progress;
-
-    #[test]
-    fn progress_hint_is_clamped_to_percent_range() {
-        assert_eq!(Progress::from_hint(-5), Progress::Percent(0));
-        assert_eq!(Progress::from_hint(42), Progress::Percent(42));
-        assert_eq!(Progress::from_hint(250), Progress::Percent(100));
     }
 }

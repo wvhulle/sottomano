@@ -1,6 +1,7 @@
 use std::{
     future::{Future, ready},
     path::Path,
+    str::FromStr,
     time::Duration,
 };
 
@@ -65,34 +66,36 @@ pub enum ChargeStatus {
     Discharging,
     Full,
     NotCharging,
-    Unknown,
+}
+
+impl FromStr for ChargeStatus {
+    type Err = String;
+
+    fn from_str(status: &str) -> Result<Self, Self::Err> {
+        match status {
+            "Charging" => Ok(Self::Charging),
+            "Discharging" => Ok(Self::Discharging),
+            "Full" => Ok(Self::Full),
+            "Not charging" => Ok(Self::NotCharging),
+            unknown => Err(unknown.to_owned()),
+        }
+    }
 }
 
 impl ChargeStatus {
-    pub(super) fn parse(s: &str) -> Self {
-        match s {
-            "Charging" => Self::Charging,
-            "Discharging" => Self::Discharging,
-            "Full" => Self::Full,
-            "Not charging" => Self::NotCharging,
-            _ => Self::Unknown,
-        }
-    }
-
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Charging => "Charging",
             Self::Discharging => "Discharging",
             Self::Full => "Full",
             Self::NotCharging => "Not charging",
-            Self::Unknown => "Unknown",
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Battery {
-    pub status: ChargeStatus,
+    pub status: Option<ChargeStatus>,
     pub capacity: Ratio,
     pub energy: Energy,
     pub energy_full: Energy,
@@ -133,18 +136,18 @@ pub struct ChargingSample {
 
 impl Battery {
     pub fn is_charging(&self) -> bool {
-        self.status == ChargeStatus::Charging
+        self.status == Some(ChargeStatus::Charging)
     }
 
     pub fn is_discharging(&self) -> bool {
-        self.status == ChargeStatus::Discharging
+        self.status == Some(ChargeStatus::Discharging)
     }
 
     pub fn idle_reason(&self) -> Option<IdleReason> {
-        match self.status {
+        match self.status? {
             ChargeStatus::Full => Some(IdleReason::Full),
             ChargeStatus::NotCharging => Some(self.not_charging_reason()),
-            ChargeStatus::Charging | ChargeStatus::Discharging | ChargeStatus::Unknown => None,
+            ChargeStatus::Charging | ChargeStatus::Discharging => None,
         }
     }
 
@@ -218,7 +221,7 @@ fn read_battery() -> Result<Battery, Error> {
     let dir =
         first_power_supply("BAT").ok_or_else(|| Error::Unreadable(POWER_SUPPLY.to_owned()))?;
     Ok(Battery {
-        status: ChargeStatus::parse(&read_field(&dir.join("status"))?),
+        status: read_field(&dir.join("status"))?.parse().ok(),
         capacity: Ratio::new::<percent>(parse_field(&dir.join("capacity"))?),
         energy: energy(&dir, "energy_now", "charge_now")?,
         energy_full: energy(&dir, "energy_full", "charge_full")?,
@@ -277,7 +280,7 @@ mod tests {
 
     fn plugged_in(status: ChargeStatus, capacity_percent: u8, limit: f64) -> Battery {
         Battery {
-            status,
+            status: Some(status),
             capacity: Ratio::new::<percent>(f64::from(capacity_percent)),
             energy: Energy::new::<microwatt_hour>(0.0),
             energy_full: Energy::new::<microwatt_hour>(50e6),

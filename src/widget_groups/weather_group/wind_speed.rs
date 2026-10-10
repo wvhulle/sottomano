@@ -7,7 +7,7 @@ use crate::{
     data::source::weather::Wind,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
@@ -63,12 +63,12 @@ impl BarWidget for Wind {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            ("Speed", speed_text(self.speed)),
-            ("Beaufort", self.beaufort().to_string()),
-            ("Gusts", speed_text(self.gusts)),
-            ("From", self.compass_point().to_owned()),
-            (
+        TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new("Speed", speed_text(self.speed)),
+            KeyValue::new("Beaufort", self.beaufort().to_string()),
+            KeyValue::new("Gusts", speed_text(self.gusts)),
+            KeyValue::new("From", self.compass_point().to_owned()),
+            KeyValue::new(
                 "Bearing",
                 format!(
                     "{:.0}",

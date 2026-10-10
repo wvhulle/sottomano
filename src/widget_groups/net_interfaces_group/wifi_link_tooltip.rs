@@ -11,9 +11,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareRows,
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -37,28 +37,31 @@ impl BarWidget for Wifi {
         let hardware = self.adapter.hardware_section();
         let Some(link) = &self.link else {
             return TooltipBody::sections(&[
-                Section::untitled(&[("WiFi", "disconnected")]),
+                Section::untitled_dictionary([KeyValue::new("WiFi", "disconnected")]),
                 hardware,
             ]);
         };
         let key = |label: &str| label.to_string();
         TooltipBody::sections(&[
-            Section::titled(
+            Section::dictionary(
                 "Identity",
-                &[
-                    ("Network Name (SSID)", link.ssid.clone()),
-                    ("Signal Strength", Some(format!("{}%", link.signal))),
-                    ("Security Type", link.security.clone()),
-                    (
-                        "Frequency Band",
-                        Some(format!(
-                            "{:.0}",
-                            link.frequency.into_format_args(megahertz, Abbreviation)
-                        )),
-                    ),
-                    ("Interface Name", Some(self.device.clone())),
-                    ("MAC Address", link.mac.clone()),
-                ],
+                link.ssid
+                    .as_deref()
+                    .map(|ssid| KeyValue::new("Network Name (SSID)", ssid))
+                    .into_iter()
+                    .chain([
+                        KeyValue::new("Signal Strength", format!("{}%", link.signal)),
+                        KeyValue::new("Security Type", link.security.as_str()),
+                        KeyValue::new(
+                            "Frequency Band",
+                            format!(
+                                "{:.0}",
+                                link.frequency.into_format_args(megahertz, Abbreviation)
+                            ),
+                        ),
+                        KeyValue::new("Interface Name", self.device.as_str()),
+                        KeyValue::new("MAC Address", link.mac.as_str()),
+                    ]),
             ),
             address_section(&key, "IPv4", link.ipv4.as_ref()),
             address_section(&key, "IPv6", link.ipv6.as_ref()),

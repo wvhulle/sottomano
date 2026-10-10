@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::{
     data::source::launch_tracker::Launch,
-    state::{Columns, StoreError, open},
+    state::{Columns, StoreError, connect},
 };
 
 const TTL_DAYS: i64 = 60;
@@ -33,7 +33,7 @@ pub async fn record(launch: Launch) {
 }
 
 async fn try_load() -> Result<Vec<Launch>, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&SCHEMA).await?;
     read_launches(&conn).await
 }
 
@@ -67,7 +67,7 @@ async fn read_launches(conn: &turso::Connection) -> Result<Vec<Launch>, StoreErr
 }
 
 async fn try_record(launch: &Launch) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&SCHEMA).await?;
     write_launch(&conn, launch).await
 }
 

@@ -10,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::TimePart,
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -30,22 +30,28 @@ impl BarWidget for CopilotMetered {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::untitled(&[("Plan", self.plan.as_str()), ("Source", USER_ENDPOINT)]),
-            Section::titled(
+            Section::untitled_dictionary([
+                KeyValue::new("Plan", self.plan.as_str()),
+                KeyValue::new("Source", USER_ENDPOINT),
+            ]),
+            Section::dictionary(
                 self.quota.clone(),
-                &[
-                    ("Used", Cell::from(to_cents(self.used))),
-                    ("Used Share", Cell::from(percent_text(self.percent_used))),
-                    ("Remaining", Cell::from(to_cents(self.remaining))),
-                    ("Limit", Cell::from(self.limit.to_string())),
-                    (
+                [
+                    KeyValue::new("Used", to_cents(self.used)),
+                    KeyValue::new("Used Share", percent_text(self.percent_used)),
+                    KeyValue::new("Remaining", to_cents(self.remaining)),
+                    KeyValue::new("Limit", self.limit.to_string()),
+                ]
+                .into_iter()
+                .chain(self.reset.map(|at| {
+                    KeyValue::new(
                         "Resets",
-                        self.reset.map_or(Cell::Missing, |at| Cell::Time {
+                        Cell::Time {
                             at,
                             part: TimePart::Date,
-                        }),
-                    ),
-                ],
+                        },
+                    )
+                })),
             ),
         ])
     }

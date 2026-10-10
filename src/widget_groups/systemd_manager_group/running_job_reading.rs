@@ -18,7 +18,7 @@ use crate::{
         localized_time::TimePart,
         phosphor::Phosphor,
         reading_alert::ReadingAlert,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -33,27 +33,19 @@ impl SlowJob {
             other => Cow::Owned(format!("running its {other} job")),
         }
     }
-}
 
-impl TableRow for SlowJob {
-    const HEADINGS: &'static [&'static str] = &["Job", "Since"];
-
-    fn key(&self) -> Cell {
-        self.unit.clone().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![
-            self.job_type.clone().into(),
-            Cell::Time {
-                at: self.started_at.into(),
-                part: TimePart::TimeOfDay,
-            },
-        ]
-    }
-
-    fn level(&self) -> Severity {
-        Severity::Warning
+    fn table_record(&self) -> TableRecord<2> {
+        TableRecord::new(
+            self.unit.clone(),
+            [
+                Some(self.job_type.clone().into()),
+                Some(Cell::Time {
+                    at: self.started_at.into(),
+                    part: TimePart::TimeOfDay,
+                }),
+            ],
+        )
+        .level(Severity::Warning)
     }
 }
 
@@ -105,12 +97,13 @@ impl<S: ScopeAppearance> BarWidget for SlowJobs<S> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::column_table(
             (
                 S::SLOW_JOBS_LABEL,
                 "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
             ),
-            &self.jobs,
+            ["Job", "Since"],
+            self.jobs.iter().map(SlowJob::table_record),
         )])
     }
 }

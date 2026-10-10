@@ -148,15 +148,12 @@ impl<'a, M: 'a + Clone> WidgetGroup<'a, M> {
         bar_position: Position,
         lift: fn(M) -> Outer,
     ) -> WidgetGroup<'a, Outer> {
-        let items: Vec<GroupItem<'a, M>> =
-            items.iter().cloned().filter_map(Into::into).collect();
+        let items: Vec<GroupItem<'a, M>> = items.iter().cloned().filter_map(Into::into).collect();
         let extra_alerts: Vec<ReadingAlert<M>> =
             items.iter().flat_map(|item| item.alerts.clone()).collect();
         let alerts: Vec<ReadingAlert<Outer>> = items
             .iter()
-            .filter_map(|item| {
-                item.alert((on_expansion)(ExpansionMessage::Expand), config.locale)
-            })
+            .filter_map(|item| item.alert((on_expansion)(ExpansionMessage::Expand), config.locale))
             .chain(extra_alerts)
             .map(|alert| alert.map_messages(lift))
             .collect();
@@ -165,8 +162,11 @@ impl<'a, M: 'a + Clone> WidgetGroup<'a, M> {
             .filter_map(|item| item.level_reading((on_expansion)(ExpansionMessage::Expand)))
             .map(|level| level.map_messages(lift))
             .collect();
-        let highest_alert_severity =
-            alerts.iter().map(|alert| alert.severity).max().unwrap_or_default();
+        let highest_alert_severity = alerts
+            .iter()
+            .map(|alert| alert.severity)
+            .max()
+            .unwrap_or_default();
         let element = group_view(
             expansion,
             on_expansion,
@@ -245,18 +245,14 @@ fn group_view<'a, M: 'a + Clone>(
         };
         let handle = if forward_handle_scroll {
             mouse_area(handle)
-                .on_scroll(move |delta| {
-                    expansion_event(ExpansionMessage::HandleScrolled(delta))
-                })
+                .on_scroll(move |delta| expansion_event(ExpansionMessage::HandleScrolled(delta)))
                 .into()
         } else {
             handle
         };
         let inner = Row::new()
             .push(handle)
-            .extend(
-                (reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))),
-            )
+            .extend((reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))))
             .align_y(Alignment::Center);
         PagerSlot::new(
             inner.into(),

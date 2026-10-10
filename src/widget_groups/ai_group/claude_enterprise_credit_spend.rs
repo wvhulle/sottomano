@@ -6,7 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -35,27 +35,27 @@ impl BarWidget for ClaudeEnterpriseSpend {
             ExtraStatus::Enabled => "enabled".to_owned(),
             ExtraStatus::Disabled(reason) => reason.clone(),
         };
-        let organization = Section::untitled(&[
-            ("Organization", self.organization.clone()),
-            ("Seat Tier", self.seat_tier.clone()),
-            ("Subscription Status", self.subscription_status.clone()),
+        let organization = Section::untitled_dictionary([
+            KeyValue::new("Organization", self.organization.as_str()),
+            KeyValue::new("Seat Tier", self.seat_tier.as_str()),
+            KeyValue::new("Subscription Status", self.subscription_status.as_str()),
         ]);
+        let limit_entries = self.limit.iter().flat_map(|limit| {
+            [
+                KeyValue::new("Monthly Limit", limit.to_string()),
+                KeyValue::new("Percent Used", percent_text(self.used_percent)),
+            ]
+        });
         TooltipBody::sections(&[
             organization,
-            Section::titled(
+            Section::dictionary(
                 "Usage Credits",
-                &[
-                    ("Status", Some(status)),
-                    ("Used This Month", Some(self.used.to_string())),
-                    (
-                        "Monthly Limit",
-                        self.limit.as_ref().map(ToString::to_string),
-                    ),
-                    (
-                        "Percent Used",
-                        self.limit.as_ref().map(|_| percent_text(self.used_percent)),
-                    ),
-                ],
+                [
+                    KeyValue::new("Status", status),
+                    KeyValue::new("Used This Month", self.used.to_string()),
+                ]
+                .into_iter()
+                .chain(limit_entries),
             ),
         ])
     }

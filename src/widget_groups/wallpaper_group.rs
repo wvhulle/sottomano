@@ -10,19 +10,16 @@ use crate::{
     config::{Config, SecretPaths},
     data::source::{
         command,
-        wallpaper::{self, Position, Wallpaper},
+        wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
     },
-    desktop_shell::{
-        hover_tooltips::HoverTarget,
-        monitor_surfaces::Position as BarPosition,
-    },
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position as BarPosition},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, Section, Tooltip, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
@@ -65,7 +62,10 @@ impl BarWidget for Lookup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[("File", self.photo.file_name.clone())])])
+        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+            "File",
+            self.photo.file_name.clone(),
+        )])])
     }
 }
 
@@ -100,27 +100,29 @@ impl BarWidget for Place {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            ("Where", Some(self.name.clone())),
-            (
-                "Latitude",
-                self.position.map(|position| {
+        let coordinates = self.position.into_iter().flat_map(|position| {
+            [
+                KeyValue::new(
+                    "Latitude",
                     format!(
                         "{:.5}",
                         position.latitude.into_format_args(degree, Abbreviation)
-                    )
-                }),
-            ),
-            (
-                "Longitude",
-                self.position.map(|position| {
+                    ),
+                ),
+                KeyValue::new(
+                    "Longitude",
                     format!(
                         "{:.5}",
                         position.longitude.into_format_args(degree, Abbreviation)
-                    )
-                }),
-            ),
-        ])])
+                    ),
+                ),
+            ]
+        });
+        TooltipBody::sections(&[Section::untitled_dictionary(
+            [KeyValue::new("Where", self.name.as_str())]
+                .into_iter()
+                .chain(coordinates),
+        )])
     }
 }
 
@@ -135,14 +137,19 @@ impl BarWidget for Article {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::titled(
+            Section::dictionary(
                 "Wikipedia",
-                &[
-                    ("Article", Cell::from(&self.title)),
-                    ("Link", Cell::Link(self.url.clone())),
+                [
+                    KeyValue::new("Article", self.title.as_str()),
+                    KeyValue::new("Link", Cell::Link(self.url.clone())),
                 ],
             ),
-            Section::titled("Summary", &[(" ", &self.summary)]),
+            Section::dictionary(
+                "Summary",
+                self.summary
+                    .as_deref()
+                    .map(|summary| KeyValue::new(" ", summary)),
+            ),
         ])
     }
 }
@@ -158,15 +165,24 @@ impl BarWidget for Photo {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::titled(
+            Section::dictionary(
                 "Photo",
-                &[
-                    ("File", Cell::from(&self.file_name)),
-                    ("Photographer", Cell::from(&self.photographer)),
-                    ("Unsplash", Cell::Link(self.url.clone())),
-                ],
+                [
+                    Some(KeyValue::new("File", self.file_name.as_str())),
+                    self.photographer
+                        .as_deref()
+                        .map(|photographer| KeyValue::new("Photographer", photographer)),
+                    Some(KeyValue::new("Unsplash", Cell::Link(self.url.clone()))),
+                ]
+                .into_iter()
+                .flatten(),
             ),
-            Section::titled("Caption", &[(" ", &self.caption)]),
+            Section::dictionary(
+                "Caption",
+                self.caption
+                    .as_deref()
+                    .map(|caption| KeyValue::new(" ", caption)),
+            ),
         ])
     }
 }
@@ -204,7 +220,7 @@ impl Photo {
 
 pub struct WallpaperGroup {
     lookup: LastPoll<Lookup>,
-    shown: Option<String>,
+    shown: Option<DisplayedWallpaper>,
     unsplash_key: Option<PathBuf>,
     wallpaper_daemon: bool,
     pub(crate) expansion: GroupExpansion,
@@ -213,7 +229,7 @@ pub struct WallpaperGroup {
 #[derive(Debug, Clone)]
 pub enum WallpaperMessage {
     DaemonFound(bool),
-    Displayed(Result<Option<String>, command::Error>),
+    Displayed(Result<DisplayedWallpaper, command::Error>),
     Resolved(Result<Wallpaper, wallpaper::Error>),
     Expansion(ExpansionMessage),
 }
@@ -246,7 +262,7 @@ impl WallpaperGroup {
     pub fn update(&mut self, message: WallpaperMessage) -> Task<WallpaperMessage> {
         match message {
             WallpaperMessage::DaemonFound(found) => self.wallpaper_daemon = found,
-            WallpaperMessage::Displayed(Ok(path)) => return self.follow(path),
+            WallpaperMessage::Displayed(Ok(displayed)) => return self.follow(displayed),
             WallpaperMessage::Displayed(Err(failure)) => {
                 self.lookup.receive(Err(Failure::Query(failure)));
             }
@@ -264,12 +280,12 @@ impl WallpaperGroup {
         Task::none()
     }
 
-    fn follow(&mut self, path: Option<String>) -> Task<WallpaperMessage> {
-        if self.shown == path {
+    fn follow(&mut self, displayed: DisplayedWallpaper) -> Task<WallpaperMessage> {
+        if self.shown.as_ref() == Some(&displayed) {
             return Task::none();
         }
-        self.shown.clone_from(&path);
-        let Some(path) = path else {
+        self.shown = Some(displayed.clone());
+        let DisplayedWallpaper::ImageFile(path) = displayed else {
             self.lookup.load(None);
             return Task::none();
         };

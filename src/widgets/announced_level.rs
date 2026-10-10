@@ -1,8 +1,10 @@
 use std::time::Duration;
 
+use uom::si::f64::Ratio;
+
 use crate::{
     data::{
-        notifications::model::{ExpireTimeout, NotificationData, Progress},
+        notifications::model::{ExpireTimeout, NotificationData},
         severity::Severity,
     },
     desktop_shell::hover_tooltips::HoverTarget,
@@ -15,7 +17,7 @@ const LEVEL_TOAST_LIFETIME: Duration = Duration::from_millis(1_500);
 pub struct AnnouncedLevel {
     pub summary_text: &'static str,
     pub body_text: String,
-    pub percent: u8,
+    pub fill: Ratio,
     pub external_change_count: u64,
 }
 
@@ -48,7 +50,7 @@ impl<Message> LevelReading<Message> {
         NotificationData {
             app_name: None,
             body: Some(self.level.body_text.clone()),
-            progress: Progress::Percent(self.level.percent),
+            progress: Some(self.level.fill),
             severity: Severity::Low,
             suppress_sound: true,
             expire_timeout: ExpireTimeout::After(LEVEL_TOAST_LIFETIME),
@@ -77,12 +79,12 @@ impl LevelAnnouncement {
         );
     }
 
-    pub fn level(&self, percent: u8, body_text: String) -> Option<AnnouncedLevel> {
+    pub fn level(&self, fill: Ratio, body_text: String) -> Option<AnnouncedLevel> {
         self.external_change_count
             .map(|external_change_count| AnnouncedLevel {
                 summary_text: self.summary_text,
                 body_text,
-                percent,
+                fill,
                 external_change_count,
             })
     }
@@ -90,6 +92,8 @@ impl LevelAnnouncement {
 
 #[cfg(test)]
 mod tests {
+    use uom::si::ratio::percent;
+
     use super::*;
     use crate::widgets::phosphor::{Phosphor, Weight};
 
@@ -99,7 +103,7 @@ mod tests {
             .iter()
             .for_each(|changed| announcement.device_reported(*changed));
         announcement
-            .level(50, String::new())
+            .level(Ratio::new::<percent>(50.0), String::new())
             .map(|level| level.external_change_count)
     }
 
@@ -110,7 +114,7 @@ mod tests {
             level: AnnouncedLevel {
                 summary_text: "Speaker",
                 body_text: "50%".to_owned(),
-                percent: 50,
+                fill: Ratio::new::<percent>(50.0),
                 external_change_count,
             },
             on_body_clicked: (),

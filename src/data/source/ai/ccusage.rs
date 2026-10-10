@@ -8,7 +8,7 @@ use std::{
 use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, Utc, Weekday};
 use serde::Deserialize;
 
-use crate::data::source::command::{self, exists, require};
+use crate::data::source::command::{self, exists};
 
 const PROGRAM: &str = "ccusage";
 pub const POLL_INTERVAL: Duration = Duration::from_secs(15);
@@ -260,11 +260,11 @@ pub async fn recent(agent: Agent) -> Result<RecentUsage, Error> {
     Ok(report.recent(today))
 }
 
-pub async fn active_block(agent: Agent) -> Result<Option<BillingBlock>, Error> {
+pub async fn active_blocks(agent: Agent) -> Result<Vec<BillingBlock>, Error> {
     let mut args = agent.report_args("blocks");
     args.extend(["--active", "--json"]);
-    let report: BlocksReport = serde_json::from_str(&require(PROGRAM, &args).await?)?;
-    Ok(report.blocks.into_iter().next().map(BillingBlock::from))
+    let report: BlocksReport = serde_json::from_str(&command::output(PROGRAM, &args).await?)?;
+    Ok(report.blocks.into_iter().map(BillingBlock::from).collect())
 }
 
 pub async fn this_month(agent: Agent) -> Result<CurrentMonth, Error> {
@@ -280,7 +280,7 @@ pub async fn this_month(agent: Agent) -> Result<CurrentMonth, Error> {
 async fn report(agent: Agent, period: &'static str, since: &str) -> Result<String, Error> {
     let mut args = agent.report_args(period);
     args.extend(["--since", since, "--json"]);
-    Ok(require(PROGRAM, &args).await?)
+    Ok(command::output(PROGRAM, &args).await?)
 }
 
 #[cfg(test)]

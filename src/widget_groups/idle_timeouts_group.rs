@@ -207,7 +207,12 @@ impl IdleTimeoutsGroup {
             .collect()
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(IdleTimeoutsMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(IdleTimeoutsMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let items = self.entries().map(|(kind, timer)| {
             GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
                 timer.view(config, reveal).map(move |m| match m {

@@ -9,9 +9,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareRows,
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -47,13 +47,16 @@ impl BarWidget for Bluetooth {
     fn tooltip(&self) -> TooltipBody {
         let hardware = self.adapter.hardware_section();
         if !self.powered {
-            return TooltipBody::sections(&[Section::untitled(&[("Bluetooth", "off")]), hardware]);
+            return TooltipBody::sections(&[
+                Section::untitled_dictionary([KeyValue::new("Bluetooth", "off")]),
+                hardware,
+            ]);
         }
-        let overview = Section::titled(
+        let overview = Section::dictionary(
             "Bluetooth",
-            &[
-                ("Connected", self.connected.len().to_string()),
-                ("Paired", self.paired.to_string()),
+            [
+                KeyValue::new("Connected", self.connected.len().to_string()),
+                KeyValue::new("Paired", self.paired.to_string()),
             ],
         );
         let devices = self.connected.iter().map(device_section);
@@ -62,15 +65,21 @@ impl BarWidget for Bluetooth {
 }
 
 fn device_section(device: &Device) -> Section {
-    Section::titled(
+    Section::dictionary(
         device.name.clone(),
-        &[
-            ("Address", device.address.clone()),
-            ("Signal", device.signal.map(|signal| format!("{signal}%"))),
-            (
-                "Battery",
-                device.battery.map(|battery| format!("{battery}%")),
-            ),
-        ],
+        [
+            device
+                .address
+                .as_deref()
+                .map(|address| KeyValue::new("Address", address)),
+            device
+                .signal
+                .map(|signal| KeyValue::new("Signal", format!("{signal}%"))),
+            device
+                .battery
+                .map(|battery| KeyValue::new("Battery", format!("{battery}%"))),
+        ]
+        .into_iter()
+        .flatten(),
     )
 }

@@ -1,4 +1,4 @@
-use crate::state::{Columns, OverlaySettings, StoreError, open};
+use crate::state::{Columns, OverlaySettings, StoreError, connect};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS overlay_settings (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -47,7 +47,7 @@ async fn put(setting: OverlaySetting, value: turso::Value) -> bool {
 }
 
 async fn try_put(setting: OverlaySetting, value: turso::Value) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     write_setting(&conn, setting, value).await
 }
 
@@ -76,7 +76,7 @@ pub async fn load() -> OverlaySettings {
 }
 
 async fn try_load() -> Result<OverlaySettings, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     read_overlay_settings(&conn).await
 }
 
@@ -93,13 +93,13 @@ async fn read_overlay_settings(conn: &turso::Connection) -> Result<OverlaySettin
     let Some(row) = rows.next().await? else {
         return Ok(overlays);
     };
-    if let Some(opacity) = columns.optional_real(&row, "opacity")? {
+    if let Some(opacity) = columns.optional_real(&row, "opacity") {
         overlays.opacity = opacity as f32;
     }
-    if let Some(radius) = columns.optional_real(&row, "corner_radius_px")? {
+    if let Some(radius) = columns.optional_real(&row, "corner_radius_px") {
         overlays.corner_radius = (radius as f32).into();
     }
-    if let Some(spatial) = columns.optional_flag(&row, "toast_spatial_layout")? {
+    if let Some(spatial) = columns.optional_flag(&row, "toast_spatial_layout") {
         overlays.toast_spatial_layout = spatial;
     }
     Ok(overlays)

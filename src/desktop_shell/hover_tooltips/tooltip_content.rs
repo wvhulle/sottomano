@@ -26,7 +26,8 @@ use crate::{
         section_column::section_column,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, RefreshInfo, Row, Section, SectionBody, Tooltip, TooltipBody, TrayMenuBody,
+            Cell, KeyValue, RecordCells, RefreshInfo, Section, SectionBody, Tooltip, TooltipBody,
+            TrayMenuBody,
         },
     },
 };
@@ -244,8 +245,8 @@ impl<'a> TooltipContent<'a> {
 
     fn body(&self, body: &SectionBody) -> Element<'static, Message> {
         match body {
-            SectionBody::Rows(rows) => self.table(rows),
-            SectionBody::Columns { headings, rows } => self.headed_table(headings, rows),
+            SectionBody::Dictionary(entries) => self.dictionary(entries),
+            SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
             SectionBody::Tree { root, folding } => {
                 ProcessTree::new(root, folding, self.config).view()
             }
@@ -263,67 +264,67 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn table(&self, rows: &[Row]) -> Element<'static, Message> {
-        let widest = rows.iter().map(|row| row.cells().len()).max().unwrap_or(0);
+    fn dictionary(&self, entries: &[KeyValue]) -> Element<'static, Message> {
+        let palette = self.config.palette.clone();
+        let cell_view = self.cell_view();
+        let value_column = table::column(Space::new(), move |entry: KeyValue| {
+            cell_view.value(entry.value().clone(), entry.severity().color(&palette))
+        })
+        .align_y(Vertical::Top);
 
-        self.key_value_table(
-            rows,
-            (0..widest).map(|position| self.cell_column(position, Space::new().into())),
-        )
+        self.keyed_table(entries, KeyValue::key, once(value_column))
     }
 
-    fn headed_table(&self, headings: &[String], rows: &[Row]) -> Element<'static, Message> {
-        let widest = rows
-            .iter()
-            .map(|row| row.cells().len())
-            .chain(once(headings.len()))
-            .max()
-            .unwrap_or(0);
+    fn column_table(
+        &self,
+        headings: &[String],
+        records: &[RecordCells],
+    ) -> Element<'static, Message> {
         let heading_color = self.config.palette.inactive;
 
-        self.key_value_table(
-            rows,
-            (0..widest).map(|position| {
-                let heading = headings.get(position).map(|heading| {
-                    column_heading(&self.config.font, heading.clone(), heading_color)
-                });
-                self.cell_column(position, heading.into())
+        self.keyed_table(
+            records,
+            RecordCells::key,
+            headings.iter().enumerate().map(|(position, heading)| {
+                let heading = column_heading(&self.config.font, heading.clone(), heading_color);
+                self.record_column(position, heading.into())
                     .align_x(Horizontal::Right)
             }),
         )
     }
 
-    fn key_value_table(
+    fn keyed_table<Entry: Clone + 'static>(
         &self,
-        rows: &[Row],
-        values: impl IntoIterator<Item = table::Column<'static, 'static, Row, Message>>,
+        entries: &[Entry],
+        key: fn(&Entry) -> &Cell,
+        values: impl IntoIterator<Item = table::Column<'static, 'static, Entry, Message>>,
     ) -> Element<'static, Message> {
         let dim = self.dim();
         let cell_view = self.cell_view();
-        let key_column = table::column(Space::new(), move |entry: Row| {
-            cell_view.key(entry.key().clone(), dim)
+        let key_column = table::column(Space::new(), move |entry: Entry| {
+            cell_view.key(key(&entry).clone(), dim)
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);
 
-        table::table(once(key_column).chain(values), rows.iter().cloned())
+        table::table(once(key_column).chain(values), entries.iter().cloned())
             .separator(0.0)
             .padding_x(COLUMN_GAP_PX / 2.0)
             .padding_y(ROW_SPACING_PX / 2.0)
             .into()
     }
 
-    fn cell_column(
+    fn record_column(
         &self,
         position: usize,
         heading: Element<'static, Message>,
-    ) -> table::Column<'static, 'static, Row, Message> {
+    ) -> table::Column<'static, 'static, RecordCells, Message> {
         let palette = self.config.palette.clone();
         let cell_view = self.cell_view();
 
-        table::column(heading, move |entry: Row| {
-            match entry.cells().get(position) {
-                Some(value) => cell_view.value(value.clone(), entry.level().color(&palette)),
+        table::column(heading, move |record: RecordCells| {
+            match record.cell(position) {
+                Some(value) => cell_view.value(value.clone(), record.severity().color(&palette)),
                 None => Space::new().into(),
             }
         })
@@ -347,7 +348,6 @@ impl CellView {
             Cell::Text(text) | Cell::Link(text) => self.text(text, color).into(),
             Cell::Hint(text) => self.text(text, self.hint).into(),
             Cell::Time { at, part } => self.text(part.format(&at, self.locale), color).into(),
-            Cell::Missing => Space::new().into(),
         }
     }
 
@@ -362,7 +362,6 @@ impl CellView {
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
             Cell::Link(url) => self.openable_link(url),
             Cell::Hint(text) => self.text(text, self.hint).into(),
-            Cell::Missing => Space::new().into(),
         }
     }
 

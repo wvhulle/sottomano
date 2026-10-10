@@ -9,7 +9,7 @@ use crate::{
     },
     desktop_shell::hover_tooltips::relative,
     widget_groups::window_group::process_tree::Folding,
-    widgets::tooltip_body::{Row, Section, Tooltip, TooltipBody},
+    widgets::tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
 };
 
 pub fn tooltip(
@@ -21,40 +21,42 @@ pub fn tooltip(
 ) -> Option<Tooltip> {
     let window = niri_state.windows.windows.get(&window)?;
     let provenance = inspected.map(|inspected| &inspected.provenance);
-    let referenced: Vec<Row> = provenance
+    let referenced = provenance
         .into_iter()
-        .flat_map(|provenance| provenance.referenced.iter().map(versioned))
-        .collect();
-    Some(Tooltip::of(TooltipBody::sections(&[
-        Section::untitled(&[
-            (
-                "Title",
-                Some(window.title.clone().unwrap_or_else(|| "—".to_owned())),
-            ),
-            ("App id", window.app_id.clone()),
-            ("Window id", Some(window.id.to_string())),
-            (
+        .flat_map(|provenance| provenance.referenced.iter().map(versioned));
+    let window_entries = [
+        window
+            .title
+            .as_deref()
+            .map(|title| KeyValue::new("Title", title)),
+        window
+            .app_id
+            .as_deref()
+            .map(|app_id| KeyValue::new("App id", app_id)),
+        Some(KeyValue::new("Window id", window.id.to_string())),
+        focus_age(window).map(|focused| {
+            KeyValue::new(
                 "Focused",
-                focus_age(window)
-                    .map(|focused| relative(SystemTime::now() - focused, SystemTime::now())),
-            ),
-        ]),
-        Section::titled(
+                relative(SystemTime::now() - focused, SystemTime::now()),
+            )
+        }),
+    ];
+    Some(Tooltip::of(TooltipBody::sections(&[
+        Section::untitled_dictionary(window_entries.into_iter().flatten()),
+        Section::dictionary(
             "Package",
             provenance
                 .and_then(|provenance| provenance.package.as_ref())
-                .map(versioned)
-                .as_slice(),
+                .map(versioned),
         ),
-        Section::titled(
+        Section::dictionary(
             "Runtime",
             provenance
                 .and_then(|provenance| provenance.runtime.as_ref())
-                .map(versioned)
-                .as_slice(),
+                .map(versioned),
         ),
-        Section::titled("Referenced", &referenced),
-        Section::titled("Command", &inspected.map(command).unwrap_or_default()),
+        Section::dictionary("Referenced", referenced),
+        Section::dictionary("Command", inspected.into_iter().flat_map(command)),
         Section::tree("Process", tree, folding),
     ])))
 }
@@ -65,37 +67,41 @@ fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
     process::monotonic()?.checked_sub(stamp)
 }
 
-fn versioned(package: &StorePackage) -> Row {
-    (
-        package.name.as_str(),
-        package.version.clone().unwrap_or_else(|| "—".to_owned()),
-    )
-        .into()
+fn versioned(package: &StorePackage) -> KeyValue {
+    let named = match &package.version {
+        Some(version) => format!("{} {version}", package.name),
+        None => package.name.clone(),
+    };
+    KeyValue::new("", named)
 }
 
-fn command(inspected: &Inspection) -> Vec<Row> {
+fn command(inspected: &Inspection) -> Vec<KeyValue> {
     let launched = &inspected.launch;
     let arguments = beyond_binary(launched)
         .enumerate()
         .map(|(index, argument)| {
             let key = if index == 0 { "Command" } else { "" };
-            Row::from((key, argument))
+            KeyValue::new(key, argument.as_str())
         });
-    [
-        ("Profile", inspected.provenance.profile.clone()),
-        (
-            "Binary",
-            launched
-                .binary
-                .as_ref()
-                .map(|binary| binary.display().to_string()),
-        ),
-    ]
-    .map(Row::from)
-    .into_iter()
-    .chain(arguments)
-    .chain([Row::from(("Scope", &launched.scope))])
-    .collect()
+    let profile = inspected
+        .provenance
+        .profile
+        .as_deref()
+        .map(|profile| KeyValue::new("Profile", profile));
+    let binary = launched
+        .binary
+        .as_ref()
+        .map(|binary| KeyValue::new("Binary", binary.display().to_string()));
+    let scope = launched
+        .scope
+        .as_deref()
+        .map(|scope| KeyValue::new("Scope", scope));
+    profile
+        .into_iter()
+        .chain(binary)
+        .chain(arguments)
+        .chain(scope)
+        .collect()
 }
 
 fn beyond_binary(launched: &Launch) -> impl Iterator<Item = &String> {

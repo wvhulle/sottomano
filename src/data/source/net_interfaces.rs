@@ -28,19 +28,30 @@ pub(crate) type Properties = HashMap<String, OwnedValue>;
 
 const SIGNAL_BURST_LIMIT: usize = 64;
 
+#[derive(Debug)]
+pub(crate) enum ReadingError {
+    Bus(zbus::Error),
+    Absent,
+}
+
+impl From<zbus::Error> for ReadingError {
+    fn from(error: zbus::Error) -> Self {
+        Self::Bus(error)
+    }
+}
+
 pub(crate) fn kept_readings<T>(
     label: &'static str,
-    readings: impl Stream<Item = zbus::Result<Option<T>>>,
+    readings: impl Stream<Item = Result<T, ReadingError>>,
 ) -> impl Stream<Item = Option<T>> {
-    readings.filter_map(move |reading| {
-        ready(match reading {
-            Ok(reading) => Some(reading),
-            Err(e) => {
+    readings
+        .inspect(move |reading| {
+            if let Err(ReadingError::Bus(e)) = reading {
                 tracing::debug!("{label}: read failed: {e}");
-                None
             }
         })
-    })
+        .filter(|reading| ready(!matches!(reading, Err(ReadingError::Bus(_)))))
+        .map(Result::ok)
 }
 
 pub(crate) fn once_then_per_burst(
@@ -59,7 +70,7 @@ pub(crate) fn nm_readings<T, F>(
 ) -> impl Stream<Item = Option<T>>
 where
     T: Send + 'static,
-    F: Future<Output = zbus::Result<Option<T>>> + Send + 'static,
+    F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
     restarting(label, move || subscribe_nm(label, read))
 }
@@ -70,7 +81,7 @@ async fn subscribe_nm<T, F>(
 ) -> zbus::Result<impl Stream<Item = Option<T>>>
 where
     T: Send + 'static,
-    F: Future<Output = zbus::Result<Option<T>>> + Send + 'static,
+    F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
     let connection = Connection::system().await?;
     let signals = nm::changes(&connection).await?;
@@ -106,7 +117,13 @@ async fn subscribe_managed_objects<T: Send + 'static>(
     );
     let readings = once_then_per_burst(signals).then(move |()| {
         let objects = objects.clone();
-        async move { Ok(reading(&objects.get_managed_objects().await?)) }
+        async move {
+            let managed = objects
+                .get_managed_objects()
+                .await
+                .map_err(zbus::Error::from)?;
+            reading(&managed).ok_or(ReadingError::Absent)
+        }
     });
     Ok(kept_readings(label, readings))
 }

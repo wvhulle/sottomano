@@ -10,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -40,11 +40,11 @@ impl BarWidget for Disk {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let capacity = Section::untitled(&[
-            ("Mount", "/".to_owned()),
-            ("Used", format!("{}%", self.used_pct())),
-            ("Free", self.free.display().iec().to_string()),
-            ("Total", self.total.display().iec().to_string()),
+        let capacity = Section::untitled_dictionary([
+            KeyValue::new("Mount", "/".to_owned()),
+            KeyValue::new("Used", format!("{}%", self.used_pct())),
+            KeyValue::new("Free", self.free.display().iec().to_string()),
+            KeyValue::new("Total", self.total.display().iec().to_string()),
         ]);
         TooltipBody::sections(&[capacity, self.filesystem.section()])
     }
@@ -72,25 +72,27 @@ impl Disk {
 impl Filesystem {
     fn section(&self) -> Section {
         match self {
-            Filesystem::Btrfs(space) => Section::titled(
+            Filesystem::Btrfs(space) => Section::dictionary(
                 "Btrfs",
-                &[
-                    ("Compression", space.compression.to_string()),
-                    (
+                [
+                    KeyValue::new("Compression", space.compression.to_string()),
+                    KeyValue::new(
                         "Unallocated space",
                         space.unallocated.display().iec().to_string(),
                     ),
-                    (
+                    KeyValue::new(
                         "Metadata in use",
                         space.metadata.used.display().iec().to_string(),
                     ),
-                    (
+                    KeyValue::new(
                         "Metadata reserved",
                         space.metadata.allocated.display().iec().to_string(),
                     ),
                 ],
             ),
-            Filesystem::Other { fs_type } => Section::untitled(&[("Filesystem", fs_type.clone())]),
+            Filesystem::Other { fs_type } => {
+                Section::untitled_dictionary([KeyValue::new("Filesystem", fs_type.clone())])
+            }
         }
     }
 }

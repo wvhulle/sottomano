@@ -46,9 +46,7 @@ impl DesktopShell {
         .into()
     }
 
-    pub(super) fn all_widget_groups(
-        &self,
-    ) -> impl Iterator<Item = WidgetGroup<'_, Message>> {
+    pub(super) fn all_widget_groups(&self) -> impl Iterator<Item = WidgetGroup<'_, Message>> {
         self.top_start_groups()
             .into_iter()
             .chain(self.top_center_groups())

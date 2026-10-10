@@ -16,7 +16,7 @@ use iced::{
     border::{self, Radius},
     widget::container,
 };
-pub(crate) use store::{Columns, StoreError, open};
+pub(crate) use store::{Columns, StoreError, connect};
 
 use crate::config::Palette;
 

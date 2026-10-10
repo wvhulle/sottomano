@@ -8,21 +8,21 @@ use uom::{
 };
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::weather::{HourlyTemperature, Temperature},
-    },
+    data::source::weather::{HourlyTemperature, Temperature, WeatherCondition},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
-        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
         weather_icons::WeatherIcon,
     },
 };
 
 impl BarWidget for Temperature {
     fn icon(&self) -> Glyph {
-        WeatherIcon::from(self.condition).into()
+        self.condition
+            .map_or_else(Self::fallback_icon, |condition| {
+                WeatherIcon::from(condition).into()
+            })
     }
 
     fn fallback_icon() -> Glyph {
@@ -35,46 +35,60 @@ impl BarWidget for Temperature {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::untitled(&[Row::new(
-                "Conditions",
-                &[
-                    WeatherIcon::from(self.condition).into(),
-                    self.condition.to_string().into(),
-                ],
-                Severity::Normal,
-            )]),
-            Section::titled(
+            Section::untitled_column_table(
+                ["", "Conditions"],
+                self.condition
+                    .map(|condition| TableRecord::new("Conditions", condition_cells(condition))),
+            ),
+            Section::dictionary(
                 "Temperature",
-                &[
-                    ("Now", celsius_text(self.temp)),
-                    ("Feels like", celsius_text(self.feels)),
-                    ("Today's low", celsius_text(self.temp_min)),
-                    ("Today's high", celsius_text(self.temp_max)),
-                    ("Humidity", percent_text(self.humidity)),
+                [
+                    KeyValue::new("Now", celsius_text(self.temp)),
+                    KeyValue::new("Feels like", celsius_text(self.feels)),
+                    KeyValue::new("Today's low", celsius_text(self.temp_min)),
+                    KeyValue::new("Today's high", celsius_text(self.temp_max)),
+                    KeyValue::new("Humidity", percent_text(self.humidity)),
                 ],
             ),
-            Section::table("Earlier", &self.hourly.earlier),
-            Section::table("Later", &self.hourly.later),
+            Section::column_table(
+                "Earlier",
+                HOURLY_HEADINGS,
+                self.hourly
+                    .earlier
+                    .iter()
+                    .map(HourlyTemperature::table_record),
+            ),
+            Section::column_table(
+                "Later",
+                HOURLY_HEADINGS,
+                self.hourly
+                    .later
+                    .iter()
+                    .map(HourlyTemperature::table_record),
+            ),
         ])
     }
 }
 
-impl TableRow for HourlyTemperature {
-    const HEADINGS: &'static [&'static str] = &["Temp", "", "Conditions"];
+const HOURLY_HEADINGS: [&str; 3] = ["Temp", "", "Conditions"];
 
-    fn key(&self) -> Cell {
-        Cell::Time {
-            at: self.time,
-            part: TimePart::TimeOfDay,
-        }
-    }
+fn condition_cells(condition: WeatherCondition) -> [Option<Cell>; 2] {
+    [
+        Some(Cell::Glyph(WeatherIcon::from(condition).into())),
+        Some(condition.to_string().into()),
+    ]
+}
 
-    fn cells(&self) -> Vec<Cell> {
-        vec![
-            celsius_text(self.temp).into(),
-            WeatherIcon::from(self.condition).into(),
-            self.condition.to_string().into(),
-        ]
+impl HourlyTemperature {
+    fn table_record(&self) -> TableRecord<3> {
+        let [glyph, text] = self.condition.map_or([None, None], condition_cells);
+        TableRecord::new(
+            Cell::Time {
+                at: self.time,
+                part: TimePart::TimeOfDay,
+            },
+            [Some(celsius_text(self.temp).into()), glyph, text],
+        )
     }
 }
 

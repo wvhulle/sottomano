@@ -13,7 +13,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -24,7 +24,7 @@ const POWER_GAUGE_MAX_W: f64 = 40.0;
 
 pub struct PowerDraw {
     power: Power,
-    status: ChargeStatus,
+    status: Option<ChargeStatus>,
     charger: Option<ChargerLimit>,
     expected_laptop: Option<Power>,
 }
@@ -40,41 +40,39 @@ impl PowerDraw {
     }
 
     fn on_battery(&self) -> bool {
-        matches!(
-            self.status,
-            ChargeStatus::Discharging | ChargeStatus::Unknown
-        )
+        matches!(self.status, Some(ChargeStatus::Discharging) | None)
     }
 
     fn breakdown_on_battery(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::titled(
+        TooltipBody::sections(&[Section::dictionary(
             "Battery feeds",
-            &[("Laptop", power_text(self.power))],
+            [KeyValue::new("Laptop", power_text(self.power))],
         )])
     }
 
     fn breakdown_on_ac(&self) -> TooltipBody {
-        let laptop = self.expected_laptop.map_or_else(
-            || ("Laptop", "not measured".to_owned()),
-            |laptop| ("Laptop (estimated)", power_text(laptop)),
-        );
-        let feeds = Section::titled(
+        let laptop = self
+            .expected_laptop
+            .map(|laptop| KeyValue::new("Laptop (estimated)", power_text(laptop)));
+        let feeds = Section::dictionary(
             "Charger feeds",
-            &[laptop, ("Battery", power_text(self.power))],
+            laptop
+                .into_iter()
+                .chain([KeyValue::new("Battery", power_text(self.power))]),
         );
         let Some(limit) = self.charger else {
             return TooltipBody::sections(&[feeds]);
         };
         TooltipBody::sections(&[
-            Section::titled(
+            Section::dictionary(
                 "Charger",
-                &[
-                    ("Limit", power_text(limit.power())),
-                    (
+                [
+                    KeyValue::new("Limit", power_text(limit.power())),
+                    KeyValue::new(
                         "Voltage",
                         format!("{:.0}", limit.voltage.into_format_args(volt, Abbreviation)),
                     ),
-                    (
+                    KeyValue::new(
                         "Current",
                         format!(
                             "{:.2}",
@@ -102,7 +100,7 @@ impl BarWidget for PowerDraw {
     }
 
     fn state(&self) -> WidgetState {
-        if self.status != ChargeStatus::Discharging {
+        if self.status != Some(ChargeStatus::Discharging) {
             WidgetState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
             WidgetState::Critical
@@ -135,7 +133,7 @@ mod tests {
     fn draw(status: ChargeStatus) -> PowerDraw {
         PowerDraw {
             power: Power::new::<watt>(19.7),
-            status,
+            status: Some(status),
             charger: Some(ChargerLimit {
                 voltage: ElectricPotential::new::<volt>(20.0),
                 current: ElectricCurrent::new::<ampere>(3.25),
@@ -149,17 +147,20 @@ mod tests {
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
             TooltipBody::sections(&[
-                Section::titled(
+                Section::dictionary(
                     "Charger",
-                    &[
-                        ("Limit", "65.0 W"),
-                        ("Voltage", "20 V"),
-                        ("Current", "3.25 A"),
+                    [
+                        KeyValue::new("Limit", "65.0 W"),
+                        KeyValue::new("Voltage", "20 V"),
+                        KeyValue::new("Current", "3.25 A"),
                     ],
                 ),
-                Section::titled(
+                Section::dictionary(
                     "Charger feeds",
-                    &[("Laptop (estimated)", "8.9 W"), ("Battery", "19.7 W")],
+                    [
+                        KeyValue::new("Laptop (estimated)", "8.9 W"),
+                        KeyValue::new("Battery", "19.7 W"),
+                    ],
                 ),
             ])
         );
@@ -169,7 +170,10 @@ mod tests {
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
             draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            TooltipBody::sections(&[Section::titled("Battery feeds", &[("Laptop", "19.7 W")])])
+            TooltipBody::sections(&[Section::dictionary(
+                "Battery feeds",
+                [KeyValue::new("Laptop", "19.7 W")],
+            )])
         );
     }
 }

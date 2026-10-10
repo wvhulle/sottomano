@@ -6,10 +6,10 @@ use crate::{
         WeatherCondition::{
             self, Clear, Drizzle, Fog, FreezingDrizzle, FreezingRain, MainlyClear, Overcast,
             PartlyCloudy, Rain, RainShowers, RimeFog, Snow, SnowGrains, SnowShowers, Thunderstorm,
-            ThunderstormWithHail, Unrecognized,
+            ThunderstormWithHail,
         },
     },
-    widgets::{bar_widget::Glyph, svg_icon, tooltip_body::Cell},
+    widgets::{bar_widget::Glyph, svg_icon},
 };
 
 const INK_FRACTION: f32 = 22.0 / 30.0;
@@ -37,7 +37,6 @@ pub enum WeatherIcon {
     Thunderstorm,
     StormShowers,
     Hail,
-    NotAvailable,
     Raindrop,
     Thermometer,
     Sunrise,
@@ -70,7 +69,6 @@ impl WeatherIcon {
             WeatherIcon::Thunderstorm => weather_svg!("wi-thunderstorm"),
             WeatherIcon::StormShowers => weather_svg!("wi-storm-showers"),
             WeatherIcon::Hail => weather_svg!("wi-hail"),
-            WeatherIcon::NotAvailable => weather_svg!("wi-na"),
         }
     }
 
@@ -97,7 +95,6 @@ impl From<WeatherCondition> for WeatherIcon {
             Thunderstorm => WeatherIcon::Thunderstorm,
             ThunderstormWithHail(Intensity::Heavy) => WeatherIcon::Hail,
             ThunderstormWithHail(_) => WeatherIcon::StormShowers,
-            Unrecognized(_) => WeatherIcon::NotAvailable,
         }
     }
 }
@@ -105,12 +102,6 @@ impl From<WeatherCondition> for WeatherIcon {
 impl From<WeatherIcon> for Glyph {
     fn from(icon: WeatherIcon) -> Self {
         Glyph::WeatherIcon(icon)
-    }
-}
-
-impl From<WeatherIcon> for Cell {
-    fn from(icon: WeatherIcon) -> Self {
-        Cell::Glyph(icon.into())
     }
 }
 
@@ -136,7 +127,6 @@ mod tests {
             WeatherIcon::Thunderstorm,
             WeatherIcon::StormShowers,
             WeatherIcon::Hail,
-            WeatherIcon::NotAvailable,
             WeatherIcon::Raindrop,
             WeatherIcon::Thermometer,
             WeatherIcon::Sunrise,

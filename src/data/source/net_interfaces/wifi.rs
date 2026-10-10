@@ -4,7 +4,7 @@ use zbus::Connection;
 
 use crate::data::source::{
     hardware::Adapter,
-    net_interfaces::{nm, nm_readings},
+    net_interfaces::{ReadingError, nm, nm_readings},
 };
 
 pub const NAME: &str = "wifi";
@@ -14,8 +14,8 @@ pub struct Link {
     pub ssid: Option<String>,
     pub signal: i64,
     pub frequency: Frequency,
-    pub security: Option<String>,
-    pub mac: Option<String>,
+    pub security: String,
+    pub mac: String,
     pub ipv4: Option<nm::AddressBlock>,
     pub ipv6: Option<nm::AddressBlock>,
     pub dns: Vec<String>,
@@ -40,27 +40,27 @@ impl Wifi {
     }
 }
 
-async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
-    let Some(device) = nm::devices(&connection)
+async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
+    let device = nm::devices(&connection)
         .await?
         .into_iter()
         .find(|device| device.kind == nm::DeviceKind::Wifi)
-    else {
-        return Ok(None);
-    };
+        .ok_or(ReadingError::Absent)?;
     if !device.connected {
-        return Ok(Some(Wifi::unlinked(device)));
+        return Ok(Wifi::unlinked(device));
     }
-    let Some(ap) = nm::access_point(&connection, &device).await? else {
-        return Ok(Some(Wifi::unlinked(device)));
-    };
+    let ap_path = nm::active_access_point(&connection, &device).await?;
+    if nm::is_unset(&ap_path) {
+        return Ok(Wifi::unlinked(device));
+    }
+    let ap = nm::access_point(&connection, ap_path).await?;
     let (ip, mac, bitrate, mtu) = try_join!(
         nm::ip(&connection, &device),
         nm::hw_address(&device),
         nm::wireless_rate(&connection, &device),
         nm::mtu(&device)
     )?;
-    Ok(Some(Wifi {
+    Ok(Wifi {
         adapter: Adapter::of_net_interface(&device.interface),
         device: device.interface,
         link: Some(Link {
@@ -75,7 +75,7 @@ async fn read(connection: Connection) -> zbus::Result<Option<Wifi>> {
             bitrate,
             mtu,
         }),
-    }))
+    })
 }
 
 pub fn readings() -> impl Stream<Item = Option<Wifi>> {

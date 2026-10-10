@@ -4,7 +4,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -27,12 +27,15 @@ impl BarWidget for OpenRouter {
     fn tooltip(&self) -> TooltipBody {
         let remaining = self.credits.total - self.credits.used;
         TooltipBody::sections(&[
-            Section::untitled(&[("Today", format!("${} USD", to_cents(self.spend)))]),
-            Section::titled(
+            Section::untitled_dictionary([KeyValue::new(
+                "Today",
+                format!("${} USD", to_cents(self.spend)),
+            )]),
+            Section::dictionary(
                 "Credits",
-                &[
-                    ("Remaining", format!("${} USD", to_cents(remaining))),
-                    (
+                [
+                    KeyValue::new("Remaining", format!("${} USD", to_cents(remaining))),
+                    KeyValue::new(
                         "Lifetime Purchased",
                         format!("${} USD", to_cents(self.credits.total)),
                     ),
@@ -55,14 +58,13 @@ fn model_section(models: &[(String, f64)]) -> Section {
         .skip(LISTED_MODELS)
         .map(|(_, cost)| cost)
         .sum();
-    let rows: Vec<(&str, Option<String>)> = models
-        .iter()
-        .take(LISTED_MODELS)
-        .map(|(name, cost)| (name.as_str(), Some(format!("${}", to_cents(*cost)))))
-        .chain([(
-            "other",
-            (rest > 0.0).then(|| format!("${}", to_cents(rest))),
-        )])
-        .collect();
-    Section::titled("By Model Since Midnight", &rows)
+    let other = (rest > 0.0).then(|| KeyValue::new("other", format!("${}", to_cents(rest))));
+    Section::dictionary(
+        "By Model Since Midnight",
+        models
+            .iter()
+            .take(LISTED_MODELS)
+            .map(|(name, cost)| KeyValue::new(name.as_str(), format!("${}", to_cents(*cost))))
+            .chain(other),
+    )
 }

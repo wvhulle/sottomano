@@ -4,7 +4,7 @@ use reqwest::Url;
 
 use crate::{
     data::source::mpris::Media,
-    widgets::tooltip_body::{Cell, Section},
+    widgets::tooltip_body::{Cell, KeyValue, Section},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,38 +64,45 @@ fn path_segment(value: &str) -> String {
 }
 
 pub fn track_section(media: &Media) -> Section {
-    Section::titled(
+    let source = media
+        .url
+        .as_ref()
+        .map(|url| KeyValue::new("Source", Cell::Link(url.to_string())));
+    Section::dictionary(
         "Track",
-        &[
-            ("Title", Cell::from(&media.title)),
-            ("Artist", Cell::from(&media.artist)),
-            ("Album", Cell::from(&media.album)),
-            (
-                "Source",
-                media
-                    .url
-                    .as_ref()
-                    .map_or(Cell::Missing, |url| Cell::Link(url.to_string())),
-            ),
-        ],
+        [
+            ("Title", &media.title),
+            ("Artist", &media.artist),
+            ("Album", &media.album),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .chain(source),
     )
 }
 
 pub fn playback_section(media: &Media, now: Instant) -> Section {
     let progress = media.progress;
     let status = media.status;
-    Section::titled(
+    let duration = |key, duration: Option<Duration>| {
+        duration.map(|duration| KeyValue::new(key, duration_text(duration)))
+    };
+    Section::dictionary(
         "Playback",
-        &[
-            ("Player", Some(media.identity.clone())),
-            ("State", Some(status.label().to_owned())),
-            ("Played", progress.played(status, now).map(duration_text)),
-            (
-                "Remaining",
-                progress.remaining(status, now).map(duration_text),
-            ),
-            ("Length", progress.length().map(duration_text)),
-        ],
+        [
+            KeyValue::new("Player", media.identity.as_str()),
+            KeyValue::new("State", status.label()),
+        ]
+        .into_iter()
+        .chain(
+            [
+                duration("Played", progress.played(status, now)),
+                duration("Remaining", progress.remaining(status, now)),
+                duration("Length", progress.length()),
+            ]
+            .into_iter()
+            .flatten(),
+        ),
     )
 }
 
@@ -107,16 +114,13 @@ pub fn search_section(media: &Media) -> Section {
             .map_or_else(|| title.clone(), |artist| format!("{artist} {title}"))
     });
     let playing_on = media.url.as_ref().and_then(SearchPlatform::hosting);
-    Section::titled(
-        "Search",
-        &SearchPlatform::ALL.map(|platform| {
-            let link = query
-                .as_ref()
-                .filter(|_| Some(platform) != playing_on)
-                .map_or(Cell::Missing, |query| Cell::Link(platform.url(query)));
-            (platform.name(), link)
-        }),
-    )
+    let links = query.into_iter().flat_map(move |query| {
+        SearchPlatform::ALL
+            .into_iter()
+            .filter(move |platform| Some(*platform) != playing_on)
+            .map(move |platform| KeyValue::new(platform.name(), Cell::Link(platform.url(&query))))
+    });
+    Section::dictionary("Search", links)
 }
 
 fn duration_text(duration: Duration) -> String {

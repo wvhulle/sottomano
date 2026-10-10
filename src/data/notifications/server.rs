@@ -5,6 +5,7 @@ use std::{
 
 use iced::widget::image;
 use tokio::sync::mpsc;
+use uom::si::{f64::Ratio, ratio::percent};
 use zbus::{
     Connection, connection,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
@@ -16,8 +17,7 @@ use zbus::{
 };
 
 use super::model::{
-    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, Progress, ReplyPrompt,
-    ServerEvent,
+    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt, ServerEvent,
 };
 use crate::data::{empty_text::non_empty, severity::Severity, source::bus::OwnerProcess};
 
@@ -268,11 +268,15 @@ fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Progress {
+fn hint_progress(hints: &HashMap<String, OwnedValue>) -> Option<Ratio> {
     hints
         .get("value")
         .and_then(|v| v.downcast_ref::<i32>().ok())
-        .map_or(Progress::Absent, Progress::from_hint)
+        .map(clamped_progress)
+}
+
+fn clamped_progress(percent_value: i32) -> Ratio {
+    Ratio::new::<percent>(f64::from(percent_value.clamp(0, 100)))
 }
 
 fn reply_prompt(action: Option<&NotifAction>, hints: &HashMap<String, OwnedValue>) -> ReplyPrompt {
@@ -347,9 +351,18 @@ fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
 mod tests {
     use std::collections::HashMap;
 
+    use uom::si::{f64::Ratio, ratio::percent};
     use zbus::zvariant::{OwnedValue, Str};
 
-    use super::{NotifAction, ReplyPrompt, reply_prompt};
+    use super::{NotifAction, ReplyPrompt, clamped_progress, reply_prompt};
+
+    #[test]
+    fn progress_hint_is_clamped_to_percent_range() {
+        let percent_of = |value| Ratio::new::<percent>(value);
+        assert_eq!(clamped_progress(-5), percent_of(0.0));
+        assert_eq!(clamped_progress(42), percent_of(42.0));
+        assert_eq!(clamped_progress(250), percent_of(100.0));
+    }
 
     fn reply_action() -> NotifAction {
         NotifAction {

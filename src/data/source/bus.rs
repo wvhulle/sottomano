@@ -53,14 +53,12 @@ pub fn service_absent(error: &zbus::Error) -> bool {
     )
 }
 
-pub fn call<T>(result: zbus::Result<T>) -> Result<Option<T>, Error> {
-    match result {
-        Ok(value) => Ok(Some(value)),
-        Err(error) if service_absent(&error) => Ok(None),
-        Err(error) => Err(Error::Call(error.to_string())),
-    }
-}
-
-pub fn require<T>(result: zbus::Result<T>) -> Result<T, Error> {
-    call(result)?.ok_or(Error::Absent)
+pub fn call<T>(result: zbus::Result<T>) -> Result<T, Error> {
+    result.map_err(|error| {
+        if service_absent(&error) {
+            Error::Absent
+        } else {
+            Error::Call(error.to_string())
+        }
+    })
 }

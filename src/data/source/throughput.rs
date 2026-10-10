@@ -63,7 +63,7 @@ pub struct Throughput<D: Direction> {
     pub interfaces: Vec<String>,
     pub rate: InformationRate,
     pub peak_rate: InformationRate,
-    pub connectivity: Connectivity,
+    pub connectivity: Option<Connectivity>,
     direction: PhantomData<D>,
 }
 
@@ -144,7 +144,7 @@ struct Sample {
 #[derive(Default)]
 struct Session {
     interfaces: Vec<String>,
-    connectivity: Connectivity,
+    connectivity: Option<Connectivity>,
     previous: Option<Sample>,
     peak: Rates,
 }
@@ -248,7 +248,12 @@ impl Sample {
     }
 }
 
-fn readings(current: &Sample, rates: Rates, peak: Rates, connectivity: Connectivity) -> Readings {
+fn readings(
+    current: &Sample,
+    rates: Rates,
+    peak: Rates,
+    connectivity: Option<Connectivity>,
+) -> Readings {
     let interfaces: Vec<String> = current.counters.keys().cloned().collect();
     Readings {
         down: Throughput {

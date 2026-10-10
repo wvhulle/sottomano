@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::state::{Columns, StoreError, open};
+use crate::state::{Columns, StoreError, connect};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
     source TEXT PRIMARY KEY,
@@ -30,7 +30,8 @@ impl Backoff {
 
 pub async fn load(source: &'static str) -> Option<Backoff> {
     match try_load(source).await {
-        Ok(backoff) => backoff,
+        Ok(backoff) => Some(backoff),
+        Err(StoreError::NoRow) => None,
         Err(e) => {
             tracing::warn!("rate limit backoff: load failed for {source}: {e}");
             None
@@ -50,15 +51,12 @@ pub async fn clear(source: &'static str) {
     }
 }
 
-async fn try_load(source: &str) -> Result<Option<Backoff>, StoreError> {
-    let conn = open().await?;
+async fn try_load(source: &str) -> Result<Backoff, StoreError> {
+    let conn = connect(&[CREATE_TABLE]).await?;
     read_backoff(&conn, source).await
 }
 
-async fn read_backoff(
-    conn: &turso::Connection,
-    source: &str,
-) -> Result<Option<Backoff>, StoreError> {
+async fn read_backoff(conn: &turso::Connection, source: &str) -> Result<Backoff, StoreError> {
     let mut rows = conn
         .query(
             "SELECT retry_after_unix, attempts, status, message
@@ -67,19 +65,17 @@ async fn read_backoff(
         )
         .await?;
     let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(None);
-    };
-    Ok(Some(Backoff {
+    let row = rows.next().await?.ok_or(StoreError::NoRow)?;
+    Ok(Backoff {
         retry_after_unix: columns.integer(&row, "retry_after_unix")?,
         attempts: u32::try_from(columns.integer(&row, "attempts")?).unwrap_or(u32::MAX),
         status: u16::try_from(columns.integer(&row, "status")?).unwrap_or(u16::MAX),
-        message: columns.optional_text(&row, "message")?,
-    }))
+        message: columns.optional_text(&row, "message"),
+    })
 }
 
 async fn try_save(source: &str, backoff: &Backoff) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     write_backoff(&conn, source, backoff).await
 }
 
@@ -106,7 +102,7 @@ async fn write_backoff(
 }
 
 async fn try_clear(source: &str) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     clear_backoff(&conn, source).await
 }
 
@@ -152,9 +148,6 @@ mod tests {
         let conn = connection().await;
         write_backoff(&conn, "claude", &backoff()).await.unwrap();
 
-        assert_eq!(
-            read_backoff(&conn, "claude").await.unwrap(),
-            Some(backoff())
-        );
+        assert_eq!(read_backoff(&conn, "claude").await.unwrap(), backoff());
     }
 }

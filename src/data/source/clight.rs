@@ -56,7 +56,7 @@ fn read_auto_calib() -> Result<Clight, Error> {
     let proxy = ConfBacklightProxyBlocking::new(&connection)
         .map_err(|error| Error::Connect(error.to_string()))?;
     Ok(Clight {
-        auto: !bus::require(proxy.no_auto_calib())?,
+        auto: !bus::call(proxy.no_auto_calib())?,
     })
 }
 

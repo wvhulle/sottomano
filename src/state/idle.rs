@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::state::{Columns, StoreError, open};
+use crate::state::{Columns, StoreError, connect};
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -43,7 +43,7 @@ fn secs(timeout: Option<Duration>) -> Option<i64> {
 }
 
 async fn try_load() -> Result<Timeouts, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     read_timeouts(&conn).await
 }
 
@@ -67,7 +67,7 @@ async fn read_timeouts(conn: &turso::Connection) -> Result<Timeouts, StoreError>
 }
 
 async fn try_save(timeouts: Timeouts) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     write_timeouts(&conn, timeouts).await
 }
 

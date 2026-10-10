@@ -20,7 +20,7 @@ impl Source for SunFollow {
     }
 
     async fn poll(unit: String) -> Result<Self, Self::Error> {
-        let state = command::require(
+        let state = command::output(
             "systemctl",
             &["--user", "show", "-p", "ActiveState", "--value", &unit],
         )

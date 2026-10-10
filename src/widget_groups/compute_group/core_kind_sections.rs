@@ -1,21 +1,28 @@
 use crate::{
     data::source::sysfs_sensors::cpu_topology::CpuTopology,
-    widgets::tooltip_body::{Section, TableRow},
+    widgets::tooltip_body::{Section, TableRecord},
 };
 
 pub trait PerCore {
     fn core(&self) -> u32;
 }
 
-pub fn sections_by_core_kind<R: TableRow + PerCore>(
+pub fn sections_by_core_kind<Reading: PerCore, const COLUMNS: usize>(
     topology: &CpuTopology,
-    mut rows: Vec<R>,
+    mut readings: Vec<Reading>,
+    headings: [&str; COLUMNS],
+    table_record: fn(&Reading) -> TableRecord<COLUMNS>,
 ) -> Vec<Section> {
-    rows.sort_by_key(|row| topology.kind_of(row.core()));
-    rows.chunk_by(|left, right| topology.kind_of(left.core()) == topology.kind_of(right.core()))
+    readings.sort_by_key(|reading| topology.kind_of(reading.core()));
+    readings
+        .chunk_by(|left, right| topology.kind_of(left.core()) == topology.kind_of(right.core()))
         .filter_map(|same_kind| {
             let kind = topology.kind_of(same_kind.first()?.core());
-            Some(Section::table(kind.title(), same_kind))
+            Some(Section::column_table(
+                kind.title(),
+                headings,
+                same_kind.iter().map(table_record),
+            ))
         })
         .collect()
 }

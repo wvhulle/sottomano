@@ -24,50 +24,6 @@ pub enum Cell {
     Time { at: DateTime<Utc>, part: TimePart },
     Link(String),
     Hint(String),
-    Missing,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Row {
-    key: Cell,
-    cells: Vec<Cell>,
-    level: Severity,
-}
-
-impl Row {
-    pub fn new(key: impl Into<Cell>, cells: &[Cell], level: Severity) -> Self {
-        Self {
-            key: key.into(),
-            cells: cells.to_vec(),
-            level,
-        }
-    }
-
-    pub fn key(&self) -> &Cell {
-        &self.key
-    }
-
-    pub fn cells(&self) -> &[Cell] {
-        &self.cells
-    }
-
-    pub fn level(&self) -> Severity {
-        self.level
-    }
-
-    fn is_reported(&self) -> bool {
-        self.cells.iter().any(|cell| *cell != Cell::Missing)
-    }
-}
-
-impl<Key: Into<Cell>, Value: Into<Cell>> From<(Key, Value)> for Row {
-    fn from((key, value): (Key, Value)) -> Self {
-        Self {
-            key: key.into(),
-            cells: vec![value.into()],
-            level: Severity::Normal,
-        }
-    }
 }
 
 impl From<String> for Cell {
@@ -82,87 +38,99 @@ impl From<&str> for Cell {
     }
 }
 
-impl From<&String> for Cell {
-    fn from(text: &String) -> Self {
-        Cell::Text(text.clone())
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyValue {
+    key: Cell,
+    value: Cell,
+    level: Severity,
+}
+
+impl KeyValue {
+    pub fn new(key: impl Into<Cell>, value: impl Into<Cell>) -> Self {
+        Self {
+            key: key.into(),
+            value: value.into(),
+            level: Severity::Normal,
+        }
+    }
+
+    #[must_use]
+    pub fn level(self, level: Severity) -> Self {
+        Self { level, ..self }
+    }
+
+    pub fn key(&self) -> &Cell {
+        &self.key
+    }
+
+    pub fn value(&self) -> &Cell {
+        &self.value
+    }
+
+    pub fn severity(&self) -> Severity {
+        self.level
     }
 }
 
-impl<Value: Into<Cell>> From<Option<Value>> for Cell {
-    fn from(value: Option<Value>) -> Self {
-        value.map_or(Cell::Missing, Into::into)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableRecord<const COLUMNS: usize> {
+    key: Cell,
+    cells: [Option<Cell>; COLUMNS],
+    level: Severity,
+}
+
+impl<const COLUMNS: usize> TableRecord<COLUMNS> {
+    pub fn new(key: impl Into<Cell>, cells: [Option<Cell>; COLUMNS]) -> Self {
+        Self {
+            key: key.into(),
+            cells,
+            level: Severity::Normal,
+        }
+    }
+
+    #[must_use]
+    pub fn level(self, level: Severity) -> Self {
+        Self { level, ..self }
     }
 }
 
-impl<Value: Clone + Into<Cell>> From<&Option<Value>> for Cell {
-    fn from(value: &Option<Value>) -> Self {
-        value.clone().into()
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordCells {
+    key: Cell,
+    cells: Vec<Option<Cell>>,
+    level: Severity,
+}
+
+impl RecordCells {
+    pub fn key(&self) -> &Cell {
+        &self.key
+    }
+
+    pub fn cell(&self, position: usize) -> Option<&Cell> {
+        self.cells[position].as_ref()
+    }
+
+    pub fn severity(&self) -> Severity {
+        self.level
     }
 }
 
-impl From<Glyph> for Cell {
-    fn from(glyph: Glyph) -> Self {
-        Cell::Glyph(glyph)
-    }
-}
-
-pub trait TableRow {
-    const HEADINGS: &'static [&'static str];
-    fn key(&self) -> Cell;
-    fn cells(&self) -> Vec<Cell>;
-
-    fn level(&self) -> Severity {
-        Severity::Normal
-    }
-
-    fn row(&self) -> Row {
-        Row {
-            key: self.key(),
-            cells: self.cells(),
-            level: self.level(),
+impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
+    fn from(record: TableRecord<COLUMNS>) -> Self {
+        Self {
+            key: record.key,
+            cells: record.cells.into(),
+            level: record.level,
         }
     }
 }
 
-impl<R: TableRow> TableRow for &R {
-    const HEADINGS: &'static [&'static str] = R::HEADINGS;
-
-    fn key(&self) -> Cell {
-        (*self).key()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        (*self).cells()
-    }
-
-    fn level(&self) -> Severity {
-        (*self).level()
-    }
-}
-
-fn columns<R: TableRow>(rows: impl IntoIterator<Item = R>) -> SectionBody {
-    SectionBody::Columns {
-        headings: R::HEADINGS.iter().map(ToString::to_string).collect(),
-        rows: rows.into_iter().map(|table_row| table_row.row()).collect(),
-    }
-}
-
-fn plain_rows<R: Into<Row> + Clone>(rows: &[R]) -> SectionBody {
-    SectionBody::Rows(
-        rows.iter()
-            .cloned()
-            .map(Into::into)
-            .filter(Row::is_reported)
-            .collect(),
-    )
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
-    Rows(Vec<Row>),
-    Columns {
+    Dictionary(Vec<KeyValue>),
+    ColumnTable {
         headings: Vec<String>,
-        rows: Vec<Row>,
+        records: Vec<RecordCells>,
     },
     Tree {
         root: Process,
@@ -171,9 +139,20 @@ pub enum SectionBody {
 }
 
 impl SectionBody {
+    fn column_table<const COLUMNS: usize>(
+        headings: [&str; COLUMNS],
+        records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
+    ) -> Self {
+        SectionBody::ColumnTable {
+            headings: headings.map(str::to_owned).into(),
+            records: records.into_iter().map(RecordCells::from).collect(),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
-            SectionBody::Rows(rows) | SectionBody::Columns { rows, .. } => rows.is_empty(),
+            SectionBody::Dictionary(entries) => entries.is_empty(),
+            SectionBody::ColumnTable { records, .. } => records.is_empty(),
             SectionBody::Tree { .. } => false,
         }
     }
@@ -216,43 +195,52 @@ impl<Title: Into<String>, Caption: Into<String>> From<(Title, Caption)> for Head
 }
 
 impl Section {
-    pub fn titled<R: Into<Row> + Clone>(heading: impl Into<Heading>, rows: &[R]) -> Self {
-        Self {
-            heading: Some(heading.into()),
-            body: plain_rows(rows),
-        }
-    }
-
-    pub fn untitled<R: Into<Row> + Clone>(rows: &[R]) -> Self {
-        Self {
-            heading: None,
-            body: plain_rows(rows),
-        }
-    }
-
-    pub fn table<R: TableRow>(
+    pub fn dictionary(
         heading: impl Into<Heading>,
-        rows: impl IntoIterator<Item = R>,
+        entries: impl IntoIterator<Item = KeyValue>,
     ) -> Self {
         Self {
             heading: Some(heading.into()),
-            body: columns(rows),
+            body: SectionBody::Dictionary(entries.into_iter().collect()),
         }
     }
 
-    pub fn untitled_table<R: TableRow>(rows: impl IntoIterator<Item = R>) -> Self {
+    pub fn untitled_dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
         Self {
             heading: None,
-            body: columns(rows),
+            body: SectionBody::Dictionary(entries.into_iter().collect()),
+        }
+    }
+
+    pub fn column_table<const COLUMNS: usize>(
+        heading: impl Into<Heading>,
+        headings: [&str; COLUMNS],
+        records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
+    ) -> Self {
+        Self {
+            heading: Some(heading.into()),
+            body: SectionBody::column_table(headings, records),
+        }
+    }
+
+    pub fn untitled_column_table<const COLUMNS: usize>(
+        headings: [&str; COLUMNS],
+        records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
+    ) -> Self {
+        Self {
+            heading: None,
+            body: SectionBody::column_table(headings, records),
         }
     }
 
     pub fn tree(heading: impl Into<Heading>, root: Option<&Process>, folding: &Folding) -> Self {
         Self {
             heading: Some(heading.into()),
-            body: root.map_or(SectionBody::Rows(Vec::new()), |root| SectionBody::Tree {
-                root: root.clone(),
-                folding: folding.clone(),
+            body: root.map_or(SectionBody::Dictionary(Vec::new()), |root| {
+                SectionBody::Tree {
+                    root: root.clone(),
+                    folding: folding.clone(),
+                }
             }),
         }
     }
@@ -370,28 +358,19 @@ mod tests {
         moons: u32,
     }
 
-    impl TableRow for Planet {
-        const HEADINGS: &'static [&'static str] = &["Moons", ""];
-
-        fn key(&self) -> Cell {
-            self.name.into()
-        }
-
-        fn cells(&self) -> Vec<Cell> {
-            vec![self.moons.to_string().into(), "".into()]
-        }
-
-        fn level(&self) -> Severity {
-            if self.moons == 0 {
+    impl Planet {
+        fn table_record(&self) -> TableRecord<2> {
+            let level = if self.moons == 0 {
                 Severity::Warning
             } else {
                 Severity::Normal
-            }
+            };
+            TableRecord::new(self.name, [Some(self.moons.to_string().into()), None]).level(level)
         }
     }
 
     #[test]
-    fn table_pairs_headings_with_each_rows_cells() {
+    fn table_pairs_headings_with_each_records_cells() {
         let planets = [
             Planet {
                 name: "Mars",
@@ -403,12 +382,15 @@ mod tests {
             },
         ];
         assert_eq!(
-            Section::untitled_table(&planets).body(),
-            &SectionBody::Columns {
+            Section::untitled_column_table(["Moons", ""], planets.iter().map(Planet::table_record))
+                .body(),
+            &SectionBody::ColumnTable {
                 headings: vec!["Moons".to_string(), String::new()],
-                rows: vec![
-                    Row::new("Mars", &["2".into(), "".into()], Severity::Normal),
-                    Row::new("Venus", &["0".into(), "".into()], Severity::Warning),
+                records: vec![
+                    TableRecord::new("Mars", [Some("2".into()), None]).into(),
+                    TableRecord::new("Venus", [Some("0".into()), None])
+                        .level(Severity::Warning)
+                        .into(),
                 ],
             }
         );

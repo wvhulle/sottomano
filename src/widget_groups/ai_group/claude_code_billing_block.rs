@@ -9,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -34,28 +34,32 @@ impl BarWidget for ClaudeCcusageBlock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let source = Section::untitled(&[
-            ("Source", "ccusage, local Claude Code logs"),
-            ("Cost Basis", "API list prices"),
+        let source = Section::untitled_dictionary([
+            KeyValue::new("Source", "ccusage, local Claude Code logs"),
+            KeyValue::new("Cost Basis", "API list prices"),
         ]);
         let Some(block) = &self.active else {
             return TooltipBody::sections(&[source]);
         };
         TooltipBody::sections(&[
             source,
-            Section::titled(
+            Section::dictionary(
                 "Active 5-Hour Block",
-                &[
-                    ("Cost", Some(dollars(block.cost))),
-                    (
-                        "Burn Rate",
-                        block
-                            .cost_per_hour
-                            .map(|rate| format!("{}/h", dollars(rate))),
-                    ),
-                    ("Projected Cost", block.projected_cost.map(dollars)),
-                    ("Ends In", Some(countdown(block.ends_at, Utc::now()))),
-                ],
+                [
+                    Some(KeyValue::new("Cost", dollars(block.cost))),
+                    block
+                        .cost_per_hour
+                        .map(|rate| KeyValue::new("Burn Rate", format!("{}/h", dollars(rate)))),
+                    block
+                        .projected_cost
+                        .map(|cost| KeyValue::new("Projected Cost", dollars(cost))),
+                    Some(KeyValue::new(
+                        "Ends In",
+                        countdown(block.ends_at, Utc::now()),
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
             ),
         ])
     }

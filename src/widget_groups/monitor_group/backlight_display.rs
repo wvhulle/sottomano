@@ -2,9 +2,9 @@ use crate::{
     data::source::backlight::{Backlight, Kind},
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
-        hardware_section::HardwareRows,
+        hardware_section::HardwareEntries,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Row, Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
 
@@ -24,15 +24,14 @@ pub fn tooltip(
         Kind::Internal => "Internal",
         Kind::External => "External (DDC)",
     };
-    let display_rows = [
-        ("Display", backlight.serial.clone()),
-        ("Type", kind.to_owned()),
-        ("Brightness", brightness),
-    ]
-    .map(Row::from);
-    let output_rows = output.map(ConnectedOutput::rows).unwrap_or_default();
+    let display_entries = [
+        KeyValue::new("Display", backlight.serial.as_str()),
+        KeyValue::new("Type", kind),
+        KeyValue::new("Brightness", brightness),
+    ];
+    let output_entries = output.into_iter().flat_map(ConnectedOutput::entries);
     TooltipBody::sections(&[
-        Section::untitled(&[display_rows.as_slice(), &output_rows].concat()),
+        Section::untitled_dictionary(display_entries.into_iter().chain(output_entries)),
         output.hardware_section(),
     ])
 }

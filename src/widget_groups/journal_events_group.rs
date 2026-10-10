@@ -14,7 +14,7 @@ use crate::{
         group_item::{GroupItem, Press},
         last_poll::LastPoll,
         phosphor::Phosphor,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
         widget_state::WidgetState,
     },
@@ -152,22 +152,17 @@ impl BarWidget for JournalEventsGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::titled(
+        let kernel = self
+            .kernel
+            .get()
+            .map(|errors| KeyValue::new("Kernel errors", errors.oldest_first.len().to_string()));
+        let service = self
+            .service_errors
+            .get()
+            .map(|errors| KeyValue::new("Service errors", errors.entry_count.to_string()));
+        TooltipBody::sections(&[Section::dictionary(
             "Last hour",
-            &[
-                (
-                    "Kernel errors",
-                    self.kernel
-                        .get()
-                        .map(|errors| errors.oldest_first.len().to_string()),
-                ),
-                (
-                    "Service errors",
-                    self.service_errors
-                        .get()
-                        .map(|errors| errors.entry_count.to_string()),
-                ),
-            ],
+            kernel.into_iter().chain(service),
         )])
     }
 }

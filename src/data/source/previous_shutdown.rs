@@ -1,6 +1,7 @@
 use std::{
     cmp::Reverse,
     collections::HashMap,
+    fmt::{Display, Formatter, Result as FmtResult},
     io,
     time::{Duration, SystemTime},
 };
@@ -186,24 +187,46 @@ impl ShutdownEvent {
     }
 }
 
-pub fn read_last_shutdown(slow_stop: Duration) -> io::Result<Option<LastShutdown>> {
+#[derive(Debug)]
+pub enum ShutdownReadError {
+    Journal(io::Error),
+    NoPreviousBoot,
+    NoShutdownRecorded,
+}
+
+impl From<io::Error> for ShutdownReadError {
+    fn from(error: io::Error) -> Self {
+        Self::Journal(error)
+    }
+}
+
+impl Display for ShutdownReadError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Journal(error) => write!(f, "{error}"),
+            Self::NoPreviousBoot => write!(f, "no previous boot in the journal"),
+            Self::NoShutdownRecorded => write!(f, "previous boot recorded no shutdown"),
+        }
+    }
+}
+
+pub fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadError> {
     let mut journal = OpenOptions::default()
         .system(true)
         .current_user(true)
         .open()?;
     journal.match_add("_BOOT_ID", Id128::from_boot()?.to_string())?;
     journal.seek_head()?;
-    if journal.next_entry()?.is_none() {
-        return Ok(None);
-    }
+    journal
+        .next_entry()?
+        .ok_or(ShutdownReadError::NoPreviousBoot)?;
     journal.match_flush()?;
-    let Some(last_of_previous_boot) = journal.previous_entry()? else {
-        return Ok(None);
-    };
+    let last_of_previous_boot = journal
+        .previous_entry()?
+        .ok_or(ShutdownReadError::NoPreviousBoot)?;
     let ended_at = journal.timestamp()?;
-    let Some(previous_boot) = field(&last_of_previous_boot, "_BOOT_ID") else {
-        return Ok(None);
-    };
+    let previous_boot =
+        field(&last_of_previous_boot, "_BOOT_ID").ok_or(ShutdownReadError::NoPreviousBoot)?;
     journal.match_add("_BOOT_ID", previous_boot.to_owned())?;
     for message_id in [
         SHUTDOWN_MESSAGE_ID,
@@ -217,7 +240,7 @@ pub fn read_last_shutdown(slow_stop: Duration) -> io::Result<Option<LastShutdown
     while let Some(record) = journal.next_entry()? {
         events.extend(ShutdownEvent::of_record(&record, journal.timestamp()?));
     }
-    Ok(LastShutdown::assemble(events, ended_at, slow_stop))
+    LastShutdown::assemble(events, ended_at, slow_stop).ok_or(ShutdownReadError::NoShutdownRecorded)
 }
 
 #[cfg(test)]

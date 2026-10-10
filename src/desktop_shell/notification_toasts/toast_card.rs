@@ -11,12 +11,13 @@ use iced::{
     },
 };
 use reqwest::Url;
+use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, NotificationMessage, body_markup, toast_reply::ReplyMessage};
 use crate::{
     config::{Config, Palette, toasts::ToastCardSizeConfig},
     data::{
-        notifications::model::{NotifAction, NotifImage, NotificationData, Progress, ReplyPrompt},
+        notifications::model::{NotifAction, NotifImage, NotificationData, ReplyPrompt},
         severity::Severity,
         source::app_icon::DesktopEntries,
     },
@@ -47,7 +48,6 @@ pub enum CardIcon {
 pub enum CardImage {
     Preview { icon: CardIcon, file: PathBuf },
     Icon(CardIcon),
-    Absent,
 }
 
 impl CardImage {
@@ -58,32 +58,32 @@ impl CardImage {
         }
     }
 
-    fn named(name: &str, entries: Option<&DesktopEntries>) -> Self {
+    fn named(name: &str, entries: Option<&DesktopEntries>) -> Option<Self> {
         match icon_file(name) {
-            Some(file) => Self::of_file(file),
-            None => themed_icon(name, entries).map_or(Self::Absent, Self::Icon),
+            Some(file) => Some(Self::of_file(file)),
+            None => themed_icon(name, entries).map(Self::Icon),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct CardIcons {
-    pub image: CardImage,
+    pub image: Option<CardImage>,
     pub badge: Option<CardIcon>,
 }
 
 impl CardIcons {
     pub fn of_glyph(glyph: Glyph) -> Self {
         Self {
-            image: CardImage::Icon(CardIcon::Glyph(glyph)),
+            image: Some(CardImage::Icon(CardIcon::Glyph(glyph))),
             badge: None,
         }
     }
 
     pub fn previewed_file(&self) -> Option<&Path> {
-        match &self.image {
+        match self.image.as_ref()? {
             CardImage::Preview { file, .. } => Some(file),
-            CardImage::Icon(_) | CardImage::Absent => None,
+            CardImage::Icon(_) => None,
         }
     }
 }
@@ -104,9 +104,9 @@ impl CardIcon {
 pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
     let app_icon_file = data.app_icon.as_deref().and_then(icon_file);
     let image = match &data.image {
-        Some(NotifImage::Rgba(handle)) => CardImage::Icon(CardIcon::Raster(handle.clone())),
+        Some(NotifImage::Rgba(handle)) => Some(CardImage::Icon(CardIcon::Raster(handle.clone()))),
         Some(NotifImage::Named(name)) => CardImage::named(name, entries),
-        None => app_icon_file.map_or(CardImage::Absent, CardImage::of_file),
+        None => app_icon_file.map(CardImage::of_file),
     };
     let badge = data
         .app_icon
@@ -303,7 +303,7 @@ impl ToastCard<'_> {
                 None => body,
             });
         }
-        if let CardImage::Preview { icon, .. } = &self.notif.icons.image {
+        if let Some(CardImage::Preview { icon, .. }) = &self.notif.icons.image {
             column = column.push(preview_widget(
                 icon,
                 self.config.toasts.card_size.image_preview_max_height_px,
@@ -311,8 +311,8 @@ impl ToastCard<'_> {
                 text,
             ));
         }
-        if let Progress::Percent(percent) = data.progress {
-            column = column.push(progress_widget(percent, text));
+        if let Some(progress) = data.progress {
+            column = column.push(progress_widget(progress, text));
         }
         if let ReplyPrompt::Offered {
             placeholder,
@@ -458,7 +458,7 @@ fn icon_slot<'a>(
     reveal: f32,
     text: Color,
 ) -> Option<Element<'a, NotificationMessage>> {
-    let CardImage::Icon(image) = &icons.image else {
+    let Some(CardImage::Icon(image)) = &icons.image else {
         return icons
             .badge
             .as_ref()
@@ -504,8 +504,9 @@ fn preview_widget<'a>(
     container(preview).max_height(max_height).into()
 }
 
-fn progress_widget<'a>(percent: u8, text: Color) -> Element<'a, NotificationMessage> {
-    progress_bar(0.0..=100.0, f32::from(percent))
+#[allow(clippy::cast_possible_truncation)]
+fn progress_widget<'a>(progress: Ratio, text: Color) -> Element<'a, NotificationMessage> {
+    progress_bar(0.0..=1.0, progress.get::<ratio>() as f32)
         .girth(PROGRESS_GIRTH_PX)
         .style(move |_| progress_bar::Style {
             background: text.scale_alpha(0.2).into(),

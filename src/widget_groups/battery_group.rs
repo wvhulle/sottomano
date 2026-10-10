@@ -22,7 +22,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
-        hardware_section::HardwareRows,
+        hardware_section::HardwareEntries,
         last_poll::LastPoll,
         reading_alert::ReadingAlertActionButton,
         tooltip_body::Tooltip,
@@ -144,7 +144,12 @@ impl BatteryGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(BatteryMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(BatteryMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let time_item = self.time_widget().map(|time| GroupItem {
             alert_action_buttons: self
                 .power_profile

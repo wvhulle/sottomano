@@ -22,7 +22,7 @@ impl Source for Umbra {
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
-        let mode = command::require("umbra", &["get"]).await?;
+        let mode = command::output("umbra", &["get"]).await?;
         Ok(Umbra {
             dark: mode.trim() == "dark",
         })

@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -28,24 +28,26 @@ impl BarWidget for Tailscale {
 
     fn tooltip(&self) -> TooltipBody {
         if !self.running {
-            return TooltipBody::sections(&[Section::untitled(&[("Tailscale", "disconnected")])]);
+            return TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+                "Tailscale",
+                "disconnected",
+            )])]);
         }
-        let online_peers: Vec<(&str, String)> = self
+        let online_peers = self
             .online
             .iter()
-            .map(|peer| (peer.name.as_str(), format!("→ {}", peer.ip)))
-            .collect();
+            .map(|peer| KeyValue::new(peer.name.as_str(), format!("→ {}", peer.ip)));
         TooltipBody::sections(&[
-            Section::untitled(&[
-                ("Tailscale", "connected".to_owned()),
-                ("Self", self.self_name.clone()),
-                ("IP", self.self_ip.clone()),
-                (
+            Section::untitled_dictionary([
+                KeyValue::new("Tailscale", "connected"),
+                KeyValue::new("Self", self.self_name.as_str()),
+                KeyValue::new("IP", self.self_ip.as_str()),
+                KeyValue::new(
                     "Peers",
                     format!("{}/{} online", self.online.len(), self.total_peers),
                 ),
             ]),
-            Section::untitled(&online_peers),
+            Section::untitled_dictionary(online_peers),
         ])
     }
 }

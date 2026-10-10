@@ -7,7 +7,7 @@ use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
     localized_time::TimePart,
     phosphor::{Phosphor, Weight},
-    tooltip_body::{Section, TooltipBody},
+    tooltip_body::{KeyValue, Section, TooltipBody},
 };
 
 pub struct ZoneTime(pub DateTime<Tz>);
@@ -48,12 +48,12 @@ impl BarWidget for ZoneTime {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            ("Zone", self.zone().name().to_owned()),
-            ("Abbreviation", self.0.format("%Z").to_string()),
-            ("UTC offset", self.0.format("%:z").to_string()),
-            ("Day", self.day_relative_to_local().to_owned()),
-            (
+        TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new("Zone", self.zone().name().to_owned()),
+            KeyValue::new("Abbreviation", self.0.format("%Z").to_string()),
+            KeyValue::new("UTC offset", self.0.format("%:z").to_string()),
+            KeyValue::new("Day", self.day_relative_to_local().to_owned()),
+            KeyValue::new(
                 "Offset from local",
                 signed_hours_and_minutes(self.seconds_ahead_of_local()),
             ),

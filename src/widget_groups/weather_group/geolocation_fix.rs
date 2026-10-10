@@ -5,7 +5,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
     },
 };
 
@@ -76,66 +76,61 @@ impl BarWidget for Location {
 impl Location {
     fn position_section(&self) -> Section {
         let position = self.geo.position;
-        Section::titled(
+        Section::dictionary(
             "Position",
-            &[
-                ("Latitude", format!("{:.4}", position.latitude)),
-                ("Longitude", format!("{:.4}", position.longitude)),
-                ("Source", self.geo.origin.to_string()),
+            [
+                KeyValue::new("Latitude", format!("{:.4}", position.latitude)),
+                KeyValue::new("Longitude", format!("{:.4}", position.longitude)),
+                KeyValue::new("Source", self.geo.origin.to_string()),
             ],
         )
     }
 }
 
 fn place_section(place: Option<&Place>) -> Section {
-    Section::titled(
+    Section::dictionary(
         "Place",
-        &[
-            ("Name", place.map(|place| place.name.clone())),
-            ("Country", place.map(|place| place.country.clone())),
-            (
-                "Distance",
-                place.map(|place| format!("{:.2} km", place.distance_km)),
-            ),
-        ],
+        place.into_iter().flat_map(|place| {
+            [
+                KeyValue::new("Name", place.name.as_str()),
+                KeyValue::new("Country", place.country.as_str()),
+                KeyValue::new("Distance", format!("{:.2} km", place.distance_km)),
+            ]
+        }),
     )
 }
 
 fn estimate_section(estimate: Option<&Estimate>) -> Section {
-    let observations = estimate.map(|estimate| estimate.observations);
-    Section::titled(
+    Section::dictionary(
         ("Estimate", "A Wi-Fi and cell fix through BeaconDB."),
-        &[
-            (
-                "Accuracy",
-                estimate.map(|estimate| accuracy(estimate.accuracy_metres)),
-            ),
-            (
-                "Access points",
-                observations.map(|observations| {
+        estimate.into_iter().flat_map(|estimate| {
+            let observations = estimate.observations;
+            [
+                KeyValue::new("Accuracy", accuracy(estimate.accuracy_metres)),
+                KeyValue::new(
+                    "Access points",
                     format!(
                         "{} seen, {} submitted",
                         observations.access_points_seen, observations.access_points_submitted
-                    )
-                }),
-            ),
-            (
-                "Cells",
-                observations.map(|observations| {
+                    ),
+                ),
+                KeyValue::new(
+                    "Cells",
                     format!(
                         "{} seen, {} submitted",
                         observations.cells_seen, observations.cells_submitted
-                    )
-                }),
-            ),
-        ],
+                    ),
+                ),
+            ]
+        }),
     )
 }
 
 fn map_section(position: Position) -> Section {
-    Section::titled(
+    Section::dictionary(
         "Map",
-        &MapService::ALL.map(|service| (service.name(), Cell::Link(service.url(position)))),
+        MapService::ALL
+            .map(|service| KeyValue::new(service.name(), Cell::Link(service.url(position)))),
     )
 }
 

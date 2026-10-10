@@ -69,7 +69,7 @@ impl Source for Tailscale {
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        let raw = command::require("tailscale", &["status", "--json"]).await?;
+        let raw = command::output("tailscale", &["status", "--json"]).await?;
         let status: Json = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
         let running = status.get("BackendState").and_then(Json::as_str) == Some("Running");
         if !running {

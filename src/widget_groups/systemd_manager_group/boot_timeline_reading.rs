@@ -1,44 +1,30 @@
 use crate::{
-    data::{
-        severity::Severity,
-        source::systemd_manager::boot_timeline::{
-            BootPhase, BootPhases, RankedActivations, SystemStartup, UnitActivation, UserStartup,
-        },
+    data::source::systemd_manager::boot_timeline::{
+        BootPhase, BootPhases, RankedActivations, SystemStartup, UnitActivation, UserStartup,
     },
     widget_groups::systemd_manager_group::elapsed_text,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl TableRow for UnitActivation {
-    const HEADINGS: &'static [&'static str] = &[];
-
-    fn key(&self) -> Cell {
-        self.name.clone().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![elapsed_text(self.duration).into()]
-    }
-
-    fn level(&self) -> Severity {
-        self.severity
+impl UnitActivation {
+    fn key_value(&self) -> KeyValue {
+        KeyValue::new(self.name.clone(), elapsed_text(self.duration)).level(self.severity)
     }
 }
 
 impl BootPhase {
-    fn row(self) -> Row {
-        Row::new(
+    fn table_record(self) -> TableRecord<2> {
+        TableRecord::new(
             self.stage.name(),
-            &[
-                elapsed_text(self.duration).into(),
-                Cell::Hint(self.stage.meaning().to_owned()),
+            [
+                Some(elapsed_text(self.duration).into()),
+                Some(Cell::Hint(self.stage.meaning().to_owned())),
             ],
-            Severity::Normal,
         )
     }
 }
@@ -53,8 +39,10 @@ impl BarWidget for BootPhases {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let phases: Vec<Row> = self.present().into_iter().map(BootPhase::row).collect();
-        TooltipBody::sections(&[Section::untitled(&phases)])
+        TooltipBody::sections(&[Section::untitled_column_table(
+            ["Took", "Meaning"],
+            self.present().into_iter().map(BootPhase::table_record),
+        )])
     }
 }
 
@@ -75,13 +63,13 @@ impl RankedActivations {
     }
 
     fn table(&self, title: &str) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::dictionary(
             (
                 title,
                 "Time from starting to active, for units up before startup finished. Devices and \
                  units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
             ),
-            &self.slowest_first,
+            self.slowest_first.iter().map(UnitActivation::key_value),
         )])
     }
 }

@@ -4,10 +4,8 @@ use nalgebra::{Matrix3, Vector3};
 
 use crate::{
     data::{battery_forecast::RegressionState, source::power_profile::Profile},
-    state::{Columns, StoreError, open},
+    state::{Columns, StoreError, connect},
 };
-
-const RETIRED_COLUMNS: [&str; 2] = ["residual_variance", "residual_lag_covariance"];
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (
     battery TEXT NOT NULL,
@@ -27,28 +25,6 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_m
     PRIMARY KEY (battery, profile)
 )";
 
-pub(crate) async fn drop_residual_columns(conn: &turso::Connection) -> Result<(), StoreError> {
-    let mut rows = conn
-        .query("PRAGMA table_info(battery_draw_model)", ())
-        .await?;
-    let columns = Columns::of(&rows);
-    let mut present = Vec::new();
-    while let Some(row) = rows.next().await? {
-        present.push(columns.text(&row, "name")?);
-    }
-    for retired in RETIRED_COLUMNS
-        .iter()
-        .filter(|retired| present.iter().any(|name| name == *retired))
-    {
-        conn.execute(
-            &format!("ALTER TABLE battery_draw_model DROP COLUMN {retired}"),
-            (),
-        )
-        .await?;
-    }
-    Ok(())
-}
-
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
     try_load(&battery).await.unwrap_or_else(|e| {
         tracing::warn!("power regression: load failed: {e}");
@@ -63,7 +39,7 @@ pub async fn save(battery: String, profile: Profile, state: RegressionState) {
 }
 
 async fn try_load(battery: &str) -> Result<HashMap<Profile, RegressionState>, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     read_models(&conn, battery).await
 }
 
@@ -115,7 +91,7 @@ async fn try_save(
     profile: Profile,
     state: RegressionState,
 ) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     write_model(&conn, battery, profile, state).await
 }
 
@@ -159,17 +135,11 @@ async fn write_model(
 mod tests {
     use nalgebra::{Matrix3, Vector3};
 
-    use super::{
-        CREATE_TABLE, Profile, RegressionState, drop_residual_columns, read_models, write_model,
-    };
-
-    async fn empty_connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        database.connect().unwrap()
-    }
+    use super::{CREATE_TABLE, Profile, RegressionState, read_models, write_model};
 
     async fn connection() -> turso::Connection {
-        let conn = empty_connection().await;
+        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
+        let conn = database.connect().unwrap();
         conn.execute(CREATE_TABLE, ()).await.unwrap();
         conn
     }
@@ -179,34 +149,6 @@ mod tests {
             coefficients: Vector3::new(1.5, 2.5, 3.5),
             covariance: Matrix3::new(11.0, 12.0, 13.0, 21.0, 22.0, 23.0, 31.0, 32.0, 33.0),
         }
-    }
-
-    #[tokio::test]
-    async fn residual_columns_are_dropped_once_and_rows_survive() {
-        let conn = empty_connection().await;
-        let with_residuals = CREATE_TABLE.replace(
-            "cov_22 REAL NOT NULL,",
-            "cov_22 REAL NOT NULL,
-             residual_variance REAL NOT NULL,
-             residual_lag_covariance REAL NOT NULL,",
-        );
-        conn.execute(&with_residuals, ()).await.unwrap();
-        conn.execute(
-            "INSERT INTO battery_draw_model VALUES
-             ('BAT0', 'balanced', 1.5, 2.5, 3.5, 11, 12, 13, 21, 22, 23, 31, 32, 33, 4.5, 5.5)",
-            (),
-        )
-        .await
-        .unwrap();
-
-        drop_residual_columns(&conn).await.unwrap();
-        drop_residual_columns(&conn).await.unwrap();
-
-        let models = read_models(&conn, "BAT0").await.unwrap();
-        assert_eq!(models[&Profile::Balanced], distinct_state());
-        write_model(&conn, "BAT0", Profile::Balanced, distinct_state())
-            .await
-            .unwrap();
     }
 
     #[tokio::test]

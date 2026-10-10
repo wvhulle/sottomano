@@ -2,7 +2,7 @@ use chrono::TimeDelta;
 
 use crate::{
     data::sun_schedule::SunEventOffsets,
-    state::{Columns, StoreError, open},
+    state::{Columns, StoreError, connect},
 };
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
@@ -48,7 +48,7 @@ pub async fn save(schedule: DarkModeSchedule) -> bool {
 }
 
 async fn try_load() -> Result<DarkModeSchedule, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     read_schedule(&conn).await
 }
 
@@ -73,7 +73,7 @@ async fn read_schedule(conn: &turso::Connection) -> Result<DarkModeSchedule, Sto
 }
 
 async fn try_save(schedule: DarkModeSchedule) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     write_schedule(&conn, schedule).await
 }
 
