@@ -134,6 +134,12 @@ impl SeekBar {
             .map(|_| played)
     }
 
+    pub fn seekable(media: &Media, now: Instant) -> bool {
+        media.capabilities.seek
+            && media.progress.length().is_some()
+            && media.progress.played(media.status, now).is_some()
+    }
+
     pub fn view<'a>(
         &self,
         config: &Config,

@@ -29,7 +29,7 @@ use crate::{
         notifications::model::NotifHandle,
         source::{app_icon::DesktopEntries, niri::Placement},
     },
-    desktop_shell::{DesktopShell, Message},
+    desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
     state::ShellSettings,
     widgets::{
         announced_level::LevelReading, reading_alert::ReadingAlert, reveal::reveal_y,
@@ -93,122 +93,21 @@ pub struct NotificationLayer {
 }
 
 impl DesktopShell {
-    #[allow(clippy::too_many_lines)]
     pub(super) fn group_toast_requests(&self) -> WidgetToastRequests {
-        let config = &self.config;
-        let locale = config.locale;
-        [
-            self.weather_group
-                .group_content()
-                .map(Message::Weather)
-                .toast_requests(locale),
-            self.battery_group
-                .group_content(config)
-                .map(Message::Battery)
-                .toast_requests(locale),
-            self.compute_group
-                .group_content()
-                .map(Message::Compute)
-                .toast_requests(locale),
-            self.disk_group
-                .group_content()
-                .map(Message::Disk)
-                .toast_requests(locale),
-            self.net_interfaces_group
-                .group_content()
-                .map(Message::NetInterfaces)
-                .toast_requests(locale),
-            self.systemd_manager_group
-                .group_content(config)
-                .map(Message::SystemdManager)
-                .toast_requests(locale),
-            self.journal_events_group
-                .group_content(config)
-                .map(Message::JournalEvents)
-                .toast_requests(locale),
-            self.pending_upgrades_group
-                .group_content(config)
-                .map(Message::PendingUpgrades)
-                .toast_requests(locale),
-            self.internet_group
-                .group_content()
-                .map(Message::Internet)
-                .toast_requests(locale),
-            self.clock_group
-                .group_content()
-                .map(Message::Clock)
-                .toast_requests(locale),
-            self.notification_group
-                .group_content(
-                    config,
-                    &self.shell_settings.notifications,
-                    self.notifications.live_count(),
-                )
-                .map(Message::NotificationGroup)
-                .toast_requests(locale),
-            self.ai_group
-                .group_content()
-                .map(Message::Ai)
-                .toast_requests(locale),
-            self.monitor_group
-                .group_content(config)
-                .map(Message::Monitor)
-                .toast_requests(locale),
-            self.dark_mode_group
-                .group_content(config)
-                .map(Message::DarkMode)
-                .toast_requests(locale),
-            self.color_temperature_group
-                .group_content(config)
-                .map(Message::ColorTemperature)
-                .toast_requests(locale),
-            self.idle_timeouts_group
-                .group_content(config)
-                .map(Message::IdleTimeouts)
-                .toast_requests(locale),
-            self.wallpaper_group
-                .group_content()
-                .map(Message::Wallpaper)
-                .toast_requests(locale),
-            self.media_group
-                .group_content(config, &self.desktop_entries)
-                .map(Message::Media)
-                .toast_requests(locale),
-            self.audio_group
-                .group_content(config)
-                .map(Message::Audio)
-                .toast_requests(locale),
-            self.shell_layout_group
-                .group_content(config, &self.shell_settings.layout)
-                .map(Message::ShellLayout)
-                .toast_requests(locale),
-            self.panel_appearance_group
-                .group_content(config)
-                .map(Message::PanelAppearance)
-                .toast_requests(locale),
-            self.overlay_group
-                .group_content(config, self.shell_settings.overlays)
-                .map(Message::Overlay)
-                .toast_requests(locale),
-            self.surface_effects_group
-                .group_content(
-                    config,
-                    self.shell_settings.shadow,
-                    self.niri_rules.styling(),
-                )
-                .map(Message::SurfaceEffects)
-                .toast_requests(locale),
-            self.niri_window_group
-                .group_content(config)
-                .map(Message::NiriWindow)
-                .toast_requests(locale),
-            self.tray_group
-                .group_content(config)
-                .map(Message::Tray)
-                .toast_requests(locale),
-        ]
-        .into_iter()
-        .collect()
+        let locale = self.config.locale;
+        let TopBarGroups { start, center, end } = self.top_bar_groups();
+        let BottomBarGroups {
+            start: bottom_start,
+            end: bottom_end,
+        } = self.bottom_bar_groups();
+        start
+            .iter()
+            .chain(&center)
+            .chain(&end)
+            .chain(&bottom_start)
+            .chain(&bottom_end)
+            .map(|group| group.toast_requests(locale))
+            .collect()
     }
 }
 

@@ -210,11 +210,11 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    pub fn view(
+    pub fn view<Outer: From<GroupEvent<M>> + 'a>(
         self,
         config: &'a Config,
         bar_position: Position,
-    ) -> Option<Element<'a, GroupEvent<M>>> {
+    ) -> Option<Element<'a, Outer>> {
         if self.items.is_empty() {
             return None;
         }
@@ -296,10 +296,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 .view(config, bar_position)
         });
         Some(
-            mouse_area(animated)
-                .on_enter(on_enter)
-                .on_exit(on_exit)
-                .into(),
+            Element::from(mouse_area(animated).on_enter(on_enter).on_exit(on_exit))
+                .map(Outer::from),
         )
     }
 }

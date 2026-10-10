@@ -4,6 +4,7 @@ pub mod hover_tooltips;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
 pub mod notification_toasts;
+pub mod panel_bar;
 pub mod top_bar;
 pub mod workspace_sidebar;
 
