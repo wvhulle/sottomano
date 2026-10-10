@@ -128,10 +128,13 @@ impl<Message> ReadingAlert<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{
-        bar_widget::Glyph,
-        phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
+    use crate::{
+        widget_groups::power_group::PowerTarget,
+        widgets::{
+            bar_widget::Glyph,
+            phosphor::{Phosphor, Weight},
+            tooltip_body::TooltipBody,
+        },
     };
 
     struct FixedReading {
@@ -169,7 +172,7 @@ mod tests {
 
     fn alert_for(state: WidgetState, threshold: ReadingAlertThreshold) -> Option<ReadingAlert<u8>> {
         ReadingAlert::from_widget_state(
-            HoverTarget::BatteryTime,
+            HoverTarget::Power(PowerTarget::BatteryTime),
             Some(&FixedReading { state, threshold }),
             0,
             Locale::default(),

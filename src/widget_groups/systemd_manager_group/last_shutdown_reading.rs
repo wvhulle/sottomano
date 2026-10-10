@@ -4,9 +4,8 @@ use crate::{
         severity::Severity,
         source::previous_shutdown::{LastShutdown, StopOutcome, UnitStop},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
-        systemd_manager_group::{SystemdManagerMessage, elapsed_text},
+        systemd_manager_group::{SystemdManagerMessage, SystemdTarget, elapsed_text},
         terminal_journal::TerminalJournal,
     },
     widgets::{
@@ -79,7 +78,7 @@ impl BarWidget for LastShutdown {
 
 impl LastShutdown {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, HoverTarget::SystemdLastShutdown).on_press(
+        GroupItem::reading(self, SystemdTarget::LastShutdown).on_press(
             TerminalJournal::PRESS_HINT,
             SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,

@@ -36,6 +36,21 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerTarget {
+    Battery,
+    Draw,
+    BatteryTime,
+    Profile,
+    CpuTuning,
+}
+
+impl From<PowerTarget> for HoverTarget {
+    fn from(target: PowerTarget) -> Self {
+        HoverTarget::Power(target)
+    }
+}
+
 #[derive(Default)]
 pub struct PowerGroup {
     battery: LastPoll<Battery>,
@@ -143,17 +158,17 @@ impl PowerGroup {
         ])
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: PowerTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Battery => self.battery.tooltip_with_sections(&[self
+            PowerTarget::Battery => self.battery.tooltip_with_sections(&[self
                 .battery
                 .get()
                 .map(|battery| &battery.identity)
                 .hardware_section()]),
-            HoverTarget::PowerDraw => self.battery.tooltip_with(self.draw.as_ref()?.tooltip()),
-            HoverTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
-            HoverTarget::CpuTuning => self.cpu_tuning.tooltip(),
-            _ => self.power_profile.tooltip_for(target),
+            PowerTarget::Draw => self.battery.tooltip_with(self.draw.as_ref()?.tooltip()),
+            PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
+            PowerTarget::CpuTuning => self.cpu_tuning.tooltip(),
+            PowerTarget::Profile => self.power_profile.tooltip(),
         }
     }
 
@@ -171,12 +186,12 @@ impl PowerGroup {
             &self.expansion,
             PowerMessage::Expansion,
             [
-                self.battery.group_item(HoverTarget::Battery),
+                self.battery.group_item(PowerTarget::Battery),
                 self.draw
                     .as_ref()
-                    .map(|draw| GroupItem::reading(draw, HoverTarget::PowerDraw)),
+                    .map(|draw| GroupItem::reading(draw, PowerTarget::Draw)),
                 self.time.as_ref().map(|time| {
-                    GroupItem::reading(time, HoverTarget::BatteryTime)
+                    GroupItem::reading(time, PowerTarget::BatteryTime)
                         .alert_action_buttons(switch_to_saving_profiles)
                 }),
                 self.power_profile.slider().map(|slider| {
@@ -186,15 +201,17 @@ impl PowerGroup {
                 }),
                 self.power_profile
                     .slider()
-                    .and_then(|_| self.cpu_tuning.group_item(HoverTarget::CpuTuning)),
+                    .and_then(|_| self.cpu_tuning.group_item(PowerTarget::CpuTuning)),
             ]
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon(Phosphor::Lightning(Weight::Regular).into()))
+        .face(HandleFace::Icon(
+            Phosphor::Lightning(Weight::Regular).into(),
+        ))
         .preview(self.battery.get().map(|battery| PreviewedValue::Hoverable {
             widget: battery,
-            target: HoverTarget::Battery,
+            target: PowerTarget::Battery.into(),
         }))
     }
 }

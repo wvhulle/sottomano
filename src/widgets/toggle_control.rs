@@ -114,7 +114,7 @@ impl<S: Toggle> ToggleControl<S> {
 
     pub fn group_item<'a, M: 'a>(
         &'a self,
-        target: HoverTarget,
+        target: impl Into<HoverTarget>,
         on_toggle: fn(ToggleMessage<S>) -> M,
     ) -> Option<GroupItem<'a, M>> {
         self.reading().map(|reading| {

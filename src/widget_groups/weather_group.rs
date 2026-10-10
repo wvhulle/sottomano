@@ -7,7 +7,7 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
-    data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
+    data::source::weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
@@ -18,6 +18,22 @@ use crate::{
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WeatherTarget {
+    Temperature,
+    Wind,
+    Rain,
+    Pollen,
+    Allergen(Allergen),
+    Location,
+}
+
+impl From<WeatherTarget> for HoverTarget {
+    fn from(target: WeatherTarget) -> Self {
+        HoverTarget::Weather(target)
+    }
+}
 
 #[derive(Default)]
 pub struct WeatherGroup {
@@ -68,17 +84,16 @@ impl WeatherGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: WeatherTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::WeatherTemp => self.temp.tooltip(),
-            HoverTarget::WeatherWind => self.wind.tooltip(),
-            HoverTarget::WeatherRain => self.rain.tooltip(),
-            HoverTarget::Pollen => self.pollen.tooltip(),
-            HoverTarget::Allergen(allergen) => self
+            WeatherTarget::Temperature => self.temp.tooltip(),
+            WeatherTarget::Wind => self.wind.tooltip(),
+            WeatherTarget::Rain => self.rain.tooltip(),
+            WeatherTarget::Pollen => self.pollen.tooltip(),
+            WeatherTarget::Allergen(allergen) => self
                 .pollen
-                .tooltip_with(self.pollen.get()?.concentration(*allergen)?.tooltip()),
-            HoverTarget::Location => self.location.live_tooltip(),
-            _ => None,
+                .tooltip_with(self.pollen.get()?.concentration(allergen)?.tooltip()),
+            WeatherTarget::Location => self.location.live_tooltip(),
         }
     }
 
@@ -87,7 +102,7 @@ impl WeatherGroup {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
                     concentration as &dyn BarWidget,
-                    HoverTarget::Allergen(concentration.allergen),
+                    WeatherTarget::Allergen(concentration.allergen),
                 )
             })
         });
@@ -95,9 +110,9 @@ impl WeatherGroup {
             &self.expansion,
             WeatherMessage::Expansion,
             [
-                self.temp.group_item(HoverTarget::WeatherTemp),
-                self.wind.group_item(HoverTarget::WeatherWind),
-                self.rain.present_group_item(HoverTarget::WeatherRain),
+                self.temp.group_item(WeatherTarget::Temperature),
+                self.wind.group_item(WeatherTarget::Wind),
+                self.rain.present_group_item(WeatherTarget::Rain),
             ]
             .into_iter()
             .flatten()
@@ -106,8 +121,8 @@ impl WeatherGroup {
                 [
                     self.pollen
                         .failure()
-                        .map(|widget| GroupItem::reading(widget, HoverTarget::Pollen)),
-                    self.location.group_item(HoverTarget::Location),
+                        .map(|widget| GroupItem::reading(widget, WeatherTarget::Pollen)),
+                    self.location.group_item(WeatherTarget::Location),
                 ]
                 .into_iter()
                 .flatten(),

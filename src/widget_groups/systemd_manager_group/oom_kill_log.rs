@@ -1,9 +1,9 @@
 use crate::{
     config::Config,
     data::source::oom_kills::{OomKillEntry, OomKiller, OomKills},
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
-        systemd_manager_group::SystemdManagerMessage, terminal_journal::TerminalJournal,
+        systemd_manager_group::{SystemdManagerMessage, SystemdTarget},
+        terminal_journal::TerminalJournal,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -42,7 +42,7 @@ impl OomKillEntry {
 
 impl OomKills {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, HoverTarget::SystemdOomKills).on_press(
+        GroupItem::reading(self, SystemdTarget::OomKills).on_press(
             TerminalJournal::PRESS_HINT,
             SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,

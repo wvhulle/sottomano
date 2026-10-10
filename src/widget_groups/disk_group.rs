@@ -20,6 +20,20 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiskTarget {
+    Usage,
+    Read,
+    Write,
+    DriveHealth,
+}
+
+impl From<DiskTarget> for HoverTarget {
+    fn from(target: DiskTarget) -> Self {
+        HoverTarget::Disk(target)
+    }
+}
+
 #[derive(Default)]
 pub struct DiskGroup {
     usage: LastPoll<Disk>,
@@ -70,23 +84,22 @@ impl DiskGroup {
             &self.expansion,
             DiskMessage::Expansion,
             [
-                self.usage.group_item(HoverTarget::Disk),
-                self.disk_read.group_item(HoverTarget::DiskRead),
-                self.disk_write.group_item(HoverTarget::DiskWrite),
-                self.drive_health.group_item(HoverTarget::DriveHealth),
+                self.usage.group_item(DiskTarget::Usage),
+                self.disk_read.group_item(DiskTarget::Read),
+                self.disk_write.group_item(DiskTarget::Write),
+                self.drive_health.group_item(DiskTarget::DriveHealth),
             ]
             .into_iter()
             .flatten(),
         )
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: DiskTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Disk => self.usage.tooltip(),
-            HoverTarget::DiskRead => self.disk_read.live_tooltip(),
-            HoverTarget::DiskWrite => self.disk_write.live_tooltip(),
-            HoverTarget::DriveHealth => self.drive_health.tooltip(),
-            _ => None,
+            DiskTarget::Usage => self.usage.tooltip(),
+            DiskTarget::Read => self.disk_read.live_tooltip(),
+            DiskTarget::Write => self.disk_write.live_tooltip(),
+            DiskTarget::DriveHealth => self.drive_health.tooltip(),
         }
     }
 }

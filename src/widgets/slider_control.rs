@@ -1,11 +1,11 @@
 use std::ops::RangeInclusive;
 
 use iced::{
-    Alignment, Element, Padding, Task,
+    Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
     mouse::ScrollDelta,
     time::Duration,
-    widget::{Row, button, container, mouse_area},
+    widget::{Row, button, container, mouse_area, text::Wrapping},
 };
 use uom::si::{f64::Ratio, ratio};
 
@@ -26,6 +26,7 @@ use crate::{
         source_reading::{labeled_reading, source_reading},
         text::bar_text,
         tooltip_body::TooltipBody,
+        widest_readout_text::{ReadoutLabels, widest_readout_text},
         widget_state::WidgetState,
     },
 };
@@ -67,7 +68,6 @@ pub struct SliderControl {
     range: RangeInclusive<f32>,
     scroll_step: f32,
     slider_step: f32,
-    readout_width: f32,
     readout: fn(f32) -> String,
     gauge: bool,
     label: Option<fn(f32) -> Option<String>>,
@@ -143,7 +143,11 @@ pub enum Action {
 }
 
 impl SliderControl {
-    pub fn new(range: RangeInclusive<f32>, target: HoverTarget, icon: impl Into<Glyph>) -> Self {
+    pub fn new(
+        range: RangeInclusive<f32>,
+        target: impl Into<HoverTarget>,
+        icon: impl Into<Glyph>,
+    ) -> Self {
         Self {
             open: false,
             accum: 0.0,
@@ -153,14 +157,13 @@ impl SliderControl {
             range,
             scroll_step: 1.0,
             slider_step: 1.0,
-            readout_width: 40.0,
             readout: |value| format!("{value:.0}"),
             gauge: true,
             label: None,
             icon: icon.into(),
             glyph: None,
             thresholds: SeverityThresholds::default(),
-            target,
+            target: target.into(),
             right_click: None,
             relative_scroll: false,
             level_announcement: None,
@@ -182,12 +185,6 @@ impl SliderControl {
     #[must_use]
     pub fn slider_step(mut self, step: f32) -> Self {
         self.slider_step = step;
-        self
-    }
-
-    #[must_use]
-    pub fn readout_width(mut self, width: f32) -> Self {
-        self.readout_width = width;
         self
     }
 
@@ -385,12 +382,20 @@ impl SliderControl {
             ControlMessage::Release,
             ControlMessage::Scroll,
         );
-        let readout = button(
+        let readout = button(widest_readout_text(
+            ReadoutLabels {
+                owner: self.target.clone(),
+                range: self.range.clone(),
+                step: self.slider_step,
+                format: self.readout,
+            },
+            &config.font,
             bar_text(&config.font, self.readout_text())
-                .width(self.readout_width)
+                .wrapping(Wrapping::None)
+                .width(Length::Fill)
                 .align_x(Horizontal::Center)
                 .color(config.palette.bar_foreground),
-        )
+        ))
         .padding(0)
         .style(flat_button(config.palette.bar_foreground))
         .on_press(ControlMessage::Press);

@@ -218,6 +218,20 @@ impl Photo {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WallpaperTarget {
+    Lookup,
+    Place,
+    Article,
+    Photo,
+}
+
+impl From<WallpaperTarget> for HoverTarget {
+    fn from(target: WallpaperTarget) -> Self {
+        HoverTarget::Wallpaper(target)
+    }
+}
+
 pub struct WallpaperGroup {
     lookup: LastPoll<Lookup>,
     shown: Option<DisplayedWallpaper>,
@@ -299,13 +313,12 @@ impl WallpaperGroup {
             .map(WallpaperMessage::Resolved)
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: WallpaperTarget) -> Option<Tooltip> {
         let body = match target {
-            HoverTarget::Wallpaper => self.lookup.display()?.tooltip(),
-            HoverTarget::WallpaperPlace => self.lookup.get()?.place.as_ref()?.tooltip(),
-            HoverTarget::WallpaperArticle => self.lookup.get()?.article.as_ref()?.tooltip(),
-            HoverTarget::WallpaperPhoto => self.lookup.get()?.photo.tooltip(),
-            _ => return None,
+            WallpaperTarget::Lookup => self.lookup.display()?.tooltip(),
+            WallpaperTarget::Place => self.lookup.get()?.place.as_ref()?.tooltip(),
+            WallpaperTarget::Article => self.lookup.get()?.article.as_ref()?.tooltip(),
+            WallpaperTarget::Photo => self.lookup.get()?.photo.tooltip(),
         };
         Some(Tooltip::of(body))
     }
@@ -316,14 +329,14 @@ impl WallpaperGroup {
             &self.expansion,
             WallpaperMessage::Expansion,
             [
-                self.lookup.group_item(HoverTarget::Wallpaper),
+                self.lookup.group_item(WallpaperTarget::Lookup),
                 lookup
                     .and_then(|lookup| lookup.place.as_ref())
-                    .map(|place| GroupItem::reading(place, HoverTarget::WallpaperPlace)),
+                    .map(|place| GroupItem::reading(place, WallpaperTarget::Place)),
                 lookup
                     .and_then(|lookup| lookup.article.as_ref())
-                    .map(|article| GroupItem::reading(article, HoverTarget::WallpaperArticle)),
-                lookup.map(|lookup| GroupItem::reading(&lookup.photo, HoverTarget::WallpaperPhoto)),
+                    .map(|article| GroupItem::reading(article, WallpaperTarget::Article)),
+                lookup.map(|lookup| GroupItem::reading(&lookup.photo, WallpaperTarget::Photo)),
             ]
             .into_iter()
             .flatten(),

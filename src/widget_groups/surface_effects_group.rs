@@ -1,4 +1,4 @@
-use iced::{Function, Task};
+use iced::Task;
 
 use crate::{
     config::Config,
@@ -18,64 +18,17 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShadowKnob {
-    Softness,
-    Opacity,
+pub enum SurfaceEffectsTarget {
+    BlurBackground,
+    Xray,
+    DropShadow,
+    ShadowSoftness,
+    ShadowOpacity,
 }
 
-impl ShadowKnob {
-    const ALL: [Self; 2] = [Self::Softness, Self::Opacity];
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::Softness => "Shadow softness",
-            Self::Opacity => "Shadow opacity",
-        }
-    }
-
-    fn target(self) -> HoverTarget {
-        match self {
-            Self::Softness => HoverTarget::ShadowSoftness,
-            Self::Opacity => HoverTarget::ShadowOpacity,
-        }
-    }
-
-    fn control(self) -> SliderControl {
-        let slider = match self {
-            Self::Softness => SliderControl::new(
-                0.0..=60.0,
-                self.target(),
-                Phosphor::Feather(Weight::Regular),
-            )
-            .readout(|value| format!("{} px", value.round())),
-            Self::Opacity => SliderControl::new(
-                0.0..=100.0,
-                self.target(),
-                Phosphor::CircleHalf(Weight::Regular),
-            )
-            .readout(|value| format!("{} %", value.round())),
-        };
-        slider.icon_only().readout_width(44.0)
-    }
-
-    fn read(self, shadow: ShadowStyle) -> f32 {
-        match self {
-            Self::Softness => shadow.softness_px,
-            Self::Opacity => shadow.opacity * 100.0,
-        }
-    }
-
-    fn write(self, shadow: &mut ShadowStyle, value: f32) -> Task<bool> {
-        match self {
-            Self::Softness => {
-                shadow.softness_px = value;
-                Task::future(state::shell_settings::save_shadow_softness(value))
-            }
-            Self::Opacity => {
-                shadow.opacity = value / 100.0;
-                Task::future(state::shell_settings::save_shadow_opacity(shadow.opacity))
-            }
-        }
+impl From<SurfaceEffectsTarget> for HoverTarget {
+    fn from(target: SurfaceEffectsTarget) -> Self {
+        HoverTarget::SurfaceEffects(target)
     }
 }
 
@@ -85,36 +38,54 @@ fn switch_tooltip(label: &str, on: bool, described: &str) -> Tooltip {
     ])]))
 }
 
+fn slider_tooltip(label: &str, slider: &SliderControl) -> Tooltip {
+    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+        KeyValue::new(label, slider.readout_text()),
+    ])]))
+}
+
 #[derive(Debug, Clone)]
 pub enum SurfaceEffectsMessage {
     Expansion(ExpansionMessage),
     ToggleBlur,
     ToggleXray,
     ToggleShadow,
-    Slider(ShadowKnob, ControlMessage),
+    ShadowSoftness(ControlMessage),
+    ShadowOpacity(ControlMessage),
 }
 
 pub struct SurfaceEffectsGroup {
     pub(crate) expansion: GroupExpansion,
-    sliders: [SliderControl; 2],
+    shadow_softness: SliderControl,
+    shadow_opacity: SliderControl,
 }
 
 impl Default for SurfaceEffectsGroup {
     fn default() -> Self {
         Self {
             expansion: GroupExpansion::default(),
-            sliders: ShadowKnob::ALL.map(ShadowKnob::control),
+            shadow_softness: SliderControl::new(
+                0.0..=60.0,
+                SurfaceEffectsTarget::ShadowSoftness,
+                Phosphor::Feather(Weight::Regular),
+            )
+            .readout(|value| format!("{} px", value.round()))
+            .icon_only(),
+            shadow_opacity: SliderControl::new(
+                0.0..=100.0,
+                SurfaceEffectsTarget::ShadowOpacity,
+                Phosphor::CircleHalf(Weight::Regular),
+            )
+            .readout(|value| format!("{} %", value.round()))
+            .icon_only(),
         }
     }
 }
 
 impl SurfaceEffectsGroup {
-    fn slider(&self, knob: ShadowKnob) -> &SliderControl {
-        &self.sliders[knob as usize]
-    }
-
     fn close_sliders(&mut self) {
-        self.sliders.iter_mut().for_each(SliderControl::close);
+        self.shadow_softness.close();
+        self.shadow_opacity.close();
     }
 
     pub fn collapse(&mut self) {
@@ -124,41 +95,38 @@ impl SurfaceEffectsGroup {
     }
 
     pub fn adopt(&mut self, shadow: ShadowStyle) {
-        for knob in ShadowKnob::ALL {
-            self.sliders[knob as usize].update(ControlMessage::Reading(knob.read(shadow)));
-        }
+        self.shadow_softness
+            .update(ControlMessage::Reading(shadow.softness_px));
+        self.shadow_opacity
+            .update(ControlMessage::Reading(shadow.opacity * 100.0));
     }
 
     pub fn tooltip_for(
         &self,
-        target: &HoverTarget,
+        target: SurfaceEffectsTarget,
         shadow: ShadowStyle,
         styling: NiriStyling,
-    ) -> Option<Tooltip> {
+    ) -> Tooltip {
         match target {
-            HoverTarget::BlurBackground => Some(switch_tooltip(
+            SurfaceEffectsTarget::BlurBackground => switch_tooltip(
                 "Blur",
                 styling.blurred,
                 "on — frosted behind panels and tooltips",
-            )),
-            HoverTarget::Xray => Some(switch_tooltip(
-                "Xray",
-                styling.xray,
-                "on — blur shows only the wallpaper",
-            )),
-            HoverTarget::DropShadow => Some(switch_tooltip(
+            ),
+            SurfaceEffectsTarget::Xray => {
+                switch_tooltip("Xray", styling.xray, "on — blur shows only the wallpaper")
+            }
+            SurfaceEffectsTarget::DropShadow => switch_tooltip(
                 "Shadow",
                 shadow.cast,
                 "on — panels, notifications and tooltips cast a drop shadow",
-            )),
-            _ => ShadowKnob::ALL
-                .into_iter()
-                .find(|knob| knob.target() == *target)
-                .map(|knob| {
-                    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-                        KeyValue::new(knob.label(), self.slider(knob).readout_text()),
-                    ])]))
-                }),
+            ),
+            SurfaceEffectsTarget::ShadowSoftness => {
+                slider_tooltip("Shadow softness", &self.shadow_softness)
+            }
+            SurfaceEffectsTarget::ShadowOpacity => {
+                slider_tooltip("Shadow opacity", &self.shadow_opacity)
+            }
         }
     }
 
@@ -185,17 +153,29 @@ impl SurfaceEffectsGroup {
                 shadow.cast = !shadow.cast;
                 Task::future(state::shell_settings::save_drop_shadow(shadow.cast)).discard()
             }
-            SurfaceEffectsMessage::Slider(knob, control) => {
-                let SliderAction::Commit(value) = self.sliders[knob as usize].update(control)
-                else {
+            SurfaceEffectsMessage::ShadowSoftness(control) => {
+                let SliderAction::Commit(value) = self.shadow_softness.update(control) else {
                     return Task::none();
                 };
-                knob.write(shadow, value).map(move |ok| {
-                    Message::SurfaceEffects(SurfaceEffectsMessage::Slider(
-                        knob,
+                shadow.softness_px = value;
+                Task::future(state::shell_settings::save_shadow_softness(value)).map(move |ok| {
+                    Message::SurfaceEffects(SurfaceEffectsMessage::ShadowSoftness(
                         ControlMessage::Persisted { value, ok },
                     ))
                 })
+            }
+            SurfaceEffectsMessage::ShadowOpacity(control) => {
+                let SliderAction::Commit(value) = self.shadow_opacity.update(control) else {
+                    return Task::none();
+                };
+                shadow.opacity = value / 100.0;
+                Task::future(state::shell_settings::save_shadow_opacity(shadow.opacity)).map(
+                    move |ok| {
+                        Message::SurfaceEffects(SurfaceEffectsMessage::ShadowOpacity(
+                            ControlMessage::Persisted { value, ok },
+                        ))
+                    },
+                )
             }
         }
     }
@@ -212,28 +192,30 @@ impl SurfaceEffectsGroup {
             [
                 GroupItem::toggle(
                     IconToggle::new(Phosphor::Snowflake(Weight::Regular), styling.blurred),
-                    HoverTarget::BlurBackground,
+                    SurfaceEffectsTarget::BlurBackground,
                     SurfaceEffectsMessage::ToggleBlur,
                 ),
                 GroupItem::toggle(
                     IconToggle::new(Phosphor::Eye(Weight::Regular), styling.xray),
-                    HoverTarget::Xray,
+                    SurfaceEffectsTarget::Xray,
                     SurfaceEffectsMessage::ToggleXray,
                 ),
                 GroupItem::toggle(
                     IconToggle::new(Phosphor::SelectionBackground(Weight::Regular), shadow.cast),
-                    HoverTarget::DropShadow,
+                    SurfaceEffectsTarget::DropShadow,
                     SurfaceEffectsMessage::ToggleShadow,
                 ),
-            ]
-            .into_iter()
-            .chain(ShadowKnob::ALL.into_iter().map(|knob| {
                 GroupItem::slider(
-                    self.slider(knob),
+                    &self.shadow_softness,
                     config,
-                    SurfaceEffectsMessage::Slider.with(knob),
-                )
-            })),
+                    SurfaceEffectsMessage::ShadowSoftness,
+                ),
+                GroupItem::slider(
+                    &self.shadow_opacity,
+                    config,
+                    SurfaceEffectsMessage::ShadowOpacity,
+                ),
+            ],
         )
         .face(HandleFace::Icon(Phosphor::Sparkle(Weight::Regular).into()))
     }

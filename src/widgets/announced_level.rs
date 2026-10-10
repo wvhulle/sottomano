@@ -95,7 +95,10 @@ mod tests {
     use uom::si::ratio::percent;
 
     use super::*;
-    use crate::widgets::phosphor::{Phosphor, Weight};
+    use crate::{
+        widget_groups::audio_group::ControlKind,
+        widgets::phosphor::{Phosphor, Weight},
+    };
 
     fn count_after(reports: &[bool]) -> Option<u64> {
         let mut announcement = LevelAnnouncement::new("level");
@@ -107,9 +110,9 @@ mod tests {
             .map(|level| level.external_change_count)
     }
 
-    fn reading(hover_target: HoverTarget, external_change_count: u64) -> LevelReading<()> {
+    fn reading(kind: ControlKind, external_change_count: u64) -> LevelReading<()> {
         LevelReading {
-            hover_target,
+            hover_target: kind.into(),
             glyph: Phosphor::SpeakerHigh(Weight::Regular).into(),
             level: AnnouncedLevel {
                 summary_text: "Speaker",
@@ -131,11 +134,11 @@ mod tests {
     #[test]
     fn a_level_is_announced_only_when_its_seen_count_changed() {
         let seen = [
-            reading(HoverTarget::AudioSink, 3),
-            reading(HoverTarget::AudioSource, 1),
+            reading(ControlKind::Sink, 3),
+            reading(ControlKind::Source, 1),
         ];
-        assert!(!reading(HoverTarget::AudioSink, 3).changed_since(&[]));
-        assert!(!reading(HoverTarget::AudioSink, 3).changed_since(&seen));
-        assert!(reading(HoverTarget::AudioSink, 4).changed_since(&seen));
+        assert!(!reading(ControlKind::Sink, 3).changed_since(&[]));
+        assert!(!reading(ControlKind::Sink, 3).changed_since(&seen));
+        assert!(reading(ControlKind::Sink, 4).changed_since(&seen));
     }
 }

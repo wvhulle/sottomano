@@ -25,6 +25,21 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InternetTarget {
+    Down,
+    Up,
+    Total,
+    Tailscale,
+    Wireguard(String),
+}
+
+impl From<InternetTarget> for HoverTarget {
+    fn from(target: InternetTarget) -> Self {
+        HoverTarget::Internet(target)
+    }
+}
+
 #[derive(Default)]
 pub struct InternetGroup {
     down: LastPoll<Throughput<Download>>,
@@ -105,9 +120,9 @@ impl InternetGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &InternetTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Wireguard(name) => {
+            InternetTarget::Wireguard(name) => {
                 let tunnel = self
                     .wireguard
                     .get()?
@@ -116,11 +131,10 @@ impl InternetGroup {
                     .find(|t| &t.name == name)?;
                 Some(Tooltip::of(tunnel.tooltip()))
             }
-            HoverTarget::InternetDown => self.down.live_tooltip(),
-            HoverTarget::InternetUp => self.up.live_tooltip(),
-            HoverTarget::InternetTotal => self.total.live_tooltip(),
-            HoverTarget::Tailscale => self.tailscale.tooltip(),
-            _ => None,
+            InternetTarget::Down => self.down.live_tooltip(),
+            InternetTarget::Up => self.up.live_tooltip(),
+            InternetTarget::Total => self.total.live_tooltip(),
+            InternetTarget::Tailscale => self.tailscale.tooltip(),
         }
     }
 
@@ -133,20 +147,20 @@ impl InternetGroup {
             &self.expansion,
             InternetMessage::Expansion,
             [
-                self.down.group_item(HoverTarget::InternetDown),
-                self.up.group_item(HoverTarget::InternetUp),
+                self.down.group_item(InternetTarget::Down),
+                self.up.group_item(InternetTarget::Up),
             ]
             .into_iter()
             .flatten()
             .chain(tunnels.iter().map(|tunnel| {
-                GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
+                GroupItem::reading(tunnel, InternetTarget::Wireguard(tunnel.name.clone()))
                     .on_right_press(
                         "disconnect the tunnel",
                         InternetMessage::Disconnect(tunnel.name.clone()),
                     )
             }))
             .chain(self.tailscale.display().map(|tailscale| {
-                GroupItem::reading(tailscale, HoverTarget::Tailscale)
+                GroupItem::reading(tailscale, InternetTarget::Tailscale)
                     .on_press("open Tailscale", InternetMessage::OpenTailscale)
             })),
         )
@@ -158,7 +172,7 @@ impl InternetGroup {
                 .display()
                 .map(|widget| PreviewedValue::Hoverable {
                     widget,
-                    target: HoverTarget::InternetTotal,
+                    target: InternetTarget::Total.into(),
                 }),
         )
     }

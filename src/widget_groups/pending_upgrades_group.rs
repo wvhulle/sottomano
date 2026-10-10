@@ -21,6 +21,18 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PendingUpgradesTarget {
+    Summary,
+    Firmware,
+}
+
+impl From<PendingUpgradesTarget> for HoverTarget {
+    fn from(target: PendingUpgradesTarget) -> Self {
+        HoverTarget::PendingUpgrades(target)
+    }
+}
+
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
     firmware: LastPoll<FirmwareUpgradeList>,
@@ -56,11 +68,10 @@ impl PendingUpgradesGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: PendingUpgradesTarget) -> Option<Tooltip> {
         let body = match target {
-            HoverTarget::FirmwareUpgrades => self.firmware.display()?.tooltip(),
-            HoverTarget::PendingUpgrades => self.tooltip(),
-            _ => return None,
+            PendingUpgradesTarget::Firmware => self.firmware.display()?.tooltip(),
+            PendingUpgradesTarget::Summary => self.tooltip(),
         };
         Some(Tooltip::of(body))
     }
@@ -74,13 +85,13 @@ impl PendingUpgradesGroup {
             &self.expansion,
             PendingUpgradesMessage::Expansion,
             [
-                has_categories.then(|| GroupItem::reading(self, HoverTarget::PendingUpgrades)),
+                has_categories.then(|| GroupItem::reading(self, PendingUpgradesTarget::Summary)),
                 self.firmware
                     .get()
                     .map(|firmware| firmware.group_item(config)),
                 self.firmware
                     .failure()
-                    .map(|failure| GroupItem::reading(failure, HoverTarget::FirmwareUpgrades)),
+                    .map(|failure| GroupItem::reading(failure, PendingUpgradesTarget::Firmware)),
             ]
             .into_iter()
             .flatten(),

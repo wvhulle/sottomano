@@ -67,7 +67,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
         locale: Locale,
     ) -> impl Iterator<Item = ReadingAlert<M>> {
         self.jobs.iter().map(move |job| ReadingAlert {
-            hover_target: S::slow_job_target(job.unit.clone()),
+            hover_target: S::slow_job_target(job.unit.clone()).into(),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
             body_text: Some(format!(

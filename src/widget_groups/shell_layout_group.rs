@@ -58,6 +58,20 @@ fn workspaces_placement_tooltip(shell_layout: &ShellLayout) -> Tooltip {
     ])]))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellLayoutTarget {
+    FloatOffset,
+    DisconnectedGroups,
+    AutoCollapseGroups,
+    WorkspacesPlacement,
+}
+
+impl From<ShellLayoutTarget> for HoverTarget {
+    fn from(target: ShellLayoutTarget) -> Self {
+        HoverTarget::ShellLayout(target)
+    }
+}
+
 pub struct ShellLayoutGroup {
     pub(crate) expansion: GroupExpansion,
     float_offset: SliderControl,
@@ -78,29 +92,26 @@ impl Default for ShellLayoutGroup {
             expansion: GroupExpansion::default(),
             float_offset: SliderControl::new(
                 0.0..=24.0,
-                HoverTarget::FloatOffset,
+                ShellLayoutTarget::FloatOffset,
                 Phosphor::ArrowsIn(Weight::Regular),
             )
             .icon_only()
-            .readout_width(44.0)
             .readout(|value| format!("{} px", value.round())),
         }
     }
 }
 
 impl ShellLayoutGroup {
-    pub fn tooltip_for(&self, target: &HoverTarget, shell_layout: &ShellLayout) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: ShellLayoutTarget, shell_layout: &ShellLayout) -> Tooltip {
         match target {
-            HoverTarget::DisconnectedGroups => Some(disconnected_tooltip(shell_layout)),
-            HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(shell_layout)),
-            HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(shell_layout)),
-            HoverTarget::FloatOffset => Some(Tooltip::of(TooltipBody::sections(&[
-                Section::untitled_dictionary([KeyValue::new(
-                    "Offset",
-                    self.float_offset.readout_text(),
-                )]),
-            ]))),
-            _ => None,
+            ShellLayoutTarget::DisconnectedGroups => disconnected_tooltip(shell_layout),
+            ShellLayoutTarget::AutoCollapseGroups => auto_collapse_tooltip(shell_layout),
+            ShellLayoutTarget::WorkspacesPlacement => workspaces_placement_tooltip(shell_layout),
+            ShellLayoutTarget::FloatOffset => {
+                Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+                    KeyValue::new("Offset", self.float_offset.readout_text()),
+                ])]))
+            }
         }
     }
 
@@ -180,7 +191,7 @@ impl ShellLayoutGroup {
                         Phosphor::Pill(Weight::Regular),
                         shell_layout.disconnected_groups,
                     ),
-                    HoverTarget::DisconnectedGroups,
+                    ShellLayoutTarget::DisconnectedGroups,
                     ShellLayoutMessage::ToggleDisconnectedGroups,
                 ),
                 GroupItem::toggle(
@@ -188,7 +199,7 @@ impl ShellLayoutGroup {
                         Phosphor::PushPin(Weight::Regular),
                         !shell_layout.auto_collapse_groups,
                     ),
-                    HoverTarget::AutoCollapseGroups,
+                    ShellLayoutTarget::AutoCollapseGroups,
                     ShellLayoutMessage::ToggleAutoCollapseGroups,
                 ),
                 GroupItem::toggle(
@@ -196,7 +207,7 @@ impl ShellLayoutGroup {
                         Phosphor::SidebarSimple(Weight::Regular),
                         shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
                     ),
-                    HoverTarget::WorkspacesPlacement,
+                    ShellLayoutTarget::WorkspacesPlacement,
                     ShellLayoutMessage::ToggleWorkspacesPlacement,
                 ),
                 GroupItem::slider(&self.float_offset, config, ShellLayoutMessage::FloatOffset),

@@ -27,6 +27,20 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NetInterfaceTarget {
+    Bluetooth,
+    Ethernet,
+    Wifi,
+    Mobile,
+}
+
+impl From<NetInterfaceTarget> for HoverTarget {
+    fn from(target: NetInterfaceTarget) -> Self {
+        HoverTarget::NetInterface(target)
+    }
+}
+
 #[derive(Default)]
 pub struct NetInterfacesGroup {
     bluetooth: LastPoll<Bluetooth>,
@@ -68,13 +82,12 @@ impl NetInterfacesGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: NetInterfaceTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Bluetooth => self.bluetooth.live_tooltip(),
-            HoverTarget::Ethernet => self.ethernet.live_tooltip(),
-            HoverTarget::Wifi => self.wifi.live_tooltip(),
-            HoverTarget::Mobile => self.mobile.live_tooltip(),
-            _ => None,
+            NetInterfaceTarget::Bluetooth => self.bluetooth.live_tooltip(),
+            NetInterfaceTarget::Ethernet => self.ethernet.live_tooltip(),
+            NetInterfaceTarget::Wifi => self.wifi.live_tooltip(),
+            NetInterfaceTarget::Mobile => self.mobile.live_tooltip(),
         }
     }
 
@@ -83,10 +96,10 @@ impl NetInterfacesGroup {
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [
-                self.bluetooth.group_item(HoverTarget::Bluetooth),
-                self.ethernet.group_item(HoverTarget::Ethernet),
-                self.wifi.group_item(HoverTarget::Wifi),
-                self.mobile.group_item(HoverTarget::Mobile),
+                self.bluetooth.group_item(NetInterfaceTarget::Bluetooth),
+                self.ethernet.group_item(NetInterfaceTarget::Ethernet),
+                self.wifi.group_item(NetInterfaceTarget::Wifi),
+                self.mobile.group_item(NetInterfaceTarget::Mobile),
             ]
             .into_iter()
             .flatten(),

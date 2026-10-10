@@ -54,7 +54,6 @@ use crate::{
     widget_groups::{
         ai_group::{AiGroup, AiMessage},
         audio_group::{AudioGroup, AudioMessage},
-        power_group::{PowerGroup, PowerMessage},
         clock_group::{ClockGroup, ClockMessage},
         color_temperature_group::{ColorTemperatureGroup, ColorTemperatureMessage},
         compute_group::{ComputeGroup, ComputeMessage},
@@ -72,6 +71,7 @@ use crate::{
         overlay_group::{self, OverlayGroup, OverlayMessage},
         panel_appearance_group::{PanelAppearanceGroup, PanelAppearanceMessage},
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
+        power_group::{PowerGroup, PowerMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage},

@@ -24,10 +24,16 @@ use crate::{
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
 const SCROLL_STEP: f32 = 5.0;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlKind {
     Sink,
     Source,
+}
+
+impl From<ControlKind> for HoverTarget {
+    fn from(kind: ControlKind) -> Self {
+        HoverTarget::Audio(kind)
+    }
 }
 
 impl ControlKind {
@@ -66,7 +72,7 @@ impl Default for AudioGroup {
             expansion: GroupExpansion::default(),
             sink_control: SliderControl::new(
                 RANGE,
-                HoverTarget::AudioSink,
+                ControlKind::Sink,
                 Phosphor::SpeakerHigh(Weight::Regular),
             )
             .scroll_step(SCROLL_STEP)
@@ -77,7 +83,7 @@ impl Default for AudioGroup {
             .announces_level("Speaker"),
             source_control: SliderControl::new(
                 RANGE,
-                HoverTarget::AudioSource,
+                ControlKind::Source,
                 Phosphor::Microphone(Weight::Regular),
             )
             .scroll_step(SCROLL_STEP)
@@ -216,15 +222,7 @@ impl AudioGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        match target {
-            HoverTarget::AudioSink => self.tooltip(ControlKind::Sink),
-            HoverTarget::AudioSource => self.tooltip(ControlKind::Source),
-            _ => None,
-        }
-    }
-
-    fn tooltip(&self, kind: ControlKind) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, kind: ControlKind) -> Option<Tooltip> {
         let (reading, control) = match kind {
             ControlKind::Sink => (self.sink.as_ref()?, &self.sink_control),
             ControlKind::Source => (self.source.as_ref()?, &self.source_control),
