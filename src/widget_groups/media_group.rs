@@ -221,20 +221,20 @@ impl MediaGroup {
             .collect()
     }
 
+    fn titled_players(&self) -> Vec<&Media> {
+        self.players.iter().filter(|m| m.title.is_some()).collect()
+    }
+
     fn sources<'a>(
-        &self,
         config: &Config,
         index: &DesktopIndex,
+        players: &[&Media],
         current: &Media,
         reveal: f32,
-    ) -> Option<Element<'a, MediaMessage>> {
-        let usable: Vec<&Media> = self.players.iter().filter(|m| m.title.is_some()).collect();
-        if usable.len() < 2 {
-            return None;
-        }
+    ) -> Element<'a, MediaMessage> {
         let side = config.font.icon_size_px;
-        let icons: Vec<Element<'a, MediaMessage>> = usable
-            .into_iter()
+        let icons: Vec<Element<'a, MediaMessage>> = players
+            .iter()
             .map(|m| {
                 let opacity = reveal * if m.bus == current.bus { 1.0 } else { 0.4 };
                 let icon = source_icon(config, index, m, side, opacity);
@@ -245,12 +245,10 @@ impl MediaGroup {
                     .into()
             })
             .collect();
-        Some(
-            Row::with_children(icons)
-                .spacing(config.spacing.widget_spacing_px)
-                .align_y(Alignment::Center)
-                .into(),
-        )
+        Row::with_children(icons)
+            .spacing(config.spacing.widget_spacing_px)
+            .align_y(Alignment::Center)
+            .into()
     }
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
@@ -281,14 +279,13 @@ impl MediaGroup {
         } else {
             0.4
         };
-        let sources = self.sources(config, index, media, 1.0).is_some().then(|| {
+        let players = self.titled_players();
+        let sources = (players.len() >= 2).then(|| {
             GroupItem::element(move |reveal| {
-                self.sources(config, index, media, reveal)
-                    .unwrap_or_else(|| Row::new().into())
-                    .map(GroupEvent::Group)
+                Self::sources(config, index, &players, media, reveal).map(GroupEvent::Group)
             })
         });
-        let seekable = self.seek_bar.view(config, media, self.now).is_some();
+        let seekable = SeekBar::seekable(media, self.now);
         let seek = seekable.then(|| {
             GroupItem::element(move |_| {
                 self.seek_bar
