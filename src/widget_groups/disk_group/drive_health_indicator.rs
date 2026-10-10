@@ -10,6 +10,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -51,20 +52,22 @@ impl BarWidget for DriveHealth {
             .temperature
             .current()
             .map(|_| self.temperature_thresholds());
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
+        let summary = Section::untitled_dictionary(
+            [
+                KeyValue::new("Drive", self.device_name.as_str()),
+                KeyValue::new("Temperature", self.temperature.text()),
+            ]
+            .into_iter()
+            .chain(thresholds.into_iter().flat_map(|thresholds| {
                 [
-                    KeyValue::new("Drive", self.device_name.as_str()),
-                    KeyValue::new("Temperature", self.temperature.text()),
+                    KeyValue::new("Warns above", celsius_text(thresholds.warning)),
+                    KeyValue::new("Critical above", celsius_text(thresholds.critical)),
                 ]
-                .into_iter()
-                .chain(thresholds.into_iter().flat_map(|thresholds| {
-                    [
-                        KeyValue::new("Warns above", celsius_text(thresholds.warning)),
-                        KeyValue::new("Critical above", celsius_text(thresholds.critical)),
-                    ]
-                })),
-            ),
+            })),
+        );
+        TooltipBody::sections(&[
+            summary,
+            self.identity.hardware_section(),
             Section::dictionary("I/O errors", self.errors.iter().flat_map(error_entries)),
         ])
     }
