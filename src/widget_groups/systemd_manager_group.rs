@@ -191,9 +191,8 @@ impl SystemdManagerGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         let body = match target {
-            HoverTarget::SystemdBootPhases => self.boot.get()?.phases.tooltip(),
-            HoverTarget::SystemdSystemStartup => self.boot.get()?.system_startup.tooltip(),
-            HoverTarget::SystemdUserStartup => self.boot.get()?.user_startup.as_ref()?.tooltip(),
+            HoverTarget::SystemdBootPhases => self.boot.get()?.tooltip(),
+            HoverTarget::SystemdStartupUnits => self.boot.get()?.units().tooltip(),
             HoverTarget::SystemdFailedSystemUnits => self.failed_system.get()?.tooltip(),
             HoverTarget::SystemdFailedUserUnits => self.failed_user.get()?.tooltip(),
             HoverTarget::SystemdSlowSystemJobs => self.slow_system_jobs.get()?.tooltip(),
@@ -215,12 +214,8 @@ impl SystemdManagerGroup {
             &self.expansion,
             SystemdManagerMessage::Expansion,
             [
-                boot.map(|boot| GroupItem::reading(&boot.phases, HoverTarget::SystemdBootPhases)),
-                boot.map(|boot| {
-                    GroupItem::reading(&boot.system_startup, HoverTarget::SystemdSystemStartup)
-                }),
-                boot.and_then(|boot| boot.user_startup.as_ref())
-                    .map(|user| GroupItem::reading(user, HoverTarget::SystemdUserStartup)),
+                boot.map(|boot| GroupItem::reading(boot, HoverTarget::SystemdBootPhases)),
+                boot.map(|boot| GroupItem::reading(boot.units(), HoverTarget::SystemdStartupUnits)),
                 self.slow_system_jobs
                     .get()
                     .map(|jobs| jobs.group_item(config)),
@@ -245,7 +240,7 @@ impl SystemdManagerGroup {
             reading: self,
         })
         .preview(boot.map(|boot| PreviewedValue::Hoverable {
-            widget: &boot.phases,
+            widget: boot,
             target: HoverTarget::SystemdBootPhases,
         }))
     }
