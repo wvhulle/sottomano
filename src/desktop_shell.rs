@@ -60,6 +60,7 @@ use crate::{
         compute_group::{ComputeGroup, ComputeMessage},
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         disk_group::{DiskGroup, DiskMessage},
+        gpu_group::{GpuGroup, GpuMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_events_group::{JournalEventsGroup, JournalEventsMessage},
@@ -95,6 +96,7 @@ pub struct DesktopShell {
     pub(crate) wallpaper_group: WallpaperGroup,
     pub(crate) power_group: PowerGroup,
     pub(crate) compute_group: ComputeGroup,
+    pub(crate) gpu_group: GpuGroup,
     pub(crate) disk_group: DiskGroup,
     pub(crate) niri_rules: NiriRulesFile,
     pub(crate) shell_layout_group: ShellLayoutGroup,
@@ -139,6 +141,7 @@ pub enum Message {
     Wallpaper(WallpaperMessage),
     Power(PowerMessage),
     Compute(ComputeMessage),
+    Gpu(GpuMessage),
     Disk(DiskMessage),
     ShellLayout(ShellLayoutMessage),
     PanelAppearance(PanelAppearanceMessage),
@@ -219,6 +222,7 @@ impl DesktopShell {
             wallpaper_group: WallpaperGroup::new(&secrets),
             power_group: PowerGroup::default(),
             compute_group: ComputeGroup::default(),
+            gpu_group: GpuGroup::default(),
             disk_group: DiskGroup::default(),
             niri_rules,
             shell_layout_group: ShellLayoutGroup::default(),
@@ -274,6 +278,7 @@ impl DesktopShell {
             query_outputs(),
             PowerGroup::probe().map(Message::Power),
             ComputeGroup::probe(&shell.config.temperature.cpu).map(Message::Compute),
+            GpuGroup::probe().map(Message::Gpu),
             InternetGroup::probe().map(Message::Internet),
             MonitorGroup::probe().map(Message::Monitor),
             DarkModeGroup::probe().map(Message::DarkMode),
@@ -343,6 +348,7 @@ impl DesktopShell {
             Message::Notification(msg) => self.update_notification(msg),
             Message::Power(msg) => self.power_group.update(msg).map(Message::Power),
             Message::Compute(msg) => self.compute_group.update(msg).map(Message::Compute),
+            Message::Gpu(msg) => self.gpu_group.update(msg).map(Message::Gpu),
             Message::Disk(msg) => self.disk_group.update(msg).map(Message::Disk),
             Message::ShellLayout(msg) => self.update_shell_layout(msg),
             Message::PanelAppearance(msg) => self.update_panel_appearance(msg),
@@ -387,10 +393,7 @@ impl DesktopShell {
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => copy_to_clipboard(text),
-            Message::OpenUrl(url) => Task::batch([
-                self.dismiss_tooltip(),
-                blocking("open url", move || run("xdg-open", &[&url])).discard(),
-            ]),
+            Message::OpenUrl(url) => self.open_url(url),
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_tooltip(),
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),
@@ -418,6 +421,13 @@ impl DesktopShell {
             | Message::RedrawWindow(_)
             | Message::ForgetLastOutput => Task::none(),
         }
+    }
+
+    fn open_url(&mut self, url: String) -> Task<Message> {
+        Task::batch([
+            self.dismiss_tooltip(),
+            blocking("open url", move || run("xdg-open", &[&url])).discard(),
+        ])
     }
 
     fn update_systemd_manager(&mut self, msg: SystemdManagerMessage) -> Task<Message> {
@@ -695,6 +705,7 @@ impl DesktopShell {
             &mut self.clock_group.expansion,
             &mut self.weather_group.expansion,
             &mut self.compute_group.expansion,
+            &mut self.gpu_group.expansion,
             &mut self.disk_group.expansion,
             &mut self.media_group.expansion,
             &mut self.internet_group.expansion,

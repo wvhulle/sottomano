@@ -109,6 +109,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .compute_group
             .subscription(&state.config.temperature.cpu)
             .map(Message::Compute),
+        state.gpu_group.subscription().map(Message::Gpu),
         DiskGroup::subscription(&state.config.temperature.drive).map(Message::Disk),
         ClockGroup::subscription().map(Message::Clock),
         SystemdManagerGroup::subscription(&state.config.systemd).map(Message::SystemdManager),

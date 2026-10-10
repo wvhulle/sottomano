@@ -19,6 +19,7 @@ pub mod disk;
 pub mod favicons;
 pub mod fwupd;
 pub mod gamma;
+pub mod gpu;
 pub mod hardware;
 pub mod http;
 pub mod icon_trim;
