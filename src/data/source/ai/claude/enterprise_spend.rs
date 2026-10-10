@@ -92,13 +92,12 @@ impl ClaudeEnterpriseSpend {
         let status = if spend.enabled {
             ExtraStatus::Enabled
         } else {
-            ExtraStatus::Disabled(
-                spend
+            ExtraStatus::Disabled {
+                reason: spend
                     .disabled_reason
                     .as_deref()
-                    .unwrap_or("disabled")
-                    .replace('_', " "),
-            )
+                    .map(|reason| reason.replace('_', " ")),
+            }
         };
         ClaudeEnterpriseSpend {
             organization: organization.name,

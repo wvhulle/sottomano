@@ -31,9 +31,9 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let status = match &self.status {
-            ExtraStatus::Enabled => "enabled".to_owned(),
-            ExtraStatus::Disabled(reason) => reason.clone(),
+        let (status, reason) = match &self.status {
+            ExtraStatus::Enabled => ("enabled", None),
+            ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
         };
         let organization = Section::untitled_dictionary([
             KeyValue::new("Organization", self.organization.as_str()),
@@ -50,12 +50,11 @@ impl BarWidget for ClaudeEnterpriseSpend {
             organization,
             Section::dictionary(
                 "Usage Credits",
-                [
-                    KeyValue::new("Status", status),
-                    KeyValue::new("Used This Month", self.used.to_string()),
-                ]
-                .into_iter()
-                .chain(limit_entries),
+                [KeyValue::new("Status", status)]
+                    .into_iter()
+                    .chain(reason.map(|reason| KeyValue::new("Reason", reason)))
+                    .chain([KeyValue::new("Used This Month", self.used.to_string())])
+                    .chain(limit_entries),
             ),
         ])
     }

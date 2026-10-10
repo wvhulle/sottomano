@@ -34,7 +34,7 @@ impl RootMount {
             .ok_or_else(unreadable)?;
         Ok(RootMount {
             fs_type: root.fs_type,
-            source: root.mount_source.unwrap_or_default(),
+            source: root.mount_source.ok_or_else(unreadable)?,
             options: root.super_options,
         })
     }

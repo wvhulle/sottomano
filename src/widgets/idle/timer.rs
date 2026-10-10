@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
+use humantime::format_duration;
 use iced::{Alignment, Element, widget::Row};
 
 use crate::{
@@ -9,9 +10,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         confirm_button::{ConfirmButton, Press},
-        idle::{
-            IdleAction, IdleTrigger, MAX_POSITION, from_position, label_at, label_for, position,
-        },
+        idle::{IdleAction, IdleTrigger, MAX_POSITION, position, timeout_at},
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
@@ -20,10 +19,6 @@ use crate::{
 };
 
 const READOUT_WIDTH: f32 = 30.0;
-
-fn fire_time(timeout: Duration) -> DateTime<Utc> {
-    Utc::now() + chrono::Duration::from_std(timeout).unwrap_or_default()
-}
 
 #[derive(Debug, Clone)]
 pub enum TimerMessage {
@@ -52,8 +47,15 @@ impl IdleTimer {
         Self {
             control: SliderControl::new(0.0..=MAX_POSITION, target.clone(), icon)
                 .readout_width(READOUT_WIDTH)
-                .readout(|value| label_at(value).to_string())
-                .label(|value| from_position(value).map(|d| label_for(d).to_string())),
+                .readout(|value| {
+                    timeout_at(value).map_or_else(
+                        || "∞".to_owned(),
+                        |timeout| format_duration(timeout).to_string(),
+                    )
+                })
+                .label(|value| {
+                    timeout_at(value).map(|timeout| format_duration(timeout).to_string())
+                }),
             target,
             timeout: None,
             button: ConfirmButton::new(confirms),
@@ -101,7 +103,7 @@ impl IdleTimer {
             TimerMessage::Slider(msg) => match self.control.update(msg) {
                 Action::Opened => TimerChange::Opened,
                 Action::Commit(value) => {
-                    self.timeout = from_position(value);
+                    self.timeout = timeout_at(value);
                     self.control
                         .update(ControlMessage::Disabled(self.timeout.is_none()));
                     TimerChange::Persist(value)
@@ -120,12 +122,12 @@ impl IdleTimer {
     }
 
     pub fn tooltip(&self) -> Tooltip {
-        let when = match from_position(self.control.current()) {
+        let when = match timeout_at(self.control.current()) {
             None => KeyValue::new("State", "disabled"),
             Some(timeout) => KeyValue::new(
                 format!("{} at", self.action.verb()),
                 Cell::Time {
-                    at: fire_time(timeout),
+                    at: Utc::now() + chrono::Duration::from_std(timeout).unwrap_or_default(),
                     part: TimePart::TimeOfDay,
                 },
             ),

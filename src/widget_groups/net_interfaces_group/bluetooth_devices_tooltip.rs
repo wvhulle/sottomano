@@ -1,10 +1,7 @@
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::net_interfaces::bluetooth::{Bluetooth, Device},
-    },
+    data::{severity::Severity, source::net_interfaces::bluetooth::Bluetooth},
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -22,64 +19,56 @@ impl BarWidget for Bluetooth {
     }
 
     fn badge(&self) -> Option<u32> {
-        if !self.powered {
-            return None;
-        }
-        u32::try_from(self.connected.len())
+        u32::try_from(self.radio.as_ref()?.connected.len())
             .ok()
             .filter(|count| *count > 0)
     }
 
     fn state(&self) -> WidgetState {
-        if self.powered {
-            self.best_signal()
+        self.radio.as_ref().map_or(WidgetState::Off, |radio| {
+            radio
+                .best_signal()
                 .map_or(Severity::Normal, signal_level)
                 .into()
-        } else {
-            WidgetState::Off
-        }
+        })
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        self.best_signal().map(percent_fill)
+        self.radio.as_ref()?.best_signal().map(percent_fill)
     }
 
     fn tooltip(&self) -> TooltipBody {
         let hardware = self.adapter.hardware_section();
-        if !self.powered {
+        let Some(radio) = &self.radio else {
             return TooltipBody::sections(&[
                 Section::untitled_dictionary([KeyValue::new("Bluetooth", "off")]),
                 hardware,
             ]);
-        }
+        };
         let overview = Section::dictionary(
             "Bluetooth",
             [
-                KeyValue::new("Connected", self.connected.len().to_string()),
-                KeyValue::new("Paired", self.paired.to_string()),
+                KeyValue::new("Connected", radio.connected.len().to_string()),
+                KeyValue::new("Paired", radio.paired.to_string()),
             ],
         );
-        let devices = self.connected.iter().map(device_section);
+        let devices = radio.connected.iter().map(|device| {
+            Section::dictionary(
+                device.name.clone(),
+                [KeyValue::new("Address", device.address.as_str())]
+                    .into_iter()
+                    .chain(
+                        device
+                            .signal
+                            .map(|signal| KeyValue::new("Signal", format!("{signal}%"))),
+                    )
+                    .chain(
+                        device
+                            .battery
+                            .map(|battery| KeyValue::new("Battery", format!("{battery}%"))),
+                    ),
+            )
+        });
         TooltipBody::sections(&[vec![overview], devices.collect(), vec![hardware]].concat())
     }
-}
-
-fn device_section(device: &Device) -> Section {
-    Section::dictionary(
-        device.name.clone(),
-        [
-            device
-                .address
-                .as_deref()
-                .map(|address| KeyValue::new("Address", address)),
-            device
-                .signal
-                .map(|signal| KeyValue::new("Signal", format!("{signal}%"))),
-            device
-                .battery
-                .map(|battery| KeyValue::new("Battery", format!("{battery}%"))),
-        ]
-        .into_iter()
-        .flatten(),
-    )
 }

@@ -181,7 +181,7 @@ impl Columns {
     }
 
     pub(crate) fn duration(&self, row: &turso::Row, name: &str) -> Option<Duration> {
-        let seconds = self.optional_integer(row, name)?;
-        Some(Duration::from_secs(u64::try_from(seconds).unwrap_or(0)))
+        let seconds = u64::try_from(self.optional_integer(row, name)?).ok()?;
+        Some(Duration::from_secs(seconds))
     }
 }

@@ -27,57 +27,104 @@ pub struct Mobile {
     pub technology: Vec<String>,
     pub signal: Option<i64>,
     pub signal_recent: bool,
-    pub registration: Option<String>,
-    pub state: String,
+    pub registration: Option<&'static str>,
+    pub state: Option<ModemState>,
     pub ipv4: Option<String>,
     pub ipv6: Option<String>,
     pub rx: Option<ByteSize>,
     pub tx: Option<ByteSize>,
-    pub failed_reason: Option<String>,
 }
 
-fn state_name(state: i32) -> &'static str {
-    match state {
-        -1 => "failed",
-        1 => "initializing",
-        2 => "locked",
-        3 => "disabled",
-        4 => "disabling",
-        5 => "enabling",
-        6 => "enabled",
-        7 => "searching",
-        8 => "registered",
-        9 => "disconnecting",
-        10 => "connecting",
-        11 => "connected",
-        _ => "unknown",
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModemState {
+    Failed { reason: Option<&'static str> },
+    Initializing,
+    Locked,
+    Disabled,
+    Disabling,
+    Enabling,
+    Enabled,
+    Searching,
+    Registered,
+    Disconnecting,
+    Connecting,
+    Connected,
+}
+
+impl TryFrom<i32> for ModemState {
+    type Error = i32;
+
+    fn try_from(state_code: i32) -> Result<Self, Self::Error> {
+        match state_code {
+            -1 => Ok(Self::Failed { reason: None }),
+            1 => Ok(Self::Initializing),
+            2 => Ok(Self::Locked),
+            3 => Ok(Self::Disabled),
+            4 => Ok(Self::Disabling),
+            5 => Ok(Self::Enabling),
+            6 => Ok(Self::Enabled),
+            7 => Ok(Self::Searching),
+            8 => Ok(Self::Registered),
+            9 => Ok(Self::Disconnecting),
+            10 => Ok(Self::Connecting),
+            11 => Ok(Self::Connected),
+            unknown => Err(unknown),
+        }
     }
 }
 
-fn registration_name(state: u32) -> &'static str {
-    match state {
-        0 => "idle",
-        1 => "home",
-        2 => "searching",
-        3 => "denied",
-        5 => "roaming",
-        6 => "home-sms-only",
-        7 => "roaming-sms-only",
-        8 => "emergency-only",
-        9 => "home-csfb-not-preferred",
-        10 => "roaming-csfb-not-preferred",
-        11 => "attached-rlos",
-        _ => "unknown",
+impl ModemState {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Failed { .. } => "failed",
+            Self::Initializing => "initializing",
+            Self::Locked => "locked",
+            Self::Disabled => "disabled",
+            Self::Disabling => "disabling",
+            Self::Enabling => "enabling",
+            Self::Enabled => "enabled",
+            Self::Searching => "searching",
+            Self::Registered => "registered",
+            Self::Disconnecting => "disconnecting",
+            Self::Connecting => "connecting",
+            Self::Connected => "connected",
+        }
+    }
+
+    fn with_failure_reason(self, reason_code: Option<u32>) -> Self {
+        match self {
+            Self::Failed { .. } => Self::Failed {
+                reason: reason_code.and_then(failed_reason_name),
+            },
+            other => other,
+        }
     }
 }
 
-fn failed_reason_name(reason: u32) -> &'static str {
+fn registration_name(state: u32) -> Option<&'static str> {
+    match state {
+        0 => Some("idle"),
+        1 => Some("home"),
+        2 => Some("searching"),
+        3 => Some("denied"),
+        5 => Some("roaming"),
+        6 => Some("home-sms-only"),
+        7 => Some("roaming-sms-only"),
+        8 => Some("emergency-only"),
+        9 => Some("home-csfb-not-preferred"),
+        10 => Some("roaming-csfb-not-preferred"),
+        11 => Some("attached-rlos"),
+        _ => None,
+    }
+}
+
+fn failed_reason_name(reason: u32) -> Option<&'static str> {
     match reason {
-        2 => "sim-missing",
-        3 => "sim-error",
-        4 => "unknown-capabilities",
-        5 => "esim-without-profiles",
-        _ => "unknown",
+        2 => Some("sim-missing"),
+        3 => Some("sim-error"),
+        4 => Some("unknown-capabilities"),
+        5 => Some("esim-without-profiles"),
+        _ => None,
     }
 }
 
@@ -163,7 +210,9 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     let modem = interface(interfaces, MODEM)?;
     let modem_3gpp = interface(interfaces, MODEM_3GPP);
 
-    let state = state_name(prop::<i32>(modem, "State").unwrap_or(0)).to_owned();
+    let state = prop::<i32>(modem, "State")
+        .and_then(|code| ModemState::try_from(code).ok())
+        .map(|state| state.with_failure_reason(prop::<u32>(modem, "StateFailedReason")));
     let bearer = prop::<Vec<OwnedObjectPath>>(modem, "Bearers")
         .unwrap_or_default()
         .first()
@@ -186,10 +235,7 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
         signal_recent: signal.is_none_or(|(_, recent)| recent),
         registration: modem_3gpp
             .and_then(|iface| prop::<u32>(iface, "RegistrationState"))
-            .map(|state| registration_name(state).to_owned()),
-        failed_reason: prop::<u32>(modem, "StateFailedReason")
-            .filter(|reason| *reason != 0)
-            .map(|reason| failed_reason_name(reason).to_owned()),
+            .and_then(registration_name),
         state,
         ipv4: bearer.ipv4,
         ipv6: bearer.ipv6,

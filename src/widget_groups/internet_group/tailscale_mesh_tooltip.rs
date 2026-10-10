@@ -1,5 +1,5 @@
 use crate::{
-    data::source::tailscale::Tailscale,
+    data::source::tailscale::{Peer, Tailnet, Tailscale},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
@@ -14,40 +14,59 @@ impl BarWidget for Tailscale {
     }
 
     fn state(&self) -> WidgetState {
-        WidgetState::of_toggle(self.running)
+        WidgetState::of_toggle(matches!(self, Tailscale::Running(_)))
     }
 
     fn badge(&self) -> Option<u32> {
-        if !self.running {
+        let Tailscale::Running(tailnet) = self else {
             return None;
-        }
-        u32::try_from(self.online.len())
+        };
+        u32::try_from(tailnet.online.len())
             .ok()
             .filter(|count| *count > 0)
     }
 
     fn tooltip(&self) -> TooltipBody {
-        if !self.running {
-            return TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-                "Tailscale",
-                "disconnected",
-            )])]);
+        match self {
+            Tailscale::Stopped => {
+                TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+                    "Tailscale",
+                    "disconnected",
+                )])])
+            }
+            Tailscale::Running(tailnet) => tailnet.tooltip(),
         }
-        let online_peers = self
-            .online
-            .iter()
-            .map(|peer| KeyValue::new(peer.name.as_str(), format!("→ {}", peer.ip)));
+    }
+}
+
+impl Tailnet {
+    fn tooltip(&self) -> TooltipBody {
+        let own_ip = self
+            .own_node
+            .ip
+            .as_deref()
+            .map(|ip| KeyValue::new("IP", ip));
         TooltipBody::sections(&[
-            Section::untitled_dictionary([
-                KeyValue::new("Tailscale", "connected"),
-                KeyValue::new("Self", self.self_name.as_str()),
-                KeyValue::new("IP", self.self_ip.as_str()),
-                KeyValue::new(
+            Section::untitled_dictionary(
+                [
+                    KeyValue::new("Tailscale", "connected"),
+                    KeyValue::new("Self", self.own_node.name.as_str()),
+                ]
+                .into_iter()
+                .chain(own_ip)
+                .chain([KeyValue::new(
                     "Peers",
                     format!("{}/{} online", self.online.len(), self.total_peers),
-                ),
-            ]),
-            Section::untitled_dictionary(online_peers),
+                )]),
+            ),
+            Section::untitled_dictionary(self.online.iter().filter_map(Peer::key_value)),
         ])
+    }
+}
+
+impl Peer {
+    fn key_value(&self) -> Option<KeyValue> {
+        let ip = self.ip.as_deref()?;
+        Some(KeyValue::new(self.name.as_str(), format!("→ {ip}")))
     }
 }

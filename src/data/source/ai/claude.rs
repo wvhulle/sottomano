@@ -150,7 +150,7 @@ fn subscription_login(path: &Path) -> Option<Oauth> {
         .filter(Oauth::grants_subscription_usage)
 }
 
-fn plan(oauth: &Oauth) -> String {
+fn plan(oauth: &Oauth) -> Option<String> {
     let subscription = oauth
         .subscription_type
         .as_deref()
@@ -164,9 +164,9 @@ fn plan(oauth: &Oauth) -> String {
         Some(subscription) => tier
             .filter(|tier| tier.starts_with(subscription))
             .unwrap_or(subscription),
-        None => tier.unwrap_or("unknown"),
+        None => tier?,
     };
-    title_case(&name.replace('_', " "))
+    Some(title_case(&name.replace('_', " ")))
 }
 
 fn title_case(text: &str) -> String {
@@ -193,10 +193,10 @@ mod tests {
         .unwrap();
         let oauth = credentials.oauth.unwrap();
         assert_eq!(oauth.access_token.as_deref(), Some("t"));
-        assert_eq!(plan(&oauth), "Max 20x");
+        assert_eq!(plan(&oauth).as_deref(), Some("Max 20x"));
     }
 
-    fn plan_of(credentials: &str) -> String {
+    fn plan_of(credentials: &str) -> Option<String> {
         let credentials: Credentials = serde_json::from_str(credentials).unwrap();
         plan(&credentials.oauth.unwrap())
     }
@@ -207,7 +207,7 @@ mod tests {
             r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_ai",
                 "subscriptionType":"pro","scopes":["user:inference"]}}"#,
         );
-        assert_eq!(plan, "Pro");
+        assert_eq!(plan.as_deref(), Some("Pro"));
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod tests {
             r#"{"claudeAiOauth":{"accessToken":"t","rateLimitTier":"default_claude_max_5x",
                 "subscriptionType":"max"}}"#,
         );
-        assert_eq!(plan, "Max 5x");
+        assert_eq!(plan.as_deref(), Some("Max 5x"));
     }
 
     #[test]

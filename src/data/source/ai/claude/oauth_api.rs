@@ -12,7 +12,7 @@ const OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.233";
 
 pub struct PlanReply<Reply> {
-    pub plan: String,
+    pub plan: Option<String>,
     pub reply: Reply,
 }
 

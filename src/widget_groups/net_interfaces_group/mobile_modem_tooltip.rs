@@ -1,7 +1,10 @@
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::{severity::Severity, source::net_interfaces::mobile::Mobile},
+    data::{
+        severity::Severity,
+        source::net_interfaces::mobile::{Mobile, ModemState},
+    },
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -13,15 +16,13 @@ use crate::{
     },
 };
 
-const CONNECTED: &str = "connected";
-
 impl BarWidget for Mobile {
     fn icon(&self) -> Glyph {
         Phosphor::Broadcast(self.state().weight()).into()
     }
 
     fn state(&self) -> WidgetState {
-        if self.state == CONNECTED {
+        if self.state == Some(ModemState::Connected) {
             self.signal.map_or(Severity::Normal, signal_level).into()
         } else {
             WidgetState::Off
@@ -47,13 +48,12 @@ impl BarWidget for Mobile {
                         KeyValue::new("Signal Strength", format!("{signal}%{signal_suffix}"))
                     }),
                     self.registration
-                        .as_deref()
                         .map(|registration| KeyValue::new("Network Registration", registration)),
                 ]
                 .into_iter()
                 .flatten(),
             ),
-            if self.state == CONNECTED {
+            if self.state == Some(ModemState::Connected) {
                 Section::dictionary(
                     "Address",
                     [
@@ -68,14 +68,16 @@ impl BarWidget for Mobile {
                     .flatten(),
                 )
             } else {
-                let failure = self
-                    .failed_reason
-                    .as_deref()
-                    .filter(|_| self.state == "failed")
-                    .map(|reason| KeyValue::new("Failure Reason", reason));
+                let failure = match self.state {
+                    Some(ModemState::Failed {
+                        reason: Some(reason),
+                    }) => Some(KeyValue::new("Failure Reason", reason)),
+                    _ => None,
+                };
                 Section::dictionary(
                     "Status",
-                    [KeyValue::new("Connection State", self.state.as_str())]
+                    self.state
+                        .map(|state| KeyValue::new("Connection State", state.label()))
                         .into_iter()
                         .chain(failure),
                 )

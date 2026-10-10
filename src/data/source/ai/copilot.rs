@@ -96,12 +96,12 @@ struct QuotaSnapshot {
 }
 
 impl UserInfo {
-    fn plan(&self) -> String {
+    fn plan(&self) -> Option<String> {
         [&self.access_type_sku, &self.copilot_plan]
             .into_iter()
             .flatten()
             .find(|plan| !plan.is_empty())
-            .map_or_else(|| "unknown".to_owned(), ToOwned::to_owned)
+            .cloned()
     }
 }
 

@@ -1,11 +1,14 @@
 use std::{
+    collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
     time::Duration,
 };
 
-use serde_json::Value as Json;
+use serde::Deserialize;
 
 use crate::data::source::{Source, command, command::blocking::run};
+
+const RUNNING_BACKEND_STATE: &str = "Running";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -31,29 +34,55 @@ impl From<command::Error> for Error {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Peer {
     pub name: String,
-    pub ip: String,
+    pub ip: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Tailscale {
-    pub running: bool,
-    pub self_name: String,
-    pub self_ip: String,
+pub struct Tailnet {
+    pub own_node: Peer,
     pub online: Vec<Peer>,
     pub total_peers: usize,
 }
 
-fn short_name(dns: &str) -> String {
-    dns.split('.').next().unwrap_or(dns).to_string()
+#[derive(Debug, Clone, PartialEq)]
+pub enum Tailscale {
+    Stopped,
+    Running(Tailnet),
 }
 
-fn first_ip(node: &Json) -> String {
-    node.get("TailscaleIPs")
-        .and_then(Json::as_array)
-        .and_then(|ips| ips.first())
-        .and_then(Json::as_str)
-        .unwrap_or("—")
-        .to_string()
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct Status {
+    backend_state: String,
+    #[serde(rename = "Self")]
+    own_node: Option<Node>,
+    #[serde(default)]
+    peer: HashMap<String, Node>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct Node {
+    #[serde(rename = "DNSName")]
+    dns_name: String,
+    #[serde(rename = "TailscaleIPs", default)]
+    tailscale_ips: Vec<String>,
+    #[serde(default)]
+    online: bool,
+}
+
+impl From<&Node> for Peer {
+    fn from(node: &Node) -> Self {
+        Peer {
+            name: node
+                .dns_name
+                .split('.')
+                .next()
+                .unwrap_or(&node.dns_name)
+                .to_owned(),
+            ip: node.tailscale_ips.first().cloned(),
+        }
+    }
 }
 
 impl Source for Tailscale {
@@ -70,45 +99,21 @@ impl Source for Tailscale {
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
         let raw = command::output("tailscale", &["status", "--json"]).await?;
-        let status: Json = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
-        let running = status.get("BackendState").and_then(Json::as_str) == Some("Running");
-        if !running {
-            return Ok(Tailscale {
-                running: false,
-                self_name: String::new(),
-                self_ip: String::new(),
-                online: Vec::new(),
-                total_peers: 0,
-            });
+        let status: Status = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
+        if status.backend_state != RUNNING_BACKEND_STATE {
+            return Ok(Tailscale::Stopped);
         }
-        let self_node = status.get("Self");
-        let self_name = self_node
-            .and_then(|n| n.get("DNSName"))
-            .and_then(Json::as_str)
-            .map_or_else(|| "self".to_string(), short_name);
-        let self_ip = self_node.map_or_else(|| "—".to_string(), first_ip);
-
-        let peers = status.get("Peer").and_then(Json::as_object);
-        let total_peers = peers.map_or(0, serde_json::Map::len);
-        let online = peers
-            .into_iter()
-            .flatten()
-            .filter(|(_, peer)| peer.get("Online").and_then(Json::as_bool) == Some(true))
-            .map(|(_, peer)| Peer {
-                name: peer
-                    .get("DNSName")
-                    .and_then(Json::as_str)
-                    .map_or_else(|| "peer".to_string(), short_name),
-                ip: first_ip(peer),
-            })
-            .collect();
-        Ok(Tailscale {
-            running: true,
-            self_name,
-            self_ip,
-            online,
-            total_peers,
-        })
+        let own_node = status.own_node.as_ref().ok_or(Error::Malformed)?;
+        Ok(Tailscale::Running(Tailnet {
+            own_node: Peer::from(own_node),
+            online: status
+                .peer
+                .values()
+                .filter(|peer| peer.online)
+                .map(Peer::from)
+                .collect(),
+            total_peers: status.peer.len(),
+        }))
     }
 }
 
