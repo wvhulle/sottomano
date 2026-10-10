@@ -13,7 +13,7 @@ pub use crate::desktop_shell::hover_tooltips::{
     tooltip_surfaces::TooltipHost,
 };
 use crate::{
-    data::source::weather::Allergen,
+    data::source::{gpu::PciBusId, weather::Allergen},
     desktop_shell::monitor_surfaces::Position,
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -24,6 +24,10 @@ pub enum HoverTarget {
     CpuClock,
     Memory,
     Temperature,
+    GpuLoad(PciBusId),
+    GpuMemory(PciBusId),
+    GpuTemperature(PciBusId),
+    GpuPower(PciBusId),
     Disk,
     DiskRead,
     DiskWrite,

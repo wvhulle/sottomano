@@ -95,6 +95,8 @@
           umbra.packages.${system}.default
         ];
 
+      runtimeLibraryPath = "${pkgs.lib.makeLibraryPath commonArgs.buildInputs}:${pkgs.addDriverRunpath.driverLink}/lib";
+
       vetrata = craneLib.buildPackage (
         commonArgs
         // {
@@ -104,7 +106,7 @@
             wrapProgram $out/bin/vetrata \
               --prefix PATH : ${gsettingsRuntime.binPath} \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
-              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath commonArgs.buildInputs} \
+              --prefix LD_LIBRARY_PATH : ${runtimeLibraryPath} \
               --prefix XDG_DATA_DIRS : ${gsettingsRuntime.schemaDir} \
               --prefix XDG_DATA_DIRS : ${soundThemeShare} \
               --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
@@ -135,7 +137,7 @@
       devShells.${system}.default = craneLib.devShell {
         packages =
           commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
-        env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath commonArgs.buildInputs;
+        env.LD_LIBRARY_PATH = runtimeLibraryPath;
         env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         env.PHOSPHOR_SVG = "${phosphorCore}/assets";
         shellHook = ''

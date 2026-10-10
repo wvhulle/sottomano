@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub(super) struct TopBarGroups<'a> {
-    pub start: [GroupContent<'a, Message>; 9],
+    pub start: [GroupContent<'a, Message>; 10],
     pub center: [GroupContent<'a, Message>; 2],
     pub end: [GroupContent<'a, Message>; 8],
 }
@@ -28,6 +28,7 @@ impl DesktopShell {
                     .group_content(config)
                     .map(Message::Power),
                 self.compute_group.group_content().map(Message::Compute),
+                self.gpu_group.group_content().map(Message::Gpu),
                 self.disk_group.group_content().map(Message::Disk),
                 self.net_interfaces_group
                     .group_content()

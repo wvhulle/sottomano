@@ -115,6 +115,7 @@ impl DesktopShell {
         }
         self.compute_group
             .tooltip_for(target)
+            .or_else(|| self.gpu_group.tooltip_for(target))
             .or_else(|| self.disk_group.tooltip_for(target))
             .or_else(|| self.power_group.tooltip_for(target))
             .or_else(|| self.clock_group.tooltip_for(target))
