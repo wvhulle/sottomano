@@ -1,15 +1,15 @@
-use iced::Task;
+use iced::{Function, Task};
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{self, PanelAppearance},
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -156,32 +156,21 @@ impl PanelAppearanceGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        position: Position,
-        lift: fn(PanelAppearanceMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let items: Vec<GroupItem<'a, PanelAppearanceMessage>> = Knob::ALL
-            .into_iter()
-            .map(|knob| {
-                GroupItem::slider(self.slider(knob), config, move |control| {
-                    PanelAppearanceMessage::Slider(knob, control)
-                })
-            })
-            .collect();
-        WidgetGroup::new(
+    ) -> GroupContent<'a, PanelAppearanceMessage> {
+        GroupContent::new(
             &self.expansion,
             PanelAppearanceMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::Rows(Weight::Regular).into()),
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            Knob::ALL.into_iter().map(|knob| {
+                GroupItem::slider(
+                    self.slider(knob),
+                    config,
+                    PanelAppearanceMessage::Slider.with(knob),
+                )
+            }),
         )
+        .face(HandleFace::Icon(Phosphor::Rows(Weight::Regular).into()))
     }
 }

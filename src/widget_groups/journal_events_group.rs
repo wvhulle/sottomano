@@ -6,16 +6,16 @@ pub mod service_error_log;
 use crate::{
     config::Config,
     data::source::{kernel_errors::KernelErrors, service_errors::ServiceErrors},
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
 };
@@ -70,51 +70,23 @@ impl JournalEventsGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        position: Position,
-        lift: fn(JournalEventsMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, JournalEventsMessage> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
-        let opens_log = |widget: &'a dyn BarWidget, target, journalctl_args| GroupItem {
-            on_press: Some(Press {
-                does: TerminalJournal::PRESS_HINT,
-                message: JournalEventsMessage::OpenLog(TerminalJournal::following(
-                    config,
-                    journalctl_args,
-                )),
-            }),
-            ..GroupItem::reading(widget, target)
-        };
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             JournalEventsMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
+            [
                 has_kinds.then(|| GroupItem::reading(self, HoverTarget::JournalEvents)),
-                self.kernel.get().map(|kernel| {
-                    opens_log(
-                        kernel,
-                        HoverTarget::JournalKernel,
-                        KernelErrors::follow_log_args(),
-                    )
-                }),
-                self.service_errors.get().map(|service_errors| {
-                    opens_log(
-                        service_errors,
-                        HoverTarget::JournalServiceErrors,
-                        service_errors.follow_log_args(),
-                    )
-                }),
-            ],
-            config,
-            position,
-            lift,
+                self.kernel.get().map(|kernel| kernel.group_item(config)),
+                self.service_errors
+                    .get()
+                    .map(|service_errors| service_errors.group_item(config)),
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 

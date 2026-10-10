@@ -116,6 +116,8 @@ pub enum HoverTarget {
     Tray(String),
     Window(u64),
     Workspace(u64),
+    NotificationDoNotDisturb,
+    NotificationSound,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -10,7 +10,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
         reading_alert::ReadingAlertActionButton,
@@ -40,17 +40,12 @@ impl FirmwareUpgradeList {
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        GroupItem {
-            on_press: Some(Press {
-                does: "run fwupdmgr update in a terminal",
-                message: install.clone(),
-            }),
-            alert_action_buttons: vec![ReadingAlertActionButton {
+        GroupItem::reading(self, HoverTarget::FirmwareUpgrades)
+            .on_press("run fwupdmgr update in a terminal", install.clone())
+            .alert_action_buttons([ReadingAlertActionButton {
                 button_label: "Install".to_owned(),
                 on_button_pressed: install,
-            }],
-            ..GroupItem::reading(self, HoverTarget::FirmwareUpgrades)
-        }
+            }])
     }
 }
 

@@ -13,7 +13,7 @@ use crate::{
         gamma::{self, Gamma},
         screen_temperature::{self, SunFollow},
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
@@ -24,7 +24,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -195,39 +195,33 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        position: Position,
-        lift: fn(ColorTemperatureMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, ColorTemperatureMessage> {
         let gamma_available = self.gamma.get().is_some();
-        let items: Vec<Option<GroupItem<'a, ColorTemperatureMessage>>> = [
-            gamma_available
-                .then(|| GroupItem::slider(&self.warmth, config, ColorTemperatureMessage::Warmth)),
-            gamma_available
-                .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
-            GroupItem::toggle(
-                &self.auto,
-                HoverTarget::AutoColorTemperature,
-                ColorTemperatureMessage::Auto,
-            ),
-        ]
-        .into();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             ColorTemperatureMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::ThermometerHot(Weight::Regular).into()),
-                preview: gamma_available
-                    .then_some(PreviewedValue::Plain(&self.warmth as &dyn BarWidget)),
-                forwards_scroll: gamma_available,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [
+                gamma_available.then(|| {
+                    GroupItem::slider(&self.warmth, config, ColorTemperatureMessage::Warmth)
+                }),
+                gamma_available
+                    .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
+                self.auto.group_item(
+                    HoverTarget::AutoColorTemperature,
+                    ColorTemperatureMessage::Auto,
+                ),
+            ]
+            .into_iter()
+            .flatten(),
         )
+        .face(HandleFace::Icon(
+            Phosphor::ThermometerHot(Weight::Regular).into(),
+        ))
+        .preview(gamma_available.then_some(PreviewedValue::Plain(&self.warmth as &dyn BarWidget)))
+        .forwards_scroll(gamma_available)
     }
 }
 

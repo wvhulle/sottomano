@@ -7,16 +7,15 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
-    config::Config,
     data::source::weather::{self, Location, Pollen, Rain, Temperature, Wind},
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
 
@@ -83,48 +82,36 @@ impl WeatherGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(WeatherMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    pub fn group_content(&self) -> GroupContent<'_, WeatherMessage> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
-                Some(GroupItem::reading(
+                GroupItem::reading(
                     concentration as &dyn BarWidget,
                     HoverTarget::Allergen(concentration.allergen),
-                ))
+                )
             })
         });
-        let items: Vec<_> = [
-            self.temp.reading_item(HoverTarget::WeatherTemp),
-            self.wind.reading_item(HoverTarget::WeatherWind),
-            self.rain
-                .present()
-                .map(|widget| GroupItem::reading(widget, HoverTarget::WeatherRain)),
-        ]
-        .into_iter()
-        .chain(airborne_items)
-        .chain([
-            self.pollen
-                .failure()
-                .map(|widget| GroupItem::reading(widget, HoverTarget::Pollen)),
-            self.location.reading_item(HoverTarget::Location),
-        ])
-        .collect();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             WeatherMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [
+                self.temp.group_item(HoverTarget::WeatherTemp),
+                self.wind.group_item(HoverTarget::WeatherWind),
+                self.rain.present_group_item(HoverTarget::WeatherRain),
+            ]
+            .into_iter()
+            .flatten()
+            .chain(airborne_items)
+            .chain(
+                [
+                    self.pollen
+                        .failure()
+                        .map(|widget| GroupItem::reading(widget, HoverTarget::Pollen)),
+                    self.location.group_item(HoverTarget::Location),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         )
     }
 }

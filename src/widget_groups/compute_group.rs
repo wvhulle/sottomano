@@ -7,7 +7,7 @@ pub mod memory_usage_gauge;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::{Config, temperature::SensorConfig},
+    config::temperature::SensorConfig,
     data::source::{
         Source,
         hardware::HostHardware,
@@ -16,13 +16,13 @@ use crate::{
             temperature::Temperature,
         },
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
         hardware_section::HardwareEntries,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
 
@@ -88,29 +88,18 @@ impl ComputeGroup {
         Task::none()
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(ComputeMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        WidgetGroup::new(
+    pub fn group_content(&self) -> GroupContent<'_, ComputeMessage> {
+        GroupContent::new(
             &self.expansion,
             ComputeMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
-                self.cpu.reading_item(HoverTarget::Cpu),
-                self.memory.reading_item(HoverTarget::Memory),
-                self.clock.reading_item(HoverTarget::CpuClock),
-                self.temperature.reading_item(HoverTarget::Temperature),
-            ],
-            config,
-            position,
-            lift,
+            [
+                self.cpu.group_item(HoverTarget::Cpu),
+                self.memory.group_item(HoverTarget::Memory),
+                self.clock.group_item(HoverTarget::CpuClock),
+                self.temperature.group_item(HoverTarget::Temperature),
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 

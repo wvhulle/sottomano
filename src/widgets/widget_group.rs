@@ -1,3 +1,6 @@
+use std::rc::Rc;
+
+use chrono::Locale;
 use iced::{
     Alignment, Element, Padding,
     mouse::ScrollDelta,
@@ -82,12 +85,6 @@ impl<M> GroupEvent<M> {
     }
 }
 
-pub struct GroupHandle<'a> {
-    pub face: HandleFace<'a>,
-    pub preview: Option<PreviewedValue<'a>>,
-    pub forwards_scroll: bool,
-}
-
 pub enum HandleFace<'a> {
     Icon(Glyph),
     IconColoredBy {
@@ -132,146 +129,210 @@ impl<'a> PreviewedValue<'a> {
     }
 }
 
-pub struct WidgetGroup<'a, Outer> {
-    pub element: Option<Element<'a, GroupEvent<Outer>>>,
-    pub alerts: Vec<ReadingAlert<Outer>>,
-    pub levels: Vec<LevelReading<Outer>>,
+pub struct GroupToastRequests<M> {
+    pub alerts: Vec<ReadingAlert<M>>,
+    pub levels: Vec<LevelReading<M>>,
 }
 
-impl<'a, M: 'a + Clone> WidgetGroup<'a, M> {
-    pub fn new<Outer: 'a, Item: Into<Option<GroupItem<'a, M>>> + Clone>(
+pub struct GroupContent<'a, M> {
+    expansion: &'a GroupExpansion,
+    on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
+    face: HandleFace<'a>,
+    preview: Option<PreviewedValue<'a>>,
+    forwards_scroll: bool,
+    items: Vec<GroupItem<'a, M>>,
+}
+
+impl<'a, M: Clone + 'a> GroupContent<'a, M> {
+    pub fn new(
         expansion: &'a GroupExpansion,
         on_expansion: fn(ExpansionMessage) -> M,
-        handle: GroupHandle<'a>,
-        items: &[Item],
+        items: impl IntoIterator<Item = GroupItem<'a, M>>,
+    ) -> Self {
+        Self {
+            expansion,
+            on_expansion: Rc::new(on_expansion),
+            face: HandleFace::FirstItem,
+            preview: None,
+            forwards_scroll: false,
+            items: items.into_iter().collect(),
+        }
+    }
+
+    #[must_use]
+    pub fn face(self, face: HandleFace<'a>) -> Self {
+        Self { face, ..self }
+    }
+
+    #[must_use]
+    pub fn preview(self, preview: Option<PreviewedValue<'a>>) -> Self {
+        Self { preview, ..self }
+    }
+
+    #[must_use]
+    pub fn forwards_scroll(self, forwards_scroll: bool) -> Self {
+        Self {
+            forwards_scroll,
+            ..self
+        }
+    }
+
+    pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupContent<'a, Outer> {
+        let on_expansion = self.on_expansion;
+        GroupContent {
+            expansion: self.expansion,
+            on_expansion: Rc::new(move |message| lift(on_expansion(message))),
+            face: self.face,
+            preview: self.preview,
+            forwards_scroll: self.forwards_scroll,
+            items: self.items.into_iter().map(|item| item.map(lift)).collect(),
+        }
+    }
+
+    fn expand_message(&self) -> M {
+        (self.on_expansion)(ExpansionMessage::Expand)
+    }
+
+    fn alerts(&self, locale: Locale) -> impl Iterator<Item = ReadingAlert<M>> {
+        self.items
+            .iter()
+            .flat_map(move |item| item.alerts_with_reading(self.expand_message(), locale))
+    }
+
+    pub fn toast_requests(&self, locale: Locale) -> GroupToastRequests<M> {
+        GroupToastRequests {
+            alerts: self.alerts(locale).collect(),
+            levels: self
+                .items
+                .iter()
+                .filter_map(|item| item.level_reading(self.expand_message()))
+                .collect(),
+        }
+    }
+
+    pub fn view(
+        self,
         config: &'a Config,
         bar_position: Position,
-        lift: fn(M) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let items: Vec<GroupItem<'a, M>> = items.iter().cloned().filter_map(Into::into).collect();
-        let extra_alerts: Vec<ReadingAlert<M>> =
-            items.iter().flat_map(|item| item.alerts.clone()).collect();
-        let alerts: Vec<ReadingAlert<Outer>> = items
-            .iter()
-            .filter_map(|item| item.alert((on_expansion)(ExpansionMessage::Expand), config.locale))
-            .chain(extra_alerts)
-            .map(|alert| alert.map_messages(lift))
-            .collect();
-        let levels: Vec<LevelReading<Outer>> = items
-            .iter()
-            .filter_map(|item| item.level_reading((on_expansion)(ExpansionMessage::Expand)))
-            .map(|level| level.map_messages(lift))
-            .collect();
-        let highest_alert_severity = alerts
-            .iter()
+    ) -> Option<Element<'a, GroupEvent<M>>> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let highest_alert_severity = self
+            .alerts(config.locale)
             .map(|alert| alert.severity)
             .max()
             .unwrap_or_default();
-        let element = group_view(
+        let GroupContent {
             expansion,
             on_expansion,
-            handle.face,
-            items,
-            handle.preview,
-            handle.forwards_scroll,
-            config,
-            bar_position,
+            face,
+            preview,
+            forwards_scroll,
+            mut items,
+        } = self;
+        let face = match face {
+            HandleFace::Icon(glyph) => GroupItem::element(move |_| {
+                glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
+            }),
+            HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
+                glyph.view(config.font.icon_size_px, reading_color(config, reading))
+            }),
+            HandleFace::FirstItem => items.remove(0),
+        };
+        let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
+        let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
+            Row::with_children(items.iter().filter_map(|item| item.view(config, reveal)))
+                .spacing(config.spacing.widget_spacing_px)
+                .align_y(Alignment::Center)
+                .into()
+        };
+        let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
+        let toggle = expansion_event(ExpansionMessage::Toggle);
+        let on_enter = expansion_event(ExpansionMessage::CursorEntered);
+        let on_exit = expansion_event(ExpansionMessage::CursorExited);
+        let edge_indicator = EdgeIndicator {
             highest_alert_severity,
+            cursor_hovering: expansion.cursor_hovering,
+            expanded: expansion.expanded,
+        };
+        let animated = expand_animation(expansion.expanded, EXPANSION_DURATION, move |reveal| {
+            let handle: Element<'a, GroupEvent<M>> = button(
+                Row::with_children([
+                    draw_face(),
+                    collapsing_previewed_value(
+                        config,
+                        preview.as_ref().map(PreviewedValue::widget),
+                        reveal,
+                    ),
+                ])
+                .align_y(Alignment::Center),
+            )
+            .padding(0)
+            .style(flat_button(config.palette.bar_foreground))
+            .on_press(toggle.clone())
+            .into();
+            let handle = match &preview {
+                Some(preview) => preview.hoverable_face(handle),
+                None => handle,
+            };
+            let handle = if forwards_scroll {
+                let expansion_event = expansion_event.clone();
+                mouse_area(handle)
+                    .on_scroll(move |delta| {
+                        expansion_event(ExpansionMessage::HandleScrolled(delta))
+                    })
+                    .into()
+            } else {
+                handle
+            };
+            let inner = Row::new()
+                .push(handle)
+                .extend(
+                    (reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))),
+                )
+                .align_y(Alignment::Center);
+            PagerSlot::new(inner.into(), edge_indicator.view(config, reveal))
+                .view(config, bar_position)
+        });
+        Some(
+            mouse_area(animated)
+                .on_enter(on_enter)
+                .on_exit(on_exit)
+                .into(),
         )
-        .map(|element| element.map(move |event| event.map(lift)));
-        WidgetGroup {
-            element,
-            alerts,
-            levels,
-        }
     }
 }
 
-#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
-fn group_view<'a, M: 'a + Clone>(
-    expansion: &'a GroupExpansion,
-    on_expansion: fn(ExpansionMessage) -> M,
-    face: HandleFace<'a>,
-    mut items: Vec<GroupItem<'a, M>>,
-    previewed_value: Option<PreviewedValue<'a>>,
-    forward_handle_scroll: bool,
-    config: &'a Config,
-    bar_position: Position,
+#[derive(Clone, Copy)]
+struct EdgeIndicator {
     highest_alert_severity: Severity,
-) -> Option<Element<'a, GroupEvent<M>>> {
-    if items.is_empty() {
-        return None;
-    }
-    let face = match face {
-        HandleFace::Icon(glyph) => GroupItem::element(move |_| {
-            glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
-        }),
-        HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
-            glyph.view(config.font.icon_size_px, reading_color(config, reading))
-        }),
-        HandleFace::FirstItem => items.remove(0),
-    };
-    let content = items;
-    let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
-    let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
-        Row::with_children(content.iter().filter_map(|item| item.view(config, reveal)))
-            .spacing(config.spacing.widget_spacing_px)
-            .align_y(Alignment::Center)
-            .into()
-    };
-    let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
-    let toggle = expansion_event(ExpansionMessage::Toggle);
-    let cursor_hovering = expansion.cursor_hovering;
-    let expanded = expansion.expanded;
-    let animated = expand_animation(expanded, EXPANSION_DURATION, move |reveal| {
-        let handle: Element<'a, GroupEvent<M>> = button(
-            Row::with_children([
-                draw_face(),
-                collapsing_previewed_value(
-                    config,
-                    previewed_value.as_ref().map(PreviewedValue::widget),
-                    reveal,
-                ),
-            ])
-            .align_y(Alignment::Center),
-        )
-        .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
-        .on_press(toggle.clone())
-        .into();
-        let handle = match &previewed_value {
-            Some(preview) => preview.hoverable_face(handle),
-            None => handle,
-        };
-        let handle = if forward_handle_scroll {
-            mouse_area(handle)
-                .on_scroll(move |delta| expansion_event(ExpansionMessage::HandleScrolled(delta)))
-                .into()
-        } else {
-            handle
-        };
-        let inner = Row::new()
-            .push(handle)
-            .extend((reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))))
-            .align_y(Alignment::Center);
-        PagerSlot::new(
-            inner.into(),
-            edge_indicator(
-                config,
-                highest_alert_severity,
-                cursor_hovering,
-                expanded,
-                reveal,
+    cursor_hovering: bool,
+    expanded: bool,
+}
+
+impl EdgeIndicator {
+    fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
+        let thickness = config.widget_sizes.indicator_thickness_px;
+        let base = if self.cursor_hovering { 0.5 } else { 0.2 };
+        let revealing_opacity = base + (1.0 - base) * reveal;
+        match self.highest_alert_severity {
+            Severity::Low | Severity::Normal if self.expanded => {
+                activity_line(config.palette.focus, revealing_opacity, thickness)
+            }
+            Severity::Low | Severity::Normal if self.cursor_hovering => {
+                activity_line(config.palette.bar_foreground, base, thickness)
+            }
+            Severity::Low | Severity::Normal => {
+                activity_line(config.palette.bar_foreground, 0.12, thickness)
+            }
+            severity @ (Severity::Warning | Severity::Critical) => activity_line(
+                severity.color(&config.palette),
+                revealing_opacity,
+                thickness,
             ),
-        )
-        .view(config, bar_position)
-    });
-    Some(
-        mouse_area(animated)
-            .on_enter(expansion_event(ExpansionMessage::CursorEntered))
-            .on_exit(expansion_event(ExpansionMessage::CursorExited))
-            .into(),
-    )
+        }
+    }
 }
 
 fn collapsing_previewed_value<'a, Message: 'a>(
@@ -299,32 +360,4 @@ fn revealed_content<'a, Message: 'a>(
 ) -> Element<'a, Message> {
     let gap = config.spacing.widget_spacing_px;
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
-}
-
-fn edge_indicator<'a, Message: 'a>(
-    config: &Config,
-    alert_severity: Severity,
-    cursor_hovering: bool,
-    expanded: bool,
-    reveal: f32,
-) -> Element<'a, Message> {
-    let thickness = config.widget_sizes.indicator_thickness_px;
-    let base = if cursor_hovering { 0.5 } else { 0.2 };
-    let revealing_opacity = base + (1.0 - base) * reveal;
-    match alert_severity {
-        Severity::Low | Severity::Normal if expanded => {
-            activity_line(config.palette.focus, revealing_opacity, thickness)
-        }
-        Severity::Low | Severity::Normal if cursor_hovering => {
-            activity_line(config.palette.bar_foreground, base, thickness)
-        }
-        Severity::Low | Severity::Normal => {
-            activity_line(config.palette.bar_foreground, 0.12, thickness)
-        }
-        Severity::Warning | Severity::Critical => activity_line(
-            alert_severity.color(&config.palette),
-            revealing_opacity,
-            thickness,
-        ),
-    }
 }

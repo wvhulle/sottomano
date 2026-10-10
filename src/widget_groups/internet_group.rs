@@ -5,23 +5,22 @@ pub mod tailscale_mesh_tooltip;
 pub mod wireguard_tunnel_tooltip;
 
 use crate::{
-    config::Config,
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
         throughput::{self, Download, Readings, Throughput, Total, Upload},
         wireguard::{Wireguard, disconnect},
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
-            ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
+            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
     },
 };
@@ -125,58 +124,42 @@ impl InternetGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(InternetMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    pub fn group_content(&self) -> GroupContent<'_, InternetMessage> {
         let tunnels = self
             .wireguard
             .get()
             .map_or(&[][..], |wireguard| &wireguard.tunnels);
-        let tunnel_items = tunnels.iter().map(|tunnel| {
-            Some(GroupItem {
-                on_right_press: Some(Press {
-                    does: "disconnect the tunnel",
-                    message: InternetMessage::Disconnect(tunnel.name.clone()),
-                }),
-                ..GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
-            })
-        });
-        let tailscale_item = self.tailscale.display().map(|tailscale| GroupItem {
-            on_press: Some(Press {
-                does: "open Tailscale",
-                message: InternetMessage::OpenTailscale,
-            }),
-            ..GroupItem::reading(tailscale, HoverTarget::Tailscale)
-        });
-        let items: Vec<Option<GroupItem<'a, InternetMessage>>> = [
-            self.down.reading_item(HoverTarget::InternetDown),
-            self.up.reading_item(HoverTarget::InternetUp),
-        ]
-        .into_iter()
-        .chain(tunnel_items)
-        .chain([tailscale_item])
-        .collect();
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             InternetMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::Icon(Phosphor::ArrowsDownUp(Weight::Regular).into()),
-                preview: self
-                    .total
-                    .display()
-                    .map(|widget| PreviewedValue::Hoverable {
-                        widget,
-                        target: HoverTarget::InternetTotal,
-                    }),
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [
+                self.down.group_item(HoverTarget::InternetDown),
+                self.up.group_item(HoverTarget::InternetUp),
+            ]
+            .into_iter()
+            .flatten()
+            .chain(tunnels.iter().map(|tunnel| {
+                GroupItem::reading(tunnel, HoverTarget::Wireguard(tunnel.name.clone()))
+                    .on_right_press(
+                        "disconnect the tunnel",
+                        InternetMessage::Disconnect(tunnel.name.clone()),
+                    )
+            }))
+            .chain(self.tailscale.display().map(|tailscale| {
+                GroupItem::reading(tailscale, HoverTarget::Tailscale)
+                    .on_press("open Tailscale", InternetMessage::OpenTailscale)
+            })),
+        )
+        .face(HandleFace::Icon(
+            Phosphor::ArrowsDownUp(Weight::Regular).into(),
+        ))
+        .preview(
+            self.total
+                .display()
+                .map(|widget| PreviewedValue::Hoverable {
+                    widget,
+                    target: HoverTarget::InternetTotal,
+                }),
         )
     }
 }

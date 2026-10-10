@@ -1,26 +1,26 @@
+use std::iter::once;
+
 use iced::{
     Alignment, Element, Length,
     widget::{container, row},
 };
 
 use crate::{
-    desktop_shell::{
-        DesktopShell, Message, monitor_surfaces::Position, top_bar::rendered_widget_groups,
-    },
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position, top_bar::lift},
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
-    widgets::{widget_group::WidgetGroup, window_icon::WindowAssets},
+    widgets::window_icon::WindowAssets,
 };
 
 impl DesktopShell {
     pub(super) fn bottom_bar<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
         let start = self.group_cluster(
-            rendered_widget_groups(self.bottom_start_groups())
-                .chain(self.inline_workspaces(output))
-                .collect(),
+            self.bottom_start_groups()
+                .into_iter()
+                .chain(once(self.inline_workspaces(output))),
         );
-        let middle = self.group_cluster(self.window_list(output).into_iter().collect());
-        let end = self.widget_group_cluster(self.bottom_end_groups().into());
+        let middle = self.group_cluster([self.window_list(output)]);
+        let end = self.group_cluster(self.bottom_end_groups());
         let spacing = &self.config.spacing;
         let clusters = row![start, container(middle).center_x(Length::Fill), end]
             .spacing(spacing.group_spacing_px)
@@ -59,40 +59,47 @@ impl DesktopShell {
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }
 
-    pub(super) fn bottom_start_groups(&self) -> [WidgetGroup<'_, Message>; 5] {
+    pub(super) fn bottom_start_groups(&self) -> [Option<Element<'_, Message>>; 5] {
         let config = &self.config;
         let shell_settings = &self.shell_settings;
         let bottom = Position::Bottom;
         [
-            self.shell_layout_group.widget_group(
-                config,
-                &shell_settings.layout,
-                bottom,
-                Message::ShellLayout,
-            ),
+            self.shell_layout_group
+                .group_content(config, &shell_settings.layout)
+                .map(Message::ShellLayout)
+                .view(config, bottom)
+                .map(lift),
             self.panel_appearance_group
-                .widget_group(config, bottom, Message::PanelAppearance),
-            self.overlay_group.widget_group(
-                config,
-                shell_settings.overlays,
-                bottom,
-                Message::Overlay,
-            ),
-            self.surface_effects_group.widget_group(
-                config,
-                shell_settings.shadow,
-                self.niri_rules.styling(),
-                bottom,
-                Message::SurfaceEffects,
-            ),
+                .group_content(config)
+                .map(Message::PanelAppearance)
+                .view(config, bottom)
+                .map(lift),
+            self.overlay_group
+                .group_content(config, shell_settings.overlays)
+                .map(Message::Overlay)
+                .view(config, bottom)
+                .map(lift),
+            self.surface_effects_group
+                .group_content(config, shell_settings.shadow, self.niri_rules.styling())
+                .map(Message::SurfaceEffects)
+                .view(config, bottom)
+                .map(lift),
             self.niri_window_group
-                .widget_group(config, bottom, Message::NiriWindow),
+                .group_content(config)
+                .map(Message::NiriWindow)
+                .view(config, bottom)
+                .map(lift),
         ]
     }
 
-    pub(super) fn bottom_end_groups(&self) -> [WidgetGroup<'_, Message>; 1] {
+    pub(super) fn bottom_end_groups(&self) -> [Option<Element<'_, Message>>; 1] {
+        let config = &self.config;
+        let bottom = Position::Bottom;
         [self
             .tray_group
-            .widget_group(&self.config, Position::Bottom, Message::Tray)]
+            .group_content(config)
+            .map(Message::Tray)
+            .view(config, bottom)
+            .map(lift)]
     }
 }

@@ -1,56 +1,44 @@
-use iced::{Element, Subscription, Task};
+use iced::{Subscription, Task};
 
 use crate::{
-    config::Config,
     data::source::Source,
-    desktop_shell::hover_tooltips::{HoverTarget, PressHints, hoverable},
+    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{blocking, polling},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{GroupItem, Press},
+        group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::Phosphor,
-        tooltip_body::Tooltip,
-        widget_group::GroupEvent,
+        tooltip_body::{Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
 pub const TOGGLE_PRESS_HINT: &str = "switch on or off";
 
-pub fn icon_toggle_glyph<'a, M: 'a>(
-    config: &Config,
-    icon: Phosphor,
-    enabled: bool,
-) -> Element<'a, M> {
-    let state = WidgetState::of_toggle(enabled);
-    Glyph::from(icon.with_weight(state.weight()))
-        .view(config.font.icon_size_px, state.color(&config.palette))
+#[derive(Clone, Copy)]
+pub struct IconToggle {
+    pub icon: Phosphor,
+    pub enabled: bool,
 }
 
-pub fn icon_toggle_item<M: Clone + 'static>(
-    config: &Config,
-    icon: Phosphor,
-    enabled: bool,
-    press: M,
-    target: HoverTarget,
-) -> GroupItem<'_, M> {
-    GroupItem {
-        on_press: Some(Press {
-            does: TOGGLE_PRESS_HINT,
-            message: press,
-        }),
-        ..GroupItem::element(move |_| {
-            hoverable(
-                icon_toggle_glyph(config, icon, enabled),
-                target.clone(),
-                PressHints {
-                    left: Some(TOGGLE_PRESS_HINT),
-                    ..PressHints::default()
-                },
-                GroupEvent::Tooltip,
-            )
-        })
+impl IconToggle {
+    pub fn new(icon: Phosphor, enabled: bool) -> Self {
+        Self { icon, enabled }
+    }
+}
+
+impl BarWidget for IconToggle {
+    fn icon(&self) -> Glyph {
+        self.icon.with_weight(self.state().weight()).into()
+    }
+
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.enabled)
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        TooltipBody::sections(&[])
     }
 }
 
@@ -122,5 +110,16 @@ impl<S: Toggle> ToggleControl<S> {
 
     pub fn reading(&self) -> Option<&dyn BarWidget> {
         self.cell.get().map(|display| display as &dyn BarWidget)
+    }
+
+    pub fn group_item<'a, M: 'a>(
+        &'a self,
+        target: HoverTarget,
+        on_toggle: fn(ToggleMessage<S>) -> M,
+    ) -> Option<GroupItem<'a, M>> {
+        self.reading().map(|reading| {
+            GroupItem::reading(reading, target)
+                .on_press(TOGGLE_PRESS_HINT, on_toggle(ToggleMessage::Press))
+        })
     }
 }

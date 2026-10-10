@@ -15,12 +15,12 @@ use tokio::time::sleep;
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     config::Config,
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         tooltip_body::Tooltip,
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
 
@@ -89,34 +89,18 @@ impl ClockGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
-        &'a self,
-        config: &'a Config,
-        position: Position,
-        lift: fn(ClockMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
-        let zone_items = self.zone_times.iter().map(|zone_time| {
-            GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
-        });
-        let items: Vec<_> = [
-            GroupItem::reading(&self.time, HoverTarget::LocalTime),
-            GroupItem::reading(&self.date, HoverTarget::LocalDate),
-        ]
-        .into_iter()
-        .chain(zone_items)
-        .collect();
-        WidgetGroup::new(
+    pub fn group_content(&self) -> GroupContent<'_, ClockMessage> {
+        GroupContent::new(
             &self.expansion,
             ClockMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &items,
-            config,
-            position,
-            lift,
+            [
+                GroupItem::reading(&self.time, HoverTarget::LocalTime),
+                GroupItem::reading(&self.date, HoverTarget::LocalDate),
+            ]
+            .into_iter()
+            .chain(self.zone_times.iter().map(|zone_time| {
+                GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
+            })),
         )
     }
 }

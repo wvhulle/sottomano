@@ -5,7 +5,7 @@ pub mod firmware_upgrade_list;
 use crate::{
     config::Config,
     data::source::fwupd::{self, PendingUpgrades},
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
         pending_upgrades_group::firmware_upgrade_list::FirmwareUpgradeList,
         terminal_command::TerminalCommand,
@@ -16,7 +16,7 @@ use crate::{
         last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
 };
@@ -65,22 +65,15 @@ impl PendingUpgradesGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(
+    pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        position: Position,
-        lift: fn(PendingUpgradesMessage) -> Outer,
-    ) -> WidgetGroup<'a, Outer> {
+    ) -> GroupContent<'a, PendingUpgradesMessage> {
         let has_categories = self.categories().iter().any(Option::is_some);
-        WidgetGroup::new(
+        GroupContent::new(
             &self.expansion,
             PendingUpgradesMessage::Expansion,
-            GroupHandle {
-                face: HandleFace::FirstItem,
-                preview: None,
-                forwards_scroll: false,
-            },
-            &[
+            [
                 has_categories.then(|| GroupItem::reading(self, HoverTarget::PendingUpgrades)),
                 self.firmware
                     .get()
@@ -88,10 +81,9 @@ impl PendingUpgradesGroup {
                 self.firmware
                     .failure()
                     .map(|failure| GroupItem::reading(failure, HoverTarget::FirmwareUpgrades)),
-            ],
-            config,
-            position,
-            lift,
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 

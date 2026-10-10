@@ -294,7 +294,7 @@ impl DesktopShell {
         let _span = tracing::trace_span!("update", ?message).entered();
         let tooltip_seq = self.tooltip.seq();
         let dispatched = self.dispatch_message(message);
-        let requests = self.all_widget_groups().collect();
+        let requests = self.group_toast_requests();
         let widget_toasts = self.notifications.show_widget_toasts(
             requests,
             &ToastContext::new(

@@ -93,6 +93,48 @@ pub trait BarWidget {
     fn tooltip(&self) -> TooltipBody;
 }
 
+impl<W: BarWidget + ?Sized> BarWidget for &W {
+    fn icon(&self) -> Glyph {
+        (**self).icon()
+    }
+
+    fn label(&self) -> Option<String> {
+        (**self).label()
+    }
+
+    fn localized_label(&self, locale: Locale) -> Option<String> {
+        (**self).localized_label(locale)
+    }
+
+    fn state(&self) -> WidgetState {
+        (**self).state()
+    }
+
+    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
+        (**self).reading_alert_threshold()
+    }
+
+    fn gauge(&self) -> Option<Ratio> {
+        (**self).gauge()
+    }
+
+    fn badge(&self) -> Option<u32> {
+        (**self).badge()
+    }
+
+    fn live_gauge(&self) -> Option<Ratio> {
+        (**self).live_gauge()
+    }
+
+    fn announced_level(&self) -> Option<AnnouncedLevel> {
+        (**self).announced_level()
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        (**self).tooltip()
+    }
+}
+
 pub trait Occasional: BarWidget {
     fn present(&self) -> bool;
 }
