@@ -7,7 +7,7 @@ use crate::data::source::Source;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
-    pub plan: String,
+    pub plan: Option<String>,
     pub chat: i64,
     pub completions: i64,
     pub reset: Option<DateTime<Utc>>,

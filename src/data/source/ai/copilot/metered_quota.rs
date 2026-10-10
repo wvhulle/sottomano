@@ -7,7 +7,7 @@ use crate::data::source::Source;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
-    pub plan: String,
+    pub plan: Option<String>,
     pub quota: String,
     pub used: f64,
     pub limit: i64,
@@ -116,7 +116,7 @@ mod tests {
     fn token_billed_account_is_metered_on_its_chat_snapshot() {
         let info: UserInfo = serde_json::from_str(TOKEN_BILLED_USER_INFO).unwrap();
         assert!(info.metered_plan());
-        assert_eq!(info.plan(), "free_limited_copilot");
+        assert_eq!(info.plan().as_deref(), Some("free_limited_copilot"));
         let (snapshot, label) = info.metered_quota().unwrap();
         assert_eq!(label, "Chat");
         assert_eq!(snapshot.entitlement, 200);

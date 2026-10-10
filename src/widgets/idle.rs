@@ -12,55 +12,33 @@ use crate::{
 
 const RECONNECT_ATTEMPTS: usize = 3;
 
-const LADDER: [(u64, &str); 11] = [
-    (10, "10s"),
-    (30, "30s"),
-    (60, "1m"),
-    (120, "2m"),
-    (300, "5m"),
-    (600, "10m"),
-    (900, "15m"),
-    (1800, "30m"),
-    (3600, "1h"),
-    (7200, "2h"),
-    (14400, "4h"),
+const LADDER: [Duration; 11] = [
+    Duration::from_secs(10),
+    Duration::from_secs(30),
+    Duration::from_mins(1),
+    Duration::from_mins(2),
+    Duration::from_mins(5),
+    Duration::from_mins(10),
+    Duration::from_mins(15),
+    Duration::from_mins(30),
+    Duration::from_hours(1),
+    Duration::from_hours(2),
+    Duration::from_hours(4),
 ];
-
-pub fn label_for(duration: Duration) -> &'static str {
-    let secs = duration.as_secs();
-    LADDER
-        .iter()
-        .min_by_key(|(rung, _)| rung.abs_diff(secs))
-        .map_or("∞", |(_, label)| label)
-}
 
 #[allow(clippy::cast_precision_loss)]
 pub const MAX_POSITION: f32 = LADDER.len() as f32;
 
 #[allow(clippy::cast_precision_loss)]
 pub fn position(timeout: Option<Duration>) -> f32 {
-    match timeout {
-        None => MAX_POSITION,
-        Some(d) => {
-            let secs = d.as_secs();
-            let index = LADDER
-                .iter()
-                .enumerate()
-                .min_by_key(|(_, (rung, _))| rung.abs_diff(secs))
-                .map_or(0, |(index, _)| index);
-            index as f32
-        }
-    }
+    timeout
+        .and_then(|timeout| (0..LADDER.len()).min_by_key(|rung| LADDER[*rung].abs_diff(timeout)))
+        .map_or(MAX_POSITION, |rung| rung as f32)
 }
 
-pub fn from_position(pos: f32) -> Option<Duration> {
-    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-    let rung = pos.round().max(0.0) as usize;
-    LADDER.get(rung).map(|(secs, _)| Duration::from_secs(*secs))
-}
-
-pub fn label_at(pos: f32) -> &'static str {
-    from_position(pos).map_or("∞", label_for)
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+pub fn timeout_at(position: f32) -> Option<Duration> {
+    LADDER.get(position.round().max(0.0) as usize).copied()
 }
 
 #[derive(Debug, Clone, Copy, Hash)]

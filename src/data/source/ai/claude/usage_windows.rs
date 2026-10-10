@@ -113,7 +113,7 @@ impl Display for Money {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExtraStatus {
     Enabled,
-    Disabled(String),
+    Disabled { reason: Option<String> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,7 +126,7 @@ pub struct ExtraUsage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeUsageWindows {
-    pub plan: String,
+    pub plan: Option<String>,
     pub session: WindowUsage,
     pub weekly: WindowUsage,
     pub sonnet: Option<WindowUsage>,
@@ -190,12 +190,12 @@ impl Overage {
         if self.is_enabled {
             return ExtraStatus::Enabled;
         }
-        ExtraStatus::Disabled(
-            self.disabled_reason
+        ExtraStatus::Disabled {
+            reason: self
+                .disabled_reason
                 .as_deref()
-                .unwrap_or("disabled")
-                .replace('_', " "),
-        )
+                .map(|reason| reason.replace('_', " ")),
+        }
     }
 
     fn money(&self, minor_units: f64) -> Money {
@@ -305,7 +305,9 @@ mod tests {
         let extra = overage.extra_usage().unwrap();
         assert_eq!(
             extra.status,
-            ExtraStatus::Disabled("out of credits".to_owned())
+            ExtraStatus::Disabled {
+                reason: Some("out of credits".to_owned())
+            }
         );
         assert_eq!(extra.spent.unwrap().to_string(), "20.16 EUR");
         assert_eq!(extra.monthly_limit.unwrap().to_string(), "30.00 EUR");

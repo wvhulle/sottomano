@@ -30,10 +30,13 @@ impl BarWidget for CopilotFree {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::untitled_dictionary([
-                KeyValue::new("Plan", self.plan.as_str()),
-                KeyValue::new("Source", USER_ENDPOINT),
-            ]),
+            Section::untitled_dictionary(
+                self.plan
+                    .as_deref()
+                    .map(|plan| KeyValue::new("Plan", plan))
+                    .into_iter()
+                    .chain([KeyValue::new("Source", USER_ENDPOINT)]),
+            ),
             Section::dictionary(
                 "Remaining",
                 [

@@ -132,7 +132,10 @@ async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
 
     let mut per_model: Vec<(String, f64)> = Vec::new();
     for usage in analytics.data.data {
-        let name = short_model(usage.model.as_deref());
+        let Some(slug) = usage.model.as_deref() else {
+            continue;
+        };
+        let name = short_model(slug);
         match per_model.iter_mut().find(|(existing, _)| *existing == name) {
             Some((_, total)) => *total += usage.total_usage,
             None => per_model.push((name, usage.total_usage)),
@@ -169,10 +172,8 @@ fn now_utc() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-fn short_model(slug: Option<&str>) -> String {
-    let Some(base) = slug.and_then(|slug| slug.rsplit('/').next()) else {
-        return "unknown".to_owned();
-    };
+fn short_model(slug: &str) -> String {
+    let base = slug.rsplit('/').next().unwrap_or(slug);
     match base.rsplit_once('-') {
         Some((head, tail)) if tail.len() == 8 && tail.bytes().all(|b| b.is_ascii_digit()) => {
             head.to_owned()
@@ -192,7 +193,7 @@ mod tests {
         )
         .unwrap();
         let usage = envelope.data.data.into_iter().next().unwrap();
-        assert_eq!(short_model(usage.model.as_deref()), "gpt-5.4");
+        assert_eq!(short_model(usage.model.as_deref().unwrap()), "gpt-5.4");
         assert!((usage.total_usage - 0.42).abs() < f64::EPSILON);
     }
 

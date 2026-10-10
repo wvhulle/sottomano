@@ -17,24 +17,24 @@ const BATTERY: &str = "org.bluez.Battery1";
 #[derive(Debug, Clone)]
 pub struct Device {
     pub name: String,
-    pub address: Option<String>,
+    pub address: String,
     pub signal: Option<i64>,
     pub battery: Option<u8>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Bluetooth {
-    pub powered: bool,
+pub struct Radio {
     pub connected: Vec<Device>,
     pub paired: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct Bluetooth {
+    pub radio: Option<Radio>,
     pub adapter: Option<Adapter>,
 }
 
-fn rssi_quality(dbm: i64) -> i64 {
-    (dbm.clamp(-90, -40) + 90) * 2
-}
-
-impl Bluetooth {
+impl Radio {
     pub fn best_signal(&self) -> Option<i64> {
         self.connected
             .iter()
@@ -55,9 +55,7 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
         .find_map(|(path, _)| Adapter::of_bluetooth_controller(path.as_str().rsplit('/').next()?));
     if !powered {
         return Some(Bluetooth {
-            powered: false,
-            connected: Vec::new(),
-            paired: 0,
+            radio: None,
             adapter,
         });
     }
@@ -75,11 +73,12 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
             if !prop::<bool>(device, "Connected").unwrap_or(false) {
                 return None;
             }
-            let address = prop::<String>(device, "Address");
+            let address = prop::<String>(device, "Address")?;
             let name = prop::<String>(device, "Alias")
                 .or_else(|| prop::<String>(device, "Name"))
-                .or_else(|| address.clone())?;
-            let signal = prop::<i16>(device, "RSSI").map(|dbm| rssi_quality(i64::from(dbm)));
+                .unwrap_or_else(|| address.clone());
+            let signal =
+                prop::<i16>(device, "RSSI").map(|dbm| (i64::from(dbm).clamp(-90, -40) + 90) * 2);
             let battery = interface(interfaces, BATTERY)
                 .and_then(|battery| prop::<u8>(battery, "Percentage"));
             Some(Device {
@@ -92,9 +91,7 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
         .collect();
 
     Some(Bluetooth {
-        powered: true,
-        connected,
-        paired,
+        radio: Some(Radio { connected, paired }),
         adapter,
     })
 }

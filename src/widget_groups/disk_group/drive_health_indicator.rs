@@ -27,9 +27,12 @@ impl BarWidget for DriveHealth {
     }
 
     fn state(&self) -> WidgetState {
-        self.temperature_level()
-            .max(error_level(self.errors.as_ref()))
-            .into()
+        let error_level = if self.errors.is_some_and(|errors| errors.total() > 0) {
+            Severity::Critical
+        } else {
+            Severity::Normal
+        };
+        self.temperature_level().max(error_level).into()
     }
 
     fn label(&self) -> Option<String> {
@@ -128,14 +131,6 @@ impl MissingSensor {
             MissingSensor::DrivetempNotLoaded => "load the drivetemp kernel module",
             MissingSensor::NotExposed => "not reported by the drive",
         }
-    }
-}
-
-fn error_level(errors: Option<&DeviceErrors>) -> Severity {
-    if errors.is_some_and(|errors| errors.total() > 0) {
-        Severity::Critical
-    } else {
-        Severity::Normal
     }
 }
 

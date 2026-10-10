@@ -38,10 +38,6 @@ pub async fn save(timeouts: Timeouts) -> bool {
     }
 }
 
-fn secs(timeout: Option<Duration>) -> Option<i64> {
-    timeout.map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
-}
-
 async fn try_load() -> Result<Timeouts, StoreError> {
     let conn = connect(&[CREATE_TABLE]).await?;
     read_timeouts(&conn).await
@@ -72,16 +68,19 @@ async fn try_save(timeouts: Timeouts) -> Result<(), StoreError> {
 }
 
 async fn write_timeouts(conn: &turso::Connection, timeouts: Timeouts) -> Result<(), StoreError> {
+    let seconds = |timeout: Option<Duration>| {
+        timeout.map(|duration| i64::try_from(duration.as_secs()).unwrap_or(i64::MAX))
+    };
     conn.execute(
         "INSERT INTO idle_timeouts (id, lock_user, screen_off, standby, power_down)
          VALUES (0, ?1, ?2, ?3, ?4)
          ON CONFLICT(id) DO UPDATE SET lock_user = ?1, screen_off = ?2, standby = ?3, power_down = \
          ?4",
         (
-            secs(timeouts.lock_user),
-            secs(timeouts.screen_off),
-            secs(timeouts.standby),
-            secs(timeouts.power_down),
+            seconds(timeouts.lock_user),
+            seconds(timeouts.screen_off),
+            seconds(timeouts.standby),
+            seconds(timeouts.power_down),
         ),
     )
     .await?;

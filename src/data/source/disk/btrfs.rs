@@ -98,9 +98,12 @@ impl DeviceErrors {
     fn parse(stats: &str) -> Self {
         stats
             .lines()
-            .filter_map(|line| line.split_once(' '))
+            .filter_map(|line| {
+                let (name, count) = line.split_once(' ')?;
+                Some((name, count.trim().parse().ok()?))
+            })
             .fold(DeviceErrors::default(), |errors, (name, count)| {
-                errors.counted(name, count.trim().parse().unwrap_or(0))
+                errors.counted(name, count)
             })
     }
 
