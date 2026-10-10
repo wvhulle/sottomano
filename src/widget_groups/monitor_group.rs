@@ -35,6 +35,18 @@ use crate::{
 const PERCENT: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 5.0;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MonitorTarget {
+    Backlight(String),
+    ClightAuto,
+}
+
+impl From<MonitorTarget> for HoverTarget {
+    fn from(target: MonitorTarget) -> Self {
+        HoverTarget::Monitor(target)
+    }
+}
+
 #[derive(Default)]
 pub struct MonitorGroup {
     backlights: Vec<Backlight>,
@@ -93,7 +105,7 @@ impl MonitorGroup {
                         .or_insert_with(|| {
                             SliderControl::new(
                                 PERCENT,
-                                HoverTarget::Backlight(backlight.serial.clone()),
+                                MonitorTarget::Backlight(backlight.serial.clone()),
                                 backlight_display::face(backlight),
                             )
                             .scroll_step(STEP)
@@ -154,11 +166,11 @@ impl MonitorGroup {
 
     pub fn tooltip_for(
         &self,
-        target: &HoverTarget,
+        target: &MonitorTarget,
         outputs: &HashMap<String, OutputInfo>,
     ) -> Option<Tooltip> {
         match target {
-            HoverTarget::Backlight(serial) => {
+            MonitorTarget::Backlight(serial) => {
                 let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
                 let brightness = self.sliders.get(serial)?.readout_text();
                 Some(Tooltip::of(backlight_display::tooltip(
@@ -167,8 +179,7 @@ impl MonitorGroup {
                     ConnectedOutput::driving(backlight, outputs).as_ref(),
                 )))
             }
-            HoverTarget::ClightAuto => self.clight.tooltip(),
-            _ => None,
+            MonitorTarget::ClightAuto => self.clight.tooltip(),
         }
     }
 
@@ -194,7 +205,7 @@ impl MonitorGroup {
             MonitorMessage::Expansion,
             backlight_items.chain(
                 self.clight
-                    .group_item(HoverTarget::ClightAuto, MonitorMessage::Clight),
+                    .group_item(MonitorTarget::ClightAuto, MonitorMessage::Clight),
             ),
         )
         .face(HandleFace::Icon(

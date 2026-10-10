@@ -56,29 +56,29 @@ pub trait ScopeAppearance: UnitScope {
     const ICON: Phosphor;
     const SCOPE_NAME: &'static str;
     const FAILED_LABEL: &'static str;
-    const FAILED_TARGET: HoverTarget;
+    const FAILED_TARGET: SystemdTarget;
     const SLOW_JOBS_LABEL: &'static str;
-    const SLOW_JOBS_TARGET: HoverTarget;
+    const SLOW_JOBS_TARGET: SystemdTarget;
 
-    fn failed_unit_target(name: String) -> HoverTarget;
+    fn failed_unit_target(name: String) -> SystemdTarget;
 
-    fn slow_job_target(name: String) -> HoverTarget;
+    fn slow_job_target(name: String) -> SystemdTarget;
 }
 
 impl ScopeAppearance for User {
     const ICON: Phosphor = Phosphor::User(Weight::Regular);
     const SCOPE_NAME: &'static str = "user";
     const FAILED_LABEL: &'static str = "Failed user units";
-    const FAILED_TARGET: HoverTarget = HoverTarget::SystemdFailedUserUnits;
+    const FAILED_TARGET: SystemdTarget = SystemdTarget::FailedUserUnits;
     const SLOW_JOBS_LABEL: &'static str = "Slow user jobs";
-    const SLOW_JOBS_TARGET: HoverTarget = HoverTarget::SystemdSlowUserJobs;
+    const SLOW_JOBS_TARGET: SystemdTarget = SystemdTarget::SlowUserJobs;
 
-    fn failed_unit_target(name: String) -> HoverTarget {
-        HoverTarget::FailedUserUnit(name)
+    fn failed_unit_target(name: String) -> SystemdTarget {
+        SystemdTarget::FailedUserUnit(name)
     }
 
-    fn slow_job_target(name: String) -> HoverTarget {
-        HoverTarget::SlowUserJob(name)
+    fn slow_job_target(name: String) -> SystemdTarget {
+        SystemdTarget::SlowUserJob(name)
     }
 }
 
@@ -86,16 +86,39 @@ impl ScopeAppearance for System {
     const ICON: Phosphor = Phosphor::HardDrives(Weight::Regular);
     const SCOPE_NAME: &'static str = "system";
     const FAILED_LABEL: &'static str = "Failed system units";
-    const FAILED_TARGET: HoverTarget = HoverTarget::SystemdFailedSystemUnits;
+    const FAILED_TARGET: SystemdTarget = SystemdTarget::FailedSystemUnits;
     const SLOW_JOBS_LABEL: &'static str = "Slow system jobs";
-    const SLOW_JOBS_TARGET: HoverTarget = HoverTarget::SystemdSlowSystemJobs;
+    const SLOW_JOBS_TARGET: SystemdTarget = SystemdTarget::SlowSystemJobs;
 
-    fn failed_unit_target(name: String) -> HoverTarget {
-        HoverTarget::FailedSystemUnit(name)
+    fn failed_unit_target(name: String) -> SystemdTarget {
+        SystemdTarget::FailedSystemUnit(name)
     }
 
-    fn slow_job_target(name: String) -> HoverTarget {
-        HoverTarget::SlowSystemJob(name)
+    fn slow_job_target(name: String) -> SystemdTarget {
+        SystemdTarget::SlowSystemJob(name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SystemdTarget {
+    BootPhases,
+    StartupUnits,
+    FailedSystemUnits,
+    FailedUserUnits,
+    FailedSystemUnit(String),
+    FailedUserUnit(String),
+    SlowSystemJobs,
+    SlowUserJobs,
+    SlowSystemJob(String),
+    SlowUserJob(String),
+    LastShutdown,
+    Coredumps,
+    OomKills,
+}
+
+impl From<SystemdTarget> for HoverTarget {
+    fn from(target: SystemdTarget) -> Self {
+        HoverTarget::Systemd(target)
     }
 }
 
@@ -189,18 +212,21 @@ impl SystemdManagerGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &SystemdTarget) -> Option<Tooltip> {
         let body = match target {
-            HoverTarget::SystemdBootPhases => self.boot.get()?.tooltip(),
-            HoverTarget::SystemdStartupUnits => self.boot.get()?.units().tooltip(),
-            HoverTarget::SystemdFailedSystemUnits => self.failed_system.get()?.tooltip(),
-            HoverTarget::SystemdFailedUserUnits => self.failed_user.get()?.tooltip(),
-            HoverTarget::SystemdSlowSystemJobs => self.slow_system_jobs.get()?.tooltip(),
-            HoverTarget::SystemdSlowUserJobs => self.slow_user_jobs.get()?.tooltip(),
-            HoverTarget::SystemdLastShutdown => self.last_shutdown.get()?.tooltip(),
-            HoverTarget::SystemdCoredumps => self.coredumps.get()?.tooltip(),
-            HoverTarget::SystemdOomKills => self.oom_kills.get()?.tooltip(),
-            _ => return None,
+            SystemdTarget::BootPhases => self.boot.get()?.tooltip(),
+            SystemdTarget::StartupUnits => self.boot.get()?.units().tooltip(),
+            SystemdTarget::FailedSystemUnits => self.failed_system.get()?.tooltip(),
+            SystemdTarget::FailedUserUnits => self.failed_user.get()?.tooltip(),
+            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.get()?.tooltip(),
+            SystemdTarget::SlowUserJobs => self.slow_user_jobs.get()?.tooltip(),
+            SystemdTarget::LastShutdown => self.last_shutdown.get()?.tooltip(),
+            SystemdTarget::Coredumps => self.coredumps.get()?.tooltip(),
+            SystemdTarget::OomKills => self.oom_kills.get()?.tooltip(),
+            SystemdTarget::FailedSystemUnit(_)
+            | SystemdTarget::FailedUserUnit(_)
+            | SystemdTarget::SlowSystemJob(_)
+            | SystemdTarget::SlowUserJob(_) => return None,
         };
         Some(Tooltip::of(body))
     }
@@ -214,8 +240,8 @@ impl SystemdManagerGroup {
             &self.expansion,
             SystemdManagerMessage::Expansion,
             [
-                boot.map(|boot| GroupItem::reading(boot, HoverTarget::SystemdBootPhases)),
-                boot.map(|boot| GroupItem::reading(boot.units(), HoverTarget::SystemdStartupUnits)),
+                boot.map(|boot| GroupItem::reading(boot, SystemdTarget::BootPhases)),
+                boot.map(|boot| GroupItem::reading(boot.units(), SystemdTarget::StartupUnits)),
                 self.slow_system_jobs
                     .get()
                     .map(|jobs| jobs.group_item(config)),
@@ -241,7 +267,7 @@ impl SystemdManagerGroup {
         })
         .preview(boot.map(|boot| PreviewedValue::Hoverable {
             widget: boot,
-            target: HoverTarget::SystemdBootPhases,
+            target: SystemdTarget::BootPhases.into(),
         }))
     }
 

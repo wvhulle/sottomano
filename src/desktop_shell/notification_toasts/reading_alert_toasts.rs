@@ -108,10 +108,11 @@ pub fn plan_reading_alert_toast_changes<Message: Clone>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::widget_groups::{power_group::PowerTarget, systemd_manager_group::SystemdTarget};
 
     fn active(severity: Severity) -> ReadingAlert<()> {
         ReadingAlert {
-            hover_target: HoverTarget::BatteryTime,
+            hover_target: HoverTarget::Power(PowerTarget::BatteryTime),
             severity,
             summary_text: "".into(),
             body_text: None,
@@ -123,14 +124,14 @@ mod tests {
     fn shown(severity: Severity) -> ShownReadingAlertToast<'static> {
         ShownReadingAlertToast {
             toast_id: 7,
-            hover_target: &HoverTarget::BatteryTime,
+            hover_target: &HoverTarget::Power(PowerTarget::BatteryTime),
             severity,
         }
     }
 
     fn dismissed(dismissed_at_severity: Severity) -> DismissedReadingAlert {
         DismissedReadingAlert {
-            hover_target: HoverTarget::BatteryTime,
+            hover_target: HoverTarget::Power(PowerTarget::BatteryTime),
             dismissed_at_severity,
         }
     }
@@ -190,12 +191,16 @@ mod tests {
             &[dismissed(Severity::Warning)],
         );
         assert_eq!(slots(&risen), [ToastSlotForAlert::OpenNewToast]);
-        assert_eq!(risen.dismissals_to_forget, [HoverTarget::BatteryTime]);
+        assert_eq!(
+            risen.dismissals_to_forget,
+            [HoverTarget::Power(PowerTarget::BatteryTime)]
+        );
     }
 
     #[test]
     fn a_recovered_unit_closes_only_its_own_toast() {
-        let unit = |name: &str| HoverTarget::FailedSystemUnit(name.to_owned());
+        let unit =
+            |name: &str| HoverTarget::Systemd(SystemdTarget::FailedSystemUnit(name.to_owned()));
         let still_failed = ReadingAlert {
             hover_target: unit("b.service"),
             ..active(Severity::Warning)
@@ -226,6 +231,9 @@ mod tests {
     fn a_dismissal_is_forgotten_once_the_alert_is_gone() {
         let changes =
             plan_reading_alert_toast_changes::<()>(&[], &[], &[dismissed(Severity::Warning)]);
-        assert_eq!(changes.dismissals_to_forget, [HoverTarget::BatteryTime]);
+        assert_eq!(
+            changes.dismissals_to_forget,
+            [HoverTarget::Power(PowerTarget::BatteryTime)]
+        );
     }
 }

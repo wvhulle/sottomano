@@ -1,6 +1,4 @@
-use std::ops::RangeInclusive;
-
-use iced::{Function, Task};
+use iced::Task;
 
 use crate::{
     config::Config,
@@ -16,98 +14,74 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Knob {
-    WindowRadius,
+pub enum NiriWindowTarget {
+    CornerRadius,
     Gaps,
 }
 
-impl Knob {
-    const ALL: [Self; 2] = [Self::WindowRadius, Self::Gaps];
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::WindowRadius => "Window corner radius",
-            Self::Gaps => "Window gaps",
-        }
-    }
-
-    fn target(self) -> HoverTarget {
-        match self {
-            Self::WindowRadius => HoverTarget::WindowCornerRadius,
-            Self::Gaps => HoverTarget::WindowGaps,
-        }
-    }
-
-    fn control(self) -> SliderControl {
-        let (range, icon): (RangeInclusive<f32>, Phosphor) = match self {
-            Self::WindowRadius => (0.0..=24.0, Phosphor::FrameCorners(Weight::Regular)),
-            Self::Gaps => (0.0..=48.0, Phosphor::Columns(Weight::Regular)),
-        };
-        SliderControl::new(range, self.target(), icon)
-            .icon_only()
-            .readout_width(44.0)
-            .readout(|value| format!("{} px", value.round()))
-    }
-
-    fn read(self, windows: NiriLayout) -> f32 {
-        match self {
-            Self::WindowRadius => windows.window_corner_radius_px,
-            Self::Gaps => windows.gaps_px,
-        }
-    }
-
-    fn write(self, windows: &mut NiriLayout, value: f32) {
-        match self {
-            Self::WindowRadius => windows.window_corner_radius_px = value,
-            Self::Gaps => windows.gaps_px = value,
-        }
+impl From<NiriWindowTarget> for HoverTarget {
+    fn from(target: NiriWindowTarget) -> Self {
+        HoverTarget::NiriWindow(target)
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum NiriWindowMessage {
     Expansion(ExpansionMessage),
-    Slider(Knob, ControlMessage),
+    CornerRadius(ControlMessage),
+    Gaps(ControlMessage),
 }
 
 pub struct NiriWindowGroup {
     pub(crate) expansion: GroupExpansion,
-    sliders: [SliderControl; 2],
+    corner_radius: SliderControl,
+    gaps: SliderControl,
 }
 
 impl Default for NiriWindowGroup {
     fn default() -> Self {
         Self {
             expansion: GroupExpansion::default(),
-            sliders: Knob::ALL.map(Knob::control),
+            corner_radius: SliderControl::new(
+                0.0..=24.0,
+                NiriWindowTarget::CornerRadius,
+                Phosphor::FrameCorners(Weight::Regular),
+            )
+            .icon_only()
+            .readout(|value| format!("{} px", value.round())),
+            gaps: SliderControl::new(
+                0.0..=48.0,
+                NiriWindowTarget::Gaps,
+                Phosphor::Columns(Weight::Regular),
+            )
+            .icon_only()
+            .readout(|value| format!("{} px", value.round())),
         }
     }
 }
 
 impl NiriWindowGroup {
-    fn slider(&self, knob: Knob) -> &SliderControl {
-        &self.sliders[knob as usize]
-    }
-
     pub fn adopt(&mut self, windows: NiriLayout) {
-        for knob in Knob::ALL {
-            self.sliders[knob as usize].update(ControlMessage::Reading(knob.read(windows)));
-        }
+        self.corner_radius
+            .update(ControlMessage::Reading(windows.window_corner_radius_px));
+        self.gaps.update(ControlMessage::Reading(windows.gaps_px));
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        Knob::ALL
-            .into_iter()
-            .find(|knob| knob.target() == *target)
-            .map(|knob| {
-                Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-                    KeyValue::new(knob.label(), self.slider(knob).readout_text()),
-                ])]))
-            })
+    pub fn tooltip_for(&self, target: NiriWindowTarget) -> Tooltip {
+        let entry = match target {
+            NiriWindowTarget::CornerRadius => {
+                KeyValue::new("Window corner radius", self.corner_radius.readout_text())
+            }
+            NiriWindowTarget::Gaps => KeyValue::new("Window gaps", self.gaps.readout_text()),
+        };
+        Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+            entry,
+        ])]))
     }
 
     fn close_sliders(&mut self) {
-        self.sliders.iter_mut().for_each(SliderControl::close);
+        self.corner_radius.close();
+        self.gaps.close();
     }
 
     pub fn collapse(&mut self) {
@@ -124,18 +98,29 @@ impl NiriWindowGroup {
                 }
                 Task::none()
             }
-            NiriWindowMessage::Slider(knob, control) => {
-                let SliderAction::Commit(value) = self.sliders[knob as usize].update(control)
-                else {
+            NiriWindowMessage::CornerRadius(control) => {
+                let SliderAction::Commit(value) = self.corner_radius.update(control) else {
                     return Task::none();
                 };
                 rules
-                    .restyle(|styling| knob.write(&mut styling.layout, value))
+                    .restyle(|styling| styling.layout.window_corner_radius_px = value)
                     .map(move |ok| {
-                        Message::NiriWindow(NiriWindowMessage::Slider(
-                            knob,
+                        Message::NiriWindow(NiriWindowMessage::CornerRadius(
                             ControlMessage::Persisted { value, ok },
                         ))
+                    })
+            }
+            NiriWindowMessage::Gaps(control) => {
+                let SliderAction::Commit(value) = self.gaps.update(control) else {
+                    return Task::none();
+                };
+                rules
+                    .restyle(|styling| styling.layout.gaps_px = value)
+                    .map(move |ok| {
+                        Message::NiriWindow(NiriWindowMessage::Gaps(ControlMessage::Persisted {
+                            value,
+                            ok,
+                        }))
                     })
             }
         }
@@ -145,13 +130,10 @@ impl NiriWindowGroup {
         GroupContent::new(
             &self.expansion,
             NiriWindowMessage::Expansion,
-            Knob::ALL.into_iter().map(|knob| {
-                GroupItem::slider(
-                    self.slider(knob),
-                    config,
-                    NiriWindowMessage::Slider.with(knob),
-                )
-            }),
+            [
+                GroupItem::slider(&self.corner_radius, config, NiriWindowMessage::CornerRadius),
+                GroupItem::slider(&self.gaps, config, NiriWindowMessage::Gaps),
+            ],
         )
         .face(HandleFace::Icon(
             Phosphor::AppWindow(Weight::Regular).into(),

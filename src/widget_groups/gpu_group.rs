@@ -22,6 +22,26 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpuReading {
+    Load,
+    Memory,
+    Temperature,
+    Power,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GpuTarget {
+    bus: PciBusId,
+    reading: GpuReading,
+}
+
+impl From<GpuTarget> for HoverTarget {
+    fn from(target: GpuTarget) -> Self {
+        HoverTarget::Gpu(target)
+    }
+}
+
 struct GpuDevice {
     model: Option<GpuModel>,
     snapshot: LastPoll<GpuSnapshot>,
@@ -99,19 +119,21 @@ impl GpuGroup {
             &self.expansion,
             GpuMessage::Expansion,
             self.devices.iter().flat_map(|(bus, device)| {
-                let reading = device.snapshot.get();
+                let target = |reading| GpuTarget {
+                    bus: bus.clone(),
+                    reading,
+                };
+                let snapshot = device.snapshot.get();
                 [
+                    device.snapshot.group_item(target(GpuReading::Load)),
+                    snapshot.map(|snapshot| {
+                        GroupItem::reading(&snapshot.vram, target(GpuReading::Memory))
+                    }),
                     device
-                        .snapshot
-                        .group_item(HoverTarget::GpuLoad(bus.clone())),
-                    reading.map(|reading| {
-                        GroupItem::reading(&reading.vram, HoverTarget::GpuMemory(bus.clone()))
-                    }),
-                    device.temperature_label().map(|label| {
-                        GroupItem::reading(label, HoverTarget::GpuTemperature(bus.clone()))
-                    }),
-                    reading.map(|reading| {
-                        GroupItem::reading(reading.power, HoverTarget::GpuPower(bus.clone()))
+                        .temperature_label()
+                        .map(|label| GroupItem::reading(label, target(GpuReading::Temperature))),
+                    snapshot.map(|snapshot| {
+                        GroupItem::reading(snapshot.power, target(GpuReading::Power))
                     }),
                 ]
                 .into_iter()
@@ -120,29 +142,14 @@ impl GpuGroup {
         )
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        match target {
-            HoverTarget::GpuLoad(bus) => {
-                let device = self.devices.get(bus)?;
-                device
-                    .snapshot
-                    .tooltip_with_sections(&[device.model.hardware_section()])
-            }
-            HoverTarget::GpuMemory(bus) => {
-                let snapshot = &self.devices.get(bus)?.snapshot;
-                snapshot.tooltip_with(snapshot.get()?.vram.tooltip())
-            }
-            HoverTarget::GpuTemperature(bus) => {
-                let device = self.devices.get(bus)?;
-                device
-                    .snapshot
-                    .tooltip_with(device.temperature_label()?.tooltip())
-            }
-            HoverTarget::GpuPower(bus) => {
-                let snapshot = &self.devices.get(bus)?.snapshot;
-                snapshot.tooltip_with(snapshot.get()?.power.tooltip())
-            }
-            _ => None,
+    pub fn tooltip_for(&self, target: &GpuTarget) -> Option<Tooltip> {
+        let device = self.devices.get(&target.bus)?;
+        let snapshot = &device.snapshot;
+        match target.reading {
+            GpuReading::Load => snapshot.tooltip_with_sections(&[device.model.hardware_section()]),
+            GpuReading::Memory => snapshot.tooltip_with(snapshot.get()?.vram.tooltip()),
+            GpuReading::Temperature => snapshot.tooltip_with(device.temperature_label()?.tooltip()),
+            GpuReading::Power => snapshot.tooltip_with(snapshot.get()?.power.tooltip()),
         }
     }
 }

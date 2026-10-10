@@ -4,9 +4,9 @@ use crate::{
         severity::Severity,
         source::fwupd::{FirmwareUpgrade, Urgency},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
-        pending_upgrades_group::PendingUpgradesMessage, terminal_command::TerminalCommand,
+        pending_upgrades_group::{PendingUpgradesMessage, PendingUpgradesTarget},
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
@@ -40,7 +40,7 @@ impl FirmwareUpgradeList {
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        GroupItem::reading(self, HoverTarget::FirmwareUpgrades)
+        GroupItem::reading(self, PendingUpgradesTarget::Firmware)
             .on_press("run fwupdmgr update in a terminal", install.clone())
             .alert_action_buttons([ReadingAlertActionButton {
                 button_label: "Install".to_owned(),

@@ -40,6 +40,24 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiTarget {
+    OpenRouter,
+    ClaudeUsageWindows,
+    ClaudeEnterpriseSpend,
+    ClaudeCcusagePeriods,
+    ClaudeCcusageBlock,
+    CopilotMetered,
+    CopilotFree,
+    CopilotCli,
+}
+
+impl From<AiTarget> for HoverTarget {
+    fn from(target: AiTarget) -> Self {
+        HoverTarget::Ai(target)
+    }
+}
+
 pub struct AiGroup {
     openrouter: LastPoll<OpenRouter>,
     claude_usage_windows: LastPoll<ClaudeUsageWindows>,
@@ -216,17 +234,16 @@ impl AiGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: AiTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::AiOpenRouter => self.openrouter.tooltip(),
-            HoverTarget::AiClaudeUsageWindows => self.claude_usage_windows.tooltip(),
-            HoverTarget::AiClaudeEnterpriseSpend => self.claude_enterprise_spend.tooltip(),
-            HoverTarget::AiClaudeCcusagePeriods => self.claude_ccusage_periods.tooltip(),
-            HoverTarget::AiClaudeCcusageBlock => self.claude_ccusage_block.tooltip(),
-            HoverTarget::AiCopilotMetered => self.copilot_metered.tooltip(),
-            HoverTarget::AiCopilotFree => self.copilot_free.tooltip(),
-            HoverTarget::AiCopilotCli => self.copilot_cli.tooltip(),
-            _ => None,
+            AiTarget::OpenRouter => self.openrouter.tooltip(),
+            AiTarget::ClaudeUsageWindows => self.claude_usage_windows.tooltip(),
+            AiTarget::ClaudeEnterpriseSpend => self.claude_enterprise_spend.tooltip(),
+            AiTarget::ClaudeCcusagePeriods => self.claude_ccusage_periods.tooltip(),
+            AiTarget::ClaudeCcusageBlock => self.claude_ccusage_block.tooltip(),
+            AiTarget::CopilotMetered => self.copilot_metered.tooltip(),
+            AiTarget::CopilotFree => self.copilot_free.tooltip(),
+            AiTarget::CopilotCli => self.copilot_cli.tooltip(),
         }
     }
 
@@ -236,20 +253,18 @@ impl AiGroup {
             AiMessage::Expansion,
             [
                 self.claude_usage_windows
-                    .present_group_item(HoverTarget::AiClaudeUsageWindows),
+                    .present_group_item(AiTarget::ClaudeUsageWindows),
                 self.claude_enterprise_spend
-                    .present_group_item(HoverTarget::AiClaudeEnterpriseSpend),
+                    .present_group_item(AiTarget::ClaudeEnterpriseSpend),
                 self.claude_ccusage_periods
-                    .group_item(HoverTarget::AiClaudeCcusagePeriods),
+                    .group_item(AiTarget::ClaudeCcusagePeriods),
                 self.claude_ccusage_block
-                    .present_group_item(HoverTarget::AiClaudeCcusageBlock),
+                    .present_group_item(AiTarget::ClaudeCcusageBlock),
                 self.copilot_metered
-                    .present_group_item(HoverTarget::AiCopilotMetered),
-                self.copilot_free.group_item(HoverTarget::AiCopilotFree),
-                self.copilot_cli
-                    .present_group_item(HoverTarget::AiCopilotCli),
-                self.openrouter
-                    .present_group_item(HoverTarget::AiOpenRouter),
+                    .present_group_item(AiTarget::CopilotMetered),
+                self.copilot_free.group_item(AiTarget::CopilotFree),
+                self.copilot_cli.present_group_item(AiTarget::CopilotCli),
+                self.openrouter.present_group_item(AiTarget::OpenRouter),
             ]
             .into_iter()
             .flatten(),

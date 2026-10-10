@@ -18,8 +18,6 @@ use crate::{
     },
 };
 
-const READOUT_WIDTH: f32 = 30.0;
-
 #[derive(Debug, Clone)]
 pub enum TimerMessage {
     Slider(ControlMessage),
@@ -43,10 +41,15 @@ pub struct IdleTimer {
 }
 
 impl IdleTimer {
-    pub fn new(icon: Phosphor, target: HoverTarget, action: IdleAction, confirms: bool) -> Self {
+    pub fn new(
+        icon: Phosphor,
+        target: impl Into<HoverTarget>,
+        action: IdleAction,
+        confirms: bool,
+    ) -> Self {
+        let target = target.into();
         Self {
             control: SliderControl::new(0.0..=MAX_POSITION, target.clone(), icon)
-                .readout_width(READOUT_WIDTH)
                 .readout(|value| {
                     timeout_at(value).map_or_else(
                         || "∞".to_owned(),

@@ -4,9 +4,8 @@ use crate::{
         severity::Severity,
         source::kernel_errors::{KernelErrors, KernelOccurrence},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
-        journal_events_group::{JournalEventsMessage, MESSAGE_CAP},
+        journal_events_group::{JournalEventsMessage, JournalTarget, MESSAGE_CAP},
         terminal_journal::TerminalJournal,
     },
     widgets::{
@@ -23,7 +22,7 @@ const TOOLTIP_ROWS: usize = 15;
 
 impl KernelErrors {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
-        GroupItem::reading(self, HoverTarget::JournalKernel).on_press(
+        GroupItem::reading(self, JournalTarget::Kernel).on_press(
             TerminalJournal::PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalJournal::following(
                 config,

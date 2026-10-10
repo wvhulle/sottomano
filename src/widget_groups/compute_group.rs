@@ -26,6 +26,20 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComputeTarget {
+    Cpu,
+    CpuClock,
+    Memory,
+    Temperature,
+}
+
+impl From<ComputeTarget> for HoverTarget {
+    fn from(target: ComputeTarget) -> Self {
+        HoverTarget::Compute(target)
+    }
+}
+
 #[derive(Default)]
 pub struct ComputeGroup {
     cpu: LastPoll<CpuUsage>,
@@ -93,27 +107,26 @@ impl ComputeGroup {
             &self.expansion,
             ComputeMessage::Expansion,
             [
-                self.cpu.group_item(HoverTarget::Cpu),
-                self.memory.group_item(HoverTarget::Memory),
-                self.clock.group_item(HoverTarget::CpuClock),
-                self.temperature.group_item(HoverTarget::Temperature),
+                self.cpu.group_item(ComputeTarget::Cpu),
+                self.memory.group_item(ComputeTarget::Memory),
+                self.clock.group_item(ComputeTarget::CpuClock),
+                self.temperature.group_item(ComputeTarget::Temperature),
             ]
             .into_iter()
             .flatten(),
         )
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Cpu => self
+            ComputeTarget::Cpu => self
                 .cpu
                 .tooltip_with_sections(&self.hardware.cpu.hardware_sections()),
-            HoverTarget::Memory => self
+            ComputeTarget::Memory => self
                 .memory
                 .tooltip_with_sections(&[self.hardware.memory.hardware_section()]),
-            HoverTarget::CpuClock => self.clock.tooltip(),
-            HoverTarget::Temperature => self.temperature.tooltip(),
-            _ => None,
+            ComputeTarget::CpuClock => self.clock.tooltip(),
+            ComputeTarget::Temperature => self.temperature.tooltip(),
         }
     }
 }

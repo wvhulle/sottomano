@@ -28,6 +28,18 @@ pub enum NotificationGroupMessage {
     Toggle(NotificationToggle),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationTarget {
+    DoNotDisturb,
+    Sound,
+}
+
+impl From<NotificationTarget> for HoverTarget {
+    fn from(target: NotificationTarget) -> Self {
+        HoverTarget::Notification(target)
+    }
+}
+
 #[derive(Default)]
 pub struct NotificationGroup {
     pub(crate) expansion: GroupExpansion,
@@ -63,12 +75,12 @@ impl NotificationGroup {
                         Phosphor::Prohibit(Weight::Regular),
                         notification_settings.do_not_disturb,
                     ),
-                    HoverTarget::NotificationDoNotDisturb,
+                    NotificationTarget::DoNotDisturb,
                     NotificationGroupMessage::Toggle(NotificationToggle::DoNotDisturb),
                 ),
                 GroupItem::toggle(
                     IconToggle::new(sound_icon, notification_settings.sound),
-                    HoverTarget::NotificationSound,
+                    NotificationTarget::Sound,
                     NotificationGroupMessage::Toggle(NotificationToggle::Sound),
                 ),
             ],

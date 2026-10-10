@@ -1,9 +1,8 @@
 use crate::{
     config::Config,
     data::source::service_errors::{ServiceErrors, UnitErrors},
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
-        journal_events_group::{JournalEventsMessage, MESSAGE_CAP},
+        journal_events_group::{JournalEventsMessage, JournalTarget, MESSAGE_CAP},
         terminal_journal::TerminalJournal,
     },
     widgets::{
@@ -18,7 +17,7 @@ use crate::{
 
 impl ServiceErrors {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
-        GroupItem::reading(self, HoverTarget::JournalServiceErrors).on_press(
+        GroupItem::reading(self, JournalTarget::ServiceErrors).on_press(
             TerminalJournal::PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalJournal::following(
                 config,

@@ -1,9 +1,9 @@
 use crate::{
     config::Config,
     data::source::coredumps::{CoredumpEntry, Coredumps},
-    desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
-        systemd_manager_group::SystemdManagerMessage, terminal_journal::TerminalJournal,
+        systemd_manager_group::{SystemdManagerMessage, SystemdTarget},
+        terminal_journal::TerminalJournal,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -35,7 +35,7 @@ impl CoredumpEntry {
 
 impl Coredumps {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, HoverTarget::SystemdCoredumps).on_press(
+        GroupItem::reading(self, SystemdTarget::Coredumps).on_press(
             TerminalJournal::PRESS_HINT,
             SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,

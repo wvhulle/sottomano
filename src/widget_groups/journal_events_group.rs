@@ -22,6 +22,19 @@ use crate::{
 
 pub const MESSAGE_CAP: usize = 100;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JournalTarget {
+    Events,
+    Kernel,
+    ServiceErrors,
+}
+
+impl From<JournalTarget> for HoverTarget {
+    fn from(target: JournalTarget) -> Self {
+        HoverTarget::Journal(target)
+    }
+}
+
 #[derive(Default)]
 pub struct JournalEventsGroup {
     kernel: LastPoll<KernelErrors>,
@@ -60,12 +73,11 @@ impl JournalEventsGroup {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: JournalTarget) -> Option<Tooltip> {
         let body = match target {
-            HoverTarget::JournalKernel => self.kernel.get()?.tooltip(),
-            HoverTarget::JournalServiceErrors => self.service_errors.get()?.tooltip(),
-            HoverTarget::JournalEvents => self.tooltip(),
-            _ => return None,
+            JournalTarget::Kernel => self.kernel.get()?.tooltip(),
+            JournalTarget::ServiceErrors => self.service_errors.get()?.tooltip(),
+            JournalTarget::Events => self.tooltip(),
         };
         Some(Tooltip::of(body))
     }
@@ -79,7 +91,7 @@ impl JournalEventsGroup {
             &self.expansion,
             JournalEventsMessage::Expansion,
             [
-                has_kinds.then(|| GroupItem::reading(self, HoverTarget::JournalEvents)),
+                has_kinds.then(|| GroupItem::reading(self, JournalTarget::Events)),
                 self.kernel.get().map(|kernel| kernel.group_item(config)),
                 self.service_errors
                     .get()

@@ -41,6 +41,20 @@ const OFFSET_MINUTES: RangeInclusive<f32> = -120.0..=120.0;
 const OFFSET_STEP_MINUTES: f32 = 5.0;
 const SWITCH_TIMER_MARGIN: Duration = Duration::from_secs(1);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DarkModeTarget {
+    Mode,
+    Schedule,
+    SunriseOffset,
+    SunsetOffset,
+}
+
+impl From<DarkModeTarget> for HoverTarget {
+    fn from(target: DarkModeTarget) -> Self {
+        HoverTarget::DarkMode(target)
+    }
+}
+
 pub struct DarkModeGroup {
     mode_toggle: ToggleControl<Umbra>,
     auto_switch_toggle: AutoSwitchToggle,
@@ -72,10 +86,13 @@ impl Default for DarkModeGroup {
             mode_toggle: ToggleControl::default(),
             auto_switch_toggle: AutoSwitchToggle::default(),
             sunrise_offset_slider: new_offset_slider(
-                HoverTarget::SunriseOffset,
+                DarkModeTarget::SunriseOffset,
                 WeatherIcon::Sunrise,
             ),
-            sunset_offset_slider: new_offset_slider(HoverTarget::SunsetOffset, WeatherIcon::Sunset),
+            sunset_offset_slider: new_offset_slider(
+                DarkModeTarget::SunsetOffset,
+                WeatherIcon::Sunset,
+            ),
             armed_switch: None,
             expansion: GroupExpansion::default(),
         }
@@ -246,13 +263,12 @@ impl DarkModeGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: DarkModeTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::DarkMode => self.mode_toggle.tooltip(),
-            HoverTarget::DarkModeSchedule => Some(Tooltip::of(self.auto_switch_toggle.tooltip())),
-            HoverTarget::SunriseOffset => Some(self.offset_slider_tooltip(ColorMode::Light)),
-            HoverTarget::SunsetOffset => Some(self.offset_slider_tooltip(ColorMode::Dark)),
-            _ => None,
+            DarkModeTarget::Mode => self.mode_toggle.tooltip(),
+            DarkModeTarget::Schedule => Some(Tooltip::of(self.auto_switch_toggle.tooltip())),
+            DarkModeTarget::SunriseOffset => Some(self.offset_slider_tooltip(ColorMode::Light)),
+            DarkModeTarget::SunsetOffset => Some(self.offset_slider_tooltip(ColorMode::Dark)),
         }
     }
 
@@ -279,13 +295,12 @@ impl DarkModeGroup {
             DarkModeMessage::Expansion,
             [
                 self.mode_toggle
-                    .group_item(HoverTarget::DarkMode, DarkModeMessage::ModeToggle),
+                    .group_item(DarkModeTarget::Mode, DarkModeMessage::ModeToggle),
                 mode_known.then(|| {
-                    GroupItem::reading(&self.auto_switch_toggle, HoverTarget::DarkModeSchedule)
-                        .on_press(
-                            "switch following sunrise and sunset on or off",
-                            DarkModeMessage::ToggleAutoSwitch,
-                        )
+                    GroupItem::reading(&self.auto_switch_toggle, DarkModeTarget::Schedule).on_press(
+                        "switch following sunrise and sunset on or off",
+                        DarkModeMessage::ToggleAutoSwitch,
+                    )
                 }),
                 mode_known.then(|| offset_slider(ColorMode::Light)),
                 mode_known.then(|| offset_slider(ColorMode::Dark)),
@@ -300,7 +315,7 @@ impl DarkModeGroup {
     }
 }
 
-fn new_offset_slider(target: HoverTarget, icon: WeatherIcon) -> SliderControl {
+fn new_offset_slider(target: DarkModeTarget, icon: WeatherIcon) -> SliderControl {
     SliderControl::new(OFFSET_MINUTES, target, icon)
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)

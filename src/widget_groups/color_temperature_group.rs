@@ -34,6 +34,19 @@ const DIM_STEP: f32 = 5.0;
 const WARMTH_RANGE: RangeInclusive<f32> = 3000.0..=6500.0;
 const WARMTH_STEP: f32 = 100.0;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorTemperatureTarget {
+    GammaDim,
+    Temperature,
+    Automatic,
+}
+
+impl From<ColorTemperatureTarget> for HoverTarget {
+    fn from(target: ColorTemperatureTarget) -> Self {
+        HoverTarget::ColorTemperature(target)
+    }
+}
+
 pub struct ColorTemperatureGroup {
     unit: String,
     gamma: LastPoll<Gamma>,
@@ -61,19 +74,18 @@ impl ColorTemperatureGroup {
             gamma: LastPoll::default(),
             dim: SliderControl::new(
                 PERCENT,
-                HoverTarget::GammaDim,
+                ColorTemperatureTarget::GammaDim,
                 Phosphor::CircleHalf(Weight::Regular),
             )
             .scroll_step(DIM_STEP)
             .readout(|value| format!("{}%", as_percent(value))),
             warmth: SliderControl::new(
                 WARMTH_RANGE,
-                HoverTarget::ColorTemperature,
+                ColorTemperatureTarget::Temperature,
                 Phosphor::ThermometerSimple(Weight::Regular),
             )
             .scroll_step(WARMTH_STEP)
             .slider_step(WARMTH_STEP)
-            .readout_width(52.0)
             .readout(|value| format!("{}K", as_kelvin(value)))
             .label_with_gauge(|value| Some(format!("{}K", as_kelvin(value)))),
             auto: ToggleControl::default(),
@@ -176,22 +188,21 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: ColorTemperatureTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::GammaDim => {
+            ColorTemperatureTarget::GammaDim => {
                 self.gamma
                     .tooltip_with(TooltipBody::sections(&[Section::untitled_dictionary([
                         KeyValue::new("Dim", self.dim.readout_text()),
                     ])]))
             }
-            HoverTarget::ColorTemperature => {
+            ColorTemperatureTarget::Temperature => {
                 self.gamma
                     .tooltip_with(TooltipBody::sections(&[Section::untitled_dictionary([
                         KeyValue::new("Temperature", self.warmth.readout_text()),
                     ])]))
             }
-            HoverTarget::AutoColorTemperature => self.auto.tooltip(),
-            _ => None,
+            ColorTemperatureTarget::Automatic => self.auto.tooltip(),
         }
     }
 
@@ -210,7 +221,7 @@ impl ColorTemperatureGroup {
                 gamma_available
                     .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
                 self.auto.group_item(
-                    HoverTarget::AutoColorTemperature,
+                    ColorTemperatureTarget::Automatic,
                     ColorTemperatureMessage::Auto,
                 ),
             ]

@@ -38,6 +38,7 @@ pub mod toggle_control;
 pub mod tooltip_body;
 pub mod uniform_width_column;
 pub mod weather_icons;
+pub mod widest_readout_text;
 pub mod widget_group;
 pub mod widget_state;
 pub mod window_icon;

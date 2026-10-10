@@ -76,7 +76,10 @@ impl<S: BarWidget> LastPoll<S> {
             .map(|failure| failure as &dyn BarWidget)
     }
 
-    pub fn group_item<M: 'static>(&self, target: HoverTarget) -> Option<GroupItem<'_, M>> {
+    pub fn group_item<M: 'static>(
+        &self,
+        target: impl Into<HoverTarget>,
+    ) -> Option<GroupItem<'_, M>> {
         self.display()
             .map(|widget| GroupItem::reading(widget, target))
     }
@@ -121,7 +124,10 @@ impl<S: Occasional> LastPoll<S> {
         }
     }
 
-    pub fn present_group_item<M: 'static>(&self, target: HoverTarget) -> Option<GroupItem<'_, M>> {
+    pub fn present_group_item<M: 'static>(
+        &self,
+        target: impl Into<HoverTarget>,
+    ) -> Option<GroupItem<'_, M>> {
         self.present()
             .map(|widget| GroupItem::reading(widget, target))
     }

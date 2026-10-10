@@ -13,10 +13,10 @@ use crate::{
             sysfs_sensors::{self, battery::Battery},
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     state::power,
     widget_groups::power_group::{
+        PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         power_profile_control::profile_icon::profile_face,
     },
@@ -46,12 +46,11 @@ impl Default for PowerProfileControl {
         Self {
             control: SliderControl::new(
                 RANGE,
-                HoverTarget::PowerProfile,
+                PowerTarget::Profile,
                 profile_face(Profile::Balanced),
             )
             .slider_step(STEP)
             .scroll_step(STEP)
-            .readout_width(70.0)
             .icon_only()
             .readout(|value| Profile::from_position(value).title().to_string())
             .glyph(|value, _| profile_face(Profile::from_position(value))),
@@ -214,16 +213,14 @@ impl PowerProfileControl {
         self.estimates.get(&self.active_profile?).copied().flatten()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        if !matches!(target, HoverTarget::PowerProfile) {
-            return None;
-        }
+    pub fn tooltip(&self) -> Option<Tooltip> {
         self.active_profile?;
         if self.estimates.is_empty() {
             return Some(Tooltip::of(TooltipBody::Text {
                 title: "Power profile".to_owned(),
                 body: Some(
-                    "Lower profiles trade speed for less power draw, heat and fan noise.".to_owned(),
+                    "Lower profiles trade speed for less power draw, heat and fan noise."
+                        .to_owned(),
                 ),
             }));
         }

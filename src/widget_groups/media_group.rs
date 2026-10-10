@@ -251,13 +251,7 @@ impl MediaGroup {
             .into()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        matches!(target, HoverTarget::Media)
-            .then(|| self.tooltip())
-            .flatten()
-    }
-
-    fn tooltip(&self) -> Option<Tooltip> {
+    pub fn tooltip(&self) -> Option<Tooltip> {
         let media = self.current()?;
         Some(Tooltip::of(TooltipBody::sections(&[
             track_section(media),

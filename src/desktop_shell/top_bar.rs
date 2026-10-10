@@ -24,9 +24,7 @@ impl DesktopShell {
         TopBarGroups {
             start: [
                 self.weather_group.group_content().map(Message::Weather),
-                self.power_group
-                    .group_content(config)
-                    .map(Message::Power),
+                self.power_group.group_content(config).map(Message::Power),
                 self.compute_group.group_content().map(Message::Compute),
                 self.gpu_group.group_content().map(Message::Gpu),
                 self.disk_group.group_content().map(Message::Disk),

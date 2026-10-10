@@ -1,6 +1,5 @@
 pub mod ai_group;
 pub mod audio_group;
-pub mod power_group;
 pub mod clock_group;
 pub mod color_temperature_group;
 pub mod compute_group;
@@ -18,6 +17,7 @@ pub mod notification_group;
 pub mod overlay_group;
 pub mod panel_appearance_group;
 pub mod pending_upgrades_group;
+pub mod power_group;
 pub mod shell_layout_group;
 pub mod surface_effects_group;
 pub mod systemd_manager_group;

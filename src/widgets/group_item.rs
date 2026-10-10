@@ -114,21 +114,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn reading(widget: impl BarWidget + 'a, target: HoverTarget) -> Self {
+    pub fn reading(widget: impl BarWidget + 'a, target: impl Into<HoverTarget>) -> Self {
         Self::of_kind(ItemKind::Reading {
             widget: Box::new(widget),
-            target,
+            target: target.into(),
         })
     }
 
     pub fn control(
         widget: &'a dyn BarWidget,
-        target: HoverTarget,
+        target: impl Into<HoverTarget>,
         draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a,
     ) -> Self {
         Self::of_kind(ItemKind::Control {
             widget,
-            target,
+            target: target.into(),
             draw: Box::new(draw),
         })
     }
@@ -156,7 +156,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub fn toggle(toggle: IconToggle, target: HoverTarget, message: M) -> Self {
+    pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
         Self::reading(toggle, target).on_press(TOGGLE_PRESS_HINT, message)
     }
 

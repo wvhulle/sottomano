@@ -39,7 +39,7 @@ impl<S: ScopeAppearance> Failed<S> {
         locale: Locale,
     ) -> impl Iterator<Item = ReadingAlert<M>> {
         self.units.iter().map(move |unit| ReadingAlert {
-            hover_target: S::failed_unit_target(unit.name.clone()),
+            hover_target: S::failed_unit_target(unit.name.clone()).into(),
             severity: UNIT_FAILURE_PRIORITY.severity(),
             summary_text: Cow::Owned(format!("{} failed", unit.name)),
             body_text: failure_summary(unit, locale),

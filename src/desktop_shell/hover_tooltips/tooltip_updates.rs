@@ -94,63 +94,59 @@ impl DesktopShell {
     }
 
     pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
-        if let HoverTarget::Tray(address) = target {
-            return self.tray_group.tooltip_for(address);
-        }
-        if let HoverTarget::Window(window) = target {
-            return self
-                .window_group
-                .window_tooltip(&self.niri, *window)
-                .unwrap_or_else(Tooltip::empty);
-        }
-        if let HoverTarget::Workspace(workspace) = target {
-            return workspace_tooltip::tooltip(
+        let tooltip = match target {
+            HoverTarget::Compute(target) => self.compute_group.tooltip_for(*target),
+            HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target),
+            HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target),
+            HoverTarget::Power(target) => self.power_group.tooltip_for(*target),
+            HoverTarget::PanelAppearance(target) => {
+                Some(self.panel_appearance_group.tooltip_for(*target))
+            }
+            HoverTarget::SurfaceEffects(target) => Some(self.surface_effects_group.tooltip_for(
+                *target,
+                self.shell_settings.shadow,
+                self.niri_rules.styling(),
+            )),
+            HoverTarget::NiriWindow(target) => Some(self.niri_window_group.tooltip_for(*target)),
+            HoverTarget::ShellLayout(target) => Some(
+                self.shell_layout_group
+                    .tooltip_for(*target, &self.shell_settings.layout),
+            ),
+            HoverTarget::Overlay(target) => Some(
+                self.overlay_group
+                    .tooltip_for(*target, self.shell_settings.overlays),
+            ),
+            HoverTarget::Systemd(target) => self.systemd_manager_group.tooltip_for(target),
+            HoverTarget::Journal(target) => self.journal_events_group.tooltip_for(*target),
+            HoverTarget::PendingUpgrades(target) => {
+                self.pending_upgrades_group.tooltip_for(*target)
+            }
+            HoverTarget::NetInterface(target) => self.net_interfaces_group.tooltip_for(*target),
+            HoverTarget::Audio(kind) => self.audio_group.tooltip_for(*kind),
+            HoverTarget::Monitor(target) => self.monitor_group.tooltip_for(target, &self.outputs),
+            HoverTarget::ColorTemperature(target) => {
+                self.color_temperature_group.tooltip_for(*target)
+            }
+            HoverTarget::DarkMode(target) => self.dark_mode_group.tooltip_for(*target),
+            HoverTarget::IdleTimeout(kind) => Some(self.idle_timeouts_group.tooltip_for(*kind)),
+            HoverTarget::Internet(target) => self.internet_group.tooltip_for(target),
+            HoverTarget::Weather(target) => self.weather_group.tooltip_for(*target),
+            HoverTarget::Wallpaper(target) => self.wallpaper_group.tooltip_for(*target),
+            HoverTarget::Media => self.media_group.tooltip(),
+            HoverTarget::Ai(target) => self.ai_group.tooltip_for(*target),
+            HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
+            HoverTarget::Notification(_) => None,
+            HoverTarget::Tray(address) => Some(self.tray_group.tooltip_for(address)),
+            HoverTarget::Window(window) => self.window_group.window_tooltip(&self.niri, *window),
+            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
                 &self.config.font,
                 &self.font_fallbacks,
                 *workspace,
-            )
-            .unwrap_or_else(Tooltip::empty);
-        }
-        self.compute_group
-            .tooltip_for(target)
-            .or_else(|| self.gpu_group.tooltip_for(target))
-            .or_else(|| self.disk_group.tooltip_for(target))
-            .or_else(|| self.power_group.tooltip_for(target))
-            .or_else(|| self.clock_group.tooltip_for(target))
-            .or_else(|| self.systemd_manager_group.tooltip_for(target))
-            .or_else(|| self.journal_events_group.tooltip_for(target))
-            .or_else(|| self.pending_upgrades_group.tooltip_for(target))
-            .or_else(|| self.net_interfaces_group.tooltip_for(target))
-            .or_else(|| self.audio_group.tooltip_for(target))
-            .or_else(|| self.monitor_group.tooltip_for(target, &self.outputs))
-            .or_else(|| self.color_temperature_group.tooltip_for(target))
-            .or_else(|| self.dark_mode_group.tooltip_for(target))
-            .or_else(|| self.idle_timeouts_group.tooltip_for(target))
-            .or_else(|| self.internet_group.tooltip_for(target))
-            .or_else(|| self.weather_group.tooltip_for(target))
-            .or_else(|| self.wallpaper_group.tooltip_for(target))
-            .or_else(|| self.media_group.tooltip_for(target))
-            .or_else(|| self.ai_group.tooltip_for(target))
-            .or_else(|| {
-                self.shell_layout_group
-                    .tooltip_for(target, &self.shell_settings.layout)
-            })
-            .or_else(|| self.panel_appearance_group.tooltip_for(target))
-            .or_else(|| {
-                self.surface_effects_group.tooltip_for(
-                    target,
-                    self.shell_settings.shadow,
-                    self.niri_rules.styling(),
-                )
-            })
-            .or_else(|| {
-                self.overlay_group
-                    .tooltip_for(target, self.shell_settings.overlays)
-            })
-            .or_else(|| self.niri_window_group.tooltip_for(target))
-            .unwrap_or_else(Tooltip::empty)
+            ),
+        };
+        tooltip.unwrap_or_else(Tooltip::empty)
     }
 
     pub fn watched_window(&self) -> Option<Watched> {

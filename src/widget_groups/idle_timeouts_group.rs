@@ -30,6 +30,12 @@ pub enum TimerKind {
     PowerDown,
 }
 
+impl From<TimerKind> for HoverTarget {
+    fn from(kind: TimerKind) -> Self {
+        HoverTarget::IdleTimeout(kind)
+    }
+}
+
 const TRIGGER_SETTLE_DELAY: Duration = Duration::from_millis(600);
 
 impl TimerKind {
@@ -62,25 +68,25 @@ impl Default for IdleTimeoutsGroup {
         Self {
             lock: IdleTimer::new(
                 Phosphor::Lock(Weight::Regular),
-                HoverTarget::IdleLockUser,
+                TimerKind::LockUser,
                 IdleAction::Lock,
                 false,
             ),
             screen_off: IdleTimer::new(
                 Phosphor::Monitor(Weight::Regular),
-                HoverTarget::IdleScreenOff,
+                TimerKind::ScreenOff,
                 IdleAction::ScreenOff,
                 false,
             ),
             standby: IdleTimer::new(
                 Phosphor::Bed(Weight::Regular),
-                HoverTarget::IdleStandby,
+                TimerKind::Standby,
                 IdleAction::Suspend,
                 true,
             ),
             power_down: IdleTimer::new(
                 Phosphor::Power(Weight::Regular),
-                HoverTarget::IdlePowerDown,
+                TimerKind::PowerDown,
                 IdleAction::PowerOff,
                 true,
             ),
@@ -184,11 +190,14 @@ impl IdleTimeoutsGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
-        self.entries()
-            .into_iter()
-            .find(|(_, timer)| timer.target() == target)
-            .map(|(_, timer)| timer.tooltip())
+    pub fn tooltip_for(&self, kind: TimerKind) -> Tooltip {
+        let timer = match kind {
+            TimerKind::LockUser => &self.lock,
+            TimerKind::ScreenOff => &self.screen_off,
+            TimerKind::Standby => &self.standby,
+            TimerKind::PowerDown => &self.power_down,
+        };
+        timer.tooltip()
     }
 
     fn rearm(&mut self) -> Task<IdleTimeoutsMessage> {

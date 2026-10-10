@@ -26,6 +26,19 @@ use crate::{
 
 const TICK: Duration = Duration::from_secs(1);
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClockTarget {
+    LocalTime,
+    LocalDate,
+    ZoneTime(Tz),
+}
+
+impl From<ClockTarget> for HoverTarget {
+    fn from(target: ClockTarget) -> Self {
+        HoverTarget::Clock(target)
+    }
+}
+
 pub struct ClockGroup {
     time: LocalTime,
     date: LocalDate,
@@ -75,16 +88,15 @@ impl ClockGroup {
             .collect();
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &ClockTarget) -> Option<Tooltip> {
         let body = match target {
-            HoverTarget::LocalTime => self.time.tooltip(),
-            HoverTarget::LocalDate => self.date.tooltip(),
-            HoverTarget::ZoneTime(zone) => self
+            ClockTarget::LocalTime => self.time.tooltip(),
+            ClockTarget::LocalDate => self.date.tooltip(),
+            ClockTarget::ZoneTime(zone) => self
                 .zone_times
                 .iter()
                 .find(|zone_time| zone_time.zone() == *zone)?
                 .tooltip(),
-            _ => return None,
         };
         Some(Tooltip::of(body))
     }
@@ -94,12 +106,12 @@ impl ClockGroup {
             &self.expansion,
             ClockMessage::Expansion,
             [
-                GroupItem::reading(&self.time, HoverTarget::LocalTime),
-                GroupItem::reading(&self.date, HoverTarget::LocalDate),
+                GroupItem::reading(&self.time, ClockTarget::LocalTime),
+                GroupItem::reading(&self.date, ClockTarget::LocalDate),
             ]
             .into_iter()
             .chain(self.zone_times.iter().map(|zone_time| {
-                GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
+                GroupItem::reading(zone_time, ClockTarget::ZoneTime(zone_time.zone()))
             })),
         )
     }
