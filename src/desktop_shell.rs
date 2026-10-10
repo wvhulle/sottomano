@@ -54,7 +54,7 @@ use crate::{
     widget_groups::{
         ai_group::{AiGroup, AiMessage},
         audio_group::{AudioGroup, AudioMessage},
-        battery_group::{BatteryGroup, BatteryMessage},
+        power_group::{PowerGroup, PowerMessage},
         clock_group::{ClockGroup, ClockMessage},
         color_temperature_group::{ColorTemperatureGroup, ColorTemperatureMessage},
         compute_group::{ComputeGroup, ComputeMessage},
@@ -93,7 +93,7 @@ pub struct DesktopShell {
     pub(crate) shell_settings: ShellSettings,
     pub(crate) weather_group: WeatherGroup,
     pub(crate) wallpaper_group: WallpaperGroup,
-    pub(crate) battery_group: BatteryGroup,
+    pub(crate) power_group: PowerGroup,
     pub(crate) compute_group: ComputeGroup,
     pub(crate) disk_group: DiskGroup,
     pub(crate) niri_rules: NiriRulesFile,
@@ -137,7 +137,7 @@ pub struct DesktopShell {
 pub enum Message {
     Weather(WeatherMessage),
     Wallpaper(WallpaperMessage),
-    Battery(BatteryMessage),
+    Power(PowerMessage),
     Compute(ComputeMessage),
     Disk(DiskMessage),
     ShellLayout(ShellLayoutMessage),
@@ -217,7 +217,7 @@ impl DesktopShell {
         let shell = Self {
             weather_group: WeatherGroup::default(),
             wallpaper_group: WallpaperGroup::new(&secrets),
-            battery_group: BatteryGroup::default(),
+            power_group: PowerGroup::default(),
             compute_group: ComputeGroup::default(),
             disk_group: DiskGroup::default(),
             niri_rules,
@@ -272,7 +272,7 @@ impl DesktopShell {
             shell.niri_rules.read().map(Message::NiriRulesLoaded),
             blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
-            BatteryGroup::probe().map(Message::Battery),
+            PowerGroup::probe().map(Message::Power),
             ComputeGroup::probe(&shell.config.temperature.cpu).map(Message::Compute),
             InternetGroup::probe().map(Message::Internet),
             MonitorGroup::probe().map(Message::Monitor),
@@ -341,7 +341,7 @@ impl DesktopShell {
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
             Message::Wallpaper(msg) => self.wallpaper_group.update(msg).map(Message::Wallpaper),
             Message::Notification(msg) => self.update_notification(msg),
-            Message::Battery(msg) => self.battery_group.update(msg).map(Message::Battery),
+            Message::Power(msg) => self.power_group.update(msg).map(Message::Power),
             Message::Compute(msg) => self.compute_group.update(msg).map(Message::Compute),
             Message::Disk(msg) => self.disk_group.update(msg).map(Message::Disk),
             Message::ShellLayout(msg) => self.update_shell_layout(msg),
@@ -687,7 +687,7 @@ impl DesktopShell {
         self.monitor_group.collapse();
         self.color_temperature_group.collapse();
         self.dark_mode_group.collapse();
-        self.battery_group.collapse();
+        self.power_group.collapse();
         self.idle_timeouts_group.collapse();
         self.audio_group.collapse();
         let _ = [

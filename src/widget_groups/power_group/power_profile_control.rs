@@ -16,13 +16,13 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     state::power,
-    widget_groups::battery_group::{
+    widget_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         power_profile_control::profile_icon::profile_face,
     },
     widgets::{
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, Section, TableRecord, Tooltip, TooltipBody},
+        tooltip_body::{Section, TableRecord, Tooltip, TooltipBody},
     },
 };
 
@@ -219,6 +219,14 @@ impl PowerProfileControl {
             return None;
         }
         self.active_profile?;
+        if self.estimates.is_empty() {
+            return Some(Tooltip::of(TooltipBody::Text {
+                title: "Power profile".to_owned(),
+                body: Some(
+                    "Lower profiles trade speed for less power draw, heat and fan noise.".to_owned(),
+                ),
+            }));
+        }
         let active_profile = Profile::from_position(self.control.current());
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
@@ -228,14 +236,15 @@ impl PowerProfileControl {
                 Unforecastable::NoDrainHistory,
             ),
         });
-        let section = if self.estimates.is_empty() {
-            Section::untitled_dictionary(
-                lives.map(|life| KeyValue::new(life.title(), "estimated on battery power")),
-            )
-        } else {
-            Section::untitled_column_table(ESTIMATE_HEADINGS, lives.map(|life| life.table_record()))
-        };
-        Some(Tooltip::of(TooltipBody::sections(&[section])))
+        let battery_life = Section::column_table(
+            (
+                "Battery life",
+                "Time until empty if you switch to each profile now.",
+            ),
+            ESTIMATE_HEADINGS,
+            lives.map(|life| life.table_record()),
+        );
+        Some(Tooltip::of(TooltipBody::sections(&[battery_life])))
     }
 
     pub fn slider(&self) -> Option<&SliderControl> {
