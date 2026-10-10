@@ -14,7 +14,6 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
-        hardware_section::HardwareEntries,
         last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -83,11 +82,7 @@ impl DiskGroup {
 
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::Disk => self.usage.tooltip_with_sections(&[self
-                .drive_health
-                .get()
-                .map(|health| &health.identity)
-                .hardware_section()]),
+            HoverTarget::Disk => self.usage.tooltip(),
             HoverTarget::DiskRead => self.disk_read.live_tooltip(),
             HoverTarget::DiskWrite => self.disk_write.live_tooltip(),
             HoverTarget::DriveHealth => self.drive_health.tooltip(),
