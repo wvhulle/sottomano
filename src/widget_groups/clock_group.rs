@@ -89,7 +89,12 @@ impl ClockGroup {
         Some(Tooltip::of(body))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(ClockMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(ClockMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let zone_items = self.zone_times.iter().map(|zone_time| {
             GroupItem::reading(zone_time, HoverTarget::ZoneTime(zone_time.zone()))
         });

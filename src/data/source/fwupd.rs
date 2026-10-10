@@ -101,8 +101,10 @@ async fn pending_upgrades() -> PendingUpgrades {
     let fwupd = FwupdProxy::new(&connection)
         .await
         .map_err(|error| bus::Error::Call(error.to_string()))?;
-    let Some(devices) = bus::call(fwupd.get_devices().await)? else {
-        return Ok(Vec::new());
+    let devices = match bus::call(fwupd.get_devices().await) {
+        Ok(devices) => devices,
+        Err(bus::Error::Absent) => return Ok(Vec::new()),
+        Err(error) => return Err(error),
     };
     let mut upgrades = Vec::new();
     for device in devices.iter().filter(|device| updatable(device)) {

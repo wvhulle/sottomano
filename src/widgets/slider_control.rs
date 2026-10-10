@@ -244,11 +244,6 @@ impl SliderControl {
         self
     }
 
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    fn percent_of_range(&self) -> u8 {
-        (self.fraction_of_range() * 100.0).round() as u8
-    }
-
     fn fraction_of_range(&self) -> f32 {
         let span = self.range.end() - self.range.start();
         ((self.current() - self.range.start()) / span).clamp(0.0, 1.0)
@@ -477,7 +472,7 @@ impl BarWidget for SliderControl {
         } else {
             readout
         };
-        announcement.level(self.percent_of_range(), body_text)
+        announcement.level(self.range_fill(), body_text)
     }
 
     fn tooltip(&self) -> TooltipBody {

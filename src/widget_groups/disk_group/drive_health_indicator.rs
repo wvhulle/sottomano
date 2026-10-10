@@ -3,19 +3,16 @@ use uom::si::f64::ThermodynamicTemperature;
 use crate::{
     data::{
         severity::Severity,
-        source::{
-            disk::{
-                btrfs::DeviceErrors,
-                health::{DriveHealth, DriveTemperature, ErrorTracking, MissingSensor},
-            },
-            sysfs_sensors::temperature::ThermalLimit,
+        source::disk::{
+            btrfs::DeviceErrors,
+            health::{DriveHealth, DriveTemperature, MissingSensor},
         },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         phosphor::Phosphor,
-        temperature_thresholds::{TemperatureThresholds, celsius_text, reported_or},
-        tooltip_body::{Section, TooltipBody},
+        temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -30,7 +27,9 @@ impl BarWidget for DriveHealth {
     }
 
     fn state(&self) -> WidgetState {
-        self.temperature_level().max(self.errors.level()).into()
+        self.temperature_level()
+            .max(error_level(self.errors.as_ref()))
+            .into()
     }
 
     fn label(&self) -> Option<String> {
@@ -50,19 +49,20 @@ impl BarWidget for DriveHealth {
             .current()
             .map(|_| self.temperature_thresholds());
         TooltipBody::sections(&[
-            Section::untitled(&[
-                ("Drive", Some(self.device_name.clone())),
-                ("Temperature", Some(self.temperature.text())),
-                (
-                    "Warns above",
-                    thresholds.map(|thresholds| celsius_text(thresholds.warning)),
-                ),
-                (
-                    "Critical above",
-                    thresholds.map(|thresholds| celsius_text(thresholds.critical)),
-                ),
-            ]),
-            self.errors.section(),
+            Section::untitled_dictionary(
+                [
+                    KeyValue::new("Drive", self.device_name.as_str()),
+                    KeyValue::new("Temperature", self.temperature.text()),
+                ]
+                .into_iter()
+                .chain(thresholds.into_iter().flat_map(|thresholds| {
+                    [
+                        KeyValue::new("Warns above", celsius_text(thresholds.warning)),
+                        KeyValue::new("Critical above", celsius_text(thresholds.critical)),
+                    ]
+                })),
+            ),
+            Section::dictionary("I/O errors", self.errors.iter().flat_map(error_entries)),
         ])
     }
 }
@@ -79,8 +79,14 @@ impl DriveHealth {
 
     fn temperature_thresholds(&self) -> TemperatureThresholds {
         TemperatureThresholds {
-            warning: reported_or(self.temperature.warning(), UNREPORTED_WARNING_CELSIUS),
-            critical: reported_or(self.temperature.critical(), UNREPORTED_CRITICAL_CELSIUS),
+            warning: self
+                .temperature
+                .warning()
+                .unwrap_or_else(|| celsius(UNREPORTED_WARNING_CELSIUS)),
+            critical: self
+                .temperature
+                .critical()
+                .unwrap_or_else(|| celsius(UNREPORTED_CRITICAL_CELSIUS)),
         }
         .overridden_by(self.overrides)
     }
@@ -101,17 +107,17 @@ impl DriveTemperature {
         }
     }
 
-    fn warning(&self) -> ThermalLimit {
+    fn warning(&self) -> Option<ThermodynamicTemperature> {
         match self {
             DriveTemperature::Reported { warning, .. } => *warning,
-            DriveTemperature::Unreported(_) => ThermalLimit::Unreported,
+            DriveTemperature::Unreported(_) => None,
         }
     }
 
-    fn critical(&self) -> ThermalLimit {
+    fn critical(&self) -> Option<ThermodynamicTemperature> {
         match self {
             DriveTemperature::Reported { critical, .. } => *critical,
-            DriveTemperature::Unreported(_) => ThermalLimit::Unreported,
+            DriveTemperature::Unreported(_) => None,
         }
     }
 }
@@ -125,33 +131,23 @@ impl MissingSensor {
     }
 }
 
-impl ErrorTracking {
-    fn level(&self) -> Severity {
-        match self {
-            ErrorTracking::Tracked(errors) if errors.total() > 0 => Severity::Critical,
-            ErrorTracking::Tracked(_) | ErrorTracking::NotTracked => Severity::Normal,
-        }
-    }
-
-    fn section(&self) -> Section {
-        match self {
-            ErrorTracking::Tracked(errors) => Section::titled("I/O errors", &error_rows(errors)),
-            ErrorTracking::NotTracked => {
-                Section::titled("I/O errors", &[("Counters", "not tracked")])
-            }
-        }
+fn error_level(errors: Option<&DeviceErrors>) -> Severity {
+    if errors.is_some_and(|errors| errors.total() > 0) {
+        Severity::Critical
+    } else {
+        Severity::Normal
     }
 }
 
-fn error_rows(errors: &DeviceErrors) -> Vec<(&'static str, String)> {
+fn error_entries(errors: &DeviceErrors) -> Vec<KeyValue> {
     if errors.total() == 0 {
-        return vec![("Since reset", "none".to_owned())];
+        return vec![KeyValue::new("Since reset", "none")];
     }
     errors
         .by_kind()
         .into_iter()
         .filter(|error| error.count > 0)
-        .map(|error| (error.kind, error.count.to_string()))
-        .chain([("Reset with", ERROR_RESET_COMMAND.to_owned())])
+        .map(|error| KeyValue::new(error.kind, error.count.to_string()))
+        .chain([KeyValue::new("Reset with", ERROR_RESET_COMMAND)])
         .collect()
 }

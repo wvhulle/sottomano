@@ -13,7 +13,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -40,7 +40,7 @@ impl BarWidget for ClaudeUsageWindows {
     fn tooltip(&self) -> TooltipBody {
         let now = Utc::now();
         TooltipBody::sections(&[
-            Section::untitled(&[("Plan", &self.plan)]),
+            Section::untitled_dictionary([KeyValue::new("Plan", self.plan.as_str())]),
             window_section("Session", Some(&self.session), self.session_pace(now), now),
             window_section("Weekly", Some(&self.weekly), self.weekly_pace(now), now),
             window_section(
@@ -66,62 +66,39 @@ fn window_section(
     pace: Option<Pace>,
     now: DateTime<Utc>,
 ) -> Section {
-    Section::titled(
-        title,
-        &[
-            (
-                "Used",
-                window.map(|window| percent_text(window.utilization)),
-            ),
-            (
-                "Projected At Reset",
-                pace.and_then(|pace| match pace {
-                    Pace::Lasts { at_reset } => Some(percent_text(at_reset)),
-                    Pace::RunsOut { .. } => None,
-                }),
-            ),
-            (
-                "Runs Out In",
-                pace.and_then(|pace| match pace {
-                    Pace::RunsOut { at } => Some(countdown(at, now)),
-                    Pace::Lasts { .. } => None,
-                }),
-            ),
-            (
-                "Resets In",
-                window.map(|window| {
-                    window
-                        .resets_at
-                        .map_or_else(|| "—".to_owned(), |at| countdown(at, now))
-                }),
-            ),
-        ],
-    )
+    let pace_entry = pace.map(|pace| match pace {
+        Pace::Lasts { at_reset } => KeyValue::new("Projected At Reset", percent_text(at_reset)),
+        Pace::RunsOut { at } => KeyValue::new("Runs Out In", countdown(at, now)),
+    });
+    let used = window.map(|window| KeyValue::new("Used", percent_text(window.utilization)));
+    let resets = window
+        .and_then(|window| window.resets_at)
+        .map(|at| KeyValue::new("Resets In", countdown(at, now)));
+    Section::dictionary(title, [used, pace_entry, resets].into_iter().flatten())
 }
 
 fn extra_section(extra: Option<&ExtraUsage>) -> Section {
-    Section::titled(
-        "Extra Usage",
-        &[
-            (
-                "Status",
-                extra.map(|extra| match &extra.status {
-                    ExtraStatus::Enabled => "enabled".to_owned(),
-                    ExtraStatus::Disabled(reason) => reason.clone(),
-                }),
-            ),
-            (
-                "Spent This Month",
-                extra.and_then(|extra| extra.spent.as_ref().map(ToString::to_string)),
-            ),
-            (
-                "Monthly Limit",
-                extra.and_then(|extra| extra.monthly_limit.as_ref().map(ToString::to_string)),
-            ),
-            (
-                "Used",
-                extra.and_then(|extra| extra.used_percent.map(percent_text)),
-            ),
-        ],
-    )
+    let entries = extra.into_iter().flat_map(|extra| {
+        let status = match &extra.status {
+            ExtraStatus::Enabled => "enabled".to_owned(),
+            ExtraStatus::Disabled(reason) => reason.clone(),
+        };
+        [
+            Some(KeyValue::new("Status", status)),
+            extra
+                .spent
+                .as_ref()
+                .map(|spent| KeyValue::new("Spent This Month", spent.to_string())),
+            extra
+                .monthly_limit
+                .as_ref()
+                .map(|limit| KeyValue::new("Monthly Limit", limit.to_string())),
+            extra
+                .used_percent
+                .map(|used| KeyValue::new("Used", percent_text(used))),
+        ]
+        .into_iter()
+        .flatten()
+    });
+    Section::dictionary("Extra Usage", entries)
 }

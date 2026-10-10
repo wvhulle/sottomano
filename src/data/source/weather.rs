@@ -133,7 +133,6 @@ pub enum WeatherCondition {
     SnowShowers(Intensity),
     Thunderstorm,
     ThunderstormWithHail(Intensity),
-    Unrecognized(i64),
 }
 
 impl Display for WeatherCondition {
@@ -142,10 +141,12 @@ impl Display for WeatherCondition {
     }
 }
 
-impl From<i64> for WeatherCondition {
-    fn from(code: i64) -> Self {
+impl TryFrom<i64> for WeatherCondition {
+    type Error = i64;
+
+    fn try_from(code: i64) -> Result<Self, Self::Error> {
         use Intensity::{Heavy, Light, Moderate};
-        match code {
+        let condition = match code {
             0 => Self::Clear,
             1 => Self::MainlyClear,
             2 => Self::PartlyCloudy,
@@ -174,24 +175,10 @@ impl From<i64> for WeatherCondition {
             95 => Self::Thunderstorm,
             96 => Self::ThunderstormWithHail(Light),
             99 => Self::ThunderstormWithHail(Heavy),
-            other => Self::Unrecognized(other),
-        }
+            unrecognized => return Err(unrecognized),
+        };
+        Ok(condition)
     }
-}
-
-fn weather_condition<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<WeatherCondition, D::Error> {
-    Ok(i64::deserialize(deserializer)?.into())
-}
-
-fn weather_conditions<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Vec<WeatherCondition>, D::Error> {
-    Ok(Vec::<i64>::deserialize(deserializer)?
-        .into_iter()
-        .map(WeatherCondition::from)
-        .collect())
 }
 
 #[derive(Deserialize)]
@@ -211,8 +198,7 @@ struct CurrentTemperature {
     apparent_temperature: ThermodynamicTemperature,
     #[serde(deserialize_with = "percent_value")]
     relative_humidity_2m: Ratio,
-    #[serde(rename = "weather_code", deserialize_with = "weather_condition")]
-    condition: WeatherCondition,
+    weather_code: i64,
 }
 
 #[derive(Deserialize)]
@@ -229,8 +215,7 @@ struct HourlyTemperatures {
     time: Vec<DateTime<Utc>>,
     #[serde(deserialize_with = "celsius_series")]
     temperature_2m: Vec<ThermodynamicTemperature>,
-    #[serde(rename = "weather_code", deserialize_with = "weather_conditions")]
-    conditions: Vec<WeatherCondition>,
+    weather_code: Vec<i64>,
 }
 
 impl HourlyTemperatures {
@@ -239,11 +224,11 @@ impl HourlyTemperatures {
             .time
             .into_iter()
             .zip(self.temperature_2m)
-            .zip(self.conditions)
-            .map(|((time, temp), condition)| HourlyTemperature {
+            .zip(self.weather_code)
+            .map(|((time, temp), code)| HourlyTemperature {
                 time,
                 temp,
-                condition,
+                condition: WeatherCondition::try_from(code).ok(),
             })
             .partition(|entry| entry.time <= now);
         HourlyForecast { earlier, later }
@@ -305,7 +290,7 @@ fn today(values: &[ThermodynamicTemperature]) -> Result<ThermodynamicTemperature
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
-    pub condition: WeatherCondition,
+    pub condition: Option<WeatherCondition>,
     pub temp: ThermodynamicTemperature,
     pub feels: ThermodynamicTemperature,
     pub temp_min: ThermodynamicTemperature,
@@ -324,7 +309,7 @@ pub struct HourlyForecast {
 pub struct HourlyTemperature {
     pub time: DateTime<Utc>,
     pub temp: ThermodynamicTemperature,
-    pub condition: WeatherCondition,
+    pub condition: Option<WeatherCondition>,
 }
 
 impl Source for Temperature {
@@ -342,7 +327,7 @@ impl Source for Temperature {
         );
         let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         Ok(Temperature {
-            condition: forecast.current.condition,
+            condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
             temp: forecast.current.temperature_2m,
             feels: forecast.current.apparent_temperature,
             temp_min: today(&forecast.daily.temperature_2m_min)?,
@@ -734,7 +719,7 @@ mod tests {
             "2026-09-27T09:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
         assert_eq!(forecast.later.len(), 1);
-        assert_eq!(forecast.later[0].condition, WeatherCondition::Clear);
+        assert_eq!(forecast.later[0].condition, Some(WeatherCondition::Clear));
     }
 
     #[test]
@@ -743,18 +728,16 @@ mod tests {
             0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82,
             85, 86, 95, 96, 99,
         ];
-        assert!(documented.into_iter().all(|code| !matches!(
-            WeatherCondition::from(code),
-            WeatherCondition::Unrecognized(_)
-        )));
-        assert_eq!(
-            WeatherCondition::from(57),
-            WeatherCondition::FreezingDrizzle(Intensity::Heavy)
+        assert!(
+            documented
+                .into_iter()
+                .all(|code| WeatherCondition::try_from(code).is_ok())
         );
         assert_eq!(
-            WeatherCondition::from(42),
-            WeatherCondition::Unrecognized(42)
+            WeatherCondition::try_from(57),
+            Ok(WeatherCondition::FreezingDrizzle(Intensity::Heavy))
         );
+        assert_eq!(WeatherCondition::try_from(42), Err(42));
     }
 
     fn september_27_at(hour: u32, minute: u32) -> DateTime<Local> {

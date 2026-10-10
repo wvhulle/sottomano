@@ -73,7 +73,7 @@ mod tests {
 
     fn charging_at(state_of_charge: f64) -> Battery {
         Battery {
-            status: ChargeStatus::Charging,
+            status: Some(ChargeStatus::Charging),
             capacity: Ratio::new::<ratio>(state_of_charge),
             energy: Energy::new::<watt_hour>(state_of_charge * CAPACITY_WH),
             energy_full: Energy::new::<watt_hour>(CAPACITY_WH),

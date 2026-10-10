@@ -12,7 +12,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
+        tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -30,26 +30,28 @@ fn limit_level(limit: FrequencyLimit) -> Severity {
 
 impl CpuClock {
     fn frequency_section(&self) -> Section {
-        Section::titled(
+        let frequency = |key, frequency: Option<Frequency>| {
+            frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
+        };
+        Section::dictionary(
             "Frequency",
-            &[
-                ("min", self.lowest().map(frequency_text)).into(),
-                ("avg", self.average().map(frequency_text)).into(),
-                ("max", self.highest().map(frequency_text)).into(),
+            [
+                frequency("min", self.lowest()),
+                frequency("avg", self.average()),
+                frequency("max", self.highest()),
                 self.capped_summary(),
-            ],
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 
-    fn capped_summary(&self) -> Row {
+    fn capped_summary(&self) -> Option<KeyValue> {
         let capped = self.capped_cores();
-        Row::new(
-            "capped",
-            &[(capped > 0)
-                .then(|| format!("{capped} of {} cores", self.cores.len()))
-                .into()],
-            Severity::Warning,
-        )
+        (capped > 0).then(|| {
+            KeyValue::new("capped", format!("{capped} of {} cores", self.cores.len()))
+                .level(Severity::Warning)
+        })
     }
 }
 
@@ -74,7 +76,12 @@ impl BarWidget for CpuClock {
         TooltipBody::sections(
             &[
                 vec![self.frequency_section()],
-                sections_by_core_kind(&self.topology, self.cores.clone()),
+                sections_by_core_kind(
+                    &self.topology,
+                    self.cores.clone(),
+                    ["Clock", "Cap"],
+                    CoreFreq::table_record,
+                ),
             ]
             .concat(),
         )
@@ -87,21 +94,15 @@ impl PerCore for CoreFreq {
     }
 }
 
-impl TableRow for CoreFreq {
-    const HEADINGS: &'static [&'static str] = &["Clock", "Cap"];
-
-    fn key(&self) -> Cell {
-        format!("Core {}", self.core).into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![
-            frequency_text(self.frequency).into(),
-            frequency_text(self.limit.ceiling()).into(),
-        ]
-    }
-
-    fn level(&self) -> Severity {
-        limit_level(self.limit)
+impl CoreFreq {
+    fn table_record(&self) -> TableRecord<2> {
+        TableRecord::new(
+            format!("Core {}", self.core),
+            [
+                Some(frequency_text(self.frequency).into()),
+                Some(frequency_text(self.limit.ceiling()).into()),
+            ],
+        )
+        .level(limit_level(self.limit))
     }
 }

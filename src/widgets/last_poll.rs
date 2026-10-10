@@ -6,7 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        tooltip_body::{RefreshInfo, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, RefreshInfo, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -26,7 +26,10 @@ impl BarWidget for FailedReading {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[("Error", self.message.clone())])])
+        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+            "Error",
+            self.message.clone(),
+        )])])
     }
 }
 

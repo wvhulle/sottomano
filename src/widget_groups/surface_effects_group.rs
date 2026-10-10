@@ -12,7 +12,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::icon_toggle_item,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
@@ -80,10 +80,9 @@ impl ShadowKnob {
 }
 
 fn switch_tooltip(label: &str, on: bool, described: &str) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-        label,
-        if on { described } else { "off" },
-    )])]))
+    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+        KeyValue::new(label, if on { described } else { "off" }),
+    ])]))
 }
 
 #[derive(Debug, Clone)]
@@ -156,10 +155,9 @@ impl SurfaceEffectsGroup {
                 .into_iter()
                 .find(|knob| knob.target() == *target)
                 .map(|knob| {
-                    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-                        knob.label(),
-                        self.slider(knob).readout_text(),
-                    )])]))
+                    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+                        KeyValue::new(knob.label(), self.slider(knob).readout_text()),
+                    ])]))
                 }),
         }
     }

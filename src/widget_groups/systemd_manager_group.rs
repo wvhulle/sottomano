@@ -18,7 +18,7 @@ use crate::{
     data::source::{
         coredumps::Coredumps,
         oom_kills::OomKills,
-        previous_shutdown::{LastShutdown, read_last_shutdown},
+        previous_shutdown::{LastShutdown, ShutdownReadError, read_last_shutdown},
         systemd_manager::{
             System, UnitScope, User,
             boot_timeline::{BootTimeline, boot_timeline_stream},
@@ -34,7 +34,7 @@ use crate::{
         group_item::GroupItem,
         last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
         },
@@ -143,10 +143,16 @@ impl SystemdManagerGroup {
             Subscription::run_with(
                 ("systemd-last-shutdown", config.slow_shutdown_stop()),
                 |&(_, slow_stop)| {
-                    stream::once(spawn_blocking(move || read_last_shutdown(slow_stop)))
-                        .filter_map(|read| {
+                    stream::once(spawn_blocking(move || read_last_shutdown(slow_stop))).filter_map(
+                        |read| {
                             ready(match read {
-                                Ok(Ok(last_shutdown)) => Some(last_shutdown),
+                                Ok(Ok(last_shutdown)) => {
+                                    Some(SystemdManagerMessage::LastShutdown(Some(last_shutdown)))
+                                }
+                                Ok(Err(
+                                    ShutdownReadError::NoPreviousBoot
+                                    | ShutdownReadError::NoShutdownRecorded,
+                                )) => Some(SystemdManagerMessage::LastShutdown(None)),
                                 Ok(Err(e)) => {
                                     tracing::warn!("systemd last shutdown: {e}");
                                     None
@@ -156,8 +162,8 @@ impl SystemdManagerGroup {
                                     None
                                 }
                             })
-                        })
-                        .map(SystemdManagerMessage::LastShutdown)
+                        },
+                    )
                 },
             ),
             journal_subscription(Coredumps::from_entries, SystemdManagerMessage::Coredumps),
@@ -281,44 +287,38 @@ impl BarWidget for SystemdManagerGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            (
-                System::SLOW_JOBS_LABEL,
-                self.slow_system_jobs
-                    .get()
-                    .map(|jobs| jobs.jobs.len().to_string()),
-            ),
-            (
-                User::SLOW_JOBS_LABEL,
-                self.slow_user_jobs
-                    .get()
-                    .map(|jobs| jobs.jobs.len().to_string()),
-            ),
-            (
-                System::FAILED_LABEL,
-                self.failed_system
-                    .get()
-                    .map(|failed| failed.units.len().to_string()),
-            ),
-            (
-                User::FAILED_LABEL,
-                self.failed_user
-                    .get()
-                    .map(|failed| failed.units.len().to_string()),
-            ),
-            (
-                "OOM kills",
-                self.oom_kills
-                    .get()
-                    .map(|kills| kills.entries.len().to_string()),
-            ),
-            (
-                "Coredumps",
-                self.coredumps
-                    .get()
-                    .map(|dumps| dumps.entries.len().to_string()),
-            ),
-        ])])
+        let count =
+            |key, count: Option<usize>| count.map(|count| KeyValue::new(key, count.to_string()));
+        TooltipBody::sections(&[Section::untitled_dictionary(
+            [
+                count(
+                    System::SLOW_JOBS_LABEL,
+                    self.slow_system_jobs.get().map(|jobs| jobs.jobs.len()),
+                ),
+                count(
+                    User::SLOW_JOBS_LABEL,
+                    self.slow_user_jobs.get().map(|jobs| jobs.jobs.len()),
+                ),
+                count(
+                    System::FAILED_LABEL,
+                    self.failed_system.get().map(|failed| failed.units.len()),
+                ),
+                count(
+                    User::FAILED_LABEL,
+                    self.failed_user.get().map(|failed| failed.units.len()),
+                ),
+                count(
+                    "OOM kills",
+                    self.oom_kills.get().map(|kills| kills.entries.len()),
+                ),
+                count(
+                    "Coredumps",
+                    self.coredumps.get().map(|dumps| dumps.entries.len()),
+                ),
+            ]
+            .into_iter()
+            .flatten(),
+        )])
     }
 }
 

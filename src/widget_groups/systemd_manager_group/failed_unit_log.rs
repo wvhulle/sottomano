@@ -4,11 +4,8 @@ use chrono::{DateTime, Local, Locale};
 
 use crate::{
     config::Config,
-    data::{
-        severity::Severity,
-        source::systemd_manager::failed_units::{
-            Failed, FailedUnitInfo, ServiceOutcome, UNIT_FAILURE_PRIORITY,
-        },
+    data::source::systemd_manager::failed_units::{
+        Failed, FailedUnitInfo, ServiceOutcome, UNIT_FAILURE_PRIORITY,
     },
     widget_groups::{
         systemd_manager_group::{ScopeAppearance, SystemdManagerMessage},
@@ -19,7 +16,7 @@ use crate::{
         group_item::{GroupItem, Press},
         localized_time::TimePart,
         reading_alert::ReadingAlert,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -84,37 +81,29 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn tooltip(&self) -> TooltipBody {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::column_table(
             (
                 S::FAILED_LABEL,
                 "Units in the failed state now; each toasts until it recovers.",
             ),
-            units,
+            ["Reason", "Failed"],
+            units.iter().map(FailedUnitInfo::table_record),
         )])
     }
 }
 
-impl TableRow for FailedUnitInfo {
-    const HEADINGS: &'static [&'static str] = &["Reason", "Failed"];
-
-    fn key(&self) -> Cell {
-        self.name.clone().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
+impl FailedUnitInfo {
+    fn table_record(&self) -> TableRecord<2> {
         let reason = self
             .service_outcome
             .as_ref()
-            .map_or(Cell::Missing, |outcome| outcome.description().into());
-        let failed = self.at.map_or(Cell::Missing, |at| Cell::Time {
+            .map(|outcome| outcome.description().into());
+        let failed = self.at.map(|at| Cell::Time {
             at: at.into(),
             part: TimePart::DateAndTime,
         });
-        vec![reason, failed]
-    }
-
-    fn level(&self) -> Severity {
-        UNIT_FAILURE_PRIORITY.severity()
+        TableRecord::new(self.name.clone(), [reason, failed])
+            .level(UNIT_FAILURE_PRIORITY.severity())
     }
 }
 
@@ -157,10 +146,10 @@ mod tests {
     }
 
     fn section_keys(section: &Section) -> Vec<Cell> {
-        let SectionBody::Columns { rows, .. } = section.body() else {
+        let SectionBody::ColumnTable { records, .. } = section.body() else {
             panic!("expected a table");
         };
-        rows.iter().map(|row| row.key().clone()).collect()
+        records.iter().map(|record| record.key().clone()).collect()
     }
 
     #[test]

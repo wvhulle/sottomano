@@ -132,7 +132,7 @@ pub fn fallback_font(ch: char) -> Option<Font> {
 }
 
 fn fc_match(pattern: &str, format: &str) -> Option<String> {
-    let stdout = command::blocking::output("fc-match", &["-f", format, pattern]).ok()??;
+    let stdout = command::blocking::output("fc-match", &["-f", format, pattern]).ok()?;
     let value = stdout.lines().next()?.split(',').next()?.trim().to_owned();
     (!value.is_empty()).then_some(value)
 }
@@ -144,7 +144,7 @@ struct FontMatch {
 
 fn fc_match_family_file(pattern: &str) -> Option<FontMatch> {
     let stdout =
-        command::blocking::output("fc-match", &["-f", "%{family}\t%{file}", pattern]).ok()??;
+        command::blocking::output("fc-match", &["-f", "%{family}\t%{file}", pattern]).ok()?;
     let line = stdout.lines().next()?;
     let (family, file) = line.split_once('\t')?;
     let family = family.split(',').next()?.trim();

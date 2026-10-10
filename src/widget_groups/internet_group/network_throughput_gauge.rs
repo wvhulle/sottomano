@@ -16,7 +16,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         rate_text::RateText,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -71,18 +71,27 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
 
     fn tooltip(&self) -> TooltipBody {
         if self.interfaces.is_empty() {
-            return TooltipBody::sections(&[Section::untitled(&[("Connectivity", "none")])]);
+            return TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+                "Connectivity",
+                "none",
+            )])]);
         }
-        TooltipBody::sections(&[Section::untitled(&[
-            (D::LABEL, self.rate.per_second_text()),
-            ("Peak", self.peak_rate.per_second_text()),
-            ("Interfaces", self.interfaces.join(", ")),
-            ("Connectivity", self.connectivity.label().to_owned()),
-            (
+        let connectivity = self
+            .connectivity
+            .map(|connectivity| KeyValue::new("Connectivity", connectivity.label()));
+        TooltipBody::sections(&[Section::untitled_dictionary(
+            [
+                KeyValue::new(D::LABEL, self.rate.per_second_text()),
+                KeyValue::new("Peak", self.peak_rate.per_second_text()),
+                KeyValue::new("Interfaces", self.interfaces.join(", ")),
+            ]
+            .into_iter()
+            .chain(connectivity)
+            .chain([KeyValue::new(
                 "Capacity",
                 InformationRate::new::<megabyte_per_second>(SCALE_END_MB_PER_S).per_second_text(),
-            ),
-        ])])
+            )]),
+        )])
     }
 }
 
@@ -105,10 +114,10 @@ impl<D: Direction> Throughput<D> {
     }
 }
 
-fn connectivity_level(connectivity: Connectivity) -> Severity {
+fn connectivity_level(connectivity: Option<Connectivity>) -> Severity {
     match connectivity {
-        Connectivity::Full => Severity::Normal,
-        Connectivity::Limited | Connectivity::Unknown => Severity::Warning,
-        Connectivity::None => Severity::Critical,
+        Some(Connectivity::Full) => Severity::Normal,
+        Some(Connectivity::Limited) | None => Severity::Warning,
+        Some(Connectivity::Offline) => Severity::Critical,
     }
 }

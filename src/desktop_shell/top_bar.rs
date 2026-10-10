@@ -110,15 +110,23 @@ impl DesktopShell {
         let config = &self.config;
         let top = Position::Top;
         [
-            self.weather_group.widget_group(config, top, Message::Weather),
-            self.battery_group.widget_group(config, top, Message::Battery),
-            self.compute_group.widget_group(config, top, Message::Compute),
+            self.weather_group
+                .widget_group(config, top, Message::Weather),
+            self.battery_group
+                .widget_group(config, top, Message::Battery),
+            self.compute_group
+                .widget_group(config, top, Message::Compute),
             self.disk_group.widget_group(config, top, Message::Disk),
-            self.net_interfaces_group.widget_group(config, top, Message::NetInterfaces),
-            self.systemd_manager_group.widget_group(config, top, Message::SystemdManager),
-            self.journal_events_group.widget_group(config, top, Message::JournalEvents),
-            self.pending_upgrades_group.widget_group(config, top, Message::PendingUpgrades),
-            self.internet_group.widget_group(config, top, Message::Internet),
+            self.net_interfaces_group
+                .widget_group(config, top, Message::NetInterfaces),
+            self.systemd_manager_group
+                .widget_group(config, top, Message::SystemdManager),
+            self.journal_events_group
+                .widget_group(config, top, Message::JournalEvents),
+            self.pending_upgrades_group
+                .widget_group(config, top, Message::PendingUpgrades),
+            self.internet_group
+                .widget_group(config, top, Message::Internet),
         ]
     }
 
@@ -127,14 +135,13 @@ impl DesktopShell {
         let top = Position::Top;
         [
             self.clock_group.widget_group(config, top, Message::Clock),
-            self.notification_group
-                .widget_group(
-                    config,
-                    &self.shell_settings.notifications,
-                    self.notifications.live_count(),
-                    top,
-                    Message::NotificationGroup,
-                ),
+            self.notification_group.widget_group(
+                config,
+                &self.shell_settings.notifications,
+                self.notifications.live_count(),
+                top,
+                Message::NotificationGroup,
+            ),
         ]
     }
 
@@ -143,11 +150,16 @@ impl DesktopShell {
         let top = Position::Top;
         [
             self.ai_group.widget_group(config, top, Message::Ai),
-            self.monitor_group.widget_group(config, top, Message::Monitor),
-            self.dark_mode_group.widget_group(config, top, Message::DarkMode),
-            self.color_temperature_group.widget_group(config, top, Message::ColorTemperature),
-            self.idle_timeouts_group.widget_group(config, top, Message::IdleTimeouts),
-            self.wallpaper_group.widget_group(config, top, Message::Wallpaper),
+            self.monitor_group
+                .widget_group(config, top, Message::Monitor),
+            self.dark_mode_group
+                .widget_group(config, top, Message::DarkMode),
+            self.color_temperature_group
+                .widget_group(config, top, Message::ColorTemperature),
+            self.idle_timeouts_group
+                .widget_group(config, top, Message::IdleTimeouts),
+            self.wallpaper_group
+                .widget_group(config, top, Message::Wallpaper),
             self.media_group
                 .widget_group(config, &self.desktop_entries, top, Message::Media),
             self.audio_group.widget_group(config, top, Message::Audio),

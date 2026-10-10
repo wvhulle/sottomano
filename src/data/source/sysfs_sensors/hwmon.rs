@@ -5,7 +5,7 @@ use std::{
 
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius};
 
-use super::{list_dir, read_i64, read_trimmed, temperature::ThermalLimit};
+use super::{list_dir, read_i64, read_trimmed};
 use crate::config::temperature::{SensorChoice, SensorLabel};
 
 const HWMON: &str = "/sys/class/hwmon";
@@ -119,7 +119,11 @@ impl HwmonChip {
             .map(celsius_from_millidegrees)
     }
 
-    pub fn limit(&self, sensor: &TemperatureSensor, kind: LimitKind) -> ThermalLimit {
+    pub fn limit(
+        &self,
+        sensor: &TemperatureSensor,
+        kind: LimitKind,
+    ) -> Option<ThermodynamicTemperature> {
         let suffix = match kind {
             LimitKind::Max => "max",
             LimitKind::Crit => "crit",
@@ -127,7 +131,6 @@ impl HwmonChip {
         self.millidegrees(sensor, suffix)
             .map(celsius_from_millidegrees)
             .filter(|limit| PLAUSIBLE_LIMIT_CELSIUS.contains(&limit.get::<degree_celsius>()))
-            .map_or(ThermalLimit::Unreported, ThermalLimit::Reported)
     }
 
     fn millidegrees(&self, sensor: &TemperatureSensor, suffix: &str) -> Option<i64> {
@@ -194,10 +197,7 @@ mod tests {
         assert_eq!(sensors[0].label, "Composite");
         assert_eq!(sensors[1].label, "temp2");
         let (max, crit) = composite.unwrap();
-        assert_eq!(max, ThermalLimit::Unreported);
-        assert_eq!(
-            crit,
-            ThermalLimit::Reported(celsius_from_millidegrees(84_850))
-        );
+        assert_eq!(max, None);
+        assert_eq!(crit, Some(celsius_from_millidegrees(84_850)));
     }
 }

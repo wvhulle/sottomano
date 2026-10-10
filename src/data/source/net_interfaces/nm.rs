@@ -17,7 +17,7 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::data::empty_text::non_empty;
+use crate::data::{empty_text::non_empty, source::net_interfaces::ReadingError};
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
@@ -40,22 +40,22 @@ impl From<u32> for DeviceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Connectivity {
     Full,
     Limited,
-    None,
-    #[default]
-    Unknown,
+    Offline,
 }
 
-impl From<u32> for Connectivity {
-    fn from(code: u32) -> Self {
-        match code {
-            4 => Self::Full,
-            2 | 3 => Self::Limited,
-            1 => Self::None,
-            _ => Self::Unknown,
+impl TryFrom<u32> for Connectivity {
+    type Error = u32;
+
+    fn try_from(state_code: u32) -> Result<Self, Self::Error> {
+        match state_code {
+            4 => Ok(Self::Full),
+            2 | 3 => Ok(Self::Limited),
+            1 => Ok(Self::Offline),
+            unknown => Err(unknown),
         }
     }
 }
@@ -65,8 +65,7 @@ impl Connectivity {
         match self {
             Self::Full => "full",
             Self::Limited => "limited",
-            Self::None => "none",
-            Self::Unknown => "unknown",
+            Self::Offline => "none",
         }
     }
 }
@@ -227,48 +226,58 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
 
 pub struct Uplink {
     pub activated_interfaces: Vec<String>,
-    pub connectivity: Connectivity,
+    pub connectivity: Option<Connectivity>,
 }
 
-pub async fn uplink(connection: Connection) -> zbus::Result<Option<Uplink>> {
+pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
     let manager = manager(&connection).await?;
     let (paths, connectivity) = try_join!(manager.get_devices(), manager.connectivity())?;
     let interfaces = try_join_all(
         paths
             .into_iter()
-            .map(|path| activated_ip_interface(&connection, path)),
+            .map(|path| device_interface(&connection, path)),
     )
     .await?;
-    Ok(Some(Uplink {
-        activated_interfaces: interfaces.into_iter().flatten().collect(),
-        connectivity: Connectivity::from(connectivity),
-    }))
+    Ok(Uplink {
+        activated_interfaces: interfaces
+            .into_iter()
+            .filter(|interface| interface.activated && !interface.name.is_empty())
+            .map(|interface| interface.name)
+            .collect(),
+        connectivity: Connectivity::try_from(connectivity).ok(),
+    })
 }
 
-async fn activated_ip_interface(
+struct DeviceInterface {
+    activated: bool,
+    name: String,
+}
+
+async fn device_interface(
     connection: &Connection,
     path: OwnedObjectPath,
-) -> zbus::Result<Option<String>> {
+) -> zbus::Result<DeviceInterface> {
     let device: DeviceProxy = uncached(connection, path).await?;
-    let (state, interface) = try_join!(device.state(), device.ip_interface())?;
-    Ok((state == STATE_ACTIVATED)
-        .then_some(interface)
-        .and_then(non_empty))
+    let (state, name) = try_join!(device.state(), device.ip_interface())?;
+    Ok(DeviceInterface {
+        activated: state == STATE_ACTIVATED,
+        name,
+    })
+}
+
+pub async fn active_connection(device: &DeviceInfo) -> zbus::Result<OwnedObjectPath> {
+    device.proxy.active_connection().await
 }
 
 pub async fn connection_id(
     connection: &Connection,
-    device: &DeviceInfo,
-) -> zbus::Result<Option<String>> {
-    let path = device.proxy.active_connection().await?;
-    if is_unset(&path) {
-        return Ok(None);
-    }
-    let active: ActiveConnectionProxy = uncached(connection, path).await?;
-    Ok(Some(active.id().await?))
+    active_connection: OwnedObjectPath,
+) -> zbus::Result<String> {
+    let active: ActiveConnectionProxy = uncached(connection, active_connection).await?;
+    active.id().await
 }
 
-fn is_unset(path: &OwnedObjectPath) -> bool {
+pub fn is_unset(path: &OwnedObjectPath) -> bool {
     path.as_str() == "/"
 }
 
@@ -383,8 +392,8 @@ fn prefix_to_netmask(prefix: u32) -> String {
     Ipv4Addr::from(bits).to_string()
 }
 
-pub async fn hw_address(device: &DeviceInfo) -> zbus::Result<Option<String>> {
-    Ok(non_empty(device.proxy.hw_address().await?))
+pub async fn hw_address(device: &DeviceInfo) -> zbus::Result<String> {
+    device.proxy.hw_address().await
 }
 
 pub async fn mtu(device: &DeviceInfo) -> zbus::Result<u32> {
@@ -417,18 +426,21 @@ pub struct ApInfo {
     pub ssid: Option<String>,
     pub signal: i64,
     pub frequency: Frequency,
-    pub security: Option<String>,
+    pub security: String,
+}
+
+pub async fn active_access_point(
+    connection: &Connection,
+    device: &DeviceInfo,
+) -> zbus::Result<OwnedObjectPath> {
+    let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
+    wireless.active_access_point().await
 }
 
 pub async fn access_point(
     connection: &Connection,
-    device: &DeviceInfo,
-) -> zbus::Result<Option<ApInfo>> {
-    let wireless: WirelessProxy = uncached(connection, device.path.clone()).await?;
-    let ap_path = wireless.active_access_point().await?;
-    if is_unset(&ap_path) {
-        return Ok(None);
-    }
+    ap_path: OwnedObjectPath,
+) -> zbus::Result<ApInfo> {
     let ap: AccessPointProxy = uncached(connection, ap_path).await?;
     let (ssid, strength, frequency, flags, wpa, rsn) = try_join!(
         ap.ssid(),
@@ -438,12 +450,12 @@ pub async fn access_point(
         ap.wpa_flags(),
         ap.rsn_flags()
     )?;
-    Ok(Some(ApInfo {
+    Ok(ApInfo {
         ssid: non_empty(String::from_utf8_lossy(&ssid).into_owned()),
         signal: i64::from(strength),
         frequency: Frequency::new::<megahertz>(f64::from(frequency)),
         security: security(flags, wpa, rsn),
-    }))
+    })
 }
 
 const AP_PRIVACY: u32 = 0x1;
@@ -454,7 +466,7 @@ const KEY_MGMT_OWE: u32 = 0x800;
 const KEY_MGMT_OWE_TM: u32 = 0x1000;
 const KEY_MGMT_EAP_SUITE_B_192: u32 = 0x2000;
 
-fn security(flags: u32, wpa: u32, rsn: u32) -> Option<String> {
+fn security(flags: u32, wpa: u32, rsn: u32) -> String {
     let parts = [
         (flags & AP_PRIVACY != 0 && wpa == 0 && rsn == 0).then_some("WEP"),
         (wpa != 0).then_some("WPA1"),
@@ -468,7 +480,11 @@ fn security(flags: u32, wpa: u32, rsn: u32) -> Option<String> {
     .flatten()
     .collect::<Vec<_>>()
     .join(" ");
-    (!parts.is_empty()).then_some(parts)
+    if parts.is_empty() {
+        "Open".to_owned()
+    } else {
+        parts
+    }
 }
 
 pub async fn changes(connection: &Connection) -> zbus::Result<impl Stream<Item = ()> + use<>> {

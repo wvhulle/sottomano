@@ -6,9 +6,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareRows,
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -35,53 +35,61 @@ impl BarWidget for Mobile {
     fn tooltip(&self) -> TooltipBody {
         let signal_suffix = if self.signal_recent { "" } else { " (cached)" };
         TooltipBody::sections(&[
-            Section::titled(
+            Section::dictionary(
                 "Modem",
-                &[
-                    ("Carrier", self.operator.clone()),
-                    (
-                        "Network Type",
-                        (!self.technology.is_empty()).then(|| self.technology.join(", ")),
-                    ),
-                    (
-                        "Signal Strength",
-                        self.signal
-                            .map(|signal| format!("{signal}%{signal_suffix}")),
-                    ),
-                    ("Network Registration", self.registration.clone()),
-                ],
+                [
+                    self.operator
+                        .as_deref()
+                        .map(|operator| KeyValue::new("Carrier", operator)),
+                    (!self.technology.is_empty())
+                        .then(|| KeyValue::new("Network Type", self.technology.join(", "))),
+                    self.signal.map(|signal| {
+                        KeyValue::new("Signal Strength", format!("{signal}%{signal_suffix}"))
+                    }),
+                    self.registration
+                        .as_deref()
+                        .map(|registration| KeyValue::new("Network Registration", registration)),
+                ]
+                .into_iter()
+                .flatten(),
             ),
             if self.state == CONNECTED {
-                Section::titled(
+                Section::dictionary(
                     "Address",
-                    &[("IPv4 Address", &self.ipv4), ("IPv6 Address", &self.ipv6)],
+                    [
+                        self.ipv4
+                            .as_deref()
+                            .map(|address| KeyValue::new("IPv4 Address", address)),
+                        self.ipv6
+                            .as_deref()
+                            .map(|address| KeyValue::new("IPv6 Address", address)),
+                    ]
+                    .into_iter()
+                    .flatten(),
                 )
             } else {
-                Section::titled(
+                let failure = self
+                    .failed_reason
+                    .as_deref()
+                    .filter(|_| self.state == "failed")
+                    .map(|reason| KeyValue::new("Failure Reason", reason));
+                Section::dictionary(
                     "Status",
-                    &[
-                        ("Connection State", Some(self.state.clone())),
-                        (
-                            "Failure Reason",
-                            self.failed_reason
-                                .clone()
-                                .filter(|_| self.state == "failed"),
-                        ),
-                    ],
+                    [KeyValue::new("Connection State", self.state.as_str())]
+                        .into_iter()
+                        .chain(failure),
                 )
             },
-            Section::titled(
+            Section::dictionary(
                 "Data",
-                &[
-                    (
-                        "Received (RX)",
-                        self.rx.map(|rx| rx.display().iec().to_string()),
-                    ),
-                    (
-                        "Sent (TX)",
-                        self.tx.map(|tx| tx.display().iec().to_string()),
-                    ),
-                ],
+                [
+                    self.rx
+                        .map(|rx| KeyValue::new("Received (RX)", rx.display().iec().to_string())),
+                    self.tx
+                        .map(|tx| KeyValue::new("Sent (TX)", tx.display().iec().to_string())),
+                ]
+                .into_iter()
+                .flatten(),
             ),
             self.identity.hardware_section(),
         ])

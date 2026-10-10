@@ -6,7 +6,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -36,10 +36,10 @@ impl BarWidget for Memory {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            ("Memory", format!("{}%", self.percent())),
-            ("Used", self.used.display().iec().to_string()),
-            ("Total", self.total.display().iec().to_string()),
+        TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new("Memory", format!("{}%", self.percent())),
+            KeyValue::new("Used", self.used.display().iec().to_string()),
+            KeyValue::new("Total", self.total.display().iec().to_string()),
         ])])
     }
 }

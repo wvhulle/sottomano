@@ -3,160 +3,169 @@ use crate::{
         Adapter, CacheLevel, CpuModel, DriveIdentity, MemoryModuleGroup, MemoryModules,
         ModemIdentity, PowerSupplyIdentity,
     },
-    widgets::tooltip_body::{Cell, Row, Section},
+    widgets::tooltip_body::{Cell, KeyValue, Section},
 };
 
-pub trait HardwareRows {
-    fn hardware_rows(&self) -> Vec<Row>;
+pub trait HardwareEntries {
+    fn hardware_entries(&self) -> Vec<KeyValue>;
 
     fn hardware_section(&self) -> Section {
-        Section::titled("Hardware", &self.hardware_rows())
+        Section::dictionary("Hardware", self.hardware_entries())
     }
 }
 
-impl<H: HardwareRows> HardwareRows for &H {
-    fn hardware_rows(&self) -> Vec<Row> {
-        (*self).hardware_rows()
+impl<H: HardwareEntries> HardwareEntries for &H {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
+        (*self).hardware_entries()
     }
 }
 
-impl<H: HardwareRows> HardwareRows for Option<H> {
-    fn hardware_rows(&self) -> Vec<Row> {
-        self.as_ref().map(H::hardware_rows).unwrap_or_default()
+impl<H: HardwareEntries> HardwareEntries for Option<H> {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
+        self.as_ref().map(H::hardware_entries).unwrap_or_default()
     }
 }
 
 impl CpuModel {
     pub fn hardware_sections(&self) -> [Section; 3] {
-        let caches: Vec<Row> = self.caches.0.iter().map(CacheLevel::row).collect();
+        let topology = &self.topology;
         [
-            Section::titled(
+            Section::dictionary(
                 "Processor",
-                &[
+                [
                     ("Model", &self.identity.name),
                     ("Microarchitecture", &self.architecture.microarchitecture),
                     ("Process", &self.architecture.process),
                     ("Released", &self.architecture.released),
                     ("x86-64 level", &self.architecture.x86_64_level),
                     ("Microcode", &self.identity.microcode),
-                ],
+                ]
+                .into_iter()
+                .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
             ),
-            Section::titled(
+            Section::dictionary(
                 "Topology",
-                &[
-                    ("Cores", self.topology.cores.map(|count| count.to_string())),
-                    (
-                        "Threads",
-                        self.topology.threads.map(|count| count.to_string()),
-                    ),
-                ],
+                [
+                    topology
+                        .cores
+                        .map(|count| KeyValue::new("Cores", count.to_string())),
+                    topology
+                        .threads
+                        .map(|count| KeyValue::new("Threads", count.to_string())),
+                ]
+                .into_iter()
+                .flatten(),
             ),
-            Section::titled("Cache", &caches),
+            Section::dictionary("Cache", self.caches.0.iter().map(CacheLevel::key_value)),
         ]
     }
 }
 
 impl CacheLevel {
-    fn row(&self) -> Row {
+    fn key_value(&self) -> KeyValue {
         let instances = self
             .instances
             .iter()
             .map(|same_size| format!("{} × {}", same_size.count, same_size.size.display().iec()))
             .collect::<Vec<_>>()
             .join(" + ");
-        (self.position.to_string(), instances).into()
+        KeyValue::new(self.position.to_string(), instances)
     }
 }
 
-impl HardwareRows for MemoryModules {
-    fn hardware_rows(&self) -> Vec<Row> {
-        self.0.iter().flat_map(MemoryModuleGroup::rows).collect()
+impl HardwareEntries for MemoryModules {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
+        self.0.iter().flat_map(MemoryModuleGroup::entries).collect()
     }
 }
 
 impl MemoryModuleGroup {
-    fn rows(&self) -> Vec<Row> {
+    fn entries(&self) -> impl Iterator<Item = KeyValue> + '_ {
         let module = &self.module;
+        let speed = module
+            .speed_mts
+            .map(|speed| KeyValue::new("Speed", format!("{speed} MT/s")));
         [
-            ("Manufacturer", module.manufacturer.clone()),
-            ("Part number", module.part_number.clone()),
-            ("Type", module.kind.clone()),
-            (
-                "Speed",
-                module.speed_mts.map(|speed| format!("{speed} MT/s")),
-            ),
-            ("Module size", Some(module.size.display().iec().to_string())),
-            ("Modules", Some(self.count.to_string())),
+            ("Manufacturer", &module.manufacturer),
+            ("Part number", &module.part_number),
+            ("Type", &module.kind),
         ]
-        .map(Row::from)
-        .into()
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .chain(speed)
+        .chain([
+            KeyValue::new("Module size", module.size.display().iec().to_string()),
+            KeyValue::new("Modules", self.count.to_string()),
+        ])
     }
 }
 
-impl HardwareRows for DriveIdentity {
-    fn hardware_rows(&self) -> Vec<Row> {
+impl HardwareEntries for DriveIdentity {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Model", &self.model),
             ("Serial", &self.serial),
             ("Firmware", &self.firmware),
         ]
-        .map(Row::from)
-        .into()
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .collect()
     }
 }
 
-impl HardwareRows for PowerSupplyIdentity {
-    fn hardware_rows(&self) -> Vec<Row> {
+impl HardwareEntries for PowerSupplyIdentity {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Manufacturer", &self.manufacturer),
             ("Model", &self.model),
             ("Serial", &self.serial),
             ("Technology", &self.technology),
         ]
-        .map(Row::from)
-        .into()
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .collect()
     }
 }
 
-impl HardwareRows for ModemIdentity {
-    fn hardware_rows(&self) -> Vec<Row> {
+impl HardwareEntries for ModemIdentity {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
-            [
-                ("Manufacturer", &self.manufacturer),
-                ("Model", &self.model),
-                ("Firmware", &self.revision),
-            ]
-            .map(Row::from)
-            .to_vec(),
-            self.adapter
-                .as_ref()
-                .map(Adapter::bus_rows)
-                .unwrap_or_default(),
+            ("Manufacturer", &self.manufacturer),
+            ("Model", &self.model),
+            ("Firmware", &self.revision),
         ]
-        .concat()
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .chain(self.adapter.iter().flat_map(Adapter::bus_entries))
+        .collect()
     }
 }
 
-impl HardwareRows for Adapter {
-    fn hardware_rows(&self) -> Vec<Row> {
-        [
-            [("Vendor", &self.vendor), ("Model", &self.model)]
-                .map(Row::from)
-                .to_vec(),
-            self.bus_rows(),
-        ]
-        .concat()
+impl HardwareEntries for Adapter {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
+        [("Vendor", &self.vendor), ("Model", &self.model)]
+            .into_iter()
+            .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+            .chain(self.bus_entries())
+            .collect()
     }
 }
 
 impl Adapter {
-    fn bus_rows(&self) -> Vec<Row> {
-        [
-            (self.bus_id.bus_name(), Cell::from(self.bus_id.to_string())),
-            ("Driver", Cell::from(&self.driver)),
-            ("Lookup", Cell::Link(self.bus_id.lookup_url())),
-        ]
-        .map(Row::from)
-        .into()
+    fn bus_entries(&self) -> impl Iterator<Item = KeyValue> + '_ {
+        let driver = self
+            .driver
+            .as_deref()
+            .map(|driver| KeyValue::new("Driver", driver));
+        [KeyValue::new(
+            self.bus_id.bus_name(),
+            self.bus_id.to_string(),
+        )]
+        .into_iter()
+        .chain(driver)
+        .chain([KeyValue::new(
+            "Lookup",
+            Cell::Link(self.bus_id.lookup_url()),
+        )])
     }
 }

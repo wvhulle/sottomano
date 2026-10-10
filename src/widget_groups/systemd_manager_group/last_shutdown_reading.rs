@@ -13,7 +13,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::{GroupItem, Press},
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -29,33 +29,20 @@ impl StopOutcome {
     }
 }
 
-impl TableRow for UnitStop {
-    const HEADINGS: &'static [&'static str] = &["Took", "Result"];
-
-    fn key(&self) -> Cell {
-        self.unit.name().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        match &self.outcome {
-            StopOutcome::Unfinished => vec!["did not finish".into(), Cell::Missing],
+impl UnitStop {
+    fn table_record(&self) -> TableRecord<2> {
+        let cells = match &self.outcome {
+            StopOutcome::Unfinished => [Some("did not finish".into()), None],
             StopOutcome::Finished {
                 duration,
                 job_result,
                 ..
-            } => vec![
-                elapsed_text(*duration).into(),
-                if job_result == COMPLETED_JOB_RESULT {
-                    Cell::Missing
-                } else {
-                    job_result.clone().into()
-                },
+            } => [
+                Some(elapsed_text(*duration).into()),
+                (job_result != COMPLETED_JOB_RESULT).then(|| job_result.clone().into()),
             ],
-        }
-    }
-
-    fn level(&self) -> Severity {
-        self.outcome.severity()
+        };
+        TableRecord::new(self.unit.name(), cells).level(self.outcome.severity())
     }
 }
 
@@ -78,13 +65,14 @@ impl BarWidget for LastShutdown {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::column_table(
             (
                 "Slowest stops at last shutdown",
                 "From the previous boot's journal: shutdown start to its last entry. Amber stops \
                  crossed slow_shutdown_stop_secs or never finished.",
             ),
-            &self.slowest_stops,
+            ["Took", "Result"],
+            self.slowest_stops.iter().map(UnitStop::table_record),
         )])
     }
 }

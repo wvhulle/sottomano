@@ -22,7 +22,7 @@ use crate::{
     },
     widgets::{
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, Section, TableRow, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, TableRecord, Tooltip, TooltipBody},
     },
 };
 
@@ -229,9 +229,11 @@ impl PowerProfileControl {
             ),
         });
         let section = if self.estimates.is_empty() {
-            Section::untitled(&lives.map(|life| (life.title(), "estimated on battery power")))
+            Section::untitled_dictionary(
+                lives.map(|life| KeyValue::new(life.title(), "estimated on battery power")),
+            )
         } else {
-            Section::untitled_table(lives)
+            Section::untitled_column_table(ESTIMATE_HEADINGS, lives.map(|life| life.table_record()))
         };
         Some(Tooltip::of(TooltipBody::sections(&[section])))
     }
@@ -255,16 +257,8 @@ impl ProfileLife {
             self.profile.title().to_string()
         }
     }
-}
 
-impl TableRow for ProfileLife {
-    const HEADINGS: &'static [&'static str] = ESTIMATE_HEADINGS;
-
-    fn key(&self) -> Cell {
-        self.title().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        self.forecast.cells()
+    fn table_record(&self) -> TableRecord<3> {
+        TableRecord::new(self.title(), self.forecast.cells())
     }
 }

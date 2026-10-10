@@ -4,7 +4,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -28,16 +28,16 @@ impl BarWidget for CopilotCcusage {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::untitled(&[
-                ("Plan", "copilot-cli"),
-                ("Source", "ccusage, local CLI session data"),
+            Section::untitled_dictionary([
+                KeyValue::new("Plan", "copilot-cli"),
+                KeyValue::new("Source", "ccusage, local CLI session data"),
             ]),
-            Section::titled(
+            Section::dictionary(
                 self.month.clone(),
-                &[
-                    ("Tokens", self.usage.tokens.to_string()),
-                    ("Cost", format!("${:.2}", self.usage.cost)),
-                    ("Models", self.usage.models.clone()),
+                [
+                    KeyValue::new("Tokens", self.usage.tokens.to_string()),
+                    KeyValue::new("Cost", format!("${:.2}", self.usage.cost)),
+                    KeyValue::new("Models", self.usage.models.clone()),
                 ],
             ),
         ])

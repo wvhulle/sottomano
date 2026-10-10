@@ -1,6 +1,6 @@
 use crate::{
     data::battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
-    state::{Columns, StoreError, open},
+    state::{Columns, StoreError, connect},
 };
 
 pub(crate) const SCHEMA: [&str; 2] = [
@@ -28,12 +28,12 @@ pub async fn save(battery: String, bin: usize, curve: ChargeCurve) {
 }
 
 async fn try_load(battery: &str) -> Result<ChargeCurve, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&SCHEMA).await?;
     read_curve(&conn, battery).await
 }
 
 async fn try_save(battery: &str, bin: usize, curve: &ChargeCurve) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&SCHEMA).await?;
     write_bin(&conn, battery, bin, curve).await
 }
 

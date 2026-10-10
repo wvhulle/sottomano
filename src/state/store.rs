@@ -1,18 +1,12 @@
 use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, time::Duration};
 
-use tokio::sync::{Mutex, MutexGuard, OnceCell};
-
-use super::{
-    charge_power_curve, dark_mode, idle, launches, overlay_settings, power, rate_limit,
-    shell_settings,
-};
-
 #[derive(Debug)]
 pub(crate) enum StoreError {
     MissingStateDirectory,
     CreateDirectory(io::Error),
     Database(turso::Error),
     Column(ColumnError),
+    NoRow,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +42,7 @@ impl fmt::Display for StoreError {
             Self::CreateDirectory(e) => write!(f, "creating state directory failed: {e}"),
             Self::Database(e) => write!(f, "database error: {e}"),
             Self::Column(e) => write!(f, "{e}"),
+            Self::NoRow => write!(f, "no matching row"),
         }
     }
 }
@@ -63,20 +58,14 @@ impl fmt::Display for ColumnError {
     }
 }
 
-struct Store {
+const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
+
+pub(crate) struct TableConnection {
     connection: turso::Connection,
     _database: turso::Database,
 }
 
-static STORE: OnceCell<Store> = OnceCell::const_new();
-static LOCK: Mutex<()> = Mutex::const_new(());
-
-pub(crate) struct Handle {
-    _guard: MutexGuard<'static, ()>,
-    connection: turso::Connection,
-}
-
-impl Deref for Handle {
+impl Deref for TableConnection {
     type Target = turso::Connection;
 
     fn deref(&self) -> &turso::Connection {
@@ -84,19 +73,8 @@ impl Deref for Handle {
     }
 }
 
-pub(crate) async fn open() -> Result<Handle, StoreError> {
-    let guard = LOCK.lock().await;
-    let store = STORE.get_or_try_init(build).await?;
-    Ok(Handle {
-        _guard: guard,
-        connection: store.connection.clone(),
-    })
-}
-
-async fn build() -> Result<Store, StoreError> {
-    let Some(path) = db_path() else {
-        return Err(StoreError::MissingStateDirectory);
-    };
+pub(crate) async fn connect(schema: &[&str]) -> Result<TableConnection, StoreError> {
+    let path = db_path().ok_or(StoreError::MissingStateDirectory)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -104,30 +82,14 @@ async fn build() -> Result<Store, StoreError> {
         .build()
         .await?;
     let connection = database.connect()?;
-    apply_schema(&connection).await?;
-    Ok(Store {
+    connection.busy_timeout(BUSY_TIMEOUT)?;
+    for statement in schema {
+        connection.execute(statement, ()).await?;
+    }
+    Ok(TableConnection {
         connection,
         _database: database,
     })
-}
-
-pub(crate) async fn apply_schema(connection: &turso::Connection) -> Result<(), StoreError> {
-    for statement in launches::SCHEMA {
-        connection.execute(statement, ()).await?;
-    }
-    connection.execute(shell_settings::CREATE_TABLE, ()).await?;
-    connection
-        .execute(overlay_settings::CREATE_TABLE, ())
-        .await?;
-    connection.execute(idle::CREATE_TABLE, ()).await?;
-    connection.execute(dark_mode::CREATE_TABLE, ()).await?;
-    connection.execute(power::CREATE_TABLE, ()).await?;
-    power::drop_residual_columns(connection).await?;
-    for statement in charge_power_curve::SCHEMA {
-        connection.execute(statement, ()).await?;
-    }
-    connection.execute(rate_limit::CREATE_TABLE, ()).await?;
-    Ok(())
 }
 
 fn db_path() -> Option<PathBuf> {
@@ -171,14 +133,10 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_text(
-        &self,
-        row: &turso::Row,
-        name: &str,
-    ) -> Result<Option<String>, StoreError> {
-        match self.value(row, name)? {
-            turso::Value::Text(text) => Ok(Some(text)),
-            _ => Ok(None),
+    pub(crate) fn optional_text(&self, row: &turso::Row, name: &str) -> Option<String> {
+        match self.value(row, name).ok()? {
+            turso::Value::Text(text) => Some(text),
+            _ => None,
         }
     }
 
@@ -192,14 +150,10 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_integer(
-        &self,
-        row: &turso::Row,
-        name: &str,
-    ) -> Result<Option<i64>, StoreError> {
-        match self.value(row, name)? {
-            turso::Value::Integer(integer) => Ok(Some(integer)),
-            _ => Ok(None),
+    pub(crate) fn optional_integer(&self, row: &turso::Row, name: &str) -> Option<i64> {
+        match self.value(row, name).ok()? {
+            turso::Value::Integer(integer) => Some(integer),
+            _ => None,
         }
     }
 
@@ -214,30 +168,20 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_real(
-        &self,
-        row: &turso::Row,
-        name: &str,
-    ) -> Result<Option<f64>, StoreError> {
-        match self.value(row, name)? {
-            turso::Value::Real(real) => Ok(Some(real)),
-            turso::Value::Integer(integer) => Ok(Some(integer as f64)),
-            _ => Ok(None),
+    pub(crate) fn optional_real(&self, row: &turso::Row, name: &str) -> Option<f64> {
+        match self.value(row, name).ok()? {
+            turso::Value::Real(real) => Some(real),
+            turso::Value::Integer(integer) => Some(integer as f64),
+            _ => None,
         }
     }
 
-    pub(crate) fn optional_flag(
-        &self,
-        row: &turso::Row,
-        name: &str,
-    ) -> Result<Option<bool>, StoreError> {
-        Ok(self
-            .optional_integer(row, name)?
-            .map(|integer| integer != 0))
+    pub(crate) fn optional_flag(&self, row: &turso::Row, name: &str) -> Option<bool> {
+        self.optional_integer(row, name).map(|integer| integer != 0)
     }
 
     pub(crate) fn duration(&self, row: &turso::Row, name: &str) -> Option<Duration> {
-        let seconds = self.optional_integer(row, name).ok()??;
+        let seconds = self.optional_integer(row, name)?;
         Some(Duration::from_secs(u64::try_from(seconds).unwrap_or(0)))
     }
 }

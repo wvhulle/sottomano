@@ -5,7 +5,7 @@ use uom::{
 
 use crate::{
     config::temperature::{Threshold, ThresholdOverrides},
-    data::{severity::Severity, source::sysfs_sensors::temperature::ThermalLimit},
+    data::severity::Severity,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -40,13 +40,6 @@ fn configured_or(
     match threshold {
         Threshold::FromHardware => from_hardware,
         Threshold::Celsius(degrees) => celsius(f64::from(degrees)),
-    }
-}
-
-pub fn reported_or(limit: ThermalLimit, fallback_celsius: f64) -> ThermodynamicTemperature {
-    match limit {
-        ThermalLimit::Reported(limit) => limit,
-        ThermalLimit::Unreported => celsius(fallback_celsius),
     }
 }
 

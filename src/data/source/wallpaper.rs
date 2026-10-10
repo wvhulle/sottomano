@@ -130,15 +130,21 @@ struct SearchedPage {
     extract: Option<String>,
 }
 
-pub fn subscription() -> Subscription<Result<Option<String>, command::Error>> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DisplayedWallpaper {
+    ImageFile(String),
+    NoImageFile,
+}
+
+pub fn subscription() -> Subscription<Result<DisplayedWallpaper, command::Error>> {
     Subscription::run(wallpapers)
 }
 
-fn wallpapers() -> impl Stream<Item = Result<Option<String>, command::Error>> {
+fn wallpapers() -> impl Stream<Item = Result<DisplayedWallpaper, command::Error>> {
     restarting("wallpaper watch", watch)
 }
 
-async fn watch() -> io::Result<impl Stream<Item = Result<Option<String>, command::Error>>> {
+async fn watch() -> io::Result<impl Stream<Item = Result<DisplayedWallpaper, command::Error>>> {
     let Some(base) = cache_base() else {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -155,9 +161,9 @@ async fn watch() -> io::Result<impl Stream<Item = Result<Option<String>, command
         .map(move |event| layout.change(&event))
         .take_while(|change| ready(matches!(change, CacheChange::Wallpaper(_))))
         .filter_map(|change| ready(change.wallpaper()));
-    Ok(stream::iter([Requested::Unknown])
+    Ok(stream::iter([WallpaperLookup::QueryDaemon])
         .chain(changes)
-        .then(requested_or_displayed))
+        .then(wallpaper_path))
 }
 
 struct CacheLayout {
@@ -167,22 +173,22 @@ struct CacheLayout {
 }
 
 enum CacheChange {
-    Wallpaper(Requested),
+    Wallpaper(WallpaperLookup),
     Layout,
 }
 
 impl CacheChange {
-    fn wallpaper(self) -> Option<Requested> {
+    fn wallpaper(self) -> Option<WallpaperLookup> {
         match self {
-            Self::Wallpaper(requested) => Some(requested),
+            Self::Wallpaper(lookup) => Some(lookup),
             Self::Layout => None,
         }
     }
 }
 
-enum Requested {
+enum WallpaperLookup {
     Cached(String),
-    Unknown,
+    QueryDaemon,
 }
 
 impl CacheLayout {
@@ -223,7 +229,7 @@ impl CacheLayout {
         }
         let requested = self
             .requested_path(event)
-            .map_or(Requested::Unknown, Requested::Cached);
+            .map_or(WallpaperLookup::QueryDaemon, WallpaperLookup::Cached);
         CacheChange::Wallpaper(requested)
     }
 
@@ -250,10 +256,10 @@ impl CacheLayout {
     }
 }
 
-async fn requested_or_displayed(requested: Requested) -> Result<Option<String>, command::Error> {
-    match requested {
-        Requested::Cached(path) => Ok(Some(path)),
-        Requested::Unknown => displayed_path().await,
+async fn wallpaper_path(lookup: WallpaperLookup) -> Result<DisplayedWallpaper, command::Error> {
+    match lookup {
+        WallpaperLookup::Cached(path) => Ok(DisplayedWallpaper::ImageFile(path)),
+        WallpaperLookup::QueryDaemon => displayed_wallpaper().await,
     }
 }
 
@@ -275,18 +281,23 @@ fn version_directories(root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-pub async fn displayed_path() -> Result<Option<String>, command::Error> {
+async fn displayed_wallpaper() -> Result<DisplayedWallpaper, command::Error> {
     let mut failure = None;
     for daemon in WALLPAPER_DAEMONS {
         match command::output(daemon, &["query"]).await {
-            Ok(Some(queried)) => return Ok(shown_image(&queried).map(str::to_owned)),
-            Ok(None) => {}
+            Ok(queried) => {
+                return Ok(
+                    shown_image(&queried).map_or(DisplayedWallpaper::NoImageFile, |path| {
+                        DisplayedWallpaper::ImageFile(path.to_owned())
+                    }),
+                );
+            }
+            Err(command::Error::NotInstalled { .. }) => {}
             Err(error) => failure = Some(error),
         }
     }
-    Err(failure.unwrap_or_else(|| command::Error::Spawn {
+    Err(failure.unwrap_or_else(|| command::Error::NotInstalled {
         program: WALLPAPER_DAEMONS.join(" or "),
-        detail: "not installed".to_owned(),
     }))
 }
 
@@ -316,7 +327,8 @@ pub async fn resolve(path: String, id: String, unsplash_key: &Path) -> Result<Wa
     let mut wallpaper = describe_photo(file_name(&path).to_owned(), &id, &secret).await?;
     let language = wikipedia_language();
     if let Some(position) = wallpaper.position {
-        wallpaper.article = nearby_article(&language, position, wallpaper.place.as_deref()).await?;
+        let found = nearby_search(&language, position, wallpaper.place.as_deref()).await?;
+        wallpaper.article = best_article(found, &language);
     }
     Ok(wallpaper)
 }
@@ -400,11 +412,11 @@ fn fix(reported: Option<&ReportedPosition>) -> Option<Position> {
     (!at_null_island).then_some(position)
 }
 
-async fn nearby_article(
+async fn nearby_search(
     language: &str,
     position: Position,
     place: Option<&str>,
-) -> Result<Option<WikipediaArticle>, Error> {
+) -> Result<SearchEnvelope, Error> {
     let Position {
         latitude,
         longitude,
@@ -427,16 +439,16 @@ async fn nearby_article(
         .append_pair("format", "json")
         .finish();
     let url = format!("https://{language}.wikipedia.org/w/api.php?{query}");
-    let found: SearchEnvelope = http::get_json(&url, &[("User-Agent", USER_AGENT)], 10).await?;
-    let Some(best) = found
+    Ok(http::get_json(&url, &[("User-Agent", USER_AGENT)], 10).await?)
+}
+
+fn best_article(found: SearchEnvelope, language: &str) -> Option<WikipediaArticle> {
+    let best = found
         .query
         .into_iter()
         .flat_map(|results| results.pages.into_values())
-        .min_by_key(|page| page.index)
-    else {
-        return Ok(None);
-    };
-    Ok(Some(WikipediaArticle {
+        .min_by_key(|page| page.index)?;
+    Some(WikipediaArticle {
         title: best.title,
         url: best.fullurl.unwrap_or_else(|| {
             format!(
@@ -448,5 +460,5 @@ async fn nearby_article(
             .extract
             .map(|extract| extract.trim().to_owned())
             .filter(|summary| !summary.is_empty()),
-    }))
+    })
 }

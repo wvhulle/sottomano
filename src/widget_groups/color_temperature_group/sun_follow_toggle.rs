@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         toggle_control::Toggle,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
@@ -24,7 +24,7 @@ impl BarWidget for SunFollow {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[(
+        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
             "Auto-temperature",
             if self.auto { "on" } else { "off — manual" },
         )])])

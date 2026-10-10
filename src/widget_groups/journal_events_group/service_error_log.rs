@@ -1,42 +1,30 @@
 use crate::{
-    data::{
-        severity::Severity,
-        source::service_errors::{ServiceErrors, UnitErrors},
-    },
+    data::source::service_errors::{ServiceErrors, UnitErrors},
     widget_groups::journal_events_group::MESSAGE_CAP,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl TableRow for UnitErrors {
-    const HEADINGS: &'static [&'static str] = &["Latest", "Count", "Message"];
-
-    fn key(&self) -> Cell {
-        self.unit.name().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![
-            Cell::Time {
-                at: self.latest.into(),
-                part: TimePart::TimeOfDay,
-            },
-            self.count.to_string().into(),
-            self.latest_message
-                .chars()
-                .take(MESSAGE_CAP)
-                .collect::<String>()
-                .into(),
-        ]
-    }
-
-    fn level(&self) -> Severity {
-        self.severity
+impl UnitErrors {
+    fn table_record(&self) -> TableRecord<3> {
+        let message: String = self.latest_message.chars().take(MESSAGE_CAP).collect();
+        TableRecord::new(
+            self.unit.name(),
+            [
+                Some(Cell::Time {
+                    at: self.latest.into(),
+                    part: TimePart::TimeOfDay,
+                }),
+                Some(self.count.to_string().into()),
+                Some(message.into()),
+            ],
+        )
+        .level(self.severity)
     }
 }
 
@@ -59,13 +47,16 @@ impl BarWidget for ServiceErrors {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::column_table(
             (
                 "Service errors",
                 "Journal entries at err or worse from .service units in the last hour, newest \
                  message per service.",
             ),
-            &self.by_unit_oldest_first,
+            ["Latest", "Count", "Message"],
+            self.by_unit_oldest_first
+                .iter()
+                .map(UnitErrors::table_record),
         )])
     }
 }

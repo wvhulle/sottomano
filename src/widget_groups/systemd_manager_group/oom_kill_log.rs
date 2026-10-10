@@ -1,9 +1,6 @@
 use crate::{
     config::Config,
-    data::{
-        severity::Severity,
-        source::oom_kills::{OomKillEntry, OomKiller, OomKills},
-    },
+    data::source::oom_kills::{OomKillEntry, OomKiller, OomKills},
     desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::{
         systemd_manager_group::SystemdManagerMessage, terminal_journal::TerminalJournal,
@@ -13,7 +10,7 @@ use crate::{
         group_item::{GroupItem, Press},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -27,22 +24,19 @@ impl OomKiller {
     }
 }
 
-impl TableRow for OomKillEntry {
-    const HEADINGS: &'static [&'static str] = &["Unit", "Killed by"];
-
-    fn key(&self) -> Cell {
-        Cell::Time {
-            at: self.at.into(),
-            part: TimePart::TimeOfDay,
-        }
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![self.unit.name().into(), self.killer.label().into()]
-    }
-
-    fn level(&self) -> Severity {
-        self.severity
+impl OomKillEntry {
+    fn table_record(&self) -> TableRecord<2> {
+        TableRecord::new(
+            Cell::Time {
+                at: self.at.into(),
+                part: TimePart::TimeOfDay,
+            },
+            [
+                Some(self.unit.name().into()),
+                Some(self.killer.label().into()),
+            ],
+        )
+        .level(self.severity)
     }
 }
 
@@ -80,12 +74,13 @@ impl BarWidget for OomKills {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(
+        TooltipBody::sections(&[Section::column_table(
             (
                 "OOM kills",
                 "Units whose processes were killed for lack of memory in the last hour.",
             ),
-            &self.entries,
+            ["Unit", "Killed by"],
+            self.entries.iter().map(OomKillEntry::table_record),
         )])
     }
 }

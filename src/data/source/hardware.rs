@@ -325,7 +325,6 @@ impl CpuArchitecture {
     fn current() -> Self {
         command::blocking::output(INXI_PROGRAM, &INXI_CPU_REPORT_ARGS)
             .ok()
-            .flatten()
             .and_then(|report| serde_json::from_str(&report).ok())
             .map(|report| Self::from_inxi_report(&report))
             .unwrap_or_default()

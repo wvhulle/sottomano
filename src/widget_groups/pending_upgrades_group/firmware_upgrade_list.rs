@@ -14,7 +14,7 @@ use crate::{
         localized_time::TimePart,
         phosphor::Phosphor,
         reading_alert::ReadingAlertActionButton,
-        tooltip_body::{Cell, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -89,41 +89,37 @@ impl BarWidget for FirmwareUpgradeList {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::table(LABEL, self.upgrades.iter())])
+        TooltipBody::sections(&[Section::column_table(
+            LABEL,
+            [
+                "Vendor",
+                "Installed",
+                "Offered",
+                "Released",
+                "Urgency",
+                "Summary",
+            ],
+            self.upgrades.iter().map(FirmwareUpgrade::table_record),
+        )])
     }
 }
 
-impl TableRow for &FirmwareUpgrade {
-    const HEADINGS: &'static [&'static str] = &[
-        "Vendor",
-        "Installed",
-        "Offered",
-        "Released",
-        "Urgency",
-        "Summary",
-    ];
-
-    fn key(&self) -> Cell {
-        self.device.clone().into()
-    }
-
-    fn cells(&self) -> Vec<Cell> {
-        vec![
-            self.vendor.clone().map_or(Cell::Missing, Cell::from),
-            self.current_version.clone().into(),
-            self.offered_version.clone().into(),
-            self.offered_released
-                .map_or(Cell::Missing, |at| Cell::Time {
+impl FirmwareUpgrade {
+    fn table_record(&self) -> TableRecord<6> {
+        TableRecord::new(
+            self.device.clone(),
+            [
+                self.vendor.clone().map(Cell::from),
+                Some(self.current_version.clone().into()),
+                Some(self.offered_version.clone().into()),
+                self.offered_released.map(|at| Cell::Time {
                     at,
                     part: TimePart::Date,
                 }),
-            self.urgency
-                .map_or(Cell::Missing, |urgency| urgency.title().into()),
-            self.summary.clone().map_or(Cell::Missing, Cell::from),
-        ]
-    }
-
-    fn level(&self) -> Severity {
-        self.severity()
+                self.urgency.map(|urgency| urgency.title().into()),
+                self.summary.clone().map(Cell::from),
+            ],
+        )
+        .level(self.severity())
     }
 }

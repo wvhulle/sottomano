@@ -29,7 +29,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         weather_icons::WeatherIcon,
         widget_group::{
             ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
@@ -257,13 +257,20 @@ impl DarkModeGroup {
     }
 
     fn offset_slider_tooltip(&self, edge: ColorMode) -> Tooltip {
-        Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-            format!("{} offset", edge.sun_event_label()),
-            self.offset_slider_for(edge).readout_text(),
-        )])]))
+        Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new(
+                format!("{} offset", edge.sun_event_label()),
+                self.offset_slider_for(edge).readout_text(),
+            ),
+        ])]))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(DarkModeMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(DarkModeMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let mode = GroupItem::toggle(
             &self.mode_toggle,
             HoverTarget::DarkMode,

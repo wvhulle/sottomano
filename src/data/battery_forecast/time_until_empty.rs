@@ -111,7 +111,7 @@ mod tests {
 
     fn on_battery(energy_wh: f64) -> Battery {
         Battery {
-            status: ChargeStatus::Discharging,
+            status: Some(ChargeStatus::Discharging),
             capacity: Ratio::new::<percent>(50.0),
             energy: Energy::new::<watt_hour>(energy_wh),
             energy_full: Energy::new::<watt_hour>(60.0),

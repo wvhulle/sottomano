@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use crate::{
     data::{
         severity::Severity,
@@ -10,34 +8,25 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Row, Section, TableRow, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
 const TOOLTIP_ROWS: usize = 15;
 
-impl TableRow for KernelOccurrence {
-    const HEADINGS: &'static [&'static str] = &[];
-
-    fn key(&self) -> Cell {
-        Cell::Time {
-            at: self.latest.into(),
-            part: TimePart::TimeOfDay,
-        }
-    }
-
-    fn cells(&self) -> Vec<Cell> {
+impl KernelOccurrence {
+    fn key_value(&self) -> KeyValue {
         let message: String = self.message.chars().take(MESSAGE_CAP).collect();
         let text = match self.count {
             1 => message,
             count => format!("{message} ×{count}"),
         };
-        vec![text.into()]
-    }
-
-    fn level(&self) -> Severity {
-        self.severity
+        let at = Cell::Time {
+            at: self.latest.into(),
+            part: TimePart::TimeOfDay,
+        };
+        KeyValue::new(at, text).level(self.severity)
     }
 }
 
@@ -66,26 +55,28 @@ impl BarWidget for KernelErrors {
 
     fn tooltip(&self) -> TooltipBody {
         let hidden = self.oldest_first.len().saturating_sub(TOOLTIP_ROWS);
-        let hidden_notice = Row::from((
-            "",
-            (hidden > 0).then(|| format!("{hidden} earlier not shown")),
-        ));
-        let rows: Vec<Row> = once(hidden_notice)
-            .chain(self.oldest_first[hidden..].iter().map(TableRow::row))
-            .collect();
-        TooltipBody::sections(&[Section::titled(
+        let hidden_notice =
+            (hidden > 0).then(|| KeyValue::new("", format!("{hidden} earlier not shown")));
+        TooltipBody::sections(&[Section::dictionary(
             (
                 "Kernel log",
                 "Kernel messages at warning or worse in the last hour, repeats merged.",
             ),
-            &rows,
+            hidden_notice.into_iter().chain(
+                self.oldest_first[hidden..]
+                    .iter()
+                    .map(KernelOccurrence::key_value),
+            ),
         )])
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, SystemTime};
+    use std::{
+        iter::once,
+        time::{Duration, SystemTime},
+    };
 
     use super::*;
     use crate::{data::source::kernel_errors::KernelEntry, widgets::tooltip_body::SectionBody};
@@ -106,10 +97,10 @@ mod tests {
         let TooltipBody::Sections(sections) = errors.tooltip() else {
             panic!("expected sections");
         };
-        let SectionBody::Rows(rows) = sections[0].body() else {
-            panic!("expected rows");
+        let SectionBody::Dictionary(entries) = sections[0].body() else {
+            panic!("expected dictionary");
         };
-        let values: Vec<Cell> = rows.iter().map(|row| row.cells()[0].clone()).collect();
+        let values: Vec<Cell> = entries.iter().map(|entry| entry.value().clone()).collect();
         let expected: Vec<Cell> = once("2 earlier not shown".to_string())
             .chain((2..17).map(|secs| format!("message {secs}")))
             .map(Cell::from)

@@ -9,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -38,18 +38,18 @@ impl BarWidget for ClaudeCcusagePeriods {
         let recent = &self.recent;
         let today = recent.today.since;
         TooltipBody::sections(&[
-            Section::untitled(&[
-                ("Source", "ccusage, local Claude Code logs"),
-                ("Cost Basis", "API list prices"),
-                ("Working Days", &self.working_days_text()),
-                ("Projection", "cost per working day so far, today included"),
+            Section::untitled_dictionary([
+                KeyValue::new("Source", "ccusage, local Claude Code logs"),
+                KeyValue::new("Cost Basis", "API list prices"),
+                KeyValue::new("Working Days", self.working_days_text()),
+                KeyValue::new("Projection", "cost per working day so far, today included"),
             ]),
-            Section::titled(
+            Section::dictionary(
                 "Today",
-                &[
-                    ("Cost", dollars(recent.today.usage.cost)),
-                    ("Tokens", token_count(recent.today.usage.tokens)),
-                    ("Models", recent.today.usage.models.clone()),
+                [
+                    KeyValue::new("Cost", dollars(recent.today.usage.cost)),
+                    KeyValue::new("Tokens", token_count(recent.today.usage.tokens)),
+                    KeyValue::new("Models", recent.today.usage.models.clone()),
                 ],
             ),
             self.period_section(
@@ -76,18 +76,18 @@ impl ClaudeCcusagePeriods {
     }
 
     fn period_section(&self, title: String, period: &Period, today: NaiveDate) -> Section {
-        Section::titled(
+        let projected = period
+            .projected_cost(today, &self.working_days)
+            .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
+        Section::dictionary(
             title,
-            &[
-                ("Cost", Some(dollars(period.usage.cost))),
-                (
-                    "Projected Cost",
-                    period
-                        .projected_cost(today, &self.working_days)
-                        .map(dollars),
-                ),
-                ("Tokens", Some(token_count(period.usage.tokens))),
-            ],
+            [
+                Some(KeyValue::new("Cost", dollars(period.usage.cost))),
+                projected,
+                Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
+            ]
+            .into_iter()
+            .flatten(),
         )
     }
 }

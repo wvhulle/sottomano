@@ -64,21 +64,35 @@ impl DesktopShell {
         let shell_settings = &self.shell_settings;
         let bottom = Position::Bottom;
         [
-            self.shell_layout_group
-                .widget_group(config, &shell_settings.layout, bottom, Message::ShellLayout),
+            self.shell_layout_group.widget_group(
+                config,
+                &shell_settings.layout,
+                bottom,
+                Message::ShellLayout,
+            ),
             self.panel_appearance_group
                 .widget_group(config, bottom, Message::PanelAppearance),
-            self.overlay_group
-                .widget_group(config, shell_settings.overlays, bottom, Message::Overlay),
-            self.surface_effects_group
-                .widget_group(config, shell_settings.shadow, self.niri_rules.styling(), bottom, Message::SurfaceEffects),
+            self.overlay_group.widget_group(
+                config,
+                shell_settings.overlays,
+                bottom,
+                Message::Overlay,
+            ),
+            self.surface_effects_group.widget_group(
+                config,
+                shell_settings.shadow,
+                self.niri_rules.styling(),
+                bottom,
+                Message::SurfaceEffects,
+            ),
             self.niri_window_group
                 .widget_group(config, bottom, Message::NiriWindow),
         ]
     }
 
     pub(super) fn bottom_end_groups(&self) -> [WidgetGroup<'_, Message>; 1] {
-        [self.tray_group
+        [self
+            .tray_group
             .widget_group(&self.config, Position::Bottom, Message::Tray)]
     }
 }

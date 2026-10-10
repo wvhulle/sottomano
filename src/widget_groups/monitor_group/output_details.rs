@@ -5,7 +5,7 @@ use crate::{
         backlight::{Backlight, Kind},
         niri::{OutputInfo, OutputMode},
     },
-    widgets::{hardware_section::HardwareRows, tooltip_body::Row},
+    widgets::{hardware_section::HardwareEntries, tooltip_body::KeyValue},
 };
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
@@ -31,34 +31,37 @@ impl<'a> ConnectedOutput<'a> {
             .map(|(connector, info)| Self { connector, info })
     }
 
-    pub fn rows(&self) -> Vec<Row> {
-        let mode = self.info.mode;
-        [
-            ("Output", Some(self.connector.to_owned())),
-            (
-                "Resolution",
-                mode.map(|OutputMode { width, height, .. }| format!("{width}x{height}")),
-            ),
-            (
-                "Refresh",
-                mode.map(|OutputMode { refresh_hz, .. }| format!("{refresh_hz:.2} Hz")),
-            ),
-            ("Scale", Some(format!("{:.2}", self.info.scale))),
-        ]
-        .map(Row::from)
-        .into()
+    pub fn entries(&self) -> Vec<KeyValue> {
+        let mode_entries = self.info.mode.into_iter().flat_map(
+            |OutputMode {
+                 width,
+                 height,
+                 refresh_hz,
+             }| {
+                [
+                    KeyValue::new("Resolution", format!("{width}x{height}")),
+                    KeyValue::new("Refresh", format!("{refresh_hz:.2} Hz")),
+                ]
+            },
+        );
+        [KeyValue::new("Output", self.connector)]
+            .into_iter()
+            .chain(mode_entries)
+            .chain([KeyValue::new("Scale", format!("{:.2}", self.info.scale))])
+            .collect()
     }
 }
 
-impl HardwareRows for ConnectedOutput<'_> {
-    fn hardware_rows(&self) -> Vec<Row> {
+impl HardwareEntries for ConnectedOutput<'_> {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Make", &self.info.make),
             ("Model", &self.info.model),
             ("Serial", &self.info.serial),
         ]
-        .map(Row::from)
-        .into()
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .collect()
     }
 }
 
@@ -99,17 +102,17 @@ mod tests {
         let output =
             ConnectedOutput::driving(&internal_backlight(), &outputs).expect("internal panel");
         assert_eq!(
-            Section::untitled(&output.rows()),
-            Section::untitled(&[
-                ("Output", "eDP-1"),
-                ("Resolution", "1920x1200"),
-                ("Refresh", "60.00 Hz"),
-                ("Scale", "1.20"),
-            ])
+            output.entries(),
+            [
+                KeyValue::new("Output", "eDP-1"),
+                KeyValue::new("Resolution", "1920x1200"),
+                KeyValue::new("Refresh", "60.00 Hz"),
+                KeyValue::new("Scale", "1.20"),
+            ]
         );
         assert_eq!(
             output.hardware_section(),
-            Section::titled("Hardware", &[("Make", "LG Display")])
+            Section::dictionary("Hardware", [KeyValue::new("Make", "LG Display")])
         );
     }
 
@@ -119,10 +122,14 @@ mod tests {
         let hardware = ConnectedOutput::driving(&internal_backlight(), &outputs)
             .expect("internal panel")
             .hardware_section();
-        let SectionBody::Rows(rows) = hardware.body() else {
-            panic!("expected rows");
+        let SectionBody::Dictionary(entries) = hardware.body() else {
+            panic!("expected dictionary");
         };
-        assert!(rows.iter().all(|row| *row.key() != Cell::from("Model")));
+        assert!(
+            entries
+                .iter()
+                .all(|entry| *entry.key() != Cell::from("Model"))
+        );
     }
 
     #[test]

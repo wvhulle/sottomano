@@ -57,60 +57,54 @@ pub struct AiGroup {
 
 #[derive(Debug, Clone, Default)]
 pub struct Available {
-    claude: ClaudeLogin,
+    claude: Option<ClaudeLogin>,
     ccusage_installed: bool,
     copilot: CopilotAvailable,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub enum ClaudeLogin {
     Subscription(PathBuf),
     UsageBased(PathBuf),
-    #[default]
-    Absent,
 }
 
 impl ClaudeLogin {
-    async fn probe(credentials: Option<PathBuf>) -> Self {
-        let Some(credentials) = credentials else {
-            return Self::Absent;
-        };
+    async fn probe(credentials: Option<PathBuf>) -> Option<Self> {
+        let credentials = credentials?;
         if ClaudeUsageWindows::available(&credentials).await {
-            Self::Subscription(credentials)
+            Some(Self::Subscription(credentials))
         } else if ClaudeEnterpriseSpend::available(&credentials).await {
-            Self::UsageBased(credentials)
+            Some(Self::UsageBased(credentials))
         } else {
-            Self::Absent
+            None
         }
     }
 
-    fn subscriptions(
-        &self,
-        ccusage_installed: bool,
-        working_days: &[Weekday],
-    ) -> Vec<Subscription<AiMessage>> {
-        let account = match self {
-            Self::Subscription(credentials) => Some(
-                polling::<ClaudeUsageWindows>(credentials.clone())
-                    .map(AiMessage::ClaudeUsageWindows),
-            ),
-            Self::UsageBased(credentials) => Some(
-                polling::<ClaudeEnterpriseSpend>(credentials.clone())
-                    .map(AiMessage::ClaudeEnterpriseSpend),
-            ),
-            Self::Absent => None,
-        };
-        let local_logs = ccusage_installed.then(|| match self {
-            Self::Subscription(_) => {
-                polling::<ClaudeCcusageBlock>(()).map(AiMessage::ClaudeCcusageBlock)
-            }
-            Self::UsageBased(_) | Self::Absent => {
-                polling::<ClaudeCcusagePeriods>(working_days.to_vec())
-                    .map(AiMessage::ClaudeCcusagePeriods)
-            }
-        });
-        account.into_iter().chain(local_logs).collect()
+    fn account_subscription(&self) -> Subscription<AiMessage> {
+        match self {
+            Self::Subscription(credentials) => polling::<ClaudeUsageWindows>(credentials.clone())
+                .map(AiMessage::ClaudeUsageWindows),
+            Self::UsageBased(credentials) => polling::<ClaudeEnterpriseSpend>(credentials.clone())
+                .map(AiMessage::ClaudeEnterpriseSpend),
+        }
     }
+}
+
+fn claude_subscriptions(
+    login: Option<&ClaudeLogin>,
+    ccusage_installed: bool,
+    working_days: &[Weekday],
+) -> Vec<Subscription<AiMessage>> {
+    let account = login.map(ClaudeLogin::account_subscription);
+    let local_logs = ccusage_installed.then(|| {
+        if let Some(ClaudeLogin::Subscription(_)) = login {
+            polling::<ClaudeCcusageBlock>(()).map(AiMessage::ClaudeCcusageBlock)
+        } else {
+            polling::<ClaudeCcusagePeriods>(working_days.to_vec())
+                .map(AiMessage::ClaudeCcusagePeriods)
+        }
+    });
+    account.into_iter().chain(local_logs).collect()
 }
 
 async fn available_with<S: Source>(key: Option<&S::Key>) -> bool {
@@ -181,11 +175,11 @@ impl AiGroup {
         if let Some(key) = secrets.openrouter_management.clone() {
             subscriptions.push(polling::<OpenRouter>(key).map(AiMessage::OpenRouter));
         }
-        subscriptions.extend(
-            available
-                .claude
-                .subscriptions(available.ccusage_installed, working_days),
-        );
+        subscriptions.extend(claude_subscriptions(
+            available.claude.as_ref(),
+            available.ccusage_installed,
+            working_days,
+        ));
         if let Some(key) = secrets.gh_auth_token.clone() {
             if available.copilot.metered {
                 subscriptions
@@ -237,7 +231,12 @@ impl AiGroup {
         }
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(AiMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(AiMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         let claude_usage_windows = self
             .claude_usage_windows
             .present()

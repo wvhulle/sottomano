@@ -1,5 +1,5 @@
 use crate::state::{
-    Columns, ShellSettings, StoreError, WorkspacesPlacement, open, overlay_settings,
+    Columns, ShellSettings, StoreError, WorkspacesPlacement, connect, overlay_settings,
 };
 
 pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
@@ -132,7 +132,7 @@ async fn put(setting: Setting, value: turso::Value) -> bool {
 }
 
 async fn try_put(setting: Setting, value: turso::Value) -> Result<(), StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     write_setting(&conn, setting, value).await
 }
 
@@ -154,7 +154,7 @@ async fn write_setting(
 }
 
 async fn try_load() -> Result<ShellSettings, StoreError> {
-    let conn = open().await?;
+    let conn = connect(&[CREATE_TABLE]).await?;
     read_shell_settings(&conn).await
 }
 
@@ -166,16 +166,16 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
         return Ok(shell_settings);
     };
     let layout = &mut shell_settings.layout;
-    if let Some(offset) = columns.optional_real(&row, "float_offset_px")? {
+    if let Some(offset) = columns.optional_real(&row, "float_offset_px") {
         layout.float_offset_px = offset as f32;
     }
-    if let Some(disconnected) = columns.optional_flag(&row, "disconnected_groups")? {
+    if let Some(disconnected) = columns.optional_flag(&row, "disconnected_groups") {
         layout.disconnected_groups = disconnected;
     }
-    if let Some(collapse) = columns.optional_flag(&row, "auto_collapse_groups")? {
+    if let Some(collapse) = columns.optional_flag(&row, "auto_collapse_groups") {
         layout.auto_collapse_groups = collapse;
     }
-    if let Some(in_sidebar) = columns.optional_flag(&row, "workspaces_in_sidebar")? {
+    if let Some(in_sidebar) = columns.optional_flag(&row, "workspaces_in_sidebar") {
         layout.workspaces_placement = if in_sidebar {
             WorkspacesPlacement::Sidebar
         } else {
@@ -183,27 +183,27 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
         };
     }
     let notifications = &mut shell_settings.notifications;
-    if let Some(dnd) = columns.optional_flag(&row, "do_not_disturb")? {
+    if let Some(dnd) = columns.optional_flag(&row, "do_not_disturb") {
         notifications.do_not_disturb = dnd;
     }
-    if let Some(sound) = columns.optional_flag(&row, "sound")? {
+    if let Some(sound) = columns.optional_flag(&row, "sound") {
         notifications.sound = sound;
     }
     let panels = &mut shell_settings.panels;
-    if let Some(opacity) = columns.optional_real(&row, "panel_opacity")? {
+    if let Some(opacity) = columns.optional_real(&row, "panel_opacity") {
         panels.opacity = opacity as f32;
     }
-    if let Some(radius) = columns.optional_real(&row, "panel_corner_radius_px")? {
+    if let Some(radius) = columns.optional_real(&row, "panel_corner_radius_px") {
         panels.corner_radius = (radius as f32).into();
     }
     let shadow = &mut shell_settings.shadow;
-    if let Some(cast) = columns.optional_flag(&row, "drop_shadow")? {
+    if let Some(cast) = columns.optional_flag(&row, "drop_shadow") {
         shadow.cast = cast;
     }
-    if let Some(softness) = columns.optional_real(&row, "shadow_softness_px")? {
+    if let Some(softness) = columns.optional_real(&row, "shadow_softness_px") {
         shadow.softness_px = softness as f32;
     }
-    if let Some(opacity) = columns.optional_real(&row, "shadow_opacity")? {
+    if let Some(opacity) = columns.optional_real(&row, "shadow_opacity") {
         shadow.opacity = opacity as f32;
     }
     Ok(shell_settings)

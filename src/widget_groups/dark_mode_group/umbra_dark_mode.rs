@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         toggle_control::Toggle,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
 
@@ -18,7 +18,7 @@ impl BarWidget for Umbra {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[(
+        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
             "Mode",
             if self.dark { "Dark" } else { "Light" },
         )])])

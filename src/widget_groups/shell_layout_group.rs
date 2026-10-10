@@ -9,7 +9,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::icon_toggle_item,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
@@ -21,35 +21,41 @@ pub enum Action {
 }
 
 fn disconnected_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-        "Groups",
-        if shell_layout.disconnected_groups {
-            "separate frames"
-        } else {
-            "one bar"
-        },
-    )])]))
+    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+        KeyValue::new(
+            "Groups",
+            if shell_layout.disconnected_groups {
+                "separate frames"
+            } else {
+                "one bar"
+            },
+        ),
+    ])]))
 }
 
 fn auto_collapse_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-        "Groups",
-        if shell_layout.auto_collapse_groups {
-            "collapse when another window takes focus"
-        } else {
-            "stay open until the handle is clicked"
-        },
-    )])]))
+    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+        KeyValue::new(
+            "Groups",
+            if shell_layout.auto_collapse_groups {
+                "collapse when another window takes focus"
+            } else {
+                "stay open until the handle is clicked"
+            },
+        ),
+    ])]))
 }
 
 fn workspaces_placement_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-        "Workspaces",
-        match shell_layout.workspaces_placement {
-            WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
-            WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
-        },
-    )])]))
+    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+        KeyValue::new(
+            "Workspaces",
+            match shell_layout.workspaces_placement {
+                WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
+                WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
+            },
+        ),
+    ])]))
 }
 
 pub struct ShellLayoutGroup {
@@ -89,7 +95,10 @@ impl ShellLayoutGroup {
             HoverTarget::AutoCollapseGroups => Some(auto_collapse_tooltip(shell_layout)),
             HoverTarget::WorkspacesPlacement => Some(workspaces_placement_tooltip(shell_layout)),
             HoverTarget::FloatOffset => Some(Tooltip::of(TooltipBody::sections(&[
-                Section::untitled(&[("Offset", self.float_offset.readout_text())]),
+                Section::untitled_dictionary([KeyValue::new(
+                    "Offset",
+                    self.float_offset.readout_text(),
+                )]),
             ]))),
             _ => None,
         }

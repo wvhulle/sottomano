@@ -22,14 +22,14 @@ const PACKAGE_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 pub struct TempReading {
     pub chip: String,
     pub temperature: ThermodynamicTemperature,
-    limit: ThermalLimit,
+    limit: Option<ThermodynamicTemperature>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreTemperature {
     pub core: u32,
     pub temperature: ThermodynamicTemperature,
-    pub limit: ThermalLimit,
+    pub limit: Option<ThermodynamicTemperature>,
     pub overrides: ThresholdOverrides,
 }
 
@@ -37,15 +37,9 @@ pub struct CoreTemperature {
 pub struct Temperature {
     pub readings: Vec<TempReading>,
     pub cores: Vec<CoreTemperature>,
-    pub throttle_limit: ThermalLimit,
+    pub throttle_limit: Option<ThermodynamicTemperature>,
     pub overrides: ThresholdOverrides,
     pub topology: CpuTopology,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ThermalLimit {
-    Reported(ThermodynamicTemperature),
-    Unreported,
 }
 
 impl Temperature {
@@ -194,15 +188,11 @@ impl ChosenSensors {
     }
 }
 
-fn throttle_limit(readings: &[TempReading]) -> ThermalLimit {
+fn throttle_limit(readings: &[TempReading]) -> Option<ThermodynamicTemperature> {
     readings
         .iter()
-        .filter_map(|reading| match reading.limit {
-            ThermalLimit::Reported(limit) => Some(limit),
-            ThermalLimit::Unreported => None,
-        })
+        .filter_map(|reading| reading.limit)
         .reduce(ThermodynamicTemperature::min)
-        .map_or(ThermalLimit::Unreported, ThermalLimit::Reported)
 }
 
 fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
@@ -228,7 +218,7 @@ fn core_temperatures(overrides: ThresholdOverrides) -> Vec<CoreTemperature> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct SensorReading {
     temperature: ThermodynamicTemperature,
-    limit: ThermalLimit,
+    limit: Option<ThermodynamicTemperature>,
 }
 
 fn physical_core_temperatures() -> HashMap<u32, SensorReading> {

@@ -10,7 +10,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, WidgetGroup},
     },
 };
@@ -100,10 +100,9 @@ impl NiriWindowGroup {
             .into_iter()
             .find(|knob| knob.target() == *target)
             .map(|knob| {
-                Tooltip::of(TooltipBody::sections(&[Section::untitled(&[(
-                    knob.label(),
-                    self.slider(knob).readout_text(),
-                )])]))
+                Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+                    KeyValue::new(knob.label(), self.slider(knob).readout_text()),
+                ])]))
             })
     }
 

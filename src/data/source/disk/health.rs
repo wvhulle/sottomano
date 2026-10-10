@@ -13,10 +13,7 @@ use crate::{
     data::source::{
         Source,
         hardware::DriveIdentity,
-        sysfs_sensors::{
-            hwmon::{ChosenSensors, HwmonChip, LimitKind},
-            temperature::ThermalLimit,
-        },
+        sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
     },
 };
 
@@ -29,15 +26,15 @@ pub struct DriveHealth {
     pub identity: DriveIdentity,
     pub temperature: DriveTemperature,
     pub overrides: ThresholdOverrides,
-    pub errors: ErrorTracking,
+    pub errors: Option<DeviceErrors>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DriveTemperature {
     Reported {
         current: ThermodynamicTemperature,
-        warning: ThermalLimit,
-        critical: ThermalLimit,
+        warning: Option<ThermodynamicTemperature>,
+        critical: Option<ThermodynamicTemperature>,
     },
     Unreported(MissingSensor),
 }
@@ -46,12 +43,6 @@ pub enum DriveTemperature {
 pub enum MissingSensor {
     DrivetempNotLoaded,
     NotExposed,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ErrorTracking {
-    Tracked(DeviceErrors),
-    NotTracked,
 }
 
 impl Source for DriveHealth {
@@ -74,12 +65,17 @@ fn read_drive_health(config: &SensorConfig) -> Result<DriveHealth, Error> {
     let device = mount.device()?;
     let disk = device.whole_disk();
     let controller = disk.sysfs_dir().join("device");
+    let errors = if mount.fs_type == "btrfs" {
+        Some(BtrfsFilesystem::containing(&device)?.device_errors()?)
+    } else {
+        None
+    };
     Ok(DriveHealth {
         device_name: disk.name.clone(),
         identity: DriveIdentity::of_controller(&controller),
         temperature: DriveTemperature::read(&config.sensor, &disk, &controller),
         overrides: config.overrides(),
-        errors: ErrorTracking::of(&mount, &device)?,
+        errors,
     })
 }
 
@@ -123,15 +119,5 @@ impl MissingSensor {
         } else {
             MissingSensor::NotExposed
         }
-    }
-}
-
-impl ErrorTracking {
-    fn of(mount: &RootMount, device: &KernelDevice) -> Result<Self, Error> {
-        if mount.fs_type != "btrfs" {
-            return Ok(ErrorTracking::NotTracked);
-        }
-        let errors = BtrfsFilesystem::containing(device)?.device_errors()?;
-        Ok(ErrorTracking::Tracked(errors))
     }
 }

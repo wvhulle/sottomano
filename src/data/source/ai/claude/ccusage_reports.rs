@@ -51,7 +51,10 @@ impl Source for ClaudeCcusageBlock {
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
         Ok(ClaudeCcusageBlock {
-            active: ccusage::active_block(Agent::ClaudeCode).await?,
+            active: ccusage::active_blocks(Agent::ClaudeCode)
+                .await?
+                .into_iter()
+                .next(),
         })
     }
 }

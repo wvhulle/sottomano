@@ -14,7 +14,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{Cell, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
         },
@@ -230,14 +230,28 @@ impl AudioGroup {
             ControlKind::Source => (self.source.as_ref()?, &self.source_control),
         };
         let state = if reading.muted { "muted" } else { "active" };
-        Some(Tooltip::of(TooltipBody::sections(&[Section::untitled(&[
-            (kind.label(), Cell::from(control.readout_text())),
-            ("State", Cell::from(state)),
-            ("Device", Cell::from(&reading.device)),
-        ])])))
+        let device = reading
+            .device
+            .as_deref()
+            .map(|device| KeyValue::new("Device", device));
+        Some(Tooltip::of(TooltipBody::sections(&[
+            Section::untitled_dictionary(
+                [
+                    KeyValue::new(kind.label(), control.readout_text()),
+                    KeyValue::new("State", state),
+                ]
+                .into_iter()
+                .chain(device),
+            ),
+        ])))
     }
 
-    pub fn widget_group<'a, Outer: 'a>(&'a self, config: &'a Config, position: Position, lift: fn(AudioMessage) -> Outer) -> WidgetGroup<'a, Outer> {
+    pub fn widget_group<'a, Outer: 'a>(
+        &'a self,
+        config: &'a Config,
+        position: Position,
+        lift: fn(AudioMessage) -> Outer,
+    ) -> WidgetGroup<'a, Outer> {
         WidgetGroup::new(
             &self.expansion,
             AudioMessage::Expansion,

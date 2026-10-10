@@ -22,7 +22,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupExpansion, GroupHandle, HandleFace, PreviewedValue, WidgetGroup,
         },
@@ -180,17 +180,15 @@ impl ColorTemperatureGroup {
         match target {
             HoverTarget::GammaDim => {
                 self.gamma
-                    .tooltip_with(TooltipBody::sections(&[Section::untitled(&[(
-                        "Dim",
-                        self.dim.readout_text(),
-                    )])]))
+                    .tooltip_with(TooltipBody::sections(&[Section::untitled_dictionary([
+                        KeyValue::new("Dim", self.dim.readout_text()),
+                    ])]))
             }
             HoverTarget::ColorTemperature => {
                 self.gamma
-                    .tooltip_with(TooltipBody::sections(&[Section::untitled(&[(
-                        "Temperature",
-                        self.warmth.readout_text(),
-                    )])]))
+                    .tooltip_with(TooltipBody::sections(&[Section::untitled_dictionary([
+                        KeyValue::new("Temperature", self.warmth.readout_text()),
+                    ])]))
             }
             HoverTarget::AutoColorTemperature => self.auto.tooltip(),
             _ => None,

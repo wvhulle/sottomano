@@ -9,7 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
         phosphor::Phosphor,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
 
@@ -23,9 +23,9 @@ impl BarWidget for Gamma {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            ("Dim", format!("{}%", self.brightness)),
-            (
+        TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new("Dim", format!("{}%", self.brightness)),
+            KeyValue::new(
                 "Temperature",
                 format!(
                     "{:.0}",

@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -30,20 +30,26 @@ impl BarWidget for CopilotFree {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(&[
-            Section::untitled(&[("Plan", self.plan.as_str()), ("Source", USER_ENDPOINT)]),
-            Section::titled(
+            Section::untitled_dictionary([
+                KeyValue::new("Plan", self.plan.as_str()),
+                KeyValue::new("Source", USER_ENDPOINT),
+            ]),
+            Section::dictionary(
                 "Remaining",
-                &[
-                    ("Chat", Cell::from(self.chat.to_string())),
-                    ("Completions", Cell::from(self.completions.to_string())),
-                    (
+                [
+                    KeyValue::new("Chat", self.chat.to_string()),
+                    KeyValue::new("Completions", self.completions.to_string()),
+                ]
+                .into_iter()
+                .chain(self.reset.map(|at| {
+                    KeyValue::new(
                         "Resets",
-                        self.reset.map_or(Cell::Missing, |at| Cell::Time {
+                        Cell::Time {
                             at,
                             part: TimePart::Date,
-                        }),
-                    ),
-                ],
+                        },
+                    )
+                })),
             ),
         ])
     }

@@ -4,7 +4,7 @@ use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
     localized_time::TimePart,
     phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, Section, TooltipBody},
+    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
 };
 
 pub struct LocalDate(pub DateTime<Local>);
@@ -19,16 +19,16 @@ impl BarWidget for LocalDate {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled(&[
-            (
+        TooltipBody::sections(&[Section::untitled_dictionary([
+            KeyValue::new(
                 "Weekday",
                 Cell::Time {
                     at: self.0.with_timezone(&Utc),
                     part: TimePart::Weekday,
                 },
             ),
-            ("Week", self.0.iso_week().week().to_string().into()),
-            ("Day of year", self.0.ordinal().to_string().into()),
+            KeyValue::new("Week", self.0.iso_week().week().to_string()),
+            KeyValue::new("Day of year", self.0.ordinal().to_string()),
         ])])
     }
 }

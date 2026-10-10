@@ -55,8 +55,8 @@ fn read_gamma() -> Result<Gamma, Error> {
     let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
     let proxy = GammaRelayProxyBlocking::new(&connection)
         .map_err(|error| Error::Connect(error.to_string()))?;
-    let brightness = bus::require(proxy.brightness())?;
-    let temperature = bus::require(proxy.temperature())?;
+    let brightness = bus::call(proxy.brightness())?;
+    let temperature = bus::call(proxy.temperature())?;
     #[allow(clippy::cast_possible_truncation)]
     Ok(Gamma {
         brightness: (brightness * 100.0).round() as i64,
