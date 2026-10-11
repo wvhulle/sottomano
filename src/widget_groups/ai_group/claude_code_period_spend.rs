@@ -1,7 +1,7 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 
 use crate::{
-    data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods},
+    data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::QuotaLimited},
     widget_groups::ai_group::{
         amount_text::{dollars, token_count},
         spend_to_level::level_from_cost,
@@ -35,19 +35,29 @@ impl BarWidget for ClaudeCcusagePeriods {
     }
 
     fn state(&self) -> WidgetState {
-        level_from_cost(self.recent.today.usage.cost).into()
+        self.quota_severity(Utc::now())
+            .unwrap_or_else(|| level_from_cost(self.recent.today.usage.cost))
+            .into()
     }
 
     fn tooltip(&self) -> TooltipBody {
         let recent = &self.recent;
         let today = recent.today.since;
         TooltipBody::sections(&[
-            Section::untitled_dictionary([
-                KeyValue::new("Source", "ccusage, local Claude Code logs"),
-                KeyValue::new("Cost Basis", "API list prices"),
-                KeyValue::new("Working Days", self.working_days_text()),
-                KeyValue::new("Projection", "cost per working day so far, today included"),
-            ]),
+            Section::untitled_dictionary(
+                [
+                    KeyValue::new("Source", "ccusage, local Claude Code logs"),
+                    KeyValue::new("Cost Basis", "API list prices"),
+                    KeyValue::new("Working Days", self.working_days_text()),
+                    KeyValue::new("Projection", "cost per working day so far, today included"),
+                ]
+                .into_iter()
+                .chain(
+                    self.budget
+                        .monthly_limit_usd
+                        .map(|limit| KeyValue::new("Monthly Budget", dollars(f64::from(limit)))),
+                ),
+            ),
             Section::dictionary(
                 "Today",
                 [
@@ -72,7 +82,8 @@ impl BarWidget for ClaudeCcusagePeriods {
 
 impl ClaudeCcusagePeriods {
     fn working_days_text(&self) -> String {
-        self.working_days
+        self.budget
+            .working_days
             .iter()
             .map(ToString::to_string)
             .collect::<Vec<_>>()
@@ -81,7 +92,7 @@ impl ClaudeCcusagePeriods {
 
     fn period_section(&self, title: String, period: &Period, today: NaiveDate) -> Section {
         let projected = period
-            .projected_cost(today, &self.working_days)
+            .projected_cost(today, &self.budget.working_days)
             .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
         Section::dictionary(
             title,

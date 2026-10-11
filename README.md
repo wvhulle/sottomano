@@ -50,6 +50,16 @@ sensor = { chip = "k10temp", label = "Tctl" }
 critical_celsius = 90
 ```
 
+AI usage readings raise a toast when the current pace would use up a window
+or monthly limit before it resets. Spend estimated from local logs has no
+limit of its own; give it one in dollars to be warned the same way:
+
+```toml
+[widget_groups.ai_usage.monthly_budget_usd]
+claude_code = 100
+copilot_cli = 20
+```
+
 ## Secrets
 
 `vetrata --list-secrets` lists the optional secret files, what each enables and

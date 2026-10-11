@@ -30,15 +30,6 @@ pub struct LevelReading<Message> {
 }
 
 impl<Message> LevelReading<Message> {
-    pub fn map_messages<Lifted>(self, lift: impl Fn(Message) -> Lifted) -> LevelReading<Lifted> {
-        LevelReading {
-            hover_target: self.hover_target,
-            glyph: self.glyph,
-            level: self.level,
-            on_body_clicked: lift(self.on_body_clicked),
-        }
-    }
-
     pub fn changed_since(&self, previous: &[LevelReading<Message>]) -> bool {
         previous.iter().any(|seen| {
             seen.hover_target == self.hover_target

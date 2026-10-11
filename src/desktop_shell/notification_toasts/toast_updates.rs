@@ -277,6 +277,7 @@ impl NotificationLayer {
                 severity: Severity::Critical,
                 summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
                 body_text: Some(body),
+                progress: None,
                 since: SystemTime::now(),
                 on_body_clicked: Message::OpenUrl(path.display().to_string()),
                 action_buttons: Vec::new(),

@@ -2,13 +2,13 @@ use chrono::{DateTime, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Pace, WindowUsage},
+    data::source::ai::{
+        claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+        quota::{Pace, Quota, QuotaLimited},
     },
     widget_groups::ai_group::{
         amount_text::{countdown, percent_text},
-        spend_to_level::{level_from_pace, level_from_used},
+        spend_to_level::level_from_used,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -28,17 +28,13 @@ impl BarWidget for ClaudeUsageWindows {
     }
 
     fn state(&self) -> WidgetState {
-        let now = Utc::now();
-        [self.session_pace(now), self.weekly_pace(now)]
-            .into_iter()
-            .flatten()
-            .map(level_from_pace)
-            .fold(level_from_used(self.session_used()), Severity::max)
+        self.quota_severity(Utc::now())
+            .unwrap_or_else(|| level_from_used(self.session_used()))
             .into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        Some(Ratio::new::<percent>(self.session_used()))
+        Some(self.session_used())
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -47,12 +43,22 @@ impl BarWidget for ClaudeUsageWindows {
             Section::untitled_dictionary(
                 self.plan.as_deref().map(|plan| KeyValue::new("Plan", plan)),
             ),
-            window_section("Session", Some(&self.session), self.session_pace(now), now),
-            window_section("Weekly", Some(&self.weekly), self.weekly_pace(now), now),
+            window_section(
+                "Session",
+                Some(&self.session),
+                self.session_quota(now).as_ref(),
+                now,
+            ),
+            window_section(
+                "Weekly",
+                Some(&self.weekly),
+                self.weekly_quota(now).as_ref(),
+                now,
+            ),
             window_section(
                 "Weekly Sonnet",
                 self.sonnet.as_ref(),
-                self.sonnet_pace(now),
+                self.sonnet_quota(now).as_ref(),
                 now,
             ),
             extra_section(self.extra.as_ref()),
@@ -62,17 +68,17 @@ impl BarWidget for ClaudeUsageWindows {
 
 impl Occasional for ClaudeUsageWindows {
     fn present(&self) -> bool {
-        self.session_used() > 0.0
+        self.session_used().get::<percent>() > 0.0
     }
 }
 
 fn window_section(
     title: &str,
     window: Option<&WindowUsage>,
-    pace: Option<Pace>,
+    quota: Option<&Quota>,
     now: DateTime<Utc>,
 ) -> Section {
-    let pace_entry = pace.map(|pace| match pace {
+    let pace_entry = quota.and_then(Quota::pace).map(|pace| match pace {
         Pace::Lasts { at_reset } => KeyValue::new("Projected At Reset", percent_text(at_reset)),
         Pace::RunsOut { at } => KeyValue::new("Runs Out In", countdown(at, now)),
     });
@@ -101,7 +107,7 @@ fn extra_section(extra: Option<&ExtraUsage>) -> Section {
                 .as_ref()
                 .map(|limit| KeyValue::new("Monthly Limit", limit.to_string())),
             extra
-                .used_percent
+                .used_share
                 .map(|used| KeyValue::new("Used", percent_text(used))),
         ]
         .into_iter()
