@@ -31,7 +31,7 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
-        last_poll::LastPoll,
+        continuous_reading::ContinuousReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -59,14 +59,14 @@ impl From<AiTarget> for HoverTarget {
 }
 
 pub struct AiGroup {
-    openrouter: LastPoll<OpenRouter>,
-    claude_usage_windows: LastPoll<ClaudeUsageWindows>,
-    claude_enterprise_spend: LastPoll<ClaudeEnterpriseSpend>,
-    claude_ccusage_periods: LastPoll<ClaudeCcusagePeriods>,
-    claude_ccusage_block: LastPoll<ClaudeCcusageBlock>,
-    copilot_metered: LastPoll<CopilotMetered>,
-    copilot_free: LastPoll<CopilotFree>,
-    copilot_cli: LastPoll<CopilotCcusage>,
+    openrouter: ContinuousReading<OpenRouter>,
+    claude_usage_windows: ContinuousReading<ClaudeUsageWindows>,
+    claude_enterprise_spend: ContinuousReading<ClaudeEnterpriseSpend>,
+    claude_ccusage_periods: ContinuousReading<ClaudeCcusagePeriods>,
+    claude_ccusage_block: ContinuousReading<ClaudeCcusageBlock>,
+    copilot_metered: ContinuousReading<CopilotMetered>,
+    copilot_free: ContinuousReading<CopilotFree>,
+    copilot_cli: ContinuousReading<CopilotCcusage>,
     secrets: SecretPaths,
     available: Available,
     pub(crate) expansion: GroupExpansion,
@@ -155,14 +155,14 @@ pub enum AiMessage {
 impl AiGroup {
     pub fn new(secrets: SecretPaths) -> Self {
         Self {
-            openrouter: LastPoll::default(),
-            claude_usage_windows: LastPoll::default(),
-            claude_enterprise_spend: LastPoll::default(),
-            claude_ccusage_periods: LastPoll::default(),
-            claude_ccusage_block: LastPoll::default(),
-            copilot_metered: LastPoll::default(),
-            copilot_free: LastPoll::default(),
-            copilot_cli: LastPoll::default(),
+            openrouter: ContinuousReading::default(),
+            claude_usage_windows: ContinuousReading::default(),
+            claude_enterprise_spend: ContinuousReading::default(),
+            claude_ccusage_periods: ContinuousReading::default(),
+            claude_ccusage_block: ContinuousReading::default(),
+            copilot_metered: ContinuousReading::default(),
+            copilot_free: ContinuousReading::default(),
+            copilot_cli: ContinuousReading::default(),
             secrets,
             available: Available::default(),
             expansion: GroupExpansion::default(),

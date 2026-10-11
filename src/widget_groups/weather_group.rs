@@ -12,8 +12,8 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -37,11 +37,11 @@ impl From<WeatherTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct WeatherGroup {
-    temp: LastPoll<Temperature>,
-    wind: LastPoll<Wind>,
-    rain: LastPoll<Rain>,
-    pollen: LastPoll<Pollen>,
-    location: LastPoll<Location>,
+    temp: ContinuousReading<Temperature>,
+    wind: ContinuousReading<Wind>,
+    rain: ContinuousReading<Rain>,
+    pollen: ContinuousReading<Pollen>,
+    location: ContinuousReading<Location>,
     pub(crate) expansion: GroupExpansion,
 }
 

@@ -12,8 +12,8 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -35,7 +35,7 @@ impl From<PendingUpgradesTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
-    firmware: LastPoll<FirmwareUpgradeList>,
+    firmware: ContinuousReading<FirmwareUpgradeList>,
     pub(crate) expansion: GroupExpansion,
 }
 

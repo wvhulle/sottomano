@@ -11,8 +11,8 @@ use crate::{
     widget_groups::terminal_journal::TerminalJournal,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -37,8 +37,8 @@ impl From<JournalTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct JournalEventsGroup {
-    kernel: LastPoll<KernelErrors>,
-    service_errors: LastPoll<ServiceErrors>,
+    kernel: ContinuousReading<KernelErrors>,
+    service_errors: ContinuousReading<ServiceErrors>,
     pub(crate) expansion: GroupExpansion,
 }
 

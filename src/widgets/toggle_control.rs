@@ -6,8 +6,8 @@ use crate::{
     message_subscriptions::{blocking, polling},
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::Phosphor,
         tooltip_body::{Tooltip, TooltipBody},
         widget_state::WidgetState,
@@ -57,14 +57,14 @@ pub trait Toggle: Source + BarWidget {
 }
 
 pub struct ToggleControl<S> {
-    cell: LastPoll<S>,
+    cell: ContinuousReading<S>,
     available: bool,
 }
 
 impl<S> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
-            cell: LastPoll::default(),
+            cell: ContinuousReading::default(),
             available: false,
         }
     }

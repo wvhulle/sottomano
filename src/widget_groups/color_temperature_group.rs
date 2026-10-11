@@ -17,8 +17,8 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
@@ -49,7 +49,7 @@ impl From<ColorTemperatureTarget> for HoverTarget {
 
 pub struct ColorTemperatureGroup {
     unit: String,
-    gamma: LastPoll<Gamma>,
+    gamma: ContinuousReading<Gamma>,
     dim: SliderControl,
     warmth: SliderControl,
     auto: ToggleControl<SunFollow>,
@@ -71,7 +71,7 @@ impl ColorTemperatureGroup {
     pub fn new(unit: String) -> Self {
         Self {
             unit,
-            gamma: LastPoll::default(),
+            gamma: ContinuousReading::default(),
             dim: SliderControl::new(
                 "Screen dimming",
                 PERCENT,
