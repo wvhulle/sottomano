@@ -68,7 +68,7 @@ pub enum WindowListMessage {
     ProcessTreeScanned(HoverFetched<Process>),
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
-    ProcessInspected(HoverFetched<Inspection>),
+    ProcessInspected(Box<HoverFetched<Inspection>>),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -112,7 +112,7 @@ impl WindowList {
             ),
             self.inspection.fetch(
                 process::inspection(&watched),
-                WindowListMessage::ProcessInspected,
+                |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
                 config,
             ),
         ])
@@ -163,7 +163,7 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::ProcessInspected(fetched) => {
-                self.inspection.receive(fetched);
+                self.inspection.receive(*fetched);
                 Action::None
             }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,

@@ -260,7 +260,7 @@ pub struct WallpaperGroup {
 pub enum WallpaperMessage {
     DaemonFound(bool),
     Displayed(Result<DisplayedWallpaper, command::Error>),
-    Resolved(Result<Wallpaper, wallpaper::Error>),
+    Resolved(Box<Result<Wallpaper, wallpaper::Error>>),
     Expansion(ExpansionMessage),
 }
 
@@ -298,7 +298,7 @@ impl WallpaperGroup {
             }
             WallpaperMessage::Resolved(resolved) => {
                 self.lookup.receive(
-                    resolved
+                    (*resolved)
                         .map(|wallpaper| Lookup::of(&wallpaper))
                         .map_err(Failure::Resolve),
                 );
@@ -326,7 +326,7 @@ impl WallpaperGroup {
         self.lookup
             .load(Some(Lookup::of(&wallpaper::unresolved(&path, &id))));
         Task::future(async move { wallpaper::resolve(path, id, &key).await })
-            .map(WallpaperMessage::Resolved)
+            .map(|resolved| WallpaperMessage::Resolved(Box::new(resolved)))
     }
 
     pub fn tooltip_for(&self, target: WallpaperTarget) -> Option<Tooltip> {

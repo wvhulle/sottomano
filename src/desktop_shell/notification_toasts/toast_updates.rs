@@ -13,14 +13,14 @@ use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext, WidgetToastRequests,
     toast_card::{self, CardIcons},
     toast_lifecycle::{
-        Countdown, EventSource, ExitPace, Notification, NotificationMessage, ToastKind, lifetime,
+        Countdown, ExitPace, Notification, NotificationMessage, ToastContent, ToastKind, lifetime,
     },
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
     config::{Config, LoadError},
     data::{
-        notifications::model::{NotificationData, Outbound, close_reason},
+        notifications::model::{Outbound, close_reason},
         severity::Severity,
         sink::sound,
         source::niri::Placement,
@@ -114,11 +114,9 @@ impl NotificationLayer {
                 self.handle = Some(handle);
                 Task::none()
             }
-            NotificationMessage::Served(data) => self.serve(
-                *data,
-                ToastKind::event_now(EventSource::DbusClient),
-                context,
-            ),
+            NotificationMessage::Served(data) => {
+                self.serve(ToastContent::from_dbus_client(*data), context)
+            }
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, context, panel_on)
             }
@@ -208,9 +206,9 @@ impl NotificationLayer {
         let cleared: Vec<u32> = self
             .showing()
             .filter(|n| {
-                matches!(&n.kind, ToastKind::Ongoing(shown)
-                    if matches!(shown.key, OngoingKey::Reading(_))
-                        && !active.iter().any(|toast| toast.key == shown.key))
+                matches!(&n.kind, ToastKind::Ongoing { key: shown, .. }
+                    if matches!(shown, OngoingKey::Reading(_))
+                        && !active.iter().any(|toast| toast.key == *shown))
             })
             .map(|n| n.data.id)
             .collect();
@@ -219,10 +217,9 @@ impl NotificationLayer {
             .into_iter()
             .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
             .filter(|toast| {
-                !self.showing().any(|n| {
-                    matches!(&n.kind, ToastKind::Ongoing(shown)
-                        if shown.key == toast.key && shown.severity >= toast.severity)
-                })
+                !self
+                    .showing()
+                    .any(|n| n.shows_ongoing(&toast.key) && n.data.severity >= toast.severity)
             })
             .collect();
         let raised: Vec<Task<Message>> = to_raise
@@ -241,11 +238,7 @@ impl NotificationLayer {
             .showing()
             .find(|n| n.shows_ongoing(&toast.key))
             .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
-        self.serve(
-            toast.toast_notification_data(toast_id),
-            ToastKind::Ongoing(toast),
-            context,
-        )
+        self.serve(ToastContent::ongoing(toast, toast_id), context)
     }
 
     fn announce_level(
@@ -257,11 +250,7 @@ impl NotificationLayer {
             .showing()
             .find(|n| n.announces_level_of(&reading.hover_target))
             .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
-        self.serve(
-            reading.toast_notification_data(toast_id),
-            ToastKind::event_now(EventSource::LevelAnnouncement(reading)),
-            context,
-        )
+        self.serve(ToastContent::level_announcement(reading, toast_id), context)
     }
 
     pub fn show_config_error(
@@ -310,21 +299,16 @@ impl NotificationLayer {
             .showing()
             .find(|n| n.data.id == toast_id)
             .and_then(|n| match &n.kind {
-                ToastKind::Ongoing(toast) => Some(SnoozedOngoingToast {
-                    key: toast.key.clone(),
-                    snoozed_at: toast.severity,
+                ToastKind::Ongoing { key, .. } => Some(SnoozedOngoingToast {
+                    key: key.clone(),
+                    snoozed_at: n.data.severity,
                 }),
                 ToastKind::Event { .. } => None,
             });
         self.snoozed.extend(snoozed);
     }
 
-    fn serve(
-        &mut self,
-        data: NotificationData,
-        kind: ToastKind,
-        context: &ToastContext,
-    ) -> Task<Message> {
+    fn serve(&mut self, toast: ToastContent, context: &ToastContext) -> Task<Message> {
         let ToastContext {
             placement,
             entries,
@@ -335,6 +319,7 @@ impl NotificationLayer {
         if notifications.do_not_disturb {
             return Task::none();
         }
+        let data = &toast.data;
         let id = data.id;
         let mut tasks = Vec::new();
         if let Some(window) = data.window_id_hint {
@@ -347,8 +332,8 @@ impl NotificationLayer {
                 .collect();
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config));
         }
-        let icons = kind.glyph().map_or_else(
-            || toast_card::resolve_icons(&data, *entries),
+        let icons = toast.kind.glyph().map_or_else(
+            || toast_card::resolve_icons(data, *entries),
             CardIcons::of_glyph,
         );
         let now = Instant::now();
@@ -358,23 +343,23 @@ impl NotificationLayer {
             &config.notification_toasts.lifetime,
         )
         .map(|remaining| Countdown::started(remaining, now));
-        let window = ToastWindow::resolve(&data, placement);
+        let window = ToastWindow::resolve(data, placement);
         let place = placement_for(window, placement, shell_settings.overlays, config);
         let shown = self
             .live
             .iter_mut()
             .find(|n| n.data.id == id && !n.is_withdrawing());
         if let Some(shown) = shown {
-            shown.replace_content(data, kind, icons, countdown, place);
+            shown.replace_content(toast, icons, countdown, place);
         } else {
             if notifications.sound && !data.suppress_sound {
-                tasks.push(sound::play(&data, self.sound_theme.as_deref()));
+                tasks.push(sound::play(data, self.sound_theme.as_deref()));
             }
             self.live.retain(|n| n.data.id != id);
             let seq = self.next_seq;
             self.next_seq += 1;
             self.live.push(Notification::appearing(
-                data, kind, icons, countdown, seq, place, config,
+                toast, icons, countdown, seq, place, config,
             ));
         }
         self.sync_countdowns(now);

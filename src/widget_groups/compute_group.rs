@@ -62,7 +62,7 @@ pub struct ComputeGroup {
 #[derive(Debug, Clone)]
 pub enum ComputeMessage {
     Sensors(bool),
-    Identified(HostHardware),
+    Identified(Box<HostHardware>),
     TopologyDetected(CpuTopology),
     Cpu(Result<CpuUsage, sysfs_sensors::Error>),
     Memory(Result<Memory, sysfs_sensors::Error>),
@@ -80,7 +80,8 @@ impl ComputeGroup {
             Task::future(
                 async move { ComputeMessage::Sensors(Temperature::available(&sensor).await) },
             ),
-            Task::future(HostHardware::identify()).map(ComputeMessage::Identified),
+            Task::future(HostHardware::identify())
+                .map(|hardware| ComputeMessage::Identified(Box::new(hardware))),
             Task::done(ComputeMessage::TopologyDetected(CpuTopology::detect())),
         ])
     }
@@ -126,7 +127,7 @@ impl ComputeGroup {
     pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
         match msg {
             ComputeMessage::Sensors(sensors) => self.sensors = sensors,
-            ComputeMessage::Identified(hardware) => self.hardware = hardware,
+            ComputeMessage::Identified(hardware) => self.hardware = *hardware,
             ComputeMessage::TopologyDetected(topology) => self.topology = topology,
             ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive(fetched),
             ComputeMessage::CoreTemperaturesFetched(fetched) => {

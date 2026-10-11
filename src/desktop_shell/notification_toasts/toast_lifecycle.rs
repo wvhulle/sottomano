@@ -53,50 +53,92 @@ impl From<u32> for ExitPace {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
+pub enum BodyClick {
+    Shell(Message),
+    DbusDefaultAction,
+}
+
 pub enum EventSource {
     DbusClient,
-    LevelAnnouncement(LevelReading<Message>),
+    LevelAnnouncement {
+        hover_target: HoverTarget,
+        glyph: Glyph,
+    },
 }
 
 pub enum ToastKind {
-    Event { at: SystemTime, source: EventSource },
-    Ongoing(OngoingToast<Message>),
+    Event {
+        at: SystemTime,
+        source: EventSource,
+    },
+    Ongoing {
+        key: OngoingKey,
+        since: SystemTime,
+        action_messages: Vec<Message>,
+    },
 }
 
 impl ToastKind {
-    pub(super) fn event_now(source: EventSource) -> Self {
-        Self::Event {
-            at: SystemTime::now(),
-            source,
-        }
-    }
-
     pub(super) fn glyph(&self) -> Option<Glyph> {
         match self {
             Self::Event {
-                source: EventSource::LevelAnnouncement(reading),
+                source: EventSource::LevelAnnouncement { glyph, .. },
                 ..
-            } => Some(reading.glyph),
+            } => Some(*glyph),
             Self::Event {
                 source: EventSource::DbusClient,
                 ..
             }
-            | Self::Ongoing(_) => None,
+            | Self::Ongoing { .. } => None,
+        }
+    }
+}
+
+pub struct ToastContent {
+    pub data: NotificationData,
+    pub kind: ToastKind,
+    pub body_click: BodyClick,
+}
+
+impl ToastContent {
+    pub(super) fn from_dbus_client(data: NotificationData) -> Self {
+        Self {
+            data,
+            kind: ToastKind::Event {
+                at: SystemTime::now(),
+                source: EventSource::DbusClient,
+            },
+            body_click: BodyClick::DbusDefaultAction,
         }
     }
 
-    pub(super) fn on_body_clicked(&self) -> Option<&Message> {
-        match self {
-            Self::Ongoing(toast) => Some(&toast.on_body_clicked),
-            Self::Event {
-                source: EventSource::LevelAnnouncement(reading),
-                ..
-            } => Some(&reading.on_body_clicked),
-            Self::Event {
-                source: EventSource::DbusClient,
-                ..
-            } => None,
+    pub(super) fn level_announcement(reading: LevelReading<Message>, toast_id: u32) -> Self {
+        Self {
+            data: reading.toast_notification_data(toast_id),
+            kind: ToastKind::Event {
+                at: SystemTime::now(),
+                source: EventSource::LevelAnnouncement {
+                    hover_target: reading.hover_target,
+                    glyph: reading.glyph,
+                },
+            },
+            body_click: BodyClick::Shell(reading.on_body_clicked),
+        }
+    }
+
+    pub(super) fn ongoing(toast: OngoingToast<Message>, toast_id: u32) -> Self {
+        Self {
+            data: toast.toast_notification_data(toast_id),
+            kind: ToastKind::Ongoing {
+                key: toast.key,
+                since: toast.since,
+                action_messages: toast
+                    .action_buttons
+                    .into_iter()
+                    .map(|button| button.on_button_pressed)
+                    .collect(),
+            },
+            body_click: BodyClick::Shell(toast.on_body_clicked),
         }
     }
 }
@@ -129,6 +171,7 @@ impl From<ServerEvent> for NotificationMessage {
 pub struct Notification {
     pub data: NotificationData,
     pub kind: ToastKind,
+    pub body_click: BodyClick,
     pub icons: CardIcons,
     pub(super) place: ToastPlacement,
     pub(super) countdown: Option<Countdown>,
@@ -140,8 +183,11 @@ pub struct Notification {
 
 impl Notification {
     pub(super) fn appearing(
-        data: NotificationData,
-        kind: ToastKind,
+        ToastContent {
+            data,
+            kind,
+            body_click,
+        }: ToastContent,
         icons: CardIcons,
         countdown: Option<Countdown>,
         seq: u64,
@@ -152,6 +198,7 @@ impl Notification {
         Self {
             data,
             kind,
+            body_click,
             icons,
             place,
             countdown,
@@ -164,30 +211,34 @@ impl Notification {
 
     pub(super) fn replace_content(
         &mut self,
-        data: NotificationData,
-        kind: ToastKind,
+        ToastContent {
+            data,
+            kind,
+            body_click,
+        }: ToastContent,
         icons: CardIcons,
         countdown: Option<Countdown>,
         place: ToastPlacement,
     ) {
         self.data = data;
         self.kind = kind;
+        self.body_click = body_click;
         self.icons = icons;
         self.countdown = countdown;
         self.place = place;
     }
 
     pub(super) fn shows_ongoing(&self, key: &OngoingKey) -> bool {
-        matches!(&self.kind, ToastKind::Ongoing(shown) if shown.key == *key)
+        matches!(&self.kind, ToastKind::Ongoing { key: shown, .. } if shown == key)
     }
 
     pub(super) fn announces_level_of(&self, hover_target: &HoverTarget) -> bool {
         matches!(
             &self.kind,
             ToastKind::Event {
-                source: EventSource::LevelAnnouncement(reading),
+                source: EventSource::LevelAnnouncement { hover_target: shown, .. },
                 ..
-            } if reading.hover_target == *hover_target
+            } if shown == hover_target
         )
     }
 

@@ -32,12 +32,17 @@ pub struct ShellSettings {
 impl ShellSettings {
     pub fn frame_style(&self, config: &Config) -> container::Style {
         let palette = &config.theme.palette;
+        let outline_width = if self.panels.outlined {
+            config.panel_bar.frame_outline_px
+        } else {
+            0.0
+        };
         container::Style::default()
             .background(palette.surface.scale_alpha(self.panels.opacity))
             .border(
                 border::rounded(self.panels.corner_radius)
                     .color(palette.frame_outline)
-                    .width(config.panel_bar.frame_outline_px),
+                    .width(outline_width),
             )
             .shadow(self.shadow.drop_shadow())
             .color(palette.bar_foreground)
@@ -137,6 +142,7 @@ impl Default for ShellLayout {
 pub struct PanelAppearance {
     pub opacity: f32,
     pub corner_radius: Radius,
+    pub outlined: bool,
 }
 
 impl Default for PanelAppearance {
@@ -144,6 +150,7 @@ impl Default for PanelAppearance {
         Self {
             opacity: 0.8,
             corner_radius: Radius::default(),
+            outlined: true,
         }
     }
 }

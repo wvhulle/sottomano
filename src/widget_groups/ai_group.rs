@@ -102,7 +102,7 @@ impl ClaudeLogin {
     fn account_subscription(&self) -> Subscription<AiMessage> {
         match self {
             Self::Subscription(credentials) => polling::<ClaudeUsageWindows>(credentials.clone())
-                .map(AiMessage::ClaudeUsageWindows),
+                .map(|reading| AiMessage::ClaudeUsageWindows(Box::new(reading))),
             Self::UsageBased(credentials) => polling::<ClaudeEnterpriseSpend>(credentials.clone())
                 .map(AiMessage::ClaudeEnterpriseSpend),
         }
@@ -144,7 +144,7 @@ pub struct CopilotAvailable {
 pub enum AiMessage {
     Available(Available),
     OpenRouter(Result<OpenRouter, openrouter::Error>),
-    ClaudeUsageWindows(Result<ClaudeUsageWindows, claude::Error>),
+    ClaudeUsageWindows(Box<Result<ClaudeUsageWindows, claude::Error>>),
     ClaudeEnterpriseSpend(Result<ClaudeEnterpriseSpend, claude::Error>),
     ClaudeOrganizationFetched(HoverFetched<ClaudeOrganization>),
     ClaudeCcusagePeriods(Result<ClaudeCcusagePeriods, claude::Error>),
@@ -235,7 +235,7 @@ impl AiGroup {
         match message {
             AiMessage::Available(available) => self.available = available,
             AiMessage::OpenRouter(reading) => self.openrouter.receive(reading),
-            AiMessage::ClaudeUsageWindows(reading) => self.claude_usage_windows.receive(reading),
+            AiMessage::ClaudeUsageWindows(reading) => self.claude_usage_windows.receive(*reading),
             AiMessage::ClaudeEnterpriseSpend(reading) => {
                 self.claude_enterprise_spend.receive(reading);
             }

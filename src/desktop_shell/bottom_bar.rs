@@ -37,7 +37,7 @@ impl DesktopShell {
                     .group_content(config, &shell_settings.layout)
                     .map(Message::ShellLayout),
                 self.panel_appearance_group
-                    .group_content(config)
+                    .group_content(config, &shell_settings.panels)
                     .map(Message::PanelAppearance),
                 self.overlay_group
                     .group_content(config, shell_settings.overlays)
