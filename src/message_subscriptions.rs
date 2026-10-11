@@ -131,7 +131,6 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .subscription(&state.config.working_days)
             .map(Message::Ai),
         WindowGroup::subscription(&state.config.window_agents).map(Message::WindowGroup),
-        state.hover_subscription(),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),

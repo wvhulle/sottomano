@@ -1,53 +1,42 @@
-use std::{fmt::Display, future::ready, hash::Hash};
+use std::fmt::Display;
 
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, stream},
-};
+use iced::{Task, futures::Stream, task::Handle};
 
 use crate::widgets::tooltip_body::{KeyValue, Section};
 
 #[derive(Debug, Clone)]
-pub struct OnHoverReading<Subject, S> {
-    subject: Subject,
+pub struct HoverFetched<S>(Result<S, String>);
+
+#[derive(Debug)]
+pub struct OnHoverReading<S> {
     latest: Option<Result<S, String>>,
+    _fetching: Handle,
 }
 
-impl<Subject, S> OnHoverReading<Subject, S>
-where
-    Subject: PartialEq + Hash + Clone + Send + Sync + 'static,
-    S: Send + 'static,
-{
-    pub fn subscription<Readings, E>(
-        subject: Subject,
-        readings: fn(&Subject) -> Readings,
-    ) -> Subscription<Self>
-    where
-        Readings: Stream<Item = Result<S, E>> + Send + 'static,
-        E: Display,
-    {
-        Subscription::run_with((subject, readings), |(subject, readings)| {
-            let fetched_for = subject.clone();
-            stream::once(ready(Self {
-                subject: subject.clone(),
-                latest: None,
-            }))
-            .chain(readings(subject).map(move |reading| Self {
-                subject: fetched_for.clone(),
-                latest: Some(reading.map_err(|failure| failure.to_string())),
-            }))
+impl<S: Send + 'static> OnHoverReading<S> {
+    pub fn fetch<E: Display, Message: Send + 'static>(
+        readings: impl Stream<Item = Result<S, E>> + Send + 'static,
+        delivered: fn(HoverFetched<S>) -> Message,
+    ) -> (Self, Task<Message>) {
+        let (task, fetching) = Task::run(readings, |reading| {
+            HoverFetched(reading.map_err(|failure| failure.to_string()))
         })
+        .abortable();
+        (
+            Self {
+                latest: None,
+                _fetching: fetching.abort_on_drop(),
+            },
+            task.map(delivered),
+        )
     }
 
-    pub fn section(
-        reading: Option<&Self>,
-        subject: &Subject,
-        sections: impl FnOnce(&S) -> Vec<Section>,
-    ) -> Section {
-        let latest = reading
-            .filter(|reading| &reading.subject == subject)
-            .and_then(|reading| reading.latest.as_ref());
-        match latest {
+    pub fn receive(&mut self, fetched: HoverFetched<S>) {
+        self.latest = Some(fetched.0);
+    }
+
+    pub fn section(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Section {
+        match &self.latest {
             None => Section::pending(),
             Some(Ok(reading)) => Section::resolved(sections(reading)),
             Some(Err(failure)) => {

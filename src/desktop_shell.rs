@@ -299,7 +299,13 @@ impl DesktopShell {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
         let tooltip_seq = self.tooltip.seq();
+        let hovered_before = self.tooltip.target().cloned();
         let dispatched = self.dispatch_message(message);
+        let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
+            Task::none()
+        } else {
+            self.retarget_hover_readings()
+        };
         let requests = self.group_toast_requests();
         let widget_toasts = self.notifications.show_widget_toasts(
             requests,
@@ -310,7 +316,12 @@ impl DesktopShell {
                 &self.shell_settings,
             ),
         );
-        Task::batch([dispatched, widget_toasts, self.redraw_content(tooltip_seq)])
+        Task::batch([
+            dispatched,
+            hover_readings,
+            widget_toasts,
+            self.redraw_content(tooltip_seq),
+        ])
     }
 
     fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {

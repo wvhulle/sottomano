@@ -229,13 +229,9 @@ impl<'a> TooltipContent<'a> {
     fn section(&self, section: &Section) -> Element<'static, Message> {
         let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
         let title = section.title().map(|title| {
-            arriving_text(
-                container(self.bold_title(title)).padding(title_padding),
-                title.to_owned(),
-                self.arrival(),
-                &self.config.font,
-                self.foreground(),
-            )
+            container(self.bold_title(title))
+                .padding(title_padding)
+                .into()
         });
         let caption = section.caption().map(|caption| {
             container(self.small_dim_text(caption.to_owned()))
@@ -326,9 +322,12 @@ impl<'a> TooltipContent<'a> {
         values: impl IntoIterator<Item = table::Column<'static, 'static, Entry, Message>>,
     ) -> Element<'static, Message> {
         let dim = self.dim();
-        let cell_view = self.cell_view();
+        let label_view = CellView {
+            arrival: None,
+            ..self.cell_view()
+        };
         let key_column = table::column(Space::new(), move |entry: Entry| {
-            cell_view.key(key(&entry).clone(), dim)
+            label_view.key(key(&entry).clone(), dim)
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);

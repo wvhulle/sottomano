@@ -25,7 +25,7 @@ use crate::{
 
 const ARRIVAL: Duration = Duration::from_millis(700);
 const GLYPH_CHANGE: Duration = Duration::from_millis(55);
-const PULSE_PERIOD: Duration = Duration::from_millis(1100);
+const PULSE_PERIOD: Duration = Duration::from_millis(1400);
 const NOISE_GLYPHS: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
 
@@ -161,35 +161,34 @@ impl<Message> LoadingText<'_, Message> {
 
     fn draw_pulse(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
         let elapsed = state.elapsed().as_secs_f32();
-        if self.settles {
-            let shown = (elapsed / ARRIVAL.as_secs_f32()).clamp(0.0, 1.0);
-            let color = Color {
-                a: self.color.a * shown,
-                ..self.color
-            };
-            self.lines.iter().for_each(|line| {
-                self.fill_line(renderer, line.clone(), area.position(), area, color);
-            });
-            return;
-        }
-        let phase = (elapsed / PULSE_PERIOD.as_secs_f32() * TAU).sin() * 0.5 + 0.5;
+        let phase = (elapsed / PULSE_PERIOD.as_secs_f32() * TAU).cos() * 0.5 + 0.5;
         let color = Color {
-            a: self.color.a * (0.12 + 0.22 * phase),
+            a: self.color.a * (0.12 + 0.2 * phase),
             ..self.color
         };
         let line_height = self.line_height();
-        let bar_height = line_height * 0.6;
+        let bar_height = line_height * 0.7;
+        let rows = if self.settles {
+            ((area.height / line_height).round() as usize).max(1)
+        } else {
+            self.lines.len()
+        };
         let longest = self.lines.iter().map(String::len).max().unwrap_or(1) as f32;
-        self.lines.iter().enumerate().for_each(|(row, line)| {
+        (0..rows).for_each(|row| {
+            let width = if self.settles {
+                area.width
+            } else {
+                area.width * self.lines[row].len() as f32 / longest
+            };
             renderer.fill_quad(
                 Quad {
                     bounds: Rectangle {
                         x: area.x,
                         y: area.y + row as f32 * line_height + (line_height - bar_height) / 2.0,
-                        width: area.width * line.len() as f32 / longest,
+                        width,
                         height: bar_height,
                     },
-                    border: Border::default().rounded(bar_height / 2.0),
+                    border: Border::default().rounded(bar_height / 4.0),
                     ..Quad::default()
                 },
                 Background::Color(color),
