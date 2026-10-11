@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Reverse};
+use std::{borrow::Cow, cmp::Reverse, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale};
 
@@ -21,7 +21,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::TimePart,
-        reading_alert::{ReadingAlert, ReadingAlertActionButton},
+        ongoing_toast::{OngoingKey, OngoingToast, OngoingToastActionButton},
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -36,28 +36,28 @@ impl<S: ScopeAppearance> Failed<S> {
                 TerminalJournal::PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
-            .alerts(self.unit_alerts(config))
+            .ongoing_toasts(self.failed_unit_toasts(config))
     }
 
-    fn unit_alerts<'a>(
+    fn failed_unit_toasts<'a>(
         &'a self,
         config: &'a Config,
-    ) -> impl Iterator<Item = ReadingAlert<SystemdManagerMessage>> + 'a {
+    ) -> impl Iterator<Item = OngoingToast<SystemdManagerMessage>> + 'a {
         self.units.iter().map(move |unit| {
             let open_unit_log = SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,
                 S::follow_units_log_args([unit.name.as_str()]),
             ));
-            ReadingAlert {
+            OngoingToast {
                 widget_name: self.name(),
-                hover_target: S::failed_unit_target(unit.name.clone()).into(),
+                key: OngoingKey::Reading(S::failed_unit_target(unit.name.clone()).into()),
                 severity: UNIT_FAILURE_PRIORITY.severity(),
                 summary_text: Cow::Owned(format!("{} failed", unit.name)),
                 body_text: failure_summary(unit, config.calendar.locale),
-                condition_started_at: unit.at,
+                since: unit.at.unwrap_or_else(SystemTime::now),
                 on_body_clicked: open_unit_log.clone(),
                 action_buttons: [
-                    ReadingAlertActionButton {
+                    OngoingToastActionButton {
                         button_label: "Restart".to_owned(),
                         tint: ActionTint::Proceed,
                         on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
@@ -67,12 +67,12 @@ impl<S: ScopeAppearance> Failed<S> {
                             },
                         ),
                     },
-                    ReadingAlertActionButton {
+                    OngoingToastActionButton {
                         button_label: "Journal".to_owned(),
                         tint: ActionTint::Inspect,
                         on_button_pressed: open_unit_log,
                     },
-                    ReadingAlertActionButton {
+                    OngoingToastActionButton {
                         button_label: "Copy name".to_owned(),
                         tint: ActionTint::Inspect,
                         on_button_pressed: SystemdManagerMessage::CopyToClipboard(

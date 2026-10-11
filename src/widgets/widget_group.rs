@@ -21,8 +21,8 @@ use crate::{
         expand_animation::expand_animation,
         flat_button,
         group_item::GroupItem,
+        ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
-        reading_alert::ReadingAlert,
         reveal::reveal_x,
         source_reading::{icon_value_gap, reading_color, reading_value},
     },
@@ -135,7 +135,7 @@ impl<'a> PreviewedValue<'a> {
 }
 
 pub struct GroupToastRequests<M> {
-    pub alerts: Vec<ReadingAlert<M>>,
+    pub ongoing_toasts: Vec<OngoingToast<M>>,
     pub levels: Vec<LevelReading<M>>,
 }
 
@@ -198,15 +198,15 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         (self.on_expansion)(ExpansionMessage::Expand)
     }
 
-    fn alerts(&self, locale: Locale) -> impl Iterator<Item = ReadingAlert<M>> {
+    fn ongoing_toasts(&self, locale: Locale) -> impl Iterator<Item = OngoingToast<M>> {
         self.items
             .iter()
-            .flat_map(move |item| item.alerts_with_reading(self.expand_message(), locale))
+            .flat_map(move |item| item.ongoing_toasts_with_reading(self.expand_message(), locale))
     }
 
     pub fn toast_requests(&self, locale: Locale) -> GroupToastRequests<M> {
         GroupToastRequests {
-            alerts: self.alerts(locale).collect(),
+            ongoing_toasts: self.ongoing_toasts(locale).collect(),
             levels: self
                 .items
                 .iter()
@@ -224,8 +224,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             return None;
         }
         let highest_alert_severity = self
-            .alerts(config.calendar.locale)
-            .map(|alert| alert.severity)
+            .ongoing_toasts(config.calendar.locale)
+            .map(|toast| toast.severity)
             .max()
             .unwrap_or_default();
         let GroupContent {

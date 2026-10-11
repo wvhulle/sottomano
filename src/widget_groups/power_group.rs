@@ -32,8 +32,8 @@ use crate::{
         group_item::GroupItem,
         hardware_section::HardwareEntries,
         on_hover_reading::{HoverFetched, OnHoverReading},
+        ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        reading_alert::ReadingAlertActionButton,
         tooltip_body::{Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
@@ -208,7 +208,7 @@ impl PowerGroup {
         let switch_to_saving_profiles =
             self.power_profile
                 .profiles_saving_more_power()
-                .map(|profile| ReadingAlertActionButton {
+                .map(|profile| OngoingToastActionButton {
                     button_label: profile.title().to_owned(),
                     tint: ActionTint::Proceed,
                     on_button_pressed: PowerMessage::PowerProfile(
@@ -225,7 +225,7 @@ impl PowerGroup {
                     .map(|draw| GroupItem::reading(draw, PowerTarget::Draw)),
                 self.time.as_ref().map(|time| {
                     GroupItem::reading(time, PowerTarget::BatteryTime)
-                        .alert_action_buttons(switch_to_saving_profiles)
+                        .ongoing_toast_action_buttons(switch_to_saving_profiles)
                 }),
                 self.power_profile.slider().map(|slider| {
                     GroupItem::slider(slider, config, |control| {

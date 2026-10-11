@@ -14,7 +14,7 @@ use crate::{
         },
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
         tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
@@ -94,8 +94,8 @@ impl BarWidget for Temperature {
         Some(celsius_text(self.hottest()))
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "CPU overheating",
         }

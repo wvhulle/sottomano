@@ -40,7 +40,7 @@ impl Glyph {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReadingAlertThreshold {
+pub enum OngoingToastThreshold {
     NeverNotify,
     NotifyFromSeverity {
         minimum_severity: Severity,
@@ -72,8 +72,8 @@ pub trait BarWidget {
         WidgetState::Idle
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NeverNotify
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NeverNotify
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -116,8 +116,8 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
         (**self).state()
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        (**self).reading_alert_threshold()
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        (**self).ongoing_toast_threshold()
     }
 
     fn gauge(&self) -> Option<Ratio> {

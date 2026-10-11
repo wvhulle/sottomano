@@ -3,7 +3,7 @@ use uom::si::f64::ThermodynamicTemperature;
 use crate::{
     data::{severity::Severity, source::gpu::GpuTemperatureLimits},
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         phosphor::Phosphor,
         temperature_thresholds::celsius_text,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -42,8 +42,8 @@ impl BarWidget for GpuTemperatureLabel {
         Some(celsius_text(self.current))
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "GPU overheating",
         }

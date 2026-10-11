@@ -1,5 +1,4 @@
 pub mod body_markup;
-pub mod reading_alert_toasts;
 pub mod toast_anchor_geometry;
 pub mod toast_card;
 pub mod toast_lifecycle;
@@ -12,12 +11,8 @@ use std::cmp::Reverse;
 
 use iced::{Padding, Theme, time::Instant};
 use niri_ipc::state::EventStreamState;
-use reading_alert_toasts::{
-    DismissedReadingAlert, ReadingAlertToastChanges, ShownReadingAlertToast,
-    plan_reading_alert_toast_changes,
-};
 use toast_card::ToastCard;
-use toast_lifecycle::Countdown;
+use toast_lifecycle::{Countdown, ToastKind};
 pub use toast_lifecycle::{Notification, NotificationMessage};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
@@ -27,12 +22,15 @@ use crate::{
     config::Config,
     data::{
         notifications::model::NotifHandle,
+        severity::Severity,
         source::{app_icon::DesktopEntries, niri::Placement},
     },
     desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
     state::ShellSettings,
     widgets::{
-        announced_level::LevelReading, reading_alert::ReadingAlert, reveal::reveal_y,
+        announced_level::LevelReading,
+        ongoing_toast::{OngoingKey, OngoingToast},
+        reveal::reveal_y,
         widget_group::GroupToastRequests,
     },
 };
@@ -64,7 +62,7 @@ impl<'a> ToastContext<'a> {
 
 #[derive(Default)]
 pub struct WidgetToastRequests {
-    alerts: Vec<ReadingAlert<Message>>,
+    ongoing_toasts: Vec<OngoingToast<Message>>,
     levels: Vec<LevelReading<Message>>,
 }
 
@@ -73,11 +71,16 @@ impl FromIterator<GroupToastRequests<Message>> for WidgetToastRequests {
         groups
             .into_iter()
             .fold(Self::default(), |mut requests, group| {
-                requests.alerts.extend(group.alerts);
+                requests.ongoing_toasts.extend(group.ongoing_toasts);
                 requests.levels.extend(group.levels);
                 requests
             })
     }
+}
+
+pub(super) struct SnoozedOngoingToast {
+    key: OngoingKey,
+    snoozed_at: Severity,
 }
 
 #[derive(Default)]
@@ -88,7 +91,7 @@ pub struct NotificationLayer {
     next_seq: u64,
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
-    dismissed_reading_alerts: Vec<DismissedReadingAlert>,
+    snoozed: Vec<SnoozedOngoingToast>,
     previous_levels: Vec<LevelReading<Message>>,
 }
 
@@ -194,37 +197,16 @@ impl NotificationLayer {
     fn shell_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
         let notif = self.showing().find(|n| n.data.id == toast_id)?;
         if action_key == DEFAULT_ACTION {
-            return notif.origin.on_body_clicked().cloned();
+            return notif.kind.on_body_clicked().cloned();
         }
-        notif
-            .reading_alert()?
-            .action_button_pressed(action_key)
-            .cloned()
-    }
-
-    fn plan_reading_alert_toasts(
-        &self,
-        active_alerts: &[ReadingAlert<Message>],
-    ) -> ReadingAlertToastChanges<Message> {
-        let shown_toasts: Vec<ShownReadingAlertToast<'_>> = self
-            .showing()
-            .filter_map(|n| {
-                n.reading_alert().map(|alert| ShownReadingAlertToast {
-                    toast_id: n.data.id,
-                    hover_target: &alert.hover_target,
-                    severity: alert.severity,
-                })
-            })
-            .collect();
-        plan_reading_alert_toast_changes(
-            active_alerts,
-            &shown_toasts,
-            &self.dismissed_reading_alerts,
-        )
+        match &notif.kind {
+            ToastKind::Ongoing(toast) => toast.action_button_pressed(action_key).cloned(),
+            ToastKind::Event { .. } => None,
+        }
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn fresh_reading_alert_toast_id(&self) -> u32 {
+    fn fresh_shell_toast_id(&self) -> u32 {
         u32::MAX.wrapping_sub(self.next_seq as u32)
     }
 }

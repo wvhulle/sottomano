@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter, mem, path::Path};
+use std::{borrow::Cow, collections::HashMap, iter, mem, path::Path, time::SystemTime};
 
 use iced::{
     Task,
@@ -10,18 +10,17 @@ use quick_xml::escape::escape;
 use tokio::{sync::mpsc, time::timeout};
 
 use super::{
-    DEFAULT_ACTION, NotificationLayer, ToastContext, WidgetToastRequests,
-    reading_alert_toasts::{DismissedReadingAlert, ReadingAlertToastChanges, ToastSlotForAlert},
+    DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext, WidgetToastRequests,
     toast_card::{self, CardIcons},
     toast_lifecycle::{
-        Countdown, ExitPace, Notification, NotificationMessage, ToastOrigin, lifetime,
+        Countdown, EventSource, ExitPace, Notification, NotificationMessage, ToastKind, lifetime,
     },
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
     config::{Config, LoadError},
     data::{
-        notifications::model::{ExpireTimeout, NotificationData, Outbound, close_reason},
+        notifications::model::{NotificationData, Outbound, close_reason},
         severity::Severity,
         sink::sound,
         source::niri::Placement,
@@ -30,10 +29,11 @@ use crate::{
     message_subscriptions::niri_action,
     state::{self, NotificationSettings, OverlaySettings},
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
-    widgets::{announced_level::LevelReading, reading_alert::ReadingAlert},
+    widgets::{
+        announced_level::LevelReading,
+        ongoing_toast::{OngoingKey, OngoingToast},
+    },
 };
-
-const CONFIG_ERROR_TOAST_ID: u32 = 0;
 
 const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
 
@@ -114,7 +114,11 @@ impl NotificationLayer {
                 self.handle = Some(handle);
                 Task::none()
             }
-            NotificationMessage::Served(data) => self.serve(data, ToastOrigin::DbusClient, context),
+            NotificationMessage::Served(data) => self.serve(
+                *data,
+                ToastKind::event_now(EventSource::DbusClient),
+                context,
+            ),
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, context, panel_on)
             }
@@ -128,7 +132,7 @@ impl NotificationLayer {
                 Task::none()
             }
             NotificationMessage::Dismiss(id) => {
-                self.remember_dismissed_reading_alert(id);
+                self.snooze_ongoing_toast(id);
                 self.close_all([id], close_reason::DISMISSED, context.config)
             }
             NotificationMessage::ActionClicked { id, key } => {
@@ -177,29 +181,71 @@ impl NotificationLayer {
         requests: WidgetToastRequests,
         context: &ToastContext,
     ) -> Task<Message> {
-        let alert_toasts = self.show_reading_alerts(&requests.alerts, context);
+        let ongoing_toasts = self.show_ongoing_toasts(requests.ongoing_toasts, context);
         let previous_levels = mem::replace(&mut self.previous_levels, requests.levels.clone());
-        let level_toasts = requests
+        let level_toasts: Vec<Task<Message>> = requests
             .levels
             .into_iter()
             .filter(|reading| reading.changed_since(&previous_levels))
-            .map(|reading| self.announce_level(reading, context));
-        Task::batch(iter::once(alert_toasts).chain(level_toasts))
+            .map(|reading| self.announce_level(reading, context))
+            .collect();
+        Task::batch(iter::once(ongoing_toasts).chain(level_toasts))
     }
 
-    fn show_reading_alerts(
+    fn show_ongoing_toasts(
         &mut self,
-        active_alerts: &[ReadingAlert<Message>],
+        active: Vec<OngoingToast<Message>>,
         context: &ToastContext,
     ) -> Task<Message> {
         if context.shell_settings.notifications.do_not_disturb {
             return Task::none();
         }
-        let changes = self.plan_reading_alert_toasts(active_alerts);
-        if changes.is_empty() {
-            return Task::none();
-        }
-        self.apply_reading_alert_toast_changes(changes, context)
+        self.snoozed.retain(|snoozed| {
+            active
+                .iter()
+                .any(|toast| toast.key == snoozed.key && toast.severity <= snoozed.snoozed_at)
+        });
+        let cleared: Vec<u32> = self
+            .showing()
+            .filter(|n| {
+                matches!(&n.kind, ToastKind::Ongoing(shown)
+                    if matches!(shown.key, OngoingKey::Reading(_))
+                        && !active.iter().any(|toast| toast.key == shown.key))
+            })
+            .map(|n| n.data.id)
+            .collect();
+        let closed = self.close_all(cleared, close_reason::CLOSED_BY_CALL, context.config);
+        let to_raise: Vec<OngoingToast<Message>> = active
+            .into_iter()
+            .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
+            .filter(|toast| {
+                !self.showing().any(|n| {
+                    matches!(&n.kind, ToastKind::Ongoing(shown)
+                        if shown.key == toast.key && shown.severity >= toast.severity)
+                })
+            })
+            .collect();
+        let raised: Vec<Task<Message>> = to_raise
+            .into_iter()
+            .map(|toast| self.serve_ongoing(toast, context))
+            .collect();
+        Task::batch(iter::once(closed).chain(raised))
+    }
+
+    fn serve_ongoing(
+        &mut self,
+        toast: OngoingToast<Message>,
+        context: &ToastContext,
+    ) -> Task<Message> {
+        let toast_id = self
+            .showing()
+            .find(|n| n.shows_ongoing(&toast.key))
+            .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
+        self.serve(
+            toast.toast_notification_data(toast_id),
+            ToastKind::Ongoing(toast),
+            context,
+        )
     }
 
     fn announce_level(
@@ -210,10 +256,10 @@ impl NotificationLayer {
         let toast_id = self
             .showing()
             .find(|n| n.announces_level_of(&reading.hover_target))
-            .map_or_else(|| self.fresh_reading_alert_toast_id(), |n| n.data.id);
+            .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
         self.serve(
-            Box::new(reading.toast_notification_data(toast_id)),
-            ToastOrigin::LevelAnnouncement(Box::new(reading)),
+            reading.toast_notification_data(toast_id),
+            ToastKind::event_now(EventSource::LevelAnnouncement(reading)),
             context,
         )
     }
@@ -235,71 +281,48 @@ impl NotificationLayer {
             ),
             None => message,
         };
-        let data = NotificationData {
-            body: Some(body),
-            severity: Severity::Critical,
-            expire_timeout: ExpireTimeout::Never,
-            ..NotificationData::from_shell(
-                CONFIG_ERROR_TOAST_ID,
-                format!("Invalid configuration in {}", path.display()),
-            )
-        };
-        self.serve(Box::new(data), ToastOrigin::ConfigError, context)
-    }
-
-    pub fn withdraw_config_error(&mut self, config: &Config) -> Task<Message> {
-        self.close_all(
-            [CONFIG_ERROR_TOAST_ID],
-            close_reason::CLOSED_BY_CALL,
-            config,
+        self.serve_ongoing(
+            OngoingToast {
+                widget_name: "Configuration",
+                key: OngoingKey::ConfigFile,
+                severity: Severity::Critical,
+                summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
+                body_text: Some(body),
+                since: SystemTime::now(),
+                on_body_clicked: Message::OpenUrl(path.display().to_string()),
+                action_buttons: Vec::new(),
+            },
+            context,
         )
     }
 
-    fn apply_reading_alert_toast_changes(
-        &mut self,
-        changes: ReadingAlertToastChanges<Message>,
-        context: &ToastContext,
-    ) -> Task<Message> {
-        self.dismissed_reading_alerts.retain(|dismissed| {
-            !changes
-                .dismissals_to_forget
-                .contains(&dismissed.hover_target)
-        });
-        let mut tasks = vec![self.close_all(
-            changes.toast_ids_to_close,
-            close_reason::CLOSED_BY_CALL,
-            context.config,
-        )];
-        tasks.extend(changes.alerts_to_show.into_iter().map(|to_show| {
-            let toast_id = match to_show.toast_slot {
-                ToastSlotForAlert::ReplaceShownToast(toast_id) => toast_id,
-                ToastSlotForAlert::OpenNewToast => self.fresh_reading_alert_toast_id(),
-            };
-            self.serve(
-                Box::new(to_show.alert.toast_notification_data(toast_id)),
-                ToastOrigin::ReadingAlert(Box::new(to_show.alert)),
-                context,
-            )
-        }));
-        Task::batch(tasks)
+    pub fn withdraw_config_error(&mut self, config: &Config) -> Task<Message> {
+        let shown: Vec<u32> = self
+            .showing()
+            .filter(|n| n.shows_ongoing(&OngoingKey::ConfigFile))
+            .map(|n| n.data.id)
+            .collect();
+        self.close_all(shown, close_reason::CLOSED_BY_CALL, config)
     }
 
-    fn remember_dismissed_reading_alert(&mut self, toast_id: u32) {
-        let dismissed = self
+    fn snooze_ongoing_toast(&mut self, toast_id: u32) {
+        let snoozed = self
             .showing()
             .find(|n| n.data.id == toast_id)
-            .and_then(Notification::reading_alert)
-            .map(|alert| DismissedReadingAlert {
-                hover_target: alert.hover_target.clone(),
-                dismissed_at_severity: alert.severity,
+            .and_then(|n| match &n.kind {
+                ToastKind::Ongoing(toast) => Some(SnoozedOngoingToast {
+                    key: toast.key.clone(),
+                    snoozed_at: toast.severity,
+                }),
+                ToastKind::Event { .. } => None,
             });
-        self.dismissed_reading_alerts.extend(dismissed);
+        self.snoozed.extend(snoozed);
     }
 
     fn serve(
         &mut self,
-        data: Box<NotificationData>,
-        origin: ToastOrigin,
+        data: NotificationData,
+        kind: ToastKind,
         context: &ToastContext,
     ) -> Task<Message> {
         let ToastContext {
@@ -324,7 +347,7 @@ impl NotificationLayer {
                 .collect();
             tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config));
         }
-        let icons = origin.glyph().map_or_else(
+        let icons = kind.glyph().map_or_else(
             || toast_card::resolve_icons(&data, *entries),
             CardIcons::of_glyph,
         );
@@ -342,7 +365,7 @@ impl NotificationLayer {
             .iter_mut()
             .find(|n| n.data.id == id && !n.is_withdrawing());
         if let Some(shown) = shown {
-            shown.replace_content(*data, origin, icons, countdown, place);
+            shown.replace_content(data, kind, icons, countdown, place);
         } else {
             if notifications.sound && !data.suppress_sound {
                 tasks.push(sound::play(&data, self.sound_theme.as_deref()));
@@ -351,7 +374,7 @@ impl NotificationLayer {
             let seq = self.next_seq;
             self.next_seq += 1;
             self.live.push(Notification::appearing(
-                *data, origin, icons, countdown, seq, place, config,
+                data, kind, icons, countdown, seq, place, config,
             ));
         }
         self.sync_countdowns(now);
@@ -453,7 +476,7 @@ impl NotificationLayer {
     ) -> Task<Message> {
         let placement = &context.placement;
         if let Some(shell_message) = self.shell_message_for(id, key) {
-            self.remember_dismissed_reading_alert(id);
+            self.snooze_ongoing_toast(id);
             return Task::batch([
                 Task::done(shell_message),
                 self.close_all([id], close_reason::DISMISSED, context.config),

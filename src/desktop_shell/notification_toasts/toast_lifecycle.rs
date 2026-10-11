@@ -19,7 +19,11 @@ use crate::{
         severity::Severity,
     },
     desktop_shell::{Message, hover_tooltips::HoverTarget},
-    widgets::{announced_level::LevelReading, bar_widget::Glyph, reading_alert::ReadingAlert},
+    widgets::{
+        announced_level::LevelReading,
+        bar_widget::Glyph,
+        ongoing_toast::{OngoingKey, OngoingToast},
+    },
 };
 
 const SHRUNK_SCALE: f32 = 0.95;
@@ -49,26 +53,50 @@ impl From<u32> for ExitPace {
     }
 }
 
-pub enum ToastOrigin {
+#[allow(clippy::large_enum_variant)]
+pub enum EventSource {
     DbusClient,
-    ReadingAlert(Box<ReadingAlert<Message>>),
-    ConfigError,
-    LevelAnnouncement(Box<LevelReading<Message>>),
+    LevelAnnouncement(LevelReading<Message>),
 }
 
-impl ToastOrigin {
+pub enum ToastKind {
+    Event { at: SystemTime, source: EventSource },
+    Ongoing(OngoingToast<Message>),
+}
+
+impl ToastKind {
+    pub(super) fn event_now(source: EventSource) -> Self {
+        Self::Event {
+            at: SystemTime::now(),
+            source,
+        }
+    }
+
     pub(super) fn glyph(&self) -> Option<Glyph> {
         match self {
-            Self::LevelAnnouncement(reading) => Some(reading.glyph),
-            Self::DbusClient | Self::ReadingAlert(_) | Self::ConfigError => None,
+            Self::Event {
+                source: EventSource::LevelAnnouncement(reading),
+                ..
+            } => Some(reading.glyph),
+            Self::Event {
+                source: EventSource::DbusClient,
+                ..
+            }
+            | Self::Ongoing(_) => None,
         }
     }
 
     pub(super) fn on_body_clicked(&self) -> Option<&Message> {
         match self {
-            Self::ReadingAlert(alert) => Some(&alert.on_body_clicked),
-            Self::LevelAnnouncement(reading) => Some(&reading.on_body_clicked),
-            Self::DbusClient | Self::ConfigError => None,
+            Self::Ongoing(toast) => Some(&toast.on_body_clicked),
+            Self::Event {
+                source: EventSource::LevelAnnouncement(reading),
+                ..
+            } => Some(&reading.on_body_clicked),
+            Self::Event {
+                source: EventSource::DbusClient,
+                ..
+            } => None,
         }
     }
 }
@@ -100,8 +128,7 @@ impl From<ServerEvent> for NotificationMessage {
 
 pub struct Notification {
     pub data: NotificationData,
-    pub origin: ToastOrigin,
-    pub created_at: SystemTime,
+    pub kind: ToastKind,
     pub icons: CardIcons,
     pub(super) place: ToastPlacement,
     pub(super) countdown: Option<Countdown>,
@@ -114,7 +141,7 @@ pub struct Notification {
 impl Notification {
     pub(super) fn appearing(
         data: NotificationData,
-        origin: ToastOrigin,
+        kind: ToastKind,
         icons: CardIcons,
         countdown: Option<Countdown>,
         seq: u64,
@@ -124,8 +151,7 @@ impl Notification {
         let now = Instant::now();
         Self {
             data,
-            origin,
-            created_at: SystemTime::now(),
+            kind,
             icons,
             place,
             countdown,
@@ -139,34 +165,40 @@ impl Notification {
     pub(super) fn replace_content(
         &mut self,
         data: NotificationData,
-        origin: ToastOrigin,
+        kind: ToastKind,
         icons: CardIcons,
         countdown: Option<Countdown>,
         place: ToastPlacement,
     ) {
         self.data = data;
-        self.origin = origin;
-        self.created_at = SystemTime::now();
+        self.kind = kind;
         self.icons = icons;
         self.countdown = countdown;
         self.place = place;
     }
 
-    pub(super) fn reading_alert(&self) -> Option<&ReadingAlert<Message>> {
-        match &self.origin {
-            ToastOrigin::ReadingAlert(alert) => Some(alert),
-            ToastOrigin::DbusClient
-            | ToastOrigin::ConfigError
-            | ToastOrigin::LevelAnnouncement(_) => None,
-        }
+    pub(super) fn shows_ongoing(&self, key: &OngoingKey) -> bool {
+        matches!(&self.kind, ToastKind::Ongoing(shown) if shown.key == *key)
     }
 
     pub(super) fn announces_level_of(&self, hover_target: &HoverTarget) -> bool {
-        matches!(&self.origin, ToastOrigin::LevelAnnouncement(reading) if reading.hover_target == *hover_target)
+        matches!(
+            &self.kind,
+            ToastKind::Event {
+                source: EventSource::LevelAnnouncement(reading),
+                ..
+            } if reading.hover_target == *hover_target
+        )
     }
 
     pub(super) fn sent_by_dbus_client(&self) -> bool {
-        matches!(self.origin, ToastOrigin::DbusClient)
+        matches!(
+            self.kind,
+            ToastKind::Event {
+                source: EventSource::DbusClient,
+                ..
+            }
+        )
     }
 
     pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace, config: &Config) {

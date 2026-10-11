@@ -9,7 +9,7 @@ use crate::{
         },
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         hardware_section::HardwareEntries,
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
@@ -44,8 +44,8 @@ impl BarWidget for DriveHealth {
         self.temperature.current().map(celsius_text)
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "Drive needs attention",
         }
