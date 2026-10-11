@@ -38,6 +38,8 @@ const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
 const BORDER_WIDTH_PX: f32 = 1.5;
 const PROGRESS_GIRTH_PX: f32 = 6.0;
+const CODE_BLOCK_PADDING_PX: f32 = 6.0;
+const CODE_BLOCK_TINT_ALPHA: f32 = 0.08;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -243,6 +245,42 @@ impl ToastCard<'_> {
 }
 
 impl ToastCard<'_> {
+    fn body_paragraphs<'b>(&self, body: &str, text: Color) -> Column<'b, NotificationMessage> {
+        let font = &self.config.theme.font;
+        let corner_radius = self.settings.overlays.corner_radius;
+        Column::with_children(
+            body_markup::body_paragraphs(
+                body,
+                text,
+                font.small_text_size_px,
+                font,
+                Font::MONOSPACE,
+            )
+            .into_iter()
+            .map(|paragraph| {
+                let flowing = rich_text(paragraph.spans)
+                    .line_height(LINE_HEIGHT)
+                    .wrapping(Wrapping::WordOrGlyph)
+                    .width(Length::Fill);
+                if paragraph.preformatted {
+                    container(flowing)
+                        .padding(CODE_BLOCK_PADDING_PX)
+                        .width(Length::Fill)
+                        .style(move |_| {
+                            container::Style::default()
+                                .background(text.scale_alpha(CODE_BLOCK_TINT_ALPHA))
+                                .border(border::rounded(corner_radius))
+                        })
+                        .into()
+                } else {
+                    flowing.into()
+                }
+            }),
+        )
+        .spacing(COLUMN_SPACING)
+        .width(Length::Fill)
+    }
+
     fn column<'b>(&self, text: Color) -> Column<'b, NotificationMessage> {
         let data = &self.notif.data;
         let font = &self.config.theme.font;
@@ -291,18 +329,7 @@ impl ToastCard<'_> {
             let body = Row::new()
                 .spacing(ROW_SPACING)
                 .align_y(Alignment::End)
-                .push(
-                    rich_text(body_markup::body_spans(
-                        body,
-                        text,
-                        font.small_text_size_px,
-                        font,
-                        Font::MONOSPACE,
-                    ))
-                    .line_height(LINE_HEIGHT)
-                    .wrapping(Wrapping::WordOrGlyph)
-                    .width(Length::Fill),
-                );
+                .push(self.body_paragraphs(body, text));
             column = column.push(match reltime_span(!has_actions) {
                 Some(time) => body.push(time),
                 None => body,

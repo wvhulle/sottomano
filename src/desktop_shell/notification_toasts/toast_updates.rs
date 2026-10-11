@@ -6,6 +6,7 @@ use iced::{
     window::Id,
 };
 use iced_exwlshell::reexport::ActivationTokenSink;
+use quick_xml::escape::escape;
 use tokio::{sync::mpsc, time::timeout};
 
 use super::{
@@ -224,7 +225,7 @@ impl NotificationLayer {
         context: &ToastContext,
     ) -> Task<Message> {
         let data = NotificationData {
-            body: Some(error.to_string()),
+            body: Some(format!("<pre>{}</pre>", escape(error.to_string()))),
             severity: Severity::Critical,
             expire_timeout: ExpireTimeout::Never,
             ..NotificationData::from_shell(
