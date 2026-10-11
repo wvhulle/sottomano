@@ -32,6 +32,7 @@ const COLUMN_GAP_PX: f32 = 12.0;
 const ROW_GAP_PX: f32 = 3.0;
 const CARET_GAP_PX: f32 = 2.0;
 const MAX_CHILDREN: usize = 19;
+const UNFOLDED_DEPTH_BY_DEFAULT: usize = 3;
 const DIM_ALPHA: f32 = 0.7;
 const WARNING_CPU_PERCENT: f64 = 2.0;
 const CRITICAL_CPU_PERCENT: f64 = 10.0;
@@ -49,7 +50,7 @@ impl Folding {
     }
 
     fn is_unfolded(&self, node: &Process, depth: usize) -> bool {
-        let unfolded_by_default = depth == 0;
+        let unfolded_by_default = depth < UNFOLDED_DEPTH_BY_DEFAULT;
         unfolded_by_default != self.toggled.contains(&node.pid)
     }
 }
