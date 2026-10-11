@@ -9,10 +9,10 @@ pub mod wifi_link_tooltip;
 use crate::{
     config::Config,
     data::source::net_interfaces::{
-        bluetooth::{self, Bluetooth},
-        ethernet::{self, Ethernet, EthernetDetails},
-        mobile::{self, Mobile},
-        wifi::{self, Wifi, WifiDetails},
+        bluetooth::{self, Bluetooth, BluetoothPresence},
+        ethernet::{self, Ethernet, EthernetDetails, EthernetPresence},
+        mobile::{self, Mobile, ModemPresence},
+        wifi::{self, Wifi, WifiDetails, WifiPresence},
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::dbus,
@@ -56,10 +56,10 @@ pub struct NetInterfacesGroup {
 
 #[derive(Debug, Clone)]
 pub enum NetInterfacesMessage {
-    Bluetooth(Option<Bluetooth>),
-    Ethernet(Option<Ethernet>),
-    Wifi(Option<Wifi>),
-    Mobile(Box<Option<Mobile>>),
+    Bluetooth(BluetoothPresence),
+    Ethernet(EthernetPresence),
+    Wifi(WifiPresence),
+    Mobile(ModemPresence),
     WifiDetailsFetched(Box<HoverFetched<WifiDetails>>),
     EthernetDetailsFetched(HoverFetched<EthernetDetails>),
     Expansion(ExpansionMessage),
@@ -75,17 +75,28 @@ impl NetInterfacesGroup {
                 dbus(ethernet::NAME, ethernet::readings).map(NetInterfacesMessage::Ethernet),
             ),
             dbus(wifi::NAME, wifi::readings).map(NetInterfacesMessage::Wifi),
-            dbus(mobile::NAME, mobile::readings)
-                .map(|reading| NetInterfacesMessage::Mobile(Box::new(reading))),
+            dbus(mobile::NAME, mobile::readings).map(NetInterfacesMessage::Mobile),
         ])
     }
 
     pub fn update(&mut self, msg: NetInterfacesMessage) -> Task<NetInterfacesMessage> {
         match msg {
-            NetInterfacesMessage::Bluetooth(reading) => self.bluetooth.load(reading),
-            NetInterfacesMessage::Ethernet(reading) => self.ethernet.load(reading),
-            NetInterfacesMessage::Wifi(reading) => self.wifi.load(reading),
-            NetInterfacesMessage::Mobile(reading) => self.mobile.load(*reading),
+            NetInterfacesMessage::Bluetooth(presence) => match presence {
+                BluetoothPresence::Adapter(bluetooth) => self.bluetooth.load(bluetooth),
+                BluetoothPresence::NoAdapter => self.bluetooth = ContinuousReading::default(),
+            },
+            NetInterfacesMessage::Ethernet(presence) => match presence {
+                EthernetPresence::Ports(ethernet) => self.ethernet.load(ethernet),
+                EthernetPresence::NoPort => self.ethernet = ContinuousReading::default(),
+            },
+            NetInterfacesMessage::Wifi(presence) => match presence {
+                WifiPresence::Adapter(wifi) => self.wifi.load(wifi),
+                WifiPresence::NoAdapter => self.wifi = ContinuousReading::default(),
+            },
+            NetInterfacesMessage::Mobile(presence) => match presence {
+                ModemPresence::Modem(mobile) => self.mobile.load(*mobile),
+                ModemPresence::NoModem => self.mobile = ContinuousReading::default(),
+            },
             NetInterfacesMessage::WifiDetailsFetched(fetched) => {
                 self.wifi_details.receive(*fetched);
             }

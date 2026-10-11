@@ -8,7 +8,6 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::IconToggle,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
@@ -18,7 +17,6 @@ use crate::{
 pub enum PanelAppearanceTarget {
     Opacity,
     CornerRadius,
-    Outline,
 }
 
 impl From<PanelAppearanceTarget> for HoverTarget {
@@ -38,7 +36,6 @@ pub enum PanelAppearanceMessage {
     Expansion(ExpansionMessage),
     Opacity(ControlMessage),
     CornerRadius(ControlMessage),
-    ToggleOutline,
 }
 
 impl Default for PanelAppearanceGroup {
@@ -66,11 +63,7 @@ impl Default for PanelAppearanceGroup {
 }
 
 impl PanelAppearanceGroup {
-    pub fn tooltip_for(
-        &self,
-        target: PanelAppearanceTarget,
-        appearance: &PanelAppearance,
-    ) -> Tooltip {
+    pub fn tooltip_for(&self, target: PanelAppearanceTarget) -> Tooltip {
         let entry = match target {
             PanelAppearanceTarget::Opacity => {
                 KeyValue::new("Panel opacity", self.opacity.readout_text())
@@ -78,14 +71,6 @@ impl PanelAppearanceGroup {
             PanelAppearanceTarget::CornerRadius => {
                 KeyValue::new("Corner radius", self.corner_radius.readout_text())
             }
-            PanelAppearanceTarget::Outline => KeyValue::new(
-                "Outline",
-                if appearance.outlined {
-                    "on — panel sides facing the screen interior"
-                } else {
-                    "off"
-                },
-            ),
         };
         Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
             entry,
@@ -142,13 +127,6 @@ impl PanelAppearanceGroup {
                     },
                 )
             }
-            PanelAppearanceMessage::ToggleOutline => {
-                appearance.outlined = !appearance.outlined;
-                Task::future(state::shell_settings::save_panel_outline(
-                    appearance.outlined,
-                ))
-                .discard()
-            }
         }
     }
 
@@ -162,7 +140,6 @@ impl PanelAppearanceGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        appearance: &PanelAppearance,
     ) -> GroupContent<'a, PanelAppearanceMessage> {
         GroupContent::new(
             &self.expansion,
@@ -173,15 +150,6 @@ impl PanelAppearanceGroup {
                     &self.corner_radius,
                     config,
                     PanelAppearanceMessage::CornerRadius,
-                ),
-                GroupItem::toggle(
-                    IconToggle::new(
-                        "Panel outline",
-                        Phosphor::Rectangle(Weight::Regular),
-                        appearance.outlined,
-                    ),
-                    PanelAppearanceTarget::Outline,
-                    PanelAppearanceMessage::ToggleOutline,
                 ),
             ],
         )

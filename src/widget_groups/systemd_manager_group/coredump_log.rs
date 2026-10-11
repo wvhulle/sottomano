@@ -2,15 +2,15 @@ use crate::{
     config::Config,
     data::{
         notifications::model::ActionTint,
-        source::coredumps::{CoredumpEntry, CoredumpInspection, Coredumps},
+        source::coredumps::{CoredumpEntry, CoredumpInspection},
     },
     widget_groups::{
-        systemd_manager_group::{SystemdManagerMessage, SystemdTarget},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
         terminal_command::TerminalCommand,
         terminal_journal::TerminalJournal,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
         ongoing_toast::OngoingToastActionButton,
@@ -89,19 +89,31 @@ impl CoredumpEntry {
     }
 }
 
-impl Coredumps {
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, SystemdTarget::Coredumps).on_press(
-            TerminalJournal::PRESS_HINT,
-            SystemdManagerMessage::OpenLog(TerminalJournal::following(
-                config,
-                Coredumps::follow_log_args(),
-            )),
+impl SystemdManagerGroup {
+    pub(super) fn coredump_log_item(
+        &self,
+        config: &Config,
+    ) -> Option<GroupItem<'_, SystemdManagerMessage>> {
+        let coredumps = self.coredumps.present_reading()?;
+        Some(
+            GroupItem::reading(coredumps, SystemdTarget::Coredumps).on_press(
+                TerminalJournal::PRESS_HINT,
+                SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                    config,
+                    CoredumpEntry::follow_log_args(),
+                )),
+            ),
         )
     }
 }
 
-impl BarWidget for Coredumps {
+impl Occasional for Vec<CoredumpEntry> {
+    fn present(&self) -> bool {
+        !self.is_empty()
+    }
+}
+
+impl BarWidget for Vec<CoredumpEntry> {
     fn name(&self) -> &'static str {
         "Coredumps"
     }
@@ -111,12 +123,11 @@ impl BarWidget for Coredumps {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.entries.len()).ok()
+        u32::try_from(self.len()).ok()
     }
 
     fn state(&self) -> WidgetState {
-        self.entries
-            .iter()
+        self.iter()
             .map(|entry| entry.severity)
             .max()
             .unwrap_or_default()
@@ -130,7 +141,7 @@ impl BarWidget for Coredumps {
                 "Programs that crashed in the last hour, as recorded by systemd-coredump.",
             ),
             ["Process", "Signal", "PID", "Unit"],
-            self.entries.iter().map(CoredumpEntry::table_record),
+            self.iter().map(CoredumpEntry::table_record),
         )])
     }
 }

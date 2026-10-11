@@ -70,9 +70,10 @@ pub fn anchored_popup<'a>(
         .palette
         .surface
         .scale_alpha(settings.overlays.opacity);
+    let outline = settings.outline.border(config);
     Element::new(AnchoredPopup {
         renderings,
-        notch: notch(position, background),
+        notch: notch(position, background, outline),
         anchor,
         edge_inset: config.panel_bar.height_px + config.panel_bar.popup_gap_px,
         bar_thickness: config.panel_bar.height_px,
@@ -83,6 +84,7 @@ pub fn anchored_popup<'a>(
         background,
         radius: settings.overlays.corner_radius.top_left,
         shadow: settings.shadow.drop_shadow(),
+        outline,
     })
 }
 
@@ -99,6 +101,7 @@ struct AnchoredPopup<'a> {
     background: Color,
     radius: f32,
     shadow: Shadow,
+    outline: Border,
 }
 
 struct MorphState {
@@ -108,6 +111,42 @@ struct MorphState {
     progress: f32,
     from: Rectangle,
     current: Rectangle,
+}
+
+fn around_hole(outer: Rectangle, hole: Rectangle) -> Vec<Rectangle> {
+    let outer_right = outer.x + outer.width;
+    let outer_bottom = outer.y + outer.height;
+    let hole_right = hole.x + hole.width;
+    let hole_bottom = hole.y + hole.height;
+    [
+        Rectangle {
+            x: outer.x,
+            y: outer.y,
+            width: outer.width,
+            height: hole.y - outer.y,
+        },
+        Rectangle {
+            x: outer.x,
+            y: hole_bottom,
+            width: outer.width,
+            height: outer_bottom - hole_bottom,
+        },
+        Rectangle {
+            x: outer.x,
+            y: hole.y,
+            width: hole.x - outer.x,
+            height: hole.height,
+        },
+        Rectangle {
+            x: hole_right,
+            y: hole.y,
+            width: outer_right - hole_right,
+            height: hole.height,
+        },
+    ]
+    .into_iter()
+    .filter(|part| part.width > 0.0 && part.height > 0.0)
+    .collect()
 }
 
 fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
@@ -212,6 +251,56 @@ impl<'a> AnchoredPopup<'a> {
 
     fn is_settled(&self, state: &MorphState) -> bool {
         state.progress >= 1.0 && self.is_live()
+    }
+
+    fn notch_join(&self, box_bounds: Rectangle, notch_bounds: Rectangle) -> Rectangle {
+        let reach = 2.0 * self.outline.width;
+        match self.position {
+            Position::Top => Rectangle {
+                x: notch_bounds.x,
+                y: box_bounds.y,
+                width: notch_bounds.width,
+                height: reach,
+            },
+            Position::Bottom => Rectangle {
+                x: notch_bounds.x,
+                y: box_bounds.y + box_bounds.height - reach,
+                width: notch_bounds.width,
+                height: reach,
+            },
+            Position::Left => Rectangle {
+                x: box_bounds.x,
+                y: notch_bounds.y,
+                width: reach,
+                height: notch_bounds.height,
+            },
+        }
+    }
+
+    fn draw_outline(
+        &self,
+        renderer: &mut iced::Renderer,
+        box_bounds: Rectangle,
+        notch_join: Option<Rectangle>,
+    ) {
+        if self.outline.width <= 0.0 {
+            return;
+        }
+        let quad = renderer::Quad {
+            bounds: box_bounds,
+            border: Border {
+                radius: self.radius.into(),
+                ..self.outline
+            },
+            ..Default::default()
+        };
+        let clips =
+            notch_join.map_or_else(|| vec![box_bounds], |join| around_hole(box_bounds, join));
+        for clip in clips {
+            renderer.with_layer(clip, |renderer| {
+                renderer.fill_quad(quad, Color::TRANSPARENT);
+            });
+        }
     }
 
     fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
@@ -380,17 +469,21 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             },
             self.background,
         );
-        if self.is_settled(state) {
+        let settled = self.is_settled(state);
+        let notch_layout = layout.children().next().unwrap();
+        if settled {
             self.notch.as_widget().draw(
                 &tree.children[0],
                 renderer,
                 theme,
                 style,
-                layout.children().next().unwrap(),
+                notch_layout,
                 cursor,
                 viewport,
             );
         }
+        let notch_join = settled.then(|| self.notch_join(box_bounds, notch_layout.bounds()));
+        self.draw_outline(renderer, box_bounds, notch_join);
         renderer.with_layer(box_bounds, |renderer| {
             self.views(tree, layout).for_each(|rendering| {
                 rendering.widget.as_widget().draw(

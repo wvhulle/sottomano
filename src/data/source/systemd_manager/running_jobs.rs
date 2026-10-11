@@ -29,12 +29,18 @@ pub struct SlowJobs<S: UnitScope> {
     scope: PhantomData<S>,
 }
 
-impl<S: UnitScope> SlowJobs<S> {
-    pub fn from_jobs(jobs: Vec<SlowJob>) -> Option<Self> {
-        (!jobs.is_empty()).then_some(Self {
+impl<S: UnitScope> From<Vec<SlowJob>> for SlowJobs<S> {
+    fn from(jobs: Vec<SlowJob>) -> Self {
+        Self {
             jobs,
             scope: PhantomData,
-        })
+        }
+    }
+}
+
+impl<S: UnitScope> SlowJobs<S> {
+    pub fn is_empty(&self) -> bool {
+        self.jobs.is_empty()
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {

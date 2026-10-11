@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     desktop_shell::{Message, hover_tooltips::HoverTarget},
     state::{
-        self, ShadowStyle,
+        self, OutlineStyle, ShadowStyle,
         niri_rules::{NiriRulesFile, NiriStyling},
     },
     widgets::{
@@ -24,6 +24,7 @@ pub enum SurfaceEffectsTarget {
     DropShadow,
     ShadowSoftness,
     ShadowOpacity,
+    Outline,
 }
 
 impl From<SurfaceEffectsTarget> for HoverTarget {
@@ -50,6 +51,7 @@ pub enum SurfaceEffectsMessage {
     ToggleBlur,
     ToggleXray,
     ToggleShadow,
+    ToggleOutline,
     ShadowSoftness(ControlMessage),
     ShadowOpacity(ControlMessage),
 }
@@ -107,6 +109,7 @@ impl SurfaceEffectsGroup {
         &self,
         target: SurfaceEffectsTarget,
         shadow: ShadowStyle,
+        outline: OutlineStyle,
         styling: NiriStyling,
     ) -> Tooltip {
         match target {
@@ -129,6 +132,11 @@ impl SurfaceEffectsGroup {
             SurfaceEffectsTarget::ShadowOpacity => {
                 slider_tooltip("Shadow opacity", &self.shadow_opacity)
             }
+            SurfaceEffectsTarget::Outline => switch_tooltip(
+                "Outline",
+                outline.drawn,
+                "on — panels and tooltips trace their edges facing the screen interior",
+            ),
         }
     }
 
@@ -136,6 +144,7 @@ impl SurfaceEffectsGroup {
         &mut self,
         msg: SurfaceEffectsMessage,
         shadow: &mut ShadowStyle,
+        outline: &mut OutlineStyle,
         rules: &mut NiriRulesFile,
     ) -> Task<Message> {
         match msg {
@@ -154,6 +163,10 @@ impl SurfaceEffectsGroup {
             SurfaceEffectsMessage::ToggleShadow => {
                 shadow.cast = !shadow.cast;
                 Task::future(state::shell_settings::save_drop_shadow(shadow.cast)).discard()
+            }
+            SurfaceEffectsMessage::ToggleOutline => {
+                outline.drawn = !outline.drawn;
+                Task::future(state::shell_settings::save_surface_outline(outline.drawn)).discard()
             }
             SurfaceEffectsMessage::ShadowSoftness(control) => {
                 let SliderAction::Commit(value) = self.shadow_softness.update(control) else {
@@ -186,6 +199,7 @@ impl SurfaceEffectsGroup {
         &'a self,
         config: &'a Config,
         shadow: ShadowStyle,
+        outline: OutlineStyle,
         styling: NiriStyling,
     ) -> GroupContent<'a, SurfaceEffectsMessage> {
         GroupContent::new(
@@ -224,6 +238,15 @@ impl SurfaceEffectsGroup {
                     &self.shadow_opacity,
                     config,
                     SurfaceEffectsMessage::ShadowOpacity,
+                ),
+                GroupItem::toggle(
+                    IconToggle::new(
+                        "Outline",
+                        Phosphor::Rectangle(Weight::Regular),
+                        outline.drawn,
+                    ),
+                    SurfaceEffectsTarget::Outline,
+                    SurfaceEffectsMessage::ToggleOutline,
                 ),
             ],
         )

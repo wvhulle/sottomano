@@ -47,46 +47,55 @@ impl Alert {
     }
 }
 
-pub(crate) fn session_theme() -> Option<String> {
-    let output = Command::new("gsettings")
-        .args(["get", "org.gnome.desktop.sound", "theme-name"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let value = String::from_utf8(output.stdout).ok()?;
-    let theme = value.trim().trim_matches('\'');
-    (!theme.is_empty()).then(|| theme.to_owned())
+#[derive(Debug, Clone, Default)]
+pub enum SoundTheme {
+    #[default]
+    Unconfigured,
+    Named(String),
 }
 
-pub fn play<Message: Send + 'static>(
-    data: &NotificationData,
-    theme: Option<&str>,
-) -> Task<Message> {
+impl SoundTheme {
+    pub(crate) fn read_session() -> Self {
+        let configured = Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.sound", "theme-name"])
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| String::from_utf8(output.stdout).ok());
+        match configured
+            .as_deref()
+            .map(|value| value.trim().trim_matches('\''))
+        {
+            Some(theme) if !theme.is_empty() => Self::Named(theme.to_owned()),
+            Some(_) | None => Self::Unconfigured,
+        }
+    }
+
+    fn find(&self, name: &str) -> Option<PathBuf> {
+        let lookup = freedesktop_sound::lookup(name).with_cache();
+        match self {
+            Self::Named(theme) => lookup.with_theme(theme).find(),
+            Self::Unconfigured => lookup.find(),
+        }
+    }
+}
+
+pub fn play<Message: Send + 'static>(data: &NotificationData, theme: &SoundTheme) -> Task<Message> {
     let explicit = data.sound_file.clone();
     let alert = Alert::of(data);
-    let theme = theme.map(ToOwned::to_owned);
+    let theme = theme.clone();
     blocking("notification sound", move || {
-        if let Some(file) = resolve(explicit, alert, theme.as_deref()) {
+        if let Some(file) = resolve(explicit, alert, &theme) {
             let _ = Command::new(PLAYER).arg(file).status();
         }
     })
     .discard()
 }
 
-fn resolve(explicit: Option<String>, alert: Alert, theme: Option<&str>) -> Option<PathBuf> {
+fn resolve(explicit: Option<String>, alert: Alert, theme: &SoundTheme) -> Option<PathBuf> {
     explicit
         .map(PathBuf::from)
         .filter(|path| path.exists())
-        .or_else(|| themed(alert.theme_name(), theme))
-        .or_else(|| themed("message", theme))
-}
-
-fn themed(name: &str, theme: Option<&str>) -> Option<PathBuf> {
-    let lookup = freedesktop_sound::lookup(name).with_cache();
-    match theme {
-        Some(theme) => lookup.with_theme(theme).find(),
-        None => lookup.find(),
-    }
+        .or_else(|| theme.find(alert.theme_name()))
+        .or_else(|| theme.find("message"))
 }

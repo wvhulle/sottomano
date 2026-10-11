@@ -62,12 +62,18 @@ pub struct Failed<S: UnitScope> {
     scope: PhantomData<S>,
 }
 
-impl<S: UnitScope> Failed<S> {
-    pub fn from_units(units: Vec<FailedUnitInfo>) -> Option<Self> {
-        (!units.is_empty()).then_some(Self {
+impl<S: UnitScope> From<Vec<FailedUnitInfo>> for Failed<S> {
+    fn from(units: Vec<FailedUnitInfo>) -> Self {
+        Self {
             units,
             scope: PhantomData,
-        })
+        }
+    }
+}
+
+impl<S: UnitScope> Failed<S> {
+    pub fn is_empty(&self) -> bool {
+        self.units.is_empty()
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {

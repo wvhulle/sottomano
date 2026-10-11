@@ -1,12 +1,12 @@
 use crate::{
     config::Config,
-    data::source::oom_kills::{OomKillEntry, OomKiller, OomKills},
+    data::source::oom_kills::{OomKillEntry, OomKiller},
     widget_groups::{
-        systemd_manager_group::{SystemdManagerMessage, SystemdTarget},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
         terminal_journal::TerminalJournal,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
@@ -40,19 +40,29 @@ impl OomKillEntry {
     }
 }
 
-impl OomKills {
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
-        GroupItem::reading(self, SystemdTarget::OomKills).on_press(
+impl SystemdManagerGroup {
+    pub(super) fn oom_kill_log_item(
+        &self,
+        config: &Config,
+    ) -> Option<GroupItem<'_, SystemdManagerMessage>> {
+        let kills = self.oom_kills.present_reading()?;
+        Some(GroupItem::reading(kills, SystemdTarget::OomKills).on_press(
             TerminalJournal::PRESS_HINT,
             SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,
-                OomKills::follow_log_args(),
+                OomKillEntry::follow_log_args(),
             )),
-        )
+        ))
     }
 }
 
-impl BarWidget for OomKills {
+impl Occasional for Vec<OomKillEntry> {
+    fn present(&self) -> bool {
+        !self.is_empty()
+    }
+}
+
+impl BarWidget for Vec<OomKillEntry> {
     fn name(&self) -> &'static str {
         "OOM kills"
     }
@@ -62,12 +72,11 @@ impl BarWidget for OomKills {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.entries.len()).ok()
+        u32::try_from(self.len()).ok()
     }
 
     fn state(&self) -> WidgetState {
-        self.entries
-            .iter()
+        self.iter()
             .map(|entry| entry.severity)
             .max()
             .unwrap_or_default()
@@ -81,7 +90,7 @@ impl BarWidget for OomKills {
                 "Units whose processes were killed for lack of memory in the last hour.",
             ),
             ["Unit", "Killed by"],
-            self.entries.iter().map(OomKillEntry::table_record),
+            self.iter().map(OomKillEntry::table_record),
         )])
     }
 }

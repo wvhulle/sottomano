@@ -211,7 +211,12 @@ impl AudioGroup {
             commands.adjust_volume(target, step)
         })
         .map(move |resolved| {
-            AudioMessage::Control(kind, ControlMessage::Adjusted(resolved.map(percent_f)))
+            AudioMessage::Control(
+                kind,
+                resolved.map_or(ControlMessage::AdjustFailed, |percent| {
+                    ControlMessage::Adjusted(percent_f(percent))
+                }),
+            )
         })
     }
 

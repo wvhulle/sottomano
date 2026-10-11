@@ -5,7 +5,7 @@ pub mod service_error_log;
 
 use crate::{
     config::Config,
-    data::source::{kernel_errors::KernelErrors, service_errors::ServiceErrors},
+    data::source::{kernel_errors::KernelOccurrence, service_errors::ServiceErrors},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::journal_subscription,
     widget_groups::terminal_journal::TerminalJournal,
@@ -37,15 +37,15 @@ impl From<JournalTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct JournalEventsGroup {
-    kernel: ContinuousReading<KernelErrors>,
+    kernel: ContinuousReading<Vec<KernelOccurrence>>,
     service_errors: ContinuousReading<ServiceErrors>,
     pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum JournalEventsMessage {
-    Kernel(Option<KernelErrors>),
-    ServiceErrors(Option<ServiceErrors>),
+    Kernel(Vec<KernelOccurrence>),
+    ServiceErrors(ServiceErrors),
     OpenLog(TerminalJournal),
     Expansion(ExpansionMessage),
 }
@@ -53,11 +53,11 @@ pub enum JournalEventsMessage {
 impl JournalEventsGroup {
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            journal_subscription(KernelErrors::from_entries, JournalEventsMessage::Kernel),
             journal_subscription(
-                ServiceErrors::from_entries,
-                JournalEventsMessage::ServiceErrors,
+                KernelOccurrence::merged_oldest_first,
+                JournalEventsMessage::Kernel,
             ),
+            journal_subscription(ServiceErrors::from, JournalEventsMessage::ServiceErrors),
         ])
     }
 
@@ -75,8 +75,8 @@ impl JournalEventsGroup {
 
     pub fn tooltip_for(&self, target: JournalTarget) -> Option<Tooltip> {
         let body = match target {
-            JournalTarget::Kernel => self.kernel.get()?.tooltip(),
-            JournalTarget::ServiceErrors => self.service_errors.get()?.tooltip(),
+            JournalTarget::Kernel => self.kernel.present_reading()?.tooltip(),
+            JournalTarget::ServiceErrors => self.service_errors.present_reading()?.tooltip(),
             JournalTarget::Events => self.tooltip(),
         };
         Some(Tooltip::of(body))
@@ -92,9 +92,9 @@ impl JournalEventsGroup {
             JournalEventsMessage::Expansion,
             [
                 has_kinds.then(|| GroupItem::reading(self, JournalTarget::Events)),
-                self.kernel.get().map(|kernel| kernel.group_item(config)),
+                self.kernel_log_item(config),
                 self.service_errors
-                    .get()
+                    .present_reading()
                     .map(|service_errors| service_errors.group_item(config)),
             ]
             .into_iter()
@@ -104,8 +104,10 @@ impl JournalEventsGroup {
 
     fn kinds(&self) -> [Option<&dyn BarWidget>; 2] {
         [
-            self.kernel.get().map(|w| w as &dyn BarWidget),
-            self.service_errors.get().map(|w| w as &dyn BarWidget),
+            self.kernel.present_reading().map(|w| w as &dyn BarWidget),
+            self.service_errors
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
         ]
     }
 }
@@ -142,11 +144,11 @@ impl BarWidget for JournalEventsGroup {
     fn tooltip(&self) -> TooltipBody {
         let kernel = self
             .kernel
-            .get()
-            .map(|errors| KeyValue::new("Kernel errors", errors.oldest_first.len().to_string()));
+            .present_reading()
+            .map(|errors| KeyValue::new("Kernel errors", errors.len().to_string()));
         let service = self
             .service_errors
-            .get()
+            .present_reading()
             .map(|errors| KeyValue::new("Service errors", errors.entry_count.to_string()));
         TooltipBody::sections(&[Section::dictionary(
             "Last hour",

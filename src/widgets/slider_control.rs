@@ -115,7 +115,8 @@ pub enum ControlMessage {
     Release,
     DeviceAccepted { value: f32, ok: bool },
     Persisted { value: f32, ok: bool },
-    Adjusted(Option<f32>),
+    Adjusted(f32),
+    AdjustFailed,
     Reading(f32),
     Level(f32),
     Disabled(bool),
@@ -321,8 +322,12 @@ impl SliderControl {
                 }
                 into_action(follow_up)
             }
-            ControlMessage::Adjusted(resolved) => {
-                into_action(self.device_setting.relative_write_finished(resolved))
+            ControlMessage::Adjusted(value) => {
+                into_action(self.device_setting.relative_write_resolved(value))
+            }
+            ControlMessage::AdjustFailed => {
+                self.device_setting.relative_write_failed();
+                Action::None
             }
             ControlMessage::Reading(reading) => {
                 let followed_device = self.device_setting.follows_device();

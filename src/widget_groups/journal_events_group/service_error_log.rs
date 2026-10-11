@@ -6,7 +6,7 @@ use crate::{
         terminal_journal::TerminalJournal,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
@@ -42,6 +42,12 @@ impl UnitErrors {
             ],
         )
         .level(self.severity)
+    }
+}
+
+impl Occasional for ServiceErrors {
+    fn present(&self) -> bool {
+        !self.is_empty()
     }
 }
 

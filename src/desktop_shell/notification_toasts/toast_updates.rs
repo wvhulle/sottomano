@@ -22,7 +22,7 @@ use crate::{
     data::{
         notifications::model::{Outbound, close_reason},
         severity::Severity,
-        sink::sound,
+        sink::sound::{self, SoundTheme},
         source::niri::Placement,
     },
     desktop_shell::{DesktopShell, Message},
@@ -89,7 +89,7 @@ impl DesktopShell {
 }
 
 impl NotificationLayer {
-    pub fn adopt_sound_theme(&mut self, theme: Option<String>) {
+    pub fn adopt_sound_theme(&mut self, theme: SoundTheme) {
         self.sound_theme = theme;
     }
 
@@ -353,7 +353,7 @@ impl NotificationLayer {
             shown.replace_content(toast, icons, countdown, place);
         } else {
             if notifications.sound && !data.suppress_sound {
-                tasks.push(sound::play(data, self.sound_theme.as_deref()));
+                tasks.push(sound::play(data, &self.sound_theme));
             }
             self.live.retain(|n| n.data.id != id);
             let seq = self.next_seq;

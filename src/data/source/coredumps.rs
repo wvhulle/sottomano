@@ -84,16 +84,7 @@ impl JournalEvent for CoredumpEntry {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Coredumps {
-    pub entries: Vec<CoredumpEntry>,
-}
-
-impl Coredumps {
-    pub fn from_entries(entries: Vec<CoredumpEntry>) -> Option<Self> {
-        (!entries.is_empty()).then_some(Self { entries })
-    }
-
+impl CoredumpEntry {
     pub fn follow_log_args() -> Vec<String> {
         ["-b", "-f", "-n", "all"]
             .map(String::from)

@@ -54,8 +54,8 @@ impl<S> Default for ContinuousReading<S> {
 }
 
 impl<S> ContinuousReading<S> {
-    pub fn load(&mut self, data: Option<S>) {
-        self.data = data;
+    pub fn load(&mut self, data: S) {
+        self.data = Some(data);
         self.failure = None;
         self.last_refreshed = Some(SystemTime::now());
     }
@@ -121,11 +121,12 @@ impl<S: BarWidget> ContinuousReading<S> {
 }
 
 impl<S: Occasional> ContinuousReading<S> {
+    pub fn present_reading(&self) -> Option<&S> {
+        self.data.as_ref().filter(|data| data.present())
+    }
+
     pub fn present(&self) -> Option<&dyn BarWidget> {
-        match (
-            self.data.as_ref().filter(|data| data.present()),
-            self.failure.as_ref(),
-        ) {
+        match (self.present_reading(), self.failure.as_ref()) {
             (Some(data), _) => Some(data),
             (None, Some(failure)) => Some(failure),
             (None, None) => None,

@@ -10,7 +10,7 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings
     workspaces_in_sidebar INTEGER,
     panel_opacity REAL,
     panel_corner_radius_px REAL,
-    panel_outline INTEGER,
+    surface_outline INTEGER,
     drop_shadow INTEGER,
     shadow_softness_px REAL,
     shadow_opacity REAL,
@@ -20,7 +20,7 @@ pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings
 
 const SELECT_SHELL_SETTINGS: &str = "SELECT float_offset_px, disconnected_groups,
         auto_collapse_groups, workspaces_in_sidebar, panel_opacity,
-        panel_corner_radius_px, panel_outline, drop_shadow, shadow_softness_px, shadow_opacity,
+        panel_corner_radius_px, surface_outline, drop_shadow, shadow_softness_px, shadow_opacity,
         do_not_disturb, sound
     FROM shell_settings WHERE id = 0";
 
@@ -34,7 +34,7 @@ enum Setting {
     Sound,
     WorkspacesInSidebar,
     PanelCornerRadius,
-    PanelOutline,
+    SurfaceOutline,
     DropShadow,
     ShadowSoftness,
     ShadowOpacity,
@@ -44,7 +44,7 @@ impl Setting {
     fn column(self) -> &'static str {
         match self {
             Self::PanelCornerRadius => "panel_corner_radius_px",
-            Self::PanelOutline => "panel_outline",
+            Self::SurfaceOutline => "surface_outline",
             Self::DropShadow => "drop_shadow",
             Self::ShadowSoftness => "shadow_softness_px",
             Self::ShadowOpacity => "shadow_opacity",
@@ -96,8 +96,8 @@ pub async fn save_panel_corner_radius(radius: f32) -> bool {
     put(Setting::PanelCornerRadius, measure(radius)).await
 }
 
-pub async fn save_panel_outline(outlined: bool) {
-    put(Setting::PanelOutline, flag(outlined)).await;
+pub async fn save_surface_outline(drawn: bool) {
+    put(Setting::SurfaceOutline, flag(drawn)).await;
 }
 
 pub async fn save_drop_shadow(cast: bool) {
@@ -203,8 +203,8 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
     if let Some(radius) = columns.optional_real(&row, "panel_corner_radius_px") {
         panels.corner_radius = (radius as f32).into();
     }
-    if let Some(outlined) = columns.optional_flag(&row, "panel_outline") {
-        panels.outlined = outlined;
+    if let Some(drawn) = columns.optional_flag(&row, "surface_outline") {
+        shell_settings.outline.drawn = drawn;
     }
     let shadow = &mut shell_settings.shadow;
     if let Some(cast) = columns.optional_flag(&row, "drop_shadow") {
@@ -243,7 +243,7 @@ mod tests {
             (Setting::Sound, flag(false)),
             (Setting::WorkspacesInSidebar, flag(false)),
             (Setting::PanelCornerRadius, measure(6.5)),
-            (Setting::PanelOutline, flag(false)),
+            (Setting::SurfaceOutline, flag(false)),
             (Setting::DropShadow, flag(false)),
             (Setting::ShadowSoftness, measure(33.0)),
             (Setting::ShadowOpacity, measure(0.5)),
@@ -255,7 +255,7 @@ mod tests {
         let panels = &shell_settings.panels;
         let layout = &shell_settings.layout;
         assert!((panels.corner_radius.top_left - 6.5).abs() < f32::EPSILON);
-        assert!(!panels.outlined);
+        assert!(!shell_settings.outline.drawn);
         let shadow = shell_settings.shadow;
         assert!(!shadow.cast);
         assert!((shadow.softness_px - 33.0).abs() < f32::EPSILON);

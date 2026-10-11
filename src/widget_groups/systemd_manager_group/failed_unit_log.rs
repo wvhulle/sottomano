@@ -18,7 +18,7 @@ use crate::{
         terminal_journal::TerminalJournal,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
         ongoing_toast::{OngoingKey, OngoingToast, OngoingToastActionButton},
@@ -107,6 +107,12 @@ fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
         .chain(unit.crash.iter().flat_map(CoredumpEntry::labelled_fields))
         .collect();
     (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
+impl<S: ScopeAppearance> Occasional for Failed<S> {
+    fn present(&self) -> bool {
+        !self.is_empty()
+    }
 }
 
 impl<S: ScopeAppearance> BarWidget for Failed<S> {
@@ -206,14 +212,13 @@ mod tests {
     #[test]
     fn units_list_newest_first_with_unknown_times_last() {
         let minutes = |count: u64| Some(Duration::from_secs(count * 60));
-        let units = Failed::<System>::from_units(vec![
+        let units = Failed::<System>::from(vec![
             failed("undated.service", None),
             failed("old.service", minutes(180)),
             failed("fresh.service", minutes(1)),
             failed("older.service", minutes(300)),
             failed("recent.service", minutes(20)),
-        ])
-        .expect("units present");
+        ]);
         let TooltipBody::Sections(sections) = units.tooltip() else {
             panic!("expected sections");
         };

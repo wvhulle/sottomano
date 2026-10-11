@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use iced::futures::{Stream, StreamExt};
 use zbus::{
     fdo::ManagedObjects,
     zvariant::{OwnedObjectPath, OwnedValue},
@@ -244,6 +244,16 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     })
 }
 
-pub fn readings() -> impl Stream<Item = Option<Mobile>> {
-    managed_objects_readings(NAME, SERVICE, ROOT, reading)
+#[derive(Debug, Clone)]
+pub enum ModemPresence {
+    NoModem,
+    Modem(Box<Mobile>),
+}
+
+pub fn readings() -> impl Stream<Item = ModemPresence> {
+    managed_objects_readings(NAME, SERVICE, ROOT, reading).map(|modem| {
+        modem.map_or(ModemPresence::NoModem, |mobile| {
+            ModemPresence::Modem(Box::new(mobile))
+        })
+    })
 }

@@ -168,10 +168,10 @@ fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerS
 impl DesktopShell {
     pub(crate) fn apply_output_change(&mut self, change: OutputChange) -> Task<Message> {
         match change {
-            OutputChange::Connected(Some(name)) => {
+            OutputChange::Connected(name) => {
                 Task::batch([self.open_monitor_surfaces_once(&name), query_outputs()])
             }
-            OutputChange::Disconnected(Some(name)) => {
+            OutputChange::Disconnected(name) => {
                 Task::batch([self.forget_output(&name), query_outputs()])
             }
             OutputChange::Rearranged => query_outputs(),
@@ -179,7 +179,6 @@ impl DesktopShell {
                 tracing::error!("wayland: output tracking stopped: {reason}");
                 Task::none()
             }
-            OutputChange::Connected(None) | OutputChange::Disconnected(None) => Task::none(),
         }
     }
 
@@ -339,9 +338,9 @@ impl DesktopShell {
 
 #[derive(Debug, Clone)]
 pub enum OutputChange {
-    Connected(Option<String>),
+    Connected(String),
     Rearranged,
-    Disconnected(Option<String>),
+    Disconnected(String),
     Unavailable(String),
 }
 

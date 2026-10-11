@@ -86,13 +86,13 @@ impl DesktopShell {
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target),
             HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target),
             HoverTarget::Power(target) => self.power_group.tooltip_for(*target),
-            HoverTarget::PanelAppearance(target) => Some(
-                self.panel_appearance_group
-                    .tooltip_for(*target, &self.shell_settings.panels),
-            ),
+            HoverTarget::PanelAppearance(target) => {
+                Some(self.panel_appearance_group.tooltip_for(*target))
+            }
             HoverTarget::SurfaceEffects(target) => Some(self.surface_effects_group.tooltip_for(
                 *target,
                 self.shell_settings.shadow,
+                self.shell_settings.outline,
                 self.niri_rules.styling(),
             )),
             HoverTarget::NiriWindow(target) => Some(self.niri_window_group.tooltip_for(*target)),
