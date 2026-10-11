@@ -10,11 +10,11 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         group_item::GroupItem,
         localized_time::TimePart,
+        ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
-        reading_alert::ReadingAlertActionButton,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -43,7 +43,7 @@ impl FirmwareUpgradeList {
         ));
         GroupItem::reading(self, PendingUpgradesTarget::Firmware)
             .on_press("run fwupdmgr update in a terminal", install.clone())
-            .alert_action_buttons([ReadingAlertActionButton {
+            .ongoing_toast_action_buttons([OngoingToastActionButton {
                 button_label: "Install".to_owned(),
                 tint: ActionTint::Proceed,
                 on_button_pressed: install,
@@ -82,8 +82,8 @@ impl BarWidget for FirmwareUpgradeList {
             .into()
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Warning,
             summary_text: "Firmware upgrade available",
         }

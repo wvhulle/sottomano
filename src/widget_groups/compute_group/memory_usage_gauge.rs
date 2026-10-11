@@ -3,7 +3,7 @@ use uom::si::f64::Ratio;
 use crate::{
     data::{severity::Severity, source::sysfs_sensors::memory::Memory},
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -28,8 +28,8 @@ impl BarWidget for Memory {
         }
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "Memory almost full",
         }

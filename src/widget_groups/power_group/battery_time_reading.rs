@@ -19,7 +19,7 @@ use crate::{
     state::charge_power_curve,
     widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -230,8 +230,8 @@ impl BarWidget for BatteryTime {
         }
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Warning,
             summary_text: "Battery running out",
         }

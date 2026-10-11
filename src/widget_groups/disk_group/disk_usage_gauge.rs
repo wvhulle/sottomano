@@ -7,7 +7,7 @@ use crate::{
         source::disk::{Disk, Filesystem},
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -32,8 +32,8 @@ impl BarWidget for Disk {
         self.free_space_level().max(self.unallocated_level()).into()
     }
 
-    fn reading_alert_threshold(&self) -> ReadingAlertThreshold {
-        ReadingAlertThreshold::NotifyFromSeverity {
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity: Severity::Critical,
             summary_text: "Disk almost full",
         }

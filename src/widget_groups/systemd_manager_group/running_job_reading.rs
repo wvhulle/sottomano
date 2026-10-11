@@ -16,8 +16,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::TimePart,
+        ongoing_toast::{OngoingKey, OngoingToast},
         phosphor::Phosphor,
-        reading_alert::ReadingAlert,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -58,17 +58,17 @@ impl<S: ScopeAppearance> SlowJobs<S> {
                 TerminalJournal::PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
-            .alerts(self.job_alerts(open_log, config.calendar.locale))
+            .ongoing_toasts(self.slow_job_toasts(open_log, config.calendar.locale))
     }
 
-    fn job_alerts<M>(
+    fn slow_job_toasts<M>(
         &self,
         open_log: impl Fn(Vec<String>) -> M,
         locale: Locale,
-    ) -> impl Iterator<Item = ReadingAlert<M>> {
-        self.jobs.iter().map(move |job| ReadingAlert {
+    ) -> impl Iterator<Item = OngoingToast<M>> {
+        self.jobs.iter().map(move |job| OngoingToast {
             widget_name: self.name(),
-            hover_target: S::slow_job_target(job.unit.clone()).into(),
+            key: OngoingKey::Reading(S::slow_job_target(job.unit.clone()).into()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
             body_text: Some(format!(
@@ -76,7 +76,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
                 TimePart::TimeOfDay.format(&DateTime::<Local>::from(job.started_at), locale),
                 S::SCOPE_NAME
             )),
-            condition_started_at: Some(job.started_at),
+            since: job.started_at,
             on_body_clicked: open_log(S::follow_units_log_args([job.unit.as_str()])),
             action_buttons: Vec::new(),
         })

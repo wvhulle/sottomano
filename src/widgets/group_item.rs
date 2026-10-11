@@ -13,7 +13,7 @@ use crate::{
         announced_level::LevelReading,
         bar_widget::BarWidget,
         flat_button,
-        reading_alert::{ReadingAlert, ReadingAlertActionButton},
+        ongoing_toast::{OngoingToast, OngoingToastActionButton},
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
         toggle_control::{IconToggle, TOGGLE_PRESS_HINT},
@@ -99,8 +99,8 @@ pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<Press<M>>,
     on_right_press: Option<Press<M>>,
-    alert_action_buttons: Vec<ReadingAlertActionButton<M>>,
-    alerts: Vec<ReadingAlert<M>>,
+    ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
+    ongoing_toasts: Vec<OngoingToast<M>>,
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
@@ -109,8 +109,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind,
             on_press: None,
             on_right_press: None,
-            alert_action_buttons: Vec::new(),
-            alerts: Vec::new(),
+            ongoing_toast_action_buttons: Vec::new(),
+            ongoing_toasts: Vec::new(),
         }
     }
 
@@ -177,20 +177,20 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn alerts(self, alerts: impl IntoIterator<Item = ReadingAlert<M>>) -> Self {
+    pub fn ongoing_toasts(self, ongoing_toasts: impl IntoIterator<Item = OngoingToast<M>>) -> Self {
         Self {
-            alerts: alerts.into_iter().collect(),
+            ongoing_toasts: ongoing_toasts.into_iter().collect(),
             ..self
         }
     }
 
     #[must_use]
-    pub fn alert_action_buttons(
+    pub fn ongoing_toast_action_buttons(
         self,
-        buttons: impl IntoIterator<Item = ReadingAlertActionButton<M>>,
+        buttons: impl IntoIterator<Item = OngoingToastActionButton<M>>,
     ) -> Self {
         Self {
-            alert_action_buttons: buttons.into_iter().collect(),
+            ongoing_toast_action_buttons: buttons.into_iter().collect(),
             ..self
         }
     }
@@ -200,13 +200,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind: self.kind.map(lift),
             on_press: self.on_press.map(|press| press.map(lift)),
             on_right_press: self.on_right_press.map(|press| press.map(lift)),
-            alert_action_buttons: self
-                .alert_action_buttons
+            ongoing_toast_action_buttons: self
+                .ongoing_toast_action_buttons
                 .into_iter()
                 .map(|button| button.map_message(lift))
                 .collect(),
-            alerts: self
-                .alerts
+            ongoing_toasts: self
+                .ongoing_toasts
                 .into_iter()
                 .map(|alert| alert.map_messages(lift))
                 .collect(),
@@ -231,34 +231,34 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub(super) fn alerts_with_reading(
+    pub(super) fn ongoing_toasts_with_reading(
         &self,
         on_body_clicked: M,
         locale: Locale,
-    ) -> impl Iterator<Item = ReadingAlert<M>>
+    ) -> impl Iterator<Item = OngoingToast<M>>
     where
         M: Clone,
     {
-        let reading_alert =
+        let ongoing_toast =
             self.kind
                 .announcing_reading()
                 .and_then(|AnnouncingReading { widget, target }| {
-                    ReadingAlert::from_widget_state(
+                    OngoingToast::from_widget_state(
                         target.clone(),
                         Some(widget),
                         on_body_clicked,
                         locale,
                     )
                 });
-        reading_alert
+        ongoing_toast
             .map(|alert| {
-                self.alert_action_buttons
+                self.ongoing_toast_action_buttons
                     .iter()
                     .cloned()
-                    .fold(alert, ReadingAlert::with_action_button)
+                    .fold(alert, OngoingToast::with_action_button)
             })
             .into_iter()
-            .chain(self.alerts.iter().cloned())
+            .chain(self.ongoing_toasts.iter().cloned())
     }
 
     pub(super) fn view(&self, config: &Config, reveal: f32) -> Option<Element<'a, GroupEvent<M>>>

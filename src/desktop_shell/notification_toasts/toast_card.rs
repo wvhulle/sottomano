@@ -13,7 +13,10 @@ use iced::{
 use reqwest::Url;
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use super::{Notification, NotificationMessage, body_markup, toast_reply::ReplyMessage};
+use super::{
+    Notification, NotificationMessage, body_markup, toast_lifecycle::ToastKind,
+    toast_reply::ReplyMessage,
+};
 use crate::{
     config::{Config, Palette, notification_toasts::ToastCardConfig},
     data::{
@@ -294,13 +297,9 @@ impl ToastCard<'_> {
         let has_actions = !button_actions.is_empty() || previewed;
         let has_body = data.body.is_some();
         let now = SystemTime::now();
-        let reltime = match self
-            .notif
-            .reading_alert()
-            .and_then(|alert| alert.condition_started_at)
-        {
-            Some(started_at) => ongoing_for(started_at, now),
-            None => relative(self.notif.created_at, now),
+        let reltime = match &self.notif.kind {
+            ToastKind::Event { at, .. } => relative(*at, now),
+            ToastKind::Ongoing(toast) => ongoing_for(toast.since, now),
         };
         let reltime_span = |visible: bool| {
             visible.then(|| {

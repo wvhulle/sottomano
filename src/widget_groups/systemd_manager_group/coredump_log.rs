@@ -13,8 +13,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::TimePart,
+        ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
-        reading_alert::ReadingAlertActionButton,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -55,7 +55,7 @@ impl CoredumpEntry {
     pub fn action_buttons(
         &self,
         config: &Config,
-    ) -> impl Iterator<Item = ReadingAlertActionButton<SystemdManagerMessage>> {
+    ) -> impl Iterator<Item = OngoingToastActionButton<SystemdManagerMessage>> {
         let inspect = |inspection| {
             SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
                 config,
@@ -65,7 +65,7 @@ impl CoredumpEntry {
         let copy_path = self
             .stored_file
             .clone()
-            .map(|file| ReadingAlertActionButton {
+            .map(|file| OngoingToastActionButton {
                 button_label: "Copy path".to_owned(),
                 tint: ActionTint::Inspect,
                 on_button_pressed: SystemdManagerMessage::CopyToClipboard(
@@ -73,12 +73,12 @@ impl CoredumpEntry {
                 ),
             });
         [
-            ReadingAlertActionButton {
+            OngoingToastActionButton {
                 button_label: "Info".to_owned(),
                 tint: ActionTint::Inspect,
                 on_button_pressed: inspect(CoredumpInspection::Info),
             },
-            ReadingAlertActionButton {
+            OngoingToastActionButton {
                 button_label: "Debug".to_owned(),
                 tint: ActionTint::Inspect,
                 on_button_pressed: inspect(CoredumpInspection::Debug),
