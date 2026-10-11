@@ -81,16 +81,52 @@ impl UserConfig {
 #[derive(Debug)]
 pub enum LoadError {
     Unreadable(io::Error),
-    Invalid(de::Error),
+    Invalid { error: de::Error, text: String },
     UnknownLocale(String),
     Font(FontError),
+}
+
+pub struct OffendingLine<'a> {
+    pub number: usize,
+    pub before: &'a str,
+    pub offending: &'a str,
+    pub after: &'a str,
+}
+
+impl LoadError {
+    pub fn message(&self) -> String {
+        match self {
+            Self::Invalid { error, .. } => error.message().to_owned(),
+            _ => self.to_string(),
+        }
+    }
+
+    pub fn offending_line(&self) -> Option<OffendingLine<'_>> {
+        let Self::Invalid { error, text } = self else {
+            return None;
+        };
+        let span = error.span()?;
+        let preceding = text.get(..span.start)?;
+        let line_start = preceding.rfind('\n').map_or(0, |newline| newline + 1);
+        let line_end = text
+            .get(span.start..)?
+            .find('\n')
+            .map_or(text.len(), |newline| span.start + newline);
+        let offending_end = span.end.clamp(span.start, line_end);
+        Some(OffendingLine {
+            number: preceding.matches('\n').count() + 1,
+            before: text.get(line_start..span.start)?,
+            offending: text.get(span.start..offending_end)?,
+            after: text.get(offending_end..line_end)?,
+        })
+    }
 }
 
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unreadable(e) => write!(f, "cannot be read: {e}"),
-            Self::Invalid(e) => write!(f, "{e}"),
+            Self::Invalid { error, .. } => write!(f, "{error}"),
             Self::UnknownLocale(locale) => write!(f, "unknown locale {locale:?}"),
             Self::Font(e) => write!(f, "{e}"),
         }
@@ -119,7 +155,7 @@ impl ConfigFile {
 
     fn read(&self) -> Result<UserConfig, LoadError> {
         match fs::read_to_string(&self.path) {
-            Ok(text) => toml::from_str(&text).map_err(LoadError::Invalid),
+            Ok(text) => toml::from_str(&text).map_err(|error| LoadError::Invalid { error, text }),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(UserConfig::default()),
             Err(e) => Err(LoadError::Unreadable(e)),
         }
@@ -162,7 +198,7 @@ mod tests {
         let file = file_containing("old-keys", "[chrome]\nouter_height_px = 28.0\n");
         let error = file.load().unwrap_err();
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
-        assert!(matches!(error, LoadError::Invalid(_)));
+        assert!(matches!(error, LoadError::Invalid { .. }));
         assert!(error.to_string().contains("chrome"));
     }
 
@@ -180,7 +216,7 @@ mod tests {
         );
         assert_eq!(configured.unwrap().calendar.other_time_zones, [Asia::Tokyo]);
         assert!(emptied.unwrap().calendar.other_time_zones.is_empty());
-        assert!(matches!(unknown, Err(LoadError::Invalid(_))));
+        assert!(matches!(unknown, Err(LoadError::Invalid { .. })));
     }
 
     #[test]

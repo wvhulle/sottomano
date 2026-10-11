@@ -30,6 +30,7 @@ iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",
   "crisp",
+  "web-colors",
   "thread-pool",
   "linux-theme-detection",
   "x11",
@@ -107,6 +108,21 @@ kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 nvml-wrapper = "0.13.0"
 humantime-serde = "1.1.1"
+
+[patch.crates-io]
+iced = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_core = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_debug = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_devtools = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_futures = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_graphics = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_program = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_renderer = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_runtime = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_tiny_skia = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_wgpu = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_widget = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_winit = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 
 [profile.dev.package."*"]
 opt-level = 2
