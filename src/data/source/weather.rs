@@ -182,16 +182,14 @@ impl TryFrom<i64> for WeatherCondition {
 }
 
 #[derive(Deserialize)]
-struct OpenMeteoForecast {
-    current: CurrentConditions,
+struct TemperatureForecast {
+    current: CurrentTemperature,
     daily: DailyTemperature,
     hourly: HourlyTemperatures,
 }
 
 #[derive(Deserialize)]
-struct CurrentConditions {
-    #[serde(flatten)]
-    wind: CurrentWind,
+struct CurrentTemperature {
     #[serde(deserialize_with = "open_meteo_time")]
     time: DateTime<Utc>,
     #[serde(deserialize_with = "celsius")]
@@ -235,6 +233,11 @@ impl HourlyTemperatures {
             .partition(|entry| entry.time <= now);
         HourlyForecast { earlier, later }
     }
+}
+
+#[derive(Deserialize)]
+struct WindForecast {
+    current: CurrentWind,
 }
 
 #[derive(Deserialize)]
@@ -309,6 +312,32 @@ pub struct HourlyTemperature {
     pub condition: Option<WeatherCondition>,
 }
 
+impl Source for Temperature {
+    type Error = Error;
+
+    type Key = Position;
+
+    const NAME: &'static str = "weather-temp";
+    const INTERVAL: Duration = Duration::from_secs(300);
+
+    async fn poll(here: Position) -> Result<Self, Self::Error> {
+        let url = format!(
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
+            here.latitude, here.longitude
+        );
+        let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        Ok(Temperature {
+            condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
+            temp: forecast.current.temperature_2m,
+            feels: forecast.current.apparent_temperature,
+            temp_min: today(&forecast.daily.temperature_2m_min)?,
+            temp_max: today(&forecast.daily.temperature_2m_max)?,
+            humidity: forecast.current.relative_humidity_2m,
+            hourly: forecast.hourly.split_at(forecast.current.time),
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Wind {
     pub speed: Velocity,
@@ -316,46 +345,29 @@ pub struct Wind {
     pub direction: Angle,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Forecast {
-    pub temperature: Temperature,
-    pub wind: Wind,
-}
-
-impl Source for Forecast {
+impl Source for Wind {
     type Error = Error;
 
     type Key = Position;
 
-    const NAME: &'static str = "weather-forecast";
+    const NAME: &'static str = "weather-wind";
     const INTERVAL: Duration = Duration::from_secs(300);
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
             here.latitude, here.longitude
         );
-        let forecast: OpenMeteoForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let forecast: WindForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
         let CurrentWind {
             speed,
             gusts,
             direction,
-        } = forecast.current.wind;
-        Ok(Forecast {
-            temperature: Temperature {
-                condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
-                temp: forecast.current.temperature_2m,
-                feels: forecast.current.apparent_temperature,
-                temp_min: today(&forecast.daily.temperature_2m_min)?,
-                temp_max: today(&forecast.daily.temperature_2m_max)?,
-                humidity: forecast.current.relative_humidity_2m,
-                hourly: forecast.hourly.split_at(forecast.current.time),
-            },
-            wind: Wind {
-                speed,
-                gusts,
-                direction,
-            },
+        } = forecast.current;
+        Ok(Wind {
+            speed,
+            gusts,
+            direction,
         })
     }
 }

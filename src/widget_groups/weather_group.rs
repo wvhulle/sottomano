@@ -7,7 +7,7 @@ pub mod temperature_forecast;
 pub mod wind_speed;
 
 use crate::{
-    data::source::weather::{self, Allergen, Forecast, Location, Pollen, Rain, Temperature, Wind},
+    data::source::weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
@@ -47,7 +47,8 @@ pub struct WeatherGroup {
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Forecast(Result<Forecast, weather::Error>),
+    Temp(Result<Temperature, weather::Error>),
+    Wind(Result<Wind, weather::Error>),
     Rain(Result<Rain, weather::Error>),
     Pollen(Result<Pollen, weather::Error>),
     Location(Result<Location, weather::Error>),
@@ -62,7 +63,9 @@ impl WeatherGroup {
         };
         Subscription::batch([
             location,
-            polling::<Forecast>(here).map(WeatherMessage::Forecast),
+            polling::<Temperature>(here).map(WeatherMessage::Temp),
+            self.expansion
+                .while_expanded(polling::<Wind>(here).map(WeatherMessage::Wind)),
             self.expansion
                 .while_expanded(polling::<Rain>(here).map(WeatherMessage::Rain)),
             self.expansion
@@ -72,7 +75,8 @@ impl WeatherGroup {
 
     pub fn update(&mut self, msg: WeatherMessage) -> Task<WeatherMessage> {
         match msg {
-            WeatherMessage::Forecast(reading) => self.receive_forecast(reading),
+            WeatherMessage::Temp(reading) => self.temp.receive(reading),
+            WeatherMessage::Wind(reading) => self.wind.receive(reading),
             WeatherMessage::Rain(reading) => self.rain.receive(reading),
             WeatherMessage::Pollen(reading) => self.pollen.receive(reading),
             WeatherMessage::Location(reading) => self.location.receive(reading),
@@ -83,16 +87,10 @@ impl WeatherGroup {
         Task::none()
     }
 
-    fn receive_forecast(&mut self, reading: Result<Forecast, weather::Error>) {
-        self.temp
-            .receive(reading.clone().map(|forecast| forecast.temperature));
-        self.wind.receive(reading.map(|forecast| forecast.wind));
-    }
-
     pub fn tooltip_for(&self, target: WeatherTarget) -> Option<Tooltip> {
         match target {
-            WeatherTarget::Temperature => self.temp.live_tooltip(),
-            WeatherTarget::Wind => self.wind.live_tooltip(),
+            WeatherTarget::Temperature => self.temp.tooltip(),
+            WeatherTarget::Wind => self.wind.tooltip(),
             WeatherTarget::Rain => self.rain.tooltip(),
             WeatherTarget::Pollen => self.pollen.tooltip(),
             WeatherTarget::Allergen(allergen) => self
