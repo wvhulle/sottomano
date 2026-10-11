@@ -105,9 +105,9 @@ impl InternetGroup {
         match msg {
             InternetMessage::Installed(installed) => self.installed = installed,
             InternetMessage::Throughput(readings) => {
-                self.down.load(Some(readings.down));
-                self.up.load(Some(readings.up));
-                self.total.load(Some(readings.total));
+                self.down.load(readings.down);
+                self.up.load(readings.up);
+                self.total.load(readings.total);
             }
             InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
             InternetMessage::TunnelAddressFetched(fetched) => self.tunnel_address.receive(fetched),

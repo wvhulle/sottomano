@@ -1,23 +1,32 @@
 use iced::{
-    Color, Element, Length, Point, Rectangle, Renderer, Size, Theme,
+    Border, Color, Element, Length, Point, Rectangle, Renderer, Size, Theme,
     mouse::Cursor,
-    widget::canvas::{self, Canvas, Frame, Geometry, Path},
+    widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke},
 };
 
 use crate::desktop_shell::monitor_surfaces::Position;
 
 const BASE_HALF_WIDTH_PX: f32 = 4.0;
 
-pub fn notch<'a, Message: 'a>(position: Position, fill: Color) -> Element<'a, Message> {
-    Canvas::new(Notch { position, fill })
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+pub fn notch<'a, Message: 'a>(
+    position: Position,
+    fill: Color,
+    outline: Border,
+) -> Element<'a, Message> {
+    Canvas::new(Notch {
+        position,
+        fill,
+        outline,
+    })
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }
 
 struct Notch {
     position: Position,
     fill: Color,
+    outline: Border,
 }
 
 impl Notch {
@@ -55,7 +64,16 @@ impl<Message> canvas::Program<Message> for Notch {
         _cursor: Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        frame.fill(&self.outline(bounds.size()), self.fill);
+        let slanted_sides = self.outline(bounds.size());
+        frame.fill(&slanted_sides, self.fill);
+        if self.outline.width > 0.0 {
+            frame.stroke(
+                &slanted_sides,
+                Stroke::default()
+                    .with_color(self.outline.color)
+                    .with_width(self.outline.width),
+            );
+        }
         vec![frame.into_geometry()]
     }
 }

@@ -118,8 +118,15 @@ async fn read_details(connection: Connection) -> Result<EthernetDetails, Reading
     Ok(EthernetDetails { ports })
 }
 
-pub fn readings() -> impl Stream<Item = Option<Ethernet>> {
+#[derive(Debug, Clone)]
+pub enum EthernetPresence {
+    NoPort,
+    Ports(Ethernet),
+}
+
+pub fn readings() -> impl Stream<Item = EthernetPresence> {
     nm_readings(NAME, read)
+        .map(|ports| ports.map_or(EthernetPresence::NoPort, EthernetPresence::Ports))
 }
 
 pub fn details() -> impl Stream<Item = Result<EthernetDetails, &'static str>> {

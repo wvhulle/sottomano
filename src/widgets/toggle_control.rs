@@ -110,7 +110,7 @@ impl<S: Toggle> ToggleControl<S> {
     }
 
     pub fn assume(&mut self, value: S) {
-        self.cell.load(Some(value));
+        self.cell.load(value);
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {

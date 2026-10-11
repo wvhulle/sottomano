@@ -98,8 +98,15 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
     })
 }
 
-pub fn readings() -> impl Stream<Item = Option<Wifi>> {
+#[derive(Debug, Clone)]
+pub enum WifiPresence {
+    NoAdapter,
+    Adapter(Wifi),
+}
+
+pub fn readings() -> impl Stream<Item = WifiPresence> {
     nm_readings(NAME, read)
+        .map(|adapter| adapter.map_or(WifiPresence::NoAdapter, WifiPresence::Adapter))
 }
 
 pub fn details() -> impl Stream<Item = Result<WifiDetails, &'static str>> {

@@ -11,11 +11,7 @@ pub mod store;
 
 use core::f32::consts::FRAC_1_SQRT_2;
 
-use iced::{
-    Color, Shadow, Vector,
-    border::{self, Radius},
-    widget::container,
-};
+use iced::{Border, Color, Shadow, Vector, border::Radius, widget::container};
 pub(crate) use store::{Columns, StoreError, connect};
 
 use crate::{config::Config, widgets::panel_frame::OutlinedSides};
@@ -25,6 +21,7 @@ pub struct ShellSettings {
     pub layout: ShellLayout,
     pub panels: PanelAppearance,
     pub shadow: ShadowStyle,
+    pub outline: OutlineStyle,
     pub notifications: NotificationSettings,
     pub overlays: OverlaySettings,
 }
@@ -32,18 +29,12 @@ pub struct ShellSettings {
 impl ShellSettings {
     pub fn frame_style(&self, config: &Config) -> container::Style {
         let palette = &config.theme.palette;
-        let outline_width = if self.panels.outlined {
-            config.panel_bar.frame_outline_px
-        } else {
-            0.0
-        };
         container::Style::default()
             .background(palette.surface.scale_alpha(self.panels.opacity))
-            .border(
-                border::rounded(self.panels.corner_radius)
-                    .color(palette.frame_outline)
-                    .width(outline_width),
-            )
+            .border(Border {
+                radius: self.panels.corner_radius,
+                ..self.outline.border(config)
+            })
             .shadow(self.shadow.drop_shadow())
             .color(palette.bar_foreground)
     }
@@ -119,6 +110,30 @@ impl ShadowStyle {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OutlineStyle {
+    pub drawn: bool,
+}
+
+impl Default for OutlineStyle {
+    fn default() -> Self {
+        Self { drawn: true }
+    }
+}
+
+impl OutlineStyle {
+    pub fn border(self, config: &Config) -> Border {
+        if !self.drawn {
+            return Border::default();
+        }
+        Border {
+            color: config.theme.palette.frame_outline,
+            width: config.panel_bar.frame_outline_px,
+            radius: Radius::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ShellLayout {
     pub disconnected_groups: bool,
@@ -142,15 +157,13 @@ impl Default for ShellLayout {
 pub struct PanelAppearance {
     pub opacity: f32,
     pub corner_radius: Radius,
-    pub outlined: bool,
 }
 
 impl Default for PanelAppearance {
     fn default() -> Self {
         Self {
             opacity: 0.8,
-            corner_radius: Radius::default(),
-            outlined: true,
+            corner_radius: Radius::from(8.0),
         }
     }
 }

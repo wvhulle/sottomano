@@ -1,7 +1,7 @@
 use std::mem;
 
-#[must_use = "perform the write and report the outcome via `absolute_write_finished` or \
-              `relative_write_finished`, or the setting never advances"]
+#[must_use = "perform the write and report the outcome via `absolute_write_finished`, \
+              `relative_write_resolved` or `relative_write_failed`, or the setting never advances"]
 pub enum Write {
     Absolute(f32),
     Relative(f32),
@@ -157,12 +157,13 @@ impl DeviceSetting {
         }
     }
 
-    pub fn relative_write_finished(&mut self, resolved_value: Option<f32>) -> Option<Write> {
+    pub fn relative_write_failed(&mut self) {
+        self.take_queued_nudge();
+        self.user_request = UserRequest::FollowingDevice;
+    }
+
+    pub fn relative_write_resolved(&mut self, value: f32) -> Option<Write> {
         let queued_nudge = self.take_queued_nudge();
-        let Some(value) = resolved_value else {
-            self.user_request = UserRequest::FollowingDevice;
-            return None;
-        };
         self.device_feedback = DeviceFeedback {
             reported_value: value,
             accepted_value: value,

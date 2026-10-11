@@ -6,11 +6,13 @@ use crate::{
         source::fwupd::{FirmwareUpgrade, Urgency},
     },
     widget_groups::{
-        pending_upgrades_group::{PendingUpgradesMessage, PendingUpgradesTarget},
+        pending_upgrades_group::{
+            PendingUpgradesGroup, PendingUpgradesMessage, PendingUpgradesTarget,
+        },
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        bar_widget::{BarWidget, Glyph, Occasional, OngoingToastThreshold},
         group_item::GroupItem,
         localized_time::TimePart,
         ongoing_toast::OngoingToastActionButton,
@@ -22,32 +24,31 @@ use crate::{
 
 pub const LABEL: &str = "Firmware upgrades";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FirmwareUpgradeList {
-    upgrades: Vec<FirmwareUpgrade>,
-}
-
-impl FirmwareUpgradeList {
-    pub fn from_upgrades(upgrades: Vec<FirmwareUpgrade>) -> Option<Self> {
-        (!upgrades.is_empty()).then_some(Self { upgrades })
-    }
-
-    pub fn count(&self) -> usize {
-        self.upgrades.len()
-    }
-
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, PendingUpgradesMessage> {
+impl PendingUpgradesGroup {
+    pub(super) fn firmware_upgrade_item(
+        &self,
+        config: &Config,
+    ) -> Option<GroupItem<'_, PendingUpgradesMessage>> {
+        let upgrades = self.firmware.present_reading()?;
         let install = PendingUpgradesMessage::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
         ));
-        GroupItem::reading(self, PendingUpgradesTarget::Firmware)
-            .on_press("run fwupdmgr update in a terminal", install.clone())
-            .ongoing_toast_action_buttons([OngoingToastActionButton {
-                button_label: "Install".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: install,
-            }])
+        Some(
+            GroupItem::reading(upgrades, PendingUpgradesTarget::Firmware)
+                .on_press("run fwupdmgr update in a terminal", install.clone())
+                .ongoing_toast_action_buttons([OngoingToastActionButton {
+                    button_label: "Install".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: install,
+                }]),
+        )
+    }
+}
+
+impl Occasional for Vec<FirmwareUpgrade> {
+    fn present(&self) -> bool {
+        !self.is_empty()
     }
 }
 
@@ -60,7 +61,7 @@ impl FirmwareUpgrade {
     }
 }
 
-impl BarWidget for FirmwareUpgradeList {
+impl BarWidget for Vec<FirmwareUpgrade> {
     fn name(&self) -> &'static str {
         "Firmware upgrades"
     }
@@ -70,12 +71,11 @@ impl BarWidget for FirmwareUpgradeList {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.upgrades.len()).ok()
+        u32::try_from(self.len()).ok()
     }
 
     fn state(&self) -> WidgetState {
-        self.upgrades
-            .iter()
+        self.iter()
             .map(FirmwareUpgrade::severity)
             .max()
             .unwrap_or_default()
@@ -100,7 +100,7 @@ impl BarWidget for FirmwareUpgradeList {
                 "Urgency",
                 "Summary",
             ],
-            self.upgrades.iter().map(FirmwareUpgrade::table_record),
+            self.iter().map(FirmwareUpgrade::table_record),
         )])
     }
 }

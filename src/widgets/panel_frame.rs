@@ -149,19 +149,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
             .outlined_sides
             .square_unoutlined_corners(self.style.border.radius);
         self.draw_fill(renderer, bounds, radius);
+        self.draw_outline(renderer, bounds, radius);
         let framed_style = renderer::Style {
             text_color: self.style.text_color.unwrap_or(style.text_color),
         };
-        self.content.as_widget().draw(
-            &tree.children[0],
-            renderer,
-            theme,
-            &framed_style,
-            layout,
-            cursor,
-            viewport,
-        );
-        self.draw_outline(renderer, bounds, radius);
+        renderer.with_layer(*viewport, |renderer| {
+            self.content.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                &framed_style,
+                layout,
+                cursor,
+                viewport,
+            );
+        });
     }
 
     fn operate(

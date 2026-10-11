@@ -1,4 +1,4 @@
-use iced::futures::Stream;
+use iced::futures::{Stream, StreamExt};
 use zbus::fdo::ManagedObjects;
 
 use crate::data::source::{
@@ -96,6 +96,13 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
     })
 }
 
-pub fn readings() -> impl Stream<Item = Option<Bluetooth>> {
+#[derive(Debug, Clone)]
+pub enum BluetoothPresence {
+    NoAdapter,
+    Adapter(Bluetooth),
+}
+
+pub fn readings() -> impl Stream<Item = BluetoothPresence> {
     managed_objects_readings(NAME, SERVICE, ROOT, reading)
+        .map(|adapter| adapter.map_or(BluetoothPresence::NoAdapter, BluetoothPresence::Adapter))
 }

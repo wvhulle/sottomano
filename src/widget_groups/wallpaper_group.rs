@@ -316,15 +316,15 @@ impl WallpaperGroup {
         }
         self.shown = Some(displayed.clone());
         let DisplayedWallpaper::ImageFile(path) = displayed else {
-            self.lookup.load(None);
+            self.lookup = ContinuousReading::default();
             return Task::none();
         };
         let (Some(id), Some(key)) = (wallpaper::photo_id(&path), self.unsplash_key.clone()) else {
-            self.lookup.load(None);
+            self.lookup = ContinuousReading::default();
             return Task::none();
         };
         self.lookup
-            .load(Some(Lookup::of(&wallpaper::unresolved(&path, &id))));
+            .load(Lookup::of(&wallpaper::unresolved(&path, &id)));
         Task::future(async move { wallpaper::resolve(path, id, &key).await })
             .map(|resolved| WallpaperMessage::Resolved(Box::new(resolved)))
     }

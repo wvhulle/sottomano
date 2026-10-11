@@ -13,7 +13,7 @@ use crate::{
         terminal_journal::TerminalJournal,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
         ongoing_toast::{OngoingKey, OngoingToast},
@@ -80,6 +80,12 @@ impl<S: ScopeAppearance> SlowJobs<S> {
             on_body_clicked: open_log(S::follow_units_log_args([job.unit.as_str()])),
             action_buttons: Vec::new(),
         })
+    }
+}
+
+impl<S: ScopeAppearance> Occasional for SlowJobs<S> {
+    fn present(&self) -> bool {
+        !self.is_empty()
     }
 }
 

@@ -30,7 +30,7 @@ use crate::{
         theme::font::ResolvedFont, widget_groups::temperature_sensors::SensorConfig,
     },
     data::{
-        sink::sound,
+        sink::sound::SoundTheme,
         source::{
             app_icon::{self, DesktopEntries},
             command::blocking::run,
@@ -166,7 +166,7 @@ pub enum Message {
     NiriRulesLoaded(StoredRules),
     ConfigFileChanged,
     ConfigLoaded(Result<Box<Config>, Arc<LoadError>>),
-    SoundThemeLoaded(Option<String>),
+    SoundThemeLoaded(SoundTheme),
     Audio(AudioMessage),
     Ai(AiMessage),
     WindowGroup(WindowGroupMessage),
@@ -277,7 +277,7 @@ impl DesktopShell {
             }),
             Task::perform(state::shell_settings::load(), Message::ShellSettingsLoaded),
             shell.niri_rules.read().map(Message::NiriRulesLoaded),
-            blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
+            blocking("sound theme", SoundTheme::read_session).map(Message::SoundThemeLoaded),
             query_outputs(),
             PowerGroup::probe().map(Message::Power),
             ComputeGroup::probe(&shell.config.widget_groups.temperature_sensors.cpu)
@@ -484,6 +484,7 @@ impl DesktopShell {
         self.surface_effects_group.update(
             msg,
             &mut self.shell_settings.shadow,
+            &mut self.shell_settings.outline,
             &mut self.niri_rules,
         )
     }
@@ -526,7 +527,7 @@ impl DesktopShell {
             .map(Message::ColorTemperature)
     }
 
-    fn adopt_sound_theme(&mut self, theme: Option<String>) -> Task<Message> {
+    fn adopt_sound_theme(&mut self, theme: SoundTheme) -> Task<Message> {
         self.notifications.adopt_sound_theme(theme);
         Task::none()
     }

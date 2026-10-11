@@ -23,6 +23,7 @@ use crate::{
     data::{
         notifications::model::NotifHandle,
         severity::Severity,
+        sink::sound::SoundTheme,
         source::{app_icon::DesktopEntries, niri::Placement},
     },
     desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
@@ -86,7 +87,7 @@ pub(super) struct SnoozedOngoingToast {
 #[derive(Default)]
 pub struct NotificationLayer {
     handle: Option<NotifHandle>,
-    sound_theme: Option<String>,
+    sound_theme: SoundTheme,
     live: Vec<Notification>,
     next_seq: u64,
     hovered: Option<u32>,

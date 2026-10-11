@@ -37,13 +37,18 @@ impl DesktopShell {
                     .group_content(config, &shell_settings.layout)
                     .map(Message::ShellLayout),
                 self.panel_appearance_group
-                    .group_content(config, &shell_settings.panels)
+                    .group_content(config)
                     .map(Message::PanelAppearance),
                 self.overlay_group
                     .group_content(config, shell_settings.overlays)
                     .map(Message::Overlay),
                 self.surface_effects_group
-                    .group_content(config, shell_settings.shadow, self.niri_rules.styling())
+                    .group_content(
+                        config,
+                        shell_settings.shadow,
+                        shell_settings.outline,
+                        self.niri_rules.styling(),
+                    )
                     .map(Message::SurfaceEffects),
                 self.niri_window_group
                     .group_content(config)

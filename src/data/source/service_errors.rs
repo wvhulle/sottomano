@@ -59,12 +59,18 @@ pub struct ServiceErrors {
     pub by_unit_oldest_first: Vec<UnitErrors>,
 }
 
-impl ServiceErrors {
-    pub fn from_entries(entries: Vec<ServiceErrorEntry>) -> Option<Self> {
-        (!entries.is_empty()).then(|| Self {
+impl From<Vec<ServiceErrorEntry>> for ServiceErrors {
+    fn from(entries: Vec<ServiceErrorEntry>) -> Self {
+        Self {
             entry_count: entries.len(),
             by_unit_oldest_first: errors_by_unit(entries),
-        })
+        }
+    }
+}
+
+impl ServiceErrors {
+    pub fn is_empty(&self) -> bool {
+        self.entry_count == 0
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {

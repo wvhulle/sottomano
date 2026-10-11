@@ -53,13 +53,14 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
     let Some(connection) = wayland else {
         return Subscription::none();
     };
-    output::listen(connection.clone()).map(|event| {
-        Message::Output(match event {
-            OutputEvent::Insert(info) => OutputChange::Connected(info.name),
-            OutputEvent::Changed(_) => OutputChange::Rearranged,
-            OutputEvent::Removed(info) => OutputChange::Disconnected(info.name),
-            OutputEvent::Stop(e) => OutputChange::Unavailable(e.to_string()),
-        })
+    output::listen(connection.clone()).filter_map(|event| {
+        match event {
+            OutputEvent::Insert(info) => info.name.map(OutputChange::Connected),
+            OutputEvent::Changed(_) => Some(OutputChange::Rearranged),
+            OutputEvent::Removed(info) => info.name.map(OutputChange::Disconnected),
+            OutputEvent::Stop(e) => Some(OutputChange::Unavailable(e.to_string())),
+        }
+        .map(Message::Output)
     })
 }
 
@@ -204,8 +205,8 @@ fn emit_reading_changes<S: Clone + PartialEq, E>(
 }
 
 pub(crate) fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
-    from_entries: fn(Vec<E>) -> Option<R>,
-    map: fn(Option<R>) -> M,
+    from_entries: fn(Vec<E>) -> R,
+    map: fn(R) -> M,
 ) -> Subscription<M> {
     Subscription::run_with((E::NAME, from_entries, map), |&(_, from_entries, map)| {
         use iced::futures::StreamExt;
@@ -236,10 +237,10 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<Option<S>>
+pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<S>
 where
     S: Send + 'static,
-    St: Stream<Item = Option<S>> + Send + 'static,
+    St: Stream<Item = S> + Send + 'static,
 {
     Subscription::run_with((name, readings), |&(_, readings)| readings())
 }

@@ -60,26 +60,20 @@ impl JournalEvent for OomKillEntry {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct OomKills {
-    pub entries: Vec<OomKillEntry>,
-}
-
-impl OomKills {
-    pub fn from_entries(entries: Vec<OomKillEntry>) -> Option<Self> {
+impl OomKillEntry {
+    pub fn innermost(entries: Vec<Self>) -> Vec<Self> {
         let user_managers: HashSet<String> = entries
             .iter()
             .filter(|entry| matches!(entry.unit, OwningUnit::User(_)))
             .map(|entry| entry.reporting_manager_unit.clone())
             .collect();
-        let innermost: Vec<OomKillEntry> = entries
+        entries
             .into_iter()
             .filter(|entry| match &entry.unit {
                 OwningUnit::System(name) => !user_managers.contains(name),
                 OwningUnit::User(_) => true,
             })
-            .collect();
-        (!innermost.is_empty()).then_some(Self { entries: innermost })
+            .collect()
     }
 
     pub fn follow_log_args() -> Vec<String> {
@@ -119,8 +113,7 @@ mod tests {
             ("USER_UNIT", "run-p42.service"),
             ("_SYSTEMD_UNIT", "user@1000.service"),
         ]);
-        let kills = OomKills::from_entries(vec![from_pid1, from_user_manager.clone()])
-            .expect("one kill remains");
-        assert_eq!(kills.entries, [from_user_manager]);
+        let kills = OomKillEntry::innermost(vec![from_pid1, from_user_manager.clone()]);
+        assert_eq!(kills, [from_user_manager]);
     }
 }

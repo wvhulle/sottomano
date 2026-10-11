@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{convert, time::Duration};
 
 use iced::{
     Subscription, Task,
@@ -16,8 +16,8 @@ pub mod running_job_reading;
 use crate::{
     config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
     data::source::{
-        coredumps::Coredumps,
-        oom_kills::OomKills,
+        coredumps::CoredumpEntry,
+        oom_kills::OomKillEntry,
         previous_shutdown::{LastShutdown, ShutdownReadError, read_last_shutdown},
         systemd_manager::{
             System, UnitScope, User,
@@ -130,21 +130,21 @@ pub struct SystemdManagerGroup {
     slow_system_jobs: ContinuousReading<SlowJobs<System>>,
     slow_user_jobs: ContinuousReading<SlowJobs<User>>,
     last_shutdown: ContinuousReading<LastShutdown>,
-    coredumps: ContinuousReading<Coredumps>,
-    oom_kills: ContinuousReading<OomKills>,
+    coredumps: ContinuousReading<Vec<CoredumpEntry>>,
+    oom_kills: ContinuousReading<Vec<OomKillEntry>>,
     pub(crate) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum SystemdManagerMessage {
     Boot(BootTimeline),
-    FailedSystem(Option<Failed<System>>),
-    FailedUser(Option<Failed<User>>),
-    SlowSystemJobs(Option<SlowJobs<System>>),
-    SlowUserJobs(Option<SlowJobs<User>>),
-    LastShutdown(Option<LastShutdown>),
-    Coredumps(Option<Coredumps>),
-    OomKills(Option<OomKills>),
+    FailedSystem(Failed<System>),
+    FailedUser(Failed<User>),
+    SlowSystemJobs(SlowJobs<System>),
+    SlowUserJobs(SlowJobs<User>),
+    LastShutdown(LastShutdown),
+    Coredumps(Vec<CoredumpEntry>),
+    OomKills(Vec<OomKillEntry>),
     OpenLog(TerminalJournal),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
@@ -173,12 +173,12 @@ impl SystemdManagerGroup {
                         |read| {
                             ready(match read {
                                 Ok(Ok(last_shutdown)) => {
-                                    Some(SystemdManagerMessage::LastShutdown(Some(last_shutdown)))
+                                    Some(SystemdManagerMessage::LastShutdown(last_shutdown))
                                 }
                                 Ok(Err(
                                     ShutdownReadError::NoPreviousBoot
                                     | ShutdownReadError::NoShutdownRecorded,
-                                )) => Some(SystemdManagerMessage::LastShutdown(None)),
+                                )) => None,
                                 Ok(Err(e)) => {
                                     tracing::warn!("systemd last shutdown: {e}");
                                     None
@@ -192,14 +192,14 @@ impl SystemdManagerGroup {
                     )
                 },
             ),
-            journal_subscription(Coredumps::from_entries, SystemdManagerMessage::Coredumps),
-            journal_subscription(OomKills::from_entries, SystemdManagerMessage::OomKills),
+            journal_subscription(convert::identity, SystemdManagerMessage::Coredumps),
+            journal_subscription(OomKillEntry::innermost, SystemdManagerMessage::OomKills),
         ])
     }
 
     pub fn update(&mut self, msg: SystemdManagerMessage) -> Task<SystemdManagerMessage> {
         match msg {
-            SystemdManagerMessage::Boot(boot) => self.boot.load(Some(boot)),
+            SystemdManagerMessage::Boot(boot) => self.boot.load(boot),
             SystemdManagerMessage::FailedSystem(reading) => self.failed_system.load(reading),
             SystemdManagerMessage::FailedUser(reading) => self.failed_user.load(reading),
             SystemdManagerMessage::SlowSystemJobs(reading) => self.slow_system_jobs.load(reading),
@@ -224,13 +224,13 @@ impl SystemdManagerGroup {
         let body = match target {
             SystemdTarget::BootPhases => self.boot.get()?.tooltip(),
             SystemdTarget::StartupUnits => self.boot.get()?.units().tooltip(),
-            SystemdTarget::FailedSystemUnits => self.failed_system.get()?.tooltip(),
-            SystemdTarget::FailedUserUnits => self.failed_user.get()?.tooltip(),
-            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.get()?.tooltip(),
-            SystemdTarget::SlowUserJobs => self.slow_user_jobs.get()?.tooltip(),
+            SystemdTarget::FailedSystemUnits => self.failed_system.present_reading()?.tooltip(),
+            SystemdTarget::FailedUserUnits => self.failed_user.present_reading()?.tooltip(),
+            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.present_reading()?.tooltip(),
+            SystemdTarget::SlowUserJobs => self.slow_user_jobs.present_reading()?.tooltip(),
             SystemdTarget::LastShutdown => self.last_shutdown.get()?.tooltip(),
-            SystemdTarget::Coredumps => self.coredumps.get()?.tooltip(),
-            SystemdTarget::OomKills => self.oom_kills.get()?.tooltip(),
+            SystemdTarget::Coredumps => self.coredumps.present_reading()?.tooltip(),
+            SystemdTarget::OomKills => self.oom_kills.present_reading()?.tooltip(),
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
@@ -251,19 +251,19 @@ impl SystemdManagerGroup {
                 boot.map(|boot| GroupItem::reading(boot, SystemdTarget::BootPhases)),
                 boot.map(|boot| GroupItem::reading(boot.units(), SystemdTarget::StartupUnits)),
                 self.slow_system_jobs
-                    .get()
+                    .present_reading()
                     .map(|jobs| jobs.group_item(config)),
                 self.slow_user_jobs
-                    .get()
+                    .present_reading()
                     .map(|jobs| jobs.group_item(config)),
                 self.failed_system
-                    .get()
+                    .present_reading()
                     .map(|failed| failed.group_item(config)),
                 self.failed_user
-                    .get()
+                    .present_reading()
                     .map(|failed| failed.group_item(config)),
-                self.oom_kills.get().map(|kills| kills.group_item(config)),
-                self.coredumps.get().map(|dumps| dumps.group_item(config)),
+                self.oom_kill_log_item(config),
+                self.coredump_log_item(config),
                 self.last_shutdown.get().map(|last| last.group_item(config)),
             ]
             .into_iter()
@@ -281,12 +281,24 @@ impl SystemdManagerGroup {
 
     fn current_health(&self) -> [Option<&dyn BarWidget>; 6] {
         [
-            self.slow_system_jobs.get().map(|w| w as &dyn BarWidget),
-            self.slow_user_jobs.get().map(|w| w as &dyn BarWidget),
-            self.failed_system.get().map(|w| w as &dyn BarWidget),
-            self.failed_user.get().map(|w| w as &dyn BarWidget),
-            self.oom_kills.get().map(|w| w as &dyn BarWidget),
-            self.coredumps.get().map(|w| w as &dyn BarWidget),
+            self.slow_system_jobs
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.slow_user_jobs
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.failed_system
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.failed_user
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.oom_kills
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.coredumps
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
         ]
     }
 }
@@ -320,28 +332,30 @@ impl BarWidget for SystemdManagerGroup {
             [
                 count(
                     System::SLOW_JOBS_LABEL,
-                    self.slow_system_jobs.get().map(|jobs| jobs.jobs.len()),
+                    self.slow_system_jobs
+                        .present_reading()
+                        .map(|jobs| jobs.jobs.len()),
                 ),
                 count(
                     User::SLOW_JOBS_LABEL,
-                    self.slow_user_jobs.get().map(|jobs| jobs.jobs.len()),
+                    self.slow_user_jobs
+                        .present_reading()
+                        .map(|jobs| jobs.jobs.len()),
                 ),
                 count(
                     System::FAILED_LABEL,
-                    self.failed_system.get().map(|failed| failed.units.len()),
+                    self.failed_system
+                        .present_reading()
+                        .map(|failed| failed.units.len()),
                 ),
                 count(
                     User::FAILED_LABEL,
-                    self.failed_user.get().map(|failed| failed.units.len()),
+                    self.failed_user
+                        .present_reading()
+                        .map(|failed| failed.units.len()),
                 ),
-                count(
-                    "OOM kills",
-                    self.oom_kills.get().map(|kills| kills.entries.len()),
-                ),
-                count(
-                    "Coredumps",
-                    self.coredumps.get().map(|dumps| dumps.entries.len()),
-                ),
+                count("OOM kills", self.oom_kills.present_reading().map(Vec::len)),
+                count("Coredumps", self.coredumps.present_reading().map(Vec::len)),
             ]
             .into_iter()
             .flatten(),
@@ -350,24 +364,22 @@ impl BarWidget for SystemdManagerGroup {
 }
 
 fn failed_subscription<S: UnitScope + 'static>(
-    map: fn(Option<Failed<S>>) -> SystemdManagerMessage,
+    map: fn(Failed<S>) -> SystemdManagerMessage,
 ) -> Subscription<SystemdManagerMessage> {
     Subscription::run_with(
         ("systemd-failed-units", S::PER_USER, map),
-        |&(_, per_user, map)| {
-            failed_stream(per_user).map(move |units| map(Failed::from_units(units)))
-        },
+        |&(_, per_user, map)| failed_stream(per_user).map(move |units| map(Failed::from(units))),
     )
 }
 
 fn slow_jobs_subscription<S: UnitScope + 'static>(
     slow_after: Duration,
-    map: fn(Option<SlowJobs<S>>) -> SystemdManagerMessage,
+    map: fn(SlowJobs<S>) -> SystemdManagerMessage,
 ) -> Subscription<SystemdManagerMessage> {
     Subscription::run_with(
         ("systemd-slow-jobs", S::PER_USER, slow_after, map),
         |&(_, per_user, slow_after, map)| {
-            slow_jobs_stream(per_user, slow_after).map(move |jobs| map(SlowJobs::from_jobs(jobs)))
+            slow_jobs_stream(per_user, slow_after).map(move |jobs| map(SlowJobs::from(jobs)))
         },
     )
 }

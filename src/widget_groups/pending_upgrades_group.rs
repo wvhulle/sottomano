@@ -4,12 +4,9 @@ pub mod firmware_upgrade_list;
 
 use crate::{
     config::Config,
-    data::source::fwupd::{self, PendingUpgrades},
+    data::source::fwupd::{self, FirmwareUpgrade, PendingUpgrades},
     desktop_shell::hover_tooltips::HoverTarget,
-    widget_groups::{
-        pending_upgrades_group::firmware_upgrade_list::FirmwareUpgradeList,
-        terminal_command::TerminalCommand,
-    },
+    widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -35,7 +32,7 @@ impl From<PendingUpgradesTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
-    firmware: ContinuousReading<FirmwareUpgradeList>,
+    firmware: ContinuousReading<Vec<FirmwareUpgrade>>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -53,13 +50,7 @@ impl PendingUpgradesGroup {
 
     pub fn update(&mut self, msg: PendingUpgradesMessage) -> Task<PendingUpgradesMessage> {
         match msg {
-            PendingUpgradesMessage::Firmware(Ok(upgrades)) => {
-                self.firmware
-                    .load(FirmwareUpgradeList::from_upgrades(upgrades));
-            }
-            PendingUpgradesMessage::Firmware(Err(failure)) => {
-                self.firmware.receive(Err(failure));
-            }
+            PendingUpgradesMessage::Firmware(upgrades) => self.firmware.receive(upgrades),
             PendingUpgradesMessage::OpenTerminal(terminal) => return terminal.open(),
             PendingUpgradesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -86,9 +77,7 @@ impl PendingUpgradesGroup {
             PendingUpgradesMessage::Expansion,
             [
                 has_categories.then(|| GroupItem::reading(self, PendingUpgradesTarget::Summary)),
-                self.firmware
-                    .get()
-                    .map(|firmware| firmware.group_item(config)),
+                self.firmware_upgrade_item(config),
                 self.firmware
                     .failure()
                     .map(|failure| GroupItem::reading(failure, PendingUpgradesTarget::Firmware)),
@@ -99,7 +88,7 @@ impl PendingUpgradesGroup {
     }
 
     fn categories(&self) -> [Option<&dyn BarWidget>; 1] {
-        [self.firmware.display()]
+        [self.firmware.present()]
     }
 }
 
@@ -133,8 +122,10 @@ impl BarWidget for PendingUpgradesGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary(self.firmware.get().map(
-            |firmware| KeyValue::new(firmware_upgrade_list::LABEL, firmware.count().to_string()),
-        ))])
+        TooltipBody::sections(&[Section::untitled_dictionary(
+            self.firmware.present_reading().map(|upgrades| {
+                KeyValue::new(firmware_upgrade_list::LABEL, upgrades.len().to_string())
+            }),
+        )])
     }
 }
