@@ -1,0 +1,200 @@
+use std::{
+    env, fmt, fs, io,
+    path::{Path, PathBuf},
+};
+
+use chrono::Locale;
+use serde::{Deserialize, Serialize};
+use toml::{de, ser};
+
+use super::{
+    calendar::{self, Calendar, CalendarChoice},
+    launched_programs::LaunchedPrograms,
+    notification_toasts::NotificationToastsConfig,
+    panel_bar::PanelBarConfig,
+    theme::{
+        Theme, ThemeChoice,
+        font::{self, FontError},
+    },
+    tooltips::TooltipsConfig,
+    widget_groups::WidgetGroupsConfig,
+};
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub theme: Theme,
+    pub panel_bar: PanelBarConfig,
+    pub tooltips: TooltipsConfig,
+    pub widget_groups: WidgetGroupsConfig,
+    pub notification_toasts: NotificationToastsConfig,
+    pub calendar: Calendar,
+    pub launched_programs: LaunchedPrograms,
+}
+
+impl Config {
+    pub fn fallback() -> Self {
+        UserConfig::default()
+            .resolve()
+            .expect("the default configuration resolves")
+    }
+}
+
+#[derive(Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+struct UserConfig {
+    theme: ThemeChoice,
+    panel_bar: PanelBarConfig,
+    tooltips: TooltipsConfig,
+    widget_groups: WidgetGroupsConfig,
+    notification_toasts: NotificationToastsConfig,
+    calendar: CalendarChoice,
+    launched_programs: LaunchedPrograms,
+}
+
+impl UserConfig {
+    fn resolve(self) -> Result<Config, LoadError> {
+        let locale = match self.calendar.locale {
+            None => calendar::locale_from_environment(),
+            Some(configured) => configured
+                .parse::<Locale>()
+                .map_err(|_| LoadError::UnknownLocale(configured))?,
+        };
+        Ok(Config {
+            theme: Theme {
+                font: font::resolve(&self.theme.font).map_err(LoadError::Font)?,
+                palette: self.theme.palette,
+            },
+            panel_bar: self.panel_bar,
+            tooltips: self.tooltips,
+            widget_groups: self.widget_groups,
+            notification_toasts: self.notification_toasts,
+            calendar: Calendar {
+                locale,
+                other_time_zones: self.calendar.other_time_zones,
+                working_days: self.calendar.working_days,
+            },
+            launched_programs: self.launched_programs,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum LoadError {
+    Unreadable(io::Error),
+    Invalid(de::Error),
+    UnknownLocale(String),
+    Font(FontError),
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unreadable(e) => write!(f, "cannot be read: {e}"),
+            Self::Invalid(e) => write!(f, "{e}"),
+            Self::UnknownLocale(locale) => write!(f, "unknown locale {locale:?}"),
+            Self::Font(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash)]
+pub struct ConfigFile {
+    pub(super) path: PathBuf,
+}
+
+impl ConfigFile {
+    pub fn in_config_home(config_home: &Path) -> Self {
+        Self {
+            path: config_home.join("vetrata.toml"),
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn load(&self) -> Result<Config, LoadError> {
+        self.read()?.resolve()
+    }
+
+    fn read(&self) -> Result<UserConfig, LoadError> {
+        match fs::read_to_string(&self.path) {
+            Ok(text) => toml::from_str(&text).map_err(LoadError::Invalid),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(UserConfig::default()),
+            Err(e) => Err(LoadError::Unreadable(e)),
+        }
+    }
+}
+
+pub fn default_config_toml() -> Result<String, ser::Error> {
+    toml::to_string(&UserConfig::default())
+}
+
+pub fn config_home() -> PathBuf {
+    env::var_os("XDG_CONFIG_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            env::var_os("HOME")
+                .filter(|value| !value.is_empty())
+                .map(|home| PathBuf::from(home).join(".config"))
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{env, fs, process};
+
+    use chrono_tz::Asia;
+
+    use super::{ConfigFile, LoadError, UserConfig, default_config_toml};
+
+    fn file_containing(test: &str, toml: &str) -> ConfigFile {
+        let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("vetrata.toml"), toml).unwrap();
+        ConfigFile::in_config_home(&directory)
+    }
+
+    #[test]
+    fn keys_from_before_the_rename_are_rejected() {
+        let file = file_containing("old-keys", "[chrome]\nouter_height_px = 28.0\n");
+        let error = file.load().unwrap_err();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert!(matches!(error, LoadError::Invalid(_)));
+        assert!(error.to_string().contains("chrome"));
+    }
+
+    #[test]
+    fn other_time_zones_default_to_shanghai_and_parse_as_iana_names() {
+        let zones = |toml: &str| file_containing("zone", &format!("[calendar]\n{toml}\n")).read();
+        let configured = zones("other_time_zones = [\"Asia/Tokyo\"]");
+        let emptied = zones("other_time_zones = []");
+        let unknown = zones("other_time_zones = [\"Mars/Olympus\"]");
+        let file = file_containing("zone", "");
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert_eq!(
+            UserConfig::default().calendar.other_time_zones,
+            [Asia::Shanghai]
+        );
+        assert_eq!(configured.unwrap().calendar.other_time_zones, [Asia::Tokyo]);
+        assert!(emptied.unwrap().calendar.other_time_zones.is_empty());
+        assert!(matches!(unknown, Err(LoadError::Invalid(_))));
+    }
+
+    #[test]
+    fn an_unknown_locale_is_rejected_with_its_name() {
+        let file = file_containing("locale", "[calendar]\nlocale = \"xx_nowhere\"\n");
+        let error = file.load().unwrap_err();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert!(matches!(error, LoadError::UnknownLocale(ref name) if name == "xx_nowhere"));
+    }
+
+    #[test]
+    fn the_printed_default_config_reads_back_unchanged() {
+        let printed = default_config_toml().unwrap();
+        let read_back: UserConfig = toml::from_str(&printed).unwrap();
+        assert_eq!(toml::to_string(&read_back).unwrap(), printed);
+    }
+}
