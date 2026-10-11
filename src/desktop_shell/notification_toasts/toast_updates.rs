@@ -224,8 +224,19 @@ impl NotificationLayer {
         error: &LoadError,
         context: &ToastContext,
     ) -> Task<Message> {
+        let message = escape(error.message()).into_owned();
+        let body = match error.offending_line() {
+            Some(line) => format!(
+                "{message}<pre>{} {}<u>{}</u>{}</pre>",
+                line.number,
+                escape(line.before),
+                escape(line.offending),
+                escape(line.after),
+            ),
+            None => message,
+        };
         let data = NotificationData {
-            body: Some(format!("<pre>{}</pre>", escape(error.to_string()))),
+            body: Some(body),
             severity: Severity::Critical,
             expire_timeout: ExpireTimeout::Never,
             ..NotificationData::from_shell(

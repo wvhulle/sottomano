@@ -97,15 +97,16 @@ struct LoadingText<'a, Message> {
 }
 
 impl<Message> LoadingText<'_, Message> {
-    fn decode_settle(&self) -> Duration {
-        self.loading.decode.settle
+    fn settled(&self, state: &State) -> bool {
+        self.settles && state.elapsed() >= self.loading.reveal_duration
     }
 
-    fn settled(&self, state: &State) -> bool {
-        match self.loading.effect {
-            TooltipLoadingEffect::Decode => self.settles && state.elapsed() >= self.decode_settle(),
-            TooltipLoadingEffect::Skeleton => self.settles,
+    fn revealed(&self, state: &State) -> f32 {
+        if !self.settles {
+            return 0.0;
         }
+        let reveal = self.loading.reveal_duration.as_secs_f32().max(f32::EPSILON);
+        (state.elapsed().as_secs_f32() / reveal).clamp(0.0, 1.0)
     }
 
     fn line_height(&self) -> f32 {
@@ -147,7 +148,7 @@ impl<Message> LoadingText<'_, Message> {
         let elapsed = state.elapsed();
         let glyph_change = self.loading.decode.glyph_change.as_millis().max(1);
         let frame = (elapsed.as_millis() / glyph_change) as u64;
-        let settle = self.decode_settle();
+        let settle = self.loading.reveal_duration;
         self.lines.iter().enumerate().for_each(|(row, line)| {
             let seed = fnv(line.as_bytes());
             let length = line.chars().count().max(1);
@@ -178,28 +179,47 @@ impl<Message> LoadingText<'_, Message> {
             .as_secs_f32()
             .max(f32::EPSILON);
         let phase = 0.5 - (elapsed / period * TAU).cos() * 0.5;
-        let color = Color {
-            a: self.color.a * (0.06 + 0.26 * phase),
+        let revealed = self.revealed(state);
+        let bar_color = Color {
+            a: self.color.a * (0.06 + 0.26 * phase) * (1.0 - revealed),
             ..self.color
         };
         let line_height = self.line_height();
         let bar_height = line_height * 0.7;
         let longest = self.lines.iter().map(String::len).max().unwrap_or(1) as f32;
-        self.lines.iter().enumerate().for_each(|(row, line)| {
+        let bar_widths: Vec<f32> = if self.settles {
+            let rows = ((area.height / line_height).round() as usize).max(1);
+            vec![area.width; rows]
+        } else {
+            self.lines
+                .iter()
+                .map(|line| area.width * line.len() as f32 / longest)
+                .collect()
+        };
+        bar_widths.iter().enumerate().for_each(|(row, width)| {
             renderer.fill_quad(
                 Quad {
                     bounds: Rectangle {
                         x: area.x,
                         y: area.y + row as f32 * line_height + (line_height - bar_height) / 2.0,
-                        width: area.width * line.len() as f32 / longest,
+                        width: *width,
                         height: bar_height,
                     },
                     border: Border::default().rounded(bar_height / 4.0),
                     ..Quad::default()
                 },
-                Background::Color(color),
+                Background::Color(bar_color),
             );
         });
+        if self.settles {
+            let text_color = Color {
+                a: self.color.a * revealed,
+                ..self.color
+            };
+            self.lines.iter().for_each(|line| {
+                self.fill_line(renderer, line.clone(), area.position(), area, text_color);
+            });
+        }
     }
 }
 

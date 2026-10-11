@@ -26,14 +26,28 @@ impl Default for TooltipsConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TooltipLoading {
     pub effect: TooltipLoadingEffect,
     #[serde(with = "humantime_serde")]
     pub debug_delay: Duration,
+    #[serde(with = "humantime_serde")]
+    pub reveal_duration: Duration,
     pub decode: DecodeTiming,
     pub skeleton: SkeletonTiming,
+}
+
+impl Default for TooltipLoading {
+    fn default() -> Self {
+        Self {
+            effect: TooltipLoadingEffect::default(),
+            debug_delay: Duration::ZERO,
+            reveal_duration: Duration::from_millis(700),
+            decode: DecodeTiming::default(),
+            skeleton: SkeletonTiming::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -48,15 +62,12 @@ pub enum TooltipLoadingEffect {
 #[serde(default, deny_unknown_fields)]
 pub struct DecodeTiming {
     #[serde(with = "humantime_serde")]
-    pub settle: Duration,
-    #[serde(with = "humantime_serde")]
     pub glyph_change: Duration,
 }
 
 impl Default for DecodeTiming {
     fn default() -> Self {
         Self {
-            settle: Duration::from_millis(700),
             glyph_change: Duration::from_millis(55),
         }
     }
