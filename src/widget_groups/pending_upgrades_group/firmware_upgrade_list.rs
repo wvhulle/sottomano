@@ -1,6 +1,7 @@
 use crate::{
     config::Config,
     data::{
+        notifications::model::ActionTint,
         severity::Severity,
         source::fwupd::{FirmwareUpgrade, Urgency},
     },
@@ -44,6 +45,7 @@ impl FirmwareUpgradeList {
             .on_press("run fwupdmgr update in a terminal", install.clone())
             .alert_action_buttons([ReadingAlertActionButton {
                 button_label: "Install".to_owned(),
+                tint: ActionTint::Proceed,
                 on_button_pressed: install,
             }])
     }

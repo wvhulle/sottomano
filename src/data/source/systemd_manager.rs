@@ -83,6 +83,7 @@ trait Manager {
     fn list_units_filtered(&self, states: &[&str]) -> zbus::Result<Vec<UnitRow>>;
     fn list_jobs(&self) -> zbus::Result<Vec<JobRow>>;
     fn subscribe(&self) -> zbus::Result<()>;
+    fn restart_unit(&self, name: &str, mode: &str) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
     fn firmware_timestamp_monotonic(&self) -> zbus::Result<u64>;
     #[zbus(property)]

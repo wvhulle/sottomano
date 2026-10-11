@@ -1,6 +1,9 @@
 use crate::{
     config::Config,
-    data::source::coredumps::{CoredumpEntry, CoredumpInspection, Coredumps},
+    data::{
+        notifications::model::ActionTint,
+        source::coredumps::{CoredumpEntry, CoredumpInspection, Coredumps},
+    },
     widget_groups::{
         systemd_manager_group::{SystemdManagerMessage, SystemdTarget},
         terminal_command::TerminalCommand,
@@ -64,15 +67,18 @@ impl CoredumpEntry {
             .clone()
             .map(|file| ReadingAlertActionButton {
                 button_label: "Copy path".to_owned(),
+                tint: ActionTint::Inspect,
                 on_button_pressed: SystemdManagerMessage::CopyCoredumpPath(file),
             });
         [
             ReadingAlertActionButton {
                 button_label: "Info".to_owned(),
+                tint: ActionTint::Inspect,
                 on_button_pressed: inspect(CoredumpInspection::Info),
             },
             ReadingAlertActionButton {
                 button_label: "Debug".to_owned(),
+                tint: ActionTint::Inspect,
                 on_button_pressed: inspect(CoredumpInspection::Debug),
             },
         ]

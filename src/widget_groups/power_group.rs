@@ -12,12 +12,15 @@ use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 
 use crate::{
     config::Config,
-    data::source::{
-        Source,
-        sysfs_sensors::{
-            self,
-            battery::{self, Battery},
-            cpu_tuning::CpuTuning,
+    data::{
+        notifications::model::ActionTint,
+        source::{
+            Source,
+            sysfs_sensors::{
+                self,
+                battery::{self, Battery},
+                cpu_tuning::CpuTuning,
+            },
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
@@ -178,6 +181,7 @@ impl PowerGroup {
                 .profiles_saving_more_power()
                 .map(|profile| ReadingAlertActionButton {
                     button_label: profile.title().to_owned(),
+                    tint: ActionTint::Proceed,
                     on_button_pressed: PowerMessage::PowerProfile(
                         PowerProfileMessage::SwitchToProfile(profile),
                     ),

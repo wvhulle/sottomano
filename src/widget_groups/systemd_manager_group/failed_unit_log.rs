@@ -4,10 +4,13 @@ use chrono::{DateTime, Local, Locale};
 
 use crate::{
     config::Config,
-    data::source::{
-        coredumps::CoredumpEntry,
-        systemd_manager::failed_units::{
-            Failed, FailedUnitInfo, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+    data::{
+        notifications::model::ActionTint,
+        source::{
+            coredumps::CoredumpEntry,
+            systemd_manager::failed_units::{
+                Failed, FailedUnitInfo, FailedUnitRestart, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+            },
         },
     },
     widget_groups::{
@@ -18,7 +21,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::TimePart,
-        reading_alert::ReadingAlert,
+        reading_alert::{ReadingAlert, ReadingAlertActionButton},
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -50,11 +53,21 @@ impl<S: ScopeAppearance> Failed<S> {
                 config,
                 S::follow_units_log_args([unit.name.as_str()]),
             )),
-            action_buttons: unit
-                .crash
-                .iter()
-                .flat_map(|crash| crash.action_buttons(config))
-                .collect(),
+            action_buttons: [ReadingAlertActionButton {
+                button_label: "Restart".to_owned(),
+                tint: ActionTint::Proceed,
+                on_button_pressed: SystemdManagerMessage::RestartFailedUnit(FailedUnitRestart {
+                    per_user: S::PER_USER,
+                    unit: unit.name.clone(),
+                }),
+            }]
+            .into_iter()
+            .chain(
+                unit.crash
+                    .iter()
+                    .flat_map(|crash| crash.action_buttons(config)),
+            )
+            .collect(),
         })
     }
 }

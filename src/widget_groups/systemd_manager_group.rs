@@ -22,7 +22,7 @@ use crate::{
         systemd_manager::{
             System, UnitScope, User,
             boot_timeline::{BootTimeline, boot_timeline_stream},
-            failed_units::{Failed, failed_stream},
+            failed_units::{Failed, FailedUnitRestart, failed_stream},
             running_jobs::{SlowJobs, slow_jobs_stream},
         },
     },
@@ -146,6 +146,7 @@ pub enum SystemdManagerMessage {
     Coredumps(Option<Coredumps>),
     OomKills(Option<OomKills>),
     OpenLog(TerminalJournal),
+    RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
     CopyCoredumpPath(PathBuf),
     Expansion(ExpansionMessage),
@@ -207,6 +208,9 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::Coredumps(reading) => self.coredumps.load(reading),
             SystemdManagerMessage::OomKills(reading) => self.oom_kills.load(reading),
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
+            SystemdManagerMessage::RestartFailedUnit(restart) => {
+                return Task::future(restart.apply()).discard();
+            }
             SystemdManagerMessage::InspectCoredump(command) => return command.open(),
             SystemdManagerMessage::CopyCoredumpPath(path) => {
                 return copy_to_clipboard(path.display().to_string());
