@@ -75,6 +75,29 @@ impl<S: UnitScope> Failed<S> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct FailedUnitRestart {
+    pub per_user: bool,
+    pub unit: String,
+}
+
+impl FailedUnitRestart {
+    pub async fn apply(self) {
+        if let Err(e) = self.restart().await {
+            tracing::warn!("systemd: restarting {} failed: {e}", self.unit);
+        }
+    }
+
+    async fn restart(&self) -> zbus::Result<()> {
+        let connection = connect(self.per_user).await?;
+        ManagerProxy::new(&connection)
+            .await?
+            .restart_unit(&self.unit, "replace")
+            .await?;
+        Ok(())
+    }
+}
+
 pub fn failed_stream(per_user: bool) -> impl Stream<Item = Vec<FailedUnitInfo>> {
     restarting("systemd failed units", move || watch_failed(per_user))
 }

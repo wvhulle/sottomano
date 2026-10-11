@@ -17,7 +17,9 @@ use super::{Notification, NotificationMessage, body_markup, toast_reply::ReplyMe
 use crate::{
     config::{Config, Palette, toasts::ToastCardSizeConfig},
     data::{
-        notifications::model::{NotifAction, NotifImage, NotificationData, ReplyPrompt},
+        notifications::model::{
+            ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
+        },
         severity::Severity,
         source::app_icon::DesktopEntries,
     },
@@ -351,7 +353,7 @@ impl ToastCard<'_> {
                     id,
                     key: action.key.clone(),
                 },
-                action_tint(&action.key, palette),
+                action.tint.color(palette),
                 text,
             )
         });
@@ -540,11 +542,14 @@ fn icon_widget<'a>(
     }
 }
 
-fn action_tint(key: &str, palette: &Palette) -> Color {
-    match key {
-        "quit" | "deny" | "end" | "reject" => palette.urgent,
-        "stop" | "cancel" | "later" | "snooze" => palette.warning,
-        _ => palette.success,
+impl ActionTint {
+    fn color(self, palette: &Palette) -> Color {
+        match self {
+            ActionTint::Proceed => palette.success,
+            ActionTint::Hold => palette.warning,
+            ActionTint::Refuse => palette.urgent,
+            ActionTint::Inspect => palette.info,
+        }
     }
 }
 

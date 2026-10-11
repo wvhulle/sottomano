@@ -203,10 +203,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             alert_action_buttons: self
                 .alert_action_buttons
                 .into_iter()
-                .map(|button| ReadingAlertActionButton {
-                    button_label: button.button_label,
-                    on_button_pressed: lift(button.on_button_pressed),
-                })
+                .map(|button| button.map_message(lift))
                 .collect(),
             alerts: self
                 .alerts
@@ -257,12 +254,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .map(|alert| {
                 self.alert_action_buttons
                     .iter()
-                    .fold(alert, |alert, button| {
-                        alert.with_action_button(
-                            button.button_label.clone(),
-                            button.on_button_pressed.clone(),
-                        )
-                    })
+                    .cloned()
+                    .fold(alert, ReadingAlert::with_action_button)
             })
             .into_iter()
             .chain(self.alerts.iter().cloned())

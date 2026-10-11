@@ -24,10 +24,29 @@ impl ExpireTimeout {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionTint {
+    Proceed,
+    Hold,
+    Refuse,
+    Inspect,
+}
+
+impl From<&str> for ActionTint {
+    fn from(action_key: &str) -> Self {
+        match action_key {
+            "quit" | "deny" | "end" | "reject" => ActionTint::Refuse,
+            "stop" | "cancel" | "later" | "snooze" => ActionTint::Hold,
+            _ => ActionTint::Proceed,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NotifAction {
     pub key: String,
     pub label: String,
+    pub tint: ActionTint,
 }
 
 #[derive(Debug, Clone)]

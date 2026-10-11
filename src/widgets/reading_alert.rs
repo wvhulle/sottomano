@@ -4,7 +4,7 @@ use chrono::Locale;
 
 use crate::{
     data::{
-        notifications::model::{ExpireTimeout, NotifAction, NotificationData},
+        notifications::model::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
         severity::Severity,
     },
     desktop_shell::hover_tooltips::HoverTarget,
@@ -17,7 +17,21 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ReadingAlertActionButton<Message> {
     pub button_label: String,
+    pub tint: ActionTint,
     pub on_button_pressed: Message,
+}
+
+impl<Message> ReadingAlertActionButton<Message> {
+    pub fn map_message<Lifted>(
+        self,
+        lift: impl Fn(Message) -> Lifted,
+    ) -> ReadingAlertActionButton<Lifted> {
+        ReadingAlertActionButton {
+            button_label: self.button_label,
+            tint: self.tint,
+            on_button_pressed: lift(self.on_button_pressed),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -71,15 +85,8 @@ impl<Message> ReadingAlert<Message> {
     }
 
     #[must_use]
-    pub fn with_action_button(
-        mut self,
-        button_label: impl Into<String>,
-        on_button_pressed: Message,
-    ) -> Self {
-        self.action_buttons.push(ReadingAlertActionButton {
-            button_label: button_label.into(),
-            on_button_pressed,
-        });
+    pub fn with_action_button(mut self, button: ReadingAlertActionButton<Message>) -> Self {
+        self.action_buttons.push(button);
         self
     }
 
@@ -94,10 +101,7 @@ impl<Message> ReadingAlert<Message> {
             action_buttons: self
                 .action_buttons
                 .into_iter()
-                .map(|button| ReadingAlertActionButton {
-                    button_label: button.button_label,
-                    on_button_pressed: lift(button.on_button_pressed),
-                })
+                .map(|button| button.map_message(&lift))
                 .collect(),
         }
     }
@@ -119,6 +123,7 @@ impl<Message> ReadingAlert<Message> {
                 .map(|(index, button)| NotifAction {
                     key: index.to_string(),
                     label: button.button_label.clone(),
+                    tint: button.tint,
                 })
                 .collect(),
             severity: self.severity,
@@ -207,12 +212,20 @@ mod tests {
         assert!(alert_for(WidgetState::Failed, FROM_WARNING).is_none());
     }
 
+    fn proceed_button(button_label: &str, on_button_pressed: u8) -> ReadingAlertActionButton<u8> {
+        ReadingAlertActionButton {
+            button_label: button_label.to_owned(),
+            tint: ActionTint::Proceed,
+            on_button_pressed,
+        }
+    }
+
     #[test]
     fn mapping_messages_keeps_the_body_message_and_the_action_buttons() {
         let alert = alert_for(WidgetState::Warning, FROM_WARNING)
             .expect("warning reading alerts")
-            .with_action_button("first", 1)
-            .with_action_button("second", 2)
+            .with_action_button(proceed_button("first", 1))
+            .with_action_button(proceed_button("second", 2))
             .map_messages(|message| u16::from(message) * 10);
         assert_eq!(alert.on_body_clicked, 0);
         assert_eq!(alert.action_button_pressed("1"), Some(&20));

@@ -17,7 +17,8 @@ use zbus::{
 };
 
 use super::model::{
-    ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt, ServerEvent,
+    ActionTint, ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt,
+    ServerEvent,
 };
 use crate::data::{empty_text::non_empty, severity::Severity, source::bus::OwnerProcess};
 
@@ -236,6 +237,7 @@ fn parse_actions(actions: &[String]) -> Vec<NotifAction> {
         .map(|pair| NotifAction {
             key: pair[0].clone(),
             label: pair[1].clone(),
+            tint: ActionTint::from(pair[0].as_str()),
         })
         .collect()
 }
@@ -354,7 +356,7 @@ mod tests {
     use uom::si::{f64::Ratio, ratio::percent};
     use zbus::zvariant::{OwnedValue, Str};
 
-    use super::{NotifAction, ReplyPrompt, clamped_progress, reply_prompt};
+    use super::{ActionTint, NotifAction, ReplyPrompt, clamped_progress, reply_prompt};
 
     #[test]
     fn progress_hint_is_clamped_to_percent_range() {
@@ -368,6 +370,7 @@ mod tests {
         NotifAction {
             key: "inline-reply".to_owned(),
             label: "Reply".to_owned(),
+            tint: ActionTint::Proceed,
         }
     }
 
