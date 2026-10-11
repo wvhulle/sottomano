@@ -1,4 +1,4 @@
-use iced::futures::{Stream, try_join};
+use iced::futures::{Stream, StreamExt, try_join};
 use uom::si::f64::{Frequency, InformationRate};
 use zbus::Connection;
 
@@ -15,6 +15,16 @@ pub struct Link {
     pub signal: i64,
     pub frequency: Frequency,
     pub security: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct Wifi {
+    pub device: String,
+    pub link: Option<Link>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Addressing {
     pub mac: String,
     pub ipv4: Option<nm::AddressBlock>,
     pub ipv6: Option<nm::AddressBlock>,
@@ -24,60 +34,74 @@ pub struct Link {
 }
 
 #[derive(Debug, Clone)]
-pub struct Wifi {
-    pub device: String,
+pub struct WifiDetails {
     pub adapter: Option<Adapter>,
-    pub link: Option<Link>,
+    pub addressing: Option<Addressing>,
 }
 
-impl Wifi {
-    fn unlinked(device: nm::DeviceInfo) -> Self {
-        Wifi {
-            adapter: Adapter::of_net_interface(&device.interface),
-            device: device.interface,
-            link: None,
-        }
-    }
-}
-
-async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
-    let device = nm::devices(&connection)
+async fn wifi_device(connection: &Connection) -> Result<nm::DeviceInfo, ReadingError> {
+    nm::devices(connection)
         .await?
         .into_iter()
         .find(|device| device.kind == nm::DeviceKind::Wifi)
-        .ok_or(ReadingError::Absent)?;
-    if !device.connected {
-        return Ok(Wifi::unlinked(device));
-    }
-    let ap_path = nm::active_access_point(&connection, &device).await?;
-    if nm::is_unset(&ap_path) {
-        return Ok(Wifi::unlinked(device));
-    }
-    let ap = nm::access_point(&connection, ap_path).await?;
-    let (ip, mac, bitrate, mtu) = try_join!(
-        nm::ip(&connection, &device),
-        nm::hw_address(&device),
-        nm::wireless_rate(&connection, &device),
-        nm::mtu(&device)
-    )?;
+        .ok_or(ReadingError::Absent)
+}
+
+async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
+    let device = wifi_device(&connection).await?;
+    let ap_path = if device.connected {
+        Some(nm::active_access_point(&connection, &device).await?)
+    } else {
+        None
+    };
+    let link = match ap_path.filter(|path| !nm::is_unset(path)) {
+        Some(path) => {
+            let ap = nm::access_point(&connection, path).await?;
+            Some(Link {
+                ssid: ap.ssid,
+                signal: ap.signal,
+                frequency: ap.frequency,
+                security: ap.security,
+            })
+        }
+        None => None,
+    };
     Ok(Wifi {
-        adapter: Adapter::of_net_interface(&device.interface),
         device: device.interface,
-        link: Some(Link {
-            ssid: ap.ssid,
-            signal: ap.signal,
-            frequency: ap.frequency,
-            security: ap.security,
+        link,
+    })
+}
+
+async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingError> {
+    let device = wifi_device(&connection).await?;
+    let addressing = if device.connected {
+        let (ip, mac, bitrate, mtu) = try_join!(
+            nm::ip(&connection, &device),
+            nm::hw_address(&device),
+            nm::wireless_rate(&connection, &device),
+            nm::mtu(&device)
+        )?;
+        Some(Addressing {
             mac,
             ipv4: ip.v4,
             ipv6: ip.v6,
             dns: ip.dns,
             bitrate,
             mtu,
-        }),
+        })
+    } else {
+        None
+    };
+    Ok(WifiDetails {
+        adapter: Adapter::of_net_interface(&device.interface),
+        addressing,
     })
 }
 
 pub fn readings() -> impl Stream<Item = Option<Wifi>> {
     nm_readings(NAME, read)
+}
+
+pub fn details() -> impl Stream<Item = Result<WifiDetails, &'static str>> {
+    nm_readings("wifi details", read_details).map(|details| details.ok_or("no Wi-Fi device"))
 }

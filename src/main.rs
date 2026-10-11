@@ -44,13 +44,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map_or_else(|_| Config::fallback(), Config::clone);
     let loaded = loaded.map(Box::new).map_err(Arc::new);
 
+    let wayland = wayland_client::Connection::connect_to_env()
+        .inspect_err(|e| {
+            tracing::error!("wayland: no connection, outputs will not be tracked: {e}")
+        })
+        .ok();
     let wl_settings = ExWlSettings {
         layer_settings: LayerShellSettings {
             start_mode: StartMode::Background,
             ..Default::default()
         },
-        with_connection: message_subscriptions::wayland_connection()
-            .map(|connection| connection.clone().into()),
+        with_connection: wayland.clone().map(Into::into),
         ..Default::default()
     };
     let default_font = config.theme.font.iced_font;
@@ -59,6 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     daemon(
         move || {
             DesktopShell::new(
+                wayland.clone(),
                 config.clone(),
                 config_file.clone(),
                 secrets.clone(),

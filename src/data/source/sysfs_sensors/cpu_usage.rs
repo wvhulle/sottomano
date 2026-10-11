@@ -6,7 +6,6 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use super::{
     Error, cpu_core_index,
     cpu_idle::{CoreDeepIdle, IdleSnapshot},
-    cpu_topology::CpuTopology,
 };
 use crate::data::source::Source;
 
@@ -23,9 +22,12 @@ pub struct CoreLoad {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuUsage {
     pub busy: Ratio,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CpuCoreLoads {
     pub cores: Vec<CoreLoad>,
     pub deep_idle: Vec<CoreDeepIdle>,
-    pub topology: CpuTopology,
 }
 
 impl Source for CpuUsage {
@@ -43,14 +45,39 @@ impl Source for CpuUsage {
     }
 }
 
+impl Source for CpuCoreLoads {
+    type Error = Error;
+
+    type Key = ();
+
+    const NAME: &'static str = "cpu cores";
+    const INTERVAL: Duration = Duration::from_secs(3);
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        spawn_blocking(read_core_loads)
+            .await
+            .map_err(|_| Error::Panicked)?
+    }
+}
+
+fn unreadable() -> Error {
+    Error::Unreadable(CPU_STAT.to_owned())
+}
+
 fn read_cpu_usage() -> Result<CpuUsage, Error> {
-    let unreadable = || Error::Unreadable(CPU_STAT.to_owned());
     let sample = CpuStatSample::take().ok_or_else(unreadable)?;
     Ok(CpuUsage {
         busy: sample.busy_fraction().ok_or_else(unreadable)?,
+    })
+}
+
+fn read_core_loads() -> Result<CpuCoreLoads, Error> {
+    let earlier_idle = IdleSnapshot::read();
+    let sample = CpuStatSample::take().ok_or_else(unreadable)?;
+    let later_idle = IdleSnapshot::read();
+    Ok(CpuCoreLoads {
         cores: sample.core_loads(),
-        deep_idle: sample.later_idle.deep_idle_since(&sample.earlier_idle),
-        topology: CpuTopology::current(),
+        deep_idle: later_idle.deep_idle_since(&earlier_idle),
     })
 }
 
@@ -175,23 +202,14 @@ impl CpuStat {
 struct CpuStatSample {
     earlier: CpuStat,
     later: CpuStat,
-    earlier_idle: IdleSnapshot,
-    later_idle: IdleSnapshot,
 }
 
 impl CpuStatSample {
     fn take() -> Option<Self> {
-        let earlier_idle = IdleSnapshot::read();
         let earlier = CpuStat::read()?;
         thread::sleep(SAMPLE_GAP);
-        let later_idle = IdleSnapshot::read();
         let later = CpuStat::read()?;
-        Some(CpuStatSample {
-            earlier,
-            later,
-            earlier_idle,
-            later_idle,
-        })
+        Some(CpuStatSample { earlier, later })
     }
 
     fn busy_fraction(&self) -> Option<Ratio> {
@@ -231,8 +249,6 @@ intr 12400
         CpuStatSample {
             earlier: CpuStat::parse(EARLIER).unwrap(),
             later: CpuStat::parse(LATER).unwrap(),
-            earlier_idle: IdleSnapshot::read(),
-            later_idle: IdleSnapshot::read(),
         }
     }
 

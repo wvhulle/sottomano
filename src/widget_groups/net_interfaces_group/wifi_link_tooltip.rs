@@ -4,7 +4,7 @@ use uom::{
 };
 
 use crate::{
-    data::source::net_interfaces::wifi::Wifi,
+    data::source::net_interfaces::wifi::{Wifi, WifiDetails},
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section, signal_level,
     },
@@ -38,40 +38,57 @@ impl BarWidget for Wifi {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let hardware = self.adapter.hardware_section();
         let Some(link) = &self.link else {
-            return TooltipBody::sections(&[
-                Section::untitled_dictionary([KeyValue::new("WiFi", "disconnected")]),
-                hardware,
-            ]);
+            return TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+                "WiFi",
+                "disconnected",
+            )])]);
         };
-        let key = |label: &str| label.to_string();
-        TooltipBody::sections(&[
-            Section::dictionary(
-                "Identity",
-                link.ssid
-                    .as_deref()
-                    .map(|ssid| KeyValue::new("Network Name (SSID)", ssid))
-                    .into_iter()
-                    .chain([
-                        KeyValue::new("Signal Strength", format!("{}%", link.signal)),
-                        KeyValue::new("Security Type", link.security.as_str()),
-                        KeyValue::new(
-                            "Frequency Band",
-                            format!(
-                                "{:.0}",
-                                link.frequency.into_format_args(megahertz, Abbreviation)
-                            ),
+        TooltipBody::sections(&[Section::dictionary(
+            "Identity",
+            link.ssid
+                .as_deref()
+                .map(|ssid| KeyValue::new("Network Name (SSID)", ssid))
+                .into_iter()
+                .chain([
+                    KeyValue::new("Signal Strength", format!("{}%", link.signal)),
+                    KeyValue::new("Security Type", link.security.as_str()),
+                    KeyValue::new(
+                        "Frequency Band",
+                        format!(
+                            "{:.0}",
+                            link.frequency.into_format_args(megahertz, Abbreviation)
                         ),
-                        KeyValue::new("Interface Name", self.device.as_str()),
-                        KeyValue::new("MAC Address", link.mac.as_str()),
-                    ]),
-            ),
-            address_section(&key, "IPv4", link.ipv4.as_ref()),
-            address_section(&key, "IPv6", link.ipv6.as_ref()),
-            dns_section(&key, &link.dns),
-            link_stats_section(&key, "Radio", "Radio Speed", link.bitrate, link.mtu),
-            hardware,
-        ])
+                    ),
+                    KeyValue::new("Interface Name", self.device.as_str()),
+                ]),
+        )])
+    }
+}
+
+impl WifiDetails {
+    pub fn sections(&self) -> Vec<Section> {
+        let key = |label: &str| label.to_string();
+        let addressing = self.addressing.iter().flat_map(|addressing| {
+            [
+                Section::untitled_dictionary([KeyValue::new(
+                    "MAC Address",
+                    addressing.mac.as_str(),
+                )]),
+                address_section(&key, "IPv4", addressing.ipv4.as_ref()),
+                address_section(&key, "IPv6", addressing.ipv6.as_ref()),
+                dns_section(&key, &addressing.dns),
+                link_stats_section(
+                    &key,
+                    "Radio",
+                    "Radio Speed",
+                    addressing.bitrate,
+                    addressing.mtu,
+                ),
+            ]
+        });
+        addressing
+            .chain([self.adapter.hardware_section()])
+            .collect()
     }
 }

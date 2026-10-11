@@ -5,7 +5,6 @@ use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::kelvin};
 
 use super::{
     CPU_FREQ, Error, cpu_core_index,
-    cpu_topology::CpuTopology,
     hwmon::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
     list_dir, read_trimmed,
 };
@@ -36,10 +35,30 @@ pub struct CoreTemperature {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub readings: Vec<TempReading>,
-    pub cores: Vec<CoreTemperature>,
     pub throttle_limit: Option<ThermodynamicTemperature>,
     pub overrides: ThresholdOverrides,
-    pub topology: CpuTopology,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CpuCoreTemperatures {
+    pub cores: Vec<CoreTemperature>,
+}
+
+impl Source for CpuCoreTemperatures {
+    type Error = Error;
+
+    type Key = ThresholdOverrides;
+
+    const NAME: &'static str = "cpu core temperatures";
+    const INTERVAL: Duration = Duration::from_secs(5);
+
+    async fn poll(overrides: ThresholdOverrides) -> Result<Self, Self::Error> {
+        spawn_blocking(move || CpuCoreTemperatures {
+            cores: core_temperatures(overrides),
+        })
+        .await
+        .map_err(|_| Error::Panicked)
+    }
 }
 
 impl Temperature {
@@ -95,9 +114,7 @@ fn read_temperature(config: &SensorConfig) -> Result<Temperature, Error> {
     Ok(Temperature {
         throttle_limit: throttle_limit(&readings),
         readings,
-        cores: core_temperatures(config.overrides()),
         overrides: config.overrides(),
-        topology: CpuTopology::current(),
     })
 }
 

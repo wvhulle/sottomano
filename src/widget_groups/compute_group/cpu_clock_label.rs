@@ -7,7 +7,10 @@ use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
+        source::sysfs_sensors::{
+            cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
+            cpu_topology::CpuTopology,
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -77,17 +80,17 @@ impl BarWidget for CpuClock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(
-            &[
-                vec![self.frequency_section()],
-                sections_by_core_kind(
-                    &self.topology,
-                    self.cores.clone(),
-                    ["Clock", "Cap"],
-                    CoreFreq::table_record,
-                ),
-            ]
-            .concat(),
+        TooltipBody::sections(&[self.frequency_section()])
+    }
+}
+
+impl CpuClock {
+    pub fn core_sections(&self, topology: &CpuTopology) -> Vec<Section> {
+        sections_by_core_kind(
+            topology,
+            self.cores.clone(),
+            ["Clock", "Cap"],
+            CoreFreq::table_record,
         )
     }
 }

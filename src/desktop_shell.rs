@@ -88,6 +88,7 @@ use crate::{
 };
 
 pub struct DesktopShell {
+    pub(crate) wayland: Option<wayland_client::Connection>,
     pub(crate) config_file: ConfigFile,
     pub(crate) config: Config,
     pub(crate) theme: iced::Theme,
@@ -210,6 +211,7 @@ impl From<GroupEvent<Message>> for Message {
 
 impl DesktopShell {
     pub fn new(
+        wayland: Option<wayland_client::Connection>,
         config: Config,
         config_file: ConfigFile,
         secrets: SecretPaths,
@@ -262,6 +264,7 @@ impl DesktopShell {
             font_fallbacks: FontFallbacks::default(),
             shell_settings: ShellSettings::default(),
             theme: iced::Theme::from(&config.theme.palette),
+            wayland,
             config,
             config_file,
         };

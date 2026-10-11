@@ -35,7 +35,7 @@ impl CpuTopology {
         self.kinds.get(&core).copied().unwrap_or(CoreKind::Uniform)
     }
 
-    pub(super) fn current() -> Self {
+    pub fn detect() -> Self {
         Self::intel_hybrid()
             .or_else(Self::arm_hybrid)
             .unwrap_or_default()

@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 
-use super::{CPU_FREQ, Error, core_freqs, cpu_topology::CpuTopology};
+use super::{CPU_FREQ, Error, core_freqs};
 use crate::data::source::Source;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,7 +42,6 @@ pub struct CoreFreq {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuClock {
     pub cores: Vec<CoreFreq>,
-    pub topology: CpuTopology,
 }
 
 impl CpuClock {
@@ -97,10 +96,7 @@ fn read_cpu_clock() -> Result<CpuClock, Error> {
     if cores.is_empty() {
         return Err(Error::Unreadable(CPU_FREQ.to_owned()));
     }
-    Ok(CpuClock {
-        cores,
-        topology: CpuTopology::current(),
-    })
+    Ok(CpuClock { cores })
 }
 
 #[cfg(test)]
