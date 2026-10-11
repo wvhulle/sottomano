@@ -136,6 +136,8 @@ pub enum SectionBody {
         root: Process,
         folding: Folding,
     },
+    Pending,
+    Resolved(Vec<Section>),
 }
 
 impl SectionBody {
@@ -153,7 +155,10 @@ impl SectionBody {
         match self {
             SectionBody::Dictionary(entries) => entries.is_empty(),
             SectionBody::ColumnTable { records, .. } => records.is_empty(),
-            SectionBody::Tree { .. } => false,
+            SectionBody::Tree { .. } | SectionBody::Pending => false,
+            SectionBody::Resolved(sections) => {
+                sections.iter().all(|section| section.body.is_empty())
+            }
         }
     }
 }
@@ -242,6 +247,20 @@ impl Section {
                     folding: folding.clone(),
                 }
             }),
+        }
+    }
+
+    pub(in crate::widgets) fn pending() -> Self {
+        Self {
+            heading: None,
+            body: SectionBody::Pending,
+        }
+    }
+
+    pub(in crate::widgets) fn resolved(sections: Vec<Section>) -> Self {
+        Self {
+            heading: None,
+            body: SectionBody::Resolved(sections),
         }
     }
 

@@ -1,16 +1,12 @@
-use iced::{Rectangle, Task};
+use iced::{Rectangle, Subscription, Task};
 
 use crate::{
-    data::source::process::{self, Watched},
     desktop_shell::{
         DesktopShell, Message,
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
-    widget_groups::{
-        window_group::{WindowGroupMessage, window_list::WindowListMessage},
-        workspaces_group::workspace_tooltip,
-    },
+    widget_groups::{window_group::WindowGroup, workspaces_group::workspace_tooltip},
     widgets::tooltip_body::Tooltip,
 };
 
@@ -63,16 +59,7 @@ impl DesktopShell {
         press_hints: PressHints,
     ) -> Task<Message> {
         self.tooltip.open(parent, target, anchor, press_hints);
-        let Some(watched) = self.watched_window() else {
-            return Task::none();
-        };
-        Task::future(process::inspected(watched))
-            .and_then(Task::done)
-            .map(|inspection| {
-                Message::WindowGroup(WindowGroupMessage::WindowList(
-                    WindowListMessage::ProcessInspected(inspection),
-                ))
-            })
+        Task::none()
     }
 
     fn tooltip_departure(&self) -> Option<Departed> {
@@ -149,15 +136,42 @@ impl DesktopShell {
         tooltip.unwrap_or_else(Tooltip::empty)
     }
 
-    pub fn watched_window(&self) -> Option<Watched> {
-        let Some(HoverTarget::Window(window)) = self.tooltip.target() else {
-            return None;
+    pub fn hover_subscription(&self) -> Subscription<Message> {
+        let Some(target) = self.tooltip.target() else {
+            return Subscription::none();
         };
-        let window = self.niri.windows.windows.get(window)?;
-        Some(Watched {
-            pid: window.pid?,
-            app_id: window.app_id.clone(),
-        })
+        match target {
+            HoverTarget::Window(window) => {
+                WindowGroup::hover_subscription(&self.niri, *window).map(Message::WindowGroup)
+            }
+            HoverTarget::Compute(_)
+            | HoverTarget::Gpu(_)
+            | HoverTarget::Disk(_)
+            | HoverTarget::Power(_)
+            | HoverTarget::PanelAppearance(_)
+            | HoverTarget::SurfaceEffects(_)
+            | HoverTarget::NiriWindow(_)
+            | HoverTarget::ShellLayout(_)
+            | HoverTarget::Overlay(_)
+            | HoverTarget::Systemd(_)
+            | HoverTarget::Journal(_)
+            | HoverTarget::PendingUpgrades(_)
+            | HoverTarget::NetInterface(_)
+            | HoverTarget::Audio(_)
+            | HoverTarget::Monitor(_)
+            | HoverTarget::ColorTemperature(_)
+            | HoverTarget::DarkMode(_)
+            | HoverTarget::IdleTimeout(_)
+            | HoverTarget::Internet(_)
+            | HoverTarget::Weather(_)
+            | HoverTarget::Wallpaper(_)
+            | HoverTarget::Media
+            | HoverTarget::Ai(_)
+            | HoverTarget::Clock(_)
+            | HoverTarget::Notification(_)
+            | HoverTarget::Tray(_)
+            | HoverTarget::Workspace(_) => Subscription::none(),
+        }
     }
 
     pub fn tooltip_has_relative_time(&self) -> bool {

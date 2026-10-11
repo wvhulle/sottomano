@@ -1,6 +1,7 @@
 pub mod bar_size;
 pub mod font;
 pub mod load;
+pub mod loading_effect;
 pub mod locale;
 pub mod palette;
 pub mod secrets;

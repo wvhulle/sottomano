@@ -223,7 +223,6 @@ impl TooltipHost {
     pub fn target(&self) -> Option<&HoverTarget> {
         self.transition.current().map(|current| &current.target)
     }
-
     pub fn departure(&self, content: Tooltip) -> Option<Departed> {
         let current = self.transition.current()?;
         Some(Departed::new(

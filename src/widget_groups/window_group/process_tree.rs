@@ -13,16 +13,14 @@ use uom::{
 };
 
 use crate::{
-    config::Config,
-    data::{
-        severity::Severity,
-        source::process::{Forest, Process},
-    },
+    config::{Config, loading_effect::LoadingEffect},
+    data::{severity::Severity, source::process::Process},
     desktop_shell::Message,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
         copyable::copyable,
+        loading_text::arriving_text,
         phosphor::{self, Phosphor},
         text::{bar_text, column_heading},
     },
@@ -48,10 +46,6 @@ impl Folding {
         if !self.toggled.remove(&pid) {
             self.toggled.insert(pid);
         }
-    }
-
-    pub fn retain_live(&mut self, forest: &Forest) {
-        self.toggled.retain(|&pid| forest.subtree(pid).is_some());
     }
 
     fn is_unfolded(&self, node: &Process, depth: usize) -> bool {
@@ -137,14 +131,21 @@ pub struct ProcessTree<'a> {
     root: &'a Process,
     folding: &'a Folding,
     config: &'a Config,
+    arrival: Option<LoadingEffect>,
 }
 
 impl<'a> ProcessTree<'a> {
-    pub fn new(root: &'a Process, folding: &'a Folding, config: &'a Config) -> Self {
+    pub fn new(
+        root: &'a Process,
+        folding: &'a Folding,
+        config: &'a Config,
+        arrival: Option<LoadingEffect>,
+    ) -> Self {
         Self {
             root,
             folding,
             config,
+            arrival,
         }
     }
 
@@ -158,6 +159,7 @@ impl<'a> ProcessTree<'a> {
         let tint = self.tint();
         let font = self.config.font.clone();
         let bold = self.config.font.bold();
+        let arrival = self.arrival;
 
         table::table(
             [
@@ -168,9 +170,16 @@ impl<'a> ProcessTree<'a> {
                         Entry::Listed(listing) => {
                             let level = listing.level();
                             let calm = if is_root { flash } else { foreground };
-                            let name = bar_text(&font, listing.label()).color(tint.or(level, calm));
+                            let color = tint.or(level, calm);
+                            let name = bar_text(&font, listing.label()).color(color);
                             let name = if is_root { name.font(bold) } else { name };
-                            let cell = container(name).max_width(NAME_WIDTH_PX);
+                            let cell = arriving_text(
+                                container(name).max_width(NAME_WIDTH_PX),
+                                listing.label(),
+                                arrival,
+                                &font,
+                                color,
+                            );
                             Row::new()
                                 .push(caret(&listing, caret_size, tint.or(level, dim)))
                                 .push(copyable(cell, listing.name, Message::CopyText, flash))
@@ -218,12 +227,20 @@ impl<'a> ProcessTree<'a> {
         let flash = self.flash();
         let tint = self.tint();
         let font = self.config.font.clone();
+        let arrival = self.arrival;
         table::column(self.heading(title), move |branch: Branch| {
             let Entry::Listed(listing) = branch.entry else {
                 return blank(0.0);
             };
             let text = field(&listing);
-            let cell = bar_text(&font, text.clone()).color(tint.or(listing.level(), dim));
+            let color = tint.or(listing.level(), dim);
+            let cell = arriving_text(
+                bar_text(&font, text.clone()).color(color),
+                text.clone(),
+                arrival,
+                &font,
+                color,
+            );
             copyable(cell, text, Message::CopyText, flash)
         })
         .align_x(Horizontal::Right)
