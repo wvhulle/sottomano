@@ -1,8 +1,7 @@
 use std::{f32::consts::TAU, slice};
 
 use iced::{
-    Background, Border, Color, Element, Event, Font, Length, Pixels, Point, Rectangle, Size,
-    Vector,
+    Background, Border, Color, Element, Event, Font, Length, Pixels, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -14,7 +13,6 @@ use iced::{
     alignment::Vertical,
     mouse::Cursor,
     time::{Duration, Instant},
-    widget::Space,
     window,
 };
 
@@ -29,45 +27,28 @@ use crate::{
 const NOISE_GLYPHS: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
 
-pub fn arriving_text<'a, Message: 'a>(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoadingPhase {
+    Estimated(TooltipLoading),
+    Arriving(TooltipLoading),
+}
+
+pub fn loading_text<'a, Message: 'a>(
     revealed: impl Into<Element<'a, Message>>,
     text: String,
-    arrival: Option<TooltipLoading>,
+    phase: Option<LoadingPhase>,
     font: &ResolvedFont,
     color: Color,
 ) -> Element<'a, Message> {
-    let Some(loading) = arrival else {
-        return revealed.into();
+    let (loading, settles) = match phase {
+        None => return revealed.into(),
+        Some(LoadingPhase::Estimated(loading)) => (loading, false),
+        Some(LoadingPhase::Arriving(loading)) => (loading, true),
     };
     Element::new(LoadingText {
         revealed: revealed.into(),
-        lines: vec![text],
-        settles: true,
-        loading,
-        font: font.iced_font,
-        size: font.text_size_px,
-        color,
-    })
-}
-
-pub fn pending_text<'a, Message: 'a>(
-    width: f32,
-    lines: usize,
-    loading: TooltipLoading,
-    font: &ResolvedFont,
-    color: Color,
-) -> Element<'a, Message> {
-    let line_height = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
-    let glyphs = (width / font.text_size_px * 1.8) as usize;
-    Element::new(LoadingText {
-        revealed: Space::new()
-            .width(width)
-            .height(line_height * lines as f32)
-            .into(),
-        lines: (0..lines)
-            .map(|line| "x".repeat(glyphs - glyphs * line / (lines * 3)))
-            .collect(),
-        settles: false,
+        text,
+        settles,
         loading,
         font: font.iced_font,
         size: font.text_size_px,
@@ -78,6 +59,7 @@ pub fn pending_text<'a, Message: 'a>(
 struct State {
     born: Instant,
     now: Instant,
+    settling: bool,
 }
 
 impl State {
@@ -88,7 +70,7 @@ impl State {
 
 struct LoadingText<'a, Message> {
     revealed: Element<'a, Message>,
-    lines: Vec<String>,
+    text: String,
     settles: bool,
     loading: TooltipLoading,
     font: Font,
@@ -113,19 +95,13 @@ impl<Message> LoadingText<'_, Message> {
         LINE_HEIGHT.to_absolute(Pixels(self.size)).0
     }
 
-    fn fill_line(
+    fn fill_text(
         &self,
         renderer: &mut iced::Renderer,
         content: String,
-        at: Point,
         area: Rectangle,
         color: Color,
     ) {
-        let wrapping = if self.settles {
-            Wrapping::Word
-        } else {
-            Wrapping::None
-        };
         renderer.fill_text(
             Text {
                 content,
@@ -136,9 +112,9 @@ impl<Message> LoadingText<'_, Message> {
                 align_x: Alignment::Left,
                 align_y: Vertical::Top,
                 shaping: Shaping::Advanced,
-                wrapping,
+                wrapping: Wrapping::Word,
             },
-            at,
+            area.position(),
             color,
             area,
         );
@@ -149,25 +125,22 @@ impl<Message> LoadingText<'_, Message> {
         let glyph_change = self.loading.decode.glyph_change.as_millis().max(1);
         let frame = (elapsed.as_millis() / glyph_change) as u64;
         let settle = self.loading.reveal_duration;
-        self.lines.iter().enumerate().for_each(|(row, line)| {
-            let seed = fnv(line.as_bytes());
-            let length = line.chars().count().max(1);
-            let content = line
-                .chars()
-                .enumerate()
-                .map(|(position, target)| {
-                    let locked =
-                        self.settles && elapsed >= lock_time(settle, seed, position, length);
-                    if locked || target.is_whitespace() {
-                        target
-                    } else {
-                        noise_glyph(seed ^ frame.wrapping_mul(0x9E37_79B9), row, position)
-                    }
-                })
-                .collect();
-            let at = Point::new(area.x, area.y + row as f32 * self.line_height());
-            self.fill_line(renderer, content, at, area, self.color);
-        });
+        let seed = fnv(self.text.as_bytes());
+        let length = self.text.chars().count().max(1);
+        let content = self
+            .text
+            .chars()
+            .enumerate()
+            .map(|(position, target)| {
+                let locked = self.settles && elapsed >= lock_time(settle, seed, position, length);
+                if locked || target.is_whitespace() {
+                    target
+                } else {
+                    noise_glyph(seed ^ frame.wrapping_mul(0x9E37_79B9), position)
+                }
+            })
+            .collect();
+        self.fill_text(renderer, content, area, self.color);
     }
 
     fn draw_skeleton(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
@@ -186,23 +159,14 @@ impl<Message> LoadingText<'_, Message> {
         };
         let line_height = self.line_height();
         let bar_height = line_height * 0.7;
-        let longest = self.lines.iter().map(String::len).max().unwrap_or(1) as f32;
-        let bar_widths: Vec<f32> = if self.settles {
-            let rows = ((area.height / line_height).round() as usize).max(1);
-            vec![area.width; rows]
-        } else {
-            self.lines
-                .iter()
-                .map(|line| area.width * line.len() as f32 / longest)
-                .collect()
-        };
-        bar_widths.iter().enumerate().for_each(|(row, width)| {
+        let rows = ((area.height / line_height).round() as usize).max(1);
+        (0..rows).for_each(|row| {
             renderer.fill_quad(
                 Quad {
                     bounds: Rectangle {
                         x: area.x,
                         y: area.y + row as f32 * line_height + (line_height - bar_height) / 2.0,
-                        width: *width,
+                        width: area.width,
                         height: bar_height,
                     },
                     border: Border::default().rounded(bar_height / 4.0),
@@ -216,9 +180,7 @@ impl<Message> LoadingText<'_, Message> {
                 a: self.color.a * revealed,
                 ..self.color
             };
-            self.lines.iter().for_each(|line| {
-                self.fill_line(renderer, line.clone(), area.position(), area, text_color);
-            });
+            self.fill_text(renderer, self.text.clone(), area, text_color);
         }
     }
 }
@@ -245,8 +207,8 @@ fn lock_time(settle: Duration, seed: u64, position: usize, length: usize) -> Dur
     settle.mul_f32(0.15 + 0.35 * order + 0.5 * chance)
 }
 
-fn noise_glyph(seed: u64, row: usize, position: usize) -> char {
-    let pick = mix(seed ^ ((row as u64) << 48) ^ position as u64);
+fn noise_glyph(seed: u64, position: usize) -> char {
+    let pick = mix(seed ^ position as u64);
     char::from(NOISE_GLYPHS[(pick % NOISE_GLYPHS.len() as u64) as usize])
 }
 
@@ -257,7 +219,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LoadingText<'_, M
 
     fn state(&self) -> tree::State {
         let now = Instant::now();
-        tree::State::new(State { born: now, now })
+        tree::State::new(State {
+            born: now,
+            now,
+            settling: self.settles,
+        })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -340,6 +306,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LoadingText<'_, M
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
             state.now = *now;
+            if self.settles && !state.settling {
+                state.born = *now;
+            }
+            state.settling = self.settles;
             if !self.settled(state) {
                 shell.request_redraw();
             }

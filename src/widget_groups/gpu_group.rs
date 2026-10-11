@@ -71,16 +71,12 @@ impl GpuDevice {
     }
 }
 
-struct HoveredGpu {
-    bus: PciBusId,
-    clocks: OnHoverReading<GpuClocks>,
-    processes: OnHoverReading<GpuProcesses>,
-}
-
 #[derive(Default)]
 pub struct GpuGroup {
     devices: BTreeMap<PciBusId, GpuDevice>,
-    hovered: Option<HoveredGpu>,
+    hovered_bus: Option<PciBusId>,
+    clocks: OnHoverReading<GpuClocks>,
+    processes: OnHoverReading<GpuProcesses>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -108,45 +104,39 @@ impl GpuGroup {
 
     pub fn hover(&mut self, target: Option<&GpuTarget>, config: &Config) -> Task<GpuMessage> {
         let Some(target) = target else {
-            self.hovered = None;
+            self.hovered_bus = None;
+            self.clocks.stop();
+            self.processes.stop();
             return Task::none();
         };
-        if self
-            .hovered
-            .as_ref()
-            .is_some_and(|hovered| hovered.bus == target.bus)
-        {
+        if self.hovered_bus.as_ref() == Some(&target.bus) {
             return Task::none();
         }
-        let (clocks, clocking) = OnHoverReading::fetch(
-            polled::<GpuClocks>(target.bus.clone()),
-            GpuMessage::ClocksFetched,
-            config,
-        );
-        let (processes, listing) = OnHoverReading::fetch(
-            polled::<GpuProcesses>(target.bus.clone()),
-            GpuMessage::ProcessesFetched,
-            config,
-        );
-        self.hovered = Some(HoveredGpu {
-            bus: target.bus.clone(),
-            clocks,
-            processes,
-        });
-        Task::batch([clocking, listing])
+        self.hovered_bus = Some(target.bus.clone());
+        Task::batch([
+            self.clocks.fetch(
+                polled::<GpuClocks>(target.bus.clone()),
+                GpuMessage::ClocksFetched,
+                config,
+            ),
+            self.processes.fetch(
+                polled::<GpuProcesses>(target.bus.clone()),
+                GpuMessage::ProcessesFetched,
+                config,
+            ),
+        ])
     }
 
     fn hovered_section(
         &self,
         bus: &PciBusId,
-        section: impl FnOnce(&HoveredGpu) -> Section,
+        section: impl FnOnce(&Self) -> Section,
     ) -> Vec<Section> {
-        self.hovered
-            .as_ref()
-            .filter(|hovered| &hovered.bus == bus)
-            .map(section)
-            .into_iter()
-            .collect()
+        if self.hovered_bus.as_ref() == Some(bus) {
+            vec![section(self)]
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn update(&mut self, msg: GpuMessage) -> Task<GpuMessage> {
@@ -170,16 +160,8 @@ impl GpuGroup {
                     device.snapshot.receive(reading);
                 }
             }
-            GpuMessage::ClocksFetched(fetched) => {
-                if let Some(hovered) = &mut self.hovered {
-                    hovered.clocks.receive(fetched);
-                }
-            }
-            GpuMessage::ProcessesFetched(fetched) => {
-                if let Some(hovered) = &mut self.hovered {
-                    hovered.processes.receive(fetched);
-                }
-            }
+            GpuMessage::ClocksFetched(fetched) => self.clocks.receive(fetched),
+            GpuMessage::ProcessesFetched(fetched) => self.processes.receive(fetched),
             GpuMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -221,8 +203,8 @@ impl GpuGroup {
         match target.reading {
             GpuReading::Load => snapshot.tooltip_with_sections(
                 &[
-                    self.hovered_section(&target.bus, |hovered| {
-                        hovered.clocks.section(GpuClocks::sections)
+                    self.hovered_section(&target.bus, |group| {
+                        group.clocks.section(GpuClocks::sections)
                     }),
                     vec![device.model.hardware_section()],
                 ]
@@ -231,8 +213,8 @@ impl GpuGroup {
             GpuReading::Memory => snapshot.tooltip_with(TooltipBody::sections(
                 &[
                     snapshot.get()?.vram.sections(),
-                    self.hovered_section(&target.bus, |hovered| {
-                        hovered.processes.section(GpuProcesses::sections)
+                    self.hovered_section(&target.bus, |group| {
+                        group.processes.section(GpuProcesses::sections)
                     }),
                 ]
                 .concat(),

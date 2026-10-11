@@ -13,14 +13,14 @@ use uom::{
 };
 
 use crate::{
-    config::{Config, tooltips::TooltipLoading},
+    config::Config,
     data::{severity::Severity, source::process::Process},
     desktop_shell::Message,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
         copyable::copyable,
-        loading_text::arriving_text,
+        loading_text::{LoadingPhase, loading_text},
         phosphor::{self, Phosphor},
         text::{bar_text, column_heading},
     },
@@ -131,7 +131,7 @@ pub struct ProcessTree<'a> {
     root: &'a Process,
     folding: &'a Folding,
     config: &'a Config,
-    arrival: Option<TooltipLoading>,
+    phase: Option<LoadingPhase>,
 }
 
 impl<'a> ProcessTree<'a> {
@@ -139,13 +139,13 @@ impl<'a> ProcessTree<'a> {
         root: &'a Process,
         folding: &'a Folding,
         config: &'a Config,
-        arrival: Option<TooltipLoading>,
+        phase: Option<LoadingPhase>,
     ) -> Self {
         Self {
             root,
             folding,
             config,
-            arrival,
+            phase,
         }
     }
 
@@ -159,7 +159,7 @@ impl<'a> ProcessTree<'a> {
         let tint = self.tint();
         let font = self.config.theme.font.clone();
         let bold = self.config.theme.font.bold();
-        let arrival = self.arrival;
+        let phase = self.phase;
         let copy_flash = self.copy_flash();
 
         table::table(
@@ -174,10 +174,10 @@ impl<'a> ProcessTree<'a> {
                             let color = tint.or(level, calm);
                             let name = bar_text(&font, listing.label()).color(color);
                             let name = if is_root { name.font(bold) } else { name };
-                            let cell = arriving_text(
+                            let cell = loading_text(
                                 container(name).max_width(NAME_WIDTH_PX),
                                 listing.label(),
-                                arrival,
+                                phase,
                                 &font,
                                 color,
                             );
@@ -234,7 +234,7 @@ impl<'a> ProcessTree<'a> {
         let flash = self.flash();
         let tint = self.tint();
         let font = self.config.theme.font.clone();
-        let arrival = self.arrival;
+        let phase = self.phase;
         let copy_flash = self.copy_flash();
         table::column(self.heading(title), move |branch: Branch| {
             let Entry::Listed(listing) = branch.entry else {
@@ -242,10 +242,10 @@ impl<'a> ProcessTree<'a> {
             };
             let text = field(&listing);
             let color = tint.or(listing.level(), dim);
-            let cell = arriving_text(
+            let cell = loading_text(
                 bar_text(&font, text.clone()).color(color),
                 text.clone(),
-                arrival,
+                phase,
                 &font,
                 color,
             );
