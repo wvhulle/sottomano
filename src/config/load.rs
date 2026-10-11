@@ -14,7 +14,7 @@ use super::{
     panel_bar::PanelBarConfig,
     theme::{
         Theme, ThemeChoice,
-        font::{self, FontError},
+        font::{self, FontError, FontRole},
     },
     tooltips::TooltipsConfig,
     widget_groups::WidgetGroupsConfig,
@@ -61,7 +61,9 @@ impl UserConfig {
         };
         Ok(Config {
             theme: Theme {
-                font: font::resolve(&self.theme.font).map_err(LoadError::Font)?,
+                font: font::resolve(&self.theme.font, FontRole::Text).map_err(LoadError::Font)?,
+                monospace_font: font::resolve(&self.theme.font, FontRole::Monospace)
+                    .map_err(LoadError::Font)?,
                 palette: self.theme.palette,
             },
             panel_bar: self.panel_bar,

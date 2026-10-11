@@ -13,6 +13,7 @@ use crate::data::source::command;
 #[serde(default, deny_unknown_fields)]
 pub struct FontChoice {
     pub name: Option<String>,
+    pub monospace_name: Option<String>,
     pub text_size_px: f32,
     pub small_text_size_px: f32,
     pub icon_size_px: f32,
@@ -22,6 +23,7 @@ impl Default for FontChoice {
     fn default() -> Self {
         Self {
             name: None,
+            monospace_name: None,
             text_size_px: 14.0,
             small_text_size_px: 12.0,
             icon_size_px: 15.5,
@@ -86,8 +88,25 @@ impl fmt::Display for FontError {
     }
 }
 
-pub(in crate::config) fn resolve(config: &FontChoice) -> Result<ResolvedFont, FontError> {
-    let pattern = config.name.as_deref().unwrap_or("sans-serif");
+#[derive(Debug, Clone, Copy)]
+pub(in crate::config) enum FontRole {
+    Text,
+    Monospace,
+}
+
+pub(in crate::config) fn resolve(
+    config: &FontChoice,
+    role: FontRole,
+) -> Result<ResolvedFont, FontError> {
+    let configured = match role {
+        FontRole::Text => config.name.as_deref(),
+        FontRole::Monospace => config.monospace_name.as_deref(),
+    };
+    let generic = match role {
+        FontRole::Text => "sans-serif",
+        FontRole::Monospace => "monospace",
+    };
+    let pattern = configured.unwrap_or(generic);
     let matched =
         fc_match_family_file(pattern).ok_or_else(|| FontError::Unmatched(pattern.to_owned()))?;
     let bytes = fs::read(&matched.file).map_err(|error| FontError::Unreadable {
@@ -99,7 +118,7 @@ pub(in crate::config) fn resolve(config: &FontChoice) -> Result<ResolvedFont, Fo
         error,
     })?;
     let covered = covered_chars(&face);
-    let name = config.name.clone().unwrap_or(matched.family);
+    let name = configured.map_or(matched.family, str::to_owned);
     Ok(ResolvedFont {
         iced_font: Font::with_name(String::leak(name)),
         text_size_px: config.text_size_px,
