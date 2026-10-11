@@ -18,6 +18,7 @@ impl DesktopShell {
         let BottomBarGroups { start, end } = self.bottom_bar_groups();
         let view = |group: GroupContent<'a, Message>| group.view(config, Position::Bottom);
         self.panel_bar(
+            Position::Bottom,
             start
                 .map(view)
                 .into_iter()

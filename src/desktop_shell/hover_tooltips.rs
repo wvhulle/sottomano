@@ -8,7 +8,7 @@ use iced::{Rectangle, window::Id};
 
 pub use crate::desktop_shell::hover_tooltips::{
     hover_area::{hoverable, on_surface},
-    tooltip_content::relative,
+    tooltip_content::{ongoing_for, relative},
     tooltip_surfaces::TooltipHost,
 };
 use crate::{

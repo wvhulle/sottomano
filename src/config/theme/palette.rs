@@ -24,6 +24,8 @@ pub struct Palette {
     pub dim: Color,
     #[serde(with = "css_color")]
     pub surface_raised: Color,
+    #[serde(with = "css_color")]
+    pub frame_outline: Color,
 }
 
 impl Default for Palette {
@@ -39,6 +41,7 @@ impl Default for Palette {
             info: css("#59c2ff"),
             dim: css("#3e4b59"),
             surface_raised: css("#202229"),
+            frame_outline: css("#3e4b59"),
         }
     }
 }

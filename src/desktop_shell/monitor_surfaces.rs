@@ -12,6 +12,7 @@ use crate::{
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::blocking,
     state::niri_rules::StyledSurface,
+    widgets::panel_frame::OutlinedSides,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +50,15 @@ impl Position {
 
     pub(crate) fn is_vertical(self) -> bool {
         matches!(self, Position::Left)
+    }
+
+    pub(crate) fn inward_sides(self) -> OutlinedSides {
+        OutlinedSides {
+            top: self != Position::Top,
+            right: true,
+            bottom: self != Position::Bottom,
+            left: self != Position::Left,
+        }
     }
 }
 

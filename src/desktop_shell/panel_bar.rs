@@ -5,31 +5,39 @@ use iced::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, Message},
-    widgets::region_reporter::{RegionRoles, region_reporter},
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
+    widgets::{
+        panel_frame::{OutlinedSides, panel_frame},
+        region_reporter::{RegionRoles, region_reporter},
+    },
 };
 
 impl DesktopShell {
     pub(super) fn panel_bar<'a>(
         &'a self,
+        position: Position,
         start: impl IntoIterator<Item = Option<Element<'a, Message>>>,
         center: impl IntoIterator<Item = Option<Element<'a, Message>>>,
         end: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
         let spacing = &self.config.panel_bar;
         let clusters = row![
-            self.group_cluster(start),
-            container(self.group_cluster(center)).center_x(Length::Fill),
-            self.group_cluster(end),
+            self.group_cluster(position, start),
+            container(self.group_cluster(position, center)).center_x(Length::Fill),
+            self.group_cluster(position, end),
         ]
         .spacing(spacing.group_spacing_px)
         .height(Length::Fill)
         .align_y(Alignment::Center)
         .padding([0.0, spacing.group_padding_px]);
-        self.bar_band(clusters)
+        self.bar_band(position, clusters)
     }
 
-    fn bar_band<'a>(&'a self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    fn bar_band<'a>(
+        &'a self,
+        position: Position,
+        content: impl Into<Element<'a, Message>>,
+    ) -> Element<'a, Message> {
         let panels = &self.shell_settings.panels;
         let palette = &self.config.theme.palette;
         let centered = mouse_area(
@@ -41,14 +49,22 @@ impl DesktopShell {
         .on_press(Message::DismissPressed);
         let groups_joined = !self.shell_settings.layout.disconnected_groups;
         let band_style = if groups_joined {
-            self.shell_settings.frame_style(palette)
+            self.shell_settings.frame_style(&self.config)
         } else {
             container::Style::default().color(palette.bar_foreground)
         };
-        let strip = container(centered)
-            .style(move |_| band_style)
-            .width(Length::Fill)
-            .height(Length::Fixed(self.config.panel_bar.height_px));
+        let outlined_sides = self.shell_settings.outlined_sides(OutlinedSides {
+            left: false,
+            right: false,
+            ..position.inward_sides()
+        });
+        let strip = panel_frame(
+            container(centered)
+                .width(Length::Fill)
+                .height(Length::Fixed(self.config.panel_bar.height_px)),
+            &band_style,
+        )
+        .outlined_sides(outlined_sides);
         let roles = RegionRoles {
             takes_input: true,
             blurred: groups_joined,
@@ -59,25 +75,30 @@ impl DesktopShell {
 
     fn group_cluster<'a>(
         &'a self,
+        position: Position,
         groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
         let panels = &self.shell_settings.panels;
         let groups_disconnected = self.shell_settings.layout.disconnected_groups;
-        let frame_style = self.shell_settings.frame_style(&config.theme.palette);
+        let frame_style = self.shell_settings.frame_style(config);
+        let outlined_sides = self.shell_settings.outlined_sides(position.inward_sides());
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
                 return group;
             }
-            container(group)
-                .style(move |_| frame_style)
-                .height(Length::Fixed(config.panel_bar.height_px))
-                .align_y(Vertical::Center)
-                .padding([
-                    0.0,
-                    panels.frame_corner_inset() + config.panel_bar.group_padding_px,
-                ])
-                .into()
+            panel_frame(
+                container(group)
+                    .height(Length::Fixed(config.panel_bar.height_px))
+                    .align_y(Vertical::Center)
+                    .padding([
+                        0.0,
+                        panels.frame_corner_inset() + config.panel_bar.group_padding_px,
+                    ]),
+                &frame_style,
+            )
+            .outlined_sides(outlined_sides)
+            .into()
         });
         let spacing = if groups_disconnected {
             config.panel_bar.widget_spacing_px

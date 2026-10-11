@@ -22,6 +22,7 @@ pub mod marker_track;
 pub mod native_icon;
 pub mod on_hover_reading;
 pub mod pager_slot;
+pub mod panel_frame;
 pub mod phosphor;
 pub mod popup_connector;
 pub mod progress_line;

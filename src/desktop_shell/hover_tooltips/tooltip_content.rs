@@ -444,12 +444,17 @@ fn footer_text(info: RefreshInfo, now: SystemTime) -> String {
     )
 }
 
-pub fn relative(at: SystemTime, now: SystemTime) -> String {
+fn whole_seconds_between(at: SystemTime, now: SystemTime) -> humantime::FormattedDuration {
     let whole_seconds = now.duration_since(at).map_or(0, |age| age.as_secs());
-    format!(
-        "{} ago",
-        humantime::format_duration(Duration::from_secs(whole_seconds))
-    )
+    humantime::format_duration(Duration::from_secs(whole_seconds))
+}
+
+pub fn relative(at: SystemTime, now: SystemTime) -> String {
+    format!("{} ago", whole_seconds_between(at, now))
+}
+
+pub fn ongoing_for(since: SystemTime, now: SystemTime) -> String {
+    format!("for {}", whole_seconds_between(since, now))
 }
 
 #[cfg(test)]

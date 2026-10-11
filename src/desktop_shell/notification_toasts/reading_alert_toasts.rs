@@ -117,6 +117,7 @@ mod tests {
             severity,
             summary_text: "".into(),
             body_text: None,
+            condition_started_at: None,
             on_body_clicked: (),
             action_buttons: Vec::new(),
         }

@@ -23,7 +23,7 @@ use crate::{
         severity::Severity,
         source::app_icon::DesktopEntries,
     },
-    desktop_shell::hover_tooltips::relative,
+    desktop_shell::hover_tooltips::{ongoing_for, relative},
     state::ShellSettings,
     widgets::{
         bar_widget::Glyph,
@@ -293,7 +293,15 @@ impl ToastCard<'_> {
         let previewed = self.notif.icons.previewed_file().is_some();
         let has_actions = !button_actions.is_empty() || previewed;
         let has_body = data.body.is_some();
-        let reltime = relative(self.notif.created_at, SystemTime::now());
+        let now = SystemTime::now();
+        let reltime = match self
+            .notif
+            .reading_alert()
+            .and_then(|alert| alert.condition_started_at)
+        {
+            Some(started_at) => ongoing_for(started_at, now),
+            None => relative(self.notif.created_at, now),
+        };
         let reltime_span = |visible: bool| {
             visible.then(|| {
                 bar_text(font, reltime.clone())
