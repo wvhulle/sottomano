@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use iced::{
     Subscription, Task,
@@ -27,8 +27,8 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::journal_subscription,
-    widget_groups::terminal_journal::TerminalJournal,
+    message_subscriptions::{copy_to_clipboard, journal_subscription},
+    widget_groups::{terminal_command::TerminalCommand, terminal_journal::TerminalJournal},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
@@ -146,6 +146,8 @@ pub enum SystemdManagerMessage {
     Coredumps(Option<Coredumps>),
     OomKills(Option<OomKills>),
     OpenLog(TerminalJournal),
+    InspectCoredump(TerminalCommand),
+    CopyCoredumpPath(PathBuf),
     Expansion(ExpansionMessage),
 }
 
@@ -205,6 +207,10 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::Coredumps(reading) => self.coredumps.load(reading),
             SystemdManagerMessage::OomKills(reading) => self.oom_kills.load(reading),
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
+            SystemdManagerMessage::InspectCoredump(command) => return command.open(),
+            SystemdManagerMessage::CopyCoredumpPath(path) => {
+                return copy_to_clipboard(path.display().to_string());
+            }
             SystemdManagerMessage::Expansion(msg) => {
                 self.expansion.update(msg);
             }
@@ -284,6 +290,10 @@ impl SystemdManagerGroup {
 }
 
 impl BarWidget for SystemdManagerGroup {
+    fn name(&self) -> &'static str {
+        "Systemd"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Heartbeat(self.state().weight()).into()
     }

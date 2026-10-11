@@ -73,6 +73,7 @@ impl ColorTemperatureGroup {
             unit,
             gamma: LastPoll::default(),
             dim: SliderControl::new(
+                "Screen dimming",
                 PERCENT,
                 ColorTemperatureTarget::GammaDim,
                 Phosphor::CircleHalf(Weight::Regular),
@@ -80,6 +81,7 @@ impl ColorTemperatureGroup {
             .scroll_step(DIM_STEP)
             .readout(|value| format!("{}%", as_percent(value))),
             warmth: SliderControl::new(
+                "Color temperature",
                 WARMTH_RANGE,
                 ColorTemperatureTarget::Temperature,
                 Phosphor::ThermometerSimple(Weight::Regular),

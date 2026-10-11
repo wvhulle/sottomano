@@ -271,7 +271,7 @@ pub(crate) fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     blocking("niri action", move || niri::send_action(&action)).discard()
 }
 
-pub(crate) fn copy_to_clipboard(text: String) -> Task<Message> {
+pub(crate) fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
     blocking("clipboard", move || clipboard::write(&text)).discard()
 }
 

@@ -9,6 +9,10 @@ use crate::{
 };
 
 impl BarWidget for Tailscale {
+    fn name(&self) -> &'static str {
+        "Tailscale"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Graph(self.state().weight()).into()
     }

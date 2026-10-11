@@ -106,6 +106,10 @@ pub fn format_offset_minutes(offset: TimeDelta) -> String {
 }
 
 impl BarWidget for AutoSwitchToggle {
+    fn name(&self) -> &'static str {
+        "Dark mode auto-switch"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Clock(self.state().weight()).into()
     }

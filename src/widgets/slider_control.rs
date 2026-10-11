@@ -60,6 +60,7 @@ pub(crate) fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i6
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct SliderControl {
+    name: &'static str,
     open: bool,
     accum: f32,
     device_setting: DeviceSetting,
@@ -144,11 +145,13 @@ pub enum Action {
 
 impl SliderControl {
     pub fn new(
+        name: &'static str,
         range: RangeInclusive<f32>,
         target: impl Into<HoverTarget>,
         icon: impl Into<Glyph>,
     ) -> Self {
         Self {
+            name,
             open: false,
             accum: 0.0,
             device_setting: DeviceSetting::default(),
@@ -444,6 +447,10 @@ impl SliderControl {
 }
 
 impl BarWidget for SliderControl {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn icon(&self) -> Glyph {
         self.effective_icon()
     }

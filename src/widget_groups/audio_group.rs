@@ -71,6 +71,7 @@ impl Default for AudioGroup {
             commands: None,
             expansion: GroupExpansion::default(),
             sink_control: SliderControl::new(
+                "Speaker volume",
                 RANGE,
                 ControlKind::Sink,
                 Phosphor::SpeakerHigh(Weight::Regular),
@@ -82,6 +83,7 @@ impl Default for AudioGroup {
             .thresholds(80.0, 95.0, true)
             .announces_level("Speaker"),
             source_control: SliderControl::new(
+                "Microphone volume",
                 RANGE,
                 ControlKind::Source,
                 Phosphor::Microphone(Weight::Regular),

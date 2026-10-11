@@ -14,6 +14,10 @@ use crate::{
 };
 
 impl BarWidget for Battery {
+    fn name(&self) -> &'static str {
+        "Battery"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::BatteryCharging(self.state().weight()).into()
     }

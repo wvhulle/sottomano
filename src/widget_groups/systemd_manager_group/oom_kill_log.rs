@@ -53,6 +53,10 @@ impl OomKills {
 }
 
 impl BarWidget for OomKills {
+    fn name(&self) -> &'static str {
+        "OOM kills"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Memory(self.state().weight()).into()
     }

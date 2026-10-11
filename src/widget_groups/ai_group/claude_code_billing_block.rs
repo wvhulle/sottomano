@@ -15,6 +15,10 @@ use crate::{
 };
 
 impl BarWidget for ClaudeCcusageBlock {
+    fn name(&self) -> &'static str {
+        "Claude Code billing block"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::TerminalWindow(self.state().weight()).into()
     }

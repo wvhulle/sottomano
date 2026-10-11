@@ -112,6 +112,7 @@ mod tests {
 
     fn active(severity: Severity) -> ReadingAlert<()> {
         ReadingAlert {
+            widget_name: "Battery time",
             hover_target: HoverTarget::Power(PowerTarget::BatteryTime),
             severity,
             summary_text: "".into(),

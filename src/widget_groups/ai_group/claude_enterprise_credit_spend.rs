@@ -12,6 +12,10 @@ use crate::{
 };
 
 impl BarWidget for ClaudeEnterpriseSpend {
+    fn name(&self) -> &'static str {
+        "Claude Enterprise spend"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::Claude.into()
     }

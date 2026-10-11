@@ -46,6 +46,10 @@ impl UnitStop {
 }
 
 impl BarWidget for LastShutdown {
+    fn name(&self) -> &'static str {
+        "Last shutdown"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Power(self.state().weight()).into()
     }

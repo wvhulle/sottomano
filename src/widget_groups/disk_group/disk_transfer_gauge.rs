@@ -19,14 +19,17 @@ const BACKGROUND_TRANSFER_KIB_PER_S: f64 = 64.0;
 const SCALE_END_GIB_PER_S: f64 = 4.0;
 
 pub trait TransferIcon: TransferDirection {
+    const NAME: &'static str;
     const ICON: Phosphor;
 }
 
 impl TransferIcon for Reading {
+    const NAME: &'static str = "Disk reads";
     const ICON: Phosphor = Phosphor::TrayArrowUp(Weight::Regular);
 }
 
 impl TransferIcon for Writing {
+    const NAME: &'static str = "Disk writes";
     const ICON: Phosphor = Phosphor::TrayArrowDown(Weight::Regular);
 }
 
@@ -52,6 +55,10 @@ impl<D: TransferDirection> DiskTransfer<D> {
 }
 
 impl<D: TransferIcon> BarWidget for DiskTransfer<D> {
+    fn name(&self) -> &'static str {
+        D::NAME
+    }
+
     fn icon(&self) -> Glyph {
         D::ICON.with_weight(self.state().weight()).into()
     }

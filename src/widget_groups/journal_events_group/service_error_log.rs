@@ -46,6 +46,10 @@ impl UnitErrors {
 }
 
 impl BarWidget for ServiceErrors {
+    fn name(&self) -> &'static str {
+        "Service errors"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::WarningCircle(self.state().weight()).into()
     }

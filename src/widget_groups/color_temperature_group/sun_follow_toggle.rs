@@ -11,6 +11,10 @@ use crate::{
 };
 
 impl BarWidget for SunFollow {
+    fn name(&self) -> &'static str {
+        "Sun follow"
+    }
+
     fn icon(&self) -> Glyph {
         if self.auto {
             WeatherIcon::DaySunny.into()

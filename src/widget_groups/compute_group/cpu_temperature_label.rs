@@ -75,6 +75,10 @@ impl Temperature {
 }
 
 impl BarWidget for Temperature {
+    fn name(&self) -> &'static str {
+        "CPU temperature"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::ThermometerSimple(self.state().weight()).into()
     }

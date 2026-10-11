@@ -70,6 +70,10 @@ impl BootTimeline {
 }
 
 impl BarWidget for BootTimeline {
+    fn name(&self) -> &'static str {
+        "Boot timeline"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::RocketLaunch(self.state().weight()).into()
     }
@@ -91,6 +95,10 @@ pub struct StartupUnits<'a> {
 }
 
 impl BarWidget for StartupUnits<'_> {
+    fn name(&self) -> &'static str {
+        "Startup units"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Stack(self.state().weight()).into()
     }

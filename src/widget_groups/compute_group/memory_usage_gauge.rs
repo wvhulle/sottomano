@@ -12,6 +12,10 @@ use crate::{
 };
 
 impl BarWidget for Memory {
+    fn name(&self) -> &'static str {
+        "Memory"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Memory(self.state().weight()).into()
     }

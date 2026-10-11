@@ -14,6 +14,10 @@ use crate::{
 };
 
 impl BarWidget for Gamma {
+    fn name(&self) -> &'static str {
+        "Screen dimming"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::ThermometerHot(self.state().weight()).into()
     }

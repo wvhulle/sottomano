@@ -23,6 +23,10 @@ const UNREPORTED_WARNING_CELSIUS: f64 = 60.0;
 const UNREPORTED_CRITICAL_CELSIUS: f64 = 70.0;
 
 impl BarWidget for DriveHealth {
+    fn name(&self) -> &'static str {
+        "Drive health"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Thermometer(self.state().weight()).into()
     }

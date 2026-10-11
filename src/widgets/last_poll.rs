@@ -17,6 +17,10 @@ pub struct FailedReading {
 }
 
 impl BarWidget for FailedReading {
+    fn name(&self) -> &'static str {
+        "Failed reading"
+    }
+
     fn icon(&self) -> Glyph {
         self.icon
     }

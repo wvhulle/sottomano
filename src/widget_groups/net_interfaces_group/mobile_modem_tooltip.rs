@@ -17,6 +17,10 @@ use crate::{
 };
 
 impl BarWidget for Mobile {
+    fn name(&self) -> &'static str {
+        "Mobile modem"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Broadcast(self.state().weight()).into()
     }

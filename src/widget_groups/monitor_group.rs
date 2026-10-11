@@ -104,6 +104,7 @@ impl MonitorGroup {
                         .entry(backlight.serial.clone())
                         .or_insert_with(|| {
                             SliderControl::new(
+                                "Backlight",
                                 PERCENT,
                                 MonitorTarget::Backlight(backlight.serial.clone()),
                                 backlight_display::face(backlight),

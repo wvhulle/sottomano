@@ -7,7 +7,7 @@ use iced::{
     Alignment, Border, Color, ContentFit, Element, Font, Length, Shadow, Theme, border,
     widget::{
         Column, Row, Space, button, container, image, mouse_area, progress_bar, rich_text, svg,
-        text_input,
+        text::Wrapping, text_input,
     },
 };
 use reqwest::Url;
@@ -258,6 +258,7 @@ impl ToastCard<'_> {
             visible.then(|| {
                 bar_text(font, reltime.clone())
                     .size(font.small_text_size_px)
+                    .font(font.italic())
                     .color(text)
             })
         };
@@ -275,6 +276,7 @@ impl ToastCard<'_> {
             title = title.push(
                 bar_text(font, app_name.clone())
                     .size(font.small_text_size_px)
+                    .font(font.italic())
                     .color(text),
             );
         }
@@ -296,6 +298,7 @@ impl ToastCard<'_> {
                         Font::MONOSPACE,
                     ))
                     .line_height(LINE_HEIGHT)
+                    .wrapping(Wrapping::WordOrGlyph)
                     .width(Length::Fill),
                 );
             column = column.push(match reltime_span(!has_actions) {

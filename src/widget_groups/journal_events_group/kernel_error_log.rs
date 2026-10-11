@@ -48,6 +48,10 @@ impl KernelOccurrence {
 }
 
 impl BarWidget for KernelErrors {
+    fn name(&self) -> &'static str {
+        "Kernel log"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::LinuxLogo(self.state().weight()).into()
     }

@@ -42,6 +42,7 @@ pub struct IdleTimer {
 
 impl IdleTimer {
     pub fn new(
+        name: &'static str,
         icon: Phosphor,
         target: impl Into<HoverTarget>,
         action: IdleAction,
@@ -49,7 +50,7 @@ impl IdleTimer {
     ) -> Self {
         let target = target.into();
         Self {
-            control: SliderControl::new(0.0..=MAX_POSITION, target.clone(), icon)
+            control: SliderControl::new(name, 0.0..=MAX_POSITION, target.clone(), icon)
                 .readout(|value| {
                     timeout_at(value).map_or_else(
                         || "∞".to_owned(),

@@ -12,6 +12,10 @@ use crate::{
 const LISTED_MODELS: usize = 6;
 
 impl BarWidget for OpenRouter {
+    fn name(&self) -> &'static str {
+        "OpenRouter credits"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::OpenRouter.into()
     }

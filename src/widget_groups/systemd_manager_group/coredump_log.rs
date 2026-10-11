@@ -1,8 +1,9 @@
 use crate::{
     config::Config,
-    data::source::coredumps::{CoredumpEntry, Coredumps},
+    data::source::coredumps::{CoredumpEntry, CoredumpInspection, Coredumps},
     widget_groups::{
         systemd_manager_group::{SystemdManagerMessage, SystemdTarget},
+        terminal_command::TerminalCommand,
         terminal_journal::TerminalJournal,
     },
     widgets::{
@@ -10,6 +11,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
+        reading_alert::ReadingAlertActionButton,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -33,6 +35,52 @@ impl CoredumpEntry {
     }
 }
 
+impl CoredumpEntry {
+    pub fn labelled_fields(&self) -> impl Iterator<Item = String> {
+        let stored_file = self
+            .stored_file
+            .as_ref()
+            .map(|file| format!("<b>Core</b> <tt>{}</tt>", file.display()));
+        [
+            format!("<b>Signal</b> {}", self.signal),
+            format!("<b>Process</b> {} · PID {}", self.executable, self.pid),
+        ]
+        .into_iter()
+        .chain(stored_file)
+    }
+
+    pub fn action_buttons(
+        &self,
+        config: &Config,
+    ) -> impl Iterator<Item = ReadingAlertActionButton<SystemdManagerMessage>> {
+        let inspect = |inspection| {
+            SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
+                config,
+                self.coredumpctl_args(inspection),
+            ))
+        };
+        let copy_path = self
+            .stored_file
+            .clone()
+            .map(|file| ReadingAlertActionButton {
+                button_label: "Copy path".to_owned(),
+                on_button_pressed: SystemdManagerMessage::CopyCoredumpPath(file),
+            });
+        [
+            ReadingAlertActionButton {
+                button_label: "Info".to_owned(),
+                on_button_pressed: inspect(CoredumpInspection::Info),
+            },
+            ReadingAlertActionButton {
+                button_label: "Debug".to_owned(),
+                on_button_pressed: inspect(CoredumpInspection::Debug),
+            },
+        ]
+        .into_iter()
+        .chain(copy_path)
+    }
+}
+
 impl Coredumps {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         GroupItem::reading(self, SystemdTarget::Coredumps).on_press(
@@ -46,6 +94,10 @@ impl Coredumps {
 }
 
 impl BarWidget for Coredumps {
+    fn name(&self) -> &'static str {
+        "Coredumps"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Bug(self.state().weight()).into()
     }

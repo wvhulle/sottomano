@@ -43,6 +43,7 @@ impl Default for PanelAppearanceGroup {
         Self {
             expansion: GroupExpansion::default(),
             opacity: SliderControl::new(
+                "Panel opacity",
                 0.0..=100.0,
                 PanelAppearanceTarget::Opacity,
                 Phosphor::SquareHalf(Weight::Regular),
@@ -50,6 +51,7 @@ impl Default for PanelAppearanceGroup {
             .readout(|value| format!("{} %", value.round()))
             .icon_only(),
             corner_radius: SliderControl::new(
+                "Panel corner radius",
                 0.0..=16.0,
                 PanelAppearanceTarget::CornerRadius,
                 Phosphor::FrameCorners(Weight::Regular),

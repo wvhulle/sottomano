@@ -22,6 +22,7 @@ pub struct ReadingAlertActionButton<Message> {
 
 #[derive(Debug, Clone)]
 pub struct ReadingAlert<Message> {
+    pub widget_name: &'static str,
     pub hover_target: HoverTarget,
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
@@ -59,6 +60,7 @@ impl<Message> ReadingAlert<Message> {
         };
         let severity = alerting_severity_of(widget.state());
         (severity > Severity::Normal && severity >= minimum_severity).then(|| Self {
+            widget_name: widget.name(),
             hover_target,
             severity,
             summary_text: Cow::Borrowed(summary_text),
@@ -83,6 +85,7 @@ impl<Message> ReadingAlert<Message> {
 
     pub fn map_messages<Lifted>(self, lift: impl Fn(Message) -> Lifted) -> ReadingAlert<Lifted> {
         ReadingAlert {
+            widget_name: self.widget_name,
             hover_target: self.hover_target,
             severity: self.severity,
             summary_text: self.summary_text,
@@ -120,6 +123,7 @@ impl<Message> ReadingAlert<Message> {
                 .collect(),
             severity: self.severity,
             expire_timeout: ExpireTimeout::Never,
+            app_name: Some(self.widget_name.to_owned()),
             ..NotificationData::from_shell(toast_id, self.summary_text.clone())
         }
     }
@@ -143,6 +147,10 @@ mod tests {
     }
 
     impl BarWidget for FixedReading {
+        fn name(&self) -> &'static str {
+            "Fixed reading"
+        }
+
         fn icon(&self) -> Glyph {
             Phosphor::Question(Weight::Regular).into()
         }

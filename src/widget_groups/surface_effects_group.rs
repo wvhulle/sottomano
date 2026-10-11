@@ -65,6 +65,7 @@ impl Default for SurfaceEffectsGroup {
         Self {
             expansion: GroupExpansion::default(),
             shadow_softness: SliderControl::new(
+                "Shadow softness",
                 0.0..=60.0,
                 SurfaceEffectsTarget::ShadowSoftness,
                 Phosphor::Feather(Weight::Regular),
@@ -72,6 +73,7 @@ impl Default for SurfaceEffectsGroup {
             .readout(|value| format!("{} px", value.round()))
             .icon_only(),
             shadow_opacity: SliderControl::new(
+                "Shadow opacity",
                 0.0..=100.0,
                 SurfaceEffectsTarget::ShadowOpacity,
                 Phosphor::CircleHalf(Weight::Regular),
@@ -191,17 +193,25 @@ impl SurfaceEffectsGroup {
             SurfaceEffectsMessage::Expansion,
             [
                 GroupItem::toggle(
-                    IconToggle::new(Phosphor::Snowflake(Weight::Regular), styling.blurred),
+                    IconToggle::new(
+                        "Blur background",
+                        Phosphor::Snowflake(Weight::Regular),
+                        styling.blurred,
+                    ),
                     SurfaceEffectsTarget::BlurBackground,
                     SurfaceEffectsMessage::ToggleBlur,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(Phosphor::Eye(Weight::Regular), styling.xray),
+                    IconToggle::new("X-ray", Phosphor::Eye(Weight::Regular), styling.xray),
                     SurfaceEffectsTarget::Xray,
                     SurfaceEffectsMessage::ToggleXray,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(Phosphor::SelectionBackground(Weight::Regular), shadow.cast),
+                    IconToggle::new(
+                        "Drop shadow",
+                        Phosphor::SelectionBackground(Weight::Regular),
+                        shadow.cast,
+                    ),
                     SurfaceEffectsTarget::DropShadow,
                     SurfaceEffectsMessage::ToggleShadow,
                 ),

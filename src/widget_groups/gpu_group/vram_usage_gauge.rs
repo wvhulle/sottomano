@@ -23,6 +23,10 @@ impl VramUsage {
 }
 
 impl BarWidget for VramUsage {
+    fn name(&self) -> &'static str {
+        "VRAM"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Memory(self.state().weight()).into()
     }

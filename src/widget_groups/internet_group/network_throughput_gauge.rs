@@ -25,18 +25,22 @@ const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
 const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
 
 pub trait DirectionIcon: Direction {
+    const NAME: &'static str;
     const ICON: Phosphor;
 }
 
 impl DirectionIcon for Upload {
+    const NAME: &'static str = "Upload";
     const ICON: Phosphor = Phosphor::UploadSimple(Weight::Regular);
 }
 
 impl DirectionIcon for Download {
+    const NAME: &'static str = "Download";
     const ICON: Phosphor = Phosphor::DownloadSimple(Weight::Regular);
 }
 
 impl DirectionIcon for Total {
+    const NAME: &'static str = "Network throughput";
     const ICON: Phosphor = Phosphor::ArrowsDownUp(Weight::Regular);
 }
 
@@ -48,6 +52,10 @@ fn severity<D: Direction>(throughput: &Throughput<D>) -> Severity {
 }
 
 impl<D: DirectionIcon> BarWidget for Throughput<D> {
+    fn name(&self) -> &'static str {
+        D::NAME
+    }
+
     fn icon(&self) -> Glyph {
         D::ICON.with_weight(self.state().weight()).into()
     }

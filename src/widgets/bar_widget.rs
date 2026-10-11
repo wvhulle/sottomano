@@ -49,6 +49,8 @@ pub enum ReadingAlertThreshold {
 }
 
 pub trait BarWidget {
+    fn name(&self) -> &'static str;
+
     fn icon(&self) -> Glyph;
 
     fn fallback_icon() -> Glyph
@@ -94,6 +96,10 @@ pub trait BarWidget {
 }
 
 impl<W: BarWidget + ?Sized> BarWidget for &W {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
     fn icon(&self) -> Glyph {
         (**self).icon()
     }

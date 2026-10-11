@@ -45,6 +45,7 @@ impl Default for PowerProfileControl {
     fn default() -> Self {
         Self {
             control: SliderControl::new(
+                "Power profile",
                 RANGE,
                 PowerTarget::Profile,
                 profile_face(Profile::Balanced),

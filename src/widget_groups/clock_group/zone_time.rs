@@ -35,6 +35,10 @@ impl ZoneTime {
 }
 
 impl BarWidget for ZoneTime {
+    fn name(&self) -> &'static str {
+        "Zone time"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::GlobeHemisphereWest(Weight::Regular).into()
     }

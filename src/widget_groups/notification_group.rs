@@ -72,6 +72,7 @@ impl NotificationGroup {
                 }),
                 GroupItem::toggle(
                     IconToggle::new(
+                        "Do not disturb",
                         Phosphor::Prohibit(Weight::Regular),
                         notification_settings.do_not_disturb,
                     ),
@@ -79,7 +80,11 @@ impl NotificationGroup {
                     NotificationGroupMessage::Toggle(NotificationToggle::DoNotDisturb),
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(sound_icon, notification_settings.sound),
+                    IconToggle::new(
+                        "Notification sound",
+                        sound_icon,
+                        notification_settings.sound,
+                    ),
                     NotificationTarget::Sound,
                     NotificationGroupMessage::Toggle(NotificationToggle::Sound),
                 ),
@@ -95,6 +100,10 @@ struct NotificationStatus {
 }
 
 impl BarWidget for NotificationStatus {
+    fn name(&self) -> &'static str {
+        "Notifications"
+    }
+
     fn icon(&self) -> Glyph {
         if self.dnd {
             Phosphor::ChatCircleSlash(self.state().weight()).into()

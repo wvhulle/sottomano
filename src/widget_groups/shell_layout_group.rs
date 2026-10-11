@@ -91,6 +91,7 @@ impl Default for ShellLayoutGroup {
         Self {
             expansion: GroupExpansion::default(),
             float_offset: SliderControl::new(
+                "Float offset",
                 0.0..=24.0,
                 ShellLayoutTarget::FloatOffset,
                 Phosphor::ArrowsIn(Weight::Regular),
@@ -188,6 +189,7 @@ impl ShellLayoutGroup {
             [
                 GroupItem::toggle(
                     IconToggle::new(
+                        "Disconnected groups",
                         Phosphor::Pill(Weight::Regular),
                         shell_layout.disconnected_groups,
                     ),
@@ -196,6 +198,7 @@ impl ShellLayoutGroup {
                 ),
                 GroupItem::toggle(
                     IconToggle::new(
+                        "Pinned groups",
                         Phosphor::PushPin(Weight::Regular),
                         !shell_layout.auto_collapse_groups,
                     ),
@@ -204,6 +207,7 @@ impl ShellLayoutGroup {
                 ),
                 GroupItem::toggle(
                     IconToggle::new(
+                        "Workspaces sidebar",
                         Phosphor::SidebarSimple(Weight::Regular),
                         shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
                     ),

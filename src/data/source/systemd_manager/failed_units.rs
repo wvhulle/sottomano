@@ -6,6 +6,7 @@ use std::{
 };
 
 use iced::futures::{Stream, StreamExt, future::join_all, stream};
+use tokio::task::spawn_blocking;
 use zbus::{
     names::MemberName,
     proxy,
@@ -17,13 +18,17 @@ use super::{
     ManagerProxy, UnitRow, UnitScope, connect, manager_signal, signals_matching, state_changed_at,
     systemd_signal,
 };
-use crate::{data::source::journal::JournalPriority, message_subscriptions::restarting};
+use crate::{
+    data::source::{coredumps::CoredumpEntry, journal::JournalPriority},
+    message_subscriptions::restarting,
+};
 
 pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;
 
 const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
 const ACTIVE_STATE_PROPERTY: &str = "ActiveState";
 const FAILED_STATE: &str = "failed";
+const CORE_DUMP_RESULT: &str = "core-dump";
 
 #[proxy(
     interface = "org.freedesktop.systemd1.Service",
@@ -48,6 +53,7 @@ pub struct FailedUnitInfo {
     pub name: String,
     pub service_outcome: Option<ServiceOutcome>,
     pub at: Option<SystemTime>,
+    pub crash: Option<CoredumpEntry>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +106,7 @@ async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedU
     Ok(stream::unfold(
         FailedUnitWatch {
             manager,
+            per_user: user,
             unit_signals: Box::pin(unit_signals),
             last_listing: None,
         },
@@ -109,6 +116,7 @@ async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedU
 
 struct FailedUnitWatch {
     manager: ManagerProxy<'static>,
+    per_user: bool,
     unit_signals: Pin<Box<dyn Stream<Item = Vec<zbus::Message>> + Send>>,
     last_listing: Option<FailedListing>,
 }
@@ -116,7 +124,7 @@ struct FailedUnitWatch {
 impl FailedUnitWatch {
     async fn next_report(mut self) -> Option<(Vec<FailedUnitInfo>, Self)> {
         let listing = match self.last_listing.take() {
-            None => failed_units(&self.manager).await,
+            None => failed_units(&self.manager, self.per_user).await,
             Some(last_listing) => self.next_listing(last_listing).await?,
         };
         let units = listing.units.clone();
@@ -128,7 +136,7 @@ impl FailedUnitWatch {
         loop {
             let signals = self.unit_signals.next().await?;
             if signals.iter().any(|signal| last_listing.touched_by(signal)) {
-                return Some(failed_units(&self.manager).await);
+                return Some(failed_units(&self.manager, self.per_user).await);
             }
         }
     }
@@ -186,7 +194,7 @@ fn changed_active_state(signal: &zbus::Message) -> ActiveStateChange {
     }
 }
 
-async fn failed_units(manager: &ManagerProxy<'static>) -> FailedListing {
+async fn failed_units(manager: &ManagerProxy<'static>, per_user: bool) -> FailedListing {
     let Ok(rows) = manager.list_units_filtered(&[FAILED_STATE]).await else {
         return FailedListing {
             units: Vec::new(),
@@ -196,16 +204,38 @@ async fn failed_units(manager: &ManagerProxy<'static>) -> FailedListing {
     let connection = manager.inner().connection();
     let paths = rows.iter().map(|row| row.unit_path.clone()).collect();
     FailedListing {
-        units: join_all(rows.into_iter().map(|row| failed_unit(connection, row))).await,
+        units: join_all(
+            rows.into_iter()
+                .map(|row| failed_unit(connection, per_user, row)),
+        )
+        .await,
         paths,
     }
 }
 
-async fn failed_unit(connection: &zbus::Connection, row: UnitRow) -> FailedUnitInfo {
+async fn failed_unit(
+    connection: &zbus::Connection,
+    per_user: bool,
+    row: UnitRow,
+) -> FailedUnitInfo {
+    let service_outcome = service_outcome(connection, row.unit_path.clone()).await;
+    let crashed = service_outcome
+        .as_ref()
+        .is_some_and(|outcome| outcome.result == CORE_DUMP_RESULT);
+    let crash = if crashed {
+        let name = row.name.clone();
+        spawn_blocking(move || CoredumpEntry::latest_of_unit(per_user, &name))
+            .await
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
     FailedUnitInfo {
-        at: state_changed_at(connection, row.unit_path.clone()).await,
-        service_outcome: service_outcome(connection, row.unit_path).await,
+        at: state_changed_at(connection, row.unit_path).await,
+        service_outcome,
         name: row.name,
+        crash,
     }
 }
 
