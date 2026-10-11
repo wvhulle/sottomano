@@ -137,12 +137,12 @@ impl NetInterfacesGroup {
     pub fn tooltip_for(&self, target: NetInterfaceTarget) -> Option<Tooltip> {
         match target {
             NetInterfaceTarget::Bluetooth => self.bluetooth.live_tooltip(),
-            NetInterfaceTarget::Ethernet => self.ethernet.live_tooltip_with_sections(&[self
-                .ethernet_details
-                .section(EthernetDetails::sections)]),
+            NetInterfaceTarget::Ethernet => self.ethernet.live_tooltip_with_sections(
+                &self.ethernet_details.sections(EthernetDetails::sections),
+            ),
             NetInterfaceTarget::Wifi => self
                 .wifi
-                .live_tooltip_with_sections(&[self.wifi_details.section(WifiDetails::sections)]),
+                .live_tooltip_with_sections(&self.wifi_details.sections(WifiDetails::sections)),
             NetInterfaceTarget::Mobile => self.mobile.live_tooltip(),
         }
     }

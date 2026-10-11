@@ -135,13 +135,13 @@ impl GpuGroup {
         ])
     }
 
-    fn hovered_section(
+    fn hovered_sections(
         &self,
         bus: &PciBusId,
-        section: impl FnOnce(&Self) -> Section,
+        sections: impl FnOnce(&Self) -> Vec<Section>,
     ) -> Vec<Section> {
         if self.hovered_bus.as_ref() == Some(bus) {
-            vec![section(self)]
+            sections(self)
         } else {
             Vec::new()
         }
@@ -219,8 +219,8 @@ impl GpuGroup {
         match target.reading {
             GpuReading::Load => snapshot.tooltip_with_sections(
                 &[
-                    self.hovered_section(&target.bus, |group| {
-                        group.clocks.section(GpuClocks::sections)
+                    self.hovered_sections(&target.bus, |group| {
+                        group.clocks.sections(GpuClocks::sections)
                     }),
                     vec![device.model.hardware_section()],
                 ]
@@ -229,8 +229,8 @@ impl GpuGroup {
             GpuReading::Memory => snapshot.tooltip_with(TooltipBody::sections(
                 &[
                     snapshot.get()?.vram.sections(),
-                    self.hovered_section(&target.bus, |group| {
-                        group.processes.section(GpuProcesses::sections)
+                    self.hovered_sections(&target.bus, |group| {
+                        group.processes.sections(GpuProcesses::sections)
                     }),
                 ]
                 .concat(),
