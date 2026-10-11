@@ -53,8 +53,8 @@ impl Default for TooltipLoading {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TooltipLoadingEffect {
-    #[default]
     Decode,
+    #[default]
     Skeleton,
 }
 

@@ -18,7 +18,7 @@ use iced::{
 };
 pub(crate) use store::{Columns, StoreError, connect};
 
-use crate::config::Palette;
+use crate::{config::Config, widgets::panel_frame::OutlinedSides};
 
 #[derive(Debug, Clone, Default)]
 pub struct ShellSettings {
@@ -30,12 +30,25 @@ pub struct ShellSettings {
 }
 
 impl ShellSettings {
-    pub fn frame_style(&self, palette: &Palette) -> container::Style {
+    pub fn frame_style(&self, config: &Config) -> container::Style {
+        let palette = &config.theme.palette;
         container::Style::default()
             .background(palette.surface.scale_alpha(self.panels.opacity))
-            .border(border::rounded(self.panels.corner_radius))
+            .border(
+                border::rounded(self.panels.corner_radius)
+                    .color(palette.frame_outline)
+                    .width(config.panel_bar.frame_outline_px),
+            )
             .shadow(self.shadow.drop_shadow())
             .color(palette.bar_foreground)
+    }
+
+    pub fn outlined_sides(&self, touching_screen_edges: OutlinedSides) -> OutlinedSides {
+        if self.layout.float_offset_px > 0.0 {
+            OutlinedSides::ALL
+        } else {
+            touching_screen_edges
+        }
     }
 }
 

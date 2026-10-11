@@ -16,7 +16,12 @@ impl DesktopShell {
         let config = &self.config;
         let TopBarGroups { start, center, end } = self.top_bar_groups();
         let view = |group: GroupContent<'a, Message>| group.view(config, Position::Top);
-        self.panel_bar(start.map(view), center.map(view), end.map(view))
+        self.panel_bar(
+            Position::Top,
+            start.map(view),
+            center.map(view),
+            end.map(view),
+        )
     }
 
     pub(super) fn top_bar_groups(&self) -> TopBarGroups<'_> {

@@ -5,10 +5,13 @@ use iced::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, Message},
+    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
-    widgets::region_reporter::{RegionRoles, region_reporter},
+    widgets::{
+        panel_frame::panel_frame,
+        region_reporter::{RegionRoles, region_reporter},
+    },
 };
 
 impl DesktopShell {
@@ -19,16 +22,22 @@ impl DesktopShell {
     ) -> Element<'a, Message> {
         let config = &self.config;
         let panels = &self.shell_settings.panels;
-        let frame_style = self.shell_settings.frame_style(&config.theme.palette);
+        let frame_style = self.shell_settings.frame_style(config);
+        let outlined_sides = self
+            .shell_settings
+            .outlined_sides(Position::Left.inward_sides());
         let framed_workspaces = (self.shell_settings.layout.workspaces_placement
             == WorkspacesPlacement::Sidebar)
             .then(|| workspaces_group::vertical_view(&self.niri_snapshot, output, config))
             .flatten()
             .map(|workspaces| {
-                container(workspaces.map(Message::from))
-                    .style(move |_| frame_style)
-                    .padding([panels.corner_radius.top_left, 0.0])
-                    .into()
+                panel_frame(
+                    container(workspaces.map(Message::from))
+                        .padding([panels.corner_radius.top_left, 0.0]),
+                    &frame_style,
+                )
+                .outlined_sides(outlined_sides)
+                .into()
             });
         region_reporter(
             Column::with_children(framed_workspaces),

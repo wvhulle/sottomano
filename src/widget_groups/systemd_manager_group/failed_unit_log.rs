@@ -54,6 +54,7 @@ impl<S: ScopeAppearance> Failed<S> {
                 severity: UNIT_FAILURE_PRIORITY.severity(),
                 summary_text: Cow::Owned(format!("{} failed", unit.name)),
                 body_text: failure_summary(unit, config.calendar.locale),
+                condition_started_at: unit.at,
                 on_body_clicked: open_unit_log.clone(),
                 action_buttons: [
                     ReadingAlertActionButton {

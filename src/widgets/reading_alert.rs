@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, time::SystemTime};
 
 use chrono::Locale;
 
@@ -41,6 +41,7 @@ pub struct ReadingAlert<Message> {
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
     pub body_text: Option<String>,
+    pub condition_started_at: Option<SystemTime>,
     pub on_body_clicked: Message,
     pub action_buttons: Vec<ReadingAlertActionButton<Message>>,
 }
@@ -79,6 +80,7 @@ impl<Message> ReadingAlert<Message> {
             severity,
             summary_text: Cow::Borrowed(summary_text),
             body_text: widget.localized_label(locale),
+            condition_started_at: None,
             on_body_clicked,
             action_buttons: Vec::new(),
         })
@@ -97,6 +99,7 @@ impl<Message> ReadingAlert<Message> {
             severity: self.severity,
             summary_text: self.summary_text,
             body_text: self.body_text,
+            condition_started_at: self.condition_started_at,
             on_body_clicked: lift(self.on_body_clicked),
             action_buttons: self
                 .action_buttons

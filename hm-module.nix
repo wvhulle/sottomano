@@ -16,6 +16,7 @@ let
     bar_foreground = p.base05;
     inactive = p.base04;
     dim = p.base03;
+    frame_outline = p.base03;
     urgent = p.base08;
     warning = p.base0A;
     focus = p.base0C;
