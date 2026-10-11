@@ -100,6 +100,26 @@ pub fn body_paragraphs<'a>(
             }
         }
     }
+    for paragraph in &mut paragraphs {
+        if let Some(first) = paragraph.spans.first_mut()
+            && let Some(rest) = first
+                .text
+                .strip_prefix("\r\n")
+                .or(first.text.strip_prefix('\n'))
+        {
+            first.text = rest.to_owned().into();
+        }
+        if let Some(last) = paragraph.spans.last_mut()
+            && let Some(rest) = last
+                .text
+                .strip_suffix("\r\n")
+                .or(last.text.strip_suffix('\n'))
+        {
+            last.text = rest.to_owned().into();
+        }
+        paragraph.spans.retain(|styled| !styled.text.is_empty());
+    }
+    paragraphs.retain(|paragraph| !paragraph.spans.is_empty());
     paragraphs
 }
 

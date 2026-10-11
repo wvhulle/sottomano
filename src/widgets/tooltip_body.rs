@@ -136,7 +136,7 @@ pub enum SectionBody {
         root: Process,
         folding: Folding,
     },
-    Pending,
+    Estimated(Vec<Section>),
     Resolved(Vec<Section>),
 }
 
@@ -155,8 +155,8 @@ impl SectionBody {
         match self {
             SectionBody::Dictionary(entries) => entries.is_empty(),
             SectionBody::ColumnTable { records, .. } => records.is_empty(),
-            SectionBody::Tree { .. } | SectionBody::Pending => false,
-            SectionBody::Resolved(sections) => {
+            SectionBody::Tree { .. } => false,
+            SectionBody::Estimated(sections) | SectionBody::Resolved(sections) => {
                 sections.iter().all(|section| section.body.is_empty())
             }
         }
@@ -250,10 +250,10 @@ impl Section {
         }
     }
 
-    pub(in crate::widgets) fn pending() -> Self {
+    pub(in crate::widgets) fn estimated(sections: Vec<Section>) -> Self {
         Self {
             heading: None,
-            body: SectionBody::Pending,
+            body: SectionBody::Estimated(sections),
         }
     }
 

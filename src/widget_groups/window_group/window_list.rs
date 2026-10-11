@@ -52,12 +52,8 @@ pub struct WindowList {
     metrics: Metrics,
     window_processes: WindowProcesses,
     folding: Folding,
-    hovered_process: Option<HoveredProcess>,
-}
-
-struct HoveredProcess {
-    window: u64,
-    tree: OnHoverReading<Process>,
+    hovered_window: Option<u64>,
+    process_tree: OnHoverReading<Process>,
     inspection: OnHoverReading<Inspection>,
 }
 
@@ -102,39 +98,36 @@ impl WindowList {
         config: &Config,
     ) -> Task<WindowListMessage> {
         let Some(watched) = watched else {
-            self.hovered_process = None;
+            self.hovered_window = None;
+            self.process_tree.stop();
+            self.inspection.stop();
             return Task::none();
         };
-        let (tree, scanning) = OnHoverReading::fetch(
-            process::watched_tree(&watched),
-            WindowListMessage::ProcessTreeScanned,
-            config,
-        );
-        let (inspection, inspecting) = OnHoverReading::fetch(
-            process::inspection(&watched),
-            WindowListMessage::ProcessInspected,
-            config,
-        );
-        self.hovered_process = Some(HoveredProcess {
-            window: watched.window,
-            tree,
-            inspection,
-        });
-        Task::batch([scanning, inspecting])
+        self.hovered_window = Some(watched.window);
+        Task::batch([
+            self.process_tree.fetch(
+                process::watched_tree(&watched),
+                WindowListMessage::ProcessTreeScanned,
+                config,
+            ),
+            self.inspection.fetch(
+                process::inspection(&watched),
+                WindowListMessage::ProcessInspected,
+                config,
+            ),
+        ])
     }
 
     pub fn process_sections(&self) -> Vec<Section> {
-        self.hovered_process
+        self.hovered_window
             .iter()
-            .flat_map(|hovered| {
+            .flat_map(|window| {
                 [
-                    hovered
-                        .inspection
-                        .section(window_tooltip::inspection_sections),
-                    hovered.tree.section(|tree| {
+                    self.inspection.section(window_tooltip::inspection_sections),
+                    self.process_tree.section(|tree| {
                         let kept = self
                             .window_processes
-                            .of_window(hovered.window)
+                            .of_window(*window)
                             .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
                         vec![Section::tree("Process", Some(&kept), &self.folding)]
                     }),
@@ -158,9 +151,7 @@ impl WindowList {
             }
             WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::ProcessTreeScanned(fetched) => {
-                if let Some(hovered) = &mut self.hovered_process {
-                    hovered.tree.receive(fetched);
-                }
+                self.process_tree.receive(fetched);
                 Action::None
             }
             WindowListMessage::WindowProcessesPaired(window_processes) => {
@@ -172,9 +163,7 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::ProcessInspected(fetched) => {
-                if let Some(hovered) = &mut self.hovered_process {
-                    hovered.inspection.receive(fetched);
-                }
+                self.inspection.receive(fetched);
                 Action::None
             }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,

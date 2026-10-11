@@ -43,7 +43,7 @@ impl Default for TooltipLoading {
         Self {
             effect: TooltipLoadingEffect::default(),
             debug_delay: Duration::ZERO,
-            reveal_duration: Duration::from_millis(700),
+            reveal_duration: Duration::from_millis(500),
             decode: DecodeTiming::default(),
             skeleton: SkeletonTiming::default(),
         }

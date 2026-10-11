@@ -12,7 +12,7 @@ use iced::{
 };
 
 use crate::{
-    config::{Config, theme::font::ResolvedFont, tooltips::TooltipLoading},
+    config::{Config, theme::font::ResolvedFont},
     desktop_shell::{Message, hover_tooltips::GestureHint},
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
@@ -23,7 +23,7 @@ use crate::{
         context_menu::context_menu,
         copyable::{copyable, openable},
         favicon::Favicons,
-        loading_text::{arriving_text, pending_text},
+        loading_text::{LoadingPhase, loading_text},
         section_column::section_column,
         text::{bar_text, column_heading},
         tooltip_body::{
@@ -55,7 +55,6 @@ const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
-const PENDING_LINES: usize = 2;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
     right: 6.0 + CONTENT_INSET_PX,
@@ -70,7 +69,7 @@ pub struct TooltipContent<'a> {
     corner_radius: Radius,
     favicons: &'a Favicons,
     now: SystemTime,
-    arriving: bool,
+    phase: Option<LoadingPhase>,
 }
 
 impl<'a> TooltipContent<'a> {
@@ -86,12 +85,15 @@ impl<'a> TooltipContent<'a> {
             corner_radius,
             favicons,
             now: SystemTime::now(),
-            arriving: false,
+            phase: None,
         }
     }
 
-    fn arrival(&self) -> Option<TooltipLoading> {
-        self.arriving.then_some(self.config.tooltips.loading)
+    fn in_phase(self, phase: LoadingPhase) -> Self {
+        Self {
+            phase: Some(phase),
+            ..self
+        }
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -265,20 +267,14 @@ impl<'a> TooltipContent<'a> {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
             SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
             SectionBody::Tree { root, folding } => {
-                ProcessTree::new(root, folding, self.config, self.arrival()).view()
+                ProcessTree::new(root, folding, self.config, self.phase).view()
             }
-            SectionBody::Pending => pending_text(
-                self.config.tooltips.value_width_px,
-                PENDING_LINES,
-                self.config.tooltips.loading,
-                &self.config.theme.font,
-                self.config.theme.palette.info,
-            ),
-            SectionBody::Resolved(sections) => TooltipContent {
-                arriving: true,
-                ..*self
-            }
-            .sections(sections),
+            SectionBody::Estimated(sections) => self
+                .in_phase(LoadingPhase::Estimated(self.config.tooltips.loading))
+                .sections(sections),
+            SectionBody::Resolved(sections) => self
+                .in_phase(LoadingPhase::Arriving(self.config.tooltips.loading))
+                .sections(sections),
         }
     }
 
@@ -290,7 +286,7 @@ impl<'a> TooltipContent<'a> {
             flash: self.flash(),
             link: self.config.theme.palette.info,
             hint: self.dim(),
-            arrival: self.arrival(),
+            phase: self.phase,
             copy_flash: self.config.tooltips.copy_flash,
         }
     }
@@ -333,7 +329,7 @@ impl<'a> TooltipContent<'a> {
     ) -> Element<'static, Message> {
         let dim = self.dim();
         let label_view = CellView {
-            arrival: None,
+            phase: None,
             ..self.cell_view()
         };
         let key_column = table::column(Space::new(), move |entry: Entry| {
@@ -374,7 +370,7 @@ struct CellView {
     flash: Color,
     link: Color,
     hint: Color,
-    arrival: Option<TooltipLoading>,
+    phase: Option<LoadingPhase>,
     copy_flash: Duration,
 }
 
@@ -389,10 +385,10 @@ impl CellView {
     }
 
     fn text(&self, text: String, color: Color) -> Element<'static, Message> {
-        arriving_text(
+        loading_text(
             cell(&self.font, text.clone(), color, self.max_width),
             text,
-            self.arrival,
+            self.phase,
             &self.font,
             color,
         )

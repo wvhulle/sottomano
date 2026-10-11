@@ -268,7 +268,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
     }
 
     fn diff(&self, tree: &mut Tree) {
+        let switched = tree.state.downcast_ref::<MorphState>().seq != self.seq;
         tree.diff_children(&self.child_elements());
+        if switched {
+            self.renderings
+                .iter()
+                .zip(&mut tree.children[1..])
+                .filter(|(rendering, _)| rendering.incoming)
+                .for_each(|(rendering, child)| *child = Tree::new(&rendering.element));
+        }
     }
 
     fn size(&self) -> Size<Length> {
