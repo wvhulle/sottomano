@@ -59,8 +59,8 @@ pub enum NetInterfacesMessage {
     Bluetooth(Option<Bluetooth>),
     Ethernet(Option<Ethernet>),
     Wifi(Option<Wifi>),
-    Mobile(Option<Mobile>),
-    WifiDetailsFetched(HoverFetched<WifiDetails>),
+    Mobile(Box<Option<Mobile>>),
+    WifiDetailsFetched(Box<HoverFetched<WifiDetails>>),
     EthernetDetailsFetched(HoverFetched<EthernetDetails>),
     Expansion(ExpansionMessage),
 }
@@ -75,7 +75,8 @@ impl NetInterfacesGroup {
                 dbus(ethernet::NAME, ethernet::readings).map(NetInterfacesMessage::Ethernet),
             ),
             dbus(wifi::NAME, wifi::readings).map(NetInterfacesMessage::Wifi),
-            dbus(mobile::NAME, mobile::readings).map(NetInterfacesMessage::Mobile),
+            dbus(mobile::NAME, mobile::readings)
+                .map(|reading| NetInterfacesMessage::Mobile(Box::new(reading))),
         ])
     }
 
@@ -84,8 +85,10 @@ impl NetInterfacesGroup {
             NetInterfacesMessage::Bluetooth(reading) => self.bluetooth.load(reading),
             NetInterfacesMessage::Ethernet(reading) => self.ethernet.load(reading),
             NetInterfacesMessage::Wifi(reading) => self.wifi.load(reading),
-            NetInterfacesMessage::Mobile(reading) => self.mobile.load(reading),
-            NetInterfacesMessage::WifiDetailsFetched(fetched) => self.wifi_details.receive(fetched),
+            NetInterfacesMessage::Mobile(reading) => self.mobile.load(*reading),
+            NetInterfacesMessage::WifiDetailsFetched(fetched) => {
+                self.wifi_details.receive(*fetched);
+            }
             NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
                 self.ethernet_details.receive(fetched);
             }
@@ -106,7 +109,7 @@ impl NetInterfacesGroup {
         match hovered {
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Wifi)) => self.wifi_details.fetch(
                 wifi::details(),
-                NetInterfacesMessage::WifiDetailsFetched,
+                |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
                 config,
             ),
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {

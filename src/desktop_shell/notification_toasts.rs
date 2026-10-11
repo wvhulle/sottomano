@@ -12,7 +12,7 @@ use std::cmp::Reverse;
 use iced::{Padding, Theme, time::Instant};
 use niri_ipc::state::EventStreamState;
 use toast_card::ToastCard;
-use toast_lifecycle::{Countdown, ToastKind};
+use toast_lifecycle::{BodyClick, Countdown, ToastKind};
 pub use toast_lifecycle::{Notification, NotificationMessage};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
@@ -197,10 +197,19 @@ impl NotificationLayer {
     fn shell_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
         let notif = self.showing().find(|n| n.data.id == toast_id)?;
         if action_key == DEFAULT_ACTION {
-            return notif.kind.on_body_clicked().cloned();
+            return match &notif.body_click {
+                BodyClick::Shell(message) => Some(message.clone()),
+                BodyClick::DbusDefaultAction => None,
+            };
         }
         match &notif.kind {
-            ToastKind::Ongoing(toast) => toast.action_button_pressed(action_key).cloned(),
+            ToastKind::Ongoing {
+                action_messages, ..
+            } => action_key
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| action_messages.get(index))
+                .cloned(),
             ToastKind::Event { .. } => None,
         }
     }

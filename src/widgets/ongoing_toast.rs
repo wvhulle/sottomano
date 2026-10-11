@@ -115,13 +115,6 @@ impl<Message> OngoingToast<Message> {
         }
     }
 
-    pub fn action_button_pressed(&self, action_key: &str) -> Option<&Message> {
-        let index: usize = action_key.parse().ok()?;
-        self.action_buttons
-            .get(index)
-            .map(|button| &button.on_button_pressed)
-    }
-
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
             body: self.body_text.clone(),
@@ -237,8 +230,7 @@ mod tests {
             .with_action_button(proceed_button("second", 2))
             .map_messages(|message| u16::from(message) * 10);
         assert_eq!(alert.on_body_clicked, 0);
-        assert_eq!(alert.action_button_pressed("1"), Some(&20));
-        assert_eq!(alert.action_button_pressed("2"), None);
+        assert_eq!(alert.action_buttons[1].on_button_pressed, 20);
         assert_eq!(alert.toast_notification_data(7).actions[0].label, "first");
     }
 }

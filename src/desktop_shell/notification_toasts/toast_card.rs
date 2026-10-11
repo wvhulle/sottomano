@@ -299,7 +299,7 @@ impl ToastCard<'_> {
         let now = SystemTime::now();
         let reltime = match &self.notif.kind {
             ToastKind::Event { at, .. } => relative(*at, now),
-            ToastKind::Ongoing(toast) => ongoing_for(toast.since, now),
+            ToastKind::Ongoing { since, .. } => ongoing_for(*since, now),
         };
         let reltime_span = |visible: bool| {
             visible.then(|| {
