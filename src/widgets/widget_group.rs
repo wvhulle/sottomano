@@ -4,7 +4,6 @@ use chrono::Locale;
 use iced::{
     Alignment, Element, Padding,
     mouse::ScrollDelta,
-    time::Duration,
     widget::{Row, button, container, mouse_area},
 };
 
@@ -28,8 +27,6 @@ use crate::{
         source_reading::{icon_value_gap, reading_color, reading_value},
     },
 };
-
-const EXPANSION_DURATION: Duration = Duration::from_millis(90);
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExpansionMessage {
@@ -219,7 +216,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             return None;
         }
         let highest_alert_severity = self
-            .alerts(config.locale)
+            .alerts(config.calendar.locale)
             .map(|alert| alert.severity)
             .max()
             .unwrap_or_default();
@@ -233,17 +230,23 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         } = self;
         let face = match face {
             HandleFace::Icon(glyph) => GroupItem::element(move |_| {
-                glyph.view(config.font.icon_size_px, config.palette.bar_foreground)
+                glyph.view(
+                    config.theme.font.icon_size_px,
+                    config.theme.palette.bar_foreground,
+                )
             }),
             HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
-                glyph.view(config.font.icon_size_px, reading_color(config, reading))
+                glyph.view(
+                    config.theme.font.icon_size_px,
+                    reading_color(config, reading),
+                )
             }),
             HandleFace::FirstItem => items.remove(0),
         };
         let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
             Row::with_children(items.iter().filter_map(|item| item.view(config, reveal)))
-                .spacing(config.spacing.widget_spacing_px)
+                .spacing(config.panel_bar.widget_spacing_px)
                 .align_y(Alignment::Center)
                 .into()
         };
@@ -256,7 +259,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             cursor_hovering: expansion.cursor_hovering,
             expanded: expansion.expanded,
         };
-        let animated = expand_animation(expansion.expanded, EXPANSION_DURATION, move |reveal| {
+        let expansion_duration = config.panel_bar.group_expansion;
+        let animated = expand_animation(expansion.expanded, expansion_duration, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
@@ -269,7 +273,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 .align_y(Alignment::Center),
             )
             .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
+            .style(flat_button(config.theme.palette.bar_foreground))
             .on_press(toggle.clone())
             .into();
             let handle = match &preview {
@@ -311,21 +315,21 @@ struct EdgeIndicator {
 
 impl EdgeIndicator {
     fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
-        let thickness = config.widget_sizes.indicator_thickness_px;
+        let thickness = config.panel_bar.indicator_thickness_px;
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
             Severity::Low | Severity::Normal if self.expanded => {
-                activity_line(config.palette.focus, revealing_opacity, thickness)
+                activity_line(config.theme.palette.focus, revealing_opacity, thickness)
             }
             Severity::Low | Severity::Normal if self.cursor_hovering => {
-                activity_line(config.palette.bar_foreground, base, thickness)
+                activity_line(config.theme.palette.bar_foreground, base, thickness)
             }
             Severity::Low | Severity::Normal => {
-                activity_line(config.palette.bar_foreground, 0.12, thickness)
+                activity_line(config.theme.palette.bar_foreground, 0.12, thickness)
             }
             severity @ (Severity::Warning | Severity::Critical) => activity_line(
-                severity.color(&config.palette),
+                severity.color(&config.theme.palette),
                 revealing_opacity,
                 thickness,
             ),
@@ -356,6 +360,6 @@ fn revealed_content<'a, Message: 'a>(
     reveal: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let gap = config.spacing.widget_spacing_px;
+    let gap = config.panel_bar.widget_spacing_px;
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }

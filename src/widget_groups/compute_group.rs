@@ -7,7 +7,7 @@ pub mod memory_usage_gauge;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::temperature::SensorConfig,
+    config::widget_groups::temperature_sensors::SensorConfig,
     data::source::{
         Source,
         hardware::HostHardware,

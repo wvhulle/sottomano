@@ -58,7 +58,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
                 TerminalJournal::PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
-            .alerts(self.job_alerts(open_log, config.locale))
+            .alerts(self.job_alerts(open_log, config.calendar.locale))
     }
 
     fn job_alerts<M>(

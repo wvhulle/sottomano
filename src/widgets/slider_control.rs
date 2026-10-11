@@ -4,7 +4,6 @@ use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
     mouse::ScrollDelta,
-    time::Duration,
     widget::{Row, button, container, mouse_area, text::Wrapping},
 };
 use uom::si::{f64::Ratio, ratio};
@@ -31,7 +30,6 @@ use crate::{
     },
 };
 
-const EXPAND: Duration = Duration::from_millis(90);
 const PIXELS_PER_SCROLL_STEP: f32 = 40.0;
 
 pub(crate) fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
@@ -355,7 +353,8 @@ impl SliderControl {
     }
 
     pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, ControlMessage> {
-        expand_animation(self.open, EXPAND, move |expand| {
+        let expansion = config.panel_bar.slider_expansion;
+        expand_animation(self.open, expansion, move |expand| {
             if expand > 0.0 {
                 self.expanded_view(config, expand)
             } else {
@@ -366,13 +365,12 @@ impl SliderControl {
 
     fn expanded_view<'a>(&self, config: &Config, expand: f32) -> Element<'a, ControlMessage> {
         let state = self.state();
-        let glyph = button(
-            self.effective_icon()
-                .with_weight(state.weight())
-                .view(config.font.icon_size_px, state.color(&config.palette)),
-        )
+        let glyph = button(self.effective_icon().with_weight(state.weight()).view(
+            config.theme.font.icon_size_px,
+            state.color(&config.theme.palette),
+        ))
         .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
+        .style(flat_button(config.theme.palette.bar_foreground))
         .on_press(ControlMessage::Press);
         let slider = inline_slider(
             config,
@@ -392,17 +390,17 @@ impl SliderControl {
                 step: self.slider_step,
                 format: self.readout,
             },
-            &config.font,
-            bar_text(&config.font, self.readout_text())
+            &config.theme.font,
+            bar_text(&config.theme.font, self.readout_text())
                 .wrapping(Wrapping::None)
                 .width(Length::Fill)
                 .align_x(Horizontal::Center)
-                .color(config.palette.bar_foreground),
+                .color(config.theme.palette.bar_foreground),
         ))
         .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
+        .style(flat_button(config.theme.palette.bar_foreground))
         .on_press(ControlMessage::Press);
-        let gap = config.spacing.widget_spacing_px;
+        let gap = config.panel_bar.widget_spacing_px;
         let revealed = Row::with_children([slider, readout.into()])
             .spacing(gap)
             .align_y(Alignment::Center);

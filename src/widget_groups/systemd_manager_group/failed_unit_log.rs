@@ -48,7 +48,7 @@ impl<S: ScopeAppearance> Failed<S> {
             hover_target: S::failed_unit_target(unit.name.clone()).into(),
             severity: UNIT_FAILURE_PRIORITY.severity(),
             summary_text: Cow::Owned(format!("{} failed", unit.name)),
-            body_text: failure_summary(unit, config.locale),
+            body_text: failure_summary(unit, config.calendar.locale),
             on_body_clicked: SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,
                 S::follow_units_log_args([unit.name.as_str()]),

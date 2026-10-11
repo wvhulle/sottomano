@@ -8,7 +8,10 @@ use iced::{
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply::ReplyMessage};
 use crate::{
-    config::toasts::ToastLifetimeConfig,
+    config::{
+        Config,
+        notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
+    },
     data::{
         notifications::model::{
             ExpireTimeout, NotifHandle, NotificationData, ServerEvent, close_reason,
@@ -19,7 +22,6 @@ use crate::{
     widgets::{announced_level::LevelReading, bar_widget::Glyph, reading_alert::ReadingAlert},
 };
 
-const PRESENCE: Duration = Duration::from_millis(90);
 const SHRUNK_SCALE: f32 = 0.95;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,10 +31,10 @@ pub enum ExitPace {
 }
 
 impl ExitPace {
-    fn fade(self) -> Duration {
+    fn fade(self, card: &ToastCardConfig) -> Duration {
         match self {
-            Self::Dismissed => Duration::from_millis(140),
-            Self::Faded => Duration::from_millis(220),
+            Self::Dismissed => card.dismiss_fade,
+            Self::Faded => card.expire_fade,
         }
     }
 }
@@ -117,8 +119,9 @@ impl Notification {
         countdown: Option<Countdown>,
         seq: u64,
         place: ToastPlacement,
-        now: Instant,
+        config: &Config,
     ) -> Self {
+        let now = Instant::now();
         Self {
             data,
             origin,
@@ -128,8 +131,8 @@ impl Notification {
             countdown,
             seq,
             reply_draft: String::new(),
-            visibility: appearing(now),
-            slot: appearing(now),
+            visibility: appearing(now, config),
+            slot: appearing(now, config),
         }
     }
 
@@ -166,10 +169,11 @@ impl Notification {
         matches!(self.origin, ToastOrigin::DbusClient)
     }
 
-    pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace) {
+    pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace, config: &Config) {
         self.countdown = None;
-        self.visibility = fading_out(now, pace);
-        self.slot = collapsing_after_fade(now, pace);
+        let fade = pace.fade(&config.notification_toasts.card);
+        self.visibility = fading_out(now, fade);
+        self.slot = collapsing_after_fade(now, fade);
     }
 
     pub(super) fn is_withdrawing(&self) -> bool {
@@ -197,25 +201,25 @@ impl Notification {
     }
 }
 
-fn appearing(now: Instant) -> Animation<bool> {
+fn appearing(now: Instant, config: &Config) -> Animation<bool> {
     Animation::new(false)
         .easing(Easing::EaseOutCubic)
-        .duration(PRESENCE)
+        .duration(config.notification_toasts.card.appear)
         .go(true, now)
 }
 
-fn fading_out(now: Instant, pace: ExitPace) -> Animation<bool> {
+fn fading_out(now: Instant, fade: Duration) -> Animation<bool> {
     Animation::new(true)
         .easing(Easing::EaseIn)
-        .duration(pace.fade())
+        .duration(fade)
         .go(false, now)
 }
 
-fn collapsing_after_fade(now: Instant, pace: ExitPace) -> Animation<bool> {
+fn collapsing_after_fade(now: Instant, fade: Duration) -> Animation<bool> {
     Animation::new(true)
         .easing(Easing::EaseInOut)
         .very_quick()
-        .delay(pace.fade() * 3 / 5)
+        .delay(fade * 3 / 5)
         .go(false, now)
 }
 
@@ -278,17 +282,18 @@ mod tests {
 
     fn config() -> ToastLifetimeConfig {
         ToastLifetimeConfig {
-            low_severity_timeout_ms: 8_000,
-            normal_severity_timeout_ms: 12_000,
-            critical_severity_timeout_ms: 0,
+            low_severity_timeout: Duration::from_secs(8),
+            normal_severity_timeout: Duration::from_secs(12),
+            critical_severity_timeout: Duration::ZERO,
         }
     }
 
     #[test]
     fn the_slot_stays_open_while_the_card_fades_and_closes_after() {
         let now = Instant::now();
-        let fade = fading_out(now, ExitPace::Dismissed);
-        let slot = collapsing_after_fade(now, ExitPace::Dismissed);
+        let dismissed = ExitPace::Dismissed.fade(&ToastCardConfig::default());
+        let fade = fading_out(now, dismissed);
+        let slot = collapsing_after_fade(now, dismissed);
         let midway = now + Duration::from_millis(50);
         assert!(fade.interpolate(0.0, 1.0, midway) < 1.0);
         assert!((slot.interpolate(0.0, 1.0, midway) - 1.0).abs() < f32::EPSILON);
@@ -298,7 +303,8 @@ mod tests {
 
     #[test]
     fn dismissed_toasts_leave_faster_than_expired_ones() {
-        assert!(ExitPace::Dismissed.fade() < ExitPace::Faded.fade());
+        let card = ToastCardConfig::default();
+        assert!(ExitPace::Dismissed.fade(&card) < ExitPace::Faded.fade(&card));
         assert_eq!(ExitPace::from(close_reason::DISMISSED), ExitPace::Dismissed);
         assert_eq!(ExitPace::from(close_reason::EXPIRED), ExitPace::Faded);
     }

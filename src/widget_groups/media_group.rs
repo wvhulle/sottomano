@@ -232,7 +232,7 @@ impl MediaGroup {
         current: &Media,
         reveal: f32,
     ) -> Element<'a, MediaMessage> {
-        let side = config.font.icon_size_px;
+        let side = config.theme.font.icon_size_px;
         let icons: Vec<Element<'a, MediaMessage>> = players
             .iter()
             .map(|m| {
@@ -240,13 +240,13 @@ impl MediaGroup {
                 let icon = source_icon(config, index, m, side, opacity);
                 button(icon)
                     .padding(0)
-                    .style(flat_button(config.palette.bar_foreground))
+                    .style(flat_button(config.theme.palette.bar_foreground))
                     .on_press(MediaMessage::Source(m.bus.clone()))
                     .into()
             })
             .collect();
         Row::with_children(icons)
-            .spacing(config.spacing.widget_spacing_px)
+            .spacing(config.panel_bar.widget_spacing_px)
             .align_y(Alignment::Center)
             .into()
     }
@@ -358,7 +358,7 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
     let label = GroupItem::element(move |reveal| {
         hoverable(
             rich_text(label_spans(config, media, reveal))
-                .size(config.font.text_size_px)
+                .size(config.theme.font.text_size_px)
                 .line_height(LINE_HEIGHT)
                 .into(),
             HoverTarget::Media,
@@ -379,12 +379,12 @@ fn track_face<'a>(
     opacity: f32,
     gauge_fraction: Option<Ratio>,
 ) -> Element<'a, MediaMessage> {
-    let side = config.font.icon_size_px;
+    let side = config.theme.font.icon_size_px;
     let cover = track_cover(config, media, opacity, side);
     let Some(fraction) = gauge_fraction else {
         return cover;
     };
-    let color = config.palette.bar_foreground.scale_alpha(opacity);
+    let color = config.theme.palette.bar_foreground.scale_alpha(opacity);
     Row::with_children([cover, Gauge::new(fraction, color, side).into()])
         .spacing(icon_value_gap(config))
         .align_y(Alignment::Center)
@@ -404,8 +404,10 @@ fn track_cover<'a>(
             .opacity(opacity)
             .into();
     }
-    Glyph::from(Phosphor::MusicNote(Weight::Regular))
-        .view(side, config.palette.bar_foreground.scale_alpha(opacity))
+    Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
+        side,
+        config.theme.palette.bar_foreground.scale_alpha(opacity),
+    )
 }
 
 fn source_icon<'a>(
@@ -437,15 +439,17 @@ fn source_icon<'a>(
                 .into()
         };
     }
-    Glyph::from(Phosphor::MusicNote(Weight::Regular))
-        .view(side, config.palette.bar_foreground.scale_alpha(opacity))
+    Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
+        side,
+        config.theme.palette.bar_foreground.scale_alpha(opacity),
+    )
 }
 
 fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>> {
     let title = media.title.as_ref().unwrap_or(&media.identity);
     vec![colored_span(
         title.clone(),
-        config.font.iced_font,
-        config.palette.bar_foreground.scale_alpha(reveal),
+        config.theme.font.iced_font,
+        config.theme.palette.bar_foreground.scale_alpha(reveal),
     )]
 }

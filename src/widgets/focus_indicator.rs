@@ -15,21 +15,22 @@ use iced::{
     window,
 };
 
-use crate::desktop_shell::monitor_surfaces::Position;
+use crate::{config::Config, desktop_shell::monitor_surfaces::Position};
 
-const MOTION: Duration = Duration::from_millis(160);
 const BACKDROP_ALPHA: f32 = 0.2;
 
 pub fn focus_indicator<'a, Message>(
     slots: impl Into<Element<'a, Message>>,
     active: Option<usize>,
     color: Color,
+    config: &Config,
 ) -> FocusIndicator<'a, Message> {
     FocusIndicator {
         slots: slots.into(),
         active,
         color,
-        thickness: 1.0,
+        motion: config.panel_bar.focus_indicator_motion,
+        thickness: config.panel_bar.indicator_thickness_px,
         edge: Position::Bottom,
     }
 }
@@ -38,17 +39,12 @@ pub struct FocusIndicator<'a, Message> {
     slots: Element<'a, Message>,
     active: Option<usize>,
     color: Color,
+    motion: Duration,
     thickness: f32,
     edge: Position,
 }
 
 impl<Message> FocusIndicator<'_, Message> {
-    #[must_use]
-    pub fn thickness(mut self, thickness: f32) -> Self {
-        self.thickness = thickness;
-        self
-    }
-
     #[must_use]
     pub fn edge(mut self, edge: Position) -> Self {
         self.edge = edge;
@@ -132,17 +128,17 @@ struct Travel {
     extent: Animation<f32>,
 }
 
-fn motion(value: f32) -> Animation<f32> {
+fn motion(value: f32, duration: Duration) -> Animation<f32> {
     Animation::new(value)
         .easing(Easing::EaseOutCubic)
-        .duration(MOTION)
+        .duration(duration)
 }
 
 impl Travel {
-    fn resting_at(span: Travelled) -> Self {
+    fn resting_at(span: Travelled, duration: Duration) -> Self {
         Self {
-            start: motion(span.start),
-            extent: motion(span.extent),
+            start: motion(span.start, duration),
+            extent: motion(span.extent, duration),
         }
     }
 
@@ -283,7 +279,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         };
         let span = self.span(slot);
         let state = tree.state.downcast_mut::<State>();
-        let travel = state.travel.get_or_insert_with(|| Travel::resting_at(span));
+        let travel = state
+            .travel
+            .get_or_insert_with(|| Travel::resting_at(span, self.motion));
         travel.aim(span, *now);
         if travel.is_animating(*now) {
             shell.request_redraw();

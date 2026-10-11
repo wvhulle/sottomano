@@ -218,7 +218,7 @@ impl DesktopShell {
     #[allow(clippy::cast_possible_truncation)]
     fn reserved_zone(&self, output: &str, position: Position) -> i32 {
         let thickness = match position {
-            Position::Top | Position::Bottom => self.config.bar.height_px,
+            Position::Top | Position::Bottom => self.config.panel_bar.height_px,
             Position::Left => self
                 .panels()
                 .find(|(_, panel_output)| *panel_output == output)
@@ -283,7 +283,7 @@ impl DesktopShell {
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.bar.height_px as u32;
+        let height = self.config.panel_bar.height_px as u32;
         let settings = backdrop_settings(output, position, height);
         let id = Id::unique();
         self.backdrops.insert(id, position);
@@ -291,7 +291,7 @@ impl DesktopShell {
     }
 
     pub(crate) fn resize_backdrops(&self) -> Task<Message> {
-        let height = self.config.bar.height_px as u32;
+        let height = self.config.panel_bar.height_px as u32;
         Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
             [
                 Task::done(Message::LayoutChange {

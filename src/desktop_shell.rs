@@ -26,8 +26,8 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 
 use crate::{
     config::{
-        Config, ConfigFile, LoadError, SecretPaths, bar_size::BarSize, font::ResolvedFont,
-        temperature::SensorConfig,
+        Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig,
+        theme::font::ResolvedFont, widget_groups::temperature_sensors::SensorConfig,
     },
     data::{
         sink::sound,
@@ -239,7 +239,7 @@ impl DesktopShell {
             net_interfaces_group: NetInterfacesGroup::default(),
             monitor_group: MonitorGroup::default(),
             color_temperature_group: ColorTemperatureGroup::new(
-                config.color_temperature_service.clone(),
+                config.launched_programs.color_temperature_service.clone(),
             ),
             dark_mode_group: DarkModeGroup::default(),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
@@ -261,7 +261,7 @@ impl DesktopShell {
             favicons: Favicons::default(),
             font_fallbacks: FontFallbacks::default(),
             shell_settings: ShellSettings::default(),
-            theme: iced::Theme::from(&config.palette),
+            theme: iced::Theme::from(&config.theme.palette),
             config,
             config_file,
         };
@@ -277,7 +277,8 @@ impl DesktopShell {
             blocking("sound theme", sound::session_theme).map(Message::SoundThemeLoaded),
             query_outputs(),
             PowerGroup::probe().map(Message::Power),
-            ComputeGroup::probe(&shell.config.temperature.cpu).map(Message::Compute),
+            ComputeGroup::probe(&shell.config.widget_groups.temperature_sensors.cpu)
+                .map(Message::Compute),
             GpuGroup::probe().map(Message::Gpu),
             InternetGroup::probe().map(Message::Internet),
             MonitorGroup::probe().map(Message::Monitor),
@@ -633,29 +634,32 @@ impl DesktopShell {
 
     fn adopt_config(&mut self, config: Config) -> Task<Message> {
         let previous = mem::replace(&mut self.config, config);
-        self.theme = iced::Theme::from(&self.config.palette);
+        self.theme = iced::Theme::from(&self.config.theme.palette);
         Task::batch([
-            self.notifications.withdraw_config_error(),
-            self.adopt_font(&previous.font),
-            self.adopt_bar_size(&previous.bar),
-            self.adopt_color_temperature_service(&previous.color_temperature_service),
-            self.adopt_cpu_temperature_sensor(&previous.temperature.cpu),
+            self.notifications.withdraw_config_error(&self.config),
+            self.adopt_font(&previous.theme.font),
+            self.adopt_panel_bar(&previous.panel_bar),
+            self.adopt_color_temperature_service(
+                &previous.launched_programs.color_temperature_service,
+            ),
+            self.adopt_cpu_temperature_sensor(&previous.widget_groups.temperature_sensors.cpu),
         ])
     }
 
     fn adopt_cpu_temperature_sensor(&self, previous: &SensorConfig) -> Task<Message> {
-        if &self.config.temperature.cpu == previous {
+        if &self.config.widget_groups.temperature_sensors.cpu == previous {
             return Task::none();
         }
-        ComputeGroup::probe(&self.config.temperature.cpu).map(Message::Compute)
+        ComputeGroup::probe(&self.config.widget_groups.temperature_sensors.cpu)
+            .map(Message::Compute)
     }
 
     fn adopt_font(&mut self, previous: &ResolvedFont) -> Task<Message> {
-        if self.config.font.has_same_face_as(previous) {
+        if self.config.theme.font.has_same_face_as(previous) {
             return Task::none();
         }
         self.font_fallbacks = FontFallbacks::default();
-        font::load(self.config.font.data.to_vec()).map(|loaded| {
+        font::load(self.config.theme.font.data.to_vec()).map(|loaded| {
             if let Err(e) = loaded {
                 tracing::warn!("config reload: font not loaded: {e:?}");
             }
@@ -663,19 +667,23 @@ impl DesktopShell {
         })
     }
 
-    fn adopt_bar_size(&mut self, previous: &BarSize) -> Task<Message> {
-        if self.config.bar == *previous {
+    fn adopt_panel_bar(&mut self, previous: &PanelBarConfig) -> Task<Message> {
+        if self.config.panel_bar == *previous {
             return Task::none();
         }
         Task::batch([self.resize_backdrops(), self.reserve()])
     }
 
     fn adopt_color_temperature_service(&mut self, previous: &str) -> Task<Message> {
-        if self.config.color_temperature_service == previous {
+        if self.config.launched_programs.color_temperature_service == previous {
             return Task::none();
         }
-        self.color_temperature_group =
-            ColorTemperatureGroup::new(self.config.color_temperature_service.clone());
+        self.color_temperature_group = ColorTemperatureGroup::new(
+            self.config
+                .launched_programs
+                .color_temperature_service
+                .clone(),
+        );
         self.color_temperature_group
             .probe()
             .map(Message::ColorTemperature)
@@ -809,7 +817,7 @@ impl DesktopShell {
                         .iter()
                         .filter_map(|win| win.title.as_deref())
                         .flat_map(str::chars),
-                    &self.config.font,
+                    &self.config.theme.font,
                 )
                 .map(Message::FallbackFontsResolved),
         ])
@@ -869,7 +877,7 @@ impl DesktopShell {
     pub fn style(&self, _theme: &iced::Theme) -> Style {
         Style {
             background_color: Color::TRANSPARENT,
-            text_color: self.config.palette.bar_foreground,
+            text_color: self.config.theme.palette.bar_foreground,
         }
     }
 }

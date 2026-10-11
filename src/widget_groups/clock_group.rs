@@ -67,7 +67,7 @@ impl Default for ClockGroup {
 impl ClockGroup {
     pub fn update(&mut self, msg: ClockMessage, config: &Config) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Tick(now) => self.tick(now, &config.other_time_zones),
+            ClockMessage::Tick(now) => self.tick(now, &config.calendar.other_time_zones),
             ClockMessage::Expansion(m) => {
                 self.expansion.update(m);
             }

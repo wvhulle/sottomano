@@ -1,7 +1,7 @@
 use iced::{Font, widget::text::Span};
 
 use crate::{
-    config::{Config, font::ResolvedFont},
+    config::{Config, theme::font::ResolvedFont},
     data::source::app_rules::TitleParts,
     widgets::text::{FontFallbacks, colored_span},
 };
@@ -54,8 +54,8 @@ pub fn title_spans<'a>(config: &Config, runs: &[TitleRun], opacity: f32) -> Vec<
     runs.iter()
         .map(|run| {
             let color = match run.role {
-                TitleRole::Lead => config.palette.inactive,
-                TitleRole::Main => config.palette.bar_foreground,
+                TitleRole::Lead => config.theme.palette.inactive,
+                TitleRole::Main => config.theme.palette.bar_foreground,
             };
             colored_span(run.text.clone(), run.font, color.scale_alpha(opacity))
         })

@@ -79,8 +79,8 @@ impl<'a> WorkspaceSchematic<'a> {
     }
 
     fn tile(&self, tile: &PreviewTile) -> Element<'static, Message> {
-        let scale = self.config.widget_sizes.workspace_preview_scale;
-        let side = self.config.font.icon_size_px;
+        let scale = self.config.widget_groups.workspaces.preview_scale;
+        let side = self.config.theme.font.icon_size_px;
         let width = (tile.tile_size.width * scale).max(side);
         let height = (tile.tile_size.height * scale).max(side);
 
@@ -97,18 +97,18 @@ impl<'a> WorkspaceSchematic<'a> {
             .align_y(Vertical::Top);
 
         let outline = self.outline(tile);
-        let highlight = self.config.palette.focus;
+        let highlight = self.config.theme.palette.focus;
         let fill = Color {
             a: TILE_FILL_ALPHA,
-            ..self.config.palette.dim
+            ..self.config.theme.palette.dim
         };
         let hovered_fill = Color {
             a: TILE_HOVER_FILL_ALPHA,
-            ..self.config.palette.dim
+            ..self.config.theme.palette.dim
         };
         let radius = self.corner_radius;
         let shadow = self.lift(tile);
-        let text_color = self.config.palette.bar_foreground;
+        let text_color = self.config.theme.palette.bar_foreground;
 
         button(content)
             .width(width)
@@ -140,7 +140,7 @@ impl<'a> WorkspaceSchematic<'a> {
         Shadow {
             color: Color {
                 a: FLOATING_SHADOW_ALPHA,
-                ..self.config.palette.surface
+                ..self.config.theme.palette.surface
             },
             offset: FLOATING_SHADOW_OFFSET,
             blur_radius: FLOATING_SHADOW_BLUR_PX,
@@ -149,7 +149,7 @@ impl<'a> WorkspaceSchematic<'a> {
 
     fn label(&self, tile: &PreviewTile) -> Element<'static, Message> {
         rich_text(title_spans(self.config, &tile.title, 1.0))
-            .size(self.config.font.small_text_size_px)
+            .size(self.config.theme.font.small_text_size_px)
             .line_height(LINE_HEIGHT)
             .wrapping(Wrapping::WordOrGlyph)
             .into()
@@ -157,13 +157,13 @@ impl<'a> WorkspaceSchematic<'a> {
 
     fn outline(&self, tile: &PreviewTile) -> Color {
         if tile.is_urgent {
-            self.config.palette.urgent
+            self.config.theme.palette.urgent
         } else if tile.is_focused {
-            self.config.palette.focus
+            self.config.theme.palette.focus
         } else {
             Color {
                 a: TILE_OUTLINE_ALPHA,
-                ..self.config.palette.bar_foreground
+                ..self.config.theme.palette.bar_foreground
             }
         }
     }

@@ -94,7 +94,7 @@ pub struct NotificationLayer {
 
 impl DesktopShell {
     pub(super) fn group_toast_requests(&self) -> WidgetToastRequests {
-        let locale = self.config.locale;
+        let locale = self.config.calendar.locale;
         let TopBarGroups { start, center, end } = self.top_bar_groups();
         let BottomBarGroups {
             start: bottom_start,
@@ -146,7 +146,7 @@ impl NotificationLayer {
             toasts,
             bar_clearance,
             settings.overlays.corner_radius.top_left,
-            &config.toasts,
+            config,
         )
     }
 

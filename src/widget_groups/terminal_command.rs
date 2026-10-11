@@ -11,6 +11,7 @@ impl TerminalCommand {
     pub fn running(config: &Config, program_and_args: impl IntoIterator<Item = String>) -> Self {
         Self {
             command: config
+                .launched_programs
                 .terminal_command_prefix
                 .iter()
                 .cloned()

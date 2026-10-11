@@ -104,7 +104,7 @@ pub fn placement_for(
         .flatten();
 
     let Some(id) = id else {
-        let fallback_corner = config.toasts.placement.fallback_corner;
+        let fallback_corner = config.notification_toasts.placement.fallback_corner;
         return ToastPlacement {
             window,
             output: fallback_output(placement),

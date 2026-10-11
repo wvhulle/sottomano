@@ -19,31 +19,31 @@ use iced::{
 };
 
 use crate::{
-    config::{font::ResolvedFont, loading_effect::LoadingEffect},
+    config::{
+        theme::font::ResolvedFont,
+        tooltips::{TooltipLoading, TooltipLoadingEffect},
+    },
     widgets::text::LINE_HEIGHT,
 };
 
-const ARRIVAL: Duration = Duration::from_millis(700);
-const GLYPH_CHANGE: Duration = Duration::from_millis(55);
-const PULSE_PERIOD: Duration = Duration::from_millis(1400);
 const NOISE_GLYPHS: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
 
 pub fn arriving_text<'a, Message: 'a>(
     revealed: impl Into<Element<'a, Message>>,
     text: String,
-    arrival: Option<LoadingEffect>,
+    arrival: Option<TooltipLoading>,
     font: &ResolvedFont,
     color: Color,
 ) -> Element<'a, Message> {
-    let Some(effect) = arrival else {
+    let Some(loading) = arrival else {
         return revealed.into();
     };
     Element::new(LoadingText {
         revealed: revealed.into(),
         lines: vec![text],
         settles: true,
-        effect,
+        loading,
         font: font.iced_font,
         size: font.text_size_px,
         color,
@@ -53,7 +53,7 @@ pub fn arriving_text<'a, Message: 'a>(
 pub fn pending_text<'a, Message: 'a>(
     width: f32,
     lines: usize,
-    effect: LoadingEffect,
+    loading: TooltipLoading,
     font: &ResolvedFont,
     color: Color,
 ) -> Element<'a, Message> {
@@ -68,7 +68,7 @@ pub fn pending_text<'a, Message: 'a>(
             .map(|line| "x".repeat(glyphs - glyphs * line / (lines * 3)))
             .collect(),
         settles: false,
-        effect,
+        loading,
         font: font.iced_font,
         size: font.text_size_px,
         color,
@@ -90,15 +90,22 @@ struct LoadingText<'a, Message> {
     revealed: Element<'a, Message>,
     lines: Vec<String>,
     settles: bool,
-    effect: LoadingEffect,
+    loading: TooltipLoading,
     font: Font,
     size: f32,
     color: Color,
 }
 
 impl<Message> LoadingText<'_, Message> {
+    fn decode_settle(&self) -> Duration {
+        self.loading.decode.settle
+    }
+
     fn settled(&self, state: &State) -> bool {
-        self.settles && state.elapsed() >= ARRIVAL
+        match self.loading.effect {
+            TooltipLoadingEffect::Decode => self.settles && state.elapsed() >= self.decode_settle(),
+            TooltipLoadingEffect::Skeleton => self.settles,
+        }
     }
 
     fn line_height(&self) -> f32 {
@@ -136,9 +143,11 @@ impl<Message> LoadingText<'_, Message> {
         );
     }
 
-    fn draw_scramble(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
+    fn draw_decode(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
         let elapsed = state.elapsed();
-        let frame = (elapsed.as_millis() / GLYPH_CHANGE.as_millis()) as u64;
+        let glyph_change = self.loading.decode.glyph_change.as_millis().max(1);
+        let frame = (elapsed.as_millis() / glyph_change) as u64;
+        let settle = self.decode_settle();
         self.lines.iter().enumerate().for_each(|(row, line)| {
             let seed = fnv(line.as_bytes());
             let length = line.chars().count().max(1);
@@ -146,7 +155,8 @@ impl<Message> LoadingText<'_, Message> {
                 .chars()
                 .enumerate()
                 .map(|(position, target)| {
-                    let locked = self.settles && elapsed >= lock_time(seed, position, length);
+                    let locked =
+                        self.settles && elapsed >= lock_time(settle, seed, position, length);
                     if locked || target.is_whitespace() {
                         target
                     } else {
@@ -159,33 +169,29 @@ impl<Message> LoadingText<'_, Message> {
         });
     }
 
-    fn draw_pulse(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
+    fn draw_skeleton(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
         let elapsed = state.elapsed().as_secs_f32();
-        let phase = (elapsed / PULSE_PERIOD.as_secs_f32() * TAU).cos() * 0.5 + 0.5;
+        let period = self
+            .loading
+            .skeleton
+            .pulse_period
+            .as_secs_f32()
+            .max(f32::EPSILON);
+        let phase = 0.5 - (elapsed / period * TAU).cos() * 0.5;
         let color = Color {
-            a: self.color.a * (0.12 + 0.2 * phase),
+            a: self.color.a * (0.06 + 0.26 * phase),
             ..self.color
         };
         let line_height = self.line_height();
         let bar_height = line_height * 0.7;
-        let rows = if self.settles {
-            ((area.height / line_height).round() as usize).max(1)
-        } else {
-            self.lines.len()
-        };
         let longest = self.lines.iter().map(String::len).max().unwrap_or(1) as f32;
-        (0..rows).for_each(|row| {
-            let width = if self.settles {
-                area.width
-            } else {
-                area.width * self.lines[row].len() as f32 / longest
-            };
+        self.lines.iter().enumerate().for_each(|(row, line)| {
             renderer.fill_quad(
                 Quad {
                     bounds: Rectangle {
                         x: area.x,
                         y: area.y + row as f32 * line_height + (line_height - bar_height) / 2.0,
-                        width,
+                        width: area.width * line.len() as f32 / longest,
                         height: bar_height,
                     },
                     border: Border::default().rounded(bar_height / 4.0),
@@ -213,10 +219,10 @@ fn unit(value: u64) -> f32 {
     (mix(value) >> 40) as f32 / (1u64 << 24) as f32
 }
 
-fn lock_time(seed: u64, position: usize, length: usize) -> Duration {
+fn lock_time(settle: Duration, seed: u64, position: usize, length: usize) -> Duration {
     let order = position as f32 / length as f32;
     let chance = unit(seed.wrapping_add(position as u64));
-    ARRIVAL.mul_f32(0.15 + 0.35 * order + 0.5 * chance)
+    settle.mul_f32(0.15 + 0.35 * order + 0.5 * chance)
 }
 
 fn noise_glyph(seed: u64, row: usize, position: usize) -> char {
@@ -279,9 +285,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LoadingText<'_, M
             return;
         }
         let area = revealed.bounds();
-        match self.effect {
-            LoadingEffect::Scramble => self.draw_scramble(renderer, state, area),
-            LoadingEffect::Pulse => self.draw_pulse(renderer, state, area),
+        match self.loading.effect {
+            TooltipLoadingEffect::Decode => self.draw_decode(renderer, state, area),
+            TooltipLoadingEffect::Skeleton => self.draw_skeleton(renderer, state, area),
         }
     }
 

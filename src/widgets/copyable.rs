@@ -13,7 +13,6 @@ use iced::{
     mouse::{Cursor, Interaction},
 };
 
-const HOLD: Duration = Duration::from_millis(700);
 const OUTLINE_ALPHA: f32 = 0.45;
 const COPIED_FILL_ALPHA: f32 = 0.3;
 const BORDER_PX: f32 = 1.0;
@@ -30,12 +29,14 @@ pub fn copyable<'a, Message: 'a>(
     text: String,
     on_copy: impl Fn(String) -> Message + 'a,
     accent: Color,
+    hold: Duration,
 ) -> Element<'a, Message> {
     Element::new(Copyable {
         content: content.into(),
         text,
         on_press: Box::new(on_copy),
         accent,
+        hold,
         interaction: Interaction::Copy,
     })
 }
@@ -45,12 +46,14 @@ pub fn openable<'a, Message: 'a>(
     url: String,
     on_open: impl Fn(String) -> Message + 'a,
     accent: Color,
+    hold: Duration,
 ) -> Element<'a, Message> {
     Element::new(Copyable {
         content: content.into(),
         text: url,
         on_press: Box::new(on_open),
         accent,
+        hold,
         interaction: Interaction::Pointer,
     })
 }
@@ -60,6 +63,7 @@ struct Copyable<'a, Message> {
     text: String,
     on_press: Box<dyn Fn(String) -> Message + 'a>,
     accent: Color,
+    hold: Duration,
     interaction: Interaction,
 }
 
@@ -70,9 +74,9 @@ struct CellState {
 }
 
 impl CellState {
-    fn holding(&self, now: Instant) -> bool {
+    fn holding(&self, now: Instant, hold: Duration) -> bool {
         self.copied_at
-            .is_some_and(|at| now.duration_since(at) < HOLD)
+            .is_some_and(|at| now.duration_since(at) < hold)
     }
 }
 
@@ -148,7 +152,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
         shell.publish((self.on_press)(self.text.clone()));
         shell.capture_event();
         shell.request_redraw();
-        shell.request_redraw_at(now + HOLD);
+        shell.request_redraw_at(now + self.hold);
     }
 
     fn draw(
@@ -162,7 +166,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Mess
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<CellState>();
-        let copied = state.holding(Instant::now());
+        let copied = state.holding(Instant::now(), self.hold);
         if copied || state.hovered {
             renderer.fill_quad(
                 renderer::Quad {

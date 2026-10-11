@@ -5,7 +5,7 @@ pub mod drive_health_indicator;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::temperature::SensorConfig,
+    config::widget_groups::temperature_sensors::SensorConfig,
     data::source::disk::{
         self, Disk,
         activity::{DiskActivity, DiskTransfer, Reading, Writing},

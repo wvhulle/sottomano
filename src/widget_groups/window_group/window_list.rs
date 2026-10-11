@@ -9,7 +9,7 @@ use iced::{
 };
 
 use crate::{
-    config::{Config, window_agents::WindowAgentsConfig},
+    config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
         app_rules::AppRule,
         audio::WindowAudio,
@@ -96,7 +96,11 @@ impl WindowList {
         ])
     }
 
-    pub fn hover_process(&mut self, watched: Option<Watched>) -> Task<WindowListMessage> {
+    pub fn hover_process(
+        &mut self,
+        watched: Option<Watched>,
+        config: &Config,
+    ) -> Task<WindowListMessage> {
         let Some(watched) = watched else {
             self.hovered_process = None;
             return Task::none();
@@ -104,10 +108,12 @@ impl WindowList {
         let (tree, scanning) = OnHoverReading::fetch(
             process::watched_tree(&watched),
             WindowListMessage::ProcessTreeScanned,
+            config,
         );
         let (inspection, inspecting) = OnHoverReading::fetch(
             process::inspection(&watched),
             WindowListMessage::ProcessInspected,
+            config,
         );
         self.hovered_process = Some(HoveredProcess {
             window: watched.window,
@@ -203,6 +209,7 @@ impl WindowList {
             let opacity = self.metrics.item_opacity(self.scroll, i);
             let extras = Extras {
                 audio: config
+                    .widget_groups
                     .window_list
                     .audio_indicator
                     .then(|| win.pid.and_then(|pid| audio.get(&pid)).copied())
@@ -213,7 +220,7 @@ impl WindowList {
             window_button(config, icons, win, extras, position, opacity)
         });
         let row = Row::with_children(buttons)
-            .spacing(config.spacing.group_spacing_px)
+            .spacing(config.panel_bar.group_spacing_px)
             .height(Length::Fill)
             .align_y(Alignment::Center);
         let focus_opacity =
@@ -221,9 +228,9 @@ impl WindowList {
         let indicated = focus_indicator(
             row,
             focused_index,
-            config.palette.focus.scale_alpha(focus_opacity),
+            config.theme.palette.focus.scale_alpha(focus_opacity),
+            config,
         )
-        .thickness(config.widget_sizes.indicator_thickness_px)
         .edge(position);
         Some(window_list_viewport(
             indicated,
@@ -244,7 +251,7 @@ struct Extras<'a> {
 
 impl Extras<'_> {
     fn progress(&self, config: &Config) -> Option<f32> {
-        if !config.window_list.progress {
+        if !config.widget_groups.window_list.progress {
             return None;
         }
         self.job
@@ -254,6 +261,7 @@ impl Extras<'_> {
 
     fn count(&self, config: &Config) -> Option<i64> {
         config
+            .widget_groups
             .window_list
             .count_badge
             .then(|| self.launcher?.count)
@@ -284,7 +292,7 @@ fn window_button<'a>(
     let maximize_toggles = win.is_focused && !win.layout.is_floating;
     let pressable = button(slot.view(config, position))
         .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
+        .style(flat_button(config.theme.palette.bar_foreground))
         .on_press(if maximize_toggles {
             WindowListMessage::MaximizeToggled
         } else {
@@ -324,19 +332,19 @@ fn button_content<'a>(
 ) -> Element<'a, WindowListMessage> {
     let icon = badged_icon(config, icons, rule, win, extras, opacity);
     let runs = title_runs(
-        &config.font,
+        &config.theme.font,
         icons.fallbacks,
         win.title_parts.as_ref(),
         win.lead_first,
     );
     let title = rich_text(title_spans(config, &runs, opacity))
-        .size(config.font.text_size_px)
+        .size(config.theme.font.text_size_px)
         .line_height(LINE_HEIGHT);
     Row::new()
         .extend(icon)
         .push(title)
         .extend(audio_glyph(config, extras, opacity))
-        .spacing(config.spacing.widget_spacing_px)
+        .spacing(config.panel_bar.widget_spacing_px)
         .align_y(Alignment::Center)
         .into()
 }
@@ -356,8 +364,8 @@ fn audio_glyph<'a>(
     } else {
         Phosphor::SpeakerHigh(Weight::Regular)
     };
-    let color = state.color(&config.palette).scale_alpha(opacity);
-    Some(Glyph::from(icon.with_weight(state.weight())).view(config.font.icon_size_px, color))
+    let color = state.color(&config.theme.palette).scale_alpha(opacity);
+    Some(Glyph::from(icon.with_weight(state.weight())).view(config.theme.font.icon_size_px, color))
 }
 
 fn indicator_line<'a>(
@@ -372,9 +380,9 @@ fn indicator_line<'a>(
         0.0
     };
     activity_line(
-        config.palette.urgent,
+        config.theme.palette.urgent,
         severity * opacity,
-        config.widget_sizes.indicator_thickness_px,
+        config.panel_bar.indicator_thickness_px,
     )
 }
 
@@ -385,10 +393,10 @@ fn progress_ticks<'a>(
 ) -> Option<Element<'a, WindowListMessage>> {
     let fraction = extras.progress(config)?;
     Some(progress_line(
-        config.palette.warning.scale_alpha(opacity),
-        config.palette.dim.scale_alpha(opacity),
+        config.theme.palette.warning.scale_alpha(opacity),
+        config.theme.palette.dim.scale_alpha(opacity),
         fraction,
-        config.widget_sizes.indicator_thickness_px,
+        config.panel_bar.indicator_thickness_px,
     ))
 }
 
@@ -405,16 +413,16 @@ fn count_badge<'a>(
     } else {
         count.to_string()
     };
-    let background = config.palette.urgent.scale_alpha(opacity);
-    let foreground = config.palette.surface.scale_alpha(opacity);
-    let size = config.font.text_size_px;
+    let background = config.theme.palette.urgent.scale_alpha(opacity);
+    let foreground = config.theme.palette.surface.scale_alpha(opacity);
+    let size = config.theme.font.text_size_px;
     let badge = container(
         text(label)
             .size(size)
-            .font(config.font.iced_font)
+            .font(config.theme.font.iced_font)
             .color(foreground),
     )
-    .padding([0.0, config.spacing.widget_spacing_px])
+    .padding([0.0, config.panel_bar.widget_spacing_px])
     .style(move |_| container::Style {
         background: Some(background.into()),
         border: iced::Border {
@@ -466,7 +474,7 @@ fn resolved_icon<'a>(
             .and_then(|title| rule.favicon_key(title))
             .as_deref(),
         path.as_deref(),
-        config.font.icon_size_px,
+        config.theme.font.icon_size_px,
         opacity,
     )
 }

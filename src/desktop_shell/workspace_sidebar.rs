@@ -19,7 +19,7 @@ impl DesktopShell {
     ) -> Element<'a, Message> {
         let config = &self.config;
         let panels = &self.shell_settings.panels;
-        let frame_style = self.shell_settings.frame_style(&config.palette);
+        let frame_style = self.shell_settings.frame_style(&config.theme.palette);
         let framed_workspaces = (self.shell_settings.layout.workspaces_placement
             == WorkspacesPlacement::Sidebar)
             .then(|| workspaces_group::vertical_view(&self.niri_snapshot, output, config))

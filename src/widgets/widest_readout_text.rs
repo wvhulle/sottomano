@@ -14,7 +14,7 @@ use iced::{
     widget::text::{Shaping, Wrapping},
 };
 
-use crate::{config::font::ResolvedFont, widgets::text::LINE_HEIGHT};
+use crate::{config::theme::font::ResolvedFont, widgets::text::LINE_HEIGHT};
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 

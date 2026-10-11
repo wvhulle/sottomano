@@ -1,6 +1,6 @@
 use iced::Color;
 
-use crate::{config::palette::Palette, data::severity::Severity, widgets::phosphor::Weight};
+use crate::{config::theme::palette::Palette, data::severity::Severity, widgets::phosphor::Weight};
 
 impl Severity {
     pub fn color(self, palette: &Palette) -> Color {

@@ -11,7 +11,7 @@ use quick_launch::{QuickLaunch, QuickLaunchMessage};
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
-    config::{Config, window_agents::WindowAgentsConfig},
+    config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
     desktop_shell::monitor_surfaces::Position,
     widgets::{tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets},
@@ -47,9 +47,13 @@ impl WindowGroup {
         &mut self,
         niri_state: &EventStreamState,
         window: Option<u64>,
+        config: &Config,
     ) -> Task<WindowGroupMessage> {
         self.window_list
-            .hover_process(window.and_then(|window| watched(niri_state, window)))
+            .hover_process(
+                window.and_then(|window| watched(niri_state, window)),
+                config,
+            )
             .map(WindowGroupMessage::WindowList)
     }
 
@@ -116,7 +120,7 @@ impl WindowGroup {
             Row::new()
                 .extend(quick_launch)
                 .extend(window_list)
-                .spacing(config.spacing.group_spacing_px)
+                .spacing(config.panel_bar.group_spacing_px)
                 .align_y(Alignment::Center)
                 .into(),
         )

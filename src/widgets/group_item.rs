@@ -277,7 +277,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         if let Some(press) = self.on_press.clone() {
             element = button(element)
                 .padding(0)
-                .style(flat_button(config.palette.bar_foreground))
+                .style(flat_button(config.theme.palette.bar_foreground))
                 .on_press(GroupEvent::Group(press.message))
                 .into();
         }

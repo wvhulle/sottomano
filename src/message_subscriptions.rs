@@ -107,12 +107,14 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state.power_group.subscription().map(Message::Power),
         state
             .compute_group
-            .subscription(&state.config.temperature.cpu)
+            .subscription(&state.config.widget_groups.temperature_sensors.cpu)
             .map(Message::Compute),
         state.gpu_group.subscription().map(Message::Gpu),
-        DiskGroup::subscription(&state.config.temperature.drive).map(Message::Disk),
+        DiskGroup::subscription(&state.config.widget_groups.temperature_sensors.drive)
+            .map(Message::Disk),
         ClockGroup::subscription().map(Message::Clock),
-        SystemdManagerGroup::subscription(&state.config.systemd).map(Message::SystemdManager),
+        SystemdManagerGroup::subscription(&state.config.widget_groups.systemd_manager)
+            .map(Message::SystemdManager),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
         PendingUpgradesGroup::subscription().map(Message::PendingUpgrades),
         state.internet_group.subscription().map(Message::Internet),
@@ -128,9 +130,10 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         AudioGroup::subscription().map(Message::Audio),
         state
             .ai_group
-            .subscription(&state.config.working_days)
+            .subscription(&state.config.calendar.working_days)
             .map(Message::Ai),
-        WindowGroup::subscription(&state.config.window_agents).map(Message::WindowGroup),
+        WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
+            .map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),

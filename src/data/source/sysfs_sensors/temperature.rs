@@ -10,7 +10,7 @@ use super::{
     list_dir, read_trimmed,
 };
 use crate::{
-    config::temperature::{SensorChoice, SensorConfig, ThresholdOverrides},
+    config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::source::Source,
 };
 

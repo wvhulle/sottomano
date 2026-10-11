@@ -24,8 +24,6 @@ use crate::{
     },
 };
 
-const MORPH: Duration = Duration::from_millis(160);
-
 struct PopupFrame {
     bounds: Rectangle,
     notch_rows: Vec<Rectangle>,
@@ -68,6 +66,7 @@ pub fn anchored_popup<'a>(
     settings: &ShellSettings,
 ) -> Element<'a, Message> {
     let background = config
+        .theme
         .palette
         .surface
         .scale_alpha(settings.overlays.opacity);
@@ -75,11 +74,12 @@ pub fn anchored_popup<'a>(
         renderings,
         notch: notch(position, background),
         anchor,
-        edge_inset: config.bar.height_px + config.bar.popup_gap_px,
-        bar_thickness: config.bar.height_px,
-        popup_gap: config.bar.popup_gap_px,
+        edge_inset: config.panel_bar.height_px + config.panel_bar.popup_gap_px,
+        bar_thickness: config.panel_bar.height_px,
+        popup_gap: config.panel_bar.popup_gap_px,
         position,
         seq,
+        morph: config.tooltips.popup_morph,
         background,
         radius: settings.overlays.corner_radius.top_left,
         shadow: settings.shadow.drop_shadow(),
@@ -95,6 +95,7 @@ struct AnchoredPopup<'a> {
     popup_gap: f32,
     position: Position,
     seq: u64,
+    morph: Duration,
     background: Color,
     radius: f32,
     shadow: Shadow,
@@ -308,7 +309,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             state.now = Instant::now();
             state.morph = Animation::new(false)
                 .easing(Easing::EaseOutCubic)
-                .duration(MORPH)
+                .duration(self.morph)
                 .go(true, state.now);
         }
         state.progress = state.morph.interpolate(0.0, 1.0, state.now);

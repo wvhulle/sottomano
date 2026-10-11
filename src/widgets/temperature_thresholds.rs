@@ -4,7 +4,7 @@ use uom::{
 };
 
 use crate::{
-    config::temperature::{Threshold, ThresholdOverrides},
+    config::widget_groups::temperature_sensors::{Threshold, ThresholdOverrides},
     data::severity::Severity,
 };
 

@@ -93,12 +93,12 @@ fn entry<'a, Message: Clone + 'a>(
     submenu_open: bool,
     message: Message,
 ) -> Element<'a, Message> {
-    let icon_size = config.font.icon_size_px;
-    let color =
-        config
-            .palette
-            .bar_foreground
-            .scale_alpha(if node.enabled { 1.0 } else { DISABLED_ALPHA });
+    let icon_size = config.theme.font.icon_size_px;
+    let color = config
+        .theme
+        .palette
+        .bar_foreground
+        .scale_alpha(if node.enabled { 1.0 } else { DISABLED_ALPHA });
 
     let leading: Option<Element<'a, Message>> = node
         .icon
@@ -110,14 +110,14 @@ fn entry<'a, Message: Clone + 'a>(
         });
 
     let mut row = Row::new()
-        .spacing(config.spacing.widget_spacing_px)
+        .spacing(config.panel_bar.widget_spacing_px)
         .align_y(Vertical::Center)
         .width(Length::Fill);
     if let Some(element) = leading {
         row = row.push(element);
     }
     if let Some(label) = &node.label {
-        row = row.push(bar_text(&config.font, label.clone()).color(color));
+        row = row.push(bar_text(&config.theme.font, label.clone()).color(color));
     }
     if matches!(node.kind, MenuKind::Submenu) {
         let chevron = if submenu_open {
@@ -130,7 +130,7 @@ fn entry<'a, Message: Clone + 'a>(
             .push(Glyph::from(chevron.with_weight(Weight::Regular)).view(icon_size, color));
     }
 
-    let accent = config.palette.focus;
+    let accent = config.theme.palette.focus;
     let styled = button(row)
         .width(Length::Fill)
         .padding(ROW_PADDING)
@@ -162,7 +162,7 @@ fn button_style(
 }
 
 fn divider<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
-    let color = config.palette.surface_raised;
+    let color = config.theme.palette.surface_raised;
     container(activity_line(color, 1.0, DIVIDER_THICKNESS))
         .width(Length::Fill)
         .padding(DIVIDER_PADDING)

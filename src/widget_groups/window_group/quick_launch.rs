@@ -101,13 +101,13 @@ fn icon_slot<'a>(
     reveal: f32,
 ) -> Option<Element<'a, QuickLaunchMessage>> {
     let path = index.app_icon(app_id)?;
-    let side = config.font.icon_size_px;
+    let side = config.theme.font.icon_size_px;
     let resting = icon_image(path, side, reveal * RESTING_OPACITY);
     let bright = icon_image(path, side, reveal);
     Some(
         button(hover(resting, bright))
             .padding(0)
-            .style(flat_button(config.palette.bar_foreground))
+            .style(flat_button(config.theme.palette.bar_foreground))
             .on_press(QuickLaunchMessage::Launch(app_id.to_string()))
             .into(),
     )

@@ -128,7 +128,7 @@ impl DesktopShell {
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
-                &self.config.font,
+                &self.config.theme.font,
                 &self.font_fallbacks,
                 *workspace,
             ),
@@ -142,7 +142,7 @@ impl DesktopShell {
             _ => None,
         };
         self.window_group
-            .hover_window(&self.niri, window)
+            .hover_window(&self.niri, window, &self.config)
             .map(Message::WindowGroup)
     }
 
