@@ -158,7 +158,8 @@ impl<'a> ProcessTree<'a> {
         let dim = self.dim();
         let tint = self.tint();
         let font = self.config.theme.font.clone();
-        let bold = self.config.theme.font.bold();
+        let monospace = self.config.theme.monospace_font.clone();
+        let bold = monospace.bold();
         let phase = self.phase;
         let copy_flash = self.copy_flash();
 
@@ -172,13 +173,13 @@ impl<'a> ProcessTree<'a> {
                             let level = listing.level();
                             let calm = if is_root { flash } else { foreground };
                             let color = tint.or(level, calm);
-                            let name = bar_text(&font, listing.label()).color(color);
+                            let name = bar_text(&monospace, listing.label()).color(color);
                             let name = if is_root { name.font(bold) } else { name };
                             let cell = loading_text(
                                 container(name).max_width(NAME_WIDTH_PX),
                                 listing.label(),
                                 phase,
-                                &font,
+                                &monospace,
                                 color,
                             );
                             Row::new()
@@ -233,7 +234,7 @@ impl<'a> ProcessTree<'a> {
         let dim = self.dim();
         let flash = self.flash();
         let tint = self.tint();
-        let font = self.config.theme.font.clone();
+        let font = self.config.theme.monospace_font.clone();
         let phase = self.phase;
         let copy_flash = self.copy_flash();
         table::column(self.heading(title), move |branch: Branch| {

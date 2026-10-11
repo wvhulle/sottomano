@@ -280,7 +280,7 @@ impl<'a> TooltipContent<'a> {
 
     fn cell_view(&self) -> CellView {
         CellView {
-            font: self.config.theme.font.clone(),
+            font: self.config.theme.monospace_font.clone(),
             max_width: self.config.tooltips.value_width_px,
             locale: self.config.calendar.locale,
             flash: self.flash(),
@@ -329,6 +329,7 @@ impl<'a> TooltipContent<'a> {
     ) -> Element<'static, Message> {
         let dim = self.dim();
         let label_view = CellView {
+            font: self.config.theme.font.clone(),
             phase: None,
             ..self.cell_view()
         };

@@ -19,4 +19,5 @@ pub struct ThemeChoice {
 pub struct Theme {
     pub palette: Palette,
     pub font: ResolvedFont,
+    pub monospace_font: ResolvedFont,
 }
