@@ -41,6 +41,7 @@ pub struct GpuModel {
     pub name: String,
     pub driver_version: String,
     pub temperature_limits: GpuTemperatureLimits,
+    pub power_limit: Option<Power>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,7 +95,12 @@ fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
                 .ok()
                 .map(celsius),
         },
+        power_limit: device.enforced_power_limit().ok().map(milliwatts),
     })
+}
+
+fn milliwatts(power: u32) -> Power {
+    Power::new::<milliwatt>(f64::from(power))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,11 +144,10 @@ pub struct GpuProcess {
     pub vram: Option<ByteSize>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VramUsage {
     pub used: ByteSize,
     pub total: ByteSize,
-    pub processes: Vec<GpuProcess>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -154,13 +159,22 @@ pub struct GpuPowerDraw {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuSnapshot {
     pub load: Ratio,
+    pub vram: VramUsage,
+    pub temperature: ThermodynamicTemperature,
+    pub power_draw: Power,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GpuClocks {
     pub performance_state: Option<u32>,
     pub graphics_clock: Option<Frequency>,
     pub memory_clock: Option<Frequency>,
     pub fan: Option<Ratio>,
-    pub vram: VramUsage,
-    pub temperature: ThermodynamicTemperature,
-    pub power: GpuPowerDraw,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GpuProcesses {
+    pub processes: Vec<GpuProcess>,
 }
 
 impl Source for GpuSnapshot {
@@ -172,49 +186,84 @@ impl Source for GpuSnapshot {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(bus: PciBusId) -> Result<Self, Self::Error> {
-        spawn_blocking(move || read_snapshot(&bus))
-            .await
-            .map_err(|_| Error::Panicked)?
+        read_device(bus, |device| {
+            let memory = device.memory_info()?;
+            Ok(GpuSnapshot {
+                load: Ratio::new::<percent>(f64::from(device.utilization_rates()?.gpu)),
+                vram: VramUsage {
+                    used: ByteSize::b(memory.used),
+                    total: ByteSize::b(memory.total),
+                },
+                temperature: celsius(device.temperature(TemperatureSensor::Gpu)?),
+                power_draw: milliwatts(device.power_usage()?),
+            })
+        })
+        .await
     }
 }
 
-fn read_snapshot(bus: &PciBusId) -> Result<GpuSnapshot, Error> {
-    let nvml = Nvml::init()?;
-    let device = nvml.device_by_pci_bus_id(bus.0.as_str())?;
-    let memory = device.memory_info()?;
-    let clock = |kind: Clock| {
-        device
-            .clock_info(kind)
-            .ok()
-            .map(|mhz| Frequency::new::<megahertz>(f64::from(mhz)))
-    };
-    Ok(GpuSnapshot {
-        load: Ratio::new::<percent>(f64::from(device.utilization_rates()?.gpu)),
-        performance_state: device
-            .performance_state()
-            .ok()
-            .filter(|state| *state != PerformanceState::Unknown)
-            .map(|state| state.as_c()),
-        graphics_clock: clock(Clock::Graphics),
-        memory_clock: clock(Clock::Memory),
-        fan: device
-            .fan_speed(0)
-            .ok()
-            .map(|speed| Ratio::new::<percent>(f64::from(speed))),
-        vram: VramUsage {
-            used: ByteSize::b(memory.used),
-            total: ByteSize::b(memory.total),
-            processes: gpu_processes(&device),
-        },
-        temperature: celsius(device.temperature(TemperatureSensor::Gpu)?),
-        power: GpuPowerDraw {
-            draw: Power::new::<milliwatt>(f64::from(device.power_usage()?)),
-            limit: device
-                .enforced_power_limit()
-                .ok()
-                .map(|limit| Power::new::<milliwatt>(f64::from(limit))),
-        },
+impl Source for GpuClocks {
+    type Error = Error;
+
+    type Key = PciBusId;
+
+    const NAME: &'static str = "gpu clocks";
+    const INTERVAL: Duration = Duration::from_secs(3);
+
+    async fn poll(bus: PciBusId) -> Result<Self, Self::Error> {
+        read_device(bus, |device| {
+            let clock = |kind: Clock| {
+                device
+                    .clock_info(kind)
+                    .ok()
+                    .map(|mhz| Frequency::new::<megahertz>(f64::from(mhz)))
+            };
+            Ok(GpuClocks {
+                performance_state: device
+                    .performance_state()
+                    .ok()
+                    .filter(|state| *state != PerformanceState::Unknown)
+                    .map(|state| state.as_c()),
+                graphics_clock: clock(Clock::Graphics),
+                memory_clock: clock(Clock::Memory),
+                fan: device
+                    .fan_speed(0)
+                    .ok()
+                    .map(|speed| Ratio::new::<percent>(f64::from(speed))),
+            })
+        })
+        .await
+    }
+}
+
+impl Source for GpuProcesses {
+    type Error = Error;
+
+    type Key = PciBusId;
+
+    const NAME: &'static str = "gpu processes";
+    const INTERVAL: Duration = Duration::from_secs(3);
+
+    async fn poll(bus: PciBusId) -> Result<Self, Self::Error> {
+        read_device(bus, |device| {
+            Ok(GpuProcesses {
+                processes: gpu_processes(device),
+            })
+        })
+        .await
+    }
+}
+
+async fn read_device<T: Send + 'static>(
+    bus: PciBusId,
+    read: fn(&Device) -> Result<T, Error>,
+) -> Result<T, Error> {
+    spawn_blocking(move || {
+        let nvml = Nvml::init()?;
+        read(&nvml.device_by_pci_bus_id(bus.0.as_str())?)
     })
+    .await
+    .map_err(|_| Error::Panicked)?
 }
 
 fn gpu_processes(device: &Device) -> Vec<GpuProcess> {

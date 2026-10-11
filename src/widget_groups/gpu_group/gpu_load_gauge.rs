@@ -8,7 +8,7 @@ use uom::{
 };
 
 use crate::{
-    data::source::gpu::{GpuModel, GpuSnapshot},
+    data::source::gpu::{GpuClocks, GpuModel, GpuSnapshot},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         hardware_section::HardwareEntries,
@@ -35,8 +35,19 @@ impl BarWidget for GpuSnapshot {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let percent_text =
-            |share: Ratio| format!("{:.0}", share.into_format_args(percent, Abbreviation));
+        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+            "GPU",
+            percent_text(self.load),
+        )])])
+    }
+}
+
+fn percent_text(share: Ratio) -> String {
+    format!("{:.0}", share.into_format_args(percent, Abbreviation))
+}
+
+impl GpuClocks {
+    pub fn sections(&self) -> Vec<Section> {
         let clock_text = |key: &'static str, clock: Option<Frequency>| {
             clock.map(|frequency| {
                 KeyValue::new(
@@ -45,9 +56,8 @@ impl BarWidget for GpuSnapshot {
                 )
             })
         };
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        vec![Section::untitled_dictionary(
             [
-                Some(KeyValue::new("GPU", percent_text(self.load))),
                 self.performance_state
                     .map(|state| KeyValue::new("Performance state", format!("P{state}"))),
                 clock_text("Graphics clock", self.graphics_clock),
@@ -57,7 +67,7 @@ impl BarWidget for GpuSnapshot {
             ]
             .into_iter()
             .flatten(),
-        )])
+        )]
     }
 }
 
