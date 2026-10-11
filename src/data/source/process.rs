@@ -48,6 +48,34 @@ impl Process {
             .fold(self.cpu, Add::add)
     }
 
+    pub fn pruned_to(&self, kept: &[i32]) -> Self {
+        Self {
+            pid: self.pid,
+            parent: self.parent,
+            name: self.name.clone(),
+            memory: self.memory,
+            cpu: self.cpu,
+            threads: self.threads,
+            uptime: self.uptime,
+            children: self
+                .children
+                .iter()
+                .filter(|child| child.contains_any(kept))
+                .map(|child| {
+                    if kept.contains(&child.pid) {
+                        child.clone()
+                    } else {
+                        child.pruned_to(kept)
+                    }
+                })
+                .collect(),
+        }
+    }
+
+    fn contains_any(&self, pids: &[i32]) -> bool {
+        pids.contains(&self.pid) || self.children.iter().any(|child| child.contains_any(pids))
+    }
+
     fn born(stat: &Stat, booted: f64) -> Duration {
         let started = started_seconds(stat);
         Duration::try_from_secs_f64(booted - started).unwrap_or_default()
@@ -369,6 +397,39 @@ mod tests {
         let root = grown(1, [leaf(1, 0), leaf(2, 1), leaf(3, 2), leaf(4, 1)]);
         assert_eq!(shape(&root), vec![1, 2, 3, 4]);
         assert_eq!(root.count(), 4);
+    }
+
+    #[test]
+    fn pruning_keeps_only_branches_holding_a_kept_process() {
+        let kitty = grown(
+            1,
+            [
+                leaf(1, 0),
+                leaf(2, 1),
+                leaf(3, 2),
+                leaf(4, 1),
+                leaf(5, 4),
+                leaf(6, 1),
+            ],
+        );
+        assert_eq!(shape(&kitty.pruned_to(&[2, 5])), vec![1, 2, 3, 4, 5]);
+        assert_eq!(shape(&kitty.pruned_to(&[])), vec![1]);
+    }
+
+    #[test]
+    fn pruning_reaches_through_an_intermediate_fork_server() {
+        let firefox = grown(
+            1,
+            [
+                leaf(1, 0),
+                leaf(2, 1),
+                leaf(3, 2),
+                leaf(4, 2),
+                leaf(5, 4),
+                leaf(6, 1),
+            ],
+        );
+        assert_eq!(shape(&firefox.pruned_to(&[4])), vec![1, 2, 4, 5]);
     }
 
     #[test]

@@ -47,6 +47,7 @@ pub mod tray;
 pub mod umbra;
 pub mod wallpaper;
 pub mod weather;
+pub mod window_agents;
 pub mod wireguard;
 
 pub trait Source: Clone + PartialEq + Sized + Send + 'static {

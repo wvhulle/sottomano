@@ -9,7 +9,7 @@ use iced::{
 };
 
 use crate::{
-    config::Config,
+    config::{Config, window_agents::WindowAgentsConfig},
     data::source::{
         app_rules::AppRule,
         audio::WindowAudio,
@@ -17,6 +17,7 @@ use crate::{
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
         process::{self, Forest, Inspection, Process},
+        window_agents::{self, WindowProcesses},
     },
     desktop_shell::{
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
@@ -48,6 +49,7 @@ pub struct WindowList {
     scroll: f32,
     metrics: Metrics,
     processes: Forest,
+    window_processes: WindowProcesses,
     folding: Folding,
     inspected: Option<Inspection>,
 }
@@ -61,6 +63,7 @@ pub enum WindowListMessage {
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
     ProcessesScanned(Forest),
+    WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
     ProcessInspected(Inspection),
     IconsBackstopElapsed,
@@ -77,7 +80,10 @@ pub enum Action {
 }
 
 impl WindowList {
-    pub fn subscription(watching_window: bool) -> Subscription<WindowListMessage> {
+    pub fn subscription(
+        watching_window: bool,
+        agents: &WindowAgentsConfig,
+    ) -> Subscription<WindowListMessage> {
         let watched = if watching_window {
             process::subscription().map(WindowListMessage::ProcessesScanned)
         } else {
@@ -87,12 +93,18 @@ impl WindowList {
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
             launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
             job_view::subscription().map(WindowListMessage::JobsChanged),
+            window_agents::subscription(agents).map(WindowListMessage::WindowProcessesPaired),
             watched,
         ])
     }
 
-    pub fn process(&self, pid: i32) -> Option<&Process> {
-        self.processes.subtree(pid)
+    pub fn process(&self, window: u64, pid: i32) -> Option<Process> {
+        let tree = self.processes.subtree(pid)?;
+        Some(
+            self.window_processes
+                .of_window(window)
+                .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept)),
+        )
     }
 
     pub fn folding(&self) -> &Folding {
@@ -120,6 +132,10 @@ impl WindowList {
             WindowListMessage::ProcessesScanned(forest) => {
                 self.folding.retain_live(&forest);
                 self.processes = forest;
+                Action::None
+            }
+            WindowListMessage::WindowProcessesPaired(window_processes) => {
+                self.window_processes = window_processes;
                 Action::None
             }
             WindowListMessage::ProcessFoldToggled(pid) => {

@@ -11,6 +11,7 @@ pub mod toasts;
 pub mod tray;
 mod watch;
 pub mod widget_sizes;
+pub mod window_agents;
 pub mod window_list;
 
 pub use load::{Config, ConfigFile, LoadError, config_home, default_config_toml};
