@@ -4,14 +4,19 @@ use std::{
     time::Duration,
 };
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
     Error, ExtraStatus, Money, Oauth,
     oauth_api::{self, PlanReply},
     subscription_login, title_case,
 };
-use crate::data::source::Source;
+use crate::data::source::{
+    Source,
+    ai::quota::{Quota, QuotaLimited},
+};
 
 #[derive(Deserialize)]
 struct Usage {
@@ -57,7 +62,7 @@ pub struct ClaudeEnterpriseSpend {
     pub status: ExtraStatus,
     pub used: Money,
     pub limit: Option<Money>,
-    pub used_percent: f64,
+    pub used_share: Ratio,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +118,18 @@ impl Source for ClaudeEnterpriseSpend {
     }
 }
 
+impl QuotaLimited for ClaudeEnterpriseSpend {
+    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.limit
+            .as_ref()
+            .and_then(|_| {
+                Quota::within_calendar_month("Claude monthly spend limit", self.used_share, now)
+            })
+            .into_iter()
+            .collect()
+    }
+}
+
 impl ClaudeEnterpriseSpend {
     fn of(spend: Spend) -> Self {
         let status = if spend.enabled {
@@ -129,7 +146,7 @@ impl ClaudeEnterpriseSpend {
             status,
             used: spend.used.into(),
             limit: spend.limit.map(Money::from),
-            used_percent: spend.percent,
+            used_share: Ratio::new::<percent>(spend.percent),
         }
     }
 }

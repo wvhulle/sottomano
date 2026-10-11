@@ -1,6 +1,7 @@
 use std::{borrow::Cow, time::SystemTime};
 
 use chrono::Locale;
+use uom::si::f64::Ratio;
 
 use crate::{
     data::{
@@ -47,6 +48,7 @@ pub struct OngoingToast<Message> {
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
     pub body_text: Option<String>,
+    pub progress: Option<Ratio>,
     pub since: SystemTime,
     pub on_body_clicked: Message,
     pub action_buttons: Vec<OngoingToastActionButton<Message>>,
@@ -86,6 +88,7 @@ impl<Message> OngoingToast<Message> {
             severity,
             summary_text: Cow::Borrowed(summary_text),
             body_text: widget.localized_label(locale),
+            progress: widget.gauge(),
             since: SystemTime::now(),
             on_body_clicked,
             action_buttons: Vec::new(),
@@ -105,6 +108,7 @@ impl<Message> OngoingToast<Message> {
             severity: self.severity,
             summary_text: self.summary_text,
             body_text: self.body_text,
+            progress: self.progress,
             since: self.since,
             on_body_clicked: lift(self.on_body_clicked),
             action_buttons: self
@@ -118,6 +122,7 @@ impl<Message> OngoingToast<Message> {
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
             body: self.body_text.clone(),
+            progress: self.progress,
             actions: self
                 .action_buttons
                 .iter()

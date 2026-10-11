@@ -1,3 +1,4 @@
+pub mod ai_usage;
 pub mod systemd_manager;
 pub mod temperature_sensors;
 pub mod tray;
@@ -5,8 +6,8 @@ pub mod tray;
 use serde::{Deserialize, Serialize};
 
 use crate::config::widget_groups::{
-    systemd_manager::SystemdManagerConfig, temperature_sensors::TemperatureSensorsConfig,
-    tray::TrayConfig,
+    ai_usage::AiUsageConfig, systemd_manager::SystemdManagerConfig,
+    temperature_sensors::TemperatureSensorsConfig, tray::TrayConfig,
 };
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -17,6 +18,7 @@ pub struct WidgetGroupsConfig {
     pub tray: TrayConfig,
     pub temperature_sensors: TemperatureSensorsConfig,
     pub systemd_manager: SystemdManagerConfig,
+    pub ai_usage: AiUsageConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

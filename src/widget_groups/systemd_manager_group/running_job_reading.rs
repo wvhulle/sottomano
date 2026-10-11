@@ -76,6 +76,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
                 TimePart::TimeOfDay.format(&DateTime::<Local>::from(job.started_at), locale),
                 S::SCOPE_NAME
             )),
+            progress: None,
             since: job.started_at,
             on_body_clicked: open_log(S::follow_units_log_args([job.unit.as_str()])),
             action_buttons: Vec::new(),

@@ -6,20 +6,22 @@ use std::{
 };
 
 use chrono::{DateTime, TimeDelta, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
     Error,
     oauth_api::{self, PlanReply},
     subscription_login,
 };
-use crate::data::source::Source;
+use crate::data::source::{
+    Source,
+    ai::quota::{Quota, QuotaLimited},
+};
 
 const DEFAULT_DECIMAL_PLACES: u8 = 2;
-const FULL_PERCENT: f64 = 100.0;
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
 const WEEKLY_LENGTH: TimeDelta = TimeDelta::days(7);
-const MIN_ELAPSED: TimeDelta = TimeDelta::minutes(10);
 
 #[derive(Deserialize)]
 struct Usage {
@@ -45,35 +47,13 @@ struct Overage {
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct WindowUsage {
-    pub utilization: f64,
+    #[serde(deserialize_with = "percent_share")]
+    pub utilization: Ratio,
     pub resets_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Pace {
-    Lasts { at_reset: f64 },
-    RunsOut { at: DateTime<Utc> },
-}
-
-impl WindowUsage {
-    pub fn pace(&self, length: TimeDelta, now: DateTime<Utc>) -> Option<Pace> {
-        let start = self.resets_at? - length;
-        let elapsed = now - start;
-        if self.utilization <= 0.0 || elapsed < MIN_ELAPSED {
-            return None;
-        }
-        let at_reset = self.utilization * length.as_seconds_f64() / elapsed.as_seconds_f64();
-        if at_reset <= FULL_PERCENT {
-            return Some(Pace::Lasts { at_reset });
-        }
-        let until_full = elapsed
-            .to_std()
-            .ok()?
-            .mul_f64(FULL_PERCENT / self.utilization);
-        Some(Pace::RunsOut {
-            at: start + TimeDelta::from_std(until_full).ok()?,
-        })
-    }
+fn percent_share<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Ratio, D::Error> {
+    f64::deserialize(deserializer).map(Ratio::new::<percent>)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -121,7 +101,7 @@ pub struct ExtraUsage {
     pub status: ExtraStatus,
     pub spent: Option<Money>,
     pub monthly_limit: Option<Money>,
-    pub used_percent: Option<f64>,
+    pub used_share: Option<Ratio>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -134,20 +114,54 @@ pub struct ClaudeUsageWindows {
 }
 
 impl ClaudeUsageWindows {
-    pub fn session_used(&self) -> f64 {
+    pub fn session_used(&self) -> Ratio {
         self.session.utilization
     }
 
-    pub fn session_pace(&self, now: DateTime<Utc>) -> Option<Pace> {
-        self.session.pace(SESSION_LENGTH, now)
+    pub fn session_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
+        self.session.quota("Claude session", SESSION_LENGTH, now)
     }
 
-    pub fn weekly_pace(&self, now: DateTime<Utc>) -> Option<Pace> {
-        self.weekly.pace(WEEKLY_LENGTH, now)
+    pub fn weekly_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
+        self.weekly.quota("Claude weekly limit", WEEKLY_LENGTH, now)
     }
 
-    pub fn sonnet_pace(&self, now: DateTime<Utc>) -> Option<Pace> {
-        self.sonnet.as_ref()?.pace(WEEKLY_LENGTH, now)
+    pub fn sonnet_quota(&self, now: DateTime<Utc>) -> Option<Quota> {
+        self.sonnet
+            .as_ref()?
+            .quota("Claude weekly Sonnet limit", WEEKLY_LENGTH, now)
+    }
+}
+
+impl WindowUsage {
+    fn quota(&self, label: &'static str, length: TimeDelta, now: DateTime<Utc>) -> Option<Quota> {
+        Some(Quota::within_window(
+            label,
+            self.utilization,
+            self.resets_at?,
+            length,
+            now,
+        ))
+    }
+}
+
+impl QuotaLimited for ClaudeUsageWindows {
+    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        let extra = self
+            .extra
+            .as_ref()
+            .filter(|extra| extra.status == ExtraStatus::Enabled && extra.monthly_limit.is_some())
+            .and_then(|extra| extra.used_share)
+            .and_then(|used| Quota::within_calendar_month("Claude extra usage", used, now));
+        [
+            self.session_quota(now),
+            self.weekly_quota(now),
+            self.sonnet_quota(now),
+            extra,
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
 
@@ -182,7 +196,7 @@ impl Overage {
             status: self.status(),
             spent: self.used_credits.map(|minor| self.money(minor)),
             monthly_limit: self.monthly_limit.map(|minor| self.money(minor)),
-            used_percent: self.utilization,
+            used_share: self.utilization.map(Ratio::new::<percent>),
         })
     }
 
@@ -234,7 +248,7 @@ mod tests {
     #[test]
     fn usage_windows_decode_with_null_sonnet_and_disabled_overage() {
         let usage: Usage = serde_json::from_str(USAGE).unwrap();
-        assert!((usage.five_hour.utilization - 42.0).abs() < f64::EPSILON);
+        assert!((usage.five_hour.utilization.get::<percent>() - 42.0).abs() < 1e-9);
         assert_eq!(
             usage.seven_day.resets_at,
             "2026-09-01T00:00:00Z".parse::<DateTime<Utc>>().ok()
@@ -255,48 +269,8 @@ mod tests {
             r#"{"utilization": 4.5, "resets_at": "2026-09-29T18:20:00.156123+00:00"}"#,
         )
         .unwrap();
-        assert!((window.utilization - 4.5).abs() < f64::EPSILON);
+        assert!((window.utilization.get::<percent>() - 4.5).abs() < 1e-9);
         assert!(window.resets_at.is_some());
-    }
-
-    fn session_at(utilization: f64, start: DateTime<Utc>) -> WindowUsage {
-        WindowUsage {
-            utilization,
-            resets_at: Some(start + SESSION_LENGTH),
-        }
-    }
-
-    fn session_start() -> DateTime<Utc> {
-        "2026-10-02T10:00:00Z".parse().unwrap()
-    }
-
-    #[test]
-    fn a_steady_pace_projects_usage_at_reset() {
-        let start = session_start();
-        let pace = session_at(40.0, start).pace(SESSION_LENGTH, start + TimeDelta::minutes(150));
-        let Some(Pace::Lasts { at_reset }) = pace else {
-            panic!("expected the session to last, got {pace:?}");
-        };
-        assert!((at_reset - 80.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn a_fast_pace_runs_out_before_reset() {
-        let start = session_start();
-        let pace = session_at(60.0, start).pace(SESSION_LENGTH, start + TimeDelta::hours(2));
-        assert_eq!(
-            pace,
-            Some(Pace::RunsOut {
-                at: start + TimeDelta::minutes(200)
-            })
-        );
-    }
-
-    #[test]
-    fn too_early_in_the_window_projects_nothing() {
-        let start = session_start();
-        let pace = session_at(5.0, start).pace(SESSION_LENGTH, start + TimeDelta::minutes(5));
-        assert_eq!(pace, None);
     }
 
     #[test]
@@ -311,6 +285,7 @@ mod tests {
         );
         assert_eq!(extra.spent.unwrap().to_string(), "20.16 EUR");
         assert_eq!(extra.monthly_limit.unwrap().to_string(), "30.00 EUR");
-        assert_eq!(extra.used_percent, Some(67.2));
+        let used_percent = extra.used_share.map(|used| used.get::<percent>());
+        assert!(used_percent.is_some_and(|used| (used - 67.2).abs() < 1e-9));
     }
 }

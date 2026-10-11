@@ -7,11 +7,11 @@ pub mod copilot_cli_monthly_spend;
 pub mod copilot_free_quota_count;
 pub mod copilot_quota_gauge;
 pub mod openrouter_credit_spend;
+pub mod quota_alert_toast;
 pub mod spend_to_level;
 
 use std::path::PathBuf;
 
-use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
     data::source::{
         Source,
         ai::{
-            ccusage,
+            ccusage::{self, SpendBudget},
             claude::{
                 self, ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend,
                 ClaudeOrganization, ClaudeUsageWindows,
@@ -109,17 +109,25 @@ impl ClaudeLogin {
     }
 }
 
+fn spend_budget(config: &Config, monthly_limit_usd: Option<u32>) -> SpendBudget {
+    SpendBudget {
+        working_days: config.calendar.working_days.clone(),
+        monthly_limit_usd,
+    }
+}
+
 fn claude_subscriptions(
     login: Option<&ClaudeLogin>,
     ccusage_installed: bool,
-    working_days: &[Weekday],
+    config: &Config,
 ) -> Vec<Subscription<AiMessage>> {
     let account = login.map(ClaudeLogin::account_subscription);
     let local_logs = ccusage_installed.then(|| {
         if let Some(ClaudeLogin::Subscription(_)) = login {
             polling::<ClaudeCcusageBlock>(()).map(AiMessage::ClaudeCcusageBlock)
         } else {
-            polling::<ClaudeCcusagePeriods>(working_days.to_vec())
+            let budget = config.widget_groups.ai_usage.monthly_budget_usd.claude_code;
+            polling::<ClaudeCcusagePeriods>(spend_budget(config, budget))
                 .map(AiMessage::ClaudeCcusagePeriods)
         }
     });
@@ -192,19 +200,20 @@ impl AiGroup {
         let secrets = self.secrets.clone();
         Task::future(async move {
             let github_token = secrets.gh_auth_token.as_ref();
+            let ccusage_installed = ccusage::installed().await;
             AiMessage::Available(Available {
                 claude: ClaudeLogin::probe(secrets.claude_code_oauth).await,
-                ccusage_installed: ccusage::installed().await,
+                ccusage_installed,
                 copilot: CopilotAvailable {
                     metered: available_with::<CopilotMetered>(github_token).await,
                     free: available_with::<CopilotFree>(github_token).await,
-                    cli: CopilotCcusage::available(&()).await,
+                    cli: ccusage_installed,
                 },
             })
         })
     }
 
-    pub fn subscription(&self, working_days: &[Weekday]) -> Subscription<AiMessage> {
+    pub fn subscription(&self, config: &Config) -> Subscription<AiMessage> {
         let secrets = &self.secrets;
         let available = &self.available;
         let mut subscriptions = Vec::new();
@@ -214,7 +223,7 @@ impl AiGroup {
         subscriptions.extend(claude_subscriptions(
             available.claude.as_ref(),
             available.ccusage_installed,
-            working_days,
+            config,
         ));
         if let Some(key) = secrets.gh_auth_token.clone() {
             if available.copilot.metered {
@@ -226,7 +235,10 @@ impl AiGroup {
             }
         }
         if available.copilot.cli {
-            subscriptions.push(polling::<CopilotCcusage>(()).map(AiMessage::CopilotCli));
+            let budget = config.widget_groups.ai_usage.monthly_budget_usd.copilot_cli;
+            subscriptions.push(
+                polling::<CopilotCcusage>(spend_budget(config, budget)).map(AiMessage::CopilotCli),
+            );
         }
         Subscription::batch(subscriptions)
     }
@@ -279,17 +291,18 @@ impl AiGroup {
             AiMessage::Expansion,
             [
                 self.claude_usage_windows
-                    .present_group_item(AiTarget::ClaudeUsageWindows),
+                    .present_quota_group_item(AiTarget::ClaudeUsageWindows),
                 self.claude_enterprise_spend
-                    .present_group_item(AiTarget::ClaudeEnterpriseSpend),
+                    .present_quota_group_item(AiTarget::ClaudeEnterpriseSpend),
                 self.claude_ccusage_periods
-                    .group_item(AiTarget::ClaudeCcusagePeriods),
+                    .quota_group_item(AiTarget::ClaudeCcusagePeriods),
                 self.claude_ccusage_block
                     .present_group_item(AiTarget::ClaudeCcusageBlock),
                 self.copilot_metered
-                    .present_group_item(AiTarget::CopilotMetered),
+                    .present_quota_group_item(AiTarget::CopilotMetered),
                 self.copilot_free.group_item(AiTarget::CopilotFree),
-                self.copilot_cli.present_group_item(AiTarget::CopilotCli),
+                self.copilot_cli
+                    .present_quota_group_item(AiTarget::CopilotCli),
                 self.openrouter.present_group_item(AiTarget::OpenRouter),
             ]
             .into_iter()

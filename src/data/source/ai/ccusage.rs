@@ -5,10 +5,14 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, Utc, Weekday};
+use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, TimeZone, Utc, Weekday};
 use serde::Deserialize;
+use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::data::source::command::{self, exists};
+use crate::data::source::{
+    ai::quota::Quota,
+    command::{self, exists},
+};
 
 const PROGRAM: &str = "ccusage";
 pub const POLL_INTERVAL: Duration = Duration::from_secs(15);
@@ -75,12 +79,47 @@ pub struct Period {
     pub usage: Usage,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SpendBudget {
+    pub working_days: Vec<Weekday>,
+    pub monthly_limit_usd: Option<u32>,
+}
+
 impl Period {
-    pub fn projected_cost(&self, today: NaiveDate, working_days: &[Weekday]) -> Option<f64> {
+    fn elapsed_working_share(&self, today: NaiveDate, working_days: &[Weekday]) -> Option<f64> {
         let elapsed = count_working_days(self.since, today + TimeDelta::days(1), working_days);
         let whole = count_working_days(self.since, self.until, working_days);
-        (elapsed > 0).then(|| self.usage.cost * f64::from(whole) / f64::from(elapsed))
+        (elapsed > 0).then(|| f64::from(elapsed) / f64::from(whole))
     }
+
+    pub fn projected_cost(&self, today: NaiveDate, working_days: &[Weekday]) -> Option<f64> {
+        self.elapsed_working_share(today, working_days)
+            .map(|share| self.usage.cost / share)
+    }
+
+    pub fn budget_quota(
+        &self,
+        label: &'static str,
+        budget: &SpendBudget,
+        today: NaiveDate,
+    ) -> Option<Quota> {
+        let limit_usd = budget.monthly_limit_usd?;
+        let elapsed = self.elapsed_working_share(today, &budget.working_days)?;
+        Some(Quota {
+            label,
+            used: Ratio::new::<ratio>(self.usage.cost / f64::from(limit_usd)),
+            elapsed: Ratio::new::<ratio>(elapsed),
+            starts_at: local_midnight(self.since)?,
+            resets_at: local_midnight(self.until)?,
+        })
+    }
+}
+
+fn local_midnight(day: NaiveDate) -> Option<DateTime<Utc>> {
+    Local
+        .from_local_datetime(&day.and_hms_opt(0, 0, 0)?)
+        .earliest()
+        .map(|midnight| midnight.with_timezone(&Utc))
 }
 
 fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: &[Weekday]) -> u32 {
@@ -245,7 +284,7 @@ impl MonthlyReport {
 
 pub struct CurrentMonth {
     pub name: String,
-    pub usage: Usage,
+    pub period: Period,
 }
 
 pub async fn installed() -> bool {
@@ -273,8 +312,15 @@ pub async fn this_month(agent: Agent) -> Result<CurrentMonth, Error> {
     let name = now.format("%Y-%m").to_string();
     let raw = report(agent, "monthly", &first_of_month).await?;
     let report: MonthlyReport = serde_json::from_str(&raw)?;
-    let usage = report.month(&name);
-    Ok(CurrentMonth { name, usage })
+    let since = month_start(now.date_naive());
+    Ok(CurrentMonth {
+        period: Period {
+            since,
+            until: next_month_start(since),
+            usage: report.month(&name),
+        },
+        name,
+    })
 }
 
 async fn report(agent: Agent, period: &'static str, since: &str) -> Result<String, Error> {

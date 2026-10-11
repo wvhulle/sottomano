@@ -1,34 +1,51 @@
 use std::time::Duration;
 
-use chrono::Weekday;
+use chrono::{DateTime, Local, Utc};
 
 use super::Error;
 use crate::data::source::{
     Source,
-    ai::ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage},
+    ai::{
+        ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage, SpendBudget},
+        quota::{Quota, QuotaLimited},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeCcusagePeriods {
     pub recent: RecentUsage,
-    pub working_days: Vec<Weekday>,
+    pub budget: SpendBudget,
+}
+
+impl QuotaLimited for ClaudeCcusagePeriods {
+    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.recent
+            .month
+            .budget_quota(
+                "Claude Code monthly budget",
+                &self.budget,
+                now.with_timezone(&Local).date_naive(),
+            )
+            .into_iter()
+            .collect()
+    }
 }
 
 impl Source for ClaudeCcusagePeriods {
     type Error = Error;
-    type Key = Vec<Weekday>;
+    type Key = SpendBudget;
 
     const NAME: &'static str = "claude-ccusage-periods";
     const INTERVAL: Duration = POLL_INTERVAL;
 
-    async fn available(_working_days: &Vec<Weekday>) -> bool {
+    async fn available(_budget: &SpendBudget) -> bool {
         ccusage::installed().await
     }
 
-    async fn poll(working_days: Vec<Weekday>) -> Result<Self, Self::Error> {
+    async fn poll(budget: SpendBudget) -> Result<Self, Self::Error> {
         Ok(ClaudeCcusagePeriods {
             recent: ccusage::recent(Agent::ClaudeCode).await?,
-            working_days,
+            budget,
         })
     }
 }

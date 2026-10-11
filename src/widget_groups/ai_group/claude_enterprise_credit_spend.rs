@@ -1,7 +1,11 @@
-use uom::si::{f64::Ratio, ratio::percent};
+use chrono::Utc;
+use uom::si::f64::Ratio;
 
 use crate::{
-    data::source::ai::claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
+    data::source::ai::{
+        claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
+        quota::QuotaLimited,
+    },
     widget_groups::ai_group::{amount_text::percent_text, spend_to_level::level_from_used},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -25,13 +29,13 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 
     fn state(&self) -> WidgetState {
-        level_from_used(self.used_percent).into()
+        self.quota_severity(Utc::now())
+            .unwrap_or_else(|| level_from_used(self.used_share))
+            .into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        self.limit
-            .as_ref()
-            .map(|_| Ratio::new::<percent>(self.used_percent))
+        self.limit.as_ref().map(|_| self.used_share)
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -42,7 +46,7 @@ impl BarWidget for ClaudeEnterpriseSpend {
         let limit_entries = self.limit.iter().flat_map(|limit| {
             [
                 KeyValue::new("Monthly Limit", limit.to_string()),
-                KeyValue::new("Percent Used", percent_text(self.used_percent)),
+                KeyValue::new("Percent Used", percent_text(self.used_share)),
             ]
         });
         TooltipBody::sections(&[Section::dictionary(

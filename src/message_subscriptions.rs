@@ -115,10 +115,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state.media_group.subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
-        state
-            .ai_group
-            .subscription(&state.config.calendar.working_days)
-            .map(Message::Ai),
+        state.ai_group.subscription(&state.config).map(Message::Ai),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),

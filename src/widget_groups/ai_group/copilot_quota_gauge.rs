@@ -1,7 +1,11 @@
-use uom::si::{f64::Ratio, ratio::percent};
+use chrono::Utc;
+use uom::si::f64::Ratio;
 
 use crate::{
-    data::source::ai::copilot::{CopilotMetered, USER_ENDPOINT},
+    data::source::ai::{
+        copilot::{CopilotMetered, USER_ENDPOINT},
+        quota::QuotaLimited,
+    },
     widget_groups::ai_group::{
         amount_text::{percent_text, to_cents},
         spend_to_level::level_from_used,
@@ -25,11 +29,13 @@ impl BarWidget for CopilotMetered {
     }
 
     fn state(&self) -> WidgetState {
-        level_from_used(self.percent_used).into()
+        self.quota_severity(Utc::now())
+            .unwrap_or_else(|| level_from_used(self.used_share))
+            .into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        Some(Ratio::new::<percent>(self.percent_used))
+        Some(self.used_share)
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -45,7 +51,7 @@ impl BarWidget for CopilotMetered {
                 self.quota.clone(),
                 [
                     KeyValue::new("Used", to_cents(self.used)),
-                    KeyValue::new("Used Share", percent_text(self.percent_used)),
+                    KeyValue::new("Used Share", percent_text(self.used_share)),
                     KeyValue::new("Remaining", to_cents(self.remaining)),
                     KeyValue::new("Limit", self.limit.to_string()),
                 ]

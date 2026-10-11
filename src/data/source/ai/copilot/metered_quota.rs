@@ -1,9 +1,13 @@
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Utc};
+use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{Error, QuotaSnapshot, USER_POLL_INTERVAL, UserInfo, quota_reset, user_info};
-use crate::data::source::Source;
+use crate::data::source::{
+    Source,
+    ai::quota::{Quota, QuotaLimited},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
@@ -12,8 +16,24 @@ pub struct CopilotMetered {
     pub used: f64,
     pub limit: i64,
     pub remaining: f64,
-    pub percent_used: f64,
+    pub used_share: Ratio,
     pub reset: Option<DateTime<Utc>>,
+}
+
+impl QuotaLimited for CopilotMetered {
+    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.reset
+            .and_then(|resets_at| {
+                Quota::within_month_before(
+                    "Copilot premium requests",
+                    self.used_share,
+                    resets_at,
+                    now,
+                )
+            })
+            .into_iter()
+            .collect()
+    }
 }
 
 impl Source for CopilotMetered {
@@ -36,7 +56,7 @@ impl Source for CopilotMetered {
             used: snapshot.used(),
             limit: snapshot.entitlement,
             remaining: snapshot.quota_remaining,
-            percent_used: 100.0 - snapshot.percent_remaining,
+            used_share: Ratio::new::<percent>(100.0 - snapshot.percent_remaining),
             reset: quota_reset(&info),
         })
     }
