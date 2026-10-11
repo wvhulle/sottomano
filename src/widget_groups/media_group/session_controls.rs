@@ -49,10 +49,12 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
     {
         self.stoppable().then(|| {
             let state = WidgetState::of_toggle(false);
-            let color = state.color(&self.config.palette).scale_alpha(self.reveal);
+            let color = state
+                .color(&self.config.theme.palette)
+                .scale_alpha(self.reveal);
             GlyphButton::new(
                 Phosphor::Stop(state.weight()),
-                self.config.font.icon_size_px,
+                self.config.theme.font.icon_size_px,
                 color,
                 (self.on_command)(Command::Stop),
             )

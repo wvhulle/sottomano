@@ -13,7 +13,7 @@ use uom::{
 };
 
 use crate::{
-    config::{Config, loading_effect::LoadingEffect},
+    config::{Config, tooltips::TooltipLoading},
     data::{severity::Severity, source::process::Process},
     desktop_shell::Message,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
@@ -131,7 +131,7 @@ pub struct ProcessTree<'a> {
     root: &'a Process,
     folding: &'a Folding,
     config: &'a Config,
-    arrival: Option<LoadingEffect>,
+    arrival: Option<TooltipLoading>,
 }
 
 impl<'a> ProcessTree<'a> {
@@ -139,7 +139,7 @@ impl<'a> ProcessTree<'a> {
         root: &'a Process,
         folding: &'a Folding,
         config: &'a Config,
-        arrival: Option<LoadingEffect>,
+        arrival: Option<TooltipLoading>,
     ) -> Self {
         Self {
             root,
@@ -157,9 +157,10 @@ impl<'a> ProcessTree<'a> {
         let flash = self.flash();
         let dim = self.dim();
         let tint = self.tint();
-        let font = self.config.font.clone();
-        let bold = self.config.font.bold();
+        let font = self.config.theme.font.clone();
+        let bold = self.config.theme.font.bold();
         let arrival = self.arrival;
+        let copy_flash = self.copy_flash();
 
         table::table(
             [
@@ -182,7 +183,13 @@ impl<'a> ProcessTree<'a> {
                             );
                             Row::new()
                                 .push(caret(&listing, caret_size, tint.or(level, dim)))
-                                .push(copyable(cell, listing.name, Message::CopyText, flash))
+                                .push(copyable(
+                                    cell,
+                                    listing.name,
+                                    Message::CopyText,
+                                    flash,
+                                    copy_flash,
+                                ))
                         }
                         Entry::Elided { hidden } => Row::new()
                             .push(blank(caret_size))
@@ -211,9 +218,9 @@ impl<'a> ProcessTree<'a> {
 
     fn heading(&self, title: &str) -> Element<'static, Message> {
         column_heading(
-            &self.config.font,
+            &self.config.theme.font,
             title.to_owned(),
-            self.config.palette.inactive,
+            self.config.theme.palette.inactive,
         )
         .into()
     }
@@ -226,8 +233,9 @@ impl<'a> ProcessTree<'a> {
         let dim = self.dim();
         let flash = self.flash();
         let tint = self.tint();
-        let font = self.config.font.clone();
+        let font = self.config.theme.font.clone();
         let arrival = self.arrival;
+        let copy_flash = self.copy_flash();
         table::column(self.heading(title), move |branch: Branch| {
             let Entry::Listed(listing) = branch.entry else {
                 return blank(0.0);
@@ -241,14 +249,14 @@ impl<'a> ProcessTree<'a> {
                 &font,
                 color,
             );
-            copyable(cell, text, Message::CopyText, flash)
+            copyable(cell, text, Message::CopyText, flash, copy_flash)
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top)
     }
 
     fn tint(&self) -> Tint {
-        let palette = &self.config.palette;
+        let palette = &self.config.theme.palette;
         Tint {
             warning: Severity::Warning.color(palette),
             critical: Severity::Critical.color(palette),
@@ -256,17 +264,21 @@ impl<'a> ProcessTree<'a> {
     }
 
     fn foreground(&self) -> Color {
-        self.config.palette.bar_foreground
+        self.config.theme.palette.bar_foreground
     }
 
     fn flash(&self) -> Color {
-        self.config.palette.success
+        self.config.theme.palette.success
+    }
+
+    fn copy_flash(&self) -> Duration {
+        self.config.tooltips.copy_flash
     }
 
     fn dim(&self) -> Color {
         Color {
             a: DIM_ALPHA,
-            ..self.config.palette.bar_foreground
+            ..self.config.theme.palette.bar_foreground
         }
     }
 }

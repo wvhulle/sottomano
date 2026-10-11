@@ -90,6 +90,6 @@ fn glyph_button<'a, Message: 'a + Clone>(
     state: WidgetState,
     on_press: Message,
 ) -> Element<'a, Message> {
-    let color = state.color(&config.palette).scale_alpha(opacity);
-    GlyphButton::new(glyph, config.font.icon_size_px, color, on_press).into()
+    let color = state.color(&config.theme.palette).scale_alpha(opacity);
+    GlyphButton::new(glyph, config.theme.font.icon_size_px, color, on_press).into()
 }

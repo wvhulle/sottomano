@@ -1,8 +1,16 @@
 use std::fmt::Display;
 
-use iced::{Task, futures::Stream, task::Handle};
+use iced::{
+    Task,
+    futures::{Stream, StreamExt, stream},
+    task::Handle,
+};
+use tokio::time::sleep;
 
-use crate::widgets::tooltip_body::{KeyValue, Section};
+use crate::{
+    config::Config,
+    widgets::tooltip_body::{KeyValue, Section},
+};
 
 #[derive(Debug, Clone)]
 pub struct HoverFetched<S>(Result<S, String>);
@@ -17,8 +25,15 @@ impl<S: Send + 'static> OnHoverReading<S> {
     pub fn fetch<E: Display, Message: Send + 'static>(
         readings: impl Stream<Item = Result<S, E>> + Send + 'static,
         delivered: fn(HoverFetched<S>) -> Message,
+        config: &Config,
     ) -> (Self, Task<Message>) {
-        let (task, fetching) = Task::run(readings, |reading| {
+        let debug_delay = config.tooltips.loading.debug_delay;
+        let delayed = stream::once(async move {
+            sleep(debug_delay).await;
+            readings
+        })
+        .flatten();
+        let (task, fetching) = Task::run(delayed, |reading| {
             HoverFetched(reading.map_err(|failure| failure.to_string()))
         })
         .abortable();

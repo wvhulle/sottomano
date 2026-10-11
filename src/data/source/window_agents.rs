@@ -17,7 +17,7 @@ use niri_ipc::{
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{config::window_agents::WindowAgentsConfig, message_subscriptions::emit_changes};
+use crate::{config::widget_groups::WindowAgentsConfig, message_subscriptions::emit_changes};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentWindow {

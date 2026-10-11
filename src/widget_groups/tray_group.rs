@@ -6,7 +6,7 @@ use iced::{
 };
 
 use crate::{
-    config::{Config, tray::ClickAction},
+    config::{Config, widget_groups::tray::ClickAction},
     data::source::{
         niri::WindowOwner,
         tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
@@ -154,7 +154,7 @@ impl TrayGroup {
     pub fn visible<'a>(&'a self, config: &Config) -> Vec<&'a TrayItem> {
         self.items
             .iter()
-            .filter(|item| !config.tray.rule(&item.id).hide_icon)
+            .filter(|item| !config.widget_groups.tray.rule(&item.id).hide_icon)
             .collect()
     }
 
@@ -193,20 +193,22 @@ fn item_view<'a>(
     item: &TrayItem,
     reveal: f32,
 ) -> Element<'a, GroupEvent<TrayMessage>> {
-    let side = config.font.icon_size_px;
+    let side = config.theme.font.icon_size_px;
     let glyph: Element<'a, GroupEvent<TrayMessage>> = match &item.icon {
         Some(source) => native_icon(source, side, reveal),
-        None => Glyph::from(Phosphor::Question(Weight::Regular))
-            .view(side, config.palette.bar_foreground.scale_alpha(reveal)),
+        None => Glyph::from(Phosphor::Question(Weight::Regular)).view(
+            side,
+            config.theme.palette.bar_foreground.scale_alpha(reveal),
+        ),
     };
 
     let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
             activity_line(
-                config.palette.focus,
+                config.theme.palette.focus,
                 reveal,
-                config.widget_sizes.indicator_thickness_px,
+                config.panel_bar.indicator_thickness_px,
             ),
         ])
         .spacing(1.0)
@@ -216,7 +218,7 @@ fn item_view<'a>(
         glyph
     };
 
-    let rule = config.tray.rule(&item.id);
+    let rule = config.widget_groups.tray.rule(&item.id);
     let app_id = rule.window_app_id.as_ref();
     let left = click_message(rule.left_click, app_id, item);
     let middle = click_message(rule.middle_click, app_id, item);

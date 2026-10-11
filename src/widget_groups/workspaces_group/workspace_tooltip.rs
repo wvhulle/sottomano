@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    config::font::ResolvedFont,
+    config::theme::font::ResolvedFont,
     data::source::{
         app_rules::{AppRule, IconCandidate},
         desktop_entries::DesktopIndex,

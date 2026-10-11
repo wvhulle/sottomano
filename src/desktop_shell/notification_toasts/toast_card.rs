@@ -15,7 +15,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, NotificationMessage, body_markup, toast_reply::ReplyMessage};
 use crate::{
-    config::{Config, Palette, toasts::ToastCardSizeConfig},
+    config::{Config, Palette, notification_toasts::ToastCardConfig},
     data::{
         notifications::model::{
             ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
@@ -185,7 +185,7 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
             .align_y(Alignment::Center);
         if let Some(icon) = icon_slot(
             &card.notif.icons,
-            &card.config.toasts.card_size,
+            &card.config.notification_toasts.card,
             card.reveal,
             text,
         ) {
@@ -194,7 +194,7 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
         body_row = body_row.push(card.column(text));
 
         let framed_card = container(body_row)
-            .width(Length::Fixed(card.config.toasts.card_size.card_width_px))
+            .width(Length::Fixed(card.config.notification_toasts.card.width_px))
             .padding(PADDING_PX)
             .style(move |_| style);
 
@@ -245,7 +245,7 @@ impl ToastCard<'_> {
 impl ToastCard<'_> {
     fn column<'b>(&self, text: Color) -> Column<'b, NotificationMessage> {
         let data = &self.notif.data;
-        let font = &self.config.font;
+        let font = &self.config.theme.font;
 
         let button_actions: Vec<&NotifAction> = data
             .actions
@@ -311,7 +311,10 @@ impl ToastCard<'_> {
         if let Some(CardImage::Preview { icon, .. }) = &self.notif.icons.image {
             column = column.push(preview_widget(
                 icon,
-                self.config.toasts.card_size.image_preview_max_height_px,
+                self.config
+                    .notification_toasts
+                    .card
+                    .image_preview_max_height_px,
                 self.reveal,
                 text,
             ));
@@ -345,7 +348,7 @@ impl ToastCard<'_> {
         text: Color,
     ) -> Row<'b, NotificationMessage> {
         let id = self.notif.data.id;
-        let palette = &self.config.palette;
+        let palette = &self.config.theme.palette;
         let app_buttons = button_actions.iter().map(|action| {
             self.action_button(
                 action.label.clone(),
@@ -388,7 +391,7 @@ impl ToastCard<'_> {
         text: Color,
     ) -> Element<'b, NotificationMessage> {
         let id = self.notif.data.id;
-        let font = &self.config.font;
+        let font = &self.config.theme.font;
         let radius = self.settings.overlays.corner_radius;
         let reply = move |message| NotificationMessage::Reply { id, message };
         let field = text_input(placeholder, &self.notif.reply_draft)
@@ -414,7 +417,7 @@ impl ToastCard<'_> {
             .push(self.action_button(
                 submit,
                 reply(ReplyMessage::Submitted),
-                self.config.palette.success,
+                self.config.theme.palette.success,
                 text,
             ));
         mouse_area(row)
@@ -430,7 +433,7 @@ impl ToastCard<'_> {
         tint: Color,
         text: Color,
     ) -> Element<'b, NotificationMessage> {
-        let font = &self.config.font;
+        let font = &self.config.theme.font;
         let radius = self.settings.overlays.corner_radius;
         button(bar_text(font, label).size(font.text_size_px).color(text))
             .padding(BUTTON_PADDING)
@@ -459,7 +462,7 @@ impl ToastCard<'_> {
 
 fn icon_slot<'a>(
     icons: &CardIcons,
-    card_size: &ToastCardSizeConfig,
+    card_size: &ToastCardConfig,
     reveal: f32,
     text: Color,
 ) -> Option<Element<'a, NotificationMessage>> {

@@ -6,7 +6,7 @@ use iced::{
     widget::{span, text::Span},
 };
 
-use crate::config::font::ResolvedFont;
+use crate::config::theme::font::ResolvedFont;
 
 #[derive(Clone, Copy)]
 struct Emphasis {

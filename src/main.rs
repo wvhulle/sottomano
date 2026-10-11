@@ -53,8 +53,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             .map(|connection| connection.clone().into()),
         ..Default::default()
     };
-    let default_font = config.font.iced_font;
-    let font_data = config.font.data.to_vec();
+    let default_font = config.theme.font.iced_font;
+    let font_data = config.theme.font.data.to_vec();
 
     daemon(
         move || {

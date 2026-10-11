@@ -5,7 +5,7 @@ use uom::si::{
 
 use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
-    config::temperature::ThresholdOverrides,
+    config::widget_groups::temperature_sensors::ThresholdOverrides,
     data::{
         severity::Severity,
         source::sysfs_sensors::temperature::{CoreTemperature, Temperature},

@@ -37,7 +37,7 @@ fn composed_reading<'a, Message: 'a>(
     value: fn(&Config, &dyn BarWidget, Color) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let color = reading_color(config, widget).scale_alpha(opacity);
-    let icon = widget.icon().view(config.font.icon_size_px, color);
+    let icon = widget.icon().view(config.theme.font.icon_size_px, color);
 
     let reading = match value(config, widget, color) {
         Some(value) => row![icon, value]
@@ -54,11 +54,11 @@ fn composed_reading<'a, Message: 'a>(
 }
 
 pub fn icon_value_gap(config: &Config) -> f32 {
-    config.spacing.widget_spacing_px / 2.0
+    config.panel_bar.widget_spacing_px / 2.0
 }
 
 pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {
-    widget.state().color(&config.palette)
+    widget.state().color(&config.theme.palette)
 }
 
 pub fn reading_value<'a, Message: 'a>(
@@ -71,7 +71,7 @@ pub fn reading_value<'a, Message: 'a>(
     }
     match widget.gauge() {
         Some(fill) => Some(
-            Gauge::new(fill, color, config.font.icon_size_px)
+            Gauge::new(fill, color, config.theme.font.icon_size_px)
                 .live(widget.live_gauge().unwrap_or(fill))
                 .into(),
         ),
@@ -96,13 +96,13 @@ fn label_text<'a, Message: 'a>(
     color: Color,
 ) -> Option<Element<'a, Message>> {
     widget
-        .localized_label(config.locale)
+        .localized_label(config.calendar.locale)
         .filter(|label| !label.is_empty())
-        .map(|label| bar_text(&config.font, label).color(color).into())
+        .map(|label| bar_text(&config.theme.font, label).color(color).into())
 }
 
 fn failure_marker<'a, Message: 'a>(config: &Config, color: Color) -> Element<'a, Message> {
-    Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.font.icon_size_px, color)
+    Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.theme.font.icon_size_px, color)
 }
 
 fn badged<'a, Message: 'a>(
@@ -114,8 +114,8 @@ fn badged<'a, Message: 'a>(
     match badge {
         Some(count) if count > 0 => {
             let superscript = text(count.to_string())
-                .size(config.font.small_text_size_px)
-                .font(config.font.iced_font)
+                .size(config.theme.font.small_text_size_px)
+                .font(config.theme.font.iced_font)
                 .color(color);
             Row::with_children([reading, superscript.into()])
                 .spacing(1.0)

@@ -19,17 +19,19 @@ use super::{
     toast_lifecycle::NotificationMessage,
     toast_placement::{AnchoredToast, ToastAnchor},
 };
-use crate::{config::ToastConfig, widgets::region_reporter::RegionRoles};
-
-const MOTION: Duration = Duration::from_millis(160);
+use crate::{
+    config::{Config, notification_toasts::ToastPlacementConfig},
+    widgets::region_reporter::RegionRoles,
+};
 
 impl<'a> WindowAnchoredToasts<'a> {
     pub fn new(
         toasts: Vec<AnchoredToast<'a>>,
         bar_clearance: Padding,
         card_corner_radius: f32,
-        config: &ToastConfig,
+        config: &Config,
     ) -> Self {
+        let card = &config.notification_toasts.card;
         toasts.into_iter().fold(
             Self {
                 bar_clearance,
@@ -41,7 +43,9 @@ impl<'a> WindowAnchoredToasts<'a> {
                 ids: Vec::new(),
                 anchors: Vec::new(),
                 cards: Vec::new(),
-                config: config.clone(),
+                card_width_px: card.width_px,
+                motion: card.motion,
+                placement: config.notification_toasts.placement.clone(),
                 revealing: false,
             },
             |mut toasts, toast| {
@@ -67,7 +71,9 @@ pub struct WindowAnchoredToasts<'a> {
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
-    config: ToastConfig,
+    card_width_px: f32,
+    motion: Duration,
+    placement: ToastPlacementConfig,
     revealing: bool,
 }
 
@@ -79,10 +85,10 @@ struct Drift {
 }
 
 impl Drift {
-    fn resting_at(point: Point) -> Self {
+    fn resting_at(point: Point, duration: Duration) -> Self {
         Self {
-            x: motion(point.x),
-            y: motion(point.y),
+            x: motion(point.x, duration),
+            y: motion(point.y, duration),
             target: point,
             at: point,
         }
@@ -102,10 +108,10 @@ impl Drift {
     }
 }
 
-fn motion(value: f32) -> Animation<f32> {
+fn motion(value: f32, duration: Duration) -> Animation<f32> {
     Animation::new(value)
         .easing(Easing::EaseOutCubic)
-        .duration(MOTION)
+        .duration(duration)
 }
 
 struct FieldState {
@@ -156,7 +162,7 @@ struct Drifts {
 }
 
 impl Drifts {
-    fn aim(&mut self, ids: &[u32], targets: &[Point]) -> Vec<Point> {
+    fn aim(&mut self, ids: &[u32], targets: &[Point], motion: Duration) -> Vec<Point> {
         self.by_id.retain(|id, _| ids.contains(id));
         ids.iter()
             .zip(targets)
@@ -164,7 +170,7 @@ impl Drifts {
                 let drift = self
                     .by_id
                     .entry(*id)
-                    .or_insert_with(|| Drift::resting_at(*target));
+                    .or_insert_with(|| Drift::resting_at(*target, motion));
                 drift.target = *target;
                 drift.at
             })
@@ -269,10 +275,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let surface = limits.max();
-        let card_limits = Limits::new(
-            Size::ZERO,
-            Size::new(self.config.card_size.card_width_px, f32::INFINITY),
-        );
+        let card_limits = Limits::new(Size::ZERO, Size::new(self.card_width_px, f32::INFINITY));
         let nodes: Vec<Node> = self
             .cards
             .iter_mut()
@@ -281,17 +284,13 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             .collect();
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
         let free_area = Rectangle::with_size(surface).shrink(self.bar_clearance);
-        let targets = toast_anchor_geometry::origins(
-            &self.anchors,
-            &sizes,
-            free_area,
-            &self.config.placement,
-        );
-        let positions = tree
-            .state
-            .downcast_mut::<FieldState>()
-            .drift
-            .aim(&self.ids, &targets);
+        let targets =
+            toast_anchor_geometry::origins(&self.anchors, &sizes, free_area, &self.placement);
+        let positions =
+            tree.state
+                .downcast_mut::<FieldState>()
+                .drift
+                .aim(&self.ids, &targets, self.motion);
         Node::with_children(
             surface,
             nodes

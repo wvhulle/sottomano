@@ -14,7 +14,7 @@ pub mod oom_kill_log;
 pub mod running_job_reading;
 
 use crate::{
-    config::{Config, systemd::SystemdConfig},
+    config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
     data::source::{
         coredumps::Coredumps,
         oom_kills::OomKills,
@@ -153,21 +153,21 @@ pub enum SystemdManagerMessage {
 }
 
 impl SystemdManagerGroup {
-    pub fn subscription(config: &SystemdConfig) -> Subscription<SystemdManagerMessage> {
+    pub fn subscription(config: &SystemdManagerConfig) -> Subscription<SystemdManagerMessage> {
         Subscription::batch([
             Subscription::run_with(
-                ("systemd-boot-timeline", config.slow_boot_unit()),
+                ("systemd-boot-timeline", config.slow_boot_unit),
                 |&(_, slow_unit)| boot_timeline_stream(slow_unit).map(SystemdManagerMessage::Boot),
             ),
             failed_subscription::<System>(SystemdManagerMessage::FailedSystem),
             failed_subscription::<User>(SystemdManagerMessage::FailedUser),
             slow_jobs_subscription::<System>(
-                config.slow_job(),
+                config.slow_job,
                 SystemdManagerMessage::SlowSystemJobs,
             ),
-            slow_jobs_subscription::<User>(config.slow_job(), SystemdManagerMessage::SlowUserJobs),
+            slow_jobs_subscription::<User>(config.slow_job, SystemdManagerMessage::SlowUserJobs),
             Subscription::run_with(
-                ("systemd-last-shutdown", config.slow_shutdown_stop()),
+                ("systemd-last-shutdown", config.slow_shutdown_stop),
                 |&(_, slow_stop)| {
                     stream::once(spawn_blocking(move || read_last_shutdown(slow_stop))).filter_map(
                         |read| {

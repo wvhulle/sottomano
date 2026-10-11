@@ -52,7 +52,7 @@ pub fn vertical_view<'a>(
         .map(|p| hit_area(p, sidebar_row(config, niri, p), config));
     Some(indicated(
         uniform_width_column(rows)
-            .spacing(config.spacing.widget_spacing_px)
+            .spacing(config.panel_bar.widget_spacing_px)
             .into(),
         workspaces,
         config,
@@ -72,8 +72,8 @@ fn sidebar_row<'a>(
     .width(Length::Shrink)
     .align_x(Alignment::Center);
     let label_with_urgency = row![label_over_markers, urgency_line(config, p, Position::Left)]
-        .spacing(config.spacing.widget_spacing_px)
-        .height(config.bar.height_px)
+        .spacing(config.panel_bar.widget_spacing_px)
+        .height(config.panel_bar.height_px)
         .align_y(Alignment::Center);
     container(label_with_urgency)
         .width(Length::Fill)
@@ -99,7 +99,7 @@ pub fn inline_view<'a>(
     });
     Some(indicated(
         Row::with_children(slots)
-            .spacing(config.spacing.widget_spacing_px)
+            .spacing(config.panel_bar.widget_spacing_px)
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .into(),
@@ -120,12 +120,11 @@ fn indicated<'a>(
         .and_then(|i| workspaces.get(i))
         .is_some_and(|p| p.is_urgent);
     let color = if active_is_urgent {
-        config.palette.urgent
+        config.theme.palette.urgent
     } else {
-        config.palette.focus
+        config.theme.palette.focus
     };
-    focus_indicator(slots, active, color)
-        .thickness(config.widget_sizes.indicator_thickness_px)
+    focus_indicator(slots, active, color, config)
         .edge(position)
         .into()
 }
@@ -137,7 +136,7 @@ fn hit_area<'a>(
 ) -> Element<'a, WorkspacesMessage> {
     let pressable = button(content)
         .padding(0)
-        .style(flat_button(config.palette.bar_foreground))
+        .style(flat_button(config.theme.palette.bar_foreground))
         .on_press(WorkspacesMessage::Clicked {
             id: p.id,
             is_active: p.is_active,
@@ -159,9 +158,9 @@ fn hit_area<'a>(
 
 fn window_color(config: &Config, w: &niri::WinEntry, unfocused: Color) -> Color {
     if w.is_urgent {
-        config.palette.urgent
+        config.theme.palette.urgent
     } else if w.is_focused {
-        config.palette.focus
+        config.theme.palette.focus
     } else {
         unfocused
     }
@@ -176,9 +175,9 @@ fn window_markers(
     let colors = niri
         .windows_on_workspace(workspace)
         .iter()
-        .map(|w| window_color(config, w, config.palette.inactive))
+        .map(|w| window_color(config, w, config.theme.palette.inactive))
         .collect();
-    MarkerTrack::new(colors, config.widget_sizes.indicator_thickness_px, position)
+    MarkerTrack::new(colors, config.panel_bar.indicator_thickness_px, position)
 }
 
 fn urgency_line<'a>(
@@ -189,9 +188,9 @@ fn urgency_line<'a>(
     let opacity = if p.is_urgent { 1.0 } else { 0.0 };
     edge_activity_line(
         position,
-        config.palette.urgent,
+        config.theme.palette.urgent,
         opacity,
-        config.widget_sizes.indicator_thickness_px,
+        config.panel_bar.indicator_thickness_px,
     )
 }
 
@@ -208,16 +207,16 @@ fn has_superscript(p: &niri::WorkspaceIndicator) -> bool {
 }
 
 fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator) -> Text<'a> {
-    bar_text(&config.font, p.idx.to_string())
-        .size(config.font.small_text_size_px)
-        .color(config.palette.inactive)
+    bar_text(&config.theme.font, p.idx.to_string())
+        .size(config.theme.font.small_text_size_px)
+        .color(config.theme.palette.inactive)
 }
 
 fn inline_label<'a>(
     config: &Config,
     p: &niri::WorkspaceIndicator,
 ) -> Element<'a, WorkspacesMessage> {
-    let name = bar_text(&config.font, display_name(p));
+    let name = bar_text(&config.theme.font, display_name(p));
     if !has_superscript(p) {
         return name.into();
     }

@@ -4,7 +4,7 @@ use iced::{Point, Rectangle, Size};
 
 use super::toast_placement::{AnchorGroup, ToastAnchor};
 use crate::{
-    config::toasts::ToastPlacementConfig,
+    config::notification_toasts::ToastPlacementConfig,
     data::source::niri::{HEdge, VEdge},
 };
 

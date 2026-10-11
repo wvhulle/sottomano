@@ -16,7 +16,7 @@ impl DesktopShell {
         center: impl IntoIterator<Item = Option<Element<'a, Message>>>,
         end: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
-        let spacing = &self.config.spacing;
+        let spacing = &self.config.panel_bar;
         let clusters = row![
             self.group_cluster(start),
             container(self.group_cluster(center)).center_x(Length::Fill),
@@ -31,7 +31,7 @@ impl DesktopShell {
 
     fn bar_band<'a>(&'a self, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
         let panels = &self.shell_settings.panels;
-        let palette = &self.config.palette;
+        let palette = &self.config.theme.palette;
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -48,7 +48,7 @@ impl DesktopShell {
         let strip = container(centered)
             .style(move |_| band_style)
             .width(Length::Fill)
-            .height(Length::Fixed(self.config.bar.height_px));
+            .height(Length::Fixed(self.config.panel_bar.height_px));
         let roles = RegionRoles {
             takes_input: true,
             blurred: groups_joined,
@@ -64,25 +64,25 @@ impl DesktopShell {
         let config = &self.config;
         let panels = &self.shell_settings.panels;
         let groups_disconnected = self.shell_settings.layout.disconnected_groups;
-        let frame_style = self.shell_settings.frame_style(&config.palette);
+        let frame_style = self.shell_settings.frame_style(&config.theme.palette);
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
                 return group;
             }
             container(group)
                 .style(move |_| frame_style)
-                .height(Length::Fixed(config.bar.height_px))
+                .height(Length::Fixed(config.panel_bar.height_px))
                 .align_y(Vertical::Center)
                 .padding([
                     0.0,
-                    panels.frame_corner_inset() + config.spacing.group_padding_px,
+                    panels.frame_corner_inset() + config.panel_bar.group_padding_px,
                 ])
                 .into()
         });
         let spacing = if groups_disconnected {
-            config.spacing.widget_spacing_px
+            config.panel_bar.widget_spacing_px
         } else {
-            config.spacing.group_spacing_px
+            config.panel_bar.group_spacing_px
         };
         let cluster = Row::with_children(framed)
             .spacing(spacing)

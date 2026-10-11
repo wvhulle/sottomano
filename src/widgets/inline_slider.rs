@@ -26,20 +26,20 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
 ) -> Element<'a, Message> {
     let accent = match level {
-        Severity::Normal => config.palette.focus,
-        _ => level.color(&config.palette),
+        Severity::Normal => config.theme.palette.focus,
+        _ => level.color(&config.theme.palette),
     };
     let face = SliderFace {
         range: range.clone(),
         value,
         lagging_value,
         accent,
-        track: config.palette.surface_raised,
+        track: config.theme.palette.surface_raised,
     };
     mouse_area(stack![
         interaction_slider(config, range, value, step, on_change, on_release),
         canvas(face)
-            .width(config.widget_sizes.slider_width_px)
+            .width(config.panel_bar.slider_width_px)
             .height(Slider::<f32, Message>::DEFAULT_HEIGHT)
     ])
     .on_scroll(on_scroll)
@@ -57,7 +57,7 @@ fn interaction_slider<'a, Message: Clone + 'a>(
     slider(range, value, on_change)
         .step(step)
         .on_release(on_release)
-        .width(config.widget_sizes.slider_width_px)
+        .width(config.panel_bar.slider_width_px)
         .style(|_theme, _status| slider::Style {
             rail: slider::Rail {
                 backgrounds: (Color::TRANSPARENT.into(), Color::TRANSPARENT.into()),

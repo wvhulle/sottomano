@@ -5,6 +5,7 @@ use iced_exwlshell::reexport::KeyboardInteractivity;
 
 use super::{NotificationLayer, toast_lifecycle::ExitPace};
 use crate::{
+    config::Config,
     data::notifications::model::{Outbound, close_reason},
     desktop_shell::Message,
 };
@@ -33,6 +34,7 @@ impl NotificationLayer {
         id: u32,
         message: ReplyMessage,
         panel_on: &dyn Fn(&str) -> Option<Id>,
+        config: &Config,
     ) -> Task<Message> {
         match message {
             ReplyMessage::PointerEntered => self.claim_keyboard(id, panel_on),
@@ -45,7 +47,7 @@ impl NotificationLayer {
                 self.sync_countdowns(Instant::now());
                 Task::none()
             }
-            ReplyMessage::Submitted => self.submit_reply(id),
+            ReplyMessage::Submitted => self.submit_reply(id, config),
         }
     }
 
@@ -94,7 +96,7 @@ impl NotificationLayer {
         }
     }
 
-    fn submit_reply(&mut self, id: u32) -> Task<Message> {
+    fn submit_reply(&mut self, id: u32, config: &Config) -> Task<Message> {
         let text = self
             .live
             .iter_mut()
@@ -104,7 +106,7 @@ impl NotificationLayer {
         if text.trim().is_empty() {
             return Task::none();
         }
-        let withdrawn = self.withdraw_showing([id], ExitPace::Dismissed);
+        let withdrawn = self.withdraw_showing([id], ExitPace::Dismissed, config);
         let closed = withdrawn
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))

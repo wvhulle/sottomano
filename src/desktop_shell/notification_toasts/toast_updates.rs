@@ -108,7 +108,6 @@ impl NotificationLayer {
         context: &ToastContext,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
-        let placement = &context.placement;
         match message {
             NotificationMessage::Connected(handle) => {
                 self.handle = Some(handle);
@@ -116,7 +115,7 @@ impl NotificationLayer {
             }
             NotificationMessage::Served(data) => self.serve(data, ToastOrigin::DbusClient, context),
             NotificationMessage::BodyClicked(id) => {
-                self.activate_action(id, DEFAULT_ACTION, placement, panel_on)
+                self.activate_action(id, DEFAULT_ACTION, context, panel_on)
             }
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
@@ -129,18 +128,22 @@ impl NotificationLayer {
             }
             NotificationMessage::Dismiss(id) => {
                 self.remember_dismissed_reading_alert(id);
-                self.close_all([id], close_reason::DISMISSED)
+                self.close_all([id], close_reason::DISMISSED, context.config)
             }
             NotificationMessage::ActionClicked { id, key } => {
-                self.activate_action(id, &key, placement, panel_on)
+                self.activate_action(id, &key, context, panel_on)
             }
-            NotificationMessage::DefaultActivated { id, token } => self.invoke_default(id, token),
+            NotificationMessage::DefaultActivated { id, token } => {
+                self.invoke_default(id, token, context.config)
+            }
             NotificationMessage::CloseRequested(id) => {
-                self.close_all([id], close_reason::CLOSED_BY_CALL)
+                self.close_all([id], close_reason::CLOSED_BY_CALL, context.config)
             }
-            NotificationMessage::Tick => self.expire(),
-            NotificationMessage::Reply { id, message } => self.update_reply(id, message, panel_on),
-            NotificationMessage::OpenFile(id) => self.open_previewed_file(id),
+            NotificationMessage::Tick => self.expire(context.config),
+            NotificationMessage::Reply { id, message } => {
+                self.update_reply(id, message, panel_on, context.config)
+            }
+            NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context.config),
             NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
         }
     }
@@ -153,13 +156,13 @@ impl NotificationLayer {
             .map(|file| file.to_string_lossy().into_owned())
     }
 
-    fn open_previewed_file(&mut self, id: u32) -> Task<Message> {
+    fn open_previewed_file(&mut self, id: u32, config: &Config) -> Task<Message> {
         let Some(file) = self.previewed_file(id) else {
             return Task::none();
         };
         Task::batch([
             Task::done(Message::OpenUrl(file)),
-            self.close_all([id], close_reason::DISMISSED),
+            self.close_all([id], close_reason::DISMISSED, config),
         ])
     }
 
@@ -232,8 +235,12 @@ impl NotificationLayer {
         self.serve(Box::new(data), ToastOrigin::ConfigError, context)
     }
 
-    pub fn withdraw_config_error(&mut self) -> Task<Message> {
-        self.close_all([CONFIG_ERROR_TOAST_ID], close_reason::CLOSED_BY_CALL)
+    pub fn withdraw_config_error(&mut self, config: &Config) -> Task<Message> {
+        self.close_all(
+            [CONFIG_ERROR_TOAST_ID],
+            close_reason::CLOSED_BY_CALL,
+            config,
+        )
     }
 
     fn apply_reading_alert_toast_changes(
@@ -246,8 +253,11 @@ impl NotificationLayer {
                 .dismissals_to_forget
                 .contains(&dismissed.hover_target)
         });
-        let mut tasks =
-            vec![self.close_all(changes.toast_ids_to_close, close_reason::CLOSED_BY_CALL)];
+        let mut tasks = vec![self.close_all(
+            changes.toast_ids_to_close,
+            close_reason::CLOSED_BY_CALL,
+            context.config,
+        )];
         tasks.extend(changes.alerts_to_show.into_iter().map(|to_show| {
             let toast_id = match to_show.toast_slot {
                 ToastSlotForAlert::ReplaceShownToast(toast_id) => toast_id,
@@ -300,15 +310,19 @@ impl NotificationLayer {
                 .filter(|n| n.data.app_name == data.app_name)
                 .map(|n| n.data.id)
                 .collect();
-            tasks.push(self.close_all(superseded, close_reason::UNDEFINED));
+            tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config));
         }
         let icons = origin.glyph().map_or_else(
             || toast_card::resolve_icons(&data, *entries),
             CardIcons::of_glyph,
         );
         let now = Instant::now();
-        let countdown = lifetime(data.expire_timeout, data.severity, &config.toasts.lifetime)
-            .map(|remaining| Countdown::started(remaining, now));
+        let countdown = lifetime(
+            data.expire_timeout,
+            data.severity,
+            &config.notification_toasts.lifetime,
+        )
+        .map(|remaining| Countdown::started(remaining, now));
         let window = ToastWindow::resolve(&data, placement);
         let place = placement_for(window, placement, shell_settings.overlays, config);
         let shown = self
@@ -325,7 +339,7 @@ impl NotificationLayer {
             let seq = self.next_seq;
             self.next_seq += 1;
             self.live.push(Notification::appearing(
-                *data, origin, icons, countdown, seq, place, now,
+                *data, origin, icons, countdown, seq, place, config,
             ));
         }
         self.sync_countdowns(now);
@@ -343,7 +357,7 @@ impl NotificationLayer {
             .filter(|n| is_stale(n, placement))
             .map(|n| n.data.id)
             .collect();
-        let closed = self.close_all(stale, close_reason::UNDEFINED);
+        let closed = self.close_all(stale, close_reason::UNDEFINED, config);
         self.reposition(placement, config, overlays);
         Task::batch([closed, self.release_orphaned_keyboard()])
     }
@@ -353,14 +367,14 @@ impl NotificationLayer {
         self.live.retain(|n| !n.has_faded(now));
     }
 
-    fn expire(&mut self) -> Task<Message> {
+    fn expire(&mut self, config: &Config) -> Task<Message> {
         let now = Instant::now();
         let expired: Vec<u32> = self
             .showing()
             .filter(|n| n.countdown.is_some_and(|c| c.has_elapsed(now)))
             .map(|n| n.data.id)
             .collect();
-        let closed = self.close_all(expired, close_reason::EXPIRED);
+        let closed = self.close_all(expired, close_reason::EXPIRED, config);
         self.prune();
         closed
     }
@@ -383,6 +397,7 @@ impl NotificationLayer {
         &mut self,
         candidates: impl IntoIterator<Item = u32>,
         pace: ExitPace,
+        config: &Config,
     ) -> Vec<u32> {
         let now = Instant::now();
         let closing: Vec<u32> = candidates
@@ -392,7 +407,7 @@ impl NotificationLayer {
         self.live
             .iter_mut()
             .filter(|n| closing.contains(&n.data.id))
-            .for_each(|n| n.withdraw(now, pace));
+            .for_each(|n| n.withdraw(now, pace, config));
         self.prune_hover();
         closing
     }
@@ -401,9 +416,10 @@ impl NotificationLayer {
         &mut self,
         candidates: impl IntoIterator<Item = u32>,
         reason: u32,
+        config: &Config,
     ) -> Task<Message> {
         let closed = self
-            .withdraw_showing(candidates, reason.into())
+            .withdraw_showing(candidates, reason.into(), config)
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))
             .map(|id| Outbound::Closed { id, reason })
@@ -420,14 +436,15 @@ impl NotificationLayer {
         &mut self,
         id: u32,
         key: &str,
-        placement: &Placement,
+        context: &ToastContext,
         panel_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
+        let placement = &context.placement;
         if let Some(shell_message) = self.shell_message_for(id, key) {
             self.remember_dismissed_reading_alert(id);
             return Task::batch([
                 Task::done(shell_message),
-                self.close_all([id], close_reason::DISMISSED),
+                self.close_all([id], close_reason::DISMISSED, context.config),
             ]);
         }
         if key == DEFAULT_ACTION && self.declares_default_action(id) {
@@ -450,7 +467,10 @@ impl NotificationLayer {
         if survives_action_invocation {
             activation
         } else {
-            Task::batch([activation, self.close_all([id], close_reason::DISMISSED)])
+            Task::batch([
+                activation,
+                self.close_all([id], close_reason::DISMISSED, context.config),
+            ])
         }
     }
 
@@ -492,7 +512,7 @@ impl NotificationLayer {
         ])
     }
 
-    fn invoke_default(&mut self, id: u32, token: Option<String>) -> Task<Message> {
+    fn invoke_default(&mut self, id: u32, token: Option<String>, config: &Config) -> Task<Message> {
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
         let mut outbound: Vec<Outbound> = token
             .map(|token| Outbound::ActivationToken { id, token })
@@ -508,7 +528,7 @@ impl NotificationLayer {
         }
 
         outbound.extend(
-            self.withdraw_showing([id], ExitPace::Dismissed)
+            self.withdraw_showing([id], ExitPace::Dismissed, config)
                 .into_iter()
                 .map(|id| Outbound::Closed {
                     id,

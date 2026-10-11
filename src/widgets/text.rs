@@ -11,7 +11,7 @@ use iced::{
 };
 
 use crate::{
-    config::font::{ResolvedFont, fallback_font},
+    config::theme::font::{ResolvedFont, fallback_font},
     message_subscriptions::blocking,
 };
 

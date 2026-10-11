@@ -12,7 +12,7 @@ use iced::{
 };
 
 use crate::{
-    config::{Config, font::ResolvedFont, loading_effect::LoadingEffect},
+    config::{Config, theme::font::ResolvedFont, tooltips::TooltipLoading},
     desktop_shell::{Message, hover_tooltips::GestureHint},
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
@@ -90,8 +90,8 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn arrival(&self) -> Option<LoadingEffect> {
-        self.arriving.then_some(self.config.loading_effect)
+    fn arrival(&self) -> Option<TooltipLoading> {
+        self.arriving.then_some(self.config.tooltips.loading)
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -108,7 +108,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn gesture_hints(&self, gestures: &[GestureHint]) -> Element<'static, Message> {
-        let icon_size = self.config.font.small_text_size_px;
+        let icon_size = self.config.theme.font.small_text_size_px;
         let dim = self.dim();
         container(
             row(gestures.iter().map(|hint| {
@@ -127,17 +127,17 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn foreground(&self) -> Color {
-        self.config.palette.bar_foreground
+        self.config.theme.palette.bar_foreground
     }
 
     fn flash(&self) -> Color {
-        self.config.palette.success
+        self.config.theme.palette.success
     }
 
     fn dim(&self) -> Color {
         Color {
             a: DIM_ALPHA,
-            ..self.config.palette.bar_foreground
+            ..self.config.theme.palette.bar_foreground
         }
     }
 
@@ -148,13 +148,14 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
-        bar_text(&self.config.font, text)
-            .size(self.config.font.small_text_size_px)
+        bar_text(&self.config.theme.font, text)
+            .size(self.config.theme.font.small_text_size_px)
             .color(self.dim())
     }
 
     fn annotation(&self, text: String) -> Text<'static> {
-        self.small_dim_text(text).font(self.config.font.italic())
+        self.small_dim_text(text)
+            .font(self.config.theme.font.italic())
     }
 
     fn grid(&self) -> Element<'static, Message> {
@@ -198,15 +199,22 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn bold_title(&self, title: &str) -> Text<'static> {
-        bar_text(&self.config.font, title.to_owned())
-            .font(self.config.font.bold())
+        bar_text(&self.config.theme.font, title.to_owned())
+            .font(self.config.theme.font.bold())
             .color(self.foreground())
     }
 
     fn text(&self, title: &str, body: Option<&str>) -> Element<'static, Message> {
-        let max_width = self.config.widget_sizes.tooltip_value_width_px;
+        let max_width = self.config.tooltips.value_width_px;
         let title = container(self.bold_title(title)).max_width(max_width);
-        let body = body.map(|body| cell(&self.config.font, body.to_owned(), self.dim(), max_width));
+        let body = body.map(|body| {
+            cell(
+                &self.config.theme.font,
+                body.to_owned(),
+                self.dim(),
+                max_width,
+            )
+        });
 
         Column::with_children(once(title).chain(body).map(Element::from))
             .spacing(ROW_SPACING_PX)
@@ -221,7 +229,7 @@ impl<'a> TooltipContent<'a> {
 
         section_column(
             Column::with_children(filled).spacing(SECTION_SEPARATION_PX),
-            self.config.palette.dim,
+            self.config.theme.palette.dim,
             DIVIDER_THICKNESS_PX,
         )
     }
@@ -235,7 +243,7 @@ impl<'a> TooltipContent<'a> {
         });
         let caption = section.caption().map(|caption| {
             container(self.small_dim_text(caption.to_owned()))
-                .max_width(self.config.widget_sizes.tooltip_caption_width_px)
+                .max_width(self.config.tooltips.caption_width_px)
                 .padding(title_padding)
                 .into()
         });
@@ -260,11 +268,11 @@ impl<'a> TooltipContent<'a> {
                 ProcessTree::new(root, folding, self.config, self.arrival()).view()
             }
             SectionBody::Pending => pending_text(
-                self.config.widget_sizes.tooltip_value_width_px,
+                self.config.tooltips.value_width_px,
                 PENDING_LINES,
-                self.config.loading_effect,
-                &self.config.font,
-                self.config.palette.info,
+                self.config.tooltips.loading,
+                &self.config.theme.font,
+                self.config.theme.palette.info,
             ),
             SectionBody::Resolved(sections) => TooltipContent {
                 arriving: true,
@@ -276,18 +284,19 @@ impl<'a> TooltipContent<'a> {
 
     fn cell_view(&self) -> CellView {
         CellView {
-            font: self.config.font.clone(),
-            max_width: self.config.widget_sizes.tooltip_value_width_px,
-            locale: self.config.locale,
+            font: self.config.theme.font.clone(),
+            max_width: self.config.tooltips.value_width_px,
+            locale: self.config.calendar.locale,
             flash: self.flash(),
-            link: self.config.palette.info,
+            link: self.config.theme.palette.info,
             hint: self.dim(),
             arrival: self.arrival(),
+            copy_flash: self.config.tooltips.copy_flash,
         }
     }
 
     fn dictionary(&self, entries: &[KeyValue]) -> Element<'static, Message> {
-        let palette = self.config.palette.clone();
+        let palette = self.config.theme.palette.clone();
         let cell_view = self.cell_view();
         let value_column = table::column(Space::new(), move |entry: KeyValue| {
             cell_view.value(entry.value().clone(), entry.severity().color(&palette))
@@ -302,13 +311,14 @@ impl<'a> TooltipContent<'a> {
         headings: &[String],
         records: &[RecordCells],
     ) -> Element<'static, Message> {
-        let heading_color = self.config.palette.inactive;
+        let heading_color = self.config.theme.palette.inactive;
 
         self.keyed_table(
             records,
             RecordCells::key,
             headings.iter().enumerate().map(|(position, heading)| {
-                let heading = column_heading(&self.config.font, heading.clone(), heading_color);
+                let heading =
+                    column_heading(&self.config.theme.font, heading.clone(), heading_color);
                 self.record_column(position, heading.into())
                     .align_x(Horizontal::Right)
             }),
@@ -344,7 +354,7 @@ impl<'a> TooltipContent<'a> {
         position: usize,
         heading: Element<'static, Message>,
     ) -> table::Column<'static, 'static, RecordCells, Message> {
-        let palette = self.config.palette.clone();
+        let palette = self.config.theme.palette.clone();
         let cell_view = self.cell_view();
 
         table::column(heading, move |record: RecordCells| {
@@ -364,7 +374,8 @@ struct CellView {
     flash: Color,
     link: Color,
     hint: Color,
-    arrival: Option<LoadingEffect>,
+    arrival: Option<TooltipLoading>,
+    copy_flash: Duration,
 }
 
 impl CellView {
@@ -399,7 +410,7 @@ impl CellView {
 
     fn openable_link(&self, url: String) -> Element<'static, Message> {
         let value = self.text(url.clone(), self.link);
-        openable(value, url, Message::OpenUrl, self.link)
+        openable(value, url, Message::OpenUrl, self.link, self.copy_flash)
     }
 
     fn glyph(&self, icon: Glyph, color: Color) -> Element<'static, Message> {
@@ -411,7 +422,7 @@ impl CellView {
         if text.trim().is_empty() {
             return value;
         }
-        copyable(value, text, Message::CopyText, self.flash)
+        copyable(value, text, Message::CopyText, self.flash, self.copy_flash)
     }
 }
 

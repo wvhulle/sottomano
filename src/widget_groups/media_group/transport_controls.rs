@@ -34,12 +34,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     }
 
     fn primary_size(&self) -> f32 {
-        self.config.font.icon_size_px
+        self.config.theme.font.icon_size_px
     }
 
     fn foreground(&self) -> Color {
         WidgetState::On
-            .color(&self.config.palette)
+            .color(&self.config.theme.palette)
             .scale_alpha(self.reveal)
     }
 
@@ -51,7 +51,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.control(
             icon.with_weight(state.weight()),
             self.primary_size(),
-            state.color(&self.config.palette).scale_alpha(self.reveal),
+            state
+                .color(&self.config.theme.palette)
+                .scale_alpha(self.reveal),
             command,
         )
     }

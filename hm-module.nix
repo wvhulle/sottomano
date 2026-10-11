@@ -27,7 +27,7 @@ let
     modePalette:
     tomlFormat.generate "vetrata.toml" (
       lib.recursiveUpdate cfg.settings {
-        palette = modeToPalette modePalette // (cfg.settings.palette or { });
+        theme.palette = modeToPalette modePalette // (cfg.settings.theme.palette or { });
       }
     );
 in
@@ -55,16 +55,10 @@ in
     settings = lib.mkOption {
       type = tomlFormat.type;
       default = { };
-      example = lib.literalExpression ''
-        {
-          palette.bar_foreground = "#ffffff";
-          bar.height_px = 28.0;
-          font.text_size_px = 15.0;
-        }
-      '';
       description = ''
         Contents of ~/.config/vetrata.toml, written verbatim. The running bar
-        watches the file and applies changes in place.
+        watches the file and applies changes in place. `vetrata
+        --print-default-config` prints every key with its default value.
       '';
     };
 
@@ -136,24 +130,19 @@ in
         a mode switch umbra re-points ~/.config/vetrata.toml and the running
         bar reloads it in place. Set false for a standalone
         install with no umbra — vetrata then falls back to the static
-        settings.palette written to ~/.config/vetrata.toml.
+        palette in settings.
       '';
     };
 
     windowAgents.kitty.enable = lib.mkEnableOption ''
-      per-window process trees for kitty OS windows sharing one
-      `--single-instance` process. Enables kitty's socket-only remote control
-      (at `mkDefault` priority, so an existing kitty config wins) and lets the
-      bar retitle each kitty window once to learn which niri window it is
+      kitty's socket-only remote control (at `mkDefault` priority, so an
+      existing kitty config wins), which the bar's kitty window agent uses to
+      tell apart kitty OS windows sharing one `--single-instance` process
     '';
 
   };
 
   config = lib.mkIf cfg.enable {
-    services.vetrata.settings.window_agents = lib.mkIf cfg.windowAgents.kitty.enable {
-      kitty = true;
-    };
-
     programs.kitty.settings = lib.mkIf cfg.windowAgents.kitty.enable {
       allow_remote_control = lib.mkDefault "socket-only";
       listen_on = lib.mkDefault "unix:$XDG_RUNTIME_DIR/kitty.sock";
