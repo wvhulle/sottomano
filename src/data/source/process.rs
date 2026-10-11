@@ -8,16 +8,16 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, stream},
-};
+use iced::futures::{Stream, StreamExt, stream};
 use procfs::{
     Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
-use tokio::{task::spawn_blocking, time::sleep};
+use tokio::{
+    task::spawn_blocking,
+    time::{MissedTickBehavior, interval},
+};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{data::source::nix_store::Provenance, message_subscriptions::emit_changes};
@@ -236,22 +236,33 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     Forest { roots }
 }
 
-pub fn subscription() -> Subscription<Forest> {
-    Subscription::run(|| emit_changes(scan()))
+pub fn watched_tree(watched: &Watched) -> impl Stream<Item = Result<Process, String>> + use<> {
+    let pid = watched.pid;
+    emit_changes(scan()).map(move |forest| {
+        forest
+            .subtree(pid)
+            .cloned()
+            .ok_or_else(|| format!("process {pid} exited"))
+    })
 }
 
 fn scan() -> impl Stream<Item = Forest> {
     let capacity = CpuCapacity::current();
-    stream::unfold(CpuSamples::none_yet(), move |samples| async move {
-        sleep(SCAN_INTERVAL).await;
-        match spawn_blocking(move || sample(&samples, capacity)).await {
-            Ok(Sampled { forest, samples }) => Some((Some(forest), samples)),
-            Err(e) => {
-                tracing::warn!("process scan: {e}");
-                Some((None, CpuSamples::none_yet()))
+    let mut timer = interval(SCAN_INTERVAL);
+    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    stream::unfold(
+        (CpuSamples::none_yet(), timer),
+        move |(samples, mut timer)| async move {
+            timer.tick().await;
+            match spawn_blocking(move || sample(&samples, capacity)).await {
+                Ok(Sampled { forest, samples }) => Some((Some(forest), (samples, timer))),
+                Err(e) => {
+                    tracing::warn!("process scan: {e}");
+                    Some((None, (CpuSamples::none_yet(), timer)))
+                }
             }
-        }
-    })
+        },
+    )
     .filter_map(ready)
 }
 
@@ -294,6 +305,7 @@ pub fn launch(pid: i32) -> Option<Launch> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Watched {
+    pub window: u64,
     pub pid: i32,
     pub app_id: Option<String>,
 }
@@ -319,8 +331,16 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     })
 }
 
-pub async fn inspected(watched: Watched) -> Option<Inspection> {
-    spawn_blocking(move || inspect(&watched)).await.ok()?
+pub fn inspection(watched: &Watched) -> impl Stream<Item = Result<Inspection, String>> + use<> {
+    let watched = watched.clone();
+    let pid = watched.pid;
+    stream::once(async move {
+        spawn_blocking(move || inspect(&watched))
+            .await
+            .ok()
+            .flatten()
+            .ok_or_else(|| format!("process {pid} exited"))
+    })
 }
 
 fn binary_name(process: &Proc) -> Option<String> {

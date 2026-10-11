@@ -16,23 +16,25 @@ use crate::{
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
-        process::{self, Forest, Inspection, Process},
+        process::{self, Inspection, Process, Watched},
         window_agents::{self, WindowProcesses},
     },
     desktop_shell::{
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
-    widget_groups::window_group::process_tree::Folding,
+    widget_groups::window_group::{process_tree::Folding, window_tooltip},
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
         flat_button,
         focus_indicator::focus_indicator,
+        on_hover_reading::OnHoverReading,
         pager_slot::PagerSlot,
         phosphor::{Phosphor, Weight},
         progress_line::progress_line,
         text::LINE_HEIGHT,
+        tooltip_body::Section,
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
@@ -48,10 +50,10 @@ pub struct WindowList {
     jobs: Jobs,
     scroll: f32,
     metrics: Metrics,
-    processes: Forest,
+    process_tree: Option<OnHoverReading<Watched, Process>>,
     window_processes: WindowProcesses,
     folding: Folding,
-    inspected: Option<Inspection>,
+    inspection: Option<OnHoverReading<Watched, Inspection>>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,10 +64,10 @@ pub enum WindowListMessage {
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
-    ProcessesScanned(Forest),
+    ProcessTreeScanned(Box<OnHoverReading<Watched, Process>>),
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
-    ProcessInspected(Inspection),
+    ProcessInspected(Box<OnHoverReading<Watched, Inspection>>),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -80,39 +82,39 @@ pub enum Action {
 }
 
 impl WindowList {
-    pub fn subscription(
-        watching_window: bool,
-        agents: &WindowAgentsConfig,
-    ) -> Subscription<WindowListMessage> {
-        let watched = if watching_window {
-            process::subscription().map(WindowListMessage::ProcessesScanned)
-        } else {
-            Subscription::none()
-        };
+    pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
             launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
             job_view::subscription().map(WindowListMessage::JobsChanged),
             window_agents::subscription(agents).map(WindowListMessage::WindowProcessesPaired),
-            watched,
         ])
     }
 
-    pub fn process(&self, window: u64, pid: i32) -> Option<Process> {
-        let tree = self.processes.subtree(pid)?;
-        Some(
-            self.window_processes
-                .of_window(window)
-                .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept)),
-        )
+    pub fn hover_subscription(watched: &Watched) -> Subscription<WindowListMessage> {
+        Subscription::batch([
+            OnHoverReading::subscription(watched.clone(), process::watched_tree)
+                .map(|reading| WindowListMessage::ProcessTreeScanned(Box::new(reading))),
+            OnHoverReading::subscription(watched.clone(), process::inspection)
+                .map(|reading| WindowListMessage::ProcessInspected(Box::new(reading))),
+        ])
     }
 
-    pub fn folding(&self) -> &Folding {
-        &self.folding
-    }
-
-    pub fn inspection(&self, pid: i32) -> Option<&Inspection> {
-        self.inspected.as_ref().filter(|found| found.pid == pid)
+    pub fn process_sections(&self, watched: &Watched) -> Vec<Section> {
+        vec![
+            OnHoverReading::section(
+                self.inspection.as_ref(),
+                watched,
+                window_tooltip::inspection_sections,
+            ),
+            OnHoverReading::section(self.process_tree.as_ref(), watched, |tree| {
+                let kept = self
+                    .window_processes
+                    .of_window(watched.window)
+                    .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
+                vec![Section::tree("Process", Some(&kept), &self.folding)]
+            }),
+        ]
     }
 
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
@@ -129,9 +131,8 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::Tooltip(_) => Action::None,
-            WindowListMessage::ProcessesScanned(forest) => {
-                self.folding.retain_live(&forest);
-                self.processes = forest;
+            WindowListMessage::ProcessTreeScanned(process_tree) => {
+                self.process_tree = Some(*process_tree);
                 Action::None
             }
             WindowListMessage::WindowProcessesPaired(window_processes) => {
@@ -142,8 +143,8 @@ impl WindowList {
                 self.folding.toggle(pid);
                 Action::None
             }
-            WindowListMessage::ProcessInspected(inspected) => {
-                self.inspected = Some(inspected);
+            WindowListMessage::ProcessInspected(inspection) => {
+                self.inspection = Some(*inspection);
                 Action::None
             }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,

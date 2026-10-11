@@ -12,7 +12,7 @@ use iced::{
 };
 
 use crate::{
-    config::{Config, font::ResolvedFont},
+    config::{Config, font::ResolvedFont, loading_effect::LoadingEffect},
     desktop_shell::{Message, hover_tooltips::GestureHint},
     widget_groups::{
         tray_group::TrayMessage, window_group::process_tree::ProcessTree,
@@ -23,6 +23,7 @@ use crate::{
         context_menu::context_menu,
         copyable::{copyable, openable},
         favicon::Favicons,
+        loading_text::{arriving_text, pending_text},
         section_column::section_column,
         text::{bar_text, column_heading},
         tooltip_body::{
@@ -54,6 +55,7 @@ const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const DIM_ALPHA: f32 = 0.7;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
+const PENDING_LINES: usize = 2;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
     right: 6.0 + CONTENT_INSET_PX,
@@ -61,12 +63,14 @@ const FOOTER_PADDING: Padding = Padding {
     left: 6.0 + CONTENT_INSET_PX,
 };
 
+#[derive(Clone, Copy)]
 pub struct TooltipContent<'a> {
     tooltip: &'a Tooltip,
     config: &'a Config,
     corner_radius: Radius,
     favicons: &'a Favicons,
     now: SystemTime,
+    arriving: bool,
 }
 
 impl<'a> TooltipContent<'a> {
@@ -82,7 +86,12 @@ impl<'a> TooltipContent<'a> {
             corner_radius,
             favicons,
             now: SystemTime::now(),
+            arriving: false,
         }
+    }
+
+    fn arrival(&self) -> Option<LoadingEffect> {
+        self.arriving.then_some(self.config.loading_effect)
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -220,9 +229,13 @@ impl<'a> TooltipContent<'a> {
     fn section(&self, section: &Section) -> Element<'static, Message> {
         let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
         let title = section.title().map(|title| {
-            container(self.bold_title(title))
-                .padding(title_padding)
-                .into()
+            arriving_text(
+                container(self.bold_title(title)).padding(title_padding),
+                title.to_owned(),
+                self.arrival(),
+                &self.config.font,
+                self.foreground(),
+            )
         });
         let caption = section.caption().map(|caption| {
             container(self.small_dim_text(caption.to_owned()))
@@ -248,8 +261,20 @@ impl<'a> TooltipContent<'a> {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
             SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
             SectionBody::Tree { root, folding } => {
-                ProcessTree::new(root, folding, self.config).view()
+                ProcessTree::new(root, folding, self.config, self.arrival()).view()
             }
+            SectionBody::Pending => pending_text(
+                self.config.widget_sizes.tooltip_value_width_px,
+                PENDING_LINES,
+                self.config.loading_effect,
+                &self.config.font,
+                self.config.palette.info,
+            ),
+            SectionBody::Resolved(sections) => TooltipContent {
+                arriving: true,
+                ..*self
+            }
+            .sections(sections),
         }
     }
 
@@ -261,6 +286,7 @@ impl<'a> TooltipContent<'a> {
             flash: self.flash(),
             link: self.config.palette.info,
             hint: self.dim(),
+            arrival: self.arrival(),
         }
     }
 
@@ -339,6 +365,7 @@ struct CellView {
     flash: Color,
     link: Color,
     hint: Color,
+    arrival: Option<LoadingEffect>,
 }
 
 impl CellView {
@@ -346,13 +373,19 @@ impl CellView {
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) | Cell::Link(text) => self.copyable_text(text, color),
-            Cell::Hint(text) => self.text(text, self.hint).into(),
+            Cell::Hint(text) => self.text(text, self.hint),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
         }
     }
 
-    fn text(&self, text: String, color: Color) -> Container<'static, Message> {
-        cell(&self.font, text, color, self.max_width)
+    fn text(&self, text: String, color: Color) -> Element<'static, Message> {
+        arriving_text(
+            cell(&self.font, text.clone(), color, self.max_width),
+            text,
+            self.arrival,
+            &self.font,
+            color,
+        )
     }
 
     fn value(&self, value: Cell, color: Color) -> Element<'static, Message> {
@@ -361,7 +394,7 @@ impl CellView {
             Cell::Text(text) => self.copyable_text(text, color),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
             Cell::Link(url) => self.openable_link(url),
-            Cell::Hint(text) => self.text(text, self.hint).into(),
+            Cell::Hint(text) => self.text(text, self.hint),
         }
     }
 
@@ -377,7 +410,7 @@ impl CellView {
     fn copyable_text(&self, text: String, color: Color) -> Element<'static, Message> {
         let value = self.text(text.clone(), color);
         if text.trim().is_empty() {
-            return value.into();
+            return value;
         }
         copyable(value, text, Message::CopyText, self.flash)
     }

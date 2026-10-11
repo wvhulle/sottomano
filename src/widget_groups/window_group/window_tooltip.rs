@@ -5,25 +5,18 @@ use niri_ipc::state::EventStreamState;
 use crate::{
     data::source::{
         nix_store::StorePackage,
-        process::{self, Inspection, Launch, Process},
+        process::{self, Inspection, Launch},
     },
     desktop_shell::hover_tooltips::relative,
-    widget_groups::window_group::process_tree::Folding,
     widgets::tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
 };
 
 pub fn tooltip(
     niri_state: &EventStreamState,
     window: u64,
-    tree: Option<&Process>,
-    folding: &Folding,
-    inspected: Option<&Inspection>,
+    process_sections: &[Section],
 ) -> Option<Tooltip> {
     let window = niri_state.windows.windows.get(&window)?;
-    let provenance = inspected.map(|inspected| &inspected.provenance);
-    let referenced = provenance
-        .into_iter()
-        .flat_map(|provenance| provenance.referenced.iter().map(versioned));
     let window_entries = [
         window
             .title
@@ -41,24 +34,25 @@ pub fn tooltip(
             )
         }),
     ];
-    Some(Tooltip::of(TooltipBody::sections(&[
-        Section::untitled_dictionary(window_entries.into_iter().flatten()),
-        Section::dictionary(
-            "Package",
-            provenance
-                .and_then(|provenance| provenance.package.as_ref())
-                .map(versioned),
-        ),
-        Section::dictionary(
-            "Runtime",
-            provenance
-                .and_then(|provenance| provenance.runtime.as_ref())
-                .map(versioned),
-        ),
-        Section::dictionary("Referenced", referenced),
-        Section::dictionary("Command", inspected.into_iter().flat_map(command)),
-        Section::tree("Process", tree, folding),
-    ])))
+    Some(Tooltip::of(TooltipBody::sections(
+        &[
+            &[Section::untitled_dictionary(
+                window_entries.into_iter().flatten(),
+            )],
+            process_sections,
+        ]
+        .concat(),
+    )))
+}
+
+pub fn inspection_sections(inspected: &Inspection) -> Vec<Section> {
+    let provenance = &inspected.provenance;
+    vec![
+        Section::dictionary("Package", provenance.package.as_ref().map(versioned)),
+        Section::dictionary("Runtime", provenance.runtime.as_ref().map(versioned)),
+        Section::dictionary("Referenced", provenance.referenced.iter().map(versioned)),
+        Section::dictionary("Command", command(inspected)),
+    ]
 }
 
 fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {

@@ -1,0 +1,367 @@
+use std::{f32::consts::TAU, slice};
+
+use iced::{
+    Background, Border, Color, Element, Event, Font, Length, Pixels, Point, Rectangle, Size,
+    Vector,
+    advanced::{
+        Clipboard, Layout, Renderer as _, Shell, Widget,
+        layout::{Limits, Node},
+        mouse, overlay,
+        renderer::{self, Quad},
+        text::{Alignment, Renderer as _, Shaping, Text, Wrapping},
+        widget::{Operation, Tree, tree},
+    },
+    alignment::Vertical,
+    mouse::Cursor,
+    time::{Duration, Instant},
+    widget::Space,
+    window,
+};
+
+use crate::{
+    config::{font::ResolvedFont, loading_effect::LoadingEffect},
+    widgets::text::LINE_HEIGHT,
+};
+
+const ARRIVAL: Duration = Duration::from_millis(700);
+const GLYPH_CHANGE: Duration = Duration::from_millis(55);
+const PULSE_PERIOD: Duration = Duration::from_millis(1100);
+const NOISE_GLYPHS: &[u8] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
+
+pub fn arriving_text<'a, Message: 'a>(
+    revealed: impl Into<Element<'a, Message>>,
+    text: String,
+    arrival: Option<LoadingEffect>,
+    font: &ResolvedFont,
+    color: Color,
+) -> Element<'a, Message> {
+    let Some(effect) = arrival else {
+        return revealed.into();
+    };
+    Element::new(LoadingText {
+        revealed: revealed.into(),
+        lines: vec![text],
+        settles: true,
+        effect,
+        font: font.iced_font,
+        size: font.text_size_px,
+        color,
+    })
+}
+
+pub fn pending_text<'a, Message: 'a>(
+    width: f32,
+    lines: usize,
+    effect: LoadingEffect,
+    font: &ResolvedFont,
+    color: Color,
+) -> Element<'a, Message> {
+    let line_height = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
+    let glyphs = (width / font.text_size_px * 1.8) as usize;
+    Element::new(LoadingText {
+        revealed: Space::new()
+            .width(width)
+            .height(line_height * lines as f32)
+            .into(),
+        lines: (0..lines)
+            .map(|line| "x".repeat(glyphs - glyphs * line / (lines * 3)))
+            .collect(),
+        settles: false,
+        effect,
+        font: font.iced_font,
+        size: font.text_size_px,
+        color,
+    })
+}
+
+struct State {
+    born: Instant,
+    now: Instant,
+}
+
+impl State {
+    fn elapsed(&self) -> Duration {
+        self.now.saturating_duration_since(self.born)
+    }
+}
+
+struct LoadingText<'a, Message> {
+    revealed: Element<'a, Message>,
+    lines: Vec<String>,
+    settles: bool,
+    effect: LoadingEffect,
+    font: Font,
+    size: f32,
+    color: Color,
+}
+
+impl<Message> LoadingText<'_, Message> {
+    fn settled(&self, state: &State) -> bool {
+        self.settles && state.elapsed() >= ARRIVAL
+    }
+
+    fn line_height(&self) -> f32 {
+        LINE_HEIGHT.to_absolute(Pixels(self.size)).0
+    }
+
+    fn fill_line(
+        &self,
+        renderer: &mut iced::Renderer,
+        content: String,
+        at: Point,
+        area: Rectangle,
+        color: Color,
+    ) {
+        let wrapping = if self.settles {
+            Wrapping::Word
+        } else {
+            Wrapping::None
+        };
+        renderer.fill_text(
+            Text {
+                content,
+                bounds: Size::new(area.width, area.height),
+                size: Pixels(self.size),
+                line_height: LINE_HEIGHT,
+                font: self.font,
+                align_x: Alignment::Left,
+                align_y: Vertical::Top,
+                shaping: Shaping::Advanced,
+                wrapping,
+            },
+            at,
+            color,
+            area,
+        );
+    }
+
+    fn draw_scramble(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
+        let elapsed = state.elapsed();
+        let frame = (elapsed.as_millis() / GLYPH_CHANGE.as_millis()) as u64;
+        self.lines.iter().enumerate().for_each(|(row, line)| {
+            let seed = fnv(line.as_bytes());
+            let length = line.chars().count().max(1);
+            let content = line
+                .chars()
+                .enumerate()
+                .map(|(position, target)| {
+                    let locked = self.settles && elapsed >= lock_time(seed, position, length);
+                    if locked || target.is_whitespace() {
+                        target
+                    } else {
+                        noise_glyph(seed ^ frame.wrapping_mul(0x9E37_79B9), row, position)
+                    }
+                })
+                .collect();
+            let at = Point::new(area.x, area.y + row as f32 * self.line_height());
+            self.fill_line(renderer, content, at, area, self.color);
+        });
+    }
+
+    fn draw_pulse(&self, renderer: &mut iced::Renderer, state: &State, area: Rectangle) {
+        let elapsed = state.elapsed().as_secs_f32();
+        if self.settles {
+            let shown = (elapsed / ARRIVAL.as_secs_f32()).clamp(0.0, 1.0);
+            let color = Color {
+                a: self.color.a * shown,
+                ..self.color
+            };
+            self.lines.iter().for_each(|line| {
+                self.fill_line(renderer, line.clone(), area.position(), area, color);
+            });
+            return;
+        }
+        let phase = (elapsed / PULSE_PERIOD.as_secs_f32() * TAU).sin() * 0.5 + 0.5;
+        let color = Color {
+            a: self.color.a * (0.12 + 0.22 * phase),
+            ..self.color
+        };
+        let line_height = self.line_height();
+        let bar_height = line_height * 0.6;
+        let longest = self.lines.iter().map(String::len).max().unwrap_or(1) as f32;
+        self.lines.iter().enumerate().for_each(|(row, line)| {
+            renderer.fill_quad(
+                Quad {
+                    bounds: Rectangle {
+                        x: area.x,
+                        y: area.y + row as f32 * line_height + (line_height - bar_height) / 2.0,
+                        width: area.width * line.len() as f32 / longest,
+                        height: bar_height,
+                    },
+                    border: Border::default().rounded(bar_height / 2.0),
+                    ..Quad::default()
+                },
+                Background::Color(color),
+            );
+        });
+    }
+}
+
+fn fnv(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xCBF2_9CE4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01B3)
+    })
+}
+
+fn mix(value: u64) -> u64 {
+    let value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    let value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
+}
+
+fn unit(value: u64) -> f32 {
+    (mix(value) >> 40) as f32 / (1u64 << 24) as f32
+}
+
+fn lock_time(seed: u64, position: usize, length: usize) -> Duration {
+    let order = position as f32 / length as f32;
+    let chance = unit(seed.wrapping_add(position as u64));
+    ARRIVAL.mul_f32(0.15 + 0.35 * order + 0.5 * chance)
+}
+
+fn noise_glyph(seed: u64, row: usize, position: usize) -> char {
+    let pick = mix(seed ^ ((row as u64) << 48) ^ position as u64);
+    char::from(NOISE_GLYPHS[(pick % NOISE_GLYPHS.len() as u64) as usize])
+}
+
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for LoadingText<'_, Message> {
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<State>()
+    }
+
+    fn state(&self) -> tree::State {
+        let now = Instant::now();
+        tree::State::new(State { born: now, now })
+    }
+
+    fn children(&self) -> Vec<Tree> {
+        vec![Tree::new(&self.revealed)]
+    }
+
+    fn diff(&self, tree: &mut Tree) {
+        tree.diff_children(slice::from_ref(&self.revealed));
+    }
+
+    fn size(&self) -> Size<Length> {
+        self.revealed.as_widget().size()
+    }
+
+    fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
+        let child = self
+            .revealed
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits);
+        Node::with_children(child.size(), vec![child])
+    }
+
+    fn draw(
+        &self,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
+        theme: &iced::Theme,
+        style: &renderer::Style,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        viewport: &Rectangle,
+    ) {
+        let state = tree.state.downcast_ref::<State>();
+        let revealed = layout.children().next().unwrap();
+        if self.settled(state) {
+            self.revealed.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                style,
+                revealed,
+                cursor,
+                viewport,
+            );
+            return;
+        }
+        let area = revealed.bounds();
+        match self.effect {
+            LoadingEffect::Scramble => self.draw_scramble(renderer, state, area),
+            LoadingEffect::Pulse => self.draw_pulse(renderer, state, area),
+        }
+    }
+
+    fn operate(
+        &mut self,
+        tree: &mut Tree,
+        layout: Layout<'_>,
+        renderer: &iced::Renderer,
+        operation: &mut dyn Operation,
+    ) {
+        self.revealed.as_widget_mut().operate(
+            &mut tree.children[0],
+            layout.children().next().unwrap(),
+            renderer,
+            operation,
+        );
+    }
+
+    fn update(
+        &mut self,
+        tree: &mut Tree,
+        event: &Event,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        renderer: &iced::Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle,
+    ) {
+        if let Event::Window(window::Event::RedrawRequested(now)) = event {
+            let state = tree.state.downcast_mut::<State>();
+            state.now = *now;
+            if !self.settled(state) {
+                shell.request_redraw();
+            }
+        }
+        self.revealed.as_widget_mut().update(
+            &mut tree.children[0],
+            event,
+            layout.children().next().unwrap(),
+            cursor,
+            renderer,
+            clipboard,
+            shell,
+            viewport,
+        );
+    }
+
+    fn mouse_interaction(
+        &self,
+        tree: &Tree,
+        layout: Layout<'_>,
+        cursor: Cursor,
+        viewport: &Rectangle,
+        renderer: &iced::Renderer,
+    ) -> mouse::Interaction {
+        self.revealed.as_widget().mouse_interaction(
+            &tree.children[0],
+            layout.children().next().unwrap(),
+            cursor,
+            viewport,
+            renderer,
+        )
+    }
+
+    fn overlay<'a>(
+        &'a mut self,
+        tree: &'a mut Tree,
+        layout: Layout<'a>,
+        renderer: &iced::Renderer,
+        viewport: &Rectangle,
+        translation: Vector,
+    ) -> Option<overlay::Element<'a, Message, iced::Theme, iced::Renderer>> {
+        self.revealed.as_widget_mut().overlay(
+            &mut tree.children[0],
+            layout.children().next().unwrap(),
+            renderer,
+            viewport,
+            translation,
+        )
+    }
+}

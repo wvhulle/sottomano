@@ -12,7 +12,7 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::{Config, window_agents::WindowAgentsConfig},
-    data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri},
+    data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
     desktop_shell::monitor_surfaces::Position,
     widgets::{tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets},
 };
@@ -39,23 +39,24 @@ pub enum Action {
 }
 
 impl WindowGroup {
-    pub fn subscription(
-        watching_window: bool,
-        agents: &WindowAgentsConfig,
+    pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowGroupMessage> {
+        WindowList::subscription(agents).map(WindowGroupMessage::WindowList)
+    }
+
+    pub fn hover_subscription(
+        niri_state: &EventStreamState,
+        window: u64,
     ) -> Subscription<WindowGroupMessage> {
-        WindowList::subscription(watching_window, agents).map(WindowGroupMessage::WindowList)
+        watched(niri_state, window).map_or_else(Subscription::none, |watched| {
+            WindowList::hover_subscription(&watched).map(WindowGroupMessage::WindowList)
+        })
     }
 
     pub fn window_tooltip(&self, niri_state: &EventStreamState, window: u64) -> Option<Tooltip> {
-        let pid = niri_state.windows.windows.get(&window).and_then(|w| w.pid);
-        let tree = pid.and_then(|pid| self.window_list.process(window, pid));
-        window_tooltip::tooltip(
-            niri_state,
-            window,
-            tree.as_ref(),
-            self.window_list.folding(),
-            pid.and_then(|pid| self.window_list.inspection(pid)),
-        )
+        let process_sections = watched(niri_state, window)
+            .map(|watched| self.window_list.process_sections(&watched))
+            .unwrap_or_default();
+        window_tooltip::tooltip(niri_state, window, &process_sections)
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage) -> Action {
@@ -122,4 +123,13 @@ impl WindowGroup {
                 .into(),
         )
     }
+}
+
+fn watched(niri_state: &EventStreamState, window: u64) -> Option<Watched> {
+    let found = niri_state.windows.windows.get(&window)?;
+    Some(Watched {
+        window,
+        pid: found.pid?,
+        app_id: found.app_id.clone(),
+    })
 }
