@@ -9,7 +9,7 @@ use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    widgets::tooltip_body::{KeyValue, Section},
+    widgets::tooltip_body::{KeyValue, Readiness, Section},
 };
 
 #[derive(Debug, Clone)]
@@ -71,16 +71,23 @@ impl<S: Send + 'static> OnHoverReading<S> {
         }
     }
 
-    pub fn section(&self, sections: impl Fn(&S) -> Vec<Section>) -> Section {
-        match &self.latest {
-            None => Section::estimated(self.shape.as_ref().map(&sections).unwrap_or_default()),
-            Some(Ok(reading)) => Section::resolved(sections(reading)),
-            Some(Err(failure)) => {
-                Section::resolved(vec![Section::untitled_dictionary([KeyValue::new(
-                    "Error",
-                    failure.clone(),
-                )])])
-            }
-        }
+    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
+        let readiness = if self.latest.is_some() {
+            Readiness::Arriving
+        } else {
+            Readiness::Estimated
+        };
+        let unmarked = match &self.latest {
+            None => self.shape.as_ref().map(&sections).unwrap_or_default(),
+            Some(Ok(reading)) => sections(reading),
+            Some(Err(failure)) => vec![Section::untitled_dictionary([KeyValue::new(
+                "Error",
+                failure.clone(),
+            )])],
+        };
+        unmarked
+            .into_iter()
+            .map(|section| section.with_readiness(readiness))
+            .collect()
     }
 }

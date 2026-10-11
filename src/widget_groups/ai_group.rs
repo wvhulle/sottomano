@@ -260,11 +260,11 @@ impl AiGroup {
         match target {
             AiTarget::OpenRouter => self.openrouter.tooltip(),
             AiTarget::ClaudeUsageWindows => self.claude_usage_windows.tooltip(),
-            AiTarget::ClaudeEnterpriseSpend => {
-                self.claude_enterprise_spend.tooltip_with_sections(&[self
+            AiTarget::ClaudeEnterpriseSpend => self.claude_enterprise_spend.tooltip_with_sections(
+                &self
                     .claude_organization
-                    .section(ClaudeOrganization::sections)])
-            }
+                    .sections(ClaudeOrganization::sections),
+            ),
             AiTarget::ClaudeCcusagePeriods => self.claude_ccusage_periods.tooltip(),
             AiTarget::ClaudeCcusageBlock => self.claude_ccusage_block.tooltip(),
             AiTarget::CopilotMetered => self.copilot_metered.tooltip(),

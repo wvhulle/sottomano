@@ -136,8 +136,6 @@ pub enum SectionBody {
         root: Process,
         folding: Folding,
     },
-    Estimated(Vec<Section>),
-    Resolved(Vec<Section>),
 }
 
 impl SectionBody {
@@ -156,17 +154,23 @@ impl SectionBody {
             SectionBody::Dictionary(entries) => entries.is_empty(),
             SectionBody::ColumnTable { records, .. } => records.is_empty(),
             SectionBody::Tree { .. } => false,
-            SectionBody::Estimated(sections) | SectionBody::Resolved(sections) => {
-                sections.iter().all(|section| section.body.is_empty())
-            }
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Readiness {
+    #[default]
+    Settled,
+    Estimated,
+    Arriving,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Section {
     heading: Option<Heading>,
     body: SectionBody,
+    readiness: Readiness,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -207,6 +211,7 @@ impl Section {
         Self {
             heading: Some(heading.into()),
             body: SectionBody::Dictionary(entries.into_iter().collect()),
+            readiness: Readiness::Settled,
         }
     }
 
@@ -214,6 +219,7 @@ impl Section {
         Self {
             heading: None,
             body: SectionBody::Dictionary(entries.into_iter().collect()),
+            readiness: Readiness::Settled,
         }
     }
 
@@ -225,6 +231,7 @@ impl Section {
         Self {
             heading: Some(heading.into()),
             body: SectionBody::column_table(headings, records),
+            readiness: Readiness::Settled,
         }
     }
 
@@ -235,6 +242,7 @@ impl Section {
         Self {
             heading: None,
             body: SectionBody::column_table(headings, records),
+            readiness: Readiness::Settled,
         }
     }
 
@@ -247,21 +255,17 @@ impl Section {
                     folding: folding.clone(),
                 }
             }),
+            readiness: Readiness::Settled,
         }
     }
 
-    pub(in crate::widgets) fn estimated(sections: Vec<Section>) -> Self {
-        Self {
-            heading: None,
-            body: SectionBody::Estimated(sections),
-        }
+    #[must_use]
+    pub(in crate::widgets) fn with_readiness(self, readiness: Readiness) -> Self {
+        Self { readiness, ..self }
     }
 
-    pub(in crate::widgets) fn resolved(sections: Vec<Section>) -> Self {
-        Self {
-            heading: None,
-            body: SectionBody::Resolved(sections),
-        }
+    pub fn readiness(&self) -> Readiness {
+        self.readiness
     }
 
     pub fn title(&self) -> Option<&str> {

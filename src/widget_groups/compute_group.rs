@@ -163,10 +163,8 @@ impl ComputeGroup {
         match target {
             ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
                 &[
-                    vec![
-                        self.core_loads
-                            .section(|loads| loads.sections(&self.topology)),
-                    ],
+                    self.core_loads
+                        .sections(|loads| loads.sections(&self.topology)),
                     self.hardware.cpu.hardware_sections().to_vec(),
                 ]
                 .concat(),
@@ -181,9 +179,11 @@ impl ComputeGroup {
                     .map(|clock| clock.core_sections(&self.topology))
                     .unwrap_or_default(),
             ),
-            ComputeTarget::Temperature => self.temperature.tooltip_with_sections(&[self
-                .core_temperatures
-                .section(|cores| cores.sections(&self.topology))]),
+            ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
+                &self
+                    .core_temperatures
+                    .sections(|cores| cores.sections(&self.topology)),
+            ),
         }
     }
 }

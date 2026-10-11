@@ -150,9 +150,9 @@ impl InternetGroup {
                     .tunnels
                     .iter()
                     .find(|t| &t.name == name)?;
-                Some(Tooltip::of(tunnel.tooltip().with_sections(&[
-                    self.tunnel_address.section(TunnelAddress::sections),
-                ])))
+                Some(Tooltip::of(tunnel.tooltip().with_sections(
+                    &self.tunnel_address.sections(TunnelAddress::sections),
+                )))
             }
             InternetTarget::Down => self.down.live_tooltip(),
             InternetTarget::Up => self.up.live_tooltip(),

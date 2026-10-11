@@ -123,8 +123,9 @@ impl WindowList {
             .iter()
             .flat_map(|window| {
                 [
-                    self.inspection.section(window_tooltip::inspection_sections),
-                    self.process_tree.section(|tree| {
+                    self.inspection
+                        .sections(window_tooltip::inspection_sections),
+                    self.process_tree.sections(|tree| {
                         let kept = self
                             .window_processes
                             .of_window(*window)
@@ -132,6 +133,7 @@ impl WindowList {
                         vec![Section::tree("Process", Some(&kept), &self.folding)]
                     }),
                 ]
+                .concat()
             })
             .collect()
     }

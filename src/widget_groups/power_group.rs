@@ -191,15 +191,18 @@ impl PowerGroup {
                 .hardware_section()]),
             PowerTarget::Draw => {
                 let draw = self.draw.as_ref()?;
-                let charger =
-                    (!draw.on_battery()).then(|| self.charger.section(ChargerSupply::sections));
+                let charger = if draw.on_battery() {
+                    Vec::new()
+                } else {
+                    self.charger.sections(ChargerSupply::sections)
+                };
                 self.battery
-                    .tooltip_with(draw.tooltip().with_sections(charger.as_slice()))
+                    .tooltip_with(draw.tooltip().with_sections(&charger))
             }
             PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
-            PowerTarget::CpuTuning => Some(Tooltip::of(TooltipBody::sections(&[self
-                .cpu_tuning
-                .section(CpuTuning::sections)]))),
+            PowerTarget::CpuTuning => Some(Tooltip::of(TooltipBody::sections(
+                &self.cpu_tuning.sections(CpuTuning::sections),
+            ))),
             PowerTarget::Profile => self.power_profile.tooltip(),
         }
     }

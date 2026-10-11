@@ -27,8 +27,8 @@ use crate::{
         section_column::section_column,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, KeyValue, RecordCells, RefreshInfo, Section, SectionBody, Tooltip, TooltipBody,
-            TrayMenuBody,
+            Cell, KeyValue, Readiness, RecordCells, RefreshInfo, Section, SectionBody, Tooltip,
+            TooltipBody, TrayMenuBody,
         },
     },
 };
@@ -89,11 +89,14 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn in_phase(self, phase: LoadingPhase) -> Self {
-        Self {
-            phase: Some(phase),
-            ..self
-        }
+    fn in_readiness(self, readiness: Readiness) -> Self {
+        let loading = self.config.tooltips.loading;
+        let phase = match readiness {
+            Readiness::Settled => None,
+            Readiness::Estimated => Some(LoadingPhase::Estimated(loading)),
+            Readiness::Arriving => Some(LoadingPhase::Arriving(loading)),
+        };
+        Self { phase, ..self }
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -227,7 +230,7 @@ impl<'a> TooltipContent<'a> {
         let filled = sections
             .iter()
             .filter(|section| !section.body().is_empty())
-            .map(|section| self.section(section));
+            .map(|section| self.in_readiness(section.readiness()).section(section));
 
         section_column(
             Column::with_children(filled).spacing(SECTION_SEPARATION_PX),
@@ -269,12 +272,6 @@ impl<'a> TooltipContent<'a> {
             SectionBody::Tree { root, folding } => {
                 ProcessTree::new(root, folding, self.config, self.phase).view()
             }
-            SectionBody::Estimated(sections) => self
-                .in_phase(LoadingPhase::Estimated(self.config.tooltips.loading))
-                .sections(sections),
-            SectionBody::Resolved(sections) => self
-                .in_phase(LoadingPhase::Arriving(self.config.tooltips.loading))
-                .sections(sections),
         }
     }
 
