@@ -9,15 +9,19 @@ use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 
 use crate::{
-    data::source::gpu::{self, DiscoveredGpu, GpuModel, GpuSnapshot, PciBusId},
+    config::Config,
+    data::source::gpu::{
+        self, DiscoveredGpu, GpuClocks, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, PciBusId,
+    },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{polled, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         hardware_section::HardwareEntries,
-        tooltip_body::Tooltip,
+        on_hover_reading::{HoverFetched, OnHoverReading},
+        tooltip_body::{Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -58,11 +62,25 @@ impl GpuDevice {
                 .unwrap_or_default(),
         })
     }
+
+    fn power_label(&self) -> Option<GpuPowerDraw> {
+        Some(GpuPowerDraw {
+            draw: self.snapshot.get()?.power_draw,
+            limit: self.model.as_ref().and_then(|model| model.power_limit),
+        })
+    }
+}
+
+struct HoveredGpu {
+    bus: PciBusId,
+    clocks: OnHoverReading<GpuClocks>,
+    processes: OnHoverReading<GpuProcesses>,
 }
 
 #[derive(Default)]
 pub struct GpuGroup {
     devices: BTreeMap<PciBusId, GpuDevice>,
+    hovered: Option<HoveredGpu>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -70,6 +88,8 @@ pub struct GpuGroup {
 pub enum GpuMessage {
     Discovered(Vec<DiscoveredGpu>),
     Snapshot(PciBusId, Result<GpuSnapshot, gpu::Error>),
+    ClocksFetched(HoverFetched<GpuClocks>),
+    ProcessesFetched(HoverFetched<GpuProcesses>),
     Expansion(ExpansionMessage),
 }
 
@@ -84,6 +104,49 @@ impl GpuGroup {
                 .with(bus.clone())
                 .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading))
         }))
+    }
+
+    pub fn hover(&mut self, target: Option<&GpuTarget>, config: &Config) -> Task<GpuMessage> {
+        let Some(target) = target else {
+            self.hovered = None;
+            return Task::none();
+        };
+        if self
+            .hovered
+            .as_ref()
+            .is_some_and(|hovered| hovered.bus == target.bus)
+        {
+            return Task::none();
+        }
+        let (clocks, clocking) = OnHoverReading::fetch(
+            polled::<GpuClocks>(target.bus.clone()),
+            GpuMessage::ClocksFetched,
+            config,
+        );
+        let (processes, listing) = OnHoverReading::fetch(
+            polled::<GpuProcesses>(target.bus.clone()),
+            GpuMessage::ProcessesFetched,
+            config,
+        );
+        self.hovered = Some(HoveredGpu {
+            bus: target.bus.clone(),
+            clocks,
+            processes,
+        });
+        Task::batch([clocking, listing])
+    }
+
+    fn hovered_section(
+        &self,
+        bus: &PciBusId,
+        section: impl FnOnce(&HoveredGpu) -> Section,
+    ) -> Vec<Section> {
+        self.hovered
+            .as_ref()
+            .filter(|hovered| &hovered.bus == bus)
+            .map(section)
+            .into_iter()
+            .collect()
     }
 
     pub fn update(&mut self, msg: GpuMessage) -> Task<GpuMessage> {
@@ -107,6 +170,16 @@ impl GpuGroup {
                     device.snapshot.receive(reading);
                 }
             }
+            GpuMessage::ClocksFetched(fetched) => {
+                if let Some(hovered) = &mut self.hovered {
+                    hovered.clocks.receive(fetched);
+                }
+            }
+            GpuMessage::ProcessesFetched(fetched) => {
+                if let Some(hovered) = &mut self.hovered {
+                    hovered.processes.receive(fetched);
+                }
+            }
             GpuMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -127,14 +200,14 @@ impl GpuGroup {
                 [
                     device.snapshot.group_item(target(GpuReading::Load)),
                     snapshot.map(|snapshot| {
-                        GroupItem::reading(&snapshot.vram, target(GpuReading::Memory))
+                        GroupItem::reading(snapshot.vram, target(GpuReading::Memory))
                     }),
                     device
                         .temperature_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Temperature))),
-                    snapshot.map(|snapshot| {
-                        GroupItem::reading(snapshot.power, target(GpuReading::Power))
-                    }),
+                    device
+                        .power_label()
+                        .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
                 ]
                 .into_iter()
                 .flatten()
@@ -146,10 +219,26 @@ impl GpuGroup {
         let device = self.devices.get(&target.bus)?;
         let snapshot = &device.snapshot;
         match target.reading {
-            GpuReading::Load => snapshot.tooltip_with_sections(&[device.model.hardware_section()]),
-            GpuReading::Memory => snapshot.tooltip_with(snapshot.get()?.vram.tooltip()),
+            GpuReading::Load => snapshot.tooltip_with_sections(
+                &[
+                    self.hovered_section(&target.bus, |hovered| {
+                        hovered.clocks.section(GpuClocks::sections)
+                    }),
+                    vec![device.model.hardware_section()],
+                ]
+                .concat(),
+            ),
+            GpuReading::Memory => snapshot.tooltip_with(TooltipBody::sections(
+                &[
+                    snapshot.get()?.vram.sections(),
+                    self.hovered_section(&target.bus, |hovered| {
+                        hovered.processes.section(GpuProcesses::sections)
+                    }),
+                ]
+                .concat(),
+            )),
             GpuReading::Temperature => snapshot.tooltip_with(device.temperature_label()?.tooltip()),
-            GpuReading::Power => snapshot.tooltip_with(snapshot.get()?.power.tooltip()),
+            GpuReading::Power => snapshot.tooltip_with(device.power_label()?.tooltip()),
         }
     }
 }

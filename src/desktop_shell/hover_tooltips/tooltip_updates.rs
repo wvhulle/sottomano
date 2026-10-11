@@ -141,9 +141,16 @@ impl DesktopShell {
             Some(HoverTarget::Window(window)) => Some(*window),
             _ => None,
         };
-        self.window_group
-            .hover_window(&self.niri, window, &self.config)
-            .map(Message::WindowGroup)
+        let gpu = match self.tooltip.target() {
+            Some(HoverTarget::Gpu(target)) => Some(target),
+            _ => None,
+        };
+        Task::batch([
+            self.window_group
+                .hover_window(&self.niri, window, &self.config)
+                .map(Message::WindowGroup),
+            self.gpu_group.hover(gpu, &self.config).map(Message::Gpu),
+        ])
     }
 
     pub fn tooltip_has_relative_time(&self) -> bool {

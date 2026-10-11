@@ -7,7 +7,7 @@ use uom::{
 };
 
 use crate::{
-    data::source::gpu::VramUsage,
+    data::source::gpu::{GpuProcesses, VramUsage},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
@@ -36,27 +36,36 @@ impl BarWidget for VramUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[
-            Section::untitled_dictionary([
-                KeyValue::new(
-                    "VRAM",
-                    format!("{:.0}", self.fill().into_format_args(percent, Abbreviation)),
-                ),
-                KeyValue::new("Used", self.used.display().iec().to_string()),
-                KeyValue::new("Total", self.total.display().iec().to_string()),
-            ]),
-            Section::dictionary(
-                "Processes",
-                self.processes.iter().filter_map(|process| {
-                    Some(KeyValue::new(
-                        process
-                            .name
-                            .clone()
-                            .unwrap_or_else(|| process.pid.to_string()),
-                        process.vram?.display().iec().to_string(),
-                    ))
-                }),
+        TooltipBody::sections(&self.sections())
+    }
+}
+
+impl VramUsage {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![Section::untitled_dictionary([
+            KeyValue::new(
+                "VRAM",
+                format!("{:.0}", self.fill().into_format_args(percent, Abbreviation)),
             ),
-        ])
+            KeyValue::new("Used", self.used.display().iec().to_string()),
+            KeyValue::new("Total", self.total.display().iec().to_string()),
+        ])]
+    }
+}
+
+impl GpuProcesses {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![Section::dictionary(
+            "Processes",
+            self.processes.iter().filter_map(|process| {
+                Some(KeyValue::new(
+                    process
+                        .name
+                        .clone()
+                        .unwrap_or_else(|| process.pid.to_string()),
+                    process.vram?.display().iec().to_string(),
+                ))
+            }),
+        )]
     }
 }

@@ -228,10 +228,11 @@ pub(crate) fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
 }
 
 pub(crate) fn polling<S: Source>(key: S::Key) -> Subscription<Result<S, S::Error>> {
-    Subscription::run_with((S::NAME, key), |(_, key)| {
-        let key = key.clone();
-        emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
-    })
+    Subscription::run_with((S::NAME, key), |(_, key)| polled::<S>(key.clone()))
+}
+
+pub(crate) fn polled<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
+    emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
 }
 
 pub(crate) fn emit_changes<T: Clone + PartialEq>(
