@@ -19,8 +19,8 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
+        continuous_reading::ContinuousReading,
         hardware_section::HardwareEntries,
-        last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -42,10 +42,10 @@ impl From<ComputeTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct ComputeGroup {
-    cpu: LastPoll<CpuUsage>,
-    memory: LastPoll<Memory>,
-    clock: LastPoll<CpuClock>,
-    temperature: LastPoll<Temperature>,
+    cpu: ContinuousReading<CpuUsage>,
+    memory: ContinuousReading<Memory>,
+    clock: ContinuousReading<CpuClock>,
+    temperature: ContinuousReading<Temperature>,
     sensors: bool,
     hardware: HostHardware,
     pub(crate) expansion: GroupExpansion,

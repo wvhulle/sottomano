@@ -15,8 +15,8 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -42,11 +42,11 @@ impl From<InternetTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct InternetGroup {
-    down: LastPoll<Throughput<Download>>,
-    up: LastPoll<Throughput<Upload>>,
-    total: LastPoll<Throughput<Total>>,
-    wireguard: LastPoll<Wireguard>,
-    tailscale: LastPoll<Tailscale>,
+    down: ContinuousReading<Throughput<Download>>,
+    up: ContinuousReading<Throughput<Upload>>,
+    total: ContinuousReading<Throughput<Total>>,
+    wireguard: ContinuousReading<Wireguard>,
+    tailscale: ContinuousReading<Tailscale>,
     installed: Installed,
     pub(crate) expansion: GroupExpansion,
 }

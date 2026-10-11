@@ -14,9 +14,9 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         hardware_section::HardwareEntries,
-        last_poll::LastPoll,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -44,7 +44,7 @@ impl From<GpuTarget> for HoverTarget {
 
 struct GpuDevice {
     model: Option<GpuModel>,
-    snapshot: LastPoll<GpuSnapshot>,
+    snapshot: ContinuousReading<GpuSnapshot>,
 }
 
 impl GpuDevice {
@@ -96,7 +96,7 @@ impl GpuGroup {
                             gpu.bus,
                             GpuDevice {
                                 model: gpu.model,
-                                snapshot: LastPoll::default(),
+                                snapshot: ContinuousReading::default(),
                             },
                         )
                     })

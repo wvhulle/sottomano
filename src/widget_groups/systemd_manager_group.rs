@@ -31,8 +31,8 @@ use crate::{
     widget_groups::{terminal_command::TerminalCommand, terminal_journal::TerminalJournal},
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
@@ -124,14 +124,14 @@ impl From<SystemdTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct SystemdManagerGroup {
-    boot: LastPoll<BootTimeline>,
-    failed_system: LastPoll<Failed<System>>,
-    failed_user: LastPoll<Failed<User>>,
-    slow_system_jobs: LastPoll<SlowJobs<System>>,
-    slow_user_jobs: LastPoll<SlowJobs<User>>,
-    last_shutdown: LastPoll<LastShutdown>,
-    coredumps: LastPoll<Coredumps>,
-    oom_kills: LastPoll<OomKills>,
+    boot: ContinuousReading<BootTimeline>,
+    failed_system: ContinuousReading<Failed<System>>,
+    failed_user: ContinuousReading<Failed<User>>,
+    slow_system_jobs: ContinuousReading<SlowJobs<System>>,
+    slow_user_jobs: ContinuousReading<SlowJobs<User>>,
+    last_shutdown: ContinuousReading<LastShutdown>,
+    coredumps: ContinuousReading<Coredumps>,
+    oom_kills: ContinuousReading<OomKills>,
     pub(crate) expansion: GroupExpansion,
 }
 

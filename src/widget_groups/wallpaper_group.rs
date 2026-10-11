@@ -15,8 +15,8 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        last_poll::LastPoll,
         phosphor::Phosphor,
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
@@ -249,7 +249,7 @@ impl From<WallpaperTarget> for HoverTarget {
 }
 
 pub struct WallpaperGroup {
-    lookup: LastPoll<Lookup>,
+    lookup: ContinuousReading<Lookup>,
     shown: Option<DisplayedWallpaper>,
     unsplash_key: Option<PathBuf>,
     wallpaper_daemon: bool,
@@ -267,7 +267,7 @@ pub enum WallpaperMessage {
 impl WallpaperGroup {
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
-            lookup: LastPoll::default(),
+            lookup: ContinuousReading::default(),
             shown: None,
             unsplash_key: secrets.unsplash_access_key.clone(),
             wallpaper_daemon: false,

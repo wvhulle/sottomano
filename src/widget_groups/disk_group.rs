@@ -14,7 +14,7 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::polling,
     widgets::{
-        last_poll::LastPoll,
+        continuous_reading::ContinuousReading,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -36,10 +36,10 @@ impl From<DiskTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct DiskGroup {
-    usage: LastPoll<Disk>,
-    disk_read: LastPoll<DiskTransfer<Reading>>,
-    disk_write: LastPoll<DiskTransfer<Writing>>,
-    drive_health: LastPoll<DriveHealth>,
+    usage: ContinuousReading<Disk>,
+    disk_read: ContinuousReading<DiskTransfer<Reading>>,
+    disk_write: ContinuousReading<DiskTransfer<Writing>>,
+    drive_health: ContinuousReading<DriveHealth>,
     pub(crate) expansion: GroupExpansion,
 }
 

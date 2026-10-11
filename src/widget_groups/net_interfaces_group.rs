@@ -17,7 +17,7 @@ use crate::{
     message_subscriptions::dbus,
     widgets::{
         bar_widget::BarWidget,
-        last_poll::LastPoll,
+        continuous_reading::ContinuousReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -43,10 +43,10 @@ impl From<NetInterfaceTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct NetInterfacesGroup {
-    bluetooth: LastPoll<Bluetooth>,
-    ethernet: LastPoll<Ethernet>,
-    wifi: LastPoll<Wifi>,
-    mobile: LastPoll<Mobile>,
+    bluetooth: ContinuousReading<Bluetooth>,
+    ethernet: ContinuousReading<Ethernet>,
+    wifi: ContinuousReading<Wifi>,
+    mobile: ContinuousReading<Mobile>,
     pub(crate) expansion: GroupExpansion,
 }
 

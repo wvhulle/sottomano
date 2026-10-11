@@ -27,9 +27,9 @@ use crate::{
     message_subscriptions::polling,
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         hardware_section::HardwareEntries,
-        last_poll::LastPoll,
         phosphor::{Phosphor, Weight},
         reading_alert::ReadingAlertActionButton,
         tooltip_body::Tooltip,
@@ -56,13 +56,13 @@ impl From<PowerTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PowerGroup {
-    battery: LastPoll<Battery>,
+    battery: ContinuousReading<Battery>,
     draw: Option<PowerDraw>,
     time: Option<BatteryTime>,
     time_reading: BatteryTimeReading,
     installed: bool,
     power_profile: PowerProfileControl,
-    cpu_tuning: LastPoll<CpuTuning>,
+    cpu_tuning: ContinuousReading<CpuTuning>,
     pub(crate) expansion: GroupExpansion,
 }
 

@@ -37,13 +37,13 @@ impl BarWidget for FailedReading {
     }
 }
 
-pub struct LastPoll<S> {
+pub struct ContinuousReading<S> {
     data: Option<S>,
     failure: Option<FailedReading>,
     last_refreshed: Option<SystemTime>,
 }
 
-impl<S> Default for LastPoll<S> {
+impl<S> Default for ContinuousReading<S> {
     fn default() -> Self {
         Self {
             data: None,
@@ -53,7 +53,7 @@ impl<S> Default for LastPoll<S> {
     }
 }
 
-impl<S> LastPoll<S> {
+impl<S> ContinuousReading<S> {
     pub fn load(&mut self, data: Option<S>) {
         self.data = data;
         self.failure = None;
@@ -65,7 +65,7 @@ impl<S> LastPoll<S> {
     }
 }
 
-impl<S: BarWidget> LastPoll<S> {
+impl<S: BarWidget> ContinuousReading<S> {
     pub fn display(&self) -> Option<&dyn BarWidget> {
         match (self.data.as_ref(), self.failure.as_ref()) {
             (Some(data), _) => Some(data),
@@ -116,7 +116,7 @@ impl<S: BarWidget> LastPoll<S> {
     }
 }
 
-impl<S: Occasional> LastPoll<S> {
+impl<S: Occasional> ContinuousReading<S> {
     pub fn present(&self) -> Option<&dyn BarWidget> {
         match (
             self.data.as_ref().filter(|data| data.present()),
@@ -137,7 +137,7 @@ impl<S: Occasional> LastPoll<S> {
     }
 }
 
-impl<S: Source + BarWidget> LastPoll<S> {
+impl<S: Source + BarWidget> ContinuousReading<S> {
     pub fn tooltip(&self) -> Option<Tooltip> {
         self.tooltip_with(self.display()?.tooltip())
     }
