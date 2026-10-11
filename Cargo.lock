@@ -7397,6 +7397,7 @@ dependencies = [
  "nvml-wrapper",
  "pipewire",
  "procfs",
+ "quick-xml 0.41.0",
  "reqwest",
  "rusqlite",
  "serde",
