@@ -27,9 +27,28 @@ impl Peer {
 pub struct Tunnel {
     pub name: String,
     pub server: bool,
-    pub ip: Option<String>,
     pub port: Option<u32>,
     pub peers: Vec<Peer>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TunnelAddress {
+    pub ip: Option<String>,
+}
+
+impl Source for TunnelAddress {
+    type Error = command::Error;
+
+    type Key = String;
+
+    const NAME: &'static str = "wireguard tunnel address";
+    const INTERVAL: Duration = Duration::from_secs(10);
+
+    async fn poll(tunnel: String) -> Result<Self, Self::Error> {
+        Ok(TunnelAddress {
+            ip: interface_ip(&tunnel).await,
+        })
+    }
 }
 
 impl Tunnel {
@@ -84,7 +103,6 @@ async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
     Ok(Tunnel {
         name: iface.to_string(),
         server: port.is_some(),
-        ip: interface_ip(iface).await,
         port,
         peers,
     })

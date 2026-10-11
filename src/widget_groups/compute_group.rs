@@ -7,20 +7,25 @@ pub mod memory_usage_gauge;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::widget_groups::temperature_sensors::SensorConfig,
+    config::{Config, widget_groups::temperature_sensors::SensorConfig},
     data::source::{
         Source,
         hardware::HostHardware,
         sysfs_sensors::{
-            self, cpu_clock::CpuClock, cpu_usage::CpuUsage, memory::Memory,
-            temperature::Temperature,
+            self,
+            cpu_clock::CpuClock,
+            cpu_topology::CpuTopology,
+            cpu_usage::{CpuCoreLoads, CpuUsage},
+            memory::Memory,
+            temperature::{CpuCoreTemperatures, Temperature},
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{polled, polling},
     widgets::{
         continuous_reading::ContinuousReading,
         hardware_section::HardwareEntries,
+        on_hover_reading::{HoverFetched, OnHoverReading},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -48,6 +53,10 @@ pub struct ComputeGroup {
     temperature: ContinuousReading<Temperature>,
     sensors: bool,
     hardware: HostHardware,
+    topology: CpuTopology,
+    hovered: Option<ComputeTarget>,
+    core_loads: OnHoverReading<CpuCoreLoads>,
+    core_temperatures: OnHoverReading<CpuCoreTemperatures>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -55,10 +64,13 @@ pub struct ComputeGroup {
 pub enum ComputeMessage {
     Sensors(bool),
     Identified(HostHardware),
+    TopologyDetected(CpuTopology),
     Cpu(Result<CpuUsage, sysfs_sensors::Error>),
     Memory(Result<Memory, sysfs_sensors::Error>),
     Clock(Result<CpuClock, sysfs_sensors::Error>),
     Temperature(Result<Temperature, sysfs_sensors::Error>),
+    CoreLoadsFetched(HoverFetched<CpuCoreLoads>),
+    CoreTemperaturesFetched(HoverFetched<CpuCoreTemperatures>),
     Expansion(ExpansionMessage),
 }
 
@@ -70,7 +82,36 @@ impl ComputeGroup {
                 async move { ComputeMessage::Sensors(Temperature::available(&sensor).await) },
             ),
             Task::future(HostHardware::identify()).map(ComputeMessage::Identified),
+            Task::done(ComputeMessage::TopologyDetected(CpuTopology::detect())),
         ])
+    }
+
+    pub fn hover(
+        &mut self,
+        target: Option<ComputeTarget>,
+        config: &Config,
+    ) -> Task<ComputeMessage> {
+        if self.hovered == target {
+            return Task::none();
+        }
+        self.hovered = target;
+        self.core_loads.stop();
+        self.core_temperatures.stop();
+        match target {
+            Some(ComputeTarget::Cpu) => self.core_loads.fetch(
+                polled::<CpuCoreLoads>(()),
+                ComputeMessage::CoreLoadsFetched,
+                config,
+            ),
+            Some(ComputeTarget::Temperature) => self.core_temperatures.fetch(
+                polled::<CpuCoreTemperatures>(
+                    config.widget_groups.temperature_sensors.cpu.overrides(),
+                ),
+                ComputeMessage::CoreTemperaturesFetched,
+                config,
+            ),
+            Some(ComputeTarget::CpuClock | ComputeTarget::Memory) | None => Task::none(),
+        }
     }
 
     pub fn subscription(&self, sensor: &SensorConfig) -> Subscription<ComputeMessage> {
@@ -91,6 +132,11 @@ impl ComputeGroup {
         match msg {
             ComputeMessage::Sensors(sensors) => self.sensors = sensors,
             ComputeMessage::Identified(hardware) => self.hardware = hardware,
+            ComputeMessage::TopologyDetected(topology) => self.topology = topology,
+            ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive(fetched),
+            ComputeMessage::CoreTemperaturesFetched(fetched) => {
+                self.core_temperatures.receive(fetched);
+            }
             ComputeMessage::Cpu(reading) => self.cpu.receive(reading),
             ComputeMessage::Memory(reading) => self.memory.receive(reading),
             ComputeMessage::Clock(reading) => self.clock.receive(reading),
@@ -119,14 +165,29 @@ impl ComputeGroup {
 
     pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
         match target {
-            ComputeTarget::Cpu => self
-                .cpu
-                .tooltip_with_sections(&self.hardware.cpu.hardware_sections()),
+            ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
+                &[
+                    vec![
+                        self.core_loads
+                            .section(|loads| loads.sections(&self.topology)),
+                    ],
+                    self.hardware.cpu.hardware_sections().to_vec(),
+                ]
+                .concat(),
+            ),
             ComputeTarget::Memory => self
                 .memory
                 .tooltip_with_sections(&[self.hardware.memory.hardware_section()]),
-            ComputeTarget::CpuClock => self.clock.tooltip(),
-            ComputeTarget::Temperature => self.temperature.tooltip(),
+            ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
+                &self
+                    .clock
+                    .get()
+                    .map(|clock| clock.core_sections(&self.topology))
+                    .unwrap_or_default(),
+            ),
+            ComputeTarget::Temperature => self.temperature.tooltip_with_sections(&[self
+                .core_temperatures
+                .section(|cores| cores.sections(&self.topology))]),
         }
     }
 }

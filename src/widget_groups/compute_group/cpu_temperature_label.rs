@@ -8,7 +8,10 @@ use crate::{
     config::widget_groups::temperature_sensors::ThresholdOverrides,
     data::{
         severity::Severity,
-        source::sysfs_sensors::temperature::{CoreTemperature, Temperature},
+        source::sysfs_sensors::{
+            cpu_topology::CpuTopology,
+            temperature::{CoreTemperature, CpuCoreTemperatures, Temperature},
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, ReadingAlertThreshold},
@@ -124,17 +127,17 @@ impl BarWidget for Temperature {
             .into_iter()
             .flatten(),
         );
-        TooltipBody::sections(
-            &[
-                vec![summary],
-                sections_by_core_kind(
-                    &self.topology,
-                    self.cores.clone(),
-                    ["Temp", "Limit"],
-                    CoreTemperature::table_record,
-                ),
-            ]
-            .concat(),
+        TooltipBody::sections(&[summary])
+    }
+}
+
+impl CpuCoreTemperatures {
+    pub fn sections(&self, topology: &CpuTopology) -> Vec<Section> {
+        sections_by_core_kind(
+            topology,
+            self.cores.clone(),
+            ["Temp", "Limit"],
+            CoreTemperature::table_record,
         )
     }
 }

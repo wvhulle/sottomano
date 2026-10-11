@@ -2,7 +2,6 @@ use std::{
     convert::identity,
     fmt::Display,
     future::{Future, ready},
-    sync::OnceLock,
     time::Duration,
 };
 
@@ -50,24 +49,8 @@ use crate::{
 
 const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
 
-static WAYLAND: OnceLock<Connection> = OnceLock::new();
-
-/// One connection shared by the shell and the output listener, so both observe
-/// the same compositor state.
-pub fn wayland_connection() -> Option<&'static Connection> {
-    if WAYLAND.get().is_none() {
-        match Connection::connect_to_env() {
-            Ok(connection) => {
-                let _ = WAYLAND.set(connection);
-            }
-            Err(e) => tracing::error!("wayland: no connection, outputs will not be tracked: {e}"),
-        }
-    }
-    WAYLAND.get()
-}
-
-fn outputs() -> Subscription<Message> {
-    let Some(connection) = wayland_connection() else {
+fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
+    let Some(connection) = wayland else {
         return Subscription::none();
     };
     output::listen(connection.clone()).map(|event| {
@@ -97,7 +80,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         Subscription::none()
     };
     Subscription::batch([
-        outputs(),
+        outputs(state.wayland.as_ref()),
         state
             .config_file
             .changes()

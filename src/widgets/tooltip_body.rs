@@ -318,6 +318,16 @@ impl TooltipBody {
         TooltipBody::Sections(sections.to_vec())
     }
 
+    #[must_use]
+    pub fn with_sections(self, extra: &[Section]) -> Self {
+        match self {
+            TooltipBody::Sections(sections) => {
+                TooltipBody::Sections([sections.as_slice(), extra].concat())
+            }
+            other => other,
+        }
+    }
+
     fn is_empty(&self) -> bool {
         match self {
             TooltipBody::Sections(sections) => {

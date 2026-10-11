@@ -92,6 +92,10 @@ impl<S: BarWidget> ContinuousReading<S> {
         Some(Tooltip::of(self.display()?.tooltip()))
     }
 
+    pub fn live_tooltip_with_sections(&self, extra: &[Section]) -> Option<Tooltip> {
+        Some(Tooltip::of(self.display()?.tooltip().with_sections(extra)))
+    }
+
     pub fn receive<E: Display>(&mut self, reading: Result<S, E>) {
         self.last_refreshed = Some(SystemTime::now());
         match reading {
@@ -143,12 +147,7 @@ impl<S: Source + BarWidget> ContinuousReading<S> {
     }
 
     pub fn tooltip_with_sections(&self, extra: &[Section]) -> Option<Tooltip> {
-        match self.display()?.tooltip() {
-            TooltipBody::Sections(sections) => self.tooltip_with(TooltipBody::sections(
-                &[sections.as_slice(), extra].concat(),
-            )),
-            other => self.tooltip_with(other),
-        }
+        self.tooltip_with(self.display()?.tooltip().with_sections(extra))
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {

@@ -5,18 +5,20 @@ pub mod tailscale_mesh_tooltip;
 pub mod wireguard_tunnel_tooltip;
 
 use crate::{
+    config::Config,
     data::source::{
         Source, command,
         tailscale::{self, Tailscale, open_admin},
         throughput::{self, Download, Readings, Throughput, Total, Upload},
-        wireguard::{Wireguard, disconnect},
+        wireguard::{TunnelAddress, Wireguard, disconnect},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{polled, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        on_hover_reading::{HoverFetched, OnHoverReading},
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -48,6 +50,8 @@ pub struct InternetGroup {
     wireguard: ContinuousReading<Wireguard>,
     tailscale: ContinuousReading<Tailscale>,
     installed: Installed,
+    hovered_tunnel: Option<String>,
+    tunnel_address: OnHoverReading<TunnelAddress>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -62,6 +66,7 @@ pub enum InternetMessage {
     Installed(Installed),
     Throughput(Readings),
     Wireguard(Result<Wireguard, command::Error>),
+    TunnelAddressFetched(HoverFetched<TunnelAddress>),
     Tailscale(Result<Tailscale, tailscale::Error>),
     Expansion(ExpansionMessage),
     Disconnect(String),
@@ -106,6 +111,7 @@ impl InternetGroup {
                 self.total.load(Some(readings.total));
             }
             InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
+            InternetMessage::TunnelAddressFetched(fetched) => self.tunnel_address.receive(fetched),
             InternetMessage::Tailscale(reading) => self.tailscale.receive(reading),
             InternetMessage::Expansion(m) => {
                 self.expansion.update(m);
@@ -120,6 +126,30 @@ impl InternetGroup {
         Task::none()
     }
 
+    pub fn hover(
+        &mut self,
+        target: Option<&InternetTarget>,
+        config: &Config,
+    ) -> Task<InternetMessage> {
+        let tunnel = match target {
+            Some(InternetTarget::Wireguard(name)) => Some(name),
+            _ => None,
+        };
+        if self.hovered_tunnel.as_ref() == tunnel {
+            return Task::none();
+        }
+        self.hovered_tunnel = tunnel.cloned();
+        let Some(tunnel) = tunnel else {
+            self.tunnel_address.stop();
+            return Task::none();
+        };
+        self.tunnel_address.fetch(
+            polled::<TunnelAddress>(tunnel.clone()),
+            InternetMessage::TunnelAddressFetched,
+            config,
+        )
+    }
+
     pub fn tooltip_for(&self, target: &InternetTarget) -> Option<Tooltip> {
         match target {
             InternetTarget::Wireguard(name) => {
@@ -129,7 +159,9 @@ impl InternetGroup {
                     .tunnels
                     .iter()
                     .find(|t| &t.name == name)?;
-                Some(Tooltip::of(tunnel.tooltip()))
+                Some(Tooltip::of(tunnel.tooltip().with_sections(&[
+                    self.tunnel_address.section(TunnelAddress::sections),
+                ])))
             }
             InternetTarget::Down => self.down.live_tooltip(),
             InternetTarget::Up => self.up.live_tooltip(),

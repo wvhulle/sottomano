@@ -1,5 +1,5 @@
 use crate::{
-    data::source::wireguard::{Peer, Tunnel, Wireguard},
+    data::source::wireguard::{Peer, Tunnel, TunnelAddress, Wireguard},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
@@ -71,7 +71,6 @@ impl Tunnel {
             });
         let tunnel_entries = [
             Some(KeyValue::new(self.name.as_str(), "server")),
-            self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
             self.port
                 .map(|port| KeyValue::new("port", port.to_string())),
             Some(KeyValue::new(
@@ -91,7 +90,6 @@ impl Tunnel {
                 peer.endpoint
                     .as_deref()
                     .map(|endpoint| KeyValue::new("server", endpoint)),
-                self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
                 peer.handshake_ago
                     .map(|ago| KeyValue::new("handshake", format!("{ago}s ago"))),
                 Some(KeyValue::new(
@@ -108,5 +106,13 @@ impl Tunnel {
                 .into_iter()
                 .chain(peer_entries),
         )])
+    }
+}
+
+impl TunnelAddress {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![Section::untitled_dictionary(
+            self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
+        )]
     }
 }

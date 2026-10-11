@@ -1,5 +1,5 @@
 use crate::{
-    data::source::net_interfaces::ethernet::{Ethernet, Link, Port},
+    data::source::net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port},
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section,
     },
@@ -26,21 +26,29 @@ impl BarWidget for Ethernet {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let connected = self.connected_count();
-        if connected == 0 {
-            return TooltipBody::sections(&[Section::untitled_dictionary(
-                self.ports
-                    .iter()
-                    .map(|port| KeyValue::new(port.name.as_str(), "disconnected")),
-            )]);
-        }
-        let sections: Vec<Section> = self
-            .ports
+        TooltipBody::sections(&[Section::untitled_dictionary(self.ports.iter().map(
+            |port| {
+                KeyValue::new(
+                    port.name.as_str(),
+                    if port.connected {
+                        "connected"
+                    } else {
+                        "disconnected"
+                    },
+                )
+            },
+        ))])
+    }
+}
+
+impl EthernetDetails {
+    pub fn sections(&self) -> Vec<Section> {
+        let prefixed = self.ports.iter().filter(|port| port.link.is_some()).count() > 1;
+        self.ports
             .iter()
-            .filter_map(|port| Some(link_sections(port, port.link.as_ref()?, connected > 1)))
+            .filter_map(|port| Some(link_sections(port, port.link.as_ref()?, prefixed)))
             .flatten()
-            .collect();
-        TooltipBody::sections(&sections)
+            .collect()
     }
 }
 

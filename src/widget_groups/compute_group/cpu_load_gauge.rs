@@ -7,7 +7,10 @@ use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::cpu_usage::{CpuUsage, LoadSplit},
+        source::sysfs_sensors::{
+            cpu_topology::CpuTopology,
+            cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -38,7 +41,16 @@ struct CoreReading {
     deep_idle: Option<Ratio>,
 }
 
-impl CpuUsage {
+impl CpuCoreLoads {
+    pub fn sections(&self, topology: &CpuTopology) -> Vec<Section> {
+        sections_by_core_kind(
+            topology,
+            self.core_readings(),
+            ["Load", "User", "Sys", "IO", "IRQ", "Idle"],
+            CoreReading::table_record,
+        )
+    }
+
     fn core_readings(&self) -> Vec<CoreReading> {
         self.cores
             .iter()
@@ -98,20 +110,9 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(
-            &[
-                vec![Section::untitled_dictionary([KeyValue::new(
-                    "CPU",
-                    percent_text(self.busy),
-                )])],
-                sections_by_core_kind(
-                    &self.topology,
-                    self.core_readings(),
-                    ["Load", "User", "Sys", "IO", "IRQ", "Idle"],
-                    CoreReading::table_record,
-                ),
-            ]
-            .concat(),
-        )
+        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
+            "CPU",
+            percent_text(self.busy),
+        )])])
     }
 }

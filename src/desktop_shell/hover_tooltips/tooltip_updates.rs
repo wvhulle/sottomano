@@ -145,11 +145,32 @@ impl DesktopShell {
             Some(HoverTarget::Gpu(target)) => Some(target),
             _ => None,
         };
+        let net_interface = match self.tooltip.target() {
+            Some(HoverTarget::NetInterface(target)) => Some(*target),
+            _ => None,
+        };
+        let internet = match self.tooltip.target() {
+            Some(HoverTarget::Internet(target)) => Some(target),
+            _ => None,
+        };
+        let compute = match self.tooltip.target() {
+            Some(HoverTarget::Compute(target)) => Some(*target),
+            _ => None,
+        };
         Task::batch([
             self.window_group
                 .hover_window(&self.niri, window, &self.config)
                 .map(Message::WindowGroup),
             self.gpu_group.hover(gpu, &self.config).map(Message::Gpu),
+            self.net_interfaces_group
+                .hover(net_interface, &self.config)
+                .map(Message::NetInterfaces),
+            self.internet_group
+                .hover(internet, &self.config)
+                .map(Message::Internet),
+            self.compute_group
+                .hover(compute, &self.config)
+                .map(Message::Compute),
         ])
     }
 

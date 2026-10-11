@@ -1,4 +1,4 @@
-use iced::futures::{Stream, future::try_join_all, try_join};
+use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
@@ -21,6 +21,23 @@ pub struct Link {
 }
 
 #[derive(Debug, Clone)]
+pub struct PortState {
+    pub name: String,
+    pub connected: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct Ethernet {
+    pub ports: Vec<PortState>,
+}
+
+impl Ethernet {
+    pub fn connected_count(&self) -> usize {
+        self.ports.iter().filter(|port| port.connected).count()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Port {
     pub name: String,
     pub adapter: Option<Adapter>,
@@ -28,14 +45,8 @@ pub struct Port {
 }
 
 #[derive(Debug, Clone)]
-pub struct Ethernet {
+pub struct EthernetDetails {
     pub ports: Vec<Port>,
-}
-
-impl Ethernet {
-    pub fn connected_count(&self) -> usize {
-        self.ports.iter().filter(|port| port.link.is_some()).count()
-    }
 }
 
 async fn port(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<Port> {
@@ -76,18 +87,41 @@ async fn link(connection: &Connection, device: &nm::DeviceInfo) -> zbus::Result<
     })
 }
 
-async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
-    let devices = nm::devices(&connection)
+async fn ethernet_devices(connection: &Connection) -> Result<Vec<nm::DeviceInfo>, ReadingError> {
+    let devices: Vec<nm::DeviceInfo> = nm::devices(connection)
         .await?
         .into_iter()
-        .filter(|device| device.kind == nm::DeviceKind::Ethernet);
-    let ports = try_join_all(devices.map(|device| port(&connection, device))).await?;
-    if ports.is_empty() {
+        .filter(|device| device.kind == nm::DeviceKind::Ethernet)
+        .collect();
+    if devices.is_empty() {
         return Err(ReadingError::Absent);
     }
-    Ok(Ethernet { ports })
+    Ok(devices)
+}
+
+async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
+    Ok(Ethernet {
+        ports: ethernet_devices(&connection)
+            .await?
+            .into_iter()
+            .map(|device| PortState {
+                connected: device.connected,
+                name: device.interface,
+            })
+            .collect(),
+    })
+}
+
+async fn read_details(connection: Connection) -> Result<EthernetDetails, ReadingError> {
+    let devices = ethernet_devices(&connection).await?;
+    let ports = try_join_all(devices.into_iter().map(|device| port(&connection, device))).await?;
+    Ok(EthernetDetails { ports })
 }
 
 pub fn readings() -> impl Stream<Item = Option<Ethernet>> {
     nm_readings(NAME, read)
+}
+
+pub fn details() -> impl Stream<Item = Result<EthernetDetails, &'static str>> {
+    nm_readings("ethernet details", read_details).map(|details| details.ok_or("no Ethernet device"))
 }
