@@ -43,6 +43,7 @@ impl Default for NiriWindowGroup {
         Self {
             expansion: GroupExpansion::default(),
             corner_radius: SliderControl::new(
+                "Window corner radius",
                 0.0..=24.0,
                 NiriWindowTarget::CornerRadius,
                 Phosphor::FrameCorners(Weight::Regular),
@@ -50,6 +51,7 @@ impl Default for NiriWindowGroup {
             .icon_only()
             .readout(|value| format!("{} px", value.round())),
             gaps: SliderControl::new(
+                "Window gaps",
                 0.0..=48.0,
                 NiriWindowTarget::Gaps,
                 Phosphor::Columns(Weight::Regular),

@@ -16,6 +16,10 @@ use crate::{
 };
 
 impl BarWidget for CopilotMetered {
+    fn name(&self) -> &'static str {
+        "Copilot quota"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::GithubCopilot.into()
     }

@@ -17,6 +17,10 @@ fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> 
 }
 
 impl BarWidget for CpuTuning {
+    fn name(&self) -> &'static str {
+        "CPU tuning"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Circuitry(Weight::Regular).into()
     }

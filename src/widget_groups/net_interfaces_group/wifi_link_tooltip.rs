@@ -19,6 +19,10 @@ use crate::{
 };
 
 impl BarWidget for Wifi {
+    fn name(&self) -> &'static str {
+        "Wi-Fi"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::WifiHigh(self.state().weight()).into()
     }

@@ -9,6 +9,10 @@ use crate::{
 };
 
 impl BarWidget for Wireguard {
+    fn name(&self) -> &'static str {
+        "WireGuard"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::ShieldCheck(self.state().weight()).into()
     }
@@ -19,6 +23,10 @@ impl BarWidget for Wireguard {
 }
 
 impl BarWidget for Tunnel {
+    fn name(&self) -> &'static str {
+        "WireGuard tunnel"
+    }
+
     fn icon(&self) -> Glyph {
         if self.server {
             Phosphor::ArrowsInSimple(self.state().weight()).into()

@@ -4,8 +4,11 @@ use chrono::{DateTime, Local, Locale};
 
 use crate::{
     config::Config,
-    data::source::systemd_manager::failed_units::{
-        Failed, FailedUnitInfo, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+    data::source::{
+        coredumps::CoredumpEntry,
+        systemd_manager::failed_units::{
+            Failed, FailedUnitInfo, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+        },
     },
     widget_groups::{
         systemd_manager_group::{ScopeAppearance, SystemdManagerMessage},
@@ -30,21 +33,28 @@ impl<S: ScopeAppearance> Failed<S> {
                 TerminalJournal::PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
-            .alerts(self.unit_alerts(open_log, config.locale))
+            .alerts(self.unit_alerts(config))
     }
 
-    fn unit_alerts<M>(
-        &self,
-        open_log: impl Fn(Vec<String>) -> M,
-        locale: Locale,
-    ) -> impl Iterator<Item = ReadingAlert<M>> {
+    fn unit_alerts<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> impl Iterator<Item = ReadingAlert<SystemdManagerMessage>> + 'a {
         self.units.iter().map(move |unit| ReadingAlert {
+            widget_name: self.name(),
             hover_target: S::failed_unit_target(unit.name.clone()).into(),
             severity: UNIT_FAILURE_PRIORITY.severity(),
             summary_text: Cow::Owned(format!("{} failed", unit.name)),
-            body_text: failure_summary(unit, locale),
-            on_body_clicked: open_log(S::follow_units_log_args([unit.name.as_str()])),
-            action_buttons: Vec::new(),
+            body_text: failure_summary(unit, config.locale),
+            on_body_clicked: SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                config,
+                S::follow_units_log_args([unit.name.as_str()]),
+            )),
+            action_buttons: unit
+                .crash
+                .iter()
+                .flat_map(|crash| crash.action_buttons(config))
+                .collect(),
         })
     }
 }
@@ -57,11 +67,20 @@ fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
     let failed_at = unit
         .at
         .map(|at| TimePart::TimeOfDay.format(&DateTime::<Local>::from(at), locale));
-    let parts: Vec<String> = reason.into_iter().chain(failed_at).collect();
-    (!parts.is_empty()).then(|| parts.join(" · "))
+    let outcome: Vec<String> = reason.into_iter().chain(failed_at).collect();
+    let outcome_line = (!outcome.is_empty()).then(|| outcome.join(" · "));
+    let lines: Vec<String> = outcome_line
+        .into_iter()
+        .chain(unit.crash.iter().flat_map(CoredumpEntry::labelled_fields))
+        .collect();
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 impl<S: ScopeAppearance> BarWidget for Failed<S> {
+    fn name(&self) -> &'static str {
+        S::FAILED_LABEL
+    }
+
     fn icon(&self) -> Glyph {
         S::ICON.with_weight(self.state().weight()).into()
     }
@@ -140,6 +159,7 @@ mod tests {
                 exit_status: 1,
             }),
             at: age.map(|age| SystemTime::now() - age),
+            crash: None,
         }
     }
 

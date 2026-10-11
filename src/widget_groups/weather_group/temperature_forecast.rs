@@ -18,6 +18,10 @@ use crate::{
 };
 
 impl BarWidget for Temperature {
+    fn name(&self) -> &'static str {
+        "Temperature forecast"
+    }
+
     fn icon(&self) -> Glyph {
         self.condition
             .map_or_else(Self::fallback_icon, |condition| {

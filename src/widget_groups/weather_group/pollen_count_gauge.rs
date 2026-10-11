@@ -65,6 +65,10 @@ impl AllergenConcentration {
 }
 
 impl BarWidget for AllergenConcentration {
+    fn name(&self) -> &'static str {
+        "Allergen"
+    }
+
     fn icon(&self) -> Glyph {
         self.species_icon(self.state().weight()).into()
     }
@@ -103,6 +107,10 @@ impl BarWidget for AllergenConcentration {
 }
 
 impl BarWidget for Pollen {
+    fn name(&self) -> &'static str {
+        "Pollen"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Flower(Weight::Regular).into()
     }

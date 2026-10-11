@@ -17,6 +17,10 @@ fn watt_text(power: Power) -> String {
 }
 
 impl BarWidget for GpuPowerDraw {
+    fn name(&self) -> &'static str {
+        "GPU power"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Lightning(self.state().weight()).into()
     }

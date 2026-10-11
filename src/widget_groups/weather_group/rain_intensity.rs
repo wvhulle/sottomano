@@ -18,6 +18,10 @@ fn intensity_text(intensity: Velocity) -> String {
 }
 
 impl BarWidget for Rain {
+    fn name(&self) -> &'static str {
+        "Rain"
+    }
+
     fn icon(&self) -> Glyph {
         let peak = self.peak.intensity;
         if peak < Velocity::new::<millimeter_per_hour>(0.5) {

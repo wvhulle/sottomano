@@ -59,6 +59,10 @@ impl FirmwareUpgrade {
 }
 
 impl BarWidget for FirmwareUpgradeList {
+    fn name(&self) -> &'static str {
+        "Firmware upgrades"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Circuitry(self.state().weight()).into()
     }

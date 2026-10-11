@@ -18,17 +18,26 @@ pub const TOGGLE_PRESS_HINT: &str = "switch on or off";
 
 #[derive(Clone, Copy)]
 pub struct IconToggle {
+    pub name: &'static str,
     pub icon: Phosphor,
     pub enabled: bool,
 }
 
 impl IconToggle {
-    pub fn new(icon: Phosphor, enabled: bool) -> Self {
-        Self { icon, enabled }
+    pub fn new(name: &'static str, icon: Phosphor, enabled: bool) -> Self {
+        Self {
+            name,
+            icon,
+            enabled,
+        }
     }
 }
 
 impl BarWidget for IconToggle {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn icon(&self) -> Glyph {
         self.icon.with_weight(self.state().weight()).into()
     }

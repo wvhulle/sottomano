@@ -9,6 +9,10 @@ use crate::{
 };
 
 impl BarWidget for Umbra {
+    fn name(&self) -> &'static str {
+        "Dark mode"
+    }
+
     fn icon(&self) -> Glyph {
         if self.dark {
             Phosphor::Moon(Weight::Regular).into()

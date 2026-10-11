@@ -13,6 +13,10 @@ use crate::{
 };
 
 impl BarWidget for Ethernet {
+    fn name(&self) -> &'static str {
+        "Ethernet"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Network(self.state().weight()).into()
     }

@@ -19,6 +19,10 @@ use crate::{
 };
 
 impl BarWidget for ClaudeUsageWindows {
+    fn name(&self) -> &'static str {
+        "Claude usage"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::Claude.into()
     }

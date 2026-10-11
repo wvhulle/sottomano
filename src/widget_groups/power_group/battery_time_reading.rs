@@ -196,6 +196,10 @@ pub(super) enum BatteryTime {
 }
 
 impl BarWidget for BatteryTime {
+    fn name(&self) -> &'static str {
+        "Battery time"
+    }
+
     fn icon(&self) -> Glyph {
         match self {
             BatteryTime::Idle(idle) => idle.icon(),

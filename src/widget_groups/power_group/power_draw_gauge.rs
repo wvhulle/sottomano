@@ -91,6 +91,10 @@ fn power_text(power: Power) -> String {
 }
 
 impl BarWidget for PowerDraw {
+    fn name(&self) -> &'static str {
+        "Power draw"
+    }
+
     fn icon(&self) -> Glyph {
         if self.on_battery() {
             Phosphor::Plugs(self.state().weight()).into()

@@ -57,6 +57,10 @@ impl Display for Failure {
 }
 
 impl BarWidget for Lookup {
+    fn name(&self) -> &'static str {
+        "Wallpaper lookup"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Image(self.state().weight()).into()
     }
@@ -91,6 +95,10 @@ pub struct Photo {
 }
 
 impl BarWidget for Place {
+    fn name(&self) -> &'static str {
+        "Wallpaper place"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::MapPin(self.state().weight()).into()
     }
@@ -127,6 +135,10 @@ impl BarWidget for Place {
 }
 
 impl BarWidget for Article {
+    fn name(&self) -> &'static str {
+        "Wallpaper article"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::Wikipedia.into()
     }
@@ -155,6 +167,10 @@ impl BarWidget for Article {
 }
 
 impl BarWidget for Photo {
+    fn name(&self) -> &'static str {
+        "Wallpaper photo"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::Unsplash.into()
     }

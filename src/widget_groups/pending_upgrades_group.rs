@@ -104,6 +104,10 @@ impl PendingUpgradesGroup {
 }
 
 impl BarWidget for PendingUpgradesGroup {
+    fn name(&self) -> &'static str {
+        "Pending upgrades"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::ArrowCircleUp(self.state().weight()).into()
     }

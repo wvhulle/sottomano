@@ -17,6 +17,10 @@ pub struct GpuTemperatureLabel {
 }
 
 impl BarWidget for GpuTemperatureLabel {
+    fn name(&self) -> &'static str {
+        "GPU temperature"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::ThermometerSimple(self.state().weight()).into()
     }

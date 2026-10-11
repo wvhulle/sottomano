@@ -86,10 +86,12 @@ impl Default for DarkModeGroup {
             mode_toggle: ToggleControl::default(),
             auto_switch_toggle: AutoSwitchToggle::default(),
             sunrise_offset_slider: new_offset_slider(
+                "Sunrise offset",
                 DarkModeTarget::SunriseOffset,
                 WeatherIcon::Sunrise,
             ),
             sunset_offset_slider: new_offset_slider(
+                "Sunset offset",
                 DarkModeTarget::SunsetOffset,
                 WeatherIcon::Sunset,
             ),
@@ -315,8 +317,12 @@ impl DarkModeGroup {
     }
 }
 
-fn new_offset_slider(target: DarkModeTarget, icon: WeatherIcon) -> SliderControl {
-    SliderControl::new(OFFSET_MINUTES, target, icon)
+fn new_offset_slider(
+    name: &'static str,
+    target: DarkModeTarget,
+    icon: WeatherIcon,
+) -> SliderControl {
+    SliderControl::new(name, OFFSET_MINUTES, target, icon)
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)
         .readout(|minutes| format_offset_minutes(minutes_to_time_delta(minutes)))

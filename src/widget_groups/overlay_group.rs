@@ -55,6 +55,7 @@ impl Default for OverlayGroup {
         Self {
             expansion: GroupExpansion::default(),
             opacity: SliderControl::new(
+                "Overlay opacity",
                 0.0..=100.0,
                 OverlayTarget::Opacity,
                 Phosphor::SquareHalf(Weight::Regular),
@@ -62,6 +63,7 @@ impl Default for OverlayGroup {
             .readout(|value| format!("{} %", value.round()))
             .icon_only(),
             corner_radius: SliderControl::new(
+                "Overlay corner radius",
                 0.0..=16.0,
                 OverlayTarget::CornerRadius,
                 Phosphor::FrameCorners(Weight::Regular),
@@ -183,7 +185,11 @@ impl OverlayGroup {
             OverlayMessage::Expansion,
             [
                 GroupItem::toggle(
-                    IconToggle::new(spatial_layout_icon, overlays.toast_spatial_layout),
+                    IconToggle::new(
+                        "Toast spatial layout",
+                        spatial_layout_icon,
+                        overlays.toast_spatial_layout,
+                    ),
                     OverlayTarget::ToastSpatialLayout,
                     OverlayMessage::ToggleToastSpatialLayout,
                 ),

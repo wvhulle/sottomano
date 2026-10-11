@@ -111,6 +111,10 @@ impl JournalEventsGroup {
 }
 
 impl BarWidget for JournalEventsGroup {
+    fn name(&self) -> &'static str {
+        "Journal events"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Scroll(self.state().weight()).into()
     }

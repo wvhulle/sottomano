@@ -67,6 +67,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
         locale: Locale,
     ) -> impl Iterator<Item = ReadingAlert<M>> {
         self.jobs.iter().map(move |job| ReadingAlert {
+            widget_name: self.name(),
             hover_target: S::slow_job_target(job.unit.clone()).into(),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
@@ -82,6 +83,10 @@ impl<S: ScopeAppearance> SlowJobs<S> {
 }
 
 impl<S: ScopeAppearance> BarWidget for SlowJobs<S> {
+    fn name(&self) -> &'static str {
+        S::SLOW_JOBS_LABEL
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::HourglassMedium(self.state().weight()).into()
     }

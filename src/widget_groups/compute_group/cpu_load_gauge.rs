@@ -81,6 +81,10 @@ impl CoreReading {
 }
 
 impl BarWidget for CpuUsage {
+    fn name(&self) -> &'static str {
+        "CPU load"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Cpu(self.state().weight()).into()
     }

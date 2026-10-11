@@ -42,6 +42,10 @@ impl Wind {
 }
 
 impl BarWidget for Wind {
+    fn name(&self) -> &'static str {
+        "Wind"
+    }
+
     fn icon(&self) -> Glyph {
         WeatherIcon::StrongWind.into()
     }

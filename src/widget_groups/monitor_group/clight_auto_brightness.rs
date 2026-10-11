@@ -10,6 +10,10 @@ use crate::{
 };
 
 impl BarWidget for Clight {
+    fn name(&self) -> &'static str {
+        "Auto-brightness"
+    }
+
     fn icon(&self) -> Glyph {
         if self.auto {
             Phosphor::Eye(self.state().weight()).into()

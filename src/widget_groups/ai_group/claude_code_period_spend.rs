@@ -18,6 +18,10 @@ const WEEK_START_FORMAT: &str = "%a %-d %b";
 const MONTH_FORMAT: &str = "%B";
 
 impl BarWidget for ClaudeCcusagePeriods {
+    fn name(&self) -> &'static str {
+        "Claude Code spend"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::TerminalWindow(self.state().weight()).into()
     }

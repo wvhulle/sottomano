@@ -10,6 +10,10 @@ use crate::widgets::{
 pub struct LocalDate(pub DateTime<Local>);
 
 impl BarWidget for LocalDate {
+    fn name(&self) -> &'static str {
+        "Local date"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::CalendarBlank(Weight::Regular).into()
     }

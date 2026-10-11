@@ -14,6 +14,10 @@ use crate::{
 };
 
 impl BarWidget for Bluetooth {
+    fn name(&self) -> &'static str {
+        "Bluetooth"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Bluetooth(self.state().weight()).into()
     }

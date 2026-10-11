@@ -10,6 +10,10 @@ use crate::{
 };
 
 impl BarWidget for CopilotFree {
+    fn name(&self) -> &'static str {
+        "Copilot free quota"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::GithubCopilot.into()
     }

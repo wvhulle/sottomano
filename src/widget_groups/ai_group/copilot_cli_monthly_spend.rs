@@ -10,6 +10,10 @@ use crate::{
 };
 
 impl BarWidget for CopilotCcusage {
+    fn name(&self) -> &'static str {
+        "Copilot CLI spend"
+    }
+
     fn icon(&self) -> Glyph {
         SimpleIcon::GithubCopilot.into()
     }

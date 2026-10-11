@@ -67,24 +67,28 @@ impl Default for IdleTimeoutsGroup {
     fn default() -> Self {
         Self {
             lock: IdleTimer::new(
+                "Lock timeout",
                 Phosphor::Lock(Weight::Regular),
                 TimerKind::LockUser,
                 IdleAction::Lock,
                 false,
             ),
             screen_off: IdleTimer::new(
+                "Screen-off timeout",
                 Phosphor::Monitor(Weight::Regular),
                 TimerKind::ScreenOff,
                 IdleAction::ScreenOff,
                 false,
             ),
             standby: IdleTimer::new(
+                "Standby timeout",
                 Phosphor::Bed(Weight::Regular),
                 TimerKind::Standby,
                 IdleAction::Suspend,
                 true,
             ),
             power_down: IdleTimer::new(
+                "Power-down timeout",
                 Phosphor::Power(Weight::Regular),
                 TimerKind::PowerDown,
                 IdleAction::PowerOff,

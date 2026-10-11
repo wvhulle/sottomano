@@ -56,6 +56,10 @@ impl CpuClock {
 }
 
 impl BarWidget for CpuClock {
+    fn name(&self) -> &'static str {
+        "CPU clock"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Gauge(self.state().weight()).into()
     }

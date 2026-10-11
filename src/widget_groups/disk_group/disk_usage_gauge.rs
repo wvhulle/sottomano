@@ -20,6 +20,10 @@ const FREE_CRITICAL: ByteSize = ByteSize::gb(2);
 const UNALLOCATED_WARN: ByteSize = ByteSize::gib(1);
 
 impl BarWidget for Disk {
+    fn name(&self) -> &'static str {
+        "Disk usage"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::Database(self.state().weight()).into()
     }

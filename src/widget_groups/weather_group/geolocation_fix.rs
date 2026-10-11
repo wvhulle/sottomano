@@ -44,6 +44,10 @@ impl MapService {
 }
 
 impl BarWidget for Location {
+    fn name(&self) -> &'static str {
+        "Location"
+    }
+
     fn icon(&self) -> Glyph {
         match self.geo.origin {
             Origin::Manual => Phosphor::MapPinLine(self.state().weight()).into(),

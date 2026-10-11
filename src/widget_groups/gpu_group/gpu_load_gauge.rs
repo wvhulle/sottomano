@@ -18,6 +18,10 @@ use crate::{
 };
 
 impl BarWidget for GpuSnapshot {
+    fn name(&self) -> &'static str {
+        "GPU load"
+    }
+
     fn icon(&self) -> Glyph {
         Phosphor::GraphicsCard(self.state().weight()).into()
     }
