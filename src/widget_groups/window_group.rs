@@ -43,20 +43,18 @@ impl WindowGroup {
         WindowList::subscription(agents).map(WindowGroupMessage::WindowList)
     }
 
-    pub fn hover_subscription(
+    pub fn hover_window(
+        &mut self,
         niri_state: &EventStreamState,
-        window: u64,
-    ) -> Subscription<WindowGroupMessage> {
-        watched(niri_state, window).map_or_else(Subscription::none, |watched| {
-            WindowList::hover_subscription(&watched).map(WindowGroupMessage::WindowList)
-        })
+        window: Option<u64>,
+    ) -> Task<WindowGroupMessage> {
+        self.window_list
+            .hover_process(window.and_then(|window| watched(niri_state, window)))
+            .map(WindowGroupMessage::WindowList)
     }
 
     pub fn window_tooltip(&self, niri_state: &EventStreamState, window: u64) -> Option<Tooltip> {
-        let process_sections = watched(niri_state, window)
-            .map(|watched| self.window_list.process_sections(&watched))
-            .unwrap_or_default();
-        window_tooltip::tooltip(niri_state, window, &process_sections)
+        window_tooltip::tooltip(niri_state, window, &self.window_list.process_sections())
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage) -> Action {

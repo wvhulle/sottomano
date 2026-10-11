@@ -1,4 +1,4 @@
-use iced::{Rectangle, Subscription, Task};
+use iced::{Rectangle, Task};
 
 use crate::{
     desktop_shell::{
@@ -6,7 +6,7 @@ use crate::{
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
-    widget_groups::{window_group::WindowGroup, workspaces_group::workspace_tooltip},
+    widget_groups::workspaces_group::workspace_tooltip,
     widgets::tooltip_body::Tooltip,
 };
 
@@ -136,42 +136,14 @@ impl DesktopShell {
         tooltip.unwrap_or_else(Tooltip::empty)
     }
 
-    pub fn hover_subscription(&self) -> Subscription<Message> {
-        let Some(target) = self.tooltip.target() else {
-            return Subscription::none();
+    pub(crate) fn retarget_hover_readings(&mut self) -> Task<Message> {
+        let window = match self.tooltip.target() {
+            Some(HoverTarget::Window(window)) => Some(*window),
+            _ => None,
         };
-        match target {
-            HoverTarget::Window(window) => {
-                WindowGroup::hover_subscription(&self.niri, *window).map(Message::WindowGroup)
-            }
-            HoverTarget::Compute(_)
-            | HoverTarget::Gpu(_)
-            | HoverTarget::Disk(_)
-            | HoverTarget::Power(_)
-            | HoverTarget::PanelAppearance(_)
-            | HoverTarget::SurfaceEffects(_)
-            | HoverTarget::NiriWindow(_)
-            | HoverTarget::ShellLayout(_)
-            | HoverTarget::Overlay(_)
-            | HoverTarget::Systemd(_)
-            | HoverTarget::Journal(_)
-            | HoverTarget::PendingUpgrades(_)
-            | HoverTarget::NetInterface(_)
-            | HoverTarget::Audio(_)
-            | HoverTarget::Monitor(_)
-            | HoverTarget::ColorTemperature(_)
-            | HoverTarget::DarkMode(_)
-            | HoverTarget::IdleTimeout(_)
-            | HoverTarget::Internet(_)
-            | HoverTarget::Weather(_)
-            | HoverTarget::Wallpaper(_)
-            | HoverTarget::Media
-            | HoverTarget::Ai(_)
-            | HoverTarget::Clock(_)
-            | HoverTarget::Notification(_)
-            | HoverTarget::Tray(_)
-            | HoverTarget::Workspace(_) => Subscription::none(),
-        }
+        self.window_group
+            .hover_window(&self.niri, window)
+            .map(Message::WindowGroup)
     }
 
     pub fn tooltip_has_relative_time(&self) -> bool {
