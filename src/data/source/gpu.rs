@@ -2,6 +2,8 @@ use std::{
     cmp::Reverse,
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
+    hash::{Hash, Hasher},
+    sync::Arc,
     time::Duration,
 };
 
@@ -50,8 +52,14 @@ pub struct DiscoveredGpu {
     pub model: Option<GpuModel>,
 }
 
-impl DiscoveredGpu {
-    pub async fn bound_to_nvidia() -> Vec<DiscoveredGpu> {
+#[derive(Debug, Clone)]
+pub struct GpuDiscovery {
+    pub gpus: Vec<DiscoveredGpu>,
+    pub nvml: Result<Arc<Nvml>, Error>,
+}
+
+impl GpuDiscovery {
+    pub async fn bound_to_nvidia() -> GpuDiscovery {
         spawn_blocking(|| {
             let mut buses: Vec<PciBusId> = fs::read_dir(NVIDIA_PCI_DRIVER)
                 .into_iter()
@@ -62,17 +70,55 @@ impl DiscoveredGpu {
                 .map(PciBusId)
                 .collect();
             buses.sort();
-            let nvml = Nvml::init().ok();
-            buses
-                .into_iter()
-                .map(|bus| DiscoveredGpu {
-                    model: nvml.as_ref().and_then(|nvml| read_model(nvml, &bus).ok()),
-                    bus,
-                })
-                .collect()
+            let nvml = Nvml::init().map(Arc::new).map_err(Error::from);
+            GpuDiscovery {
+                gpus: buses
+                    .into_iter()
+                    .map(|bus| DiscoveredGpu {
+                        model: nvml
+                            .as_ref()
+                            .ok()
+                            .and_then(|nvml| read_model(nvml, &bus).ok()),
+                        bus,
+                    })
+                    .collect(),
+                nvml,
+            }
         })
         .await
-        .unwrap_or_default()
+        .unwrap_or_else(|_| GpuDiscovery {
+            gpus: Vec::new(),
+            nvml: Err(Error::Panicked),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NvmlDevice {
+    pub bus: PciBusId,
+    nvml: Arc<Nvml>,
+}
+
+impl NvmlDevice {
+    pub fn new(bus: PciBusId, nvml: &Arc<Nvml>) -> Self {
+        Self {
+            bus,
+            nvml: Arc::clone(nvml),
+        }
+    }
+}
+
+impl PartialEq for NvmlDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.bus == other.bus
+    }
+}
+
+impl Eq for NvmlDevice {}
+
+impl Hash for NvmlDevice {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.bus.hash(state);
     }
 }
 
@@ -180,13 +226,13 @@ pub struct GpuProcesses {
 impl Source for GpuSnapshot {
     type Error = Error;
 
-    type Key = PciBusId;
+    type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    async fn poll(bus: PciBusId) -> Result<Self, Self::Error> {
-        read_device(bus, |device| {
+    async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
+        read_device(device, |device| {
             let memory = device.memory_info()?;
             Ok(GpuSnapshot {
                 load: Ratio::new::<percent>(f64::from(device.utilization_rates()?.gpu)),
@@ -205,13 +251,13 @@ impl Source for GpuSnapshot {
 impl Source for GpuClocks {
     type Error = Error;
 
-    type Key = PciBusId;
+    type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu clocks";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    async fn poll(bus: PciBusId) -> Result<Self, Self::Error> {
-        read_device(bus, |device| {
+    async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
+        read_device(device, |device| {
             let clock = |kind: Clock| {
                 device
                     .clock_info(kind)
@@ -239,13 +285,13 @@ impl Source for GpuClocks {
 impl Source for GpuProcesses {
     type Error = Error;
 
-    type Key = PciBusId;
+    type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu processes";
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    async fn poll(bus: PciBusId) -> Result<Self, Self::Error> {
-        read_device(bus, |device| {
+    async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
+        read_device(device, |device| {
             Ok(GpuProcesses {
                 processes: gpu_processes(device),
             })
@@ -255,15 +301,12 @@ impl Source for GpuProcesses {
 }
 
 async fn read_device<T: Send + 'static>(
-    bus: PciBusId,
+    device: NvmlDevice,
     read: fn(&Device) -> Result<T, Error>,
 ) -> Result<T, Error> {
-    spawn_blocking(move || {
-        let nvml = Nvml::init()?;
-        read(&nvml.device_by_pci_bus_id(bus.0.as_str())?)
-    })
-    .await
-    .map_err(|_| Error::Panicked)?
+    spawn_blocking(move || read(&device.nvml.device_by_pci_bus_id(device.bus.0.as_str())?))
+        .await
+        .map_err(|_| Error::Panicked)?
 }
 
 fn gpu_processes(device: &Device) -> Vec<GpuProcess> {

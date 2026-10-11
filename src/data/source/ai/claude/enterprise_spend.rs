@@ -54,13 +54,41 @@ impl From<MinorAmount> for Money {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaudeEnterpriseSpend {
-    pub organization: String,
-    pub seat_tier: String,
-    pub subscription_status: String,
     pub status: ExtraStatus,
     pub used: Money,
     pub limit: Option<Money>,
     pub used_percent: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClaudeOrganization {
+    pub organization: String,
+    pub seat_tier: String,
+    pub subscription_status: String,
+}
+
+impl From<Organization> for ClaudeOrganization {
+    fn from(organization: Organization) -> Self {
+        ClaudeOrganization {
+            organization: organization.name,
+            seat_tier: title_case(&organization.seat_tier.replace('_', " ")),
+            subscription_status: organization.subscription_status.replace('_', " "),
+        }
+    }
+}
+
+impl Source for ClaudeOrganization {
+    type Error = Error;
+    type Key = PathBuf;
+
+    const NAME: &'static str = "claude-organization";
+    const INTERVAL: Duration = Duration::from_mins(5);
+
+    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+        let PlanReply { reply: profile, .. } =
+            oauth_api::fetch::<Profile>(&key, oauth_api::PROFILE_URL).await?;
+        Ok(profile.organization.into())
+    }
 }
 
 impl Source for ClaudeEnterpriseSpend {
@@ -81,14 +109,12 @@ impl Source for ClaudeEnterpriseSpend {
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
         let PlanReply { reply: usage, .. } =
             oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
-        let PlanReply { reply: profile, .. } =
-            oauth_api::fetch::<Profile>(&key, oauth_api::PROFILE_URL).await?;
-        Ok(ClaudeEnterpriseSpend::of(usage.spend, profile.organization))
+        Ok(ClaudeEnterpriseSpend::of(usage.spend))
     }
 }
 
 impl ClaudeEnterpriseSpend {
-    fn of(spend: Spend, organization: Organization) -> Self {
+    fn of(spend: Spend) -> Self {
         let status = if spend.enabled {
             ExtraStatus::Enabled
         } else {
@@ -100,9 +126,6 @@ impl ClaudeEnterpriseSpend {
             }
         };
         ClaudeEnterpriseSpend {
-            organization: organization.name,
-            seat_tier: title_case(&organization.seat_tier.replace('_', " ")),
-            subscription_status: organization.subscription_status.replace('_', " "),
             status,
             used: spend.used.into(),
             limit: spend.limit.map(Money::from),
@@ -140,8 +163,7 @@ mod tests {
 
     fn enterprise_spend() -> ClaudeEnterpriseSpend {
         let usage: Usage = serde_json::from_str(ENTERPRISE_USAGE).unwrap();
-        let profile: Profile = serde_json::from_str(ENTERPRISE_PROFILE).unwrap();
-        ClaudeEnterpriseSpend::of(usage.spend, profile.organization)
+        ClaudeEnterpriseSpend::of(usage.spend)
     }
 
     #[test]
@@ -155,7 +177,8 @@ mod tests {
 
     #[test]
     fn profile_names_the_organization_and_seat_tier() {
-        let enterprise = enterprise_spend();
+        let profile: Profile = serde_json::from_str(ENTERPRISE_PROFILE).unwrap();
+        let enterprise = ClaudeOrganization::from(profile.organization);
         assert_eq!(enterprise.organization, "Example Corp");
         assert_eq!(enterprise.seat_tier, "Enterprise Usage Based");
         assert_eq!(enterprise.subscription_status, "active");

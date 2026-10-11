@@ -68,7 +68,9 @@ impl CoredumpEntry {
             .map(|file| ReadingAlertActionButton {
                 button_label: "Copy path".to_owned(),
                 tint: ActionTint::Inspect,
-                on_button_pressed: SystemdManagerMessage::CopyCoredumpPath(file),
+                on_button_pressed: SystemdManagerMessage::CopyToClipboard(
+                    file.display().to_string(),
+                ),
             });
         [
             ReadingAlertActionButton {

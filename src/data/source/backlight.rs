@@ -1,16 +1,15 @@
-use std::{collections::HashSet, fs, time::Duration};
+use std::{collections::HashSet, fs, future::ready, time::Duration};
 
 use iced::{
     Subscription,
-    futures::{Stream, StreamExt},
+    futures::{Stream, StreamExt, stream::select},
 };
 use serde::{Deserialize, Serialize};
-use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy, zvariant::Type};
 
 use crate::{
     data::source::clight,
-    message_subscriptions::{poll_every, restarting},
+    message_subscriptions::{restarting, ticked},
 };
 
 #[proxy(
@@ -54,24 +53,19 @@ pub struct Backlight {
 const INTERVAL: Duration = Duration::from_secs(10);
 
 pub fn subscription() -> Subscription<Vec<Backlight>> {
-    Subscription::batch([
-        poll_every("backlight", INTERVAL, polled_backlights),
-        Subscription::run(signalled_backlights),
-    ])
+    Subscription::run(|| restarting("backlight", backlight_readings))
 }
 
-fn signalled_backlights() -> impl Stream<Item = Vec<Backlight>> {
-    restarting("backlight changed signal", backlight_changes).then(|()| polled_backlights())
-}
-
-async fn backlight_changes() -> zbus::Result<impl Stream<Item = ()>> {
+async fn backlight_readings() -> zbus::Result<impl Stream<Item = Vec<Backlight>>> {
     let connection = zbus::Connection::system().await?;
-    let backlight = ClightdBacklightProxy::new(&connection).await?;
-    Ok(backlight.receive_changed().await?.map(|_| ()))
-}
-
-async fn polled_backlights() -> Vec<Backlight> {
-    spawn_blocking(poll_all).await.unwrap_or_default()
+    let proxy = ClightdBacklightProxy::new(&connection).await?;
+    let changes = proxy.receive_changed().await?.map(drop);
+    Ok(
+        select(ticked(INTERVAL, || ready(())), changes).then(move |()| {
+            let proxy = proxy.clone();
+            async move { proxy.get_all("").await.map(backlights).unwrap_or_default() }
+        }),
+    )
 }
 
 pub fn poll_all() -> Vec<Backlight> {
@@ -81,9 +75,10 @@ pub fn poll_all() -> Vec<Backlight> {
     let Ok(proxy) = ClightdBacklightProxyBlocking::new(&connection) else {
         return Vec::new();
     };
-    let Ok(readings) = proxy.get_all("") else {
-        return Vec::new();
-    };
+    proxy.get_all("").map(backlights).unwrap_or_default()
+}
+
+fn backlights(readings: Vec<BacklightReading>) -> Vec<Backlight> {
     let internal = internal_names();
     let mut list: Vec<Backlight> = readings
         .into_iter()

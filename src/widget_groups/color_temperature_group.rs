@@ -111,9 +111,11 @@ impl ColorTemperatureGroup {
         };
         Subscription::batch([
             gamma,
-            self.auto
-                .subscription(self.unit.clone())
-                .map(ColorTemperatureMessage::Auto),
+            self.expansion.while_expanded(
+                self.auto
+                    .subscription(self.unit.clone())
+                    .map(ColorTemperatureMessage::Auto),
+            ),
         ])
     }
 

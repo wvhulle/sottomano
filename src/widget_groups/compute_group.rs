@@ -54,7 +54,6 @@ pub struct ComputeGroup {
     sensors: bool,
     hardware: HostHardware,
     topology: CpuTopology,
-    hovered: Option<ComputeTarget>,
     core_loads: OnHoverReading<CpuCoreLoads>,
     core_temperatures: OnHoverReading<CpuCoreTemperatures>,
     pub(crate) expansion: GroupExpansion,
@@ -88,29 +87,25 @@ impl ComputeGroup {
 
     pub fn hover(
         &mut self,
-        target: Option<ComputeTarget>,
+        hovered: Option<&HoverTarget>,
         config: &Config,
     ) -> Task<ComputeMessage> {
-        if self.hovered == target {
-            return Task::none();
-        }
-        self.hovered = target;
         self.core_loads.stop();
         self.core_temperatures.stop();
-        match target {
-            Some(ComputeTarget::Cpu) => self.core_loads.fetch(
+        match hovered {
+            Some(HoverTarget::Compute(ComputeTarget::Cpu)) => self.core_loads.fetch(
                 polled::<CpuCoreLoads>(()),
                 ComputeMessage::CoreLoadsFetched,
                 config,
             ),
-            Some(ComputeTarget::Temperature) => self.core_temperatures.fetch(
+            Some(HoverTarget::Compute(ComputeTarget::Temperature)) => self.core_temperatures.fetch(
                 polled::<CpuCoreTemperatures>(
                     config.widget_groups.temperature_sensors.cpu.overrides(),
                 ),
                 ComputeMessage::CoreTemperaturesFetched,
                 config,
             ),
-            Some(ComputeTarget::CpuClock | ComputeTarget::Memory) | None => Task::none(),
+            _ => Task::none(),
         }
     }
 

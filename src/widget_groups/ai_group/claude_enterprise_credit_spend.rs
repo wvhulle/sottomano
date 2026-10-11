@@ -1,7 +1,7 @@
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    data::source::ai::claude::{ClaudeEnterpriseSpend, ExtraStatus},
+    data::source::ai::claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
     widget_groups::ai_group::{amount_text::percent_text, spend_to_level::level_from_used},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -39,28 +39,30 @@ impl BarWidget for ClaudeEnterpriseSpend {
             ExtraStatus::Enabled => ("enabled", None),
             ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
         };
-        let organization = Section::untitled_dictionary([
-            KeyValue::new("Organization", self.organization.as_str()),
-            KeyValue::new("Seat Tier", self.seat_tier.as_str()),
-            KeyValue::new("Subscription Status", self.subscription_status.as_str()),
-        ]);
         let limit_entries = self.limit.iter().flat_map(|limit| {
             [
                 KeyValue::new("Monthly Limit", limit.to_string()),
                 KeyValue::new("Percent Used", percent_text(self.used_percent)),
             ]
         });
-        TooltipBody::sections(&[
-            organization,
-            Section::dictionary(
-                "Usage Credits",
-                [KeyValue::new("Status", status)]
-                    .into_iter()
-                    .chain(reason.map(|reason| KeyValue::new("Reason", reason)))
-                    .chain([KeyValue::new("Used This Month", self.used.to_string())])
-                    .chain(limit_entries),
-            ),
-        ])
+        TooltipBody::sections(&[Section::dictionary(
+            "Usage Credits",
+            [KeyValue::new("Status", status)]
+                .into_iter()
+                .chain(reason.map(|reason| KeyValue::new("Reason", reason)))
+                .chain([KeyValue::new("Used This Month", self.used.to_string())])
+                .chain(limit_entries),
+        )])
+    }
+}
+
+impl ClaudeOrganization {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![Section::untitled_dictionary([
+            KeyValue::new("Organization", self.organization.as_str()),
+            KeyValue::new("Seat Tier", self.seat_tier.as_str()),
+            KeyValue::new("Subscription Status", self.subscription_status.as_str()),
+        ])]
     }
 }
 

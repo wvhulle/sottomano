@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let wayland = wayland_client::Connection::connect_to_env()
         .inspect_err(|e| {
-            tracing::error!("wayland: no connection, outputs will not be tracked: {e}")
+            tracing::error!("wayland: no connection, outputs will not be tracked: {e}");
         })
         .ok();
     let wl_settings = ExWlSettings {

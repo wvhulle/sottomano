@@ -11,7 +11,8 @@ use iced::{Subscription, Task};
 use crate::{
     config::Config,
     data::source::gpu::{
-        self, DiscoveredGpu, GpuClocks, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, PciBusId,
+        self, GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot,
+        NvmlDevice, PciBusId,
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{polled, polling},
@@ -48,6 +49,7 @@ impl From<GpuTarget> for HoverTarget {
 
 struct GpuDevice {
     model: Option<GpuModel>,
+    nvml: Option<NvmlDevice>,
     snapshot: ContinuousReading<GpuSnapshot>,
 }
 
@@ -82,7 +84,7 @@ pub struct GpuGroup {
 
 #[derive(Debug, Clone)]
 pub enum GpuMessage {
-    Discovered(Vec<DiscoveredGpu>),
+    Discovered(GpuDiscovery),
     Snapshot(PciBusId, Result<GpuSnapshot, gpu::Error>),
     ClocksFetched(HoverFetched<GpuClocks>),
     ProcessesFetched(HoverFetched<GpuProcesses>),
@@ -91,36 +93,42 @@ pub enum GpuMessage {
 
 impl GpuGroup {
     pub fn probe() -> Task<GpuMessage> {
-        Task::future(DiscoveredGpu::bound_to_nvidia()).map(GpuMessage::Discovered)
+        Task::future(GpuDiscovery::bound_to_nvidia()).map(GpuMessage::Discovered)
     }
 
     pub fn subscription(&self) -> Subscription<GpuMessage> {
-        Subscription::batch(self.devices.keys().map(|bus| {
-            polling::<GpuSnapshot>(bus.clone())
-                .with(bus.clone())
-                .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading))
+        Subscription::batch(self.devices.iter().filter_map(|(bus, device)| {
+            Some(
+                polling::<GpuSnapshot>(device.nvml.clone()?)
+                    .with(bus.clone())
+                    .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
+            )
         }))
     }
 
-    pub fn hover(&mut self, target: Option<&GpuTarget>, config: &Config) -> Task<GpuMessage> {
-        let Some(target) = target else {
+    pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<GpuMessage> {
+        self.clocks.stop();
+        self.processes.stop();
+        let Some(HoverTarget::Gpu(target)) = hovered else {
             self.hovered_bus = None;
-            self.clocks.stop();
-            self.processes.stop();
             return Task::none();
         };
-        if self.hovered_bus.as_ref() == Some(&target.bus) {
-            return Task::none();
-        }
         self.hovered_bus = Some(target.bus.clone());
+        let Some(nvml) = self
+            .devices
+            .get(&target.bus)
+            .and_then(|device| device.nvml.clone())
+        else {
+            return Task::none();
+        };
         Task::batch([
             self.clocks.fetch(
-                polled::<GpuClocks>(target.bus.clone()),
+                polled::<GpuClocks>(nvml.clone()),
                 GpuMessage::ClocksFetched,
                 config,
             ),
             self.processes.fetch(
-                polled::<GpuProcesses>(target.bus.clone()),
+                polled::<GpuProcesses>(nvml),
                 GpuMessage::ProcessesFetched,
                 config,
             ),
@@ -141,17 +149,25 @@ impl GpuGroup {
 
     pub fn update(&mut self, msg: GpuMessage) -> Task<GpuMessage> {
         match msg {
-            GpuMessage::Discovered(gpus) => {
-                self.devices = gpus
+            GpuMessage::Discovered(discovery) => {
+                self.devices = discovery
+                    .gpus
                     .into_iter()
                     .map(|gpu| {
-                        (
-                            gpu.bus,
-                            GpuDevice {
-                                model: gpu.model,
-                                snapshot: ContinuousReading::default(),
-                            },
-                        )
+                        let mut snapshot = ContinuousReading::default();
+                        if let Err(failure) = &discovery.nvml {
+                            snapshot.receive(Err::<GpuSnapshot, _>(failure.clone()));
+                        }
+                        let device = GpuDevice {
+                            model: gpu.model,
+                            nvml: discovery
+                                .nvml
+                                .as_ref()
+                                .ok()
+                                .map(|nvml| NvmlDevice::new(gpu.bus.clone(), nvml)),
+                            snapshot,
+                        };
+                        (gpu.bus, device)
                     })
                     .collect();
             }

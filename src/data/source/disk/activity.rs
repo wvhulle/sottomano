@@ -1,11 +1,11 @@
 use std::{
     fs,
+    future::ready,
     marker::PhantomData,
-    thread,
     time::{Duration, Instant},
 };
 
-use tokio::task::spawn_blocking;
+use iced::futures::{Stream, StreamExt};
 use uom::si::{
     f64::{Information, InformationRate, Ratio, Time},
     information::byte,
@@ -14,9 +14,9 @@ use uom::si::{
 };
 
 use super::{Error, mount::RootMount};
-use crate::data::source::Source;
+use crate::message_subscriptions::ticked;
 
-const SAMPLE_GAP: Duration = Duration::from_secs(2);
+const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
 const SECTOR_BYTES: f64 = 512.0;
 
 pub trait TransferDirection {
@@ -51,37 +51,50 @@ pub struct DiskActivity {
     pub write: DiskTransfer<Writing>,
 }
 
-impl Source for DiskActivity {
-    type Error = Error;
+struct CounterSample {
+    disk: String,
+    counters: BlockCounters,
+    at: Instant,
+}
 
-    type Key = ();
-
-    const NAME: &'static str = "disk_activity";
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_disk_activity)
-            .await
-            .map_err(|_| Error::Panicked)?
+impl CounterSample {
+    fn take() -> Result<Self, Error> {
+        let disk = RootMount::current()?.device()?.whole_disk();
+        let stat = disk.sysfs_dir().join("stat");
+        let line =
+            fs::read_to_string(&stat).map_err(|_| Error::Unreadable(stat.display().to_string()))?;
+        Ok(CounterSample {
+            counters: BlockCounters::parse(&line)
+                .ok_or_else(|| Error::Unparsable(stat.display().to_string()))?,
+            disk: disk.name,
+            at: Instant::now(),
+        })
     }
 }
 
-fn read_disk_activity() -> Result<DiskActivity, Error> {
-    let disk = RootMount::current()?.device()?.whole_disk();
-    let stat = disk.sysfs_dir().join("stat");
-    let read_counters = || {
-        fs::read_to_string(&stat)
-            .map_err(|_| Error::Unreadable(stat.display().to_string()))
-            .and_then(|line| {
-                BlockCounters::parse(&line)
-                    .ok_or_else(|| Error::Unparsable(stat.display().to_string()))
-            })
-    };
-    let earlier = read_counters()?;
-    let started = Instant::now();
-    thread::sleep(SAMPLE_GAP);
-    let later = read_counters()?;
-    Ok(later.activity_since(&earlier, started.elapsed(), disk.name))
+pub fn readings() -> impl Stream<Item = Result<DiskActivity, Error>> {
+    ticked(SAMPLE_INTERVAL, || ready(CounterSample::take()))
+        .scan(None::<CounterSample>, |earlier, sample| {
+            let activity = match sample {
+                Err(failure) => {
+                    *earlier = None;
+                    Some(Err(failure))
+                }
+                Ok(later) => {
+                    let activity = earlier.as_ref().map(|earlier| {
+                        Ok(later.counters.activity_since(
+                            &earlier.counters,
+                            later.at - earlier.at,
+                            later.disk.clone(),
+                        ))
+                    });
+                    *earlier = Some(later);
+                    activity
+                }
+            };
+            ready(Some(activity))
+        })
+        .filter_map(ready)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

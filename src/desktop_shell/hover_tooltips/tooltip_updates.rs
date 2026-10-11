@@ -137,40 +137,27 @@ impl DesktopShell {
     }
 
     pub(crate) fn retarget_hover_readings(&mut self) -> Task<Message> {
-        let window = match self.tooltip.target() {
-            Some(HoverTarget::Window(window)) => Some(*window),
-            _ => None,
-        };
-        let gpu = match self.tooltip.target() {
-            Some(HoverTarget::Gpu(target)) => Some(target),
-            _ => None,
-        };
-        let net_interface = match self.tooltip.target() {
-            Some(HoverTarget::NetInterface(target)) => Some(*target),
-            _ => None,
-        };
-        let internet = match self.tooltip.target() {
-            Some(HoverTarget::Internet(target)) => Some(target),
-            _ => None,
-        };
-        let compute = match self.tooltip.target() {
-            Some(HoverTarget::Compute(target)) => Some(*target),
-            _ => None,
-        };
+        let hovered = self.tooltip.target();
         Task::batch([
             self.window_group
-                .hover_window(&self.niri, window, &self.config)
+                .hover(&self.niri, hovered, &self.config)
                 .map(Message::WindowGroup),
-            self.gpu_group.hover(gpu, &self.config).map(Message::Gpu),
+            self.gpu_group
+                .hover(hovered, &self.config)
+                .map(Message::Gpu),
             self.net_interfaces_group
-                .hover(net_interface, &self.config)
+                .hover(hovered, &self.config)
                 .map(Message::NetInterfaces),
             self.internet_group
-                .hover(internet, &self.config)
+                .hover(hovered, &self.config)
                 .map(Message::Internet),
             self.compute_group
-                .hover(compute, &self.config)
+                .hover(hovered, &self.config)
                 .map(Message::Compute),
+            self.power_group
+                .hover(hovered, &self.config)
+                .map(Message::Power),
+            self.ai_group.hover(hovered, &self.config).map(Message::Ai),
         ])
     }
 

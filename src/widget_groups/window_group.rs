@@ -13,7 +13,7 @@ use window_list::{WindowList, WindowListMessage};
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
-    desktop_shell::monitor_surfaces::Position,
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widgets::{tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets},
 };
 
@@ -43,17 +43,18 @@ impl WindowGroup {
         WindowList::subscription(agents).map(WindowGroupMessage::WindowList)
     }
 
-    pub fn hover_window(
+    pub fn hover(
         &mut self,
         niri_state: &EventStreamState,
-        window: Option<u64>,
+        hovered: Option<&HoverTarget>,
         config: &Config,
     ) -> Task<WindowGroupMessage> {
+        let watched = match hovered {
+            Some(HoverTarget::Window(window)) => watched(niri_state, *window),
+            _ => None,
+        };
         self.window_list
-            .hover_process(
-                window.and_then(|window| watched(niri_state, window)),
-                config,
-            )
+            .hover_process(watched, config)
             .map(WindowGroupMessage::WindowList)
     }
 

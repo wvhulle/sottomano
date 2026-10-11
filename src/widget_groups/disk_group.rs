@@ -8,7 +8,7 @@ use crate::{
     config::widget_groups::temperature_sensors::SensorConfig,
     data::source::disk::{
         self, Disk,
-        activity::{DiskActivity, DiskTransfer, Reading, Writing},
+        activity::{self, DiskActivity, DiskTransfer, Reading, Writing},
         health::DriveHealth,
     },
     desktop_shell::hover_tooltips::HoverTarget,
@@ -55,7 +55,7 @@ impl DiskGroup {
     pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<DiskMessage> {
         Subscription::batch([
             polling::<Disk>(()).map(DiskMessage::Usage),
-            polling::<DiskActivity>(()).map(DiskMessage::DiskActivity),
+            Subscription::run(activity::readings).map(DiskMessage::DiskActivity),
             polling::<DriveHealth>(drive_sensor.clone()).map(DiskMessage::DriveHealth),
         ])
     }

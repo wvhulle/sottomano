@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use iced::{
     Subscription, Task,
@@ -148,7 +148,7 @@ pub enum SystemdManagerMessage {
     OpenLog(TerminalJournal),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
-    CopyCoredumpPath(PathBuf),
+    CopyToClipboard(String),
     Expansion(ExpansionMessage),
 }
 
@@ -212,9 +212,7 @@ impl SystemdManagerGroup {
                 return Task::future(restart.apply()).discard();
             }
             SystemdManagerMessage::InspectCoredump(command) => return command.open(),
-            SystemdManagerMessage::CopyCoredumpPath(path) => {
-                return copy_to_clipboard(path.display().to_string());
-            }
+            SystemdManagerMessage::CopyToClipboard(text) => return copy_to_clipboard(text),
             SystemdManagerMessage::Expansion(msg) => {
                 self.expansion.update(msg);
             }
