@@ -49,7 +49,6 @@ pub struct NetInterfacesGroup {
     ethernet: ContinuousReading<Ethernet>,
     wifi: ContinuousReading<Wifi>,
     mobile: ContinuousReading<Mobile>,
-    hovered: Option<NetInterfaceTarget>,
     wifi_details: OnHoverReading<WifiDetails>,
     ethernet_details: OnHoverReading<EthernetDetails>,
     pub(crate) expansion: GroupExpansion,
@@ -67,10 +66,14 @@ pub enum NetInterfacesMessage {
 }
 
 impl NetInterfacesGroup {
-    pub fn subscription() -> Subscription<NetInterfacesMessage> {
+    pub fn subscription(&self) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
-            dbus(bluetooth::NAME, bluetooth::readings).map(NetInterfacesMessage::Bluetooth),
-            dbus(ethernet::NAME, ethernet::readings).map(NetInterfacesMessage::Ethernet),
+            self.expansion.while_expanded(
+                dbus(bluetooth::NAME, bluetooth::readings).map(NetInterfacesMessage::Bluetooth),
+            ),
+            self.expansion.while_expanded(
+                dbus(ethernet::NAME, ethernet::readings).map(NetInterfacesMessage::Ethernet),
+            ),
             dbus(wifi::NAME, wifi::readings).map(NetInterfacesMessage::Wifi),
             dbus(mobile::NAME, mobile::readings).map(NetInterfacesMessage::Mobile),
         ])
@@ -95,27 +98,25 @@ impl NetInterfacesGroup {
 
     pub fn hover(
         &mut self,
-        target: Option<NetInterfaceTarget>,
+        hovered: Option<&HoverTarget>,
         config: &Config,
     ) -> Task<NetInterfacesMessage> {
-        if self.hovered == target {
-            return Task::none();
-        }
-        self.hovered = target;
         self.wifi_details.stop();
         self.ethernet_details.stop();
-        match target {
-            Some(NetInterfaceTarget::Wifi) => self.wifi_details.fetch(
+        match hovered {
+            Some(HoverTarget::NetInterface(NetInterfaceTarget::Wifi)) => self.wifi_details.fetch(
                 wifi::details(),
                 NetInterfacesMessage::WifiDetailsFetched,
                 config,
             ),
-            Some(NetInterfaceTarget::Ethernet) => self.ethernet_details.fetch(
-                ethernet::details(),
-                NetInterfacesMessage::EthernetDetailsFetched,
-                config,
-            ),
-            Some(NetInterfaceTarget::Bluetooth | NetInterfaceTarget::Mobile) | None => Task::none(),
+            Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {
+                self.ethernet_details.fetch(
+                    ethernet::details(),
+                    NetInterfacesMessage::EthernetDetailsFetched,
+                    config,
+                )
+            }
+            _ => Task::none(),
         }
     }
 

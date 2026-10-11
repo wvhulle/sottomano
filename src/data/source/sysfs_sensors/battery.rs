@@ -102,9 +102,30 @@ pub struct Battery {
     pub power: Power,
     pub charge_limit: Ratio,
     pub charge_behaviour: ChargeBehaviour,
-    pub charger: Option<ChargerLimit>,
     pub serial: String,
     pub identity: PowerSupplyIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChargerSupply {
+    pub limit: Option<ChargerLimit>,
+}
+
+impl Source for ChargerSupply {
+    type Error = Error;
+
+    type Key = ();
+
+    const NAME: &'static str = "charger";
+    const INTERVAL: Duration = Duration::from_secs(5);
+
+    fn poll(_key: ()) -> impl Future<Output = Result<Self, Self::Error>> + Send {
+        ready(Ok(ChargerSupply {
+            limit: list_dir(POWER_SUPPLY)
+                .iter()
+                .find_map(|supply| ChargerLimit::of_supply(supply)),
+        }))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -233,9 +254,6 @@ fn read_battery() -> Result<Battery, Error> {
         charge_behaviour: read_trimmed(dir.join("charge_behaviour"))
             .and_then(|choices| ChargeBehaviour::selected_in(&choices))
             .unwrap_or(ChargeBehaviour::Auto),
-        charger: list_dir(POWER_SUPPLY)
-            .iter()
-            .find_map(|supply| ChargerLimit::of_supply(supply)),
         serial: read_trimmed(dir.join("serial_number")).unwrap_or_default(),
         identity: PowerSupplyIdentity::of_supply(&dir),
     })
@@ -287,7 +305,6 @@ mod tests {
             power: Power::new::<watt>(0.0),
             charge_limit: Ratio::new::<ratio>(limit),
             charge_behaviour: ChargeBehaviour::Auto,
-            charger: None,
             serial: String::new(),
             identity: PowerSupplyIdentity::default(),
         }

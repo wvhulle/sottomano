@@ -15,23 +15,24 @@ use chrono::Weekday;
 use iced::{Subscription, Task};
 
 use crate::{
-    config::SecretPaths,
+    config::{Config, SecretPaths},
     data::source::{
         Source,
         ai::{
             ccusage,
             claude::{
                 self, ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend,
-                ClaudeUsageWindows,
+                ClaudeOrganization, ClaudeUsageWindows,
             },
             copilot::{self, CopilotCcusage, CopilotFree, CopilotMetered},
             openrouter::{self, OpenRouter},
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{polled, polling},
     widgets::{
         continuous_reading::ContinuousReading,
+        on_hover_reading::{HoverFetched, OnHoverReading},
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -69,6 +70,7 @@ pub struct AiGroup {
     copilot_cli: ContinuousReading<CopilotCcusage>,
     secrets: SecretPaths,
     available: Available,
+    claude_organization: OnHoverReading<ClaudeOrganization>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -144,6 +146,7 @@ pub enum AiMessage {
     OpenRouter(Result<OpenRouter, openrouter::Error>),
     ClaudeUsageWindows(Result<ClaudeUsageWindows, claude::Error>),
     ClaudeEnterpriseSpend(Result<ClaudeEnterpriseSpend, claude::Error>),
+    ClaudeOrganizationFetched(HoverFetched<ClaudeOrganization>),
     ClaudeCcusagePeriods(Result<ClaudeCcusagePeriods, claude::Error>),
     ClaudeCcusageBlock(Result<ClaudeCcusageBlock, claude::Error>),
     CopilotMetered(Result<CopilotMetered, copilot::Error>),
@@ -165,8 +168,24 @@ impl AiGroup {
             copilot_cli: ContinuousReading::default(),
             secrets,
             available: Available::default(),
+            claude_organization: OnHoverReading::default(),
             expansion: GroupExpansion::default(),
         }
+    }
+
+    pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<AiMessage> {
+        self.claude_organization.stop();
+        let Some(HoverTarget::Ai(AiTarget::ClaudeEnterpriseSpend)) = hovered else {
+            return Task::none();
+        };
+        let Some(ClaudeLogin::UsageBased(credentials)) = &self.available.claude else {
+            return Task::none();
+        };
+        self.claude_organization.fetch(
+            polled::<ClaudeOrganization>(credentials.clone()),
+            AiMessage::ClaudeOrganizationFetched,
+            config,
+        )
     }
 
     pub fn probe(&self) -> Task<AiMessage> {
@@ -220,6 +239,9 @@ impl AiGroup {
             AiMessage::ClaudeEnterpriseSpend(reading) => {
                 self.claude_enterprise_spend.receive(reading);
             }
+            AiMessage::ClaudeOrganizationFetched(fetched) => {
+                self.claude_organization.receive(fetched);
+            }
             AiMessage::ClaudeCcusagePeriods(reading) => {
                 self.claude_ccusage_periods.receive(reading);
             }
@@ -238,7 +260,11 @@ impl AiGroup {
         match target {
             AiTarget::OpenRouter => self.openrouter.tooltip(),
             AiTarget::ClaudeUsageWindows => self.claude_usage_windows.tooltip(),
-            AiTarget::ClaudeEnterpriseSpend => self.claude_enterprise_spend.tooltip(),
+            AiTarget::ClaudeEnterpriseSpend => {
+                self.claude_enterprise_spend.tooltip_with_sections(&[self
+                    .claude_organization
+                    .section(ClaudeOrganization::sections)])
+            }
             AiTarget::ClaudeCcusagePeriods => self.claude_ccusage_periods.tooltip(),
             AiTarget::ClaudeCcusageBlock => self.claude_ccusage_block.tooltip(),
             AiTarget::CopilotMetered => self.copilot_metered.tooltip(),

@@ -1,6 +1,5 @@
 use std::{ops::RangeInclusive, time::Duration};
 
-use tokio::task::spawn_blocking;
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
@@ -38,32 +37,27 @@ impl Source for Gamma {
     const NAME: &'static str = "gamma";
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn available(_key: &()) -> bool {
-        spawn_blocking(read_gamma)
-            .await
-            .is_ok_and(|reading| reading.is_ok())
+    async fn available((): &()) -> bool {
+        Self::poll(()).await.is_ok()
     }
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_gamma)
+    async fn poll((): ()) -> Result<Self, Self::Error> {
+        let connection = zbus::Connection::session()
             .await
-            .map_err(|_| Error::Panicked)?
+            .map_err(|error| Error::Connect(error.to_string()))?;
+        let proxy = GammaRelayProxy::new(&connection)
+            .await
+            .map_err(|error| Error::Connect(error.to_string()))?;
+        let brightness = bus::call(proxy.brightness().await)?;
+        let temperature = bus::call(proxy.temperature().await)?;
+        #[allow(clippy::cast_possible_truncation)]
+        Ok(Gamma {
+            brightness: (brightness * 100.0).round() as i64,
+            temperature: ThermodynamicTemperature::new::<thermodynamic_temperature::kelvin>(
+                f64::from(temperature),
+            ),
+        })
     }
-}
-
-fn read_gamma() -> Result<Gamma, Error> {
-    let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
-    let proxy = GammaRelayProxyBlocking::new(&connection)
-        .map_err(|error| Error::Connect(error.to_string()))?;
-    let brightness = bus::call(proxy.brightness())?;
-    let temperature = bus::call(proxy.temperature())?;
-    #[allow(clippy::cast_possible_truncation)]
-    Ok(Gamma {
-        brightness: (brightness * 100.0).round() as i64,
-        temperature: ThermodynamicTemperature::new::<thermodynamic_temperature::kelvin>(f64::from(
-            temperature,
-        )),
-    })
 }
 
 pub fn set_brightness(percent: i64) -> bool {

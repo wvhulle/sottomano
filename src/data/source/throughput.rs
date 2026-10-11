@@ -23,9 +23,12 @@ use uom::si::{
     time::second,
 };
 
-use crate::data::source::net_interfaces::{
-    nm::{self, Connectivity, Uplink},
-    nm_readings,
+use crate::{
+    data::source::net_interfaces::{
+        nm::{self, Connectivity, Uplink},
+        nm_readings,
+    },
+    message_subscriptions::emit_changes,
 };
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
@@ -37,28 +40,28 @@ pub trait Direction {
     const LABEL: &'static str;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Upload;
 
 impl Direction for Upload {
     const LABEL: &'static str = "Up";
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Download;
 
 impl Direction for Download {
     const LABEL: &'static str = "Down";
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Total;
 
 impl Direction for Total {
     const LABEL: &'static str = "Total";
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Throughput<D: Direction> {
     pub interfaces: Vec<String>,
     pub rate: InformationRate,
@@ -100,7 +103,7 @@ impl<D: Direction> Throughput<D> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Readings {
     pub down: Throughput<Download>,
     pub up: Throughput<Upload>,
@@ -108,7 +111,7 @@ pub struct Readings {
 }
 
 pub fn subscription() -> Subscription<Readings> {
-    Subscription::run(readings_over_time)
+    Subscription::run(|| emit_changes(readings_over_time()))
 }
 
 fn readings_over_time() -> impl Stream<Item = Readings> {

@@ -1,6 +1,5 @@
 use std::{env, fs, time::Duration};
 
-use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{Source, backlight, bus, bus::Error};
@@ -39,25 +38,20 @@ impl Source for Clight {
     const INTERVAL: Duration = Duration::from_secs(10);
 
     async fn available((): &()) -> bool {
-        spawn_blocking(read_auto_calib)
-            .await
-            .is_ok_and(|reading| reading.is_ok())
+        Self::poll(()).await.is_ok()
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_auto_calib)
+        let connection = zbus::Connection::session()
             .await
-            .map_err(|_| Error::Panicked)?
+            .map_err(|error| Error::Connect(error.to_string()))?;
+        let proxy = ConfBacklightProxy::new(&connection)
+            .await
+            .map_err(|error| Error::Connect(error.to_string()))?;
+        Ok(Clight {
+            auto: !bus::call(proxy.no_auto_calib().await)?,
+        })
     }
-}
-
-fn read_auto_calib() -> Result<Clight, Error> {
-    let connection = Connection::session().map_err(|error| Error::Connect(error.to_string()))?;
-    let proxy = ConfBacklightProxyBlocking::new(&connection)
-        .map_err(|error| Error::Connect(error.to_string()))?;
-    Ok(Clight {
-        auto: !bus::call(proxy.no_auto_calib())?,
-    })
 }
 
 fn no_auto_calib() -> Option<bool> {

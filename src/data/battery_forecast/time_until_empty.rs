@@ -118,7 +118,6 @@ mod tests {
             power: Power::new::<watt>(0.0),
             charge_limit: Ratio::new::<ratio>(1.0),
             charge_behaviour: ChargeBehaviour::Auto,
-            charger: None,
             serial: String::new(),
             identity: PowerSupplyIdentity::default(),
         }

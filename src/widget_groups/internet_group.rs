@@ -50,7 +50,6 @@ pub struct InternetGroup {
     wireguard: ContinuousReading<Wireguard>,
     tailscale: ContinuousReading<Tailscale>,
     installed: Installed,
-    hovered_tunnel: Option<String>,
     tunnel_address: OnHoverReading<TunnelAddress>,
     pub(crate) expansion: GroupExpansion,
 }
@@ -96,8 +95,8 @@ impl InternetGroup {
         };
         Subscription::batch([
             throughput::subscription().map(InternetMessage::Throughput),
-            wireguard,
-            tailscale,
+            self.expansion.while_expanded(wireguard),
+            self.expansion.while_expanded(tailscale),
         ])
     }
 
@@ -128,19 +127,11 @@ impl InternetGroup {
 
     pub fn hover(
         &mut self,
-        target: Option<&InternetTarget>,
+        hovered: Option<&HoverTarget>,
         config: &Config,
     ) -> Task<InternetMessage> {
-        let tunnel = match target {
-            Some(InternetTarget::Wireguard(name)) => Some(name),
-            _ => None,
-        };
-        if self.hovered_tunnel.as_ref() == tunnel {
-            return Task::none();
-        }
-        self.hovered_tunnel = tunnel.cloned();
-        let Some(tunnel) = tunnel else {
-            self.tunnel_address.stop();
+        self.tunnel_address.stop();
+        let Some(HoverTarget::Internet(InternetTarget::Wireguard(tunnel))) = hovered else {
             return Task::none();
         };
         self.tunnel_address.fetch(

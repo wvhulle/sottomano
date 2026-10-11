@@ -43,31 +43,50 @@ impl<S: ScopeAppearance> Failed<S> {
         &'a self,
         config: &'a Config,
     ) -> impl Iterator<Item = ReadingAlert<SystemdManagerMessage>> + 'a {
-        self.units.iter().map(move |unit| ReadingAlert {
-            widget_name: self.name(),
-            hover_target: S::failed_unit_target(unit.name.clone()).into(),
-            severity: UNIT_FAILURE_PRIORITY.severity(),
-            summary_text: Cow::Owned(format!("{} failed", unit.name)),
-            body_text: failure_summary(unit, config.calendar.locale),
-            on_body_clicked: SystemdManagerMessage::OpenLog(TerminalJournal::following(
+        self.units.iter().map(move |unit| {
+            let open_unit_log = SystemdManagerMessage::OpenLog(TerminalJournal::following(
                 config,
                 S::follow_units_log_args([unit.name.as_str()]),
-            )),
-            action_buttons: [ReadingAlertActionButton {
-                button_label: "Restart".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: SystemdManagerMessage::RestartFailedUnit(FailedUnitRestart {
-                    per_user: S::PER_USER,
-                    unit: unit.name.clone(),
-                }),
-            }]
-            .into_iter()
-            .chain(
-                unit.crash
-                    .iter()
-                    .flat_map(|crash| crash.action_buttons(config)),
-            )
-            .collect(),
+            ));
+            ReadingAlert {
+                widget_name: self.name(),
+                hover_target: S::failed_unit_target(unit.name.clone()).into(),
+                severity: UNIT_FAILURE_PRIORITY.severity(),
+                summary_text: Cow::Owned(format!("{} failed", unit.name)),
+                body_text: failure_summary(unit, config.calendar.locale),
+                on_body_clicked: open_unit_log.clone(),
+                action_buttons: [
+                    ReadingAlertActionButton {
+                        button_label: "Restart".to_owned(),
+                        tint: ActionTint::Proceed,
+                        on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
+                            FailedUnitRestart {
+                                per_user: S::PER_USER,
+                                unit: unit.name.clone(),
+                            },
+                        ),
+                    },
+                    ReadingAlertActionButton {
+                        button_label: "Journal".to_owned(),
+                        tint: ActionTint::Inspect,
+                        on_button_pressed: open_unit_log,
+                    },
+                    ReadingAlertActionButton {
+                        button_label: "Copy name".to_owned(),
+                        tint: ActionTint::Inspect,
+                        on_button_pressed: SystemdManagerMessage::CopyToClipboard(
+                            unit.name.clone(),
+                        ),
+                    },
+                ]
+                .into_iter()
+                .chain(
+                    unit.crash
+                        .iter()
+                        .flat_map(|crash| crash.action_buttons(config)),
+                )
+                .collect(),
+            }
         })
     }
 }

@@ -16,7 +16,9 @@ fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> 
     )
 }
 
-impl BarWidget for CpuTuning {
+pub struct CpuTuningEntry;
+
+impl BarWidget for CpuTuningEntry {
     fn name(&self) -> &'static str {
         "CPU tuning"
     }
@@ -26,6 +28,12 @@ impl BarWidget for CpuTuning {
     }
 
     fn tooltip(&self) -> TooltipBody {
+        TooltipBody::sections(&[])
+    }
+}
+
+impl CpuTuning {
+    pub fn sections(&self) -> Vec<Section> {
         let driver = match &self.driver_mode {
             Some(mode) => format!("{} ({mode})", self.driver),
             None => self.driver.clone(),
@@ -93,6 +101,6 @@ impl BarWidget for CpuTuning {
             .into_iter()
             .flatten(),
         );
-        TooltipBody::sections(&[cpu, firmware])
+        vec![cpu, firmware]
     }
 }

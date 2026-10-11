@@ -6,6 +6,7 @@ pub mod power_draw_gauge;
 pub mod power_profile_control;
 
 use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
+use cpu_tuning_reading::CpuTuningEntry;
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
@@ -18,21 +19,22 @@ use crate::{
             Source,
             sysfs_sensors::{
                 self,
-                battery::{self, Battery},
+                battery::{self, Battery, ChargerSupply},
                 cpu_tuning::CpuTuning,
             },
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::polled,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         hardware_section::HardwareEntries,
+        on_hover_reading::{HoverFetched, OnHoverReading},
         phosphor::{Phosphor, Weight},
         reading_alert::ReadingAlertActionButton,
-        tooltip_body::Tooltip,
+        tooltip_body::{Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -62,7 +64,8 @@ pub struct PowerGroup {
     time_reading: BatteryTimeReading,
     installed: bool,
     power_profile: PowerProfileControl,
-    cpu_tuning: ContinuousReading<CpuTuning>,
+    charger: OnHoverReading<ChargerSupply>,
+    cpu_tuning: OnHoverReading<CpuTuning>,
     pub(crate) expansion: GroupExpansion,
 }
 
@@ -70,7 +73,8 @@ pub struct PowerGroup {
 pub enum PowerMessage {
     Installed(bool),
     Battery(Result<Battery, sysfs_sensors::Error>),
-    CpuTuning(Result<CpuTuning, sysfs_sensors::Error>),
+    ChargerFetched(HoverFetched<ChargerSupply>),
+    CpuTuningFetched(HoverFetched<CpuTuning>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
     Expansion(ExpansionMessage),
@@ -100,12 +104,25 @@ impl PowerGroup {
             } else {
                 Subscription::none()
             },
-            if self.power_profile.slider().is_some() {
-                polling::<CpuTuning>(()).map(PowerMessage::CpuTuning)
-            } else {
-                Subscription::none()
-            },
         ])
+    }
+
+    pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<PowerMessage> {
+        self.charger.stop();
+        self.cpu_tuning.stop();
+        match hovered {
+            Some(HoverTarget::Power(PowerTarget::Draw)) => self.charger.fetch(
+                polled::<ChargerSupply>(()),
+                PowerMessage::ChargerFetched,
+                config,
+            ),
+            Some(HoverTarget::Power(PowerTarget::CpuTuning)) => self.cpu_tuning.fetch(
+                polled::<CpuTuning>(()),
+                PowerMessage::CpuTuningFetched,
+                config,
+            ),
+            _ => Task::none(),
+        }
     }
 
     pub fn update(&mut self, msg: PowerMessage) -> Task<PowerMessage> {
@@ -118,8 +135,12 @@ impl PowerGroup {
                 self.battery.receive(reading);
                 self.observe_battery()
             }
-            PowerMessage::CpuTuning(reading) => {
-                self.cpu_tuning.receive(reading);
+            PowerMessage::ChargerFetched(fetched) => {
+                self.charger.receive(fetched);
+                Task::none()
+            }
+            PowerMessage::CpuTuningFetched(fetched) => {
+                self.cpu_tuning.receive(fetched);
                 Task::none()
             }
             PowerMessage::ChargeCurveLoaded(curve) => {
@@ -168,9 +189,17 @@ impl PowerGroup {
                 .get()
                 .map(|battery| &battery.identity)
                 .hardware_section()]),
-            PowerTarget::Draw => self.battery.tooltip_with(self.draw.as_ref()?.tooltip()),
+            PowerTarget::Draw => {
+                let draw = self.draw.as_ref()?;
+                let charger =
+                    (!draw.on_battery()).then(|| self.charger.section(ChargerSupply::sections));
+                self.battery
+                    .tooltip_with(draw.tooltip().with_sections(charger.as_slice()))
+            }
             PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
-            PowerTarget::CpuTuning => self.cpu_tuning.tooltip(),
+            PowerTarget::CpuTuning => Some(Tooltip::of(TooltipBody::sections(&[self
+                .cpu_tuning
+                .section(CpuTuning::sections)]))),
             PowerTarget::Profile => self.power_profile.tooltip(),
         }
     }
@@ -205,7 +234,7 @@ impl PowerGroup {
                 }),
                 self.power_profile
                     .slider()
-                    .and_then(|_| self.cpu_tuning.group_item(PowerTarget::CpuTuning)),
+                    .map(|_| GroupItem::reading(CpuTuningEntry, PowerTarget::CpuTuning)),
             ]
             .into_iter()
             .flatten(),

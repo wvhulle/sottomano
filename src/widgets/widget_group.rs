@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use chrono::Locale;
 use iced::{
-    Alignment, Element, Padding,
+    Alignment, Element, Padding, Subscription,
     mouse::ScrollDelta,
     widget::{Row, button, container, mouse_area},
 };
@@ -64,6 +64,14 @@ impl GroupExpansion {
 
     pub fn is_expanded(&self) -> bool {
         self.expanded
+    }
+
+    pub fn while_expanded<M>(&self, subscription: Subscription<M>) -> Subscription<M> {
+        if self.expanded {
+            subscription
+        } else {
+            Subscription::none()
+        }
     }
 }
 
