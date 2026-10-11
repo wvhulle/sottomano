@@ -140,9 +140,25 @@ in
       '';
     };
 
+    windowAgents.kitty.enable = lib.mkEnableOption ''
+      per-window process trees for kitty OS windows sharing one
+      `--single-instance` process. Enables kitty's socket-only remote control
+      (at `mkDefault` priority, so an existing kitty config wins) and lets the
+      bar retitle each kitty window once to learn which niri window it is
+    '';
+
   };
 
   config = lib.mkIf cfg.enable {
+    services.vetrata.settings.window_agents = lib.mkIf cfg.windowAgents.kitty.enable {
+      kitty = true;
+    };
+
+    programs.kitty.settings = lib.mkIf cfg.windowAgents.kitty.enable {
+      allow_remote_control = lib.mkDefault "socket-only";
+      listen_on = lib.mkDefault "unix:$XDG_RUNTIME_DIR/kitty.sock";
+    };
+
     assertions = lib.optionals cfg.umbra.enable [
       {
         assertion = themeCfg != null && themeCfg ? palettes;

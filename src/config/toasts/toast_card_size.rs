@@ -13,7 +13,7 @@ pub struct ToastCardSizeConfig {
 impl Default for ToastCardSizeConfig {
     fn default() -> Self {
         Self {
-            card_width_px: 380.0,
+            card_width_px: 440.0,
             icon_size_px: 44.0,
             app_badge_size_px: 20.0,
             image_preview_max_height_px: 180.0,
