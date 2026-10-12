@@ -9,11 +9,7 @@ use iced::{
     alignment::{Horizontal, Vertical},
     border::Radius,
     mouse::Interaction,
-    widget::{
-        Column, Container, Space, Text, container, row,
-        rule::{self, FillMode},
-        table,
-    },
+    widget::{Column, Container, Space, Text, container, row, table},
 };
 
 use crate::{
@@ -29,6 +25,7 @@ use crate::{
         favicon::Favicons,
         loading_text::{LoadingPhase, loading_text},
         pressable_text::pressable_text,
+        section_column::section_column,
         text::{bar_text, column_heading},
         tooltip_body::{
             Cell, KeyValue, Readiness, RecordCells, RefreshInfo, Section, SectionBody, Tooltip,
@@ -236,23 +233,11 @@ impl<'a> TooltipContent<'a> {
             .filter(|section| !section.body().is_empty())
             .map(|section| self.in_readiness(section.readiness()).section(section));
 
-        let dim = self.config.theme.palette.dim;
-        let divider = move || {
-            rule::horizontal(DIVIDER_THICKNESS_PX)
-                .style(move |_| rule::Style {
-                    color: dim,
-                    radius: 0.0.into(),
-                    fill_mode: FillMode::Full,
-                    snap: false,
-                })
-                .into()
-        };
-        let with_dividers = filled.enumerate().flat_map(|(index, section)| {
-            (index > 0).then(divider).into_iter().chain(once(section))
-        });
-        Column::with_children(with_dividers)
-            .spacing((SECTION_SEPARATION_PX - DIVIDER_THICKNESS_PX) / 2.0)
-            .into()
+        section_column(
+            Column::with_children(filled).spacing(SECTION_SEPARATION_PX),
+            self.config.theme.palette.dim,
+            DIVIDER_THICKNESS_PX,
+        )
     }
 
     fn section(&self, section: &Section) -> Element<'static, Message> {
