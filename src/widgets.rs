@@ -31,6 +31,7 @@ pub mod rate_text;
 pub mod region_reporter;
 pub mod reveal;
 
+pub mod section_column;
 pub mod simple_icons;
 pub mod slider_control;
 pub mod source_reading;
