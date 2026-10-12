@@ -1,9 +1,7 @@
 use std::{path::Path, time::Duration};
 
-use tokio::task::spawn_blocking;
-
 use super::{CPU_FREQ, Error, read_field, read_trimmed};
-use crate::data::source::Source;
+use crate::data::source::{Source, blocking_poll};
 
 const PLATFORM_PROFILE: &str = "/sys/firmware/acpi";
 
@@ -55,8 +53,6 @@ impl Source for CpuTuning {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_cpu_tuning)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_cpu_tuning).await
     }
 }

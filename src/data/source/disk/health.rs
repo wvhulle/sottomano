@@ -1,6 +1,5 @@
 use std::{path::Path, time::Duration};
 
-use tokio::task::spawn_blocking;
 use uom::si::f64::ThermodynamicTemperature;
 
 use super::{
@@ -11,7 +10,7 @@ use super::{
 use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::source::{
-        Source,
+        Source, blocking_poll,
         hardware::DriveIdentity,
         sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
     },
@@ -54,9 +53,7 @@ impl Source for DriveHealth {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {
-        spawn_blocking(move || read_drive_health(&config))
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(move || read_drive_health(&config)).await
     }
 }
 

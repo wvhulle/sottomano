@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
-    data::source::Source,
+    data::source::{Source, blocking_poll},
 };
 
 const CPU_PACKAGE_CHIPS: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
@@ -53,11 +53,12 @@ impl Source for CpuCoreTemperatures {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(overrides: ThresholdOverrides) -> Result<Self, Self::Error> {
-        spawn_blocking(move || CpuCoreTemperatures {
-            cores: core_temperatures(overrides),
+        blocking_poll(move || {
+            Ok(CpuCoreTemperatures {
+                cores: core_temperatures(overrides),
+            })
         })
         .await
-        .map_err(|_| Error::Panicked)
     }
 }
 
@@ -100,9 +101,7 @@ impl Source for Temperature {
     }
 
     async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {
-        spawn_blocking(move || read_temperature(&config))
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(move || read_temperature(&config)).await
     }
 }
 

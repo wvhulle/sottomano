@@ -5,6 +5,8 @@ use std::{
     time::Duration,
 };
 
+use tokio::task::spawn_blocking;
+
 pub mod ai;
 pub mod app_icon;
 pub mod app_rules;
@@ -49,6 +51,21 @@ pub mod wallpaper;
 pub mod weather;
 pub mod window_agents;
 pub mod wireguard;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Panicked;
+
+pub async fn blocking_poll<T, E>(
+    read: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<Panicked> + Send + 'static,
+{
+    spawn_blocking(read)
+        .await
+        .unwrap_or_else(|_| Err(E::from(Panicked)))
+}
 
 pub trait Source: Clone + PartialEq + Sized + Send + 'static {
     type Error: Clone + Debug + Display + Send + 'static;

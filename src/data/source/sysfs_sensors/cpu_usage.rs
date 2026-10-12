@@ -1,13 +1,12 @@
 use std::{fs, thread, time::Duration};
 
-use tokio::task::spawn_blocking;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
     Error, cpu_core_index,
     cpu_idle::{CoreDeepIdle, IdleSnapshot},
 };
-use crate::data::source::Source;
+use crate::data::source::{Source, blocking_poll};
 
 const CPU_STAT: &str = "/proc/stat";
 const SAMPLE_GAP: Duration = Duration::from_millis(200);
@@ -39,9 +38,7 @@ impl Source for CpuUsage {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_cpu_usage)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_cpu_usage).await
     }
 }
 
@@ -54,9 +51,7 @@ impl Source for CpuCoreLoads {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_core_loads)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_core_loads).await
     }
 }
 

@@ -30,7 +30,7 @@ use zbus::{
 
 use crate::{
     data::source::bus::{DeclaredProperties, OwnerProcess, Properties},
-    message_subscriptions::restarting,
+    message_subscriptions::restarting_subscription,
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
@@ -477,11 +477,7 @@ async fn load_art(url: &str) -> Option<image::Handle> {
 }
 
 pub fn subscription() -> Subscription<Vec<Media>> {
-    Subscription::run(readings)
-}
-
-fn readings() -> impl Stream<Item = Vec<Media>> {
-    restarting("mpris", connect)
+    restarting_subscription("mpris", connect)
 }
 
 struct Session<Changes> {

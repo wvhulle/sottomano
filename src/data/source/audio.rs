@@ -41,7 +41,7 @@ use pipewire::{
 use tokio::sync::{oneshot, watch};
 use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
-use crate::message_subscriptions::restarting;
+use crate::message_subscriptions::restarting_subscription;
 
 mod meter;
 
@@ -167,11 +167,7 @@ impl Commands {
 }
 
 pub fn subscription() -> Subscription<AudioEvent> {
-    Subscription::run(audio_events)
-}
-
-fn audio_events() -> impl Stream<Item = AudioEvent> {
-    restarting("audio", connect)
+    restarting_subscription("audio", connect)
 }
 
 async fn connect() -> io::Result<impl Stream<Item = AudioEvent>> {

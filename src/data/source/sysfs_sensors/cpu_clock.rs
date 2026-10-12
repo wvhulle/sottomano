@@ -4,7 +4,7 @@ use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, Error, core_freqs};
-use crate::data::source::Source;
+use crate::data::source::{Source, blocking_poll};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrequencyLimit {
@@ -85,9 +85,7 @@ impl Source for CpuClock {
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_cpu_clock)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_cpu_clock).await
     }
 }
 

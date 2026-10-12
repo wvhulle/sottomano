@@ -1,10 +1,9 @@
 use std::{fs, time::Duration};
 
 use bytesize::ByteSize;
-use tokio::task::spawn_blocking;
 
 use super::Error;
-use crate::data::source::Source;
+use crate::data::source::{Source, blocking_poll};
 
 const MEMINFO: &str = "/proc/meminfo";
 
@@ -29,9 +28,7 @@ impl Source for Memory {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_meminfo)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_meminfo).await
     }
 }
 

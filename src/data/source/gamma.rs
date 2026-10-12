@@ -42,12 +42,7 @@ impl Source for Gamma {
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
-        let connection = zbus::Connection::session()
-            .await
-            .map_err(|error| Error::Connect(error.to_string()))?;
-        let proxy = GammaRelayProxy::new(&connection)
-            .await
-            .map_err(|error| Error::Connect(error.to_string()))?;
+        let proxy: GammaRelayProxy = bus::session_proxy().await?;
         let brightness = bus::call(proxy.brightness().await)?;
         let temperature = bus::call(proxy.temperature().await)?;
         #[allow(clippy::cast_possible_truncation)]

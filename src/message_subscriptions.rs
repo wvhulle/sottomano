@@ -234,12 +234,27 @@ pub fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<S>
+pub fn named_stream<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<S>
 where
     S: Send + 'static,
     St: Stream<Item = S> + Send + 'static,
 {
     Subscription::run_with((name, readings), |&(_, readings)| readings())
+}
+
+pub fn restarting_subscription<F, S, E>(
+    source: &'static str,
+    connect: fn() -> F,
+) -> Subscription<S::Item>
+where
+    F: Future<Output = Result<S, E>> + Send + 'static,
+    S: Stream + Send + 'static,
+    S::Item: Send + 'static,
+    E: Display + Send + 'static,
+{
+    Subscription::run_with((source, connect), |&(source, connect)| {
+        restarting(source, connect)
+    })
 }
 
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {

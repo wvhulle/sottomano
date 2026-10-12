@@ -18,7 +18,7 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::message_subscriptions::restarting;
+use crate::message_subscriptions::restarting_subscription;
 
 const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
@@ -318,11 +318,7 @@ impl JobView {
 }
 
 pub fn subscription() -> Subscription<Jobs> {
-    Subscription::run(jobs)
-}
-
-fn jobs() -> impl Stream<Item = Jobs> {
-    restarting("job view", serve)
+    restarting_subscription("job view", serve)
 }
 
 struct Served {

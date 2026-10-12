@@ -6,6 +6,7 @@ use std::{
 use zbus::{
     fdo::DBusProxy,
     names::BusName,
+    proxy::{Builder, Defaults},
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
@@ -65,7 +66,6 @@ pub enum Error {
     Connect(String),
     Call(String),
     Absent,
-    Panicked,
 }
 
 impl Display for Error {
@@ -74,9 +74,31 @@ impl Display for Error {
             Error::Connect(detail) => write!(f, "session bus: {detail}"),
             Error::Call(detail) => write!(f, "{detail}"),
             Error::Absent => write!(f, "service not running"),
-            Error::Panicked => write!(f, "bus call panicked"),
         }
     }
+}
+
+pub async fn session_proxy<P>() -> Result<P, Error>
+where
+    P: From<zbus::Proxy<'static>> + Defaults,
+{
+    proxy_on(zbus::Connection::session().await).await
+}
+
+pub async fn system_proxy<P>() -> Result<P, Error>
+where
+    P: From<zbus::Proxy<'static>> + Defaults,
+{
+    proxy_on(zbus::Connection::system().await).await
+}
+
+async fn proxy_on<P>(connection: zbus::Result<zbus::Connection>) -> Result<P, Error>
+where
+    P: From<zbus::Proxy<'static>> + Defaults,
+{
+    let connected = |error: zbus::Error| Error::Connect(error.to_string());
+    let connection = connection.map_err(connected)?;
+    Builder::new(&connection).build().await.map_err(connected)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

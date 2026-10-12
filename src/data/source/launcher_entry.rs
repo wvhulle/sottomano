@@ -13,7 +13,7 @@ use zbus::{
 
 use crate::{
     data::{empty_text::non_empty, source::bus::DeclaredProperties},
-    message_subscriptions::restarting,
+    message_subscriptions::restarting_subscription,
 };
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
@@ -126,11 +126,7 @@ enum Signal {
 }
 
 pub fn subscription() -> Subscription<LauncherEntries> {
-    Subscription::run(entries)
-}
-
-fn entries() -> impl Stream<Item = LauncherEntries> {
-    restarting("launcher entry", connect)
+    restarting_subscription("launcher entry", connect)
 }
 
 async fn connect() -> zbus::Result<impl Stream<Item = LauncherEntries>> {
