@@ -51,6 +51,6 @@ pub async fn fetch<Reply: DeserializeOwned>(
 
     Ok(PlanReply {
         plan: plan(oauth),
-        reply: serde_json::from_value(body)?,
+        reply: http::decode(Some(body))?,
     })
 }

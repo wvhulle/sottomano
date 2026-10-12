@@ -1,13 +1,12 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
-    sync::Arc,
     time::Duration,
 };
 
 use chrono::{Local, SecondsFormat, TimeZone, Utc};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
 
 use crate::data::source::{Source, ai::read_secret, http};
 
@@ -19,7 +18,6 @@ pub enum Error {
     Secret,
     Fetch(http::Error),
     Api(String),
-    Decode(Arc<serde_json::Error>),
 }
 
 impl Display for Error {
@@ -28,7 +26,6 @@ impl Display for Error {
             Error::Secret => write!(f, "management key unreadable"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Api(message) => write!(f, "{message}"),
-            Error::Decode(error) => write!(f, "unexpected response: {error}"),
         }
     }
 }
@@ -37,16 +34,6 @@ impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
     }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Error::Decode(Arc::new(error))
-    }
-}
-
-fn decode<T: for<'de> Deserialize<'de>>(body: Option<Value>) -> Result<T, Error> {
-    Ok(serde_json::from_value(body.unwrap_or(Value::Null))?)
 }
 
 #[derive(Deserialize)]
@@ -63,16 +50,6 @@ struct Analytics {
 struct Usage {
     model: Option<String>,
     total_usage: f64,
-}
-
-#[derive(Deserialize)]
-struct ApiError {
-    error: ApiMessage,
-}
-
-#[derive(Deserialize)]
-struct ApiMessage {
-    message: String,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -126,9 +103,11 @@ async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
     let auth = format!("Bearer {key}");
     let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15).await?;
     if resp.status != 200 {
-        return Err(Error::Api(api_error(resp.body, resp.status)));
+        let message =
+            http::api_message(resp.body).unwrap_or_else(|| format!("HTTP {}", resp.status));
+        return Err(Error::Api(message));
     }
-    let analytics: Envelope<Analytics> = decode(resp.body)?;
+    let analytics: Envelope<Analytics> = http::decode(resp.body)?;
 
     let mut per_model: Vec<(String, f64)> = Vec::new();
     for usage in analytics.data.data {
@@ -150,10 +129,6 @@ async fn credits(key: &str) -> Result<Credits, Error> {
     let envelope: Envelope<Credits> =
         http::get_json(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
     Ok(envelope.data)
-}
-
-fn api_error(body: Option<Value>, status: u16) -> String {
-    decode::<ApiError>(body).map_or_else(|_| format!("HTTP {status}"), |api| api.error.message)
 }
 
 fn local_midnight_utc() -> String {

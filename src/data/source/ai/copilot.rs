@@ -5,7 +5,6 @@ mod monthly_usage;
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     path::Path,
-    sync::Arc,
     time::Duration,
 };
 
@@ -29,7 +28,6 @@ const USER_POLL_INTERVAL: Duration = Duration::from_secs(15);
 pub enum Error {
     Secret,
     Fetch(http::Error),
-    Decode(Arc<serde_json::Error>),
     NoQuota,
     Ccusage(ccusage::Error),
 }
@@ -39,7 +37,6 @@ impl Display for Error {
         match self {
             Error::Secret => write!(f, "GitHub token unreadable"),
             Error::Fetch(error) => write!(f, "{error}"),
-            Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::NoQuota => write!(f, "no metered quota in response"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
         }
@@ -49,12 +46,6 @@ impl Display for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Error::Decode(Arc::new(error))
     }
 }
 
