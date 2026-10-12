@@ -365,7 +365,7 @@ enum Event {
         id: u32,
         placement: RoutePlacement,
     },
-    NodeLevels {
+    Levels {
         id: u32,
         update: LevelsUpdate,
     },
@@ -377,10 +377,6 @@ enum Event {
         id: u32,
         pid: Option<i32>,
         running: bool,
-    },
-    StreamLevels {
-        id: u32,
-        update: LevelsUpdate,
     },
     RouteLevels {
         device: u32,
@@ -412,9 +408,11 @@ fn reduce(graph: &mut Graph, event: Event) {
                 node.placement = Some(placement);
             }
         }
-        Event::NodeLevels { id, update } => {
+        Event::Levels { id, update } => {
             if let Some(node) = graph.nodes.get_mut(&id) {
                 node.levels.merge(update);
+            } else if let Some(stream) = graph.streams.get_mut(&id) {
+                stream.levels.merge(update);
             }
         }
         Event::StreamAdded { id, stream } => {
@@ -426,11 +424,6 @@ fn reduce(graph: &mut Graph, event: Event) {
                     stream.pid = pid;
                 }
                 stream.running = running;
-            }
-        }
-        Event::StreamLevels { id, update } => {
-            if let Some(stream) = graph.streams.get_mut(&id) {
-                stream.levels.merge(update);
             }
         }
         Event::RouteLevels { device, route } => {
@@ -572,26 +565,16 @@ fn cubic(percent: i64) -> f32 {
     (percent as f32 / 100.0).powi(3)
 }
 
-struct NodeProxy {
-    proxy: Node,
-    _listener: NodeListener,
-}
-
-struct DeviceProxy {
-    proxy: Device,
-    _listener: DeviceListener,
-}
-
-struct DefaultsProxy {
-    _proxy: Metadata,
-    _listener: MetadataListener,
+struct Bound<P, L> {
+    proxy: P,
+    _listener: L,
 }
 
 #[derive(Default)]
 struct Proxies {
-    nodes: HashMap<u32, NodeProxy>,
-    devices: HashMap<u32, DeviceProxy>,
-    defaults: Vec<DefaultsProxy>,
+    nodes: HashMap<u32, Bound<Node, NodeListener>>,
+    devices: HashMap<u32, Bound<Device, DeviceListener>>,
+    defaults: Vec<Bound<Metadata, MetadataListener>>,
 }
 
 #[derive(Default)]
@@ -837,72 +820,58 @@ fn track_node(
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
+    let id = global.id;
     if let Some(direction) = node_direction(props) {
-        track_device_node(registry, session, states, global, props, direction);
+        if let Some(node) = node_from_props(props, direction) {
+            track_levelled_node(
+                registry,
+                session,
+                states,
+                global,
+                "node",
+                on_node_info(id, session, states),
+                Event::NodeAdded { id, node },
+            );
+        }
     } else if is_output_stream(props) {
-        track_stream_node(registry, session, states, global, props);
+        track_levelled_node(
+            registry,
+            session,
+            states,
+            global,
+            "stream",
+            on_stream_info(id, session, states),
+            Event::StreamAdded {
+                id,
+                stream: stream_from_props(props),
+            },
+        );
     }
 }
 
-fn track_device_node(
+fn track_levelled_node(
     registry: &Registry,
     session: &Shared,
     states: &Publisher,
     global: &GlobalObject<&DictRef>,
-    props: &DictRef,
-    direction: Direction,
+    label: &str,
+    on_info: impl Fn(&NodeInfoRef) + 'static,
+    added: Event,
 ) {
-    let Some(node) = node_from_props(props, direction) else {
-        return;
-    };
-    let Some(proxy) = bind::<Node>(registry, global, "node") else {
+    let Some(proxy) = bind::<Node>(registry, global, label) else {
         return;
     };
     proxy.subscribe_params(&[ParamType::Props]);
     let id = global.id;
     let listener = proxy
         .add_listener_local()
-        .info(on_node_info(id, session, states))
-        .param(on_node_param(id, session, states))
+        .info(on_info)
+        .param(on_levels_param(id, session, states))
         .register();
-    dispatch(session, states, Event::NodeAdded { id, node });
+    dispatch(session, states, added);
     session.borrow_mut().proxies.nodes.insert(
         id,
-        NodeProxy {
-            proxy,
-            _listener: listener,
-        },
-    );
-}
-
-fn track_stream_node(
-    registry: &Registry,
-    session: &Shared,
-    states: &Publisher,
-    global: &GlobalObject<&DictRef>,
-    props: &DictRef,
-) {
-    let Some(proxy) = bind::<Node>(registry, global, "stream") else {
-        return;
-    };
-    proxy.subscribe_params(&[ParamType::Props]);
-    let id = global.id;
-    let listener = proxy
-        .add_listener_local()
-        .info(on_stream_info(id, session, states))
-        .param(on_stream_param(id, session, states))
-        .register();
-    dispatch(
-        session,
-        states,
-        Event::StreamAdded {
-            id,
-            stream: stream_from_props(props),
-        },
-    );
-    session.borrow_mut().proxies.nodes.insert(
-        id,
-        NodeProxy {
+        Bound {
             proxy,
             _listener: listener,
         },
@@ -932,7 +901,7 @@ fn track_device(
     proxy.enum_params(0, Some(ParamType::Route), 0, u32::MAX);
     session.borrow_mut().proxies.devices.insert(
         id,
-        DeviceProxy {
+        Bound {
             proxy,
             _listener: listener,
         },
@@ -956,8 +925,8 @@ fn track_defaults(
         .add_listener_local()
         .property(on_default_property(session, states))
         .register();
-    session.borrow_mut().proxies.defaults.push(DefaultsProxy {
-        _proxy: proxy,
+    session.borrow_mut().proxies.defaults.push(Bound {
+        proxy,
         _listener: listener,
     });
 }
@@ -972,7 +941,7 @@ fn on_node_info(id: u32, session: &Shared, states: &Publisher) -> impl Fn(&NodeI
     }
 }
 
-fn on_node_param(
+fn on_levels_param(
     id: u32,
     session: &Shared,
     states: &Publisher,
@@ -981,7 +950,7 @@ fn on_node_param(
     let states = states.clone();
     move |_, _, _, _, param| {
         if let Some(update) = param.and_then(parse_props) {
-            dispatch(&session, &states, Event::NodeLevels { id, update });
+            dispatch(&session, &states, Event::Levels { id, update });
         }
     }
 }
@@ -997,20 +966,6 @@ fn on_stream_info(
         let pid = info.props().and_then(stream_pid);
         let running = matches!(info.state(), NodeState::Running);
         dispatch(&session, &states, Event::StreamInfo { id, pid, running });
-    }
-}
-
-fn on_stream_param(
-    id: u32,
-    session: &Shared,
-    states: &Publisher,
-) -> impl Fn(i32, ParamType, u32, u32, Option<&Pod>) + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |_, _, _, _, param| {
-        if let Some(update) = param.and_then(parse_props) {
-            dispatch(&session, &states, Event::StreamLevels { id, update });
-        }
     }
 }
 
