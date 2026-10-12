@@ -10,7 +10,7 @@ use iced::{
     futures::{
         Stream, StreamExt,
         future::ready,
-        stream::{self, iter, select},
+        stream::{self, select},
     },
     widget::image,
 };
@@ -394,37 +394,16 @@ async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
         .collect()
 }
 
-struct PlayerScan<'a> {
-    players: Vec<Media>,
-    art: &'a mut ArtCache,
-}
-
-impl PlayerScan<'_> {
-    async fn include(mut self, connection: &Connection, dbus: &DBusProxy<'_>, bus: String) -> Self {
-        match read_media(connection, dbus, &bus, self.art).await {
-            Ok(media) => self.players.push(media),
+async fn read_all(connection: &Connection, dbus: &DBusProxy<'_>, art: &mut ArtCache) -> Vec<Media> {
+    let mut players = Vec::new();
+    for bus in mpris_names(dbus).await {
+        match read_media(connection, dbus, &bus, art).await {
+            Ok(media) => players.push(media),
             Err(e) => tracing::debug!("mpris {bus}: {e}"),
         }
-        self
     }
-
-    fn finish(self) -> Vec<Media> {
-        let players = self.players;
-        self.art
-            .retain(|bus, _| players.iter().any(|media| &media.bus == bus));
-        players
-    }
-}
-
-async fn read_all(connection: &Connection, dbus: &DBusProxy<'_>, art: &mut ArtCache) -> Vec<Media> {
-    let scan = PlayerScan {
-        players: Vec::new(),
-        art,
-    };
-    iter(mpris_names(dbus).await)
-        .fold(scan, |scan, bus| scan.include(connection, dbus, bus))
-        .await
-        .finish()
+    art.retain(|bus, _| players.iter().any(|media| &media.bus == bus));
+    players
 }
 
 struct CachedArt {
