@@ -1,15 +1,32 @@
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::{severity::Severity, source::sysfs_sensors::memory::Memory},
+    data::{
+        severity::Severity,
+        source::sysfs_sensors::memory::{Memory, MemoryProcesses},
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
+
+impl MemoryProcesses {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![
+            Section::dictionary(self.processes.iter().map(|process| {
+                KeyValue::new(
+                    process.name.clone(),
+                    process.resident.display().iec().to_string(),
+                )
+            }))
+            .titled("Processes"),
+        ]
+    }
+}
 
 impl BarWidget for Memory {
     fn name(&self) -> &'static str {

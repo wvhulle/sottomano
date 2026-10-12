@@ -16,7 +16,7 @@ use crate::{
             cpu_clock::CpuClock,
             cpu_topology::CpuTopology,
             cpu_usage::{CpuCoreLoads, CpuUsage},
-            memory::Memory,
+            memory::{Memory, MemoryProcesses},
             temperature::{CpuCoreTemperatures, Temperature},
         },
     },
@@ -56,6 +56,7 @@ pub struct ComputeGroup {
     topology: CpuTopology,
     core_loads: OnHoverReading<CpuCoreLoads>,
     core_temperatures: OnHoverReading<CpuCoreTemperatures>,
+    memory_processes: OnHoverReading<MemoryProcesses>,
     expansion: GroupExpansion,
 }
 
@@ -70,6 +71,7 @@ pub enum ComputeMessage {
     Temperature(Result<Temperature, sysfs_sensors::Error>),
     CoreLoadsFetched(Result<CpuCoreLoads, String>),
     CoreTemperaturesFetched(Result<CpuCoreTemperatures, String>),
+    MemoryProcessesFetched(Result<MemoryProcesses, String>),
     Expansion(ExpansionMessage),
 }
 
@@ -97,6 +99,7 @@ impl ComputeGroup {
     ) -> Task<ComputeMessage> {
         self.core_loads.stop();
         self.core_temperatures.stop();
+        self.memory_processes.stop();
         match hovered {
             Some(HoverTarget::Compute(ComputeTarget::Cpu)) => self.core_loads.fetch(
                 polled::<CpuCoreLoads>(()),
@@ -108,6 +111,11 @@ impl ComputeGroup {
                     config.widget_groups.temperature_sensors.cpu.overrides(),
                 ),
                 ComputeMessage::CoreTemperaturesFetched,
+                config,
+            ),
+            Some(HoverTarget::Compute(ComputeTarget::Memory)) => self.memory_processes.fetch(
+                polled::<MemoryProcesses>(()),
+                ComputeMessage::MemoryProcessesFetched,
                 config,
             ),
             _ => Task::none(),
@@ -136,6 +144,9 @@ impl ComputeGroup {
             ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive(fetched),
             ComputeMessage::CoreTemperaturesFetched(fetched) => {
                 self.core_temperatures.receive(fetched);
+            }
+            ComputeMessage::MemoryProcessesFetched(fetched) => {
+                self.memory_processes.receive(fetched);
             }
             ComputeMessage::Cpu(reading) => self.cpu.receive(reading),
             ComputeMessage::Memory(reading) => self.memory.receive(reading),
@@ -173,9 +184,13 @@ impl ComputeGroup {
                 ]
                 .concat(),
             ),
-            ComputeTarget::Memory => self
-                .memory
-                .tooltip_with_sections([self.hardware.memory.hardware_section()]),
+            ComputeTarget::Memory => self.memory.tooltip_with_sections(
+                [
+                    self.memory_processes.sections(MemoryProcesses::sections),
+                    vec![self.hardware.memory.hardware_section()],
+                ]
+                .concat(),
+            ),
             ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
                 self.clock
                     .get()
