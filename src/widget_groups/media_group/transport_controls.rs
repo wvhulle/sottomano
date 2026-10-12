@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     data::source::mpris::{Command, LoopMode, Media, Setting, Status},
     widgets::{
-        glyph_button::GlyphButton,
+        glyph_button,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         widget_state::WidgetState,
@@ -68,7 +68,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        GlyphButton::new(glyph, size, color, (self.on_command)(command)).into()
+        glyph_button(glyph, size, color, (self.on_command)(command))
     }
 
     fn shuffle<'a>(&self) -> Option<Element<'a, Message>>

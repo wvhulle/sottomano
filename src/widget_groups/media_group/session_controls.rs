@@ -5,7 +5,7 @@ use crate::{
     data::source::mpris::{Command, Media, Status},
     widgets::{
         confirm_button::ConfirmButton,
-        glyph_button::GlyphButton,
+        glyph_button,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         widget_state::WidgetState,
@@ -52,13 +52,12 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
             let color = state
                 .color(&self.config.theme.palette)
                 .scale_alpha(self.reveal);
-            GlyphButton::new(
+            glyph_button(
                 Phosphor::Stop(state.weight()),
                 self.config.theme.font.icon_size_px,
                 color,
                 (self.on_command)(Command::Stop),
             )
-            .into()
         })
     }
 

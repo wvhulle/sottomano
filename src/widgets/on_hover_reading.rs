@@ -12,9 +12,6 @@ use crate::{
     widgets::tooltip_body::{KeyValue, Readiness, Section},
 };
 
-#[derive(Debug, Clone)]
-pub struct HoverFetched<S>(Result<S, String>);
-
 #[derive(Debug)]
 pub struct OnHoverReading<S> {
     latest: Option<Result<S, String>>,
@@ -36,7 +33,7 @@ impl<S: Send + 'static> OnHoverReading<S> {
     pub fn fetch<E: Display, Message: Send + 'static>(
         &mut self,
         readings: impl Stream<Item = Result<S, E>> + Send + 'static,
-        delivered: fn(HoverFetched<S>) -> Message,
+        delivered: fn(Result<S, String>) -> Message,
         config: &Config,
     ) -> Task<Message> {
         self.keep_shape();
@@ -47,7 +44,7 @@ impl<S: Send + 'static> OnHoverReading<S> {
         })
         .flatten();
         let (task, fetching) = Task::run(delayed, |reading| {
-            HoverFetched(reading.map_err(|failure| failure.to_string()))
+            reading.map_err(|failure| failure.to_string())
         })
         .abortable();
         self.fetching = Some(fetching.abort_on_drop());
@@ -65,9 +62,9 @@ impl<S: Send + 'static> OnHoverReading<S> {
         }
     }
 
-    pub fn receive(&mut self, fetched: HoverFetched<S>) {
+    pub fn receive(&mut self, fetched: Result<S, String>) {
         if self.fetching.is_some() {
-            self.latest = Some(fetched.0);
+            self.latest = Some(fetched);
         }
     }
 

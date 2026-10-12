@@ -15,7 +15,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        rate_text::RateText,
+        rate_text::per_second_text,
         tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
@@ -86,15 +86,17 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
             .map(|connectivity| KeyValue::new("Connectivity", connectivity.label()));
         TooltipBody::dictionary(
             [
-                KeyValue::new(D::LABEL, self.rate.per_second_text()),
-                KeyValue::new("Peak", self.peak_rate.per_second_text()),
+                KeyValue::new(D::LABEL, per_second_text(self.rate)),
+                KeyValue::new("Peak", per_second_text(self.peak_rate)),
                 KeyValue::new("Interfaces", self.interfaces.join(", ")),
             ]
             .into_iter()
             .chain(connectivity)
             .chain([KeyValue::new(
                 "Capacity",
-                InformationRate::new::<megabyte_per_second>(SCALE_END_MB_PER_S).per_second_text(),
+                per_second_text(InformationRate::new::<megabyte_per_second>(
+                    SCALE_END_MB_PER_S,
+                )),
             )]),
         )
     }

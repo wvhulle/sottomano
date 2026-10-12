@@ -18,7 +18,7 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::{HoverFetched, OnHoverReading},
+        on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -65,7 +65,7 @@ pub enum InternetMessage {
     Installed(Installed),
     Throughput(Readings),
     Wireguard(Result<Wireguard, command::Error>),
-    TunnelAddressFetched(HoverFetched<TunnelAddress>),
+    TunnelAddressFetched(Result<TunnelAddress, String>),
     Tailscale(Result<Tailscale, tailscale::Error>),
     Expansion(ExpansionMessage),
     Disconnect(String),

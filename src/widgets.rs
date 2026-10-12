@@ -5,13 +5,11 @@ pub mod bar_widget;
 pub mod confirm_button;
 pub mod context_menu;
 pub mod continuous_reading;
-pub mod copyable;
 pub mod device_setting;
 pub mod expand_animation;
 pub mod favicon;
 pub mod focus_indicator;
 pub mod gauge;
-pub mod glyph_button;
 pub mod group_item;
 pub mod hardware_section;
 pub mod idle;
@@ -26,6 +24,7 @@ pub mod pager_slot;
 pub mod panel_frame;
 pub mod phosphor;
 pub mod popup_connector;
+pub mod pressable_text;
 pub mod progress_line;
 pub mod rate_text;
 pub mod region_reporter;
@@ -50,7 +49,9 @@ pub mod window_title;
 
 pub const DISABLED_ALPHA: f32 = 0.4;
 
-use iced::{Color, Theme, widget::button};
+use iced::{Color, Element, Theme, widget::button};
+
+use crate::widgets::bar_widget::Glyph;
 
 pub(crate) fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, _| button::Style {
@@ -58,4 +59,17 @@ pub(crate) fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) 
         text_color,
         ..button::Style::default()
     }
+}
+
+pub fn glyph_button<'a, Message: Clone + 'a>(
+    glyph: impl Into<Glyph>,
+    size: f32,
+    color: Color,
+    on_press: Message,
+) -> Element<'a, Message> {
+    button(glyph.into().view(size, color))
+        .padding(0)
+        .style(flat_button(color))
+        .on_press(on_press)
+        .into()
 }
