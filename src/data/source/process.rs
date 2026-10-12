@@ -346,7 +346,7 @@ pub fn inspection(watched: &Watched) -> impl Stream<Item = Result<Inspection, St
     })
 }
 
-fn binary_name(process: &Proc) -> Option<String> {
+pub fn binary_name(process: &Proc) -> Option<String> {
     let exe = process.exe().ok()?;
     non_empty(exe.file_name()?.to_str()?.to_owned())
 }

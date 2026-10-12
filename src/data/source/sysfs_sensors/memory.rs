@@ -1,11 +1,14 @@
-use std::{fs, time::Duration};
+use std::{cmp::Reverse, fs, time::Duration};
 
 use bytesize::ByteSize;
+use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use super::Error;
-use crate::data::source::{Source, blocking_poll};
+use crate::data::source::{Source, blocking_poll, process::binary_name};
 
 const MEMINFO: &str = "/proc/meminfo";
+const PROC: &str = "/proc";
+const SHOWN_PROCESSES: usize = 10;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Memory {
@@ -40,6 +43,50 @@ fn read_meminfo() -> Result<Memory, Error> {
         used: total - available,
         total,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryProcess {
+    pub pid: i32,
+    pub name: String,
+    pub resident: ByteSize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryProcesses {
+    pub processes: Vec<MemoryProcess>,
+}
+
+impl Source for MemoryProcesses {
+    type Error = Error;
+
+    type Key = ();
+
+    const NAME: &'static str = "memory processes";
+    const INTERVAL: Duration = Duration::from_secs(3);
+
+    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+        blocking_poll(read_memory_processes).await
+    }
+}
+
+fn read_memory_processes() -> Result<MemoryProcesses, Error> {
+    let mut processes: Vec<MemoryProcess> = all_processes()
+        .map_err(|_| Error::Unreadable(PROC.to_owned()))?
+        .filter_map(Result::ok)
+        .filter_map(|process| {
+            let stat = process.stat().ok()?;
+            let resident = ByteSize::b(stat.rss_bytes().get());
+            (resident.as_u64() > 0).then(|| MemoryProcess {
+                pid: stat.pid,
+                name: binary_name(&process).unwrap_or(stat.comm),
+                resident,
+            })
+        })
+        .collect();
+    processes.sort_by_key(|process| Reverse(process.resident));
+    processes.truncate(SHOWN_PROCESSES);
+    Ok(MemoryProcesses { processes })
 }
 
 fn meminfo_size(info: &str, key: &str) -> Result<ByteSize, Error> {
