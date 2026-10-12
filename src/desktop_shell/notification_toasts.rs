@@ -30,9 +30,7 @@ use crate::{
     desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
     state::ShellSettings,
     widgets::{
-        announced_level::LevelReading,
-        ongoing_toast::{OngoingKey, OngoingToast},
-        reveal::reveal_y,
+        announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
         widget_group::GroupToastRequests,
     },
 };
@@ -62,24 +60,6 @@ impl<'a> ToastContext<'a> {
     }
 }
 
-#[derive(Default)]
-pub struct WidgetToastRequests {
-    ongoing_toasts: Vec<OngoingToast<Message>>,
-    levels: Vec<LevelReading<Message>>,
-}
-
-impl FromIterator<GroupToastRequests<Message>> for WidgetToastRequests {
-    fn from_iter<I: IntoIterator<Item = GroupToastRequests<Message>>>(groups: I) -> Self {
-        groups
-            .into_iter()
-            .fold(Self::default(), |mut requests, group| {
-                requests.ongoing_toasts.extend(group.ongoing_toasts);
-                requests.levels.extend(group.levels);
-                requests
-            })
-    }
-}
-
 pub(super) struct SnoozedOngoingToast {
     key: OngoingKey,
     snoozed_at: Severity,
@@ -98,7 +78,7 @@ pub struct NotificationLayer {
 }
 
 impl DesktopShell {
-    pub(super) fn group_toast_requests(&self) -> WidgetToastRequests {
+    pub(super) fn group_toast_requests(&self) -> GroupToastRequests<Message> {
         let locale = self.config.calendar.locale;
         let TopBarGroups { start, center, end } = self.top_bar_groups();
         let BottomBarGroups {

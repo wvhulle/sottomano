@@ -10,7 +10,7 @@ use quick_xml::escape::escape;
 use tokio::{sync::mpsc, time::timeout};
 
 use super::{
-    DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext, WidgetToastRequests,
+    DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
     toast_card::{self, CardIcons},
     toast_lifecycle::{
         Countdown, ExitPace, Notification, NotificationMessage, ToastContent, ToastKind, lifetime,
@@ -32,6 +32,7 @@ use crate::{
     widgets::{
         announced_level::LevelReading,
         ongoing_toast::{OngoingKey, OngoingToast},
+        widget_group::GroupToastRequests,
     },
 };
 
@@ -160,7 +161,7 @@ impl NotificationLayer {
 
     pub fn show_widget_toasts(
         &mut self,
-        requests: WidgetToastRequests,
+        requests: GroupToastRequests<Message>,
         context: &ToastContext,
     ) -> Task<Message> {
         let ongoing_toasts = self.show_ongoing_toasts(requests.ongoing_toasts, context);

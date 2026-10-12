@@ -1,62 +1,23 @@
 use std::collections::HashMap;
 
-use iced::{
-    Element, Task,
-    task::Handle,
-    widget::{image, svg},
-};
+use iced::{Task, task::Handle};
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    data::source::favicons::{self, FaviconKind, RawFavicon},
+    data::source::favicons::{self, RawFavicon},
     message_subscriptions::blocking,
+    widgets::icon_handle::IconHandle,
 };
-
-#[derive(Clone)]
-pub struct Favicon {
-    handle: FaviconHandle,
-}
-
-#[derive(Clone)]
-enum FaviconHandle {
-    Raster(image::Handle),
-    Svg(svg::Handle),
-}
-
-impl Favicon {
-    fn new(raw: RawFavicon) -> Self {
-        let handle = match raw.kind {
-            FaviconKind::Raster => FaviconHandle::Raster(image::Handle::from_bytes(raw.bytes)),
-            FaviconKind::Svg => FaviconHandle::Svg(svg::Handle::from_memory(raw.bytes)),
-        };
-        Self { handle }
-    }
-
-    pub fn view<'a, Message: 'a>(&self, side: f32, opacity: f32) -> Element<'a, Message> {
-        match &self.handle {
-            FaviconHandle::Raster(handle) => image(handle.clone())
-                .width(side)
-                .height(side)
-                .opacity(opacity)
-                .into(),
-            FaviconHandle::Svg(handle) => svg(handle.clone())
-                .width(side)
-                .height(side)
-                .opacity(opacity)
-                .into(),
-        }
-    }
-}
 
 #[derive(Default)]
 pub struct Favicons {
-    cached: HashMap<String, Favicon>,
+    cached: HashMap<String, IconHandle>,
     titles: Vec<String>,
     poll: Option<Handle>,
 }
 
 impl Favicons {
-    pub fn get(&self, key: &str) -> Option<&Favicon> {
+    pub fn get(&self, key: &str) -> Option<&IconHandle> {
         self.cached.get(key)
     }
 
@@ -64,7 +25,7 @@ impl Favicons {
         self.cached.extend(
             raw.into_iter()
                 .filter(|(title, _)| self.titles.binary_search(title).is_ok())
-                .map(|(title, raw)| (title, Favicon::new(raw))),
+                .map(|(title, raw)| (title, IconHandle::from_bytes(raw.kind, raw.bytes))),
         );
     }
 

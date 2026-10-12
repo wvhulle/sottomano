@@ -14,7 +14,7 @@ use crate::{
         DISABLED_ALPHA,
         activity_line::activity_line,
         bar_widget::Glyph,
-        native_icon::native_icon,
+        icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         text::bar_text,
     },
@@ -103,7 +103,7 @@ fn entry<'a, Message: Clone + 'a>(
     let leading: Option<Element<'a, Message>> = node
         .icon
         .as_ref()
-        .map(|source| native_icon(source, icon_size, 1.0))
+        .map(|source| IconHandle::from(source).view(icon_size, 1.0))
         .or_else(|| {
             matches!(node.kind, MenuKind::Toggle(true))
                 .then(|| Glyph::from(Phosphor::Check(Weight::Regular)).view(icon_size, color))

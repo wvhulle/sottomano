@@ -19,6 +19,7 @@ use crate::{
     desktop_shell::{Message, monitor_surfaces::Position},
     state::ShellSettings,
     widgets::{
+        child_view::{ChildView, ChildViewMut},
         popup_connector::{notch, notch_blur_rows, notch_region},
         region_reporter::RegionRoles,
     },
@@ -159,18 +160,6 @@ fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
     }
 }
 
-struct RenderingView<'t, 'a> {
-    widget: &'t Element<'a, Message>,
-    state: &'t Tree,
-    layout: Layout<'t>,
-}
-
-struct RenderingViewMut<'t, 'a> {
-    widget: &'t mut Element<'a, Message>,
-    state: &'t mut Tree,
-    layout: Layout<'t>,
-}
-
 impl<'a> AnchoredPopup<'a> {
     fn anchor_edge_x(&self) -> f32 {
         self.anchor.x + self.anchor.width
@@ -217,12 +206,12 @@ impl<'a> AnchoredPopup<'a> {
         &'t self,
         tree: &'t Tree,
         layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = RenderingView<'t, 'a>> {
+    ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, Message>> {
         self.renderings
             .iter()
             .zip(&tree.children[1..])
             .zip(layout.children().skip(1))
-            .map(|((rendering, state), layout)| RenderingView {
+            .map(|((rendering, state), layout)| ChildView {
                 widget: &rendering.element,
                 state,
                 layout,
@@ -233,12 +222,12 @@ impl<'a> AnchoredPopup<'a> {
         &'t mut self,
         tree: &'t mut Tree,
         layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = RenderingViewMut<'t, 'a>> {
+    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, Message>> {
         self.renderings
             .iter_mut()
             .zip(&mut tree.children[1..])
             .zip(layout.children().skip(1))
-            .map(|((rendering, state), layout)| RenderingViewMut {
+            .map(|((rendering, state), layout)| ChildViewMut {
                 widget: &mut rendering.element,
                 state,
                 layout,
@@ -322,13 +311,13 @@ impl<'a> AnchoredPopup<'a> {
         &'t mut self,
         tree: &'t mut Tree,
         layout: Layout<'t>,
-    ) -> Option<RenderingViewMut<'t, 'a>> {
+    ) -> Option<ChildViewMut<'t, 'a, Message>> {
         self.renderings
             .iter_mut()
             .zip(&mut tree.children[1..])
             .zip(layout.children().skip(1))
             .find(|((rendering, _), _)| rendering.incoming)
-            .map(|((rendering, state), layout)| RenderingViewMut {
+            .map(|((rendering, state), layout)| ChildViewMut {
                 widget: &mut rendering.element,
                 state,
                 layout,

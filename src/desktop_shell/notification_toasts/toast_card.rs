@@ -4,10 +4,10 @@ use std::{
 };
 
 use iced::{
-    Alignment, Border, Color, ContentFit, Element, Font, Length, Shadow, Theme, border,
+    Alignment, Border, Color, Element, Font, Length, Shadow, Theme, border,
     widget::{
-        Column, Row, Space, button, container, image, mouse_area, progress_bar, rich_text, svg,
-        text::Wrapping, text_input,
+        Column, Row, Space, button, container, mouse_area, progress_bar, rich_text, text::Wrapping,
+        text_input,
     },
 };
 use reqwest::Url;
@@ -30,6 +30,7 @@ use crate::{
     state::ShellSettings,
     widgets::{
         bar_widget::Glyph,
+        icon_handle::IconHandle,
         text::{LINE_HEIGHT, bar_text},
     },
 };
@@ -46,8 +47,7 @@ const CODE_BLOCK_TINT_ALPHA: f32 = 0.08;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
-    Raster(image::Handle),
-    Svg(svg::Handle),
+    Handle(IconHandle),
     Glyph(Glyph),
 }
 
@@ -97,21 +97,16 @@ impl CardIcons {
 
 impl CardIcon {
     fn at(path: &Path) -> Self {
-        let is_svg = path
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("svg") || ext.eq_ignore_ascii_case("svgz"));
-        if is_svg {
-            Self::Svg(svg::Handle::from_path(path))
-        } else {
-            Self::Raster(image::Handle::from_path(path))
-        }
+        Self::Handle(IconHandle::at(path))
     }
 }
 
 pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
     let app_icon_file = data.app_icon.as_deref().and_then(icon_file);
     let image = match &data.image {
-        Some(NotifImage::Rgba(handle)) => Some(CardImage::Icon(CardIcon::Raster(handle.clone()))),
+        Some(NotifImage::Rgba(handle)) => Some(CardImage::Icon(CardIcon::Handle(
+            IconHandle::Raster(handle.clone()),
+        ))),
         Some(NotifImage::Named(name)) => CardImage::named(name, entries),
         None => app_icon_file.map(CardImage::of_file),
     };
@@ -531,16 +526,7 @@ fn preview_widget<'a>(
     text: Color,
 ) -> Element<'a, NotificationMessage> {
     let preview: Element<'a, NotificationMessage> = match icon {
-        CardIcon::Raster(handle) => image(handle.clone())
-            .width(Length::Fill)
-            .content_fit(ContentFit::ScaleDown)
-            .opacity(reveal)
-            .into(),
-        CardIcon::Svg(handle) => svg(handle.clone())
-            .width(Length::Fill)
-            .content_fit(ContentFit::ScaleDown)
-            .opacity(reveal)
-            .into(),
+        CardIcon::Handle(handle) => handle.scaled_down(reveal),
         CardIcon::Glyph(glyph) => glyph.view(max_height, text.scale_alpha(reveal)),
     };
     container(preview).max_height(max_height).into()
@@ -566,16 +552,7 @@ fn icon_widget<'a>(
 ) -> Element<'a, NotificationMessage> {
     match icon {
         CardIcon::Glyph(glyph) => glyph.view(size, text.scale_alpha(reveal)),
-        CardIcon::Raster(handle) => image(handle.clone())
-            .width(size)
-            .height(size)
-            .opacity(reveal)
-            .into(),
-        CardIcon::Svg(handle) => svg(handle.clone())
-            .width(size)
-            .height(size)
-            .opacity(reveal)
-            .into(),
+        CardIcon::Handle(handle) => handle.view(size, reveal),
     }
 }
 
