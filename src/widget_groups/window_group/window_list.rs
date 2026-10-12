@@ -211,7 +211,6 @@ impl WindowList {
             window_button(config, icons, win, extras, position, opacity)
         });
         let row = Row::with_children(buttons)
-            .spacing(config.panel_bar.group_spacing_px)
             .height(Length::Fill)
             .align_y(Alignment::Center);
         let focus_opacity =
@@ -336,6 +335,7 @@ fn button_content<'a>(
         .push(title)
         .extend(audio_glyph(config, extras, opacity))
         .spacing(config.panel_bar.widget_spacing_px)
+        .padding([0.0, config.panel_bar.group_spacing_px / 2.0])
         .align_y(Alignment::Center)
         .into()
 }

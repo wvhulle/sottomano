@@ -20,6 +20,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cell {
     Text(String),
+    Path(PathBuf),
     Glyph(Glyph),
     Time { at: DateTime<Utc>, part: TimePart },
     Link(String),
