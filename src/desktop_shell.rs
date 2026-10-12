@@ -337,6 +337,7 @@ impl DesktopShell {
         )
     }
 
+    #[allow(clippy::too_many_lines)]
     fn dispatch_message(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Output(change) => self.apply_output_change(change),
@@ -366,25 +367,56 @@ impl DesktopShell {
             Message::Gpu(msg) => self.gpu_group.update(msg).map(Message::Gpu),
             Message::Disk(msg) => self.disk_group.update(msg).map(Message::Disk),
             Message::ShellLayout(msg) => self.update_shell_layout(msg),
-            Message::PanelAppearance(msg) => self.update_panel_appearance(msg),
+            Message::PanelAppearance(msg) => self
+                .panel_appearance_group
+                .update(msg, &mut self.shell_settings.panels),
             Message::Overlay(msg) => self.update_overlay(msg),
-            Message::SurfaceEffects(msg) => self.update_surface_effects(msg),
+            Message::SurfaceEffects(msg) => self.surface_effects_group.update(
+                msg,
+                &mut self.shell_settings.shadow,
+                &mut self.shell_settings.outline,
+                &mut self.niri_rules,
+            ),
             Message::NiriWindow(msg) => self.niri_window_group.update(msg, &mut self.niri_rules),
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
-            Message::Clock(msg) => self.update_clock(msg),
+            Message::Clock(msg) => self
+                .clock_group
+                .update(msg, &self.config)
+                .map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
-            Message::SystemdManager(msg) => self.update_systemd_manager(msg),
-            Message::JournalEvents(msg) => self.update_journal_events(msg),
-            Message::PendingUpgrades(msg) => self.update_pending_upgrades(msg),
-            Message::NetInterfaces(msg) => self.update_net_interfaces(msg),
+            Message::SystemdManager(msg) => self
+                .systemd_manager_group
+                .update(msg)
+                .map(Message::SystemdManager),
+            Message::JournalEvents(msg) => self
+                .journal_events_group
+                .update(msg)
+                .map(Message::JournalEvents),
+            Message::PendingUpgrades(msg) => self
+                .pending_upgrades_group
+                .update(msg)
+                .map(Message::PendingUpgrades),
+            Message::NetInterfaces(msg) => self
+                .net_interfaces_group
+                .update(msg)
+                .map(Message::NetInterfaces),
             Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
             Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
-            Message::ColorTemperature(msg) => self.update_color_temperature(msg),
+            Message::ColorTemperature(msg) => self
+                .color_temperature_group
+                .update(msg)
+                .map(Message::ColorTemperature),
             Message::DarkMode(msg) => self.dark_mode_group.update(msg).map(Message::DarkMode),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
-            Message::IdleTimeouts(msg) => self.update_idle_timeouts(msg),
-            Message::SoundThemeLoaded(theme) => self.adopt_sound_theme(theme),
+            Message::IdleTimeouts(msg) => self
+                .idle_timeouts_group
+                .update(msg)
+                .map(Message::IdleTimeouts),
+            Message::SoundThemeLoaded(theme) => {
+                self.notifications.adopt_sound_theme(theme);
+                Task::none()
+            }
             Message::ShellSettingsLoaded(shell_settings) => {
                 self.apply_saved_shell_settings(shell_settings)
             }
@@ -393,7 +425,10 @@ impl DesktopShell {
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
-            Message::DismissPressed => self.dismiss_groups(),
+            Message::DismissPressed => {
+                self.collapse_groups();
+                Task::none()
+            }
             Message::WorkspaceClicked {
                 is_active: true, ..
             } => niri_action(niri_ipc::Action::ToggleOverview {}),
@@ -415,7 +450,10 @@ impl DesktopShell {
             ]),
             Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
-            Message::Redraw => self.prune_notifications(),
+            Message::Redraw => {
+                self.notifications.prune();
+                Task::none()
+            }
             Message::TooltipTick
             | Message::LayoutChange { .. }
             | Message::BlurOptionChange { .. }
@@ -445,50 +483,6 @@ impl DesktopShell {
         ])
     }
 
-    fn update_systemd_manager(&mut self, msg: SystemdManagerMessage) -> Task<Message> {
-        self.systemd_manager_group
-            .update(msg)
-            .map(Message::SystemdManager)
-    }
-
-    fn update_pending_upgrades(&mut self, msg: PendingUpgradesMessage) -> Task<Message> {
-        self.pending_upgrades_group
-            .update(msg)
-            .map(Message::PendingUpgrades)
-    }
-
-    fn update_journal_events(&mut self, msg: JournalEventsMessage) -> Task<Message> {
-        self.journal_events_group
-            .update(msg)
-            .map(Message::JournalEvents)
-    }
-
-    fn update_clock(&mut self, msg: ClockMessage) -> Task<Message> {
-        self.clock_group
-            .update(msg, &self.config)
-            .map(Message::Clock)
-    }
-
-    fn update_net_interfaces(&mut self, msg: NetInterfacesMessage) -> Task<Message> {
-        self.net_interfaces_group
-            .update(msg)
-            .map(Message::NetInterfaces)
-    }
-
-    fn update_panel_appearance(&mut self, msg: PanelAppearanceMessage) -> Task<Message> {
-        self.panel_appearance_group
-            .update(msg, &mut self.shell_settings.panels)
-    }
-
-    fn update_surface_effects(&mut self, msg: SurfaceEffectsMessage) -> Task<Message> {
-        self.surface_effects_group.update(
-            msg,
-            &mut self.shell_settings.shadow,
-            &mut self.shell_settings.outline,
-            &mut self.niri_rules,
-        )
-    }
-
     fn update_overlay(&mut self, msg: OverlayMessage) -> Task<Message> {
         match self
             .overlay_group
@@ -508,28 +502,6 @@ impl DesktopShell {
                 ])
             }
         }
-    }
-
-    fn dismiss_groups(&mut self) -> Task<Message> {
-        self.collapse_groups();
-        Task::none()
-    }
-
-    fn update_idle_timeouts(&mut self, msg: IdleTimeoutsMessage) -> Task<Message> {
-        self.idle_timeouts_group
-            .update(msg)
-            .map(Message::IdleTimeouts)
-    }
-
-    fn update_color_temperature(&mut self, msg: ColorTemperatureMessage) -> Task<Message> {
-        self.color_temperature_group
-            .update(msg)
-            .map(Message::ColorTemperature)
-    }
-
-    fn adopt_sound_theme(&mut self, theme: SoundTheme) -> Task<Message> {
-        self.notifications.adopt_sound_theme(theme);
-        Task::none()
     }
 
     fn load_launch_tracker(&mut self, launches: Vec<Launch>) -> Task<Message> {

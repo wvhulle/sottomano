@@ -65,7 +65,7 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let animation = if state.any_notification_transitioning() {
+    let animation = if state.notifications.is_transitioning() {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
@@ -75,7 +75,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    let expiry_tick = if state.any_notification_expiring() {
+    let expiry_tick = if state.notifications.has_running_countdown() {
         every(NOTIFICATION_EXPIRY_TICK).map(|_| Message::Notification(NotificationMessage::Tick))
     } else {
         Subscription::none()
