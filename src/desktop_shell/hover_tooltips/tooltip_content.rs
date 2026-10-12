@@ -13,6 +13,7 @@ use iced::{
         Column, Container, Space, Text, container, row,
         rule::{self, FillMode},
         table,
+        text::Wrapping,
     },
 };
 
@@ -457,7 +458,7 @@ fn cell(
     color: Color,
     max_width: f32,
 ) -> Container<'static, Message> {
-    container(bar_text(font, text).color(color)).max_width(max_width)
+    container(bar_text(font, text).color(color).wrapping(Wrapping::Glyph)).max_width(max_width)
 }
 
 fn inset(content: Element<'static, Message>) -> Element<'static, Message> {

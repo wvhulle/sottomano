@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, time::Duration};
 
 use bytesize::ByteSize;
 use iced::{
-    Alignment, Color, Element, Padding,
+    Alignment, Color, Element, Length, Padding,
     alignment::{Horizontal, Vertical},
     mouse::Interaction,
     widget::{Row, Space, container, mouse_area, table},
@@ -202,6 +202,7 @@ impl<'a> ProcessTree<'a> {
                     let indent = INDENT_PX * branch.depth as f32;
                     Element::from(container(row).padding(Padding::ZERO.left(indent)))
                 })
+                .width(Length::Fill)
                 .align_y(Vertical::Top),
                 self.number("PID", |listing| listing.pid.to_string()),
                 self.number("CPU", |listing| cpu_text(listing.cpu)),
@@ -213,6 +214,7 @@ impl<'a> ProcessTree<'a> {
             ],
             branches,
         )
+        .width(Length::Fill)
         .separator(0.0)
         .padding_x(COLUMN_GAP_PX / 2.0)
         .padding_y(ROW_GAP_PX / 2.0)
