@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, Local, Utc};
 
 use crate::{
     data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::QuotaLimited},
@@ -16,6 +16,7 @@ use crate::{
 
 const WEEK_START_FORMAT: &str = "%a %-d %b";
 const MONTH_FORMAT: &str = "%B";
+const CLOCK_FORMAT: &str = "%H:%M";
 
 impl BarWidget for ClaudeCcusagePeriods {
     fn name(&self) -> &'static str {
@@ -42,14 +43,15 @@ impl BarWidget for ClaudeCcusagePeriods {
 
     fn tooltip(&self) -> TooltipBody {
         let recent = &self.recent;
-        let today = recent.today.since;
+        let now = Local::now();
         TooltipBody::sections([
             Section::dictionary(
                 [
                     KeyValue::new("Source", "ccusage, local Claude Code logs"),
                     KeyValue::new("Cost Basis", "API list prices"),
                     KeyValue::new("Working Days", self.working_days_text()),
-                    KeyValue::new("Projection", "cost per working day so far, today included"),
+                    KeyValue::new("Working Hours", self.working_hours_text()),
+                    KeyValue::new("Projection", "cost per working hour elapsed so far"),
                 ]
                 .into_iter()
                 .chain(
@@ -58,21 +60,16 @@ impl BarWidget for ClaudeCcusagePeriods {
                         .map(|limit| KeyValue::new("Monthly Budget", dollars(f64::from(limit)))),
                 ),
             ),
-            Section::dictionary([
-                KeyValue::new("Cost", dollars(recent.today.usage.cost)),
-                KeyValue::new("Tokens", token_count(recent.today.usage.tokens)),
-                KeyValue::new("Models", recent.today.usage.models.clone()),
-            ])
-            .titled("Today"),
+            self.period_section("Today".to_owned(), &recent.today, now),
             self.period_section(
                 format!("Week Since {}", recent.week.since.format(WEEK_START_FORMAT)),
                 &recent.week,
-                today,
+                now,
             ),
             self.period_section(
                 recent.month.since.format(MONTH_FORMAT).to_string(),
                 &recent.month,
-                today,
+                now,
             ),
         ])
     }
@@ -88,15 +85,25 @@ impl ClaudeCcusagePeriods {
             .join(", ")
     }
 
-    fn period_section(&self, title: String, period: &Period, today: NaiveDate) -> Section {
+    fn working_hours_text(&self) -> String {
+        let hours = &self.budget.working_hours;
+        format!(
+            "{}–{}",
+            hours.start.format(CLOCK_FORMAT),
+            hours.end.format(CLOCK_FORMAT)
+        )
+    }
+
+    fn period_section(&self, title: String, period: &Period, now: DateTime<Local>) -> Section {
         let projected = period
-            .projected_cost(today, &self.budget.working_days)
+            .projected_cost(now, &self.budget)
             .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
         Section::dictionary(
             [
                 Some(KeyValue::new("Cost", dollars(period.usage.cost))),
                 projected,
                 Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
+                Some(KeyValue::new("Models", period.usage.models.clone())),
             ]
             .into_iter()
             .flatten(),

@@ -24,7 +24,7 @@ impl QuotaLimited for ClaudeCcusagePeriods {
             .budget_quota(
                 "Claude Code monthly budget",
                 &self.budget,
-                now.with_timezone(&Local).date_naive(),
+                now.with_timezone(&Local),
             )
             .into_iter()
             .collect()

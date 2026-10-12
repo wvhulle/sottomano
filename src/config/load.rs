@@ -74,6 +74,7 @@ impl UserConfig {
                 locale,
                 other_time_zones: self.calendar.other_time_zones,
                 working_days: self.calendar.working_days,
+                working_hours: self.calendar.working_hours,
             },
             launched_programs: self.launched_programs,
         })
