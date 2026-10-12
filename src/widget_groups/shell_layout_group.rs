@@ -9,7 +9,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::IconToggle,
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -21,41 +21,35 @@ pub enum Action {
 }
 
 fn disconnected_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-        KeyValue::new(
-            "Groups",
-            if shell_layout.disconnected_groups {
-                "separate frames"
-            } else {
-                "one bar"
-            },
-        ),
-    ])]))
+    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+        "Groups",
+        if shell_layout.disconnected_groups {
+            "separate frames"
+        } else {
+            "one bar"
+        },
+    )]))
 }
 
 fn auto_collapse_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-        KeyValue::new(
-            "Groups",
-            if shell_layout.auto_collapse_groups {
-                "collapse when another window takes focus"
-            } else {
-                "stay open until the handle is clicked"
-            },
-        ),
-    ])]))
+    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+        "Groups",
+        if shell_layout.auto_collapse_groups {
+            "collapse when another window takes focus"
+        } else {
+            "stay open until the handle is clicked"
+        },
+    )]))
 }
 
 fn workspaces_placement_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-        KeyValue::new(
-            "Workspaces",
-            match shell_layout.workspaces_placement {
-                WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
-                WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
-            },
-        ),
-    ])]))
+    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+        "Workspaces",
+        match shell_layout.workspaces_placement {
+            WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
+            WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
+        },
+    )]))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,9 +103,10 @@ impl ShellLayoutGroup {
             ShellLayoutTarget::AutoCollapseGroups => auto_collapse_tooltip(shell_layout),
             ShellLayoutTarget::WorkspacesPlacement => workspaces_placement_tooltip(shell_layout),
             ShellLayoutTarget::FloatOffset => {
-                Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-                    KeyValue::new("Offset", self.float_offset.readout_text()),
-                ])]))
+                Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+                    "Offset",
+                    self.float_offset.readout_text(),
+                )]))
             }
         }
     }

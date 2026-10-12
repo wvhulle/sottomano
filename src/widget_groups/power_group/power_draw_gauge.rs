@@ -42,30 +42,30 @@ impl PowerDraw {
     }
 
     fn breakdown_on_battery(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::dictionary(
-            "Battery feeds",
-            [KeyValue::new("Laptop", power_text(self.power))],
+        TooltipBody::sections([Section::dictionary([KeyValue::new(
+            "Laptop",
+            power_text(self.power),
         )])
+        .titled("Battery feeds")])
     }
 
     fn breakdown_on_ac(&self) -> TooltipBody {
         let laptop = self
             .expected_laptop
             .map(|laptop| KeyValue::new("Laptop (estimated)", power_text(laptop)));
-        TooltipBody::sections(&[Section::dictionary(
-            "Charger feeds",
+        TooltipBody::sections([Section::dictionary(
             laptop
                 .into_iter()
                 .chain([KeyValue::new("Battery", power_text(self.power))]),
-        )])
+        )
+        .titled("Charger feeds")])
     }
 }
 
 impl ChargerSupply {
     pub fn sections(&self) -> Vec<Section> {
-        vec![Section::dictionary(
-            "Charger",
-            self.limit.iter().flat_map(|limit| {
+        vec![
+            Section::dictionary(self.limit.iter().flat_map(|limit| {
                 [
                     KeyValue::new("Limit", power_text(limit.power())),
                     KeyValue::new(
@@ -80,8 +80,9 @@ impl ChargerSupply {
                         ),
                     ),
                 ]
-            }),
-        )]
+            }))
+            .titled("Charger"),
+        ]
     }
 }
 
@@ -152,24 +153,20 @@ mod tests {
         };
         assert_eq!(
             charger.sections(),
-            [Section::dictionary(
-                "Charger",
-                [
-                    KeyValue::new("Limit", "65.0 W"),
-                    KeyValue::new("Voltage", "20 V"),
-                    KeyValue::new("Current", "3.25 A"),
-                ],
-            )]
+            [Section::dictionary([
+                KeyValue::new("Limit", "65.0 W"),
+                KeyValue::new("Voltage", "20 V"),
+                KeyValue::new("Current", "3.25 A"),
+            ])
+            .titled("Charger")]
         );
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
-            TooltipBody::sections(&[Section::dictionary(
-                "Charger feeds",
-                [
-                    KeyValue::new("Laptop (estimated)", "8.9 W"),
-                    KeyValue::new("Battery", "19.7 W"),
-                ],
-            )])
+            TooltipBody::sections([Section::dictionary([
+                KeyValue::new("Laptop (estimated)", "8.9 W"),
+                KeyValue::new("Battery", "19.7 W"),
+            ])
+            .titled("Charger feeds")])
         );
     }
 
@@ -177,10 +174,9 @@ mod tests {
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
             draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            TooltipBody::sections(&[Section::dictionary(
-                "Battery feeds",
-                [KeyValue::new("Laptop", "19.7 W")],
-            )])
+            TooltipBody::sections([
+                Section::dictionary([KeyValue::new("Laptop", "19.7 W")]).titled("Battery feeds"),
+            ])
         );
     }
 }

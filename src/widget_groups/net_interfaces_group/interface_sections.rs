@@ -38,16 +38,16 @@ pub fn address_section(
         .into_iter()
         .chain(gateway)
     });
-    Section::dictionary(key(label), entries)
+    Section::dictionary(entries).titled(key(label))
 }
 
 pub fn dns_section(key: &impl Fn(&str) -> String, servers: &[String]) -> Section {
     Section::dictionary(
-        key("DNS"),
         servers
             .iter()
             .map(|server| KeyValue::new("Server", server.as_str())),
     )
+    .titled(key("DNS"))
 }
 
 pub fn link_stats_section(
@@ -67,5 +67,5 @@ pub fn link_stats_section(
         )
     });
     let mtu_entry = (mtu > 0).then(|| KeyValue::new("Max Packet Size (MTU)", mtu.to_string()));
-    Section::dictionary(key(title), rate_entry.into_iter().chain(mtu_entry))
+    Section::dictionary(rate_entry.into_iter().chain(mtu_entry)).titled(key(title))
 }

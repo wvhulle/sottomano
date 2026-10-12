@@ -12,7 +12,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
@@ -126,10 +126,8 @@ impl BarWidget for PendingUpgradesGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary(
-            self.firmware.present_reading().map(|upgrades| {
-                KeyValue::new(firmware_upgrade_list::LABEL, upgrades.len().to_string())
-            }),
-        )])
+        TooltipBody::dictionary(self.firmware.present_reading().map(|upgrades| {
+            KeyValue::new(firmware_upgrade_list::LABEL, upgrades.len().to_string())
+        }))
     }
 }

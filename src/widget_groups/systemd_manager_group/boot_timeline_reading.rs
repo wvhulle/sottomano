@@ -83,7 +83,7 @@ impl BarWidget for BootTimeline {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_column_table(
+        TooltipBody::sections([Section::column_table(
             ["Took", "Meaning"],
             self.timeline_records(),
         )])
@@ -153,7 +153,7 @@ impl BarWidget for StartupUnits<'_> {
         .into_iter()
         .flatten()
         .collect();
-        TooltipBody::sections(&sections)
+        TooltipBody::sections(sections)
     }
 }
 
@@ -168,13 +168,10 @@ impl RankedActivations {
     }
 
     fn blame_section(&self, title: &str) -> Section {
-        Section::dictionary(
-            (
-                title,
-                "Time from starting to active, for units up before startup finished. Devices and \
-                 units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
-            ),
-            self.slowest_first.iter().map(UnitActivation::key_value),
-        )
+        Section::dictionary(self.slowest_first.iter().map(UnitActivation::key_value)).titled((
+            title,
+            "Time from starting to active, for units up before startup finished. Devices and \
+             units under 0.1 s are left out; amber ones crossed slow_boot_unit_secs.",
+        ))
     }
 }

@@ -181,11 +181,11 @@ impl IdleBattery {
     }
 
     fn tooltip(self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary([
+        TooltipBody::dictionary([
             KeyValue::new("Status", self.explanation()),
             KeyValue::new("Charge", percent_text(self.capacity)),
             KeyValue::new("Charge limit", percent_text(self.charge_limit)),
-        ])])
+        ])
     }
 }
 
@@ -240,12 +240,10 @@ impl BarWidget for BatteryTime {
     fn tooltip(&self) -> TooltipBody {
         match self {
             BatteryTime::Idle(idle) => idle.tooltip(),
-            BatteryTime::Countdown(countdown) => {
-                TooltipBody::sections(&[Section::untitled_column_table(
-                    ESTIMATE_HEADINGS,
-                    [countdown.table_record()],
-                )])
-            }
+            BatteryTime::Countdown(countdown) => TooltipBody::sections([Section::column_table(
+                ESTIMATE_HEADINGS,
+                [countdown.table_record()],
+            )]),
         }
     }
 }

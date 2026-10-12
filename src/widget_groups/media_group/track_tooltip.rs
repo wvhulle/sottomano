@@ -69,7 +69,6 @@ pub fn track_section(media: &Media) -> Section {
         .as_ref()
         .map(|url| KeyValue::new("Source", Cell::Link(url.to_string())));
     Section::dictionary(
-        "Track",
         [
             ("Title", &media.title),
             ("Artist", &media.artist),
@@ -79,6 +78,7 @@ pub fn track_section(media: &Media) -> Section {
         .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
         .chain(source),
     )
+    .titled("Track")
 }
 
 pub fn playback_section(media: &Media, now: Instant) -> Section {
@@ -88,7 +88,6 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
         duration.map(|duration| KeyValue::new(key, duration_text(duration)))
     };
     Section::dictionary(
-        "Playback",
         [
             KeyValue::new("Player", media.identity.as_str()),
             KeyValue::new("State", status.label()),
@@ -104,6 +103,7 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
             .flatten(),
         ),
     )
+    .titled("Playback")
 }
 
 pub fn search_section(media: &Media) -> Section {
@@ -120,7 +120,7 @@ pub fn search_section(media: &Media) -> Section {
             .filter(move |platform| Some(*platform) != playing_on)
             .map(move |platform| KeyValue::new(platform.name(), Cell::Link(platform.url(&query))))
     });
-    Section::dictionary("Search", links)
+    Section::dictionary(links).titled("Search")
 }
 
 fn duration_text(duration: Duration) -> String {

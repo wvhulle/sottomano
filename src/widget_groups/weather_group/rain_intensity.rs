@@ -5,7 +5,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::TimePart,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, TooltipBody},
         weather_icons::WeatherIcon,
     },
 };
@@ -54,7 +54,7 @@ impl BarWidget for Rain {
         } else {
             intensity_text(self.intensity)
         };
-        TooltipBody::sections(&[Section::untitled_dictionary([
+        TooltipBody::dictionary([
             KeyValue::new("Rain", now),
             KeyValue::new("Peak", intensity_text(self.peak.intensity)),
             KeyValue::new(
@@ -64,7 +64,7 @@ impl BarWidget for Rain {
                     part: TimePart::TimeOfDay,
                 },
             ),
-        ])])
+        ])
     }
 }
 

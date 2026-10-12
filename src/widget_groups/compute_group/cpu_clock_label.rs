@@ -37,7 +37,6 @@ impl CpuClock {
             frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
         };
         Section::dictionary(
-            "Frequency",
             [
                 frequency("min", self.lowest()),
                 frequency("avg", self.average()),
@@ -47,6 +46,7 @@ impl CpuClock {
             .into_iter()
             .flatten(),
         )
+        .titled("Frequency")
     }
 
     fn capped_summary(&self) -> Option<KeyValue> {
@@ -80,7 +80,7 @@ impl BarWidget for CpuClock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[self.frequency_section()])
+        TooltipBody::sections([self.frequency_section()])
     }
 }
 

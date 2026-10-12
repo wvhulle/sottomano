@@ -234,15 +234,14 @@ impl PowerProfileControl {
                 Unforecastable::NoDrainHistory,
             ),
         });
-        let battery_life = Section::column_table(
-            (
-                "Battery life",
-                "Time until empty if you switch to each profile now.",
-            ),
-            ESTIMATE_HEADINGS,
-            lives.map(|life| life.table_record()),
-        );
-        Some(Tooltip::of(TooltipBody::sections(&[battery_life])))
+        let battery_life =
+            Section::column_table(ESTIMATE_HEADINGS, lives.map(|life| life.table_record())).titled(
+                (
+                    "Battery life",
+                    "Time until empty if you switch to each profile now.",
+                ),
+            );
+        Some(Tooltip::of(TooltipBody::sections([battery_life])))
     }
 
     pub fn slider(&self) -> Option<&SliderControl> {

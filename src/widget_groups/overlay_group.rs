@@ -12,7 +12,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::IconToggle,
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -112,9 +112,7 @@ impl OverlayGroup {
                 self.corner_radius.readout_text(),
             ),
         };
-        Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-            entry,
-        ])]))
+        Tooltip::of(TooltipBody::dictionary([entry]))
     }
 
     pub fn update(&mut self, msg: OverlayMessage, overlays: &mut OverlaySettings) -> Action {

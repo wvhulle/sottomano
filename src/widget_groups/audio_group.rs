@@ -14,7 +14,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -239,16 +239,14 @@ impl AudioGroup {
             .device
             .as_deref()
             .map(|device| KeyValue::new("Device", device));
-        Some(Tooltip::of(TooltipBody::sections(&[
-            Section::untitled_dictionary(
-                [
-                    KeyValue::new(kind.label(), control.readout_text()),
-                    KeyValue::new("State", state),
-                ]
-                .into_iter()
-                .chain(device),
-            ),
-        ])))
+        Some(Tooltip::of(TooltipBody::dictionary(
+            [
+                KeyValue::new(kind.label(), control.readout_text()),
+                KeyValue::new("State", state),
+            ]
+            .into_iter()
+            .chain(device),
+        )))
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, AudioMessage> {

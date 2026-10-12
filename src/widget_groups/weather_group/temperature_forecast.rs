@@ -38,38 +38,36 @@ impl BarWidget for Temperature {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[
-            Section::untitled_column_table(
+        TooltipBody::sections([
+            Section::column_table(
                 ["", "Conditions"],
                 self.condition
                     .map(|condition| TableRecord::new("Conditions", condition_cells(condition))),
             ),
-            Section::dictionary(
-                "Temperature",
-                [
-                    KeyValue::new("Now", celsius_text(self.temp)),
-                    KeyValue::new("Feels like", celsius_text(self.feels)),
-                    KeyValue::new("Today's low", celsius_text(self.temp_min)),
-                    KeyValue::new("Today's high", celsius_text(self.temp_max)),
-                    KeyValue::new("Humidity", percent_text(self.humidity)),
-                ],
-            ),
+            Section::dictionary([
+                KeyValue::new("Now", celsius_text(self.temp)),
+                KeyValue::new("Feels like", celsius_text(self.feels)),
+                KeyValue::new("Today's low", celsius_text(self.temp_min)),
+                KeyValue::new("Today's high", celsius_text(self.temp_max)),
+                KeyValue::new("Humidity", percent_text(self.humidity)),
+            ])
+            .titled("Temperature"),
             Section::column_table(
-                "Earlier",
                 HOURLY_HEADINGS,
                 self.hourly
                     .earlier
                     .iter()
                     .map(HourlyTemperature::table_record),
-            ),
+            )
+            .titled("Earlier"),
             Section::column_table(
-                "Later",
                 HOURLY_HEADINGS,
                 self.hourly
                     .later
                     .iter()
                     .map(HourlyTemperature::table_record),
-            ),
+            )
+            .titled("Later"),
         ])
     }
 }

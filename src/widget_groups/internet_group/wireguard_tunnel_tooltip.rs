@@ -18,7 +18,7 @@ impl BarWidget for Wireguard {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[])
+        TooltipBody::sections([])
     }
 }
 
@@ -78,9 +78,9 @@ impl Tunnel {
                 format!("{}/{}", self.connected_peers(), self.peers.len()),
             )),
         ];
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(tunnel_entries.into_iter().flatten()),
-            Section::untitled_dictionary(connected_peers),
+        TooltipBody::sections([
+            Section::dictionary(tunnel_entries.into_iter().flatten()),
+            Section::dictionary(connected_peers),
         ])
     }
 
@@ -101,17 +101,17 @@ impl Tunnel {
             .into_iter()
             .flatten()
         });
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        TooltipBody::dictionary(
             [KeyValue::new(self.name.as_str(), "client")]
                 .into_iter()
                 .chain(peer_entries),
-        )])
+        )
     }
 }
 
 impl TunnelAddress {
     pub fn sections(&self) -> Vec<Section> {
-        vec![Section::untitled_dictionary(
+        vec![Section::dictionary(
             self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
         )]
     }

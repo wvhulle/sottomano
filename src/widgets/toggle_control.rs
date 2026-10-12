@@ -47,7 +47,7 @@ impl BarWidget for IconToggle {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[])
+        TooltipBody::sections([])
     }
 }
 

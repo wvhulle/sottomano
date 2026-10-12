@@ -30,8 +30,8 @@ pub fn tooltip(
         KeyValue::new("Brightness", brightness),
     ];
     let output_entries = output.into_iter().flat_map(ConnectedOutput::entries);
-    TooltipBody::sections(&[
-        Section::untitled_dictionary(display_entries.into_iter().chain(output_entries)),
+    TooltipBody::sections([
+        Section::dictionary(display_entries.into_iter().chain(output_entries)),
         output.hardware_section(),
     ])
 }

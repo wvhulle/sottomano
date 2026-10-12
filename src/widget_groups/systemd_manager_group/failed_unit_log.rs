@@ -138,14 +138,14 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn tooltip(&self) -> TooltipBody {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
-        TooltipBody::sections(&[Section::column_table(
-            (
-                S::FAILED_LABEL,
-                "Units in the failed state now; each toasts until it recovers.",
-            ),
+        TooltipBody::sections([Section::column_table(
             ["Reason", "Failed"],
             units.iter().map(FailedUnitInfo::table_record),
-        )])
+        )
+        .titled((
+            S::FAILED_LABEL,
+            "Units in the failed state now; each toasts until it recovers.",
+        ))])
     }
 }
 

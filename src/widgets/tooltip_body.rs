@@ -204,58 +204,39 @@ impl<Title: Into<String>, Caption: Into<String>> From<(Title, Caption)> for Head
 }
 
 impl Section {
-    pub fn dictionary(
-        heading: impl Into<Heading>,
-        entries: impl IntoIterator<Item = KeyValue>,
-    ) -> Self {
+    fn untitled(body: SectionBody) -> Self {
         Self {
-            heading: Some(heading.into()),
-            body: SectionBody::Dictionary(entries.into_iter().collect()),
+            heading: None,
+            body,
             readiness: Readiness::Settled,
         }
     }
 
-    pub fn untitled_dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
-        Self {
-            heading: None,
-            body: SectionBody::Dictionary(entries.into_iter().collect()),
-            readiness: Readiness::Settled,
-        }
+    pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
+        Self::untitled(SectionBody::Dictionary(entries.into_iter().collect()))
     }
 
     pub fn column_table<const COLUMNS: usize>(
-        heading: impl Into<Heading>,
         headings: [&str; COLUMNS],
         records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
     ) -> Self {
-        Self {
-            heading: Some(heading.into()),
-            body: SectionBody::column_table(headings, records),
-            readiness: Readiness::Settled,
-        }
+        Self::untitled(SectionBody::column_table(headings, records))
     }
 
-    pub fn untitled_column_table<const COLUMNS: usize>(
-        headings: [&str; COLUMNS],
-        records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
-    ) -> Self {
-        Self {
-            heading: None,
-            body: SectionBody::column_table(headings, records),
-            readiness: Readiness::Settled,
-        }
+    pub fn tree(root: Option<&Process>, folding: &Folding) -> Self {
+        Self::untitled(root.map_or(SectionBody::Dictionary(Vec::new()), |root| {
+            SectionBody::Tree {
+                root: root.clone(),
+                folding: folding.clone(),
+            }
+        }))
     }
 
-    pub fn tree(heading: impl Into<Heading>, root: Option<&Process>, folding: &Folding) -> Self {
+    #[must_use]
+    pub fn titled(self, heading: impl Into<Heading>) -> Self {
         Self {
             heading: Some(heading.into()),
-            body: root.map_or(SectionBody::Dictionary(Vec::new()), |root| {
-                SectionBody::Tree {
-                    root: root.clone(),
-                    folding: folding.clone(),
-                }
-            }),
-            readiness: Readiness::Settled,
+            ..self
         }
     }
 
@@ -318,15 +299,20 @@ pub struct TrayMenuBody {
 }
 
 impl TooltipBody {
-    pub fn sections(sections: &[Section]) -> Self {
-        TooltipBody::Sections(sections.to_vec())
+    pub fn sections(sections: impl IntoIterator<Item = Section>) -> Self {
+        TooltipBody::Sections(sections.into_iter().collect())
+    }
+
+    pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
+        TooltipBody::Sections(vec![Section::dictionary(entries)])
     }
 
     #[must_use]
-    pub fn with_sections(self, extra: &[Section]) -> Self {
+    pub fn with_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
         match self {
-            TooltipBody::Sections(sections) => {
-                TooltipBody::Sections([sections.as_slice(), extra].concat())
+            TooltipBody::Sections(mut sections) => {
+                sections.extend(extra);
+                TooltipBody::Sections(sections)
             }
             other => other,
         }
@@ -360,7 +346,7 @@ pub struct Tooltip {
 
 impl Tooltip {
     pub fn empty() -> Self {
-        Self::of(TooltipBody::sections(&[]))
+        Self::of(TooltipBody::sections([]))
     }
 
     pub fn of(body: TooltipBody) -> Self {
@@ -415,8 +401,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            Section::untitled_column_table(["Moons", ""], planets.iter().map(Planet::table_record))
-                .body(),
+            Section::column_table(["Moons", ""], planets.iter().map(Planet::table_record)).body(),
             &SectionBody::ColumnTable {
                 headings: vec!["Moons".to_string(), String::new()],
                 records: vec![

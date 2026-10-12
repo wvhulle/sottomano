@@ -105,7 +105,7 @@ impl BarWidget for Temperature {
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
         let thresholds = self.thresholds();
-        let summary = Section::untitled_dictionary(
+        let summary = Section::dictionary(
             [
                 Some(KeyValue::new("Chips", chips.join(", "))),
                 Some(KeyValue::new("Samples", self.readings.len().to_string())),
@@ -127,7 +127,7 @@ impl BarWidget for Temperature {
             .into_iter()
             .flatten(),
         );
-        TooltipBody::sections(&[summary])
+        TooltipBody::sections([summary])
     }
 }
 

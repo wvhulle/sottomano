@@ -39,9 +39,8 @@ impl BarWidget for Mobile {
 
     fn tooltip(&self) -> TooltipBody {
         let signal_suffix = if self.signal_recent { "" } else { " (cached)" };
-        TooltipBody::sections(&[
+        TooltipBody::sections([
             Section::dictionary(
-                "Modem",
                 [
                     self.operator
                         .as_deref()
@@ -56,10 +55,10 @@ impl BarWidget for Mobile {
                 ]
                 .into_iter()
                 .flatten(),
-            ),
+            )
+            .titled("Modem"),
             if self.state == Some(ModemState::Connected) {
                 Section::dictionary(
-                    "Address",
                     [
                         self.ipv4
                             .as_deref()
@@ -71,6 +70,7 @@ impl BarWidget for Mobile {
                     .into_iter()
                     .flatten(),
                 )
+                .titled("Address")
             } else {
                 let failure = match self.state {
                     Some(ModemState::Failed {
@@ -79,15 +79,14 @@ impl BarWidget for Mobile {
                     _ => None,
                 };
                 Section::dictionary(
-                    "Status",
                     self.state
                         .map(|state| KeyValue::new("Connection State", state.label()))
                         .into_iter()
                         .chain(failure),
                 )
+                .titled("Status")
             },
             Section::dictionary(
-                "Data",
                 [
                     self.rx
                         .map(|rx| KeyValue::new("Received (RX)", rx.display().iec().to_string())),
@@ -96,7 +95,8 @@ impl BarWidget for Mobile {
                 ]
                 .into_iter()
                 .flatten(),
-            ),
+            )
+            .titled("Data"),
             self.identity.hardware_section(),
         ])
     }

@@ -39,10 +39,8 @@ impl BarWidget for ClaudeUsageWindows {
 
     fn tooltip(&self) -> TooltipBody {
         let now = Utc::now();
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
-                self.plan.as_deref().map(|plan| KeyValue::new("Plan", plan)),
-            ),
+        TooltipBody::sections([
+            Section::dictionary(self.plan.as_deref().map(|plan| KeyValue::new("Plan", plan))),
             window_section(
                 "Session",
                 Some(&self.session),
@@ -86,7 +84,7 @@ fn window_section(
     let resets = window
         .and_then(|window| window.resets_at)
         .map(|at| KeyValue::new("Resets In", countdown(at, now)));
-    Section::dictionary(title, [used, pace_entry, resets].into_iter().flatten())
+    Section::dictionary([used, pace_entry, resets].into_iter().flatten()).titled(title)
 }
 
 fn extra_section(extra: Option<&ExtraUsage>) -> Section {
@@ -113,5 +111,5 @@ fn extra_section(extra: Option<&ExtraUsage>) -> Section {
         .into_iter()
         .flatten()
     });
-    Section::dictionary("Extra Usage", entries)
+    Section::dictionary(entries).titled("Extra Usage")
 }

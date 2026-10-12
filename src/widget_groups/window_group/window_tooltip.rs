@@ -35,10 +35,8 @@ pub fn tooltip(
         }),
     ];
     Some(Tooltip::of(TooltipBody::sections(
-        &[
-            &[Section::untitled_dictionary(
-                window_entries.into_iter().flatten(),
-            )],
+        [
+            &[Section::dictionary(window_entries.into_iter().flatten())],
             process_sections,
         ]
         .concat(),
@@ -48,10 +46,10 @@ pub fn tooltip(
 pub fn inspection_sections(inspected: &Inspection) -> Vec<Section> {
     let provenance = &inspected.provenance;
     vec![
-        Section::dictionary("Package", provenance.package.as_ref().map(versioned)),
-        Section::dictionary("Runtime", provenance.runtime.as_ref().map(versioned)),
-        Section::dictionary("Referenced", provenance.referenced.iter().map(versioned)),
-        Section::dictionary("Command", command(inspected)),
+        Section::dictionary(provenance.package.as_ref().map(versioned)).titled("Package"),
+        Section::dictionary(provenance.runtime.as_ref().map(versioned)).titled("Runtime"),
+        Section::dictionary(provenance.referenced.iter().map(versioned)).titled("Referenced"),
+        Section::dictionary(command(inspected)).titled("Command"),
     ]
 }
 

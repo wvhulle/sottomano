@@ -135,13 +135,13 @@ impl BarWidget for Vec<CoredumpEntry> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::column_table(
-            (
-                "Coredumps",
-                "Programs that crashed in the last hour, as recorded by systemd-coredump.",
-            ),
+        TooltipBody::sections([Section::column_table(
             ["Process", "Signal", "PID", "Unit"],
             self.iter().map(CoredumpEntry::table_record),
-        )])
+        )
+        .titled((
+            "Coredumps",
+            "Programs that crashed in the last hour, as recorded by systemd-coredump.",
+        ))])
     }
 }

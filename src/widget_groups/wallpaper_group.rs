@@ -66,10 +66,7 @@ impl BarWidget for Lookup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-            "File",
-            self.photo.file_name.clone(),
-        )])])
+        TooltipBody::dictionary([KeyValue::new("File", self.photo.file_name.clone())])
     }
 }
 
@@ -126,11 +123,11 @@ impl BarWidget for Place {
                 ),
             ]
         });
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        TooltipBody::dictionary(
             [KeyValue::new("Where", self.name.as_str())]
                 .into_iter()
                 .chain(coordinates),
-        )])
+        )
     }
 }
 
@@ -148,20 +145,18 @@ impl BarWidget for Article {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[
+        TooltipBody::sections([
+            Section::dictionary([
+                KeyValue::new("Article", self.title.as_str()),
+                KeyValue::new("Link", Cell::Link(self.url.clone())),
+            ])
+            .titled("Wikipedia"),
             Section::dictionary(
-                "Wikipedia",
-                [
-                    KeyValue::new("Article", self.title.as_str()),
-                    KeyValue::new("Link", Cell::Link(self.url.clone())),
-                ],
-            ),
-            Section::dictionary(
-                "Summary",
                 self.summary
                     .as_deref()
                     .map(|summary| KeyValue::new(" ", summary)),
-            ),
+            )
+            .titled("Summary"),
         ])
     }
 }
@@ -180,9 +175,8 @@ impl BarWidget for Photo {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[
+        TooltipBody::sections([
             Section::dictionary(
-                "Photo",
                 [
                     Some(KeyValue::new("File", self.file_name.as_str())),
                     self.photographer
@@ -192,13 +186,14 @@ impl BarWidget for Photo {
                 ]
                 .into_iter()
                 .flatten(),
-            ),
+            )
+            .titled("Photo"),
             Section::dictionary(
-                "Caption",
                 self.caption
                     .as_deref()
                     .map(|caption| KeyValue::new(" ", caption)),
-            ),
+            )
+            .titled("Caption"),
         ])
     }
 }

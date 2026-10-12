@@ -10,7 +10,7 @@ pub trait HardwareEntries {
     fn hardware_entries(&self) -> Vec<KeyValue>;
 
     fn hardware_section(&self) -> Section {
-        Section::dictionary("Hardware", self.hardware_entries())
+        Section::dictionary(self.hardware_entries()).titled("Hardware")
     }
 }
 
@@ -31,7 +31,6 @@ impl CpuModel {
         let topology = &self.topology;
         [
             Section::dictionary(
-                "Processor",
                 [
                     ("Model", &self.identity.name),
                     ("Microarchitecture", &self.architecture.microarchitecture),
@@ -42,9 +41,9 @@ impl CpuModel {
                 ]
                 .into_iter()
                 .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
-            ),
+            )
+            .titled("Processor"),
             Section::dictionary(
-                "Topology",
                 [
                     topology
                         .cores
@@ -55,8 +54,9 @@ impl CpuModel {
                 ]
                 .into_iter()
                 .flatten(),
-            ),
-            Section::dictionary("Cache", self.caches.0.iter().map(CacheLevel::key_value)),
+            )
+            .titled("Topology"),
+            Section::dictionary(self.caches.0.iter().map(CacheLevel::key_value)).titled("Cache"),
         ]
     }
 }

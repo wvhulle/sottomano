@@ -33,10 +33,7 @@ impl BarWidget for Tailscale {
     fn tooltip(&self) -> TooltipBody {
         match self {
             Tailscale::Stopped => {
-                TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-                    "Tailscale",
-                    "disconnected",
-                )])])
+                TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")])
             }
             Tailscale::Running(tailnet) => tailnet.tooltip(),
         }
@@ -50,8 +47,8 @@ impl Tailnet {
             .ip
             .as_deref()
             .map(|ip| KeyValue::new("IP", ip));
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
+        TooltipBody::sections([
+            Section::dictionary(
                 [
                     KeyValue::new("Tailscale", "connected"),
                     KeyValue::new("Self", self.own_node.name.as_str()),
@@ -63,7 +60,7 @@ impl Tailnet {
                     format!("{}/{} online", self.online.len(), self.total_peers),
                 )]),
             ),
-            Section::untitled_dictionary(self.online.iter().filter_map(Peer::key_value)),
+            Section::dictionary(self.online.iter().filter_map(Peer::key_value)),
         ])
     }
 }

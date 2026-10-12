@@ -80,7 +80,7 @@ impl<S: Send + 'static> OnHoverReading<S> {
         let unmarked = match &self.latest {
             None => self.shape.as_ref().map(&sections).unwrap_or_default(),
             Some(Ok(reading)) => sections(reading),
-            Some(Err(failure)) => vec![Section::untitled_dictionary([KeyValue::new(
+            Some(Err(failure)) => vec![Section::dictionary([KeyValue::new(
                 "Error",
                 failure.clone(),
             )])],

@@ -43,8 +43,8 @@ impl BarWidget for ClaudeCcusagePeriods {
     fn tooltip(&self) -> TooltipBody {
         let recent = &self.recent;
         let today = recent.today.since;
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
+        TooltipBody::sections([
+            Section::dictionary(
                 [
                     KeyValue::new("Source", "ccusage, local Claude Code logs"),
                     KeyValue::new("Cost Basis", "API list prices"),
@@ -58,14 +58,12 @@ impl BarWidget for ClaudeCcusagePeriods {
                         .map(|limit| KeyValue::new("Monthly Budget", dollars(f64::from(limit)))),
                 ),
             ),
-            Section::dictionary(
-                "Today",
-                [
-                    KeyValue::new("Cost", dollars(recent.today.usage.cost)),
-                    KeyValue::new("Tokens", token_count(recent.today.usage.tokens)),
-                    KeyValue::new("Models", recent.today.usage.models.clone()),
-                ],
-            ),
+            Section::dictionary([
+                KeyValue::new("Cost", dollars(recent.today.usage.cost)),
+                KeyValue::new("Tokens", token_count(recent.today.usage.tokens)),
+                KeyValue::new("Models", recent.today.usage.models.clone()),
+            ])
+            .titled("Today"),
             self.period_section(
                 format!("Week Since {}", recent.week.since.format(WEEK_START_FORMAT)),
                 &recent.week,
@@ -95,7 +93,6 @@ impl ClaudeCcusagePeriods {
             .projected_cost(today, &self.budget.working_days)
             .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
         Section::dictionary(
-            title,
             [
                 Some(KeyValue::new("Cost", dollars(period.usage.cost))),
                 projected,
@@ -104,5 +101,6 @@ impl ClaudeCcusagePeriods {
             .into_iter()
             .flatten(),
         )
+        .titled(title)
     }
 }

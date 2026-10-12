@@ -9,7 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -134,22 +134,19 @@ impl BarWidget for AutoSwitchToggle {
     fn tooltip(&self) -> TooltipBody {
         let upcoming = match self.status_at(Utc::now()) {
             ScheduleStatus::Disarmed => {
-                return TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-                    "Auto-switch",
-                    "off",
-                )])]);
+                return TooltipBody::dictionary([KeyValue::new("Auto-switch", "off")]);
             }
             ScheduleStatus::AwaitingLocationFix => {
-                return TooltipBody::sections(&[Section::untitled_dictionary([
+                return TooltipBody::dictionary([
                     KeyValue::new("Auto-switch", "on"),
                     KeyValue::new("Next", "waiting for a location fix"),
-                ])]);
+                ]);
             }
             ScheduleStatus::NoSunEvents => {
-                return TooltipBody::sections(&[Section::untitled_dictionary([
+                return TooltipBody::dictionary([
                     KeyValue::new("Auto-switch", "on"),
                     KeyValue::new("Next", "no sunrise or sunset soon"),
-                ])]);
+                ]);
             }
             ScheduleStatus::Following { upcoming, .. } => upcoming,
         };
@@ -157,7 +154,7 @@ impl BarWidget for AutoSwitchToggle {
             .saved_schedule
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
-        TooltipBody::sections(&[Section::untitled_dictionary([
+        TooltipBody::dictionary([
             KeyValue::new("Auto-switch".to_owned(), Cell::from("on")),
             KeyValue::new(
                 upcoming.target_mode.sun_event_label().to_owned(),
@@ -177,6 +174,6 @@ impl BarWidget for AutoSwitchToggle {
                     part: TimePart::TimeOfDay,
                 },
             ),
-        ])])
+        ])
     }
 }

@@ -35,10 +35,7 @@ impl BarWidget for GpuSnapshot {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-            "GPU",
-            percent_text(self.load),
-        )])])
+        TooltipBody::dictionary([KeyValue::new("GPU", percent_text(self.load))])
     }
 }
 
@@ -56,7 +53,7 @@ impl GpuClocks {
                 )
             })
         };
-        vec![Section::untitled_dictionary(
+        vec![Section::dictionary(
             [
                 self.performance_state
                     .map(|state| KeyValue::new("Performance state", format!("P{state}"))),

@@ -257,7 +257,7 @@ impl MediaGroup {
 
     pub fn tooltip(&self) -> Option<Tooltip> {
         let media = self.current()?;
-        Some(Tooltip::of(TooltipBody::sections(&[
+        Some(Tooltip::of(TooltipBody::sections([
             track_section(media),
             playback_section(media, self.now),
             search_section(media),

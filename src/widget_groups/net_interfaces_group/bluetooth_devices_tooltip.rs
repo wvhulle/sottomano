@@ -44,21 +44,18 @@ impl BarWidget for Bluetooth {
     fn tooltip(&self) -> TooltipBody {
         let hardware = self.adapter.hardware_section();
         let Some(radio) = &self.radio else {
-            return TooltipBody::sections(&[
-                Section::untitled_dictionary([KeyValue::new("Bluetooth", "off")]),
+            return TooltipBody::sections([
+                Section::dictionary([KeyValue::new("Bluetooth", "off")]),
                 hardware,
             ]);
         };
-        let overview = Section::dictionary(
-            "Bluetooth",
-            [
-                KeyValue::new("Connected", radio.connected.len().to_string()),
-                KeyValue::new("Paired", radio.paired.to_string()),
-            ],
-        );
+        let overview = Section::dictionary([
+            KeyValue::new("Connected", radio.connected.len().to_string()),
+            KeyValue::new("Paired", radio.paired.to_string()),
+        ])
+        .titled("Bluetooth");
         let devices = radio.connected.iter().map(|device| {
             Section::dictionary(
-                device.name.clone(),
                 [KeyValue::new("Address", device.address.as_str())]
                     .into_iter()
                     .chain(
@@ -72,7 +69,8 @@ impl BarWidget for Bluetooth {
                             .map(|battery| KeyValue::new("Battery", format!("{battery}%"))),
                     ),
             )
+            .titled(device.name.clone())
         });
-        TooltipBody::sections(&[vec![overview], devices.collect(), vec![hardware]].concat())
+        TooltipBody::sections([vec![overview], devices.collect(), vec![hardware]].concat())
     }
 }

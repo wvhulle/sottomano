@@ -154,9 +154,8 @@ impl BarWidget for JournalEventsGroup {
             .service_errors
             .present_reading()
             .map(|errors| KeyValue::new("Service errors", errors.entry_count.to_string()));
-        TooltipBody::sections(&[Section::dictionary(
-            "Last hour",
-            kernel.into_iter().chain(service),
-        )])
+        TooltipBody::sections([
+            Section::dictionary(kernel.into_iter().chain(service)).titled("Last hour")
+        ])
     }
 }

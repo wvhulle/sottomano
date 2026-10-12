@@ -90,8 +90,7 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::column_table(
-            LABEL,
+        TooltipBody::sections([Section::column_table(
             [
                 "Vendor",
                 "Installed",
@@ -101,7 +100,8 @@ impl BarWidget for Vec<FirmwareUpgrade> {
                 "Summary",
             ],
             self.iter().map(FirmwareUpgrade::table_record),
-        )])
+        )
+        .titled(LABEL)])
     }
 }
 

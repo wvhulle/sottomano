@@ -130,7 +130,7 @@ impl WindowList {
                             .window_processes
                             .of_window(*window)
                             .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
-                        vec![Section::tree("Process", Some(&kept), &self.folding)]
+                        vec![Section::tree(Some(&kept), &self.folding).titled("Process")]
                     }),
                 ]
                 .concat()

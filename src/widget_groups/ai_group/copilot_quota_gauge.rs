@@ -39,8 +39,8 @@ impl BarWidget for CopilotMetered {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
+        TooltipBody::sections([
+            Section::dictionary(
                 self.plan
                     .as_deref()
                     .map(|plan| KeyValue::new("Plan", plan))
@@ -48,7 +48,6 @@ impl BarWidget for CopilotMetered {
                     .chain([KeyValue::new("Source", USER_ENDPOINT)]),
             ),
             Section::dictionary(
-                self.quota.clone(),
                 [
                     KeyValue::new("Used", to_cents(self.used)),
                     KeyValue::new("Used Share", percent_text(self.used_share)),
@@ -65,7 +64,8 @@ impl BarWidget for CopilotMetered {
                         },
                     )
                 })),
-            ),
+            )
+            .titled(self.quota.clone()),
         ])
     }
 }

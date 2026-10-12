@@ -12,7 +12,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::IconToggle,
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -34,15 +34,17 @@ impl From<SurfaceEffectsTarget> for HoverTarget {
 }
 
 fn switch_tooltip(label: &str, on: bool, described: &str) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-        KeyValue::new(label, if on { described } else { "off" }),
-    ])]))
+    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+        label,
+        if on { described } else { "off" },
+    )]))
 }
 
 fn slider_tooltip(label: &str, slider: &SliderControl) -> Tooltip {
-    Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-        KeyValue::new(label, slider.readout_text()),
-    ])]))
+    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+        label,
+        slider.readout_text(),
+    )]))
 }
 
 #[derive(Debug, Clone)]

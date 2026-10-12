@@ -491,7 +491,7 @@ impl BarWidget for SliderControl {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[])
+        TooltipBody::sections([])
     }
 }
 

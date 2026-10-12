@@ -56,7 +56,7 @@ impl BarWidget for DriveHealth {
             .temperature
             .current()
             .map(|_| self.temperature_thresholds());
-        let summary = Section::untitled_dictionary(
+        let summary = Section::dictionary(
             [
                 KeyValue::new("Drive", self.device_name.as_str()),
                 KeyValue::new("Temperature", self.temperature.text()),
@@ -69,10 +69,10 @@ impl BarWidget for DriveHealth {
                 ]
             })),
         );
-        TooltipBody::sections(&[
+        TooltipBody::sections([
             summary,
             self.identity.hardware_section(),
-            Section::dictionary("I/O errors", self.errors.iter().flat_map(error_entries)),
+            Section::dictionary(self.errors.iter().flat_map(error_entries)).titled("I/O errors"),
         ])
     }
 }

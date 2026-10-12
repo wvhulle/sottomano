@@ -30,21 +30,19 @@ impl BarWidget for OpenRouter {
 
     fn tooltip(&self) -> TooltipBody {
         let remaining = self.credits.total - self.credits.used;
-        TooltipBody::sections(&[
-            Section::untitled_dictionary([KeyValue::new(
+        TooltipBody::sections([
+            Section::dictionary([KeyValue::new(
                 "Today",
                 format!("${} USD", to_cents(self.spend)),
             )]),
-            Section::dictionary(
-                "Credits",
-                [
-                    KeyValue::new("Remaining", format!("${} USD", to_cents(remaining))),
-                    KeyValue::new(
-                        "Lifetime Purchased",
-                        format!("${} USD", to_cents(self.credits.total)),
-                    ),
-                ],
-            ),
+            Section::dictionary([
+                KeyValue::new("Remaining", format!("${} USD", to_cents(remaining))),
+                KeyValue::new(
+                    "Lifetime Purchased",
+                    format!("${} USD", to_cents(self.credits.total)),
+                ),
+            ])
+            .titled("Credits"),
             model_section(&self.models),
         ])
     }
@@ -64,11 +62,11 @@ fn model_section(models: &[(String, f64)]) -> Section {
         .sum();
     let other = (rest > 0.0).then(|| KeyValue::new("other", format!("${}", to_cents(rest))));
     Section::dictionary(
-        "By Model Since Midnight",
         models
             .iter()
             .take(LISTED_MODELS)
             .map(|(name, cost)| KeyValue::new(name.as_str(), format!("${}", to_cents(*cost))))
             .chain(other),
     )
+    .titled("By Model Since Midnight")
 }

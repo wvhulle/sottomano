@@ -277,8 +277,7 @@ impl AiGroup {
             AiTarget::OpenRouter => self.openrouter.tooltip(),
             AiTarget::ClaudeUsageWindows => self.claude_usage_windows.tooltip(),
             AiTarget::ClaudeEnterpriseSpend => self.claude_enterprise_spend.tooltip_with_sections(
-                &self
-                    .claude_organization
+                self.claude_organization
                     .sections(ClaudeOrganization::sections),
             ),
             AiTarget::ClaudeCcusagePeriods => self.claude_ccusage_periods.tooltip(),

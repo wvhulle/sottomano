@@ -84,13 +84,13 @@ impl BarWidget for Vec<OomKillEntry> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::column_table(
-            (
-                "OOM kills",
-                "Units whose processes were killed for lack of memory in the last hour.",
-            ),
+        TooltipBody::sections([Section::column_table(
             ["Unit", "Killed by"],
             self.iter().map(OomKillEntry::table_record),
-        )])
+        )
+        .titled((
+            "OOM kills",
+            "Units whose processes were killed for lack of memory in the last hour.",
+        ))])
     }
 }
