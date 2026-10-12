@@ -51,7 +51,7 @@ pub struct InternetGroup {
     tailscale: ContinuousReading<Tailscale>,
     installed: Installed,
     tunnel_address: OnHoverReading<TunnelAddress>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -73,6 +73,10 @@ pub enum InternetMessage {
 }
 
 impl InternetGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn probe() -> Task<InternetMessage> {
         Task::future(async {
             InternetMessage::Installed(Installed {

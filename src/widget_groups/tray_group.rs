@@ -31,7 +31,7 @@ pub struct TrayGroup {
     items: Vec<TrayItem>,
     handle: Option<TrayHandle>,
     open_submenus: HashSet<i32>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +59,10 @@ pub enum Action {
 }
 
 impl TrayGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription() -> iced::Subscription<TrayMessage> {
         tray::subscription().map(TrayMessage::Update)
     }

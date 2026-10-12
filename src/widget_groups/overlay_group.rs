@@ -45,7 +45,7 @@ pub enum OverlayMessage {
 }
 
 pub struct OverlayGroup {
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
     opacity: SliderControl,
     corner_radius: SliderControl,
 }

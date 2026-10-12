@@ -54,7 +54,7 @@ pub struct ColorTemperatureGroup {
     warmth: SliderControl,
     auto: ToggleControl<SunFollow>,
     relay: bool,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]

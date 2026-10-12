@@ -33,7 +33,7 @@ impl From<PendingUpgradesTarget> for HoverTarget {
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
     firmware: ContinuousReading<Vec<FirmwareUpgrade>>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +44,10 @@ pub enum PendingUpgradesMessage {
 }
 
 impl PendingUpgradesGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription() -> Subscription<PendingUpgradesMessage> {
         fwupd::subscription().map(PendingUpgradesMessage::Firmware)
     }

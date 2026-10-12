@@ -52,7 +52,7 @@ pub struct MonitorGroup {
     backlights: Vec<Backlight>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<Clight>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]

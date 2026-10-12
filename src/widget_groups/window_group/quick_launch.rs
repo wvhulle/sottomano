@@ -24,7 +24,7 @@ const RESTING_OPACITY: f32 = 0.65;
 pub struct QuickLaunch {
     ranked: HashMap<String, Vec<String>>,
     desktop_entries: Option<Arc<DesktopEntries>>,
-    pub(crate) expansion: GroupExpansion,
+    pub(super) expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]

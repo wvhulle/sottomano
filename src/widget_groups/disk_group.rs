@@ -40,7 +40,7 @@ pub struct DiskGroup {
     disk_read: ContinuousReading<DiskTransfer<Reading>>,
     disk_write: ContinuousReading<DiskTransfer<Writing>>,
     drive_health: ContinuousReading<DriveHealth>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +52,10 @@ pub enum DiskMessage {
 }
 
 impl DiskGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<DiskMessage> {
         Subscription::batch([
             polling::<Disk>(()).map(DiskMessage::Usage),

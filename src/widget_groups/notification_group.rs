@@ -42,10 +42,18 @@ impl From<NotificationTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct NotificationGroup {
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 impl NotificationGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
+    pub fn update(&mut self, message: ExpansionMessage) {
+        self.expansion.update(message);
+    }
+
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,

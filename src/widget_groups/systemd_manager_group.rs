@@ -132,7 +132,7 @@ pub struct SystemdManagerGroup {
     last_shutdown: ContinuousReading<LastShutdown>,
     coredumps: ContinuousReading<Vec<CoredumpEntry>>,
     oom_kills: ContinuousReading<Vec<OomKillEntry>>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -153,6 +153,10 @@ pub enum SystemdManagerMessage {
 }
 
 impl SystemdManagerGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription(config: &SystemdManagerConfig) -> Subscription<SystemdManagerMessage> {
         Subscription::batch([
             Subscription::run_with(

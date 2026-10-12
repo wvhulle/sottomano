@@ -53,7 +53,7 @@ pub struct IdleTimeoutsGroup {
     standby: IdleTimer,
     power_down: IdleTimer,
     idle_watcher: Option<task::Handle>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]

@@ -73,7 +73,7 @@ impl From<ShellLayoutTarget> for HoverTarget {
 }
 
 pub struct ShellLayoutGroup {
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
     float_offset: SliderControl,
 }
 

@@ -39,7 +39,7 @@ impl From<JournalTarget> for HoverTarget {
 pub struct JournalEventsGroup {
     kernel: ContinuousReading<Vec<KernelOccurrence>>,
     service_errors: ContinuousReading<ServiceErrors>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +51,10 @@ pub enum JournalEventsMessage {
 }
 
 impl JournalEventsGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
             journal_subscription(

@@ -56,7 +56,7 @@ pub struct MediaGroup {
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
     now: Instant,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 impl Default for MediaGroup {
@@ -91,6 +91,10 @@ pub enum Action {
 }
 
 impl MediaGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription(&self) -> Subscription<MediaMessage> {
         let readings = mpris::subscription().map(MediaMessage::Reading);
         if self.is_progressing() {
