@@ -3,7 +3,7 @@ use crate::{
     data::source::oom_kills::{OomKillEntry, OomKiller},
     widget_groups::{
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
-        terminal_journal::TerminalJournal,
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -47,8 +47,8 @@ impl SystemdManagerGroup {
     ) -> Option<GroupItem<'_, SystemdManagerMessage>> {
         let kills = self.oom_kills.present_reading()?;
         Some(GroupItem::reading(kills, SystemdTarget::OomKills).on_press(
-            TerminalJournal::PRESS_HINT,
-            SystemdManagerMessage::OpenLog(TerminalJournal::following(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                 config,
                 OomKillEntry::follow_log_args(),
             )),

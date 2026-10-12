@@ -60,7 +60,7 @@ impl<Message> Reveal<'_, Message> {
     }
 }
 
-pub(crate) fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
+pub fn clip_cursor(cursor: Cursor, visible: Rectangle) -> Cursor {
     match cursor.position() {
         Some(position) if visible.contains(position) => cursor,
         _ => Cursor::Unavailable,

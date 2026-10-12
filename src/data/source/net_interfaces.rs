@@ -26,7 +26,7 @@ use crate::{data::source::bus::Properties, message_subscriptions::restarting};
 const SIGNAL_BURST_LIMIT: usize = 64;
 
 #[derive(Debug)]
-pub(crate) enum ReadingError {
+pub enum ReadingError {
     Bus(zbus::Error),
     Absent,
 }
@@ -37,7 +37,7 @@ impl From<zbus::Error> for ReadingError {
     }
 }
 
-pub(crate) fn kept_readings<T>(
+pub fn kept_readings<T>(
     label: &'static str,
     readings: impl Stream<Item = Result<T, ReadingError>>,
 ) -> impl Stream<Item = Option<T>> {
@@ -51,9 +51,7 @@ pub(crate) fn kept_readings<T>(
         .map(Result::ok)
 }
 
-pub(crate) fn once_then_per_burst(
-    subscribed_signals: impl Stream<Item = ()>,
-) -> impl Stream<Item = ()> {
+pub fn once_then_per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item = ()> {
     stream::iter([()]).chain(
         subscribed_signals
             .ready_chunks(SIGNAL_BURST_LIMIT)
@@ -61,7 +59,7 @@ pub(crate) fn once_then_per_burst(
     )
 }
 
-pub(crate) fn nm_readings<T, F>(
+pub fn nm_readings<T, F>(
     label: &'static str,
     read: fn(Connection) -> F,
 ) -> impl Stream<Item = Option<T>>
@@ -86,7 +84,7 @@ where
     Ok(kept_readings(label, readings))
 }
 
-pub(crate) fn managed_objects_readings<T: Send + 'static>(
+pub fn managed_objects_readings<T: Send + 'static>(
     label: &'static str,
     service: &'static str,
     path: &'static str,
@@ -125,7 +123,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
     Ok(kept_readings(label, readings))
 }
 
-pub(crate) async fn properties_changed(
+pub async fn properties_changed(
     connection: &Connection,
     service: &'static str,
 ) -> zbus::Result<MessageStream> {
@@ -138,7 +136,7 @@ pub(crate) async fn properties_changed(
     MessageStream::for_match_rule(rule, connection, Some(16)).await
 }
 
-pub(crate) fn interface<'a>(
+pub fn interface<'a>(
     interfaces: &'a HashMap<OwnedInterfaceName, Properties>,
     name: &str,
 ) -> Option<&'a Properties> {

@@ -1,10 +1,10 @@
 use iced::{Subscription, Task};
 
-pub mod bluetooth_devices_tooltip;
-pub mod ethernet_link_tooltip;
-pub mod interface_sections;
-pub mod mobile_modem_tooltip;
-pub mod wifi_link_tooltip;
+mod bluetooth_devices_tooltip;
+mod ethernet_link_tooltip;
+mod interface_sections;
+mod mobile_modem_tooltip;
+mod wifi_link_tooltip;
 
 use crate::{
     config::Config,

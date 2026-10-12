@@ -81,7 +81,7 @@ fn read_core_loads() -> Result<CpuCoreLoads, Error> {
     })
 }
 
-pub(crate) fn cpu_busy_frac() -> Option<f64> {
+pub fn cpu_busy_frac() -> Option<f64> {
     Some(CpuStatSample::take()?.busy_fraction()?.get::<ratio>())
 }
 

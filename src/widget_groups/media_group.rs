@@ -31,14 +31,14 @@ use crate::{
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
         tooltip_body::{Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
     },
 };
 
-pub mod seek_bar;
-pub mod session_controls;
-pub mod track_tooltip;
-pub mod transport_controls;
+mod seek_bar;
+mod session_controls;
+mod track_tooltip;
+mod transport_controls;
 
 use self::{
     seek_bar::{SeekBar, SeekMessage},
@@ -330,7 +330,6 @@ impl MediaGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::FirstItem)
         .forwards_scroll(seekable)
     }
 

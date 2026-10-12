@@ -15,7 +15,6 @@ use crate::{
 };
 
 pub enum Action {
-    None,
     Run(Task<Message>),
     Reflow(Task<Message>),
 }
@@ -128,7 +127,7 @@ impl ShellLayoutGroup {
                 if self.expansion.update(menu) {
                     self.float_offset.close();
                 }
-                Action::None
+                Action::Run(Task::none())
             }
             ShellLayoutMessage::ToggleDisconnectedGroups => {
                 shell_layout.disconnected_groups = !shell_layout.disconnected_groups;
@@ -159,7 +158,7 @@ impl ShellLayoutGroup {
             }
             ShellLayoutMessage::FloatOffset(control) => {
                 let SliderAction::Commit(value) = self.float_offset.update(control) else {
-                    return Action::None;
+                    return Action::Run(Task::none());
                 };
                 shell_layout.float_offset_px = value;
                 Action::Reflow(

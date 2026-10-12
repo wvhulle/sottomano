@@ -8,6 +8,17 @@ pub struct TerminalCommand {
 }
 
 impl TerminalCommand {
+    pub const JOURNAL_PRESS_HINT: &str = "open the journal in a terminal";
+
+    pub fn journal(config: &Config, journalctl_args: Vec<String>) -> Self {
+        Self::running(
+            config,
+            ["journalctl".to_string()]
+                .into_iter()
+                .chain(journalctl_args),
+        )
+    }
+
     pub fn running(config: &Config, program_and_args: impl IntoIterator<Item = String>) -> Self {
         Self {
             command: config

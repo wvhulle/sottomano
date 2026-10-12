@@ -1,8 +1,8 @@
-pub mod core_kind_sections;
-pub mod cpu_clock_label;
-pub mod cpu_load_gauge;
-pub mod cpu_temperature_label;
-pub mod memory_usage_gauge;
+mod core_kind_sections;
+mod cpu_clock_label;
+mod cpu_load_gauge;
+mod cpu_temperature_label;
+mod memory_usage_gauge;
 
 use iced::{Subscription, Task};
 

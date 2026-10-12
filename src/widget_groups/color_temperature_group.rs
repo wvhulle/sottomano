@@ -1,5 +1,5 @@
-pub mod gamma_dim_gauge;
-pub mod sun_follow_toggle;
+mod gamma_dim_gauge;
+mod sun_follow_toggle;
 
 use std::ops::RangeInclusive;
 

@@ -5,7 +5,7 @@ use uom::si::{
 };
 
 use crate::{
-    data::source::disk::activity::{DiskTransfer, Reading, TransferDirection, Writing},
+    data::source::disk::activity::{DiskTransfer, Reading, Writing},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
@@ -18,18 +18,21 @@ use crate::{
 const BACKGROUND_TRANSFER_KIB_PER_S: f64 = 64.0;
 const SCALE_END_GIB_PER_S: f64 = 4.0;
 
-pub trait TransferIcon: TransferDirection {
+pub trait TransferIcon {
     const NAME: &'static str;
+    const LABEL: &'static str;
     const ICON: Phosphor;
 }
 
 impl TransferIcon for Reading {
     const NAME: &'static str = "Disk reads";
+    const LABEL: &'static str = "Read";
     const ICON: Phosphor = Phosphor::TrayArrowUp(Weight::Regular);
 }
 
 impl TransferIcon for Writing {
     const NAME: &'static str = "Disk writes";
+    const LABEL: &'static str = "Write";
     const ICON: Phosphor = Phosphor::TrayArrowDown(Weight::Regular);
 }
 
@@ -37,7 +40,7 @@ fn background_rate() -> InformationRate {
     InformationRate::new::<kibibyte_per_second>(BACKGROUND_TRANSFER_KIB_PER_S)
 }
 
-impl<D: TransferDirection> DiskTransfer<D> {
+impl<D> DiskTransfer<D> {
     fn quiet(&self) -> bool {
         self.rate <= background_rate()
     }

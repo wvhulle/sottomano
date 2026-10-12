@@ -3,7 +3,7 @@ use crate::{
     data::source::service_errors::{ServiceErrors, UnitErrors},
     widget_groups::{
         journal_events_group::{JournalEventsMessage, JournalTarget, MESSAGE_CAP},
-        terminal_journal::TerminalJournal,
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -18,11 +18,8 @@ use crate::{
 impl ServiceErrors {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
         GroupItem::reading(self, JournalTarget::ServiceErrors).on_press(
-            TerminalJournal::PRESS_HINT,
-            JournalEventsMessage::OpenLog(TerminalJournal::following(
-                config,
-                self.follow_log_args(),
-            )),
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            JournalEventsMessage::OpenLog(TerminalCommand::journal(config, self.follow_log_args())),
         )
     }
 }

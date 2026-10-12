@@ -7,7 +7,7 @@ use crate::{
     state::{Columns, StoreError, connect},
 };
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (
     battery TEXT NOT NULL,
     profile TEXT NOT NULL,
     base_w REAL NOT NULL,

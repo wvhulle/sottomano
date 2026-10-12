@@ -42,7 +42,7 @@ fn is_window_owned_action(key: &str) -> bool {
 }
 
 impl DesktopShell {
-    pub(crate) fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
+    pub fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
         let panels: HashMap<String, Id> = self
             .panels()
             .map(|(id, output)| (output.to_owned(), id))
@@ -59,10 +59,7 @@ impl DesktopShell {
         )
     }
 
-    pub(crate) fn update_notification_group(
-        &mut self,
-        msg: NotificationGroupMessage,
-    ) -> Task<Message> {
+    pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
         match msg {
             NotificationGroupMessage::Expansion(menu) => {
                 self.notification_group.update(menu);

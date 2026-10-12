@@ -1,14 +1,14 @@
-pub mod amount_text;
-pub mod claude_code_billing_block;
-pub mod claude_code_period_spend;
-pub mod claude_enterprise_credit_spend;
-pub mod claude_usage_window_gauge;
-pub mod copilot_cli_monthly_spend;
-pub mod copilot_free_quota_count;
-pub mod copilot_quota_gauge;
-pub mod openrouter_credit_spend;
-pub mod quota_alert_toast;
-pub mod spend_to_level;
+mod amount_text;
+mod claude_code_billing_block;
+mod claude_code_period_spend;
+mod claude_enterprise_credit_spend;
+mod claude_usage_window_gauge;
+mod copilot_cli_monthly_spend;
+mod copilot_free_quota_count;
+mod copilot_quota_gauge;
+mod openrouter_credit_spend;
+mod quota_alert_toast;
+mod spend_to_level;
 
 use std::path::PathBuf;
 

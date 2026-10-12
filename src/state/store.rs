@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, time::Duration};
 
 #[derive(Debug)]
-pub(crate) enum StoreError {
+pub enum StoreError {
     MissingStateDirectory,
     CreateDirectory(io::Error),
     Database(turso::Error),
@@ -10,7 +10,7 @@ pub(crate) enum StoreError {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum ColumnError {
+pub enum ColumnError {
     Missing { name: String },
     NotText { name: String },
     NotInteger { name: String },
@@ -60,7 +60,7 @@ impl fmt::Display for ColumnError {
 
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
-pub(crate) struct TableConnection {
+pub struct TableConnection {
     connection: turso::Connection,
     _database: turso::Database,
 }
@@ -73,7 +73,7 @@ impl Deref for TableConnection {
     }
 }
 
-pub(crate) async fn connect(schema: &[&str]) -> Result<TableConnection, StoreError> {
+pub async fn connect(schema: &[&str]) -> Result<TableConnection, StoreError> {
     let path = db_path().ok_or(StoreError::MissingStateDirectory)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -99,10 +99,10 @@ fn db_path() -> Option<PathBuf> {
     Some(state.join("vetrata/state.db"))
 }
 
-pub(crate) struct Columns(HashMap<String, usize>);
+pub struct Columns(HashMap<String, usize>);
 
 impl Columns {
-    pub(crate) fn of(rows: &turso::Rows) -> Self {
+    pub fn of(rows: &turso::Rows) -> Self {
         Self(
             rows.column_names()
                 .into_iter()
@@ -123,7 +123,7 @@ impl Columns {
         Ok(row.get_value(index)?)
     }
 
-    pub(crate) fn text(&self, row: &turso::Row, name: &str) -> Result<String, StoreError> {
+    pub fn text(&self, row: &turso::Row, name: &str) -> Result<String, StoreError> {
         match self.value(row, name)? {
             turso::Value::Text(text) => Ok(text),
             _ => Err(ColumnError::NotText {
@@ -133,14 +133,14 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_text(&self, row: &turso::Row, name: &str) -> Option<String> {
+    pub fn optional_text(&self, row: &turso::Row, name: &str) -> Option<String> {
         match self.value(row, name).ok()? {
             turso::Value::Text(text) => Some(text),
             _ => None,
         }
     }
 
-    pub(crate) fn integer(&self, row: &turso::Row, name: &str) -> Result<i64, StoreError> {
+    pub fn integer(&self, row: &turso::Row, name: &str) -> Result<i64, StoreError> {
         match self.value(row, name)? {
             turso::Value::Integer(integer) => Ok(integer),
             _ => Err(ColumnError::NotInteger {
@@ -150,14 +150,14 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_integer(&self, row: &turso::Row, name: &str) -> Option<i64> {
+    pub fn optional_integer(&self, row: &turso::Row, name: &str) -> Option<i64> {
         match self.value(row, name).ok()? {
             turso::Value::Integer(integer) => Some(integer),
             _ => None,
         }
     }
 
-    pub(crate) fn real(&self, row: &turso::Row, name: &str) -> Result<f64, StoreError> {
+    pub fn real(&self, row: &turso::Row, name: &str) -> Result<f64, StoreError> {
         match self.value(row, name)? {
             turso::Value::Real(real) => Ok(real),
             turso::Value::Integer(integer) => Ok(integer as f64),
@@ -168,7 +168,7 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_real(&self, row: &turso::Row, name: &str) -> Option<f64> {
+    pub fn optional_real(&self, row: &turso::Row, name: &str) -> Option<f64> {
         match self.value(row, name).ok()? {
             turso::Value::Real(real) => Some(real),
             turso::Value::Integer(integer) => Some(integer as f64),
@@ -176,11 +176,11 @@ impl Columns {
         }
     }
 
-    pub(crate) fn optional_flag(&self, row: &turso::Row, name: &str) -> Option<bool> {
+    pub fn optional_flag(&self, row: &turso::Row, name: &str) -> Option<bool> {
         self.optional_integer(row, name).map(|integer| integer != 0)
     }
 
-    pub(crate) fn duration(&self, row: &turso::Row, name: &str) -> Option<Duration> {
+    pub fn duration(&self, row: &turso::Row, name: &str) -> Option<Duration> {
         let seconds = u64::try_from(self.optional_integer(row, name)?).ok()?;
         Some(Duration::from_secs(seconds))
     }

@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::state::{Columns, StoreError, connect};
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
     source TEXT PRIMARY KEY,
     retry_after_unix INTEGER NOT NULL,
     attempts INTEGER NOT NULL,

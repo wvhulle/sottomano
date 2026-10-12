@@ -36,33 +36,17 @@ const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
 const SCALE_START_KB_PER_S: f64 = 100.0;
 pub const SCALE_END_MB_PER_S: f64 = 125.0;
 
-pub trait Direction {
-    const LABEL: &'static str;
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Upload;
-
-impl Direction for Upload {
-    const LABEL: &'static str = "Up";
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Download;
 
-impl Direction for Download {
-    const LABEL: &'static str = "Down";
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Total;
 
-impl Direction for Total {
-    const LABEL: &'static str = "Total";
-}
-
 #[derive(Debug, Clone, PartialEq)]
-pub struct Throughput<D: Direction> {
+pub struct Throughput<D> {
     pub interfaces: Vec<String>,
     pub rate: InformationRate,
     pub peak_rate: InformationRate,
@@ -82,7 +66,7 @@ pub fn fraction_of_scale(rate: InformationRate) -> f32 {
     ((log_position_of_rate / log_width_of_scale) as f32).clamp(0.0, 1.0)
 }
 
-impl<D: Direction> Throughput<D> {
+impl<D> Throughput<D> {
     fn fraction_of_carried(&self, rate: InformationRate) -> f32 {
         if self.interfaces.is_empty() {
             return 0.0;

@@ -5,7 +5,7 @@ use crate::{
     state::{Columns, StoreError, connect},
 };
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
     id INTEGER PRIMARY KEY CHECK (id = 0),
     armed INTEGER NOT NULL,
     sunrise_offset INTEGER NOT NULL,

@@ -1,6 +1,6 @@
-pub mod disk_transfer_gauge;
-pub mod disk_usage_gauge;
-pub mod drive_health_indicator;
+mod disk_transfer_gauge;
+mod disk_usage_gauge;
+mod drive_health_indicator;
 
 use iced::{Subscription, Task};
 

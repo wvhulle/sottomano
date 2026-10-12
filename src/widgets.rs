@@ -53,7 +53,7 @@ use iced::{Color, Element, Theme, widget::button};
 
 use crate::widgets::bar_widget::Glyph;
 
-pub(crate) fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
+pub fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_, _| button::Style {
         background: None,
         text_color,

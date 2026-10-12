@@ -10,7 +10,7 @@ use crate::{
     },
     widget_groups::{
         systemd_manager_group::{ScopeAppearance, SystemdManagerMessage},
-        terminal_journal::TerminalJournal,
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -52,10 +52,10 @@ impl SlowJob {
 impl<S: ScopeAppearance> SlowJobs<S> {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
-            |args| SystemdManagerMessage::OpenLog(TerminalJournal::following(config, args));
+            |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
         GroupItem::reading(self, S::SLOW_JOBS_TARGET)
             .on_press(
-                TerminalJournal::PRESS_HINT,
+                TerminalCommand::JOURNAL_PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
             .ongoing_toasts(self.slow_job_toasts(open_log, config.calendar.locale))

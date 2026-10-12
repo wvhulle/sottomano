@@ -1,10 +1,10 @@
 use iced::{Subscription, Task};
 
-pub mod geolocation_fix;
-pub mod pollen_count_gauge;
-pub mod rain_intensity;
-pub mod temperature_forecast;
-pub mod wind_speed;
+mod geolocation_fix;
+mod pollen_count_gauge;
+mod rain_intensity;
+mod temperature_forecast;
+mod wind_speed;
 
 use crate::{
     data::source::weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},

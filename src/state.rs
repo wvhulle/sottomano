@@ -12,7 +12,7 @@ pub mod store;
 use core::f32::consts::FRAC_1_SQRT_2;
 
 use iced::{Border, Color, Shadow, Vector, border::Radius, widget::container};
-pub(crate) use store::{Columns, StoreError, connect};
+pub use store::{Columns, StoreError, connect};
 
 use crate::{config::Config, widgets::panel_frame::OutlinedSides};
 
