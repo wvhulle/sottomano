@@ -1,6 +1,64 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter, Result as FmtResult},
+};
 
-use zbus::{fdo::DBusProxy, names::BusName};
+use zbus::{
+    fdo::DBusProxy,
+    names::BusName,
+    zvariant::{OwnedObjectPath, OwnedValue},
+};
+
+use crate::data::empty_text::non_empty;
+
+pub type Properties = HashMap<String, OwnedValue>;
+
+pub fn prop<T: TryFrom<OwnedValue>>(properties: &Properties, key: &str) -> Option<T> {
+    properties
+        .get(key)
+        .and_then(|value| value.try_clone().ok())
+        .and_then(|value| T::try_from(value).ok())
+}
+
+pub trait DeclaredProperties {
+    fn flag(&self, key: &str) -> bool;
+    fn boolean(&self, key: &str) -> Option<bool>;
+    fn text(&self, key: &str) -> Option<String>;
+    fn integer(&self, key: &str) -> Option<i64>;
+    fn float(&self, key: &str) -> Option<f64>;
+    fn dictionary(&self, key: &str) -> Option<Properties>;
+    fn object_path(&self, key: &str) -> Option<OwnedObjectPath>;
+}
+
+impl DeclaredProperties for Properties {
+    fn flag(&self, key: &str) -> bool {
+        self.boolean(key).unwrap_or(false)
+    }
+
+    fn boolean(&self, key: &str) -> Option<bool> {
+        bool::try_from(self.get(key)?).ok()
+    }
+
+    fn text(&self, key: &str) -> Option<String> {
+        non_empty(prop(self, key)?)
+    }
+
+    fn integer(&self, key: &str) -> Option<i64> {
+        i64::try_from(self.get(key)?).ok()
+    }
+
+    fn float(&self, key: &str) -> Option<f64> {
+        f64::try_from(self.get(key)?).ok()
+    }
+
+    fn dictionary(&self, key: &str) -> Option<Properties> {
+        prop(self, key)
+    }
+
+    fn object_path(&self, key: &str) -> Option<OwnedObjectPath> {
+        prop(self, key)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {

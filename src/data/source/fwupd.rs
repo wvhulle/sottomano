@@ -6,10 +6,7 @@ use iced::{
 use zbus::{Connection, proxy};
 
 use crate::{
-    data::source::{
-        bus::{self, service_absent},
-        net_interfaces::{Properties, prop},
-    },
+    data::source::bus::{self, Properties, prop, service_absent},
     message_subscriptions::restarting,
 };
 

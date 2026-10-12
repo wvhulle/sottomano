@@ -1,16 +1,13 @@
 use uom::{
     fmt::DisplayStyle::Abbreviation,
-    si::{
-        f64::{Ratio, ThermodynamicTemperature},
-        ratio::percent,
-        thermodynamic_temperature::degree_celsius,
-    },
+    si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
 };
 
 use crate::{
     data::source::weather::{HourlyTemperature, Temperature, WeatherCondition},
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
         localized_time::TimePart,
         tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
         weather_icons::WeatherIcon,
@@ -99,8 +96,4 @@ fn celsius_text(temperature: ThermodynamicTemperature) -> String {
         "{:.1}",
         temperature.into_format_args(degree_celsius, Abbreviation)
     )
-}
-
-fn percent_text(fraction: Ratio) -> String {
-    format!("{:.0}", fraction.into_format_args(percent, Abbreviation))
 }

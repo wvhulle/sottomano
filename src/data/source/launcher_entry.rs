@@ -11,7 +11,10 @@ use zbus::{
     Connection, MatchRule, MessageStream, fdo::DBusProxy, message::Type, zvariant::OwnedValue,
 };
 
-use crate::message_subscriptions::restarting;
+use crate::{
+    data::{empty_text::non_empty, source::bus::DeclaredProperties},
+    message_subscriptions::restarting,
+};
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
 const UPDATE: &str = "Update";
@@ -29,15 +32,17 @@ pub struct LauncherEntry {
 impl LauncherEntry {
     fn parse(props: &HashMap<String, OwnedValue>) -> Self {
         Self {
-            progress: visible(props, "progress-visible")
+            progress: props
+                .flag("progress-visible")
                 .then(|| number(props, "progress"))
                 .flatten()
                 .map(|value| (value as f32).clamp(0.0, 1.0)),
-            count: visible(props, "count-visible")
+            count: props
+                .flag("count-visible")
                 .then(|| number(props, "count"))
                 .flatten()
                 .map(|value| value as i64),
-            urgent: visible(props, "urgent"),
+            urgent: props.flag("urgent"),
         }
     }
 
@@ -57,13 +62,6 @@ impl LauncherEntries {
     }
 }
 
-fn visible(props: &HashMap<String, OwnedValue>, key: &str) -> bool {
-    props
-        .get(key)
-        .and_then(|value| bool::try_from(value.try_clone().ok()?).ok())
-        .unwrap_or(false)
-}
-
 #[allow(clippy::cast_precision_loss)]
 fn number(props: &HashMap<String, OwnedValue>, key: &str) -> Option<f64> {
     let value = props.get(key)?;
@@ -76,8 +74,7 @@ fn number(props: &HashMap<String, OwnedValue>, key: &str) -> Option<f64> {
 
 fn app_key(uri: &str) -> Option<String> {
     let name = uri.strip_prefix(URI_PREFIX)?;
-    let name = name.strip_suffix(DESKTOP_SUFFIX).unwrap_or(name);
-    (!name.is_empty()).then(|| name.to_owned())
+    non_empty(name.strip_suffix(DESKTOP_SUFFIX).unwrap_or(name).to_owned())
 }
 
 #[derive(Default)]

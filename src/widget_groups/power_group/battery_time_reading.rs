@@ -1,13 +1,9 @@
 use std::time::Duration;
 
 use iced::Task;
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{
-        f64::{Power, Ratio},
-        power::watt,
-        ratio::percent,
-    },
+use uom::si::{
+    f64::{Power, Ratio},
+    power::watt,
 };
 
 use crate::{
@@ -20,6 +16,7 @@ use crate::{
     widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        gauge::percent_text,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -117,10 +114,6 @@ pub(super) enum Countdown {
         charge_limit: Ratio,
         forecast: Forecast,
     },
-}
-
-fn percent_text(fraction: Ratio) -> String {
-    format!("{:.0}", fraction.into_format_args(percent, Abbreviation))
 }
 
 impl Countdown {
@@ -250,6 +243,8 @@ impl BarWidget for BatteryTime {
 
 #[cfg(test)]
 mod tests {
+    use uom::si::ratio::percent;
+
     use super::*;
 
     #[test]

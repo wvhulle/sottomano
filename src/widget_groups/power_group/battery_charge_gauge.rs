@@ -7,6 +7,7 @@ use crate::{
     data::source::sysfs_sensors::battery::Battery,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
@@ -39,13 +40,7 @@ impl BarWidget for Battery {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::dictionary(
             [
-                Some(KeyValue::new(
-                    "Battery",
-                    format!(
-                        "{:.0}",
-                        self.capacity.into_format_args(percent, Abbreviation)
-                    ),
-                )),
+                Some(KeyValue::new("Battery", percent_text(self.capacity))),
                 self.status
                     .map(|status| KeyValue::new("Status", status.as_str())),
                 Some(KeyValue::new(
