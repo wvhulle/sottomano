@@ -8,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, TooltipBody},
     },
 };
 
@@ -30,7 +30,7 @@ impl BarWidget for GpuPowerDraw {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        TooltipBody::dictionary(
             [
                 Some(KeyValue::new("Draw", watt_text(self.draw))),
                 self.limit
@@ -38,6 +38,6 @@ impl BarWidget for GpuPowerDraw {
             ]
             .into_iter()
             .flatten(),
-        )])
+        )
     }
 }

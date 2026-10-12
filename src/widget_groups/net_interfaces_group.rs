@@ -142,11 +142,11 @@ impl NetInterfacesGroup {
         match target {
             NetInterfaceTarget::Bluetooth => self.bluetooth.live_tooltip(),
             NetInterfaceTarget::Ethernet => self.ethernet.live_tooltip_with_sections(
-                &self.ethernet_details.sections(EthernetDetails::sections),
+                self.ethernet_details.sections(EthernetDetails::sections),
             ),
             NetInterfaceTarget::Wifi => self
                 .wifi
-                .live_tooltip_with_sections(&self.wifi_details.sections(WifiDetails::sections)),
+                .live_tooltip_with_sections(self.wifi_details.sections(WifiDetails::sections)),
             NetInterfaceTarget::Mobile => self.mobile.live_tooltip(),
         }
     }

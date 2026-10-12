@@ -49,20 +49,20 @@ impl BarWidget for ClaudeEnterpriseSpend {
                 KeyValue::new("Percent Used", percent_text(self.used_share)),
             ]
         });
-        TooltipBody::sections(&[Section::dictionary(
-            "Usage Credits",
+        TooltipBody::sections([Section::dictionary(
             [KeyValue::new("Status", status)]
                 .into_iter()
                 .chain(reason.map(|reason| KeyValue::new("Reason", reason)))
                 .chain([KeyValue::new("Used This Month", self.used.to_string())])
                 .chain(limit_entries),
-        )])
+        )
+        .titled("Usage Credits")])
     }
 }
 
 impl ClaudeOrganization {
     pub fn sections(&self) -> Vec<Section> {
-        vec![Section::untitled_dictionary([
+        vec![Section::dictionary([
             KeyValue::new("Organization", self.organization.as_str()),
             KeyValue::new("Seat Tier", self.seat_tier.as_str()),
             KeyValue::new("Subscription Status", self.subscription_status.as_str()),

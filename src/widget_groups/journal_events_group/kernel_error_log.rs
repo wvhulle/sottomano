@@ -85,15 +85,15 @@ impl BarWidget for Vec<KernelOccurrence> {
         let hidden = self.len().saturating_sub(TOOLTIP_ROWS);
         let hidden_notice =
             (hidden > 0).then(|| KeyValue::new("", format!("{hidden} earlier not shown")));
-        TooltipBody::sections(&[Section::dictionary(
-            (
-                "Kernel log",
-                "Kernel messages at warning or worse in the last hour, repeats merged.",
-            ),
+        TooltipBody::sections([Section::dictionary(
             hidden_notice
                 .into_iter()
                 .chain(self[hidden..].iter().map(KernelOccurrence::key_value)),
-        )])
+        )
+        .titled((
+            "Kernel log",
+            "Kernel messages at warning or worse in the last hour, repeats merged.",
+        ))])
     }
 }
 

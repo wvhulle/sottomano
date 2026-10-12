@@ -30,10 +30,7 @@ impl BarWidget for FailedReading {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-            "Error",
-            self.message.clone(),
-        )])])
+        TooltipBody::dictionary([KeyValue::new("Error", self.message.clone())])
     }
 }
 
@@ -92,7 +89,10 @@ impl<S: BarWidget> ContinuousReading<S> {
         Some(Tooltip::of(self.display()?.tooltip()))
     }
 
-    pub fn live_tooltip_with_sections(&self, extra: &[Section]) -> Option<Tooltip> {
+    pub fn live_tooltip_with_sections(
+        &self,
+        extra: impl IntoIterator<Item = Section>,
+    ) -> Option<Tooltip> {
         Some(Tooltip::of(self.display()?.tooltip().with_sections(extra)))
     }
 
@@ -147,7 +147,10 @@ impl<S: Source + BarWidget> ContinuousReading<S> {
         self.tooltip_with(self.display()?.tooltip())
     }
 
-    pub fn tooltip_with_sections(&self, extra: &[Section]) -> Option<Tooltip> {
+    pub fn tooltip_with_sections(
+        &self,
+        extra: impl IntoIterator<Item = Section>,
+    ) -> Option<Tooltip> {
         self.tooltip_with(self.display()?.tooltip().with_sections(extra))
     }
 

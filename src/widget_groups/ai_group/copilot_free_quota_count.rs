@@ -33,8 +33,8 @@ impl BarWidget for CopilotFree {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
+        TooltipBody::sections([
+            Section::dictionary(
                 self.plan
                     .as_deref()
                     .map(|plan| KeyValue::new("Plan", plan))
@@ -42,7 +42,6 @@ impl BarWidget for CopilotFree {
                     .chain([KeyValue::new("Source", USER_ENDPOINT)]),
             ),
             Section::dictionary(
-                "Remaining",
                 [
                     KeyValue::new("Chat", self.chat.to_string()),
                     KeyValue::new("Completions", self.completions.to_string()),
@@ -57,7 +56,8 @@ impl BarWidget for CopilotFree {
                         },
                     )
                 })),
-            ),
+            )
+            .titled("Remaining"),
         ])
     }
 }

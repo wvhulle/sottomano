@@ -29,7 +29,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         weather_icons::WeatherIcon,
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
@@ -275,12 +275,10 @@ impl DarkModeGroup {
     }
 
     fn offset_slider_tooltip(&self, edge: ColorMode) -> Tooltip {
-        Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-            KeyValue::new(
-                format!("{} offset", edge.sun_event_label()),
-                self.offset_slider_for(edge).readout_text(),
-            ),
-        ])]))
+        Tooltip::of(TooltipBody::dictionary([KeyValue::new(
+            format!("{} offset", edge.sun_event_label()),
+            self.offset_slider_for(edge).readout_text(),
+        )]))
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, DarkModeMessage> {

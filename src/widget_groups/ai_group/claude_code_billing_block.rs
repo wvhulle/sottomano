@@ -38,17 +38,16 @@ impl BarWidget for ClaudeCcusageBlock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let source = Section::untitled_dictionary([
+        let source = Section::dictionary([
             KeyValue::new("Source", "ccusage, local Claude Code logs"),
             KeyValue::new("Cost Basis", "API list prices"),
         ]);
         let Some(block) = &self.active else {
-            return TooltipBody::sections(&[source]);
+            return TooltipBody::sections([source]);
         };
-        TooltipBody::sections(&[
+        TooltipBody::sections([
             source,
             Section::dictionary(
-                "Active 5-Hour Block",
                 [
                     Some(KeyValue::new("Cost", dollars(block.cost))),
                     block
@@ -64,7 +63,8 @@ impl BarWidget for ClaudeCcusageBlock {
                 ]
                 .into_iter()
                 .flatten(),
-            ),
+            )
+            .titled("Active 5-Hour Block"),
         ])
     }
 }

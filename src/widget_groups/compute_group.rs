@@ -166,7 +166,7 @@ impl ComputeGroup {
     pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
         match target {
             ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
-                &[
+                [
                     self.core_loads
                         .sections(|loads| loads.sections(&self.topology)),
                     self.hardware.cpu.hardware_sections().to_vec(),
@@ -175,17 +175,15 @@ impl ComputeGroup {
             ),
             ComputeTarget::Memory => self
                 .memory
-                .tooltip_with_sections(&[self.hardware.memory.hardware_section()]),
+                .tooltip_with_sections([self.hardware.memory.hardware_section()]),
             ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
-                &self
-                    .clock
+                self.clock
                     .get()
                     .map(|clock| clock.core_sections(&self.topology))
                     .unwrap_or_default(),
             ),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
-                &self
-                    .core_temperatures
+                self.core_temperatures
                     .sections(|cores| cores.sections(&self.topology)),
             ),
         }

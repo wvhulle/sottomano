@@ -36,13 +36,13 @@ impl BarWidget for VramUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&self.sections())
+        TooltipBody::sections(self.sections())
     }
 }
 
 impl VramUsage {
     pub fn sections(&self) -> Vec<Section> {
-        vec![Section::untitled_dictionary([
+        vec![Section::dictionary([
             KeyValue::new(
                 "VRAM",
                 format!("{:.0}", self.fill().into_format_args(percent, Abbreviation)),
@@ -55,9 +55,8 @@ impl VramUsage {
 
 impl GpuProcesses {
     pub fn sections(&self) -> Vec<Section> {
-        vec![Section::dictionary(
-            "Processes",
-            self.processes.iter().filter_map(|process| {
+        vec![
+            Section::dictionary(self.processes.iter().filter_map(|process| {
                 Some(KeyValue::new(
                     process
                         .name
@@ -65,7 +64,8 @@ impl GpuProcesses {
                         .unwrap_or_else(|| process.pid.to_string()),
                     process.vram?.display().iec().to_string(),
                 ))
-            }),
-        )]
+            }))
+            .titled("Processes"),
+        ]
     }
 }

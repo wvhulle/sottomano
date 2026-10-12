@@ -68,15 +68,15 @@ impl BarWidget for LastShutdown {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::column_table(
-            (
-                "Slowest stops at last shutdown",
-                "From the previous boot's journal: shutdown start to its last entry. Amber stops \
-                 crossed slow_shutdown_stop_secs or never finished.",
-            ),
+        TooltipBody::sections([Section::column_table(
             ["Took", "Result"],
             self.slowest_stops.iter().map(UnitStop::table_record),
-        )])
+        )
+        .titled((
+            "Slowest stops at last shutdown",
+            "From the previous boot's journal: shutdown start to its last entry. Amber stops \
+             crossed slow_shutdown_stop_secs or never finished.",
+        ))])
     }
 }
 

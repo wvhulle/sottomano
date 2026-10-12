@@ -6,7 +6,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         phosphor::Phosphor,
         temperature_thresholds::celsius_text,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -50,7 +50,7 @@ impl BarWidget for GpuTemperatureLabel {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        TooltipBody::dictionary(
             [
                 Some(KeyValue::new("GPU", celsius_text(self.current))),
                 self.limits
@@ -62,6 +62,6 @@ impl BarWidget for GpuTemperatureLabel {
             ]
             .into_iter()
             .flatten(),
-        )])
+        )
     }
 }

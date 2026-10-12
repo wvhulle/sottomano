@@ -39,13 +39,9 @@ impl BarWidget for Wifi {
 
     fn tooltip(&self) -> TooltipBody {
         let Some(link) = &self.link else {
-            return TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-                "WiFi",
-                "disconnected",
-            )])]);
+            return TooltipBody::dictionary([KeyValue::new("WiFi", "disconnected")]);
         };
-        TooltipBody::sections(&[Section::dictionary(
-            "Identity",
+        TooltipBody::sections([Section::dictionary(
             link.ssid
                 .as_deref()
                 .map(|ssid| KeyValue::new("Network Name (SSID)", ssid))
@@ -62,7 +58,8 @@ impl BarWidget for Wifi {
                     ),
                     KeyValue::new("Interface Name", self.device.as_str()),
                 ]),
-        )])
+        )
+        .titled("Identity")])
     }
 }
 
@@ -71,10 +68,7 @@ impl WifiDetails {
         let key = |label: &str| label.to_string();
         let addressing = self.addressing.iter().flat_map(|addressing| {
             [
-                Section::untitled_dictionary([KeyValue::new(
-                    "MAC Address",
-                    addressing.mac.as_str(),
-                )]),
+                Section::dictionary([KeyValue::new("MAC Address", addressing.mac.as_str())]),
                 address_section(&key, "IPv4", addressing.ipv4.as_ref()),
                 address_section(&key, "IPv6", addressing.ipv6.as_ref()),
                 dns_section(&key, &addressing.dns),

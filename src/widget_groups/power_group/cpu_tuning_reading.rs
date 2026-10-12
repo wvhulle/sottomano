@@ -28,7 +28,7 @@ impl BarWidget for CpuTuningEntry {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[])
+        TooltipBody::sections([])
     }
 }
 
@@ -39,7 +39,6 @@ impl CpuTuning {
             None => self.driver.clone(),
         };
         let cpu = Section::column_table(
-            "CPU",
             HEADINGS,
             [
                 Some(explained_setting(
@@ -78,9 +77,9 @@ impl CpuTuning {
             ]
             .into_iter()
             .flatten(),
-        );
+        )
+        .titled("CPU");
         let firmware = Section::column_table(
-            "Firmware",
             HEADINGS,
             [
                 self.platform_profile.clone().map(|profile| {
@@ -100,7 +99,8 @@ impl CpuTuning {
             ]
             .into_iter()
             .flatten(),
-        );
+        )
+        .titled("Firmware");
         vec![cpu, firmware]
     }
 }

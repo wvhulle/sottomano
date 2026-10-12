@@ -110,9 +110,6 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary([KeyValue::new(
-            "CPU",
-            percent_text(self.busy),
-        )])])
+        TooltipBody::dictionary([KeyValue::new("CPU", percent_text(self.busy))])
     }
 }

@@ -8,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -37,7 +37,7 @@ impl BarWidget for Battery {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        TooltipBody::dictionary(
             [
                 Some(KeyValue::new(
                     "Battery",
@@ -58,6 +58,6 @@ impl BarWidget for Battery {
             ]
             .into_iter()
             .flatten(),
-        )])
+        )
     }
 }

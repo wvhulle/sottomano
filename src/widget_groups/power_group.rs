@@ -184,7 +184,7 @@ impl PowerGroup {
 
     pub fn tooltip_for(&self, target: PowerTarget) -> Option<Tooltip> {
         match target {
-            PowerTarget::Battery => self.battery.tooltip_with_sections(&[self
+            PowerTarget::Battery => self.battery.tooltip_with_sections([self
                 .battery
                 .get()
                 .map(|battery| &battery.identity)
@@ -197,11 +197,11 @@ impl PowerGroup {
                     self.charger.sections(ChargerSupply::sections)
                 };
                 self.battery
-                    .tooltip_with(draw.tooltip().with_sections(&charger))
+                    .tooltip_with(draw.tooltip().with_sections(charger))
             }
             PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
             PowerTarget::CpuTuning => Some(Tooltip::of(TooltipBody::sections(
-                &self.cpu_tuning.sections(CpuTuning::sections),
+                self.cpu_tuning.sections(CpuTuning::sections),
             ))),
             PowerTarget::Profile => self.power_profile.tooltip(),
         }

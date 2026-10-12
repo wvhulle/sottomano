@@ -135,6 +135,6 @@ impl BarWidget for NotificationStatus {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[])
+        TooltipBody::sections([])
     }
 }

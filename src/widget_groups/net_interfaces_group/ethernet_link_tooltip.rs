@@ -26,18 +26,16 @@ impl BarWidget for Ethernet {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary(self.ports.iter().map(
-            |port| {
-                KeyValue::new(
-                    port.name.as_str(),
-                    if port.connected {
-                        "connected"
-                    } else {
-                        "disconnected"
-                    },
-                )
-            },
-        ))])
+        TooltipBody::dictionary(self.ports.iter().map(|port| {
+            KeyValue::new(
+                port.name.as_str(),
+                if port.connected {
+                    "connected"
+                } else {
+                    "disconnected"
+                },
+            )
+        }))
     }
 }
 
@@ -66,16 +64,16 @@ fn link_sections(port: &Port, link: &Link, prefixed: bool) -> [Section; 6] {
         .map(|profile| KeyValue::new("Network Profile", profile));
     [
         Section::dictionary(
-            key("Identity"),
             [KeyValue::new("Interface Name", port.name.as_str())]
                 .into_iter()
                 .chain(profile)
                 .chain([KeyValue::new("MAC Address", link.mac.as_str())]),
-        ),
+        )
+        .titled(key("Identity")),
         address_section(&key, "IPv4", link.ipv4.as_ref()),
         address_section(&key, "IPv6", link.ipv6.as_ref()),
         dns_section(&key, &link.dns),
         link_stats_section(&key, "Link", "Link Speed", link.speed, link.mtu),
-        Section::dictionary(key("Hardware"), port.adapter.hardware_entries()),
+        Section::dictionary(port.adapter.hardware_entries()).titled(key("Hardware")),
     ]
 }

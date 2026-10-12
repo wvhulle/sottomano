@@ -108,13 +108,13 @@ impl<S: ScopeAppearance> BarWidget for SlowJobs<S> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::column_table(
-            (
-                S::SLOW_JOBS_LABEL,
-                "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
-            ),
+        TooltipBody::sections([Section::column_table(
             ["Job", "Since"],
             self.jobs.iter().map(SlowJob::table_record),
-        )])
+        )
+        .titled((
+            S::SLOW_JOBS_LABEL,
+            "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
+        ))])
     }
 }

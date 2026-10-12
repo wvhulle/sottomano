@@ -155,7 +155,7 @@ impl InternetGroup {
                     .iter()
                     .find(|t| &t.name == name)?;
                 Some(Tooltip::of(tunnel.tooltip().with_sections(
-                    &self.tunnel_address.sections(TunnelAddress::sections),
+                    self.tunnel_address.sections(TunnelAddress::sections),
                 )))
             }
             InternetTarget::Down => self.down.live_tooltip(),

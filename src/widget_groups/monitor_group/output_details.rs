@@ -112,7 +112,7 @@ mod tests {
         );
         assert_eq!(
             output.hardware_section(),
-            Section::dictionary("Hardware", [KeyValue::new("Make", "LG Display")])
+            Section::dictionary([KeyValue::new("Make", "LG Display")]).titled("Hardware")
         );
     }
 

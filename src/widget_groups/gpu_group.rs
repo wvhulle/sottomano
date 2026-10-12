@@ -222,7 +222,7 @@ impl GpuGroup {
         let snapshot = &device.snapshot;
         match target.reading {
             GpuReading::Load => snapshot.tooltip_with_sections(
-                &[
+                [
                     self.hovered_sections(&target.bus, |group| {
                         group.clocks.sections(GpuClocks::sections)
                     }),
@@ -231,7 +231,7 @@ impl GpuGroup {
                 .concat(),
             ),
             GpuReading::Memory => snapshot.tooltip_with(TooltipBody::sections(
-                &[
+                [
                     snapshot.get()?.vram.sections(),
                     self.hovered_sections(&target.bus, |group| {
                         group.processes.sections(GpuProcesses::sections)

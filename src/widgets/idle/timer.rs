@@ -14,7 +14,7 @@ use crate::{
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
     },
 };
 
@@ -136,10 +136,10 @@ impl IdleTimer {
                 },
             ),
         };
-        Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
+        Tooltip::of(TooltipBody::dictionary([
             when,
             KeyValue::new("Via", self.action.mechanism()),
-        ])]))
+        ]))
     }
 
     pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, TimerMessage> {

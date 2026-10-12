@@ -8,7 +8,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -72,9 +72,7 @@ impl PanelAppearanceGroup {
                 KeyValue::new("Corner radius", self.corner_radius.readout_text())
             }
         };
-        Tooltip::of(TooltipBody::sections(&[Section::untitled_dictionary([
-            entry,
-        ])]))
+        Tooltip::of(TooltipBody::dictionary([entry]))
     }
 
     fn close_sliders(&mut self) {

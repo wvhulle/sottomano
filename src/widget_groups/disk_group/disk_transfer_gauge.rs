@@ -10,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         rate_text::RateText,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -76,13 +76,13 @@ impl<D: TransferIcon> BarWidget for DiskTransfer<D> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(&[Section::untitled_dictionary([
+        TooltipBody::dictionary([
             KeyValue::new("Disk", self.disk.clone()),
             KeyValue::new(D::LABEL, self.rate.per_second_text()),
             KeyValue::new(
                 "Disk busy",
                 format!("{:.0}%", self.disk_busy.get::<percent>()),
             ),
-        ])])
+        ])
     }
 }

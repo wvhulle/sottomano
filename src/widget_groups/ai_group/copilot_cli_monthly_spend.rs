@@ -36,8 +36,8 @@ impl BarWidget for CopilotCcusage {
 
     fn tooltip(&self) -> TooltipBody {
         let usage = &self.period.usage;
-        TooltipBody::sections(&[
-            Section::untitled_dictionary(
+        TooltipBody::sections([
+            Section::dictionary(
                 [
                     KeyValue::new("Plan", "copilot-cli"),
                     KeyValue::new("Source", "ccusage, local CLI session data"),
@@ -49,14 +49,12 @@ impl BarWidget for CopilotCcusage {
                         .map(|limit| KeyValue::new("Monthly Budget", dollars(f64::from(limit)))),
                 ),
             ),
-            Section::dictionary(
-                self.month.clone(),
-                [
-                    KeyValue::new("Tokens", usage.tokens.to_string()),
-                    KeyValue::new("Cost", format!("${:.2}", usage.cost)),
-                    KeyValue::new("Models", usage.models.clone()),
-                ],
-            ),
+            Section::dictionary([
+                KeyValue::new("Tokens", usage.tokens.to_string()),
+                KeyValue::new("Cost", format!("${:.2}", usage.cost)),
+                KeyValue::new("Models", usage.models.clone()),
+            ])
+            .titled(self.month.clone()),
         ])
     }
 }

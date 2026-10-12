@@ -34,7 +34,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -332,7 +332,7 @@ impl BarWidget for SystemdManagerGroup {
     fn tooltip(&self) -> TooltipBody {
         let count =
             |key, count: Option<usize>| count.map(|count| KeyValue::new(key, count.to_string()));
-        TooltipBody::sections(&[Section::untitled_dictionary(
+        TooltipBody::dictionary(
             [
                 count(
                     System::SLOW_JOBS_LABEL,
@@ -363,7 +363,7 @@ impl BarWidget for SystemdManagerGroup {
             ]
             .into_iter()
             .flatten(),
-        )])
+        )
     }
 }
 
