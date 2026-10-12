@@ -1,5 +1,6 @@
 use std::{
     iter::once,
+    path::Path,
     time::{Duration, SystemTime},
 };
 
@@ -395,6 +396,7 @@ impl CellView {
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) | Cell::Link(text) => self.copyable_text(text, color),
+            Cell::Path(path) => self.path(&path, color),
             Cell::Hint(text) => self.text(text, self.hint),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
         }
@@ -410,10 +412,27 @@ impl CellView {
         )
     }
 
+    fn path(&self, path: &Path, color: Color) -> Element<'static, Message> {
+        let text = path.display().to_string();
+        let unwrapped = bar_text(&self.font, text.clone())
+            .color(color)
+            .wrapping(Wrapping::None);
+        let value = loading_text(unwrapped, text.clone(), self.phase, &self.font, color);
+        pressable_text(
+            value,
+            text,
+            Message::CopyText,
+            self.flash,
+            self.copy_flash,
+            Interaction::Copy,
+        )
+    }
+
     fn value(&self, value: Cell, color: Color) -> Element<'static, Message> {
         match value {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) => self.copyable_text(text, color),
+            Cell::Path(path) => self.path(&path, color),
             Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
             Cell::Link(url) => self.openable_link(url),
             Cell::Hint(text) => self.text(text, self.hint),
@@ -458,7 +477,7 @@ fn cell(
     color: Color,
     max_width: f32,
 ) -> Container<'static, Message> {
-    container(bar_text(font, text).color(color).wrapping(Wrapping::Glyph)).max_width(max_width)
+    container(bar_text(font, text).color(color)).max_width(max_width)
 }
 
 fn inset(content: Element<'static, Message>) -> Element<'static, Message> {

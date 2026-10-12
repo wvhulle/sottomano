@@ -8,7 +8,7 @@ use crate::{
         process::{self, Inspection, Launch},
     },
     desktop_shell::hover_tooltips::relative,
-    widgets::tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+    widgets::tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
 };
 
 pub fn tooltip(
@@ -83,7 +83,7 @@ fn command(inspected: &Inspection) -> Vec<KeyValue> {
     let binary = launched
         .binary
         .as_ref()
-        .map(|binary| KeyValue::new("Binary", binary.display().to_string()));
+        .map(|binary| KeyValue::new("Binary", Cell::Path(binary.clone())));
     let scope = launched
         .scope
         .as_deref()
