@@ -139,6 +139,22 @@ pub struct GroupToastRequests<M> {
     pub levels: Vec<LevelReading<M>>,
 }
 
+impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
+    fn from_iter<I: IntoIterator<Item = GroupToastRequests<M>>>(groups: I) -> Self {
+        groups.into_iter().fold(
+            GroupToastRequests {
+                ongoing_toasts: Vec::new(),
+                levels: Vec::new(),
+            },
+            |mut requests, group| {
+                requests.ongoing_toasts.extend(group.ongoing_toasts);
+                requests.levels.extend(group.levels);
+                requests
+            },
+        )
+    }
+}
+
 pub struct GroupContent<'a, M> {
     expansion: &'a GroupExpansion,
     on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,

@@ -21,7 +21,10 @@ use super::{
 };
 use crate::{
     config::{Config, notification_toasts::ToastPlacementConfig},
-    widgets::region_reporter::RegionRoles,
+    widgets::{
+        child_view::{ChildView, ChildViewMut},
+        region_reporter::RegionRoles,
+    },
 };
 
 impl<'a> WindowAnchoredToasts<'a> {
@@ -202,29 +205,17 @@ fn card_rects(layout: Layout<'_>) -> impl Iterator<Item = Rectangle> {
         .map(|card_layout| snapped(card_layout.bounds()))
 }
 
-struct CardView<'t, 'a> {
-    widget: &'t Element<'a, NotificationMessage>,
-    state: &'t Tree,
-    layout: Layout<'t>,
-}
-
-struct CardViewMut<'t, 'a> {
-    widget: &'t mut Element<'a, NotificationMessage>,
-    state: &'t mut Tree,
-    layout: Layout<'t>,
-}
-
 impl<'a> WindowAnchoredToasts<'a> {
     fn views<'t>(
         &'t self,
         tree: &'t Tree,
         layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = CardView<'t, 'a>> {
+    ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, NotificationMessage>> {
         self.cards
             .iter()
             .zip(&tree.children)
             .zip(layout.children())
-            .map(|((widget, state), layout)| CardView {
+            .map(|((widget, state), layout)| ChildView {
                 widget,
                 state,
                 layout,
@@ -235,12 +226,12 @@ impl<'a> WindowAnchoredToasts<'a> {
         &'t mut self,
         tree: &'t mut Tree,
         layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = CardViewMut<'t, 'a>> {
+    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, NotificationMessage>> {
         self.cards
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-            .map(|((widget, state), layout)| CardViewMut {
+            .map(|((widget, state), layout)| ChildViewMut {
                 widget,
                 state,
                 layout,

@@ -20,7 +20,7 @@ use crate::{
         activity_line::activity_line,
         bar_widget::Glyph,
         group_item::GroupItem,
-        native_icon::native_icon,
+        icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
@@ -200,7 +200,7 @@ fn item_view<'a>(
 ) -> Element<'a, GroupEvent<TrayMessage>> {
     let side = config.theme.font.icon_size_px;
     let glyph: Element<'a, GroupEvent<TrayMessage>> = match &item.icon {
-        Some(source) => native_icon(source, side, reveal),
+        Some(source) => IconHandle::from(source).view(side, reveal),
         None => Glyph::from(Phosphor::Question(Weight::Regular)).view(
             side,
             config.theme.palette.bar_foreground.scale_alpha(reveal),

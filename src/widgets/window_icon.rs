@@ -7,9 +7,8 @@ use crate::{
         app_rules::{AppRule, IconCandidate},
         desktop_entries::DesktopIndex,
         niri,
-        tray::IconSource,
     },
-    widgets::{favicon::Favicons, native_icon::native_icon, text::FontFallbacks},
+    widgets::{favicon::Favicons, icon_handle::IconHandle, text::FontFallbacks},
 };
 
 #[derive(Clone, Copy)]
@@ -41,9 +40,5 @@ pub fn window_icon<'a, Message: 'a>(
     if let Some(favicon) = favicon_key.and_then(|key| favicons.get(key)) {
         return Some(favicon.view(side, opacity));
     }
-    Some(native_icon(
-        &IconSource::Themed(icon?.to_path_buf()),
-        side,
-        opacity,
-    ))
+    Some(IconHandle::at(icon?).view(side, opacity))
 }

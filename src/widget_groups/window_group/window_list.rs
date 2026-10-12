@@ -3,9 +3,10 @@ use std::{collections::HashMap, time::Duration};
 use iced::{
     Alignment, Element, Length, Subscription, Task,
     alignment::{Horizontal, Vertical},
+    border,
     border::Radius,
     time::every,
-    widget::{Row, button, container, mouse_area, rich_text, stack, text},
+    widget::{Row, button, container, mouse_area, progress_bar, rich_text, stack, text},
 };
 
 use crate::{
@@ -32,7 +33,6 @@ use crate::{
         on_hover_reading::OnHoverReading,
         pager_slot::PagerSlot,
         phosphor::{Phosphor, Weight},
-        progress_line::progress_line,
         text::LINE_HEIGHT,
         tooltip_body::Section,
         widget_state::WidgetState,
@@ -383,12 +383,19 @@ fn progress_ticks<'a>(
     opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
     let fraction = extras.progress(config)?;
-    Some(progress_line(
-        config.theme.palette.warning.scale_alpha(opacity),
-        config.theme.palette.dim.scale_alpha(opacity),
-        fraction,
-        config.panel_bar.indicator_thickness_px,
-    ))
+    let thickness = config.panel_bar.indicator_thickness_px;
+    let filled = config.theme.palette.warning.scale_alpha(opacity);
+    let track = config.theme.palette.dim.scale_alpha(opacity);
+    Some(
+        progress_bar(0.0..=1.0, fraction)
+            .girth(thickness)
+            .style(move |_| progress_bar::Style {
+                background: track.into(),
+                bar: filled.into(),
+                border: border::rounded(thickness),
+            })
+            .into(),
+    )
 }
 
 fn count_badge<'a>(
