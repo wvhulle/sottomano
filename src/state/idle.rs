@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::state::{Columns, StoreError, connect};
+use crate::state::{Columns, StoreError, with_table};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -19,28 +19,19 @@ pub struct Timeouts {
 }
 
 pub async fn load() -> Timeouts {
-    match try_load().await {
-        Ok(timeouts) => timeouts,
-        Err(e) => {
-            tracing::warn!("idle timeouts: load failed: {e}");
-            Timeouts::default()
-        }
-    }
+    with_table("idle timeouts: load failed", &[CREATE_TABLE], read_timeouts)
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn save(timeouts: Timeouts) -> bool {
-    match try_save(timeouts).await {
-        Ok(()) => true,
-        Err(e) => {
-            tracing::warn!("idle timeouts: save failed: {e}");
-            false
-        }
-    }
-}
-
-async fn try_load() -> Result<Timeouts, StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    read_timeouts(&conn).await
+    with_table(
+        "idle timeouts: save failed",
+        &[CREATE_TABLE],
+        async |conn| write_timeouts(conn, timeouts).await,
+    )
+    .await
+    .is_some()
 }
 
 async fn read_timeouts(conn: &turso::Connection) -> Result<Timeouts, StoreError> {
@@ -60,11 +51,6 @@ async fn read_timeouts(conn: &turso::Connection) -> Result<Timeouts, StoreError>
         standby: columns.duration(&row, "standby"),
         power_down: columns.duration(&row, "power_down"),
     })
-}
-
-async fn try_save(timeouts: Timeouts) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    write_timeouts(&conn, timeouts).await
 }
 
 async fn write_timeouts(conn: &turso::Connection, timeouts: Timeouts) -> Result<(), StoreError> {

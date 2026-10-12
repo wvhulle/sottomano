@@ -2,7 +2,7 @@ use chrono::TimeDelta;
 
 use crate::{
     data::sun_schedule::SunEventOffsets,
-    state::{Columns, StoreError, connect},
+    state::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
@@ -28,28 +28,23 @@ impl Default for DarkModeSchedule {
 }
 
 pub async fn load() -> DarkModeSchedule {
-    match try_load().await {
-        Ok(schedule) => schedule,
-        Err(e) => {
-            tracing::warn!("dark mode schedule: load failed: {e}");
-            DarkModeSchedule::default()
-        }
-    }
+    with_table(
+        "dark mode schedule: load failed",
+        &[CREATE_TABLE],
+        read_schedule,
+    )
+    .await
+    .unwrap_or_default()
 }
 
 pub async fn save(schedule: DarkModeSchedule) -> bool {
-    match try_save(schedule).await {
-        Ok(()) => true,
-        Err(e) => {
-            tracing::warn!("dark mode schedule: save failed: {e}");
-            false
-        }
-    }
-}
-
-async fn try_load() -> Result<DarkModeSchedule, StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    read_schedule(&conn).await
+    with_table(
+        "dark mode schedule: save failed",
+        &[CREATE_TABLE],
+        async |conn| write_schedule(conn, schedule).await,
+    )
+    .await
+    .is_some()
 }
 
 async fn read_schedule(conn: &turso::Connection) -> Result<DarkModeSchedule, StoreError> {
@@ -70,11 +65,6 @@ async fn read_schedule(conn: &turso::Connection) -> Result<DarkModeSchedule, Sto
             sunset_offset: TimeDelta::seconds(columns.integer(&row, "sunset_offset")?),
         },
     })
-}
-
-async fn try_save(schedule: DarkModeSchedule) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    write_schedule(&conn, schedule).await
 }
 
 async fn write_schedule(

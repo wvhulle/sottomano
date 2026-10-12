@@ -1,4 +1,4 @@
-use crate::state::{Columns, OverlaySettings, StoreError, connect};
+use crate::state::{Columns, OverlaySettings, StoreError, flag, real, upsert_column, with_table};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS overlay_settings (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -25,30 +25,21 @@ impl OverlaySetting {
 }
 
 pub async fn save(setting: OverlaySetting, value: f32) -> bool {
-    put(setting, turso::Value::Real(f64::from(value))).await
+    put(setting, real(value)).await
 }
 
 pub async fn save_toast_spatial_layout(spatial: bool) {
-    put(
-        OverlaySetting::ToastSpatialLayout,
-        turso::Value::Integer(i64::from(spatial)),
-    )
-    .await;
+    put(OverlaySetting::ToastSpatialLayout, flag(spatial)).await;
 }
 
 async fn put(setting: OverlaySetting, value: turso::Value) -> bool {
-    match try_put(setting, value).await {
-        Ok(()) => true,
-        Err(e) => {
-            tracing::warn!("overlay settings: save {} failed: {e}", setting.column());
-            false
-        }
-    }
-}
-
-async fn try_put(setting: OverlaySetting, value: turso::Value) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    write_setting(&conn, setting, value).await
+    with_table(
+        &format!("overlay settings: save {} failed", setting.column()),
+        &[CREATE_TABLE],
+        async |conn| write_setting(conn, setting, value).await,
+    )
+    .await
+    .is_some()
 }
 
 async fn write_setting(
@@ -56,28 +47,17 @@ async fn write_setting(
     setting: OverlaySetting,
     value: turso::Value,
 ) -> Result<(), StoreError> {
-    let column = setting.column();
-    conn.execute(
-        format!(
-            "INSERT INTO overlay_settings (id, {column}) VALUES (0, ?1)
-             ON CONFLICT(id) DO UPDATE SET {column} = ?1"
-        ),
-        (value,),
-    )
-    .await?;
-    Ok(())
+    upsert_column(conn, "overlay_settings", setting.column(), value).await
 }
 
 pub async fn load() -> OverlaySettings {
-    try_load().await.unwrap_or_else(|e| {
-        tracing::warn!("overlay settings: load failed: {e}");
-        OverlaySettings::default()
-    })
-}
-
-async fn try_load() -> Result<OverlaySettings, StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    read_overlay_settings(&conn).await
+    with_table(
+        "overlay settings: load failed",
+        &[CREATE_TABLE],
+        read_overlay_settings,
+    )
+    .await
+    .unwrap_or_default()
 }
 
 async fn read_overlay_settings(conn: &turso::Connection) -> Result<OverlaySettings, StoreError> {

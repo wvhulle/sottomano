@@ -1,5 +1,6 @@
 use crate::state::{
-    Columns, ShellSettings, StoreError, WorkspacesPlacement, connect, overlay_settings,
+    Columns, ShellSettings, StoreError, WorkspacesPlacement, flag, overlay_settings, real,
+    upsert_column, with_table,
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
@@ -60,16 +61,19 @@ impl Setting {
 }
 
 pub async fn load() -> ShellSettings {
-    let mut shell_settings = try_load().await.unwrap_or_else(|e| {
-        tracing::warn!("shell settings: load failed: {e}");
-        ShellSettings::default()
-    });
+    let mut shell_settings = with_table(
+        "shell settings: load failed",
+        &[CREATE_TABLE],
+        read_shell_settings,
+    )
+    .await
+    .unwrap_or_default();
     shell_settings.overlays = overlay_settings::load().await;
     shell_settings
 }
 
 pub async fn save_float_offset(offset: f32) -> bool {
-    put(Setting::FloatOffset, measure(offset)).await
+    put(Setting::FloatOffset, real(offset)).await
 }
 
 pub async fn save_disconnected_groups(disconnected: bool) {
@@ -89,11 +93,11 @@ pub async fn save_workspaces_placement(placement: WorkspacesPlacement) {
 }
 
 pub async fn save_panel_opacity(opacity: f32) -> bool {
-    put(Setting::PanelOpacity, measure(opacity)).await
+    put(Setting::PanelOpacity, real(opacity)).await
 }
 
 pub async fn save_panel_corner_radius(radius: f32) -> bool {
-    put(Setting::PanelCornerRadius, measure(radius)).await
+    put(Setting::PanelCornerRadius, real(radius)).await
 }
 
 pub async fn save_surface_outline(drawn: bool) {
@@ -105,11 +109,11 @@ pub async fn save_drop_shadow(cast: bool) {
 }
 
 pub async fn save_shadow_softness(softness: f32) -> bool {
-    put(Setting::ShadowSoftness, measure(softness)).await
+    put(Setting::ShadowSoftness, real(softness)).await
 }
 
 pub async fn save_shadow_opacity(opacity: f32) -> bool {
-    put(Setting::ShadowOpacity, measure(opacity)).await
+    put(Setting::ShadowOpacity, real(opacity)).await
 }
 
 pub async fn save_do_not_disturb(dnd: bool) {
@@ -120,27 +124,14 @@ pub async fn save_sound(sound: bool) {
     put(Setting::Sound, flag(sound)).await;
 }
 
-fn measure(value: f32) -> turso::Value {
-    turso::Value::Real(f64::from(value))
-}
-
-fn flag(value: bool) -> turso::Value {
-    turso::Value::Integer(i64::from(value))
-}
-
 async fn put(setting: Setting, value: turso::Value) -> bool {
-    match try_put(setting, value).await {
-        Ok(()) => true,
-        Err(e) => {
-            tracing::warn!("shell settings: save {} failed: {e}", setting.column());
-            false
-        }
-    }
-}
-
-async fn try_put(setting: Setting, value: turso::Value) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    write_setting(&conn, setting, value).await
+    with_table(
+        &format!("shell settings: save {} failed", setting.column()),
+        &[CREATE_TABLE],
+        async |conn| write_setting(conn, setting, value).await,
+    )
+    .await
+    .is_some()
 }
 
 async fn write_setting(
@@ -148,21 +139,7 @@ async fn write_setting(
     setting: Setting,
     value: turso::Value,
 ) -> Result<(), StoreError> {
-    let column = setting.column();
-    conn.execute(
-        format!(
-            "INSERT INTO shell_settings (id, {column}) VALUES (0, ?1)
-             ON CONFLICT(id) DO UPDATE SET {column} = ?1"
-        ),
-        (value,),
-    )
-    .await?;
-    Ok(())
-}
-
-async fn try_load() -> Result<ShellSettings, StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    read_shell_settings(&conn).await
+    upsert_column(conn, "shell_settings", setting.column(), value).await
 }
 
 async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, StoreError> {
@@ -221,7 +198,7 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
 
 #[cfg(test)]
 mod tests {
-    use super::{CREATE_TABLE, Setting, flag, measure, read_shell_settings, write_setting};
+    use super::{CREATE_TABLE, Setting, flag, read_shell_settings, real, write_setting};
     use crate::state::WorkspacesPlacement;
 
     async fn connection() -> turso::Connection {
@@ -235,18 +212,18 @@ mod tests {
     async fn every_setting_round_trips_to_its_own_column() {
         let conn = connection().await;
         for (setting, value) in [
-            (Setting::FloatOffset, measure(3.25)),
-            (Setting::PanelOpacity, measure(0.75)),
+            (Setting::FloatOffset, real(3.25)),
+            (Setting::PanelOpacity, real(0.75)),
             (Setting::DisconnectedGroups, flag(true)),
             (Setting::AutoCollapseGroups, flag(false)),
             (Setting::DoNotDisturb, flag(true)),
             (Setting::Sound, flag(false)),
             (Setting::WorkspacesInSidebar, flag(false)),
-            (Setting::PanelCornerRadius, measure(6.5)),
+            (Setting::PanelCornerRadius, real(6.5)),
             (Setting::SurfaceOutline, flag(false)),
             (Setting::DropShadow, flag(false)),
-            (Setting::ShadowSoftness, measure(33.0)),
-            (Setting::ShadowOpacity, measure(0.5)),
+            (Setting::ShadowSoftness, real(33.0)),
+            (Setting::ShadowOpacity, real(0.5)),
         ] {
             write_setting(&conn, setting, value).await.unwrap();
         }

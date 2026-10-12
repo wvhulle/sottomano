@@ -73,6 +73,45 @@ impl Deref for TableConnection {
     }
 }
 
+pub async fn with_table<T>(
+    label: &str,
+    schema: &[&str],
+    work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
+) -> Option<T> {
+    let result = match connect(schema).await {
+        Ok(conn) => work(&conn).await,
+        Err(error) => Err(error),
+    };
+    result
+        .inspect_err(|error| tracing::warn!("{label}: {error}"))
+        .ok()
+}
+
+pub async fn upsert_column(
+    conn: &turso::Connection,
+    table: &str,
+    column: &str,
+    value: turso::Value,
+) -> Result<(), StoreError> {
+    conn.execute(
+        format!(
+            "INSERT INTO {table} (id, {column}) VALUES (0, ?1)
+             ON CONFLICT(id) DO UPDATE SET {column} = ?1"
+        ),
+        (value,),
+    )
+    .await?;
+    Ok(())
+}
+
+pub fn real(value: f32) -> turso::Value {
+    turso::Value::Real(f64::from(value))
+}
+
+pub fn flag(value: bool) -> turso::Value {
+    turso::Value::Integer(i64::from(value))
+}
+
 pub async fn connect(schema: &[&str]) -> Result<TableConnection, StoreError> {
     let path = db_path().ok_or(StoreError::MissingStateDirectory)?;
     if let Some(parent) = path.parent() {
