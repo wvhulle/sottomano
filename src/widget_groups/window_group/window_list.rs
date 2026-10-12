@@ -274,7 +274,7 @@ fn window_button<'a>(
     let rule = win.app_rule();
     let content = button_content(config, icons, rule, win, extras, opacity);
     let indicator = indicator_line(config, win, extras, opacity);
-    let slot = PagerSlot::new(content, indicator);
+    let slot = PagerSlot::new(content, indicator).spaced_by(config.panel_bar.group_spacing_px);
     let slot = match progress_ticks(config, extras, opacity) {
         Some(ticks) => slot.ticks(ticks),
         None => slot,
@@ -335,7 +335,6 @@ fn button_content<'a>(
         .push(title)
         .extend(audio_glyph(config, extras, opacity))
         .spacing(config.panel_bar.widget_spacing_px)
-        .padding([0.0, config.panel_bar.group_spacing_px / 2.0])
         .align_y(Alignment::Center)
         .into()
 }

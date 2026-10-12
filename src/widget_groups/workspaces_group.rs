@@ -94,12 +94,12 @@ pub fn inline_view<'a>(
     let slots = workspaces.iter().map(|p| {
         let slot = PagerSlot::new(inline_label(config, p), urgency_line(config, p, position))
             .ticks(window_markers(config, niri, p.id, position).view())
+            .spaced_by(config.panel_bar.widget_spacing_px)
             .view(config, position);
         hit_area(p, slot, config)
     });
     Some(indicated(
         Row::with_children(slots)
-            .spacing(config.panel_bar.widget_spacing_px)
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .into(),
