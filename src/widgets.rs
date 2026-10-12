@@ -28,6 +28,7 @@ pub mod popup_connector;
 pub mod pressable_text;
 
 pub mod rate_text;
+pub mod refresh_dial;
 pub mod region_reporter;
 pub mod reveal;
 

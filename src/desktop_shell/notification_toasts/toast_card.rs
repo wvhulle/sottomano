@@ -290,8 +290,9 @@ impl ToastCard<'_> {
             .collect();
         let previewed = self.notif.icons.previewed_file().is_some();
         let has_actions = !button_actions.is_empty() || previewed;
-        let has_body = data.body.is_some();
         let now = SystemTime::now();
+        let body_text = self.notif.body_text(now, self.config.calendar.locale);
+        let has_body = body_text.is_some();
         let reltime = match &self.notif.kind {
             ToastKind::Event { at, .. } => relative(*at, now),
             ToastKind::Ongoing { since, .. } => ongoing_for(*since, now),
@@ -327,7 +328,7 @@ impl ToastCard<'_> {
         }
 
         let mut column = Column::new().spacing(COLUMN_SPACING).push(title);
-        if let Some(body) = &data.body {
+        if let Some(body) = &body_text {
             let body = Row::new()
                 .spacing(ROW_SPACING)
                 .align_y(Alignment::End)

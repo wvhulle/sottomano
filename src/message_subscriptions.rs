@@ -2,6 +2,7 @@ use std::{
     convert::identity,
     fmt::Display,
     future::{Future, ready},
+    pin::Pin,
     time::Duration,
 };
 
@@ -70,8 +71,8 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    let tooltip_tick = if state.tooltip_has_relative_time() {
-        every(Duration::from_secs(1)).map(|_| Message::TooltipTick)
+    let tooltip_tick = if state.tooltip_has_periodic_refresh() {
+        frames().map(|_| Message::TooltipTick)
     } else {
         Subscription::none()
     };
@@ -80,42 +81,61 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
+    let forced = state.forced_refresh;
     Subscription::batch([
         outputs(state.wayland.as_ref()),
         state
             .config_file
             .changes()
             .map(|()| Message::ConfigFileChanged),
-        state.weather_group.subscription().map(Message::Weather),
+        state
+            .weather_group
+            .subscription(forced)
+            .map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
-        state.power_group.subscription().map(Message::Power),
+        state.power_group.subscription(forced).map(Message::Power),
         state
             .compute_group
-            .subscription(&state.config.widget_groups.temperature_sensors.cpu)
+            .subscription(&state.config.widget_groups.temperature_sensors.cpu, forced)
             .map(Message::Compute),
-        state.gpu_group.subscription().map(Message::Gpu),
-        DiskGroup::subscription(&state.config.widget_groups.temperature_sensors.drive)
-            .map(Message::Disk),
+        state.gpu_group.subscription(forced).map(Message::Gpu),
+        DiskGroup::subscription(
+            &state.config.widget_groups.temperature_sensors.drive,
+            forced,
+        )
+        .map(Message::Disk),
         ClockGroup::subscription().map(Message::Clock),
         SystemdManagerGroup::subscription(&state.config.widget_groups.systemd_manager)
             .map(Message::SystemdManager),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
         PendingUpgradesGroup::subscription().map(Message::PendingUpgrades),
-        state.internet_group.subscription().map(Message::Internet),
+        state
+            .internet_group
+            .subscription(forced)
+            .map(Message::Internet),
         state
             .net_interfaces_group
             .subscription()
             .map(Message::NetInterfaces),
-        state.monitor_group.subscription().map(Message::Monitor),
+        state
+            .monitor_group
+            .subscription(forced)
+            .map(Message::Monitor),
         state
             .color_temperature_group
-            .subscription()
+            .subscription(forced)
             .map(Message::ColorTemperature),
-        state.dark_mode_group.subscription().map(Message::DarkMode),
+        state
+            .dark_mode_group
+            .subscription(forced)
+            .map(Message::DarkMode),
         state.media_group.subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
-        state.ai_group.subscription(&state.config).map(Message::Ai),
+        state
+            .ai_group
+            .subscription(&state.config, forced)
+            .map(Message::Ai),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
         close_events().map(Message::WindowClosed),
@@ -211,11 +231,70 @@ pub fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
     })
 }
 
-pub fn polling<S: Source>(key: S::Key) -> Subscription<Result<S, S::Error>> {
-    Subscription::run_with((S::NAME, key), |(_, key)| polled::<S>(key.clone()))
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ForcedRefresh {
+    pub source: &'static str,
+    pub seq: u64,
 }
 
-pub fn polled<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
+impl ForcedRefresh {
+    pub fn next(previous: Option<Self>, source: &'static str) -> Self {
+        Self {
+            source,
+            seq: previous.map_or(0, |forced| forced.seq) + 1,
+        }
+    }
+}
+
+pub fn polling<S: Source>(
+    key: S::Key,
+    forced: Option<ForcedRefresh>,
+) -> Subscription<Result<S, S::Error>> {
+    let restart = forced.filter(|forced| forced.source == S::NAME);
+    Subscription::run_with((S::NAME, key, restart), |(_, key, _)| {
+        polled_stream::<S>(key.clone())
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cadence {
+    Periodic {
+        source: &'static str,
+        every: Duration,
+    },
+    Once,
+}
+
+pub struct Readings<S, E> {
+    pub cadence: Cadence,
+    pub stream: Pin<Box<dyn Stream<Item = Result<S, E>> + Send>>,
+}
+
+impl<S, E> Readings<S, E> {
+    pub fn periodic(
+        source: &'static str,
+        every: Duration,
+        stream: impl Stream<Item = Result<S, E>> + Send + 'static,
+    ) -> Self {
+        Self {
+            cadence: Cadence::Periodic { source, every },
+            stream: Box::pin(stream),
+        }
+    }
+
+    pub fn once(stream: impl Stream<Item = Result<S, E>> + Send + 'static) -> Self {
+        Self {
+            cadence: Cadence::Once,
+            stream: Box::pin(stream),
+        }
+    }
+}
+
+pub fn polled<S: Source>(key: S::Key) -> Readings<S, S::Error> {
+    Readings::periodic(S::NAME, S::INTERVAL, polled_stream::<S>(key))
+}
+
+fn polled_stream<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
     emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
 }
 

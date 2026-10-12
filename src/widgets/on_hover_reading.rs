@@ -1,15 +1,16 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::SystemTime};
 
 use iced::{
     Task,
-    futures::{Stream, StreamExt, stream},
+    futures::{StreamExt, stream},
     task::Handle,
 };
 use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    widgets::tooltip_body::{KeyValue, Readiness, Section},
+    message_subscriptions::{Cadence, Readings},
+    widgets::tooltip_body::{KeyValue, Readiness, RefreshInfo, Section},
 };
 
 #[derive(Debug)]
@@ -17,6 +18,8 @@ pub struct OnHoverReading<S> {
     latest: Option<Result<S, String>>,
     shape: Option<S>,
     fetching: Option<Handle>,
+    cadence: Cadence,
+    fetch_started: Option<SystemTime>,
 }
 
 impl<S> Default for OnHoverReading<S> {
@@ -25,22 +28,26 @@ impl<S> Default for OnHoverReading<S> {
             latest: None,
             shape: None,
             fetching: None,
+            cadence: Cadence::Once,
+            fetch_started: None,
         }
     }
 }
 
 impl<S: Send + 'static> OnHoverReading<S> {
-    pub fn fetch<E: Display, Message: Send + 'static>(
+    pub fn fetch<E: Display + 'static, Message: Send + 'static>(
         &mut self,
-        readings: impl Stream<Item = Result<S, E>> + Send + 'static,
+        readings: Readings<S, E>,
         delivered: fn(Result<S, String>) -> Message,
         config: &Config,
     ) -> Task<Message> {
         self.keep_shape();
+        self.cadence = readings.cadence;
+        self.fetch_started = Some(SystemTime::now());
         let debug_delay = config.tooltips.loading.debug_delay;
         let delayed = stream::once(async move {
             sleep(debug_delay).await;
-            readings
+            readings.stream
         })
         .flatten();
         let (task, fetching) = Task::run(delayed, |reading| {
@@ -65,7 +72,19 @@ impl<S: Send + 'static> OnHoverReading<S> {
     pub fn receive(&mut self, fetched: Result<S, String>) {
         if self.fetching.is_some() {
             self.latest = Some(fetched);
+            self.fetch_started = Some(SystemTime::now());
         }
+    }
+
+    fn refresh_info(&self) -> Option<RefreshInfo> {
+        let Cadence::Periodic { source, every } = self.cadence else {
+            return None;
+        };
+        self.fetch_started.map(|last| RefreshInfo {
+            source,
+            every,
+            last,
+        })
     }
 
     pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
@@ -82,9 +101,10 @@ impl<S: Send + 'static> OnHoverReading<S> {
                 failure.clone(),
             )])],
         };
+        let refresh = self.refresh_info();
         unmarked
             .into_iter()
-            .map(|section| section.with_readiness(readiness))
+            .map(|section| section.with_readiness(readiness).with_refresh(refresh))
             .collect()
     }
 }

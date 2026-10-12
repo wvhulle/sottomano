@@ -6,7 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        tooltip_body::{KeyValue, RefreshInfo, Section, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Refresh, RefreshInfo, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -37,7 +37,7 @@ impl BarWidget for FailedReading {
 pub struct ContinuousReading<S> {
     data: Option<S>,
     failure: Option<FailedReading>,
-    last_refreshed: Option<SystemTime>,
+    refresh: Option<Refresh>,
 }
 
 impl<S> Default for ContinuousReading<S> {
@@ -45,7 +45,7 @@ impl<S> Default for ContinuousReading<S> {
         Self {
             data: None,
             failure: None,
-            last_refreshed: None,
+            refresh: None,
         }
     }
 }
@@ -54,7 +54,7 @@ impl<S> ContinuousReading<S> {
     pub fn load(&mut self, data: S) {
         self.data = Some(data);
         self.failure = None;
-        self.last_refreshed = Some(SystemTime::now());
+        self.refresh = Some(Refresh::Live);
     }
 
     pub fn get(&self) -> Option<&S> {
@@ -85,19 +85,32 @@ impl<S: BarWidget> ContinuousReading<S> {
             .map(|widget| GroupItem::reading(widget, target))
     }
 
-    pub fn live_tooltip(&self) -> Option<Tooltip> {
-        Some(Tooltip::of(self.display()?.tooltip()))
+    pub fn tooltip(&self) -> Option<Tooltip> {
+        self.tooltip_with(self.display()?.tooltip())
     }
 
-    pub fn live_tooltip_with_sections(
+    pub fn tooltip_with_sections(
         &self,
         extra: impl IntoIterator<Item = Section>,
     ) -> Option<Tooltip> {
-        Some(Tooltip::of(self.display()?.tooltip().with_sections(extra)))
+        self.tooltip_with(self.display()?.tooltip().with_sections(extra))
     }
 
-    pub fn receive<E: Display>(&mut self, reading: Result<S, E>) {
-        self.last_refreshed = Some(SystemTime::now());
+    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
+        self.display()?;
+        let tooltip = Tooltip {
+            refresh: self.refresh,
+            ..Tooltip::of(body)
+        };
+        (!tooltip.is_empty()).then_some(tooltip)
+    }
+
+    pub fn push<E: Display>(&mut self, reading: Result<S, E>) {
+        self.refresh = Some(Refresh::Live);
+        self.accept(reading);
+    }
+
+    fn accept<E: Display>(&mut self, reading: Result<S, E>) {
         match reading {
             Ok(data) => {
                 self.data = Some(data);
@@ -140,29 +153,19 @@ impl<S: Occasional> ContinuousReading<S> {
         self.present()
             .map(|widget| GroupItem::reading(widget, target))
     }
+
+    pub fn present_tooltip(&self) -> Option<Tooltip> {
+        self.tooltip_with(self.present_reading()?.tooltip())
+    }
 }
 
 impl<S: Source + BarWidget> ContinuousReading<S> {
-    pub fn tooltip(&self) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip())
-    }
-
-    pub fn tooltip_with_sections(
-        &self,
-        extra: impl IntoIterator<Item = Section>,
-    ) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip().with_sections(extra))
-    }
-
-    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        self.display()?;
-        let tooltip = Tooltip {
-            footer: self.last_refreshed.map(|last| RefreshInfo {
-                every: S::INTERVAL,
-                last,
-            }),
-            ..Tooltip::of(body)
-        };
-        (!tooltip.is_empty()).then_some(tooltip)
+    pub fn receive<E: Display>(&mut self, reading: Result<S, E>) {
+        self.refresh = Some(Refresh::Periodic(RefreshInfo {
+            source: S::NAME,
+            every: S::INTERVAL,
+            last: SystemTime::now(),
+        }));
+        self.accept(reading);
     }
 }

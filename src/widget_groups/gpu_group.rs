@@ -15,7 +15,7 @@ use crate::{
         NvmlDevice, PciBusId,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{polled, polling},
+    message_subscriptions::{ForcedRefresh, polled, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -100,10 +100,10 @@ impl GpuGroup {
         Task::future(GpuDiscovery::bound_to_nvidia()).map(GpuMessage::Discovered)
     }
 
-    pub fn subscription(&self) -> Subscription<GpuMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<GpuMessage> {
         Subscription::batch(self.devices.iter().filter_map(|(bus, device)| {
             Some(
-                polling::<GpuSnapshot>(device.nvml.clone()?)
+                polling::<GpuSnapshot>(device.nvml.clone()?, forced)
                     .with(bus.clone())
                     .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
             )

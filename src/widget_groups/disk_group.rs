@@ -12,7 +12,7 @@ use crate::{
         health::DriveHealth,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         continuous_reading::ContinuousReading,
         tooltip_body::Tooltip,
@@ -56,11 +56,14 @@ impl DiskGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<DiskMessage> {
+    pub fn subscription(
+        drive_sensor: &SensorConfig,
+        forced: Option<ForcedRefresh>,
+    ) -> Subscription<DiskMessage> {
         Subscription::batch([
-            polling::<Disk>(()).map(DiskMessage::Usage),
+            polling::<Disk>((), forced).map(DiskMessage::Usage),
             Subscription::run(activity::readings).map(DiskMessage::DiskActivity),
-            polling::<DriveHealth>(drive_sensor.clone()).map(DiskMessage::DriveHealth),
+            polling::<DriveHealth>(drive_sensor.clone(), forced).map(DiskMessage::DriveHealth),
         ])
     }
 
@@ -78,9 +81,8 @@ impl DiskGroup {
 
     fn receive_disk_activity(&mut self, reading: Result<DiskActivity, disk::Error>) {
         self.disk_read
-            .receive(reading.clone().map(|activity| activity.read));
-        self.disk_write
-            .receive(reading.map(|activity| activity.write));
+            .push(reading.clone().map(|activity| activity.read));
+        self.disk_write.push(reading.map(|activity| activity.write));
     }
 
     pub fn group_content(&self) -> GroupContent<'_, DiskMessage> {
@@ -101,8 +103,8 @@ impl DiskGroup {
     pub fn tooltip_for(&self, target: DiskTarget) -> Option<Tooltip> {
         match target {
             DiskTarget::Usage => self.usage.tooltip(),
-            DiskTarget::Read => self.disk_read.live_tooltip(),
-            DiskTarget::Write => self.disk_write.live_tooltip(),
+            DiskTarget::Read => self.disk_read.tooltip(),
+            DiskTarget::Write => self.disk_write.tooltip(),
             DiskTarget::DriveHealth => self.drive_health.tooltip(),
         }
     }

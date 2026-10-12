@@ -21,7 +21,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{polled, polling},
+    message_subscriptions::{ForcedRefresh, polled, polling},
     widgets::{
         continuous_reading::ContinuousReading,
         hardware_section::HardwareEntries,
@@ -122,16 +122,20 @@ impl ComputeGroup {
         }
     }
 
-    pub fn subscription(&self, sensor: &SensorConfig) -> Subscription<ComputeMessage> {
+    pub fn subscription(
+        &self,
+        sensor: &SensorConfig,
+        forced: Option<ForcedRefresh>,
+    ) -> Subscription<ComputeMessage> {
         let temperature = if self.sensors {
-            polling::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature)
+            polling::<Temperature>(sensor.clone(), forced).map(ComputeMessage::Temperature)
         } else {
             Subscription::none()
         };
         Subscription::batch([
-            polling::<CpuUsage>(()).map(ComputeMessage::Cpu),
-            polling::<Memory>(()).map(ComputeMessage::Memory),
-            polling::<CpuClock>(()).map(ComputeMessage::Clock),
+            polling::<CpuUsage>((), forced).map(ComputeMessage::Cpu),
+            polling::<Memory>((), forced).map(ComputeMessage::Memory),
+            polling::<CpuClock>((), forced).map(ComputeMessage::Clock),
             temperature,
         ])
     }

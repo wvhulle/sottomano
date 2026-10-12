@@ -18,7 +18,7 @@ use crate::{
         sun_schedule::ColorMode,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::blocking,
+    message_subscriptions::{ForcedRefresh, blocking},
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
@@ -109,10 +109,10 @@ impl DarkModeGroup {
         ])
     }
 
-    pub fn subscription(&self) -> Subscription<DarkModeMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<DarkModeMessage> {
         Subscription::batch([
             self.mode_toggle
-                .subscription(())
+                .subscription((), forced)
                 .map(DarkModeMessage::ModeToggle),
             Subscription::run(Location::published).map(DarkModeMessage::LocationFix),
             Subscription::run(logind::resumes).map(|()| DarkModeMessage::SwitchDue),

@@ -11,7 +11,7 @@ use crate::{
             sysfs_sensors::{self, battery::Battery},
         },
     },
-    message_subscriptions::polling,
+    message_subscriptions::{ForcedRefresh, polling},
     state::power,
     widget_groups::power_group::{
         PowerTarget,
@@ -104,14 +104,14 @@ impl PowerProfileControl {
         Task::future(power_profile::available()).map(PowerProfileMessage::Daemon)
     }
 
-    pub fn subscription(&self) -> Subscription<PowerProfileMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<PowerProfileMessage> {
         if !self.daemon {
             return Subscription::none();
         }
         Subscription::batch([
             Subscription::run(power_profile::active_profiles)
                 .map(PowerProfileMessage::ActiveProfile),
-            polling::<Conditions>(()).map(PowerProfileMessage::Conditions),
+            polling::<Conditions>((), forced).map(PowerProfileMessage::Conditions),
         ])
     }
 

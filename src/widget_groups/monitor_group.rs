@@ -18,7 +18,7 @@ use crate::{
         niri::OutputInfo,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::blocking,
+    message_subscriptions::{ForcedRefresh, blocking},
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -68,10 +68,12 @@ impl MonitorGroup {
         ToggleControl::<Clight>::probe(()).map(MonitorMessage::Clight)
     }
 
-    pub fn subscription(&self) -> Subscription<MonitorMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<MonitorMessage> {
         Subscription::batch([
             backlight::subscription().map(MonitorMessage::Backlights),
-            self.clight.subscription(()).map(MonitorMessage::Clight),
+            self.clight
+                .subscription((), forced)
+                .map(MonitorMessage::Clight),
         ])
     }
 

@@ -2,9 +2,12 @@ use iced::futures::{Stream, StreamExt, try_join};
 use uom::si::f64::{Frequency, InformationRate};
 use zbus::Connection;
 
-use crate::data::source::{
-    hardware::Adapter,
-    net_interfaces::{ReadingError, nm, nm_readings},
+use crate::{
+    data::source::{
+        hardware::Adapter,
+        net_interfaces::{ReadingError, nm, nm_readings},
+    },
+    message_subscriptions::Readings,
 };
 
 pub const NAME: &str = "wifi";
@@ -109,6 +112,8 @@ pub fn readings() -> impl Stream<Item = WifiPresence> {
         .map(|adapter| adapter.map_or(WifiPresence::NoAdapter, WifiPresence::Adapter))
 }
 
-pub fn details() -> impl Stream<Item = Result<WifiDetails, &'static str>> {
-    nm_readings("wifi details", read_details).map(|details| details.ok_or("no Wi-Fi device"))
+pub fn details() -> Readings<WifiDetails, &'static str> {
+    Readings::once(
+        nm_readings("wifi details", read_details).map(|details| details.ok_or("no Wi-Fi device")),
+    )
 }

@@ -14,7 +14,7 @@ use crate::{
         screen_temperature::{self, SunFollow},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -103,9 +103,12 @@ impl ColorTemperatureGroup {
         ])
     }
 
-    pub fn subscription(&self) -> Subscription<ColorTemperatureMessage> {
+    pub fn subscription(
+        &self,
+        forced: Option<ForcedRefresh>,
+    ) -> Subscription<ColorTemperatureMessage> {
         let gamma = if self.relay {
-            polling::<Gamma>(()).map(ColorTemperatureMessage::Gamma)
+            polling::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma)
         } else {
             Subscription::none()
         };
@@ -113,7 +116,7 @@ impl ColorTemperatureGroup {
             gamma,
             self.expansion.while_expanded(
                 self.auto
-                    .subscription(self.unit.clone())
+                    .subscription(self.unit.clone(), forced)
                     .map(ColorTemperatureMessage::Auto),
             ),
         ])
