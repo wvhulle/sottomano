@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Element, Length,
+    Alignment, Element, Length, Padding,
     alignment::Vertical,
     widget::{Column, Row, Space, container},
 };
@@ -10,6 +10,7 @@ pub struct PagerSlot<'a, Message> {
     content: Element<'a, Message>,
     indicator: Element<'a, Message>,
     ticks: Option<Element<'a, Message>>,
+    gap_to_neighbours: f32,
 }
 
 impl<'a, Message: 'a> PagerSlot<'a, Message> {
@@ -18,6 +19,7 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
             content,
             indicator,
             ticks: None,
+            gap_to_neighbours: 0.0,
         }
     }
 
@@ -27,27 +29,40 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
         self
     }
 
+    #[must_use]
+    pub fn spaced_by(mut self, gap_to_neighbours: f32) -> Self {
+        self.gap_to_neighbours = gap_to_neighbours;
+        self
+    }
+
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
         let band = config.panel_bar.indicator_thickness_px;
         let Self {
             content,
             indicator,
             ticks,
+            gap_to_neighbours,
         } = self;
+        let half_gap = gap_to_neighbours / 2.0;
+        let share_of_gap = if position.is_vertical() {
+            Padding::ZERO.top(half_gap).bottom(half_gap)
+        } else {
+            Padding::ZERO.left(half_gap).right(half_gap)
+        };
         match position {
             Position::Bottom => stacked([
                 indicator,
-                stacked_label(content),
+                stacked_label(content, share_of_gap),
                 ticks_across(ticks, band, Vertical::Bottom),
             ]),
             Position::Top => stacked([
                 ticks_across(ticks, band, Vertical::Top),
-                stacked_label(content),
+                stacked_label(content, share_of_gap),
                 indicator,
             ]),
             Position::Left => Row::with_children([
                 ticks.unwrap_or_else(|| Space::new().width(band).into()),
-                stacked_label(content),
+                stacked_label(content, share_of_gap),
                 indicator,
             ])
             .into(),
@@ -63,8 +78,12 @@ fn stacked<'a, Message: 'a>(bands: [Element<'a, Message>; 3]) -> Element<'a, Mes
         .into()
 }
 
-fn stacked_label<'a, Message: 'a>(content: Element<'a, Message>) -> Element<'a, Message> {
+fn stacked_label<'a, Message: 'a>(
+    content: Element<'a, Message>,
+    share_of_gap: Padding,
+) -> Element<'a, Message> {
     container(content)
+        .padding(share_of_gap)
         .height(Length::Fill)
         .align_y(Vertical::Center)
         .into()
