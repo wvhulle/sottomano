@@ -56,7 +56,7 @@ impl CpuModel {
                 .flatten(),
             )
             .titled("Topology"),
-            Section::dictionary(self.caches.0.iter().map(CacheLevel::key_value)).titled("Cache"),
+            Section::dictionary(self.caches.iter().map(CacheLevel::key_value)).titled("Cache"),
         ]
     }
 }

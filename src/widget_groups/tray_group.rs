@@ -4,15 +4,16 @@ use iced::{
     Alignment, Element,
     widget::{Column, mouse_area},
 };
+use tokio::sync::mpsc;
 
 use crate::{
     config::{Config, widget_groups::tray::ClickAction},
     data::source::{
         niri::WindowOwner,
-        tray::{self, Status, TrayCommand, TrayHandle, TrayItem, TrayUpdate},
+        tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
     },
     desktop_shell::{
-        app_window_focus::AppWindowFocus,
+        AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
     widgets::{
@@ -29,7 +30,7 @@ use crate::{
 #[derive(Default)]
 pub struct TrayGroup {
     items: Vec<TrayItem>,
-    handle: Option<TrayHandle>,
+    commands: Option<mpsc::Sender<TrayCommand>>,
     open_submenus: HashSet<i32>,
     expansion: GroupExpansion,
 }
@@ -69,8 +70,8 @@ impl TrayGroup {
 
     pub fn update(&mut self, message: TrayMessage) -> Action {
         match message {
-            TrayMessage::Update(TrayUpdate::Connected(handle)) => {
-                self.handle = Some(handle);
+            TrayMessage::Update(TrayUpdate::Connected(commands)) => {
+                self.commands = Some(commands);
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::Items(items)) => {
@@ -150,8 +151,8 @@ impl TrayGroup {
     }
 
     fn command(&self, command: TrayCommand) {
-        if let Some(handle) = &self.handle {
-            handle.send(command);
+        if let Some(commands) = &self.commands {
+            let _ = commands.try_send(command);
         }
     }
 

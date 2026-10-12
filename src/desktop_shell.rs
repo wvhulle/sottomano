@@ -1,4 +1,3 @@
-pub mod app_window_focus;
 pub mod bottom_bar;
 pub mod hover_tooltips;
 pub mod monitor_layout;
@@ -37,11 +36,10 @@ use crate::{
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
             launch_tracker::{Launch, LaunchTracker},
-            niri,
+            niri::{self, WindowOwner},
         },
     },
     desktop_shell::{
-        app_window_focus::AppWindowFocus,
         hover_tooltips::{TooltipHost, TooltipMessage},
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
@@ -82,6 +80,12 @@ use crate::{
     },
     widgets::{favicon::Favicons, text::FontFallbacks, widget_group::GroupEvent},
 };
+
+#[derive(Debug, Clone)]
+pub struct AppWindowFocus<M> {
+    pub owner: WindowOwner,
+    pub unmatched: M,
+}
 
 pub struct DesktopShell {
     pub(crate) wayland: Option<wayland_client::Connection>,

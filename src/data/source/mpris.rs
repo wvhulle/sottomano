@@ -112,19 +112,6 @@ impl LoopMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Setting<T> {
-    #[default]
-    Unsupported,
-    Supported(T),
-}
-
-impl<T> From<Option<T>> for Setting<T> {
-    fn from(value: Option<T>) -> Self {
-        value.map_or(Self::Unsupported, Self::Supported)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeekMode {
     Absolute(OwnedObjectPath),
@@ -140,27 +127,6 @@ impl SeekMode {
             return Self::Relative;
         }
         Self::Absolute(track)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DesktopEntry {
-    Declared(String),
-    Undeclared,
-}
-
-impl From<Option<String>> for DesktopEntry {
-    fn from(entry: Option<String>) -> Self {
-        entry.map_or(Self::Undeclared, Self::Declared)
-    }
-}
-
-impl DesktopEntry {
-    pub fn declared(&self) -> Option<&str> {
-        match self {
-            Self::Declared(entry) => Some(entry),
-            Self::Undeclared => None,
-        }
     }
 }
 
@@ -286,7 +252,7 @@ pub struct Media {
     pub bus: String,
     pub owner: OwnerProcess,
     pub identity: String,
-    pub desktop_entry: DesktopEntry,
+    pub desktop_entry: Option<String>,
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
@@ -295,8 +261,8 @@ pub struct Media {
     pub progress: Progress,
     pub art: Option<image::Handle>,
     pub capabilities: Capabilities,
-    pub shuffle: Setting<bool>,
-    pub loop_mode: Setting<LoopMode>,
+    pub shuffle: Option<bool>,
+    pub loop_mode: Option<LoopMode>,
     pub seek_mode: SeekMode,
 }
 
@@ -344,11 +310,8 @@ impl DeclaredProperties for Properties {
     }
 }
 
-fn controllable_setting<T>(player: &Properties, declared: Option<T>) -> Setting<T> {
-    if !player.flag("CanControl") {
-        return Setting::Unsupported;
-    }
-    Setting::from(declared)
+fn controllable_setting<T>(player: &Properties, declared: Option<T>) -> Option<T> {
+    declared.filter(|_| player.flag("CanControl"))
 }
 
 fn artist(metadata: &HashMap<String, OwnedValue>) -> Option<String> {
@@ -448,7 +411,7 @@ async fn read_media(
         bus: bus.to_owned(),
         owner: owner_process(dbus, bus).await,
         identity: root.text("Identity").unwrap_or_else(|| bus.to_owned()),
-        desktop_entry: root.text("DesktopEntry").into(),
+        desktop_entry: root.text("DesktopEntry"),
         title: metadata.text("xesam:title"),
         artist: artist(&metadata),
         album: metadata.text("xesam:album"),
@@ -708,7 +671,7 @@ mod tests {
         );
         assert_eq!(
             controllable_setting(&player, player.boolean("Shuffle")),
-            Setting::Unsupported
+            None
         );
     }
 
@@ -717,11 +680,11 @@ mod tests {
         let player = all_player_capabilities(true);
         assert_eq!(
             controllable_setting(&player, parsed(&player, "LoopStatus")),
-            Setting::Supported(LoopMode::Track)
+            Some(LoopMode::Track)
         );
         assert_eq!(
             controllable_setting(&player, player.boolean("Shuffle")),
-            Setting::Supported(true)
+            Some(true)
         );
     }
 

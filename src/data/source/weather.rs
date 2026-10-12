@@ -237,17 +237,7 @@ impl HourlyTemperatures {
 
 #[derive(Deserialize)]
 struct WindForecast {
-    current: CurrentWind,
-}
-
-#[derive(Deserialize)]
-struct CurrentWind {
-    #[serde(rename = "wind_speed_10m", deserialize_with = "kilometres_per_hour")]
-    speed: Velocity,
-    #[serde(rename = "wind_gusts_10m", deserialize_with = "kilometres_per_hour")]
-    gusts: Velocity,
-    #[serde(rename = "wind_direction_10m", deserialize_with = "compass_degrees")]
-    direction: Angle,
+    current: Wind,
 }
 
 #[derive(Deserialize)]
@@ -338,10 +328,13 @@ impl Source for Temperature {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Wind {
+    #[serde(rename = "wind_speed_10m", deserialize_with = "kilometres_per_hour")]
     pub speed: Velocity,
+    #[serde(rename = "wind_gusts_10m", deserialize_with = "kilometres_per_hour")]
     pub gusts: Velocity,
+    #[serde(rename = "wind_direction_10m", deserialize_with = "compass_degrees")]
     pub direction: Angle,
 }
 
@@ -359,16 +352,7 @@ impl Source for Wind {
             here.latitude, here.longitude
         );
         let forecast: WindForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
-        let CurrentWind {
-            speed,
-            gusts,
-            direction,
-        } = forecast.current;
-        Ok(Wind {
-            speed,
-            gusts,
-            direction,
-        })
+        Ok(forecast.current)
     }
 }
 
