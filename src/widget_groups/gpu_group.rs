@@ -79,7 +79,7 @@ pub struct GpuGroup {
     hovered_bus: Option<PciBusId>,
     clocks: OnHoverReading<GpuClocks>,
     processes: OnHoverReading<GpuProcesses>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +92,10 @@ pub enum GpuMessage {
 }
 
 impl GpuGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn probe() -> Task<GpuMessage> {
         Task::future(GpuDiscovery::bound_to_nvidia()).map(GpuMessage::Discovered)
     }

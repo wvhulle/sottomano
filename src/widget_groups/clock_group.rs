@@ -43,7 +43,7 @@ pub struct ClockGroup {
     time: LocalTime,
     date: LocalDate,
     zone_times: Vec<ZoneTime>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,6 +65,10 @@ impl Default for ClockGroup {
 }
 
 impl ClockGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn update(&mut self, msg: ClockMessage, config: &Config) -> Task<ClockMessage> {
         match msg {
             ClockMessage::Tick(now) => self.tick(now, &config.calendar.other_time_zones),

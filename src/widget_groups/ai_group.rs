@@ -71,7 +71,7 @@ pub struct AiGroup {
     secrets: SecretPaths,
     available: Available,
     claude_organization: OnHoverReading<ClaudeOrganization>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -164,6 +164,10 @@ pub enum AiMessage {
 }
 
 impl AiGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn new(secrets: SecretPaths) -> Self {
         Self {
             openrouter: ContinuousReading::default(),

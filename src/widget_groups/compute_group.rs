@@ -56,7 +56,7 @@ pub struct ComputeGroup {
     topology: CpuTopology,
     core_loads: OnHoverReading<CpuCoreLoads>,
     core_temperatures: OnHoverReading<CpuCoreTemperatures>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -74,6 +74,10 @@ pub enum ComputeMessage {
 }
 
 impl ComputeGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn probe(sensor: &SensorConfig) -> Task<ComputeMessage> {
         let sensor = sensor.clone();
         Task::batch([

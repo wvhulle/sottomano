@@ -42,7 +42,7 @@ pub struct WeatherGroup {
     rain: ContinuousReading<Rain>,
     pollen: ContinuousReading<Pollen>,
     location: ContinuousReading<Location>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +56,10 @@ pub enum WeatherMessage {
 }
 
 impl WeatherGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription(&self) -> Subscription<WeatherMessage> {
         let location = Subscription::run(Location::published).map(WeatherMessage::Location);
         let Some(here) = self.location.get().map(Location::position) else {

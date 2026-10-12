@@ -57,7 +57,7 @@ pub enum SurfaceEffectsMessage {
 }
 
 pub struct SurfaceEffectsGroup {
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
     shadow_softness: SliderControl,
     shadow_opacity: SliderControl,
 }

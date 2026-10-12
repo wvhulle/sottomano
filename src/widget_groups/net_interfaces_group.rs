@@ -51,7 +51,7 @@ pub struct NetInterfacesGroup {
     mobile: ContinuousReading<Mobile>,
     wifi_details: OnHoverReading<WifiDetails>,
     ethernet_details: OnHoverReading<EthernetDetails>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +66,10 @@ pub enum NetInterfacesMessage {
 }
 
 impl NetInterfacesGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn subscription(&self) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
             self.expansion.while_expanded(

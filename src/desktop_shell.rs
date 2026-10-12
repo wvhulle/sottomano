@@ -80,11 +80,7 @@ use crate::{
         weather_group::{WeatherGroup, WeatherMessage},
         window_group::{self, WindowGroup, WindowGroupMessage},
     },
-    widgets::{
-        favicon::Favicons,
-        text::FontFallbacks,
-        widget_group::{GroupEvent, GroupExpansion},
-    },
+    widgets::{favicon::Favicons, text::FontFallbacks, widget_group::GroupEvent},
 };
 
 pub struct DesktopShell {
@@ -695,25 +691,22 @@ impl DesktopShell {
         self.power_group.collapse();
         self.idle_timeouts_group.collapse();
         self.audio_group.collapse();
-        let _ = [
-            &mut self.wallpaper_group.expansion,
-            &mut self.clock_group.expansion,
-            &mut self.weather_group.expansion,
-            &mut self.compute_group.expansion,
-            &mut self.gpu_group.expansion,
-            &mut self.disk_group.expansion,
-            &mut self.media_group.expansion,
-            &mut self.internet_group.expansion,
-            &mut self.net_interfaces_group.expansion,
-            &mut self.window_group.quick_launch.expansion,
-            &mut self.tray_group.expansion,
-            &mut self.ai_group.expansion,
-            &mut self.notification_group.expansion,
-            &mut self.systemd_manager_group.expansion,
-            &mut self.journal_events_group.expansion,
-            &mut self.pending_upgrades_group.expansion,
-        ]
-        .map(GroupExpansion::collapse);
+        self.wallpaper_group.collapse();
+        self.clock_group.collapse();
+        self.weather_group.collapse();
+        self.compute_group.collapse();
+        self.gpu_group.collapse();
+        self.disk_group.collapse();
+        self.media_group.collapse();
+        self.internet_group.collapse();
+        self.net_interfaces_group.collapse();
+        self.window_group.collapse();
+        self.tray_group.collapse();
+        self.ai_group.collapse();
+        self.notification_group.collapse();
+        self.systemd_manager_group.collapse();
+        self.journal_events_group.collapse();
+        self.pending_upgrades_group.collapse();
     }
 
     fn apply_niri_events(&mut self, events: Vec<niri_ipc::Event>) -> Task<Message> {

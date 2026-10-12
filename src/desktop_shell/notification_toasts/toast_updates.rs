@@ -65,7 +65,7 @@ impl DesktopShell {
     ) -> Task<Message> {
         match msg {
             NotificationGroupMessage::Expansion(menu) => {
-                self.notification_group.expansion.update(menu);
+                self.notification_group.update(menu);
                 Task::none()
             }
             NotificationGroupMessage::Toggle(toggle) => self

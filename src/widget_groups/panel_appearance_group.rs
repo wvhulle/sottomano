@@ -26,7 +26,7 @@ impl From<PanelAppearanceTarget> for HoverTarget {
 }
 
 pub struct PanelAppearanceGroup {
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
     opacity: SliderControl,
     corner_radius: SliderControl,
 }

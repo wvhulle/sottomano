@@ -59,7 +59,7 @@ pub struct AudioGroup {
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 impl Default for AudioGroup {

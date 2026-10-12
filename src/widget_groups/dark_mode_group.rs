@@ -61,7 +61,7 @@ pub struct DarkModeGroup {
     sunrise_offset_slider: SliderControl,
     sunset_offset_slider: SliderControl,
     armed_switch: Option<ArmedSwitch>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 struct ArmedSwitch {

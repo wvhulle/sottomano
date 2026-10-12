@@ -39,6 +39,10 @@ pub enum Action {
 }
 
 impl WindowGroup {
+    pub fn collapse(&mut self) {
+        self.quick_launch.expansion.collapse();
+    }
+
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowGroupMessage> {
         WindowList::subscription(agents).map(WindowGroupMessage::WindowList)
     }

@@ -33,7 +33,7 @@ pub enum NiriWindowMessage {
 }
 
 pub struct NiriWindowGroup {
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
     corner_radius: SliderControl,
     gaps: SliderControl,
 }

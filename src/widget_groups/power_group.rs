@@ -66,7 +66,7 @@ pub struct PowerGroup {
     power_profile: PowerProfileControl,
     charger: OnHoverReading<ChargerSupply>,
     cpu_tuning: OnHoverReading<CpuTuning>,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]

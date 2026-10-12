@@ -253,7 +253,7 @@ pub struct WallpaperGroup {
     shown: Option<DisplayedWallpaper>,
     unsplash_key: Option<PathBuf>,
     wallpaper_daemon: bool,
-    pub(crate) expansion: GroupExpansion,
+    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -265,6 +265,10 @@ pub enum WallpaperMessage {
 }
 
 impl WallpaperGroup {
+    pub fn collapse(&mut self) {
+        self.expansion.collapse();
+    }
+
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
             lookup: ContinuousReading::default(),
