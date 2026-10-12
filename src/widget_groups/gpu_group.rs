@@ -21,7 +21,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         hardware_section::HardwareEntries,
-        on_hover_reading::{HoverFetched, OnHoverReading},
+        on_hover_reading::OnHoverReading,
         tooltip_body::{Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -86,8 +86,8 @@ pub struct GpuGroup {
 pub enum GpuMessage {
     Discovered(GpuDiscovery),
     Snapshot(PciBusId, Result<GpuSnapshot, gpu::Error>),
-    ClocksFetched(HoverFetched<GpuClocks>),
-    ProcessesFetched(HoverFetched<GpuProcesses>),
+    ClocksFetched(Result<GpuClocks, String>),
+    ProcessesFetched(Result<GpuProcesses, String>),
     Expansion(ExpansionMessage),
 }
 

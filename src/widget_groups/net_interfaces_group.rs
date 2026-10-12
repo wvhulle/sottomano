@@ -19,7 +19,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
-        on_hover_reading::{HoverFetched, OnHoverReading},
+        on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -60,8 +60,8 @@ pub enum NetInterfacesMessage {
     Ethernet(EthernetPresence),
     Wifi(WifiPresence),
     Mobile(ModemPresence),
-    WifiDetailsFetched(Box<HoverFetched<WifiDetails>>),
-    EthernetDetailsFetched(HoverFetched<EthernetDetails>),
+    WifiDetailsFetched(Box<Result<WifiDetails, String>>),
+    EthernetDetailsFetched(Result<EthernetDetails, String>),
     Expansion(ExpansionMessage),
 }
 

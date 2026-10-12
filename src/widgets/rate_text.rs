@@ -5,16 +5,10 @@ use uom::si::{
     time::second,
 };
 
-pub trait RateText {
-    fn per_second_text(self) -> String;
-}
-
-impl RateText for InformationRate {
-    fn per_second_text(self) -> String {
-        let in_one_second: Information = (self * Time::new::<second>(1.0)).into();
-        let bytes = ByteSize::b(in_one_second.get::<byte>().round() as u64);
-        format!("{}/s", bytes.display().iec())
-    }
+pub fn per_second_text(rate: InformationRate) -> String {
+    let in_one_second: Information = (rate * Time::new::<second>(1.0)).into();
+    let bytes = ByteSize::b(in_one_second.get::<byte>().round() as u64);
+    format!("{}/s", bytes.display().iec())
 }
 
 #[cfg(test)]
@@ -26,11 +20,11 @@ mod tests {
     #[test]
     fn small_rates_keep_their_precision() {
         assert_eq!(
-            InformationRate::new::<byte_per_second>(312.0).per_second_text(),
+            per_second_text(InformationRate::new::<byte_per_second>(312.0)),
             "312 B/s"
         );
         assert_eq!(
-            InformationRate::new::<kibibyte_per_second>(845.2).per_second_text(),
+            per_second_text(InformationRate::new::<kibibyte_per_second>(845.2)),
             "845.2 KiB/s"
         );
     }
@@ -38,7 +32,7 @@ mod tests {
     #[test]
     fn large_rates_switch_prefix() {
         assert_eq!(
-            InformationRate::new::<mebibyte_per_second>(1.8).per_second_text(),
+            per_second_text(InformationRate::new::<mebibyte_per_second>(1.8)),
             "1.8 MiB/s"
         );
     }

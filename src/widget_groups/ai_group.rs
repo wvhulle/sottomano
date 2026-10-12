@@ -32,7 +32,7 @@ use crate::{
     message_subscriptions::{polled, polling},
     widgets::{
         continuous_reading::ContinuousReading,
-        on_hover_reading::{HoverFetched, OnHoverReading},
+        on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{
@@ -154,7 +154,7 @@ pub enum AiMessage {
     OpenRouter(Result<OpenRouter, openrouter::Error>),
     ClaudeUsageWindows(Box<Result<ClaudeUsageWindows, claude::Error>>),
     ClaudeEnterpriseSpend(Result<ClaudeEnterpriseSpend, claude::Error>),
-    ClaudeOrganizationFetched(HoverFetched<ClaudeOrganization>),
+    ClaudeOrganizationFetched(Result<ClaudeOrganization, String>),
     ClaudeCcusagePeriods(Result<ClaudeCcusagePeriods, claude::Error>),
     ClaudeCcusageBlock(Result<ClaudeCcusageBlock, claude::Error>),
     CopilotMetered(Result<CopilotMetered, copilot::Error>),

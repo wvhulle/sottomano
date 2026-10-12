@@ -19,9 +19,9 @@ use crate::{
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
-        copyable::copyable,
         loading_text::{LoadingPhase, loading_text},
         phosphor::{self, Phosphor},
+        pressable_text::pressable_text,
         text::{bar_text, column_heading},
     },
 };
@@ -185,12 +185,13 @@ impl<'a> ProcessTree<'a> {
                             );
                             Row::new()
                                 .push(caret(&listing, caret_size, tint.or(level, dim)))
-                                .push(copyable(
+                                .push(pressable_text(
                                     cell,
                                     listing.name,
                                     Message::CopyText,
                                     flash,
                                     copy_flash,
+                                    Interaction::Copy,
                                 ))
                         }
                         Entry::Elided { hidden } => Row::new()
@@ -251,7 +252,14 @@ impl<'a> ProcessTree<'a> {
                 &font,
                 color,
             );
-            copyable(cell, text, Message::CopyText, flash, copy_flash)
+            pressable_text(
+                cell,
+                text,
+                Message::CopyText,
+                flash,
+                copy_flash,
+                Interaction::Copy,
+            )
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top)

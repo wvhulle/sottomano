@@ -25,7 +25,7 @@ use crate::{
     widgets::{
         continuous_reading::ContinuousReading,
         hardware_section::HardwareEntries,
-        on_hover_reading::{HoverFetched, OnHoverReading},
+        on_hover_reading::OnHoverReading,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -68,8 +68,8 @@ pub enum ComputeMessage {
     Memory(Result<Memory, sysfs_sensors::Error>),
     Clock(Result<CpuClock, sysfs_sensors::Error>),
     Temperature(Result<Temperature, sysfs_sensors::Error>),
-    CoreLoadsFetched(HoverFetched<CpuCoreLoads>),
-    CoreTemperaturesFetched(HoverFetched<CpuCoreTemperatures>),
+    CoreLoadsFetched(Result<CpuCoreLoads, String>),
+    CoreTemperaturesFetched(Result<CpuCoreTemperatures, String>),
     Expansion(ExpansionMessage),
 }
 

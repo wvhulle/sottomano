@@ -24,41 +24,25 @@ const PADDING: Padding = Padding {
     left: 4.0,
 };
 
-pub fn copyable<'a, Message: 'a>(
+pub fn pressable_text<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     text: String,
-    on_copy: impl Fn(String) -> Message + 'a,
+    on_press: impl Fn(String) -> Message + 'a,
     accent: Color,
     hold: Duration,
+    interaction: Interaction,
 ) -> Element<'a, Message> {
-    Element::new(Copyable {
+    Element::new(PressableText {
         content: content.into(),
         text,
-        on_press: Box::new(on_copy),
+        on_press: Box::new(on_press),
         accent,
         hold,
-        interaction: Interaction::Copy,
+        interaction,
     })
 }
 
-pub fn openable<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
-    url: String,
-    on_open: impl Fn(String) -> Message + 'a,
-    accent: Color,
-    hold: Duration,
-) -> Element<'a, Message> {
-    Element::new(Copyable {
-        content: content.into(),
-        text: url,
-        on_press: Box::new(on_open),
-        accent,
-        hold,
-        interaction: Interaction::Pointer,
-    })
-}
-
-struct Copyable<'a, Message> {
+struct PressableText<'a, Message> {
     content: Element<'a, Message>,
     text: String,
     on_press: Box<dyn Fn(String) -> Message + 'a>,
@@ -80,7 +64,7 @@ impl CellState {
     }
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Copyable<'_, Message> {
+impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PressableText<'_, Message> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<CellState>()
     }

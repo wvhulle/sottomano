@@ -8,6 +8,7 @@ use iced::{
     Color, Element, Padding,
     alignment::{Horizontal, Vertical},
     border::Radius,
+    mouse::Interaction,
     widget::{Column, Container, Space, Text, container, row, table},
 };
 
@@ -21,9 +22,9 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         context_menu::context_menu,
-        copyable::{copyable, openable},
         favicon::Favicons,
         loading_text::{LoadingPhase, loading_text},
+        pressable_text::pressable_text,
         section_column::section_column,
         text::{bar_text, column_heading},
         tooltip_body::{
@@ -404,7 +405,14 @@ impl CellView {
 
     fn openable_link(&self, url: String) -> Element<'static, Message> {
         let value = self.text(url.clone(), self.link);
-        openable(value, url, Message::OpenUrl, self.link, self.copy_flash)
+        pressable_text(
+            value,
+            url,
+            Message::OpenUrl,
+            self.link,
+            self.copy_flash,
+            Interaction::Pointer,
+        )
     }
 
     fn glyph(&self, icon: Glyph, color: Color) -> Element<'static, Message> {
@@ -416,7 +424,14 @@ impl CellView {
         if text.trim().is_empty() {
             return value;
         }
-        copyable(value, text, Message::CopyText, self.flash, self.copy_flash)
+        pressable_text(
+            value,
+            text,
+            Message::CopyText,
+            self.flash,
+            self.copy_flash,
+            Interaction::Copy,
+        )
     }
 }
 
