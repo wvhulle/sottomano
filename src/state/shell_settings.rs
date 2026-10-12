@@ -2,7 +2,7 @@ use crate::state::{
     Columns, ShellSettings, StoreError, WorkspacesPlacement, connect, overlay_settings,
 };
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
     id INTEGER PRIMARY KEY CHECK (id = 0),
     float_offset_px REAL,
     disconnected_groups INTEGER,

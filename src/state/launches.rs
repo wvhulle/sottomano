@@ -7,7 +7,7 @@ use crate::{
 
 const TTL_DAYS: i64 = 60;
 
-pub(crate) const SCHEMA: [&str; 2] = [
+pub const SCHEMA: [&str; 2] = [
     "CREATE TABLE IF NOT EXISTS launch_events (
         workspace TEXT NOT NULL,
         app_id TEXT NOT NULL,

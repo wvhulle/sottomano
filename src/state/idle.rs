@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::state::{Columns, StoreError, connect};
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
     id INTEGER PRIMARY KEY CHECK (id = 0),
     lock_user INTEGER,
     screen_off INTEGER,

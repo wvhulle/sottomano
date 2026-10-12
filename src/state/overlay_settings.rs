@@ -1,6 +1,6 @@
 use crate::state::{Columns, OverlaySettings, StoreError, connect};
 
-pub(crate) const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS overlay_settings (
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS overlay_settings (
     id INTEGER PRIMARY KEY CHECK (id = 0),
     opacity REAL,
     corner_radius_px REAL,

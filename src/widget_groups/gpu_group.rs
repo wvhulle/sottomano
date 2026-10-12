@@ -1,7 +1,7 @@
-pub mod gpu_load_gauge;
-pub mod gpu_power_label;
-pub mod gpu_temperature_label;
-pub mod vram_usage_gauge;
+mod gpu_load_gauge;
+mod gpu_power_label;
+mod gpu_temperature_label;
+mod vram_usage_gauge;
 
 use std::collections::BTreeMap;
 

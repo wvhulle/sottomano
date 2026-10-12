@@ -1,5 +1,5 @@
-pub mod auto_switch_toggle;
-pub mod umbra_dark_mode;
+mod auto_switch_toggle;
+mod umbra_dark_mode;
 
 use std::{ops::RangeInclusive, time::Duration};
 

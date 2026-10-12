@@ -9,7 +9,7 @@ use crate::{
         severity::Severity,
         source::{
             net_interfaces::nm::Connectivity,
-            throughput::{Direction, Download, SCALE_END_MB_PER_S, Throughput, Total, Upload},
+            throughput::{Download, SCALE_END_MB_PER_S, Throughput, Total, Upload},
         },
     },
     widgets::{
@@ -24,27 +24,31 @@ use crate::{
 const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
 const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
 
-pub trait DirectionIcon: Direction {
+pub trait DirectionIcon {
     const NAME: &'static str;
+    const LABEL: &'static str;
     const ICON: Phosphor;
 }
 
 impl DirectionIcon for Upload {
     const NAME: &'static str = "Upload";
+    const LABEL: &'static str = "Up";
     const ICON: Phosphor = Phosphor::UploadSimple(Weight::Regular);
 }
 
 impl DirectionIcon for Download {
     const NAME: &'static str = "Download";
+    const LABEL: &'static str = "Down";
     const ICON: Phosphor = Phosphor::DownloadSimple(Weight::Regular);
 }
 
 impl DirectionIcon for Total {
     const NAME: &'static str = "Network throughput";
+    const LABEL: &'static str = "Total";
     const ICON: Phosphor = Phosphor::ArrowsDownUp(Weight::Regular);
 }
 
-fn severity<D: Direction>(throughput: &Throughput<D>) -> Severity {
+fn severity<D>(throughput: &Throughput<D>) -> Severity {
     if throughput.interfaces.is_empty() {
         return Severity::Critical;
     }
@@ -102,7 +106,7 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
     }
 }
 
-impl<D: Direction> Throughput<D> {
+impl<D> Throughput<D> {
     fn link_level(&self) -> Severity {
         if self.unused() {
             return Severity::Normal;

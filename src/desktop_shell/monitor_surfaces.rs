@@ -23,10 +23,10 @@ pub enum Position {
 }
 
 impl Position {
-    pub(crate) const BARS: [Position; 2] = [Position::Top, Position::Bottom];
-    pub(crate) const ALL: [Position; 3] = [Position::Top, Position::Bottom, Position::Left];
+    pub const BARS: [Position; 2] = [Position::Top, Position::Bottom];
+    pub const ALL: [Position; 3] = [Position::Top, Position::Bottom, Position::Left];
 
-    pub(crate) fn edge(self) -> Anchor {
+    pub fn edge(self) -> Anchor {
         match self {
             Position::Top => Anchor::Top,
             Position::Bottom => Anchor::Bottom,
@@ -34,25 +34,25 @@ impl Position {
         }
     }
 
-    pub(crate) fn anchor(self) -> Anchor {
+    pub fn anchor(self) -> Anchor {
         match self {
             Position::Top | Position::Bottom => self.edge() | Anchor::Left | Anchor::Right,
             Position::Left => self.edge() | Anchor::Top | Anchor::Bottom,
         }
     }
 
-    pub(crate) fn strip_size(self, thickness: u32) -> LayerSize {
+    pub fn strip_size(self, thickness: u32) -> LayerSize {
         match self {
             Position::Top | Position::Bottom => LayerSize::fill_width(thickness),
             Position::Left => LayerSize::fill_height(thickness),
         }
     }
 
-    pub(crate) fn is_vertical(self) -> bool {
+    pub fn is_vertical(self) -> bool {
         matches!(self, Position::Left)
     }
 
-    pub(crate) fn inward_sides(self) -> OutlinedSides {
+    pub fn inward_sides(self) -> OutlinedSides {
         OutlinedSides {
             top: self != Position::Top,
             right: true,
@@ -80,11 +80,11 @@ pub struct PanelEdge {
     pub position: Position,
 }
 
-pub(crate) fn input_region(surface: Id, bounds: Rectangle) -> Message {
+pub fn input_region(surface: Id, bounds: Rectangle) -> Message {
     input_regions(surface, vec![bounds])
 }
 
-pub(crate) fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
+pub fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
     Message::SetInputRegion {
         id: surface,
         callback: ActionCallback::new(move |region| {
@@ -103,7 +103,7 @@ pub(crate) fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
     }
 }
 
-pub(crate) fn base_settings(output: Option<&str>, namespace: &str) -> NewLayerShellSettings {
+pub fn base_settings(output: Option<&str>, namespace: &str) -> NewLayerShellSettings {
     NewLayerShellSettings {
         keyboard_interactivity: KeyboardInteractivity::None,
         output_option: output.map_or(OutputOption::Active, |name| {
@@ -166,7 +166,7 @@ fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerS
 }
 
 impl DesktopShell {
-    pub(crate) fn apply_output_change(&mut self, change: OutputChange) -> Task<Message> {
+    pub fn apply_output_change(&mut self, change: OutputChange) -> Task<Message> {
         match change {
             OutputChange::Connected(name) => {
                 Task::batch([self.open_monitor_surfaces_once(&name), query_outputs()])
@@ -198,7 +198,7 @@ impl DesktopShell {
         }))
     }
 
-    pub(crate) fn forget_window(&mut self, window: Id) -> Task<Message> {
+    pub fn forget_window(&mut self, window: Id) -> Task<Message> {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
         self.tooltip.forget(window);
@@ -206,19 +206,19 @@ impl DesktopShell {
         Task::none()
     }
 
-    pub(crate) fn update_sidebar_width(&mut self, window: Id, width: f32) -> Task<Message> {
+    pub fn update_sidebar_width(&mut self, window: Id, width: f32) -> Task<Message> {
         self.sidebar_widths.insert(window, width);
         self.reserve()
     }
 
-    pub(crate) fn panels(&self) -> impl Iterator<Item = (Id, &str)> {
+    pub fn panels(&self) -> impl Iterator<Item = (Id, &str)> {
         self.surfaces
             .iter()
             .filter(|(_, surface)| surface.role == SurfaceRole::Panel)
             .map(|(&id, surface)| (id, surface.output.as_str()))
     }
 
-    pub(crate) fn bar_clearance(&self, output: &str) -> Padding {
+    pub fn bar_clearance(&self, output: &str) -> Padding {
         Padding::ZERO
             .top(self.reserved_zone(output, Position::Top) as f32)
             .bottom(self.reserved_zone(output, Position::Bottom) as f32)
@@ -240,7 +240,7 @@ impl DesktopShell {
         (self.shell_settings.layout.float_offset_px + thickness).ceil() as i32
     }
 
-    pub(crate) fn reserve(&self) -> Task<Message> {
+    pub fn reserve(&self) -> Task<Message> {
         Task::batch(
             self.surfaces
                 .iter()
@@ -299,7 +299,7 @@ impl DesktopShell {
         Task::done(Message::NewLayerShell { settings, id })
     }
 
-    pub(crate) fn resize_backdrops(&self) -> Task<Message> {
+    pub fn resize_backdrops(&self) -> Task<Message> {
         let height = self.config.panel_bar.height_px as u32;
         Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
             [
@@ -344,6 +344,6 @@ pub enum OutputChange {
     Unavailable(String),
 }
 
-pub(crate) fn query_outputs() -> Task<Message> {
+pub fn query_outputs() -> Task<Message> {
     blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
 }

@@ -55,7 +55,7 @@ pub enum SoundTheme {
 }
 
 impl SoundTheme {
-    pub(crate) fn read_session() -> Self {
+    pub fn read_session() -> Self {
         let configured = Command::new("gsettings")
             .args(["get", "org.gnome.desktop.sound", "theme-name"])
             .output()

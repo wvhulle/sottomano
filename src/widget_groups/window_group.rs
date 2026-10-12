@@ -1,7 +1,7 @@
 pub mod process_tree;
-pub mod quick_launch;
+mod quick_launch;
 pub mod window_list;
-pub mod window_tooltip;
+mod window_tooltip;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -19,8 +19,8 @@ use crate::{
 
 #[derive(Default)]
 pub struct WindowGroup {
-    pub(crate) quick_launch: QuickLaunch,
-    pub(crate) window_list: WindowList,
+    pub quick_launch: QuickLaunch,
+    pub window_list: WindowList,
 }
 
 #[derive(Debug, Clone)]
@@ -30,12 +30,8 @@ pub enum WindowGroupMessage {
 }
 
 pub enum Action {
-    None,
     Run(Task<WindowGroupMessage>),
-    FocusWindow(u64),
-    MaximizeColumn,
-    ToggleWindowAudio(i32),
-    RefreshWindowList,
+    WindowList(window_list::Action),
 }
 
 impl WindowGroup {
@@ -73,13 +69,7 @@ impl WindowGroup {
                     .update(m)
                     .map(WindowGroupMessage::QuickLaunch),
             ),
-            WindowGroupMessage::WindowList(m) => match self.window_list.update(m) {
-                window_list::Action::None => Action::None,
-                window_list::Action::FocusWindow(window) => Action::FocusWindow(window),
-                window_list::Action::MaximizeColumn => Action::MaximizeColumn,
-                window_list::Action::ToggleAudio(pid) => Action::ToggleWindowAudio(pid),
-                window_list::Action::RefreshIcons => Action::RefreshWindowList,
-            },
+            WindowGroupMessage::WindowList(m) => Action::WindowList(self.window_list.update(m)),
         }
     }
 

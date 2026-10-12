@@ -3,8 +3,6 @@ use std::{collections::HashMap, ops::RangeInclusive};
 use iced::{Subscription, Task};
 use uom::si::{f64::Power, power::watt};
 
-pub mod profile_icon;
-
 use crate::{
     data::{
         battery_forecast::{Estimate, RegressionState, time_until_empty},
@@ -18,9 +16,9 @@ use crate::{
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
-        power_profile_control::profile_icon::profile_face,
     },
     widgets::{
+        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         tooltip_body::{Section, TableRecord, Tooltip, TooltipBody},
     },
@@ -28,6 +26,14 @@ use crate::{
 
 const RANGE: RangeInclusive<f32> = 0.0..=100.0;
 const STEP: f32 = 50.0;
+
+fn profile_face(profile: Profile) -> Phosphor {
+    match profile {
+        Profile::PowerSaver => Phosphor::Leaf(Weight::Regular),
+        Profile::Balanced => Phosphor::Scales(Weight::Regular),
+        Profile::Performance => Phosphor::Rocket(Weight::Regular),
+    }
+}
 const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {

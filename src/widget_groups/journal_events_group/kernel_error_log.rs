@@ -5,7 +5,7 @@ use crate::{
         journal_events_group::{
             JournalEventsGroup, JournalEventsMessage, JournalTarget, MESSAGE_CAP,
         },
-        terminal_journal::TerminalJournal,
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -26,8 +26,8 @@ impl JournalEventsGroup {
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
         let kernel = self.kernel.present_reading()?;
         Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
-            TerminalJournal::PRESS_HINT,
-            JournalEventsMessage::OpenLog(TerminalJournal::following(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            JournalEventsMessage::OpenLog(TerminalCommand::journal(
                 config,
                 KernelOccurrence::follow_log_args(),
             )),

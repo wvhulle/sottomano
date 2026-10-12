@@ -1,8 +1,8 @@
 use iced::{Subscription, Task};
 
-pub mod network_throughput_gauge;
-pub mod tailscale_mesh_tooltip;
-pub mod wireguard_tunnel_tooltip;
+mod network_throughput_gauge;
+mod tailscale_mesh_tooltip;
+mod wireguard_tunnel_tooltip;
 
 use crate::{
     config::Config,

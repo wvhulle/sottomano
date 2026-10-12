@@ -1,9 +1,9 @@
-pub mod battery_charge_gauge;
-pub mod battery_time_reading;
-pub mod cpu_tuning_reading;
-pub mod estimate_columns;
-pub mod power_draw_gauge;
-pub mod power_profile_control;
+mod battery_charge_gauge;
+mod battery_time_reading;
+mod cpu_tuning_reading;
+mod estimate_columns;
+mod power_draw_gauge;
+mod power_profile_control;
 
 use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
 use cpu_tuning_reading::CpuTuningEntry;

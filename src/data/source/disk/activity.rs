@@ -19,26 +19,14 @@ use crate::message_subscriptions::ticked;
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
 const SECTOR_BYTES: f64 = 512.0;
 
-pub trait TransferDirection {
-    const LABEL: &'static str;
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Reading;
-
-impl TransferDirection for Reading {
-    const LABEL: &'static str = "Read";
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Writing;
 
-impl TransferDirection for Writing {
-    const LABEL: &'static str = "Write";
-}
-
 #[derive(Debug, Clone, PartialEq)]
-pub struct DiskTransfer<D: TransferDirection> {
+pub struct DiskTransfer<D> {
     pub disk: String,
     pub rate: InformationRate,
     pub disk_busy: Ratio,
@@ -144,7 +132,7 @@ impl BlockCounters {
     }
 }
 
-impl<D: TransferDirection> DiskTransfer<D> {
+impl<D> DiskTransfer<D> {
     fn new(disk: String, rate: InformationRate, disk_busy: Ratio) -> Self {
         DiskTransfer {
             disk,

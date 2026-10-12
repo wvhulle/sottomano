@@ -3,7 +3,7 @@ use crate::{
     state::{Columns, StoreError, connect},
 };
 
-pub(crate) const SCHEMA: [&str; 2] = [
+pub const SCHEMA: [&str; 2] = [
     "CREATE TABLE IF NOT EXISTS battery_charge_curve (
         battery TEXT NOT NULL,
         bin INTEGER NOT NULL,

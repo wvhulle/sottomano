@@ -6,12 +6,12 @@ use iced::{
 };
 use tokio::task::spawn_blocking;
 
-pub mod boot_timeline_reading;
-pub mod coredump_log;
-pub mod failed_unit_log;
-pub mod last_shutdown_reading;
-pub mod oom_kill_log;
-pub mod running_job_reading;
+mod boot_timeline_reading;
+mod coredump_log;
+mod failed_unit_log;
+mod last_shutdown_reading;
+mod oom_kill_log;
+mod running_job_reading;
 
 use crate::{
     config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
@@ -28,7 +28,7 @@ use crate::{
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{copy_to_clipboard, journal_subscription},
-    widget_groups::{terminal_command::TerminalCommand, terminal_journal::TerminalJournal},
+    widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -145,7 +145,7 @@ pub enum SystemdManagerMessage {
     LastShutdown(LastShutdown),
     Coredumps(Vec<CoredumpEntry>),
     OomKills(Vec<OomKillEntry>),
-    OpenLog(TerminalJournal),
+    OpenLog(TerminalCommand),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
     CopyToClipboard(String),

@@ -6,7 +6,7 @@ use crate::{
     },
     widget_groups::{
         systemd_manager_group::{SystemdManagerMessage, SystemdTarget, elapsed_text},
-        terminal_journal::TerminalJournal,
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -83,8 +83,8 @@ impl BarWidget for LastShutdown {
 impl LastShutdown {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         GroupItem::reading(self, SystemdTarget::LastShutdown).on_press(
-            TerminalJournal::PRESS_HINT,
-            SystemdManagerMessage::OpenLog(TerminalJournal::following(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                 config,
                 self.follow_log_args(),
             )),

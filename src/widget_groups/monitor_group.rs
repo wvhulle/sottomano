@@ -1,6 +1,6 @@
-pub mod backlight_display;
-pub mod clight_auto_brightness;
-pub mod output_details;
+mod backlight_display;
+mod clight_auto_brightness;
+mod output_details;
 
 use std::{
     collections::{BTreeMap, HashMap},

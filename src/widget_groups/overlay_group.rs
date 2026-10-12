@@ -18,7 +18,6 @@ use crate::{
 };
 
 pub enum Action {
-    None,
     Run(Task<Message>),
     ReflowToasts(Task<Message>),
 }
@@ -121,7 +120,7 @@ impl OverlayGroup {
                 if self.expansion.update(menu) {
                     self.close_sliders();
                 }
-                Action::None
+                Action::Run(Task::none())
             }
             OverlayMessage::ToggleToastSpatialLayout => {
                 overlays.toast_spatial_layout = !overlays.toast_spatial_layout;
@@ -134,7 +133,7 @@ impl OverlayGroup {
             }
             OverlayMessage::Opacity(control) => {
                 let SliderAction::Commit(value) = self.opacity.update(control) else {
-                    return Action::None;
+                    return Action::Run(Task::none());
                 };
                 overlays.opacity = value / 100.0;
                 Action::Run(
@@ -152,7 +151,7 @@ impl OverlayGroup {
             }
             OverlayMessage::CornerRadius(control) => {
                 let SliderAction::Commit(value) = self.corner_radius.update(control) else {
-                    return Action::None;
+                    return Action::Run(Task::none());
                 };
                 overlays.corner_radius = value.into();
                 Action::Run(

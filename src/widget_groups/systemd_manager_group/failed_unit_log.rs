@@ -15,7 +15,7 @@ use crate::{
     },
     widget_groups::{
         systemd_manager_group::{ScopeAppearance, SystemdManagerMessage},
-        terminal_journal::TerminalJournal,
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -30,10 +30,10 @@ use crate::{
 impl<S: ScopeAppearance> Failed<S> {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
-            |args| SystemdManagerMessage::OpenLog(TerminalJournal::following(config, args));
+            |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
         GroupItem::reading(self, S::FAILED_TARGET)
             .on_press(
-                TerminalJournal::PRESS_HINT,
+                TerminalCommand::JOURNAL_PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
             .ongoing_toasts(self.failed_unit_toasts(config))
@@ -44,7 +44,7 @@ impl<S: ScopeAppearance> Failed<S> {
         config: &'a Config,
     ) -> impl Iterator<Item = OngoingToast<SystemdManagerMessage>> + 'a {
         self.units.iter().map(move |unit| {
-            let open_unit_log = SystemdManagerMessage::OpenLog(TerminalJournal::following(
+            let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                 config,
                 S::follow_units_log_args([unit.name.as_str()]),
             ));

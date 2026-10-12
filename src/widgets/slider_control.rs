@@ -32,7 +32,7 @@ use crate::{
 
 const PIXELS_PER_SCROLL_STEP: f32 = 40.0;
 
-pub(crate) fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
+pub fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
     match delta {
         ScrollDelta::Lines { y, .. } => {
             if y > 0.0 {
@@ -505,11 +505,11 @@ fn into_action(write: Option<Write>) -> Action {
 }
 
 #[allow(clippy::cast_precision_loss)]
-pub(crate) fn percent_f(percent: i64) -> f32 {
+pub fn percent_f(percent: i64) -> f32 {
     percent as f32
 }
 
 #[allow(clippy::cast_possible_truncation)]
-pub(crate) fn as_percent(value: f32) -> i64 {
+pub fn as_percent(value: f32) -> i64 {
     value.round() as i64
 }

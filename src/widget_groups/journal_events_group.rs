@@ -1,14 +1,14 @@
 use iced::{Subscription, Task};
 
-pub mod kernel_error_log;
-pub mod service_error_log;
+mod kernel_error_log;
+mod service_error_log;
 
 use crate::{
     config::Config,
     data::source::{kernel_errors::KernelOccurrence, service_errors::ServiceErrors},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::journal_subscription,
-    widget_groups::terminal_journal::TerminalJournal,
+    widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -46,7 +46,7 @@ pub struct JournalEventsGroup {
 pub enum JournalEventsMessage {
     Kernel(Vec<KernelOccurrence>),
     ServiceErrors(ServiceErrors),
-    OpenLog(TerminalJournal),
+    OpenLog(TerminalCommand),
     Expansion(ExpansionMessage),
 }
 

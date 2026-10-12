@@ -76,7 +76,7 @@ use crate::{
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
         weather_group::{WeatherGroup, WeatherMessage},
-        window_group::{self, WindowGroup, WindowGroupMessage},
+        window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{favicon::Favicons, text::FontFallbacks, widget_group::GroupEvent},
 };
@@ -88,51 +88,51 @@ pub struct AppWindowFocus<M> {
 }
 
 pub struct DesktopShell {
-    pub(crate) wayland: Option<wayland_client::Connection>,
-    pub(crate) config_file: ConfigFile,
-    pub(crate) config: Config,
-    pub(crate) theme: iced::Theme,
-    pub(crate) shell_settings: ShellSettings,
-    pub(crate) weather_group: WeatherGroup,
-    pub(crate) wallpaper_group: WallpaperGroup,
-    pub(crate) power_group: PowerGroup,
-    pub(crate) compute_group: ComputeGroup,
-    pub(crate) gpu_group: GpuGroup,
-    pub(crate) disk_group: DiskGroup,
-    pub(crate) niri_rules: NiriRulesFile,
-    pub(crate) shell_layout_group: ShellLayoutGroup,
-    pub(crate) panel_appearance_group: PanelAppearanceGroup,
-    pub(crate) overlay_group: OverlayGroup,
-    pub(crate) surface_effects_group: SurfaceEffectsGroup,
-    pub(crate) niri_window_group: NiriWindowGroup,
-    pub(crate) clock_group: ClockGroup,
-    pub(crate) notification_group: NotificationGroup,
-    pub(crate) systemd_manager_group: SystemdManagerGroup,
-    pub(crate) journal_events_group: JournalEventsGroup,
-    pub(crate) pending_upgrades_group: PendingUpgradesGroup,
-    pub(crate) internet_group: InternetGroup,
-    pub(crate) net_interfaces_group: NetInterfacesGroup,
-    pub(crate) monitor_group: MonitorGroup,
-    pub(crate) color_temperature_group: ColorTemperatureGroup,
-    pub(crate) dark_mode_group: DarkModeGroup,
-    pub(crate) idle_timeouts_group: IdleTimeoutsGroup,
-    pub(crate) media_group: MediaGroup,
-    pub(crate) audio_group: AudioGroup,
-    pub(crate) ai_group: AiGroup,
-    pub(crate) tray_group: TrayGroup,
-    pub(crate) window_group: WindowGroup,
-    pub(crate) launch_tracker: LaunchTracker,
-    pub(crate) niri: EventStreamState,
-    pub(crate) niri_snapshot: niri::Snapshot,
-    pub(crate) outputs: HashMap<String, niri::OutputInfo>,
-    pub(crate) surfaces: BTreeMap<Id, Surface>,
-    pub(crate) backdrops: BTreeMap<Id, Position>,
-    pub(crate) sidebar_widths: HashMap<Id, f32>,
-    pub(crate) tooltip: TooltipHost,
-    pub(crate) notifications: NotificationLayer,
-    pub(crate) desktop_entries: DesktopIndex,
-    pub(crate) favicons: Favicons,
-    pub(crate) font_fallbacks: FontFallbacks,
+    pub wayland: Option<wayland_client::Connection>,
+    pub config_file: ConfigFile,
+    pub config: Config,
+    pub theme: iced::Theme,
+    pub shell_settings: ShellSettings,
+    pub weather_group: WeatherGroup,
+    pub wallpaper_group: WallpaperGroup,
+    pub power_group: PowerGroup,
+    pub compute_group: ComputeGroup,
+    pub gpu_group: GpuGroup,
+    pub disk_group: DiskGroup,
+    pub niri_rules: NiriRulesFile,
+    pub shell_layout_group: ShellLayoutGroup,
+    pub panel_appearance_group: PanelAppearanceGroup,
+    pub overlay_group: OverlayGroup,
+    pub surface_effects_group: SurfaceEffectsGroup,
+    pub niri_window_group: NiriWindowGroup,
+    pub clock_group: ClockGroup,
+    pub notification_group: NotificationGroup,
+    pub systemd_manager_group: SystemdManagerGroup,
+    pub journal_events_group: JournalEventsGroup,
+    pub pending_upgrades_group: PendingUpgradesGroup,
+    pub internet_group: InternetGroup,
+    pub net_interfaces_group: NetInterfacesGroup,
+    pub monitor_group: MonitorGroup,
+    pub color_temperature_group: ColorTemperatureGroup,
+    pub dark_mode_group: DarkModeGroup,
+    pub idle_timeouts_group: IdleTimeoutsGroup,
+    pub media_group: MediaGroup,
+    pub audio_group: AudioGroup,
+    pub ai_group: AiGroup,
+    pub tray_group: TrayGroup,
+    pub window_group: WindowGroup,
+    pub launch_tracker: LaunchTracker,
+    pub niri: EventStreamState,
+    pub niri_snapshot: niri::Snapshot,
+    pub outputs: HashMap<String, niri::OutputInfo>,
+    pub surfaces: BTreeMap<Id, Surface>,
+    pub backdrops: BTreeMap<Id, Position>,
+    pub sidebar_widths: HashMap<Id, f32>,
+    pub tooltip: TooltipHost,
+    pub notifications: NotificationLayer,
+    pub desktop_entries: DesktopIndex,
+    pub favicons: Favicons,
+    pub font_fallbacks: FontFallbacks,
 }
 
 #[to_layer_message(multi)]
@@ -488,7 +488,6 @@ impl DesktopShell {
             .overlay_group
             .update(msg, &mut self.shell_settings.overlays)
         {
-            overlay_group::Action::None => Task::none(),
             overlay_group::Action::Run(task) => task,
             overlay_group::Action::ReflowToasts(task) => {
                 let placement = niri::Placement::derive(&self.niri);
@@ -525,22 +524,22 @@ impl DesktopShell {
     fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
         match self.window_group.update(msg) {
             window_group::Action::Run(task) => task.map(Message::WindowGroup),
-            window_group::Action::FocusWindow(window) => {
+            window_group::Action::WindowList(window_list::Action::FocusWindow(window)) => {
                 niri_action(niri_ipc::Action::FocusWindow { id: window })
             }
-            window_group::Action::MaximizeColumn => {
+            window_group::Action::WindowList(window_list::Action::MaximizeColumn) => {
                 niri_action(niri_ipc::Action::MaximizeColumn {})
             }
-            window_group::Action::ToggleWindowAudio(pid) => {
+            window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
             }
-            window_group::Action::RefreshWindowList => Task::batch([
+            window_group::Action::WindowList(window_list::Action::RefreshIcons) => Task::batch([
                 self.favicons
                     .retry_unresolved()
                     .map(Message::FaviconsResolved),
                 self.resolve_icons(),
             ]),
-            window_group::Action::None => Task::none(),
+            window_group::Action::WindowList(window_list::Action::None) => Task::none(),
         }
     }
 
@@ -811,7 +810,6 @@ impl DesktopShell {
             .shell_layout_group
             .update(msg, &mut self.shell_settings.layout)
         {
-            shell_layout_group::Action::None => Task::none(),
             shell_layout_group::Action::Run(task) => task,
             shell_layout_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
         }

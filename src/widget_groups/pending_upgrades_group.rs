@@ -1,6 +1,6 @@
 use iced::{Subscription, Task};
 
-pub mod firmware_upgrade_list;
+mod firmware_upgrade_list;
 
 use crate::{
     config::Config,

@@ -7,7 +7,6 @@ use crate::{
     widget_groups::{
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
         terminal_command::TerminalCommand,
-        terminal_journal::TerminalJournal,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
@@ -97,8 +96,8 @@ impl SystemdManagerGroup {
         let coredumps = self.coredumps.present_reading()?;
         Some(
             GroupItem::reading(coredumps, SystemdTarget::Coredumps).on_press(
-                TerminalJournal::PRESS_HINT,
-                SystemdManagerMessage::OpenLog(TerminalJournal::following(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                     config,
                     CoredumpEntry::follow_log_args(),
                 )),

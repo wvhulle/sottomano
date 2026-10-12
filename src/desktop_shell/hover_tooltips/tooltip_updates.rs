@@ -11,7 +11,7 @@ use crate::{
 };
 
 impl DesktopShell {
-    pub(crate) fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
+    pub fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
         match msg {
             TooltipMessage::Enter {
                 surface,
@@ -60,19 +60,19 @@ impl DesktopShell {
         self.tooltip.departure(content)
     }
 
-    pub(crate) fn dismiss_tooltip(&mut self) -> Task<Message> {
+    pub fn dismiss_tooltip(&mut self) -> Task<Message> {
         let departing = self.tooltip_departure();
         self.tooltip.dismiss(departing);
         Task::none()
     }
 
-    pub(crate) fn leave_tooltip_after_grace(&mut self) -> Task<Message> {
+    pub fn leave_tooltip_after_grace(&mut self) -> Task<Message> {
         let departing = self.tooltip_departure();
         self.tooltip.leave_elapsed(departing);
         Task::none()
     }
 
-    pub(crate) fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
         let tooltip = match target {
             HoverTarget::Compute(target) => self.compute_group.tooltip_for(*target),
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target),
@@ -129,7 +129,7 @@ impl DesktopShell {
         tooltip.unwrap_or_else(Tooltip::empty)
     }
 
-    pub(crate) fn retarget_hover_readings(&mut self) -> Task<Message> {
+    pub fn retarget_hover_readings(&mut self) -> Task<Message> {
         let hovered = self.tooltip.target();
         Task::batch([
             self.window_group

@@ -132,7 +132,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     ])
 }
 
-pub(crate) fn blocking<T: Default + Send + 'static>(
+pub fn blocking<T: Default + Send + 'static>(
     context: &'static str,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Task<T> {
@@ -150,7 +150,7 @@ pub(crate) fn blocking<T: Default + Send + 'static>(
     )
 }
 
-pub(crate) fn ticked<T, F>(
+pub fn ticked<T, F>(
     every: Duration,
     work: impl Fn() -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = T>
@@ -164,7 +164,7 @@ where
     IntervalStream::new(timer).then(move |_| work())
 }
 
-pub(crate) fn restarting<F, S, E>(
+pub fn restarting<F, S, E>(
     source: &'static str,
     connect: impl FnMut() -> F,
 ) -> impl Stream<Item = S::Item>
@@ -201,7 +201,7 @@ fn emit_reading_changes<S: Clone + PartialEq, E>(
         .filter_map(ready)
 }
 
-pub(crate) fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
+pub fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
     from_entries: fn(Vec<E>) -> R,
     map: fn(R) -> M,
 ) -> Subscription<M> {
@@ -211,15 +211,15 @@ pub(crate) fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
     })
 }
 
-pub(crate) fn polling<S: Source>(key: S::Key) -> Subscription<Result<S, S::Error>> {
+pub fn polling<S: Source>(key: S::Key) -> Subscription<Result<S, S::Error>> {
     Subscription::run_with((S::NAME, key), |(_, key)| polled::<S>(key.clone()))
 }
 
-pub(crate) fn polled<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
+pub fn polled<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
     emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
 }
 
-pub(crate) fn emit_changes<T: Clone + PartialEq>(
+pub fn emit_changes<T: Clone + PartialEq>(
     readings: impl Stream<Item = T>,
 ) -> impl Stream<Item = T> {
     use iced::futures::StreamExt;
@@ -234,7 +234,7 @@ pub(crate) fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub(crate) fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<S>
+pub fn dbus<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<S>
 where
     S: Send + 'static,
     St: Stream<Item = S> + Send + 'static,
@@ -242,11 +242,11 @@ where
     Subscription::run_with((name, readings), |&(_, readings)| readings())
 }
 
-pub(crate) fn niri_action(action: niri_ipc::Action) -> Task<Message> {
+pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     blocking("niri action", move || niri::send_action(&action)).discard()
 }
 
-pub(crate) fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
+pub fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
     blocking("clipboard", move || clipboard::write(&text)).discard()
 }
 
