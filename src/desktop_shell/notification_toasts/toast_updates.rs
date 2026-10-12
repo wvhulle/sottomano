@@ -59,11 +59,6 @@ impl DesktopShell {
         )
     }
 
-    pub(crate) fn prune_notifications(&mut self) -> Task<Message> {
-        self.notifications.prune();
-        Task::none()
-    }
-
     pub(crate) fn update_notification_group(
         &mut self,
         msg: NotificationGroupMessage,
@@ -77,14 +72,6 @@ impl DesktopShell {
                 .notifications
                 .toggle(toggle, &mut self.shell_settings.notifications),
         }
-    }
-
-    pub fn any_notification_transitioning(&self) -> bool {
-        self.notifications.is_transitioning()
-    }
-
-    pub fn any_notification_expiring(&self) -> bool {
-        self.notifications.has_running_countdown()
     }
 }
 

@@ -144,20 +144,16 @@ impl TooltipHost {
         Task::future(sleep(HIDE_GRACE)).map(|()| Message::TooltipHideElapsed)
     }
 
-    pub fn leave_elapsed(&mut self, departing: Option<Departed>) -> Task<Message> {
-        if !self.transition.is_leaving() {
-            return Task::none();
+    pub fn leave_elapsed(&mut self, departing: Option<Departed>) {
+        if self.transition.is_leaving() {
+            self.transition.hide(departing);
         }
-        self.transition.hide(departing);
-        Task::none()
     }
 
-    pub fn dismiss(&mut self, departing: Option<Departed>) -> Task<Message> {
-        if self.transition.current().is_none() {
-            return Task::none();
+    pub fn dismiss(&mut self, departing: Option<Departed>) {
+        if self.transition.current().is_some() {
+            self.transition.hide(departing);
         }
-        self.transition.hide(departing);
-        Task::none()
     }
 
     pub fn open_surface(&mut self, output: &str) -> Task<Message> {
