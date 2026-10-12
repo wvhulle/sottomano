@@ -16,12 +16,13 @@ use toast_lifecycle::{BodyClick, Countdown, ToastKind};
 pub use toast_lifecycle::{Notification, NotificationMessage};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
+use tokio::sync::mpsc;
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
     config::Config,
     data::{
-        notifications::model::NotifHandle,
+        notifications::model::Outbound,
         severity::Severity,
         sink::sound::SoundTheme,
         source::{app_icon::DesktopEntries, niri::Placement},
@@ -86,7 +87,7 @@ pub(super) struct SnoozedOngoingToast {
 
 #[derive(Default)]
 pub struct NotificationLayer {
-    handle: Option<NotifHandle>,
+    outbound: Option<mpsc::Sender<Outbound>>,
     sound_theme: SoundTheme,
     live: Vec<Notification>,
     next_seq: u64,

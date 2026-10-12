@@ -193,7 +193,7 @@ mod tests {
     use super::*;
     use crate::data::source::{
         bus::OwnerProcess,
-        mpris::{Capabilities, DesktopEntry, Progress, Setting, Status},
+        mpris::{Capabilities, Progress, Status},
     };
 
     fn track(path: &str) -> SeekMode {
@@ -205,7 +205,7 @@ mod tests {
             bus: "org.mpris.MediaPlayer2.test".to_owned(),
             owner: OwnerProcess::Unidentified,
             identity: "test".to_owned(),
-            desktop_entry: DesktopEntry::Undeclared,
+            desktop_entry: None,
             title: Some("track".to_owned()),
             artist: None,
             album: None,
@@ -222,8 +222,8 @@ mod tests {
                 seek: true,
                 ..Capabilities::default()
             },
-            shuffle: Setting::Unsupported,
-            loop_mode: Setting::Unsupported,
+            shuffle: None,
+            loop_mode: None,
             seek_mode,
         }
     }

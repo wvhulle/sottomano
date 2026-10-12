@@ -264,8 +264,8 @@ fn cpuinfo_field<'a>(core: &'a str, name: &str) -> Option<&'a str> {
 pub struct CpuModel {
     pub identity: CpuIdentity,
     pub architecture: CpuArchitecture,
-    pub topology: CpuTopology,
-    pub caches: CacheHierarchy,
+    pub topology: CpuCoreCounts,
+    pub caches: Vec<CacheLevel>,
 }
 
 impl CpuModel {
@@ -275,8 +275,8 @@ impl CpuModel {
         CpuModel {
             identity: CpuIdentity::parse(first_core),
             architecture: CpuArchitecture::current(),
-            topology: CpuTopology::parse(first_core),
-            caches: CacheHierarchy::current(),
+            topology: CpuCoreCounts::parse(first_core),
+            caches: cache_levels(),
         }
     }
 }
@@ -298,15 +298,15 @@ impl CpuIdentity {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct CpuTopology {
+pub struct CpuCoreCounts {
     pub cores: Option<u32>,
     pub threads: Option<u32>,
 }
 
-impl CpuTopology {
+impl CpuCoreCounts {
     fn parse(first_core: &str) -> Self {
         let count = |name| cpuinfo_field(first_core, name)?.parse().ok();
-        CpuTopology {
+        CpuCoreCounts {
             cores: count("cpu cores"),
             threads: count("siblings"),
         }
@@ -451,36 +451,29 @@ impl CacheLevel {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CacheHierarchy(pub Vec<CacheLevel>);
+fn cache_levels() -> Vec<CacheLevel> {
+    let instances = fs::read_dir(CPU_DEVICES)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|cpu| fs::read_dir(cpu.path().join("cache")).ok())
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|index| CacheInstance::read(&index.path()));
+    cache_levels_of(instances)
+}
 
-impl CacheHierarchy {
-    fn current() -> Self {
-        let instances = fs::read_dir(CPU_DEVICES)
-            .into_iter()
-            .flatten()
-            .filter_map(Result::ok)
-            .filter_map(|cpu| fs::read_dir(cpu.path().join("cache")).ok())
-            .flatten()
-            .filter_map(Result::ok)
-            .filter_map(|index| CacheInstance::read(&index.path()));
-        Self::from_instances(instances)
-    }
-
-    fn from_instances(instances: impl IntoIterator<Item = CacheInstance>) -> Self {
-        let mut distinct: Vec<CacheInstance> = instances
-            .into_iter()
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
-        distinct.sort_by(|a, b| a.position.cmp(&b.position).then(b.size.cmp(&a.size)));
-        Self(
-            distinct
-                .chunk_by(|a, b| a.position == b.position)
-                .map(CacheLevel::of_instances)
-                .collect(),
-        )
-    }
+fn cache_levels_of(instances: impl IntoIterator<Item = CacheInstance>) -> Vec<CacheLevel> {
+    let mut distinct: Vec<CacheInstance> = instances
+        .into_iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    distinct.sort_by(|a, b| a.position.cmp(&b.position).then(b.size.cmp(&a.size)));
+    distinct
+        .chunk_by(|a, b| a.position == b.position)
+        .map(CacheLevel::of_instances)
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -593,8 +586,8 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
             }
         );
         assert_eq!(
-            CpuTopology::parse(RAPHAEL_CPUINFO_CORE),
-            CpuTopology {
+            CpuCoreCounts::parse(RAPHAEL_CPUINFO_CORE),
+            CpuCoreCounts {
                 cores: Some(16),
                 threads: Some(32),
             }
@@ -634,8 +627,8 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
             unified(3, ByteSize::mib(96), "0-7,16-23"),
         ];
         assert_eq!(
-            CacheHierarchy::from_instances(instances),
-            CacheHierarchy(vec![
+            cache_levels_of(instances),
+            vec![
                 CacheLevel {
                     position: CachePosition {
                         level: 2,
@@ -662,7 +655,7 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
                         },
                     ],
                 },
-            ])
+            ]
         );
     }
 

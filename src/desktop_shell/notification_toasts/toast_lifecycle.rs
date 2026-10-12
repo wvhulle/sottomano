@@ -5,6 +5,7 @@ use iced::{
     animation::Easing,
     time::{Duration, Instant},
 };
+use tokio::sync::mpsc;
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply::ReplyMessage};
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
     },
     data::{
         notifications::model::{
-            ExpireTimeout, NotifHandle, NotificationData, ServerEvent, close_reason,
+            ExpireTimeout, NotificationData, Outbound, ServerEvent, close_reason,
         },
         severity::Severity,
     },
@@ -145,7 +146,7 @@ impl ToastContent {
 
 #[derive(Debug, Clone)]
 pub enum NotificationMessage {
-    Connected(NotifHandle),
+    Connected(mpsc::Sender<Outbound>),
     Served(Box<NotificationData>),
     CloseRequested(u32),
     BodyClicked(u32),

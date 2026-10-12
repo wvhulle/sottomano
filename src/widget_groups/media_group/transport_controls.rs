@@ -2,7 +2,7 @@ use iced::{Alignment, Color, Element, widget::Row};
 
 use crate::{
     config::Config,
-    data::source::mpris::{Command, LoopMode, Media, Setting, Status},
+    data::source::mpris::{Command, LoopMode, Media, Status},
     widgets::{
         glyph_button,
         phosphor::{Phosphor, Weight},
@@ -75,9 +75,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        let Setting::Supported(shuffled) = self.media.shuffle else {
-            return None;
-        };
+        let shuffled = self.media.shuffle?;
         Some(self.toggle(
             Phosphor::Shuffle(Weight::Regular),
             shuffled,
@@ -155,9 +153,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        let Setting::Supported(mode) = self.media.loop_mode else {
-            return None;
-        };
+        let mode = self.media.loop_mode?;
         let glyph = match mode {
             LoopMode::Off | LoopMode::Playlist => Phosphor::Repeat(Weight::Regular),
             LoopMode::Track => Phosphor::RepeatOnce(Weight::Regular),

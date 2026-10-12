@@ -17,7 +17,7 @@ use crate::{
         niri::WindowOwner,
     },
     desktop_shell::{
-        app_window_focus::AppWindowFocus,
+        AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
     message_subscriptions::blocking,
@@ -220,8 +220,7 @@ impl MediaGroup {
     pub fn icon_keys(&self) -> Vec<String> {
         self.players
             .iter()
-            .filter_map(|media| media.desktop_entry.declared())
-            .map(str::to_owned)
+            .filter_map(|media| media.desktop_entry.clone())
             .collect()
     }
 
@@ -423,7 +422,7 @@ fn source_icon<'a>(
 ) -> Element<'a, MediaMessage> {
     let icon_path = media
         .desktop_entry
-        .declared()
+        .as_deref()
         .and_then(|entry| index.app_icon(entry));
     if let Some(path) = icon_path {
         let is_svg = path

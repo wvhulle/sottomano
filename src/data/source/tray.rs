@@ -80,7 +80,7 @@ impl TrayItem {
 
 #[derive(Debug, Clone)]
 pub enum TrayUpdate {
-    Connected(TrayHandle),
+    Connected(mpsc::Sender<TrayCommand>),
     Items(Vec<TrayItem>),
 }
 
@@ -93,15 +93,6 @@ pub enum TrayCommand {
         menu_path: String,
         id: i32,
     },
-}
-
-#[derive(Debug, Clone)]
-pub struct TrayHandle(mpsc::Sender<TrayCommand>);
-
-impl TrayHandle {
-    pub fn send(&self, command: TrayCommand) {
-        let _ = self.0.try_send(command);
-    }
 }
 
 fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
@@ -281,7 +272,7 @@ async fn run(output: &mut Sender<TrayUpdate>) {
     let mut events = client.subscribe();
     let (command_tx, mut command_rx) = mpsc::channel::<TrayCommand>(64);
     if output
-        .send(TrayUpdate::Connected(TrayHandle(command_tx)))
+        .send(TrayUpdate::Connected(command_tx))
         .await
         .is_err()
     {

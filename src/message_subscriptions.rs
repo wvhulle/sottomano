@@ -25,7 +25,7 @@ use wayland_client::Connection;
 use crate::{
     data::{
         notifications::{
-            model::{NotifHandle, Outbound, ServerEvent},
+            model::{Outbound, ServerEvent},
             server,
         },
         sink::clipboard,
@@ -274,7 +274,7 @@ async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<
     let (event_tx, event_rx) = mpsc::channel::<ServerEvent>(256);
     let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(256);
     server::serve(event_tx, outbound_rx).await?;
-    let connected = NotificationMessage::Connected(NotifHandle::new(outbound_tx));
+    let connected = NotificationMessage::Connected(outbound_tx);
     let served = ReceiverStream::new(event_rx).map(NotificationMessage::from);
     Ok(stream::iter([connected])
         .chain(served)

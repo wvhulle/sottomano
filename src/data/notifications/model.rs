@@ -1,7 +1,6 @@
-use std::{fmt, time::Duration};
+use std::time::Duration;
 
 use iced::widget::image;
-use tokio::sync::mpsc;
 use uom::si::f64::Ratio;
 
 use crate::data::{severity::Severity, source::bus::OwnerProcess};
@@ -117,23 +116,4 @@ pub enum Outbound {
     ActionInvoked { id: u32, key: String },
     Replied { id: u32, text: String },
     Closed { id: u32, reason: u32 },
-}
-
-#[derive(Clone)]
-pub struct NotifHandle(mpsc::Sender<Outbound>);
-
-impl NotifHandle {
-    pub fn new(tx: mpsc::Sender<Outbound>) -> Self {
-        Self(tx)
-    }
-
-    pub fn sender(&self) -> mpsc::Sender<Outbound> {
-        self.0.clone()
-    }
-}
-
-impl fmt::Debug for NotifHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("NotifHandle")
-    }
 }

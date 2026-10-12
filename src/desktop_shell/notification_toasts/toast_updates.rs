@@ -98,7 +98,7 @@ impl NotificationLayer {
     ) -> Task<Message> {
         match message {
             NotificationMessage::Connected(handle) => {
-                self.handle = Some(handle);
+                self.outbound = Some(handle);
                 Task::none()
             }
             NotificationMessage::Served(data) => {
@@ -575,9 +575,9 @@ impl NotificationLayer {
     }
 
     pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Message> {
-        match &self.handle {
-            Some(handle) if !outbound.is_empty() => {
-                let sender = handle.sender();
+        match &self.outbound {
+            Some(sender) if !outbound.is_empty() => {
+                let sender = sender.clone();
                 Task::future(async move {
                     for signal in outbound {
                         let _ = sender.send(signal).await;
