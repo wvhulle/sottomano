@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, Utc};
 
 use crate::{
     data::source::launch_tracker::Launch,
-    state::{Columns, StoreError, connect},
+    state::{Columns, StoreError, with_table},
 };
 
 const TTL_DAYS: i64 = 60;
@@ -17,24 +17,16 @@ pub const SCHEMA: [&str; 2] = [
 ];
 
 pub async fn load() -> Vec<Launch> {
-    match try_load().await {
-        Ok(launches) => launches,
-        Err(e) => {
-            tracing::warn!("launch store: load failed: {e}");
-            Vec::new()
-        }
-    }
+    with_table("launch store: load failed", &SCHEMA, read_launches)
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn record(launch: Launch) {
-    if let Err(e) = try_record(&launch).await {
-        tracing::warn!("launch store: record failed: {e}");
-    }
-}
-
-async fn try_load() -> Result<Vec<Launch>, StoreError> {
-    let conn = connect(&SCHEMA).await?;
-    read_launches(&conn).await
+    with_table("launch store: record failed", &SCHEMA, async |conn| {
+        write_launch(conn, &launch).await
+    })
+    .await;
 }
 
 async fn read_launches(conn: &turso::Connection) -> Result<Vec<Launch>, StoreError> {
@@ -64,11 +56,6 @@ async fn read_launches(conn: &turso::Connection) -> Result<Vec<Launch>, StoreErr
         });
     }
     Ok(launches)
-}
-
-async fn try_record(launch: &Launch) -> Result<(), StoreError> {
-    let conn = connect(&SCHEMA).await?;
-    write_launch(&conn, launch).await
 }
 
 async fn write_launch(conn: &turso::Connection, launch: &Launch) -> Result<(), StoreError> {

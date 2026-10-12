@@ -4,7 +4,7 @@ use nalgebra::{Matrix3, Vector3};
 
 use crate::{
     data::{battery_forecast::RegressionState, source::power_profile::Profile},
-    state::{Columns, StoreError, connect},
+    state::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (
@@ -26,21 +26,22 @@ pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (
 )";
 
 pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
-    try_load(&battery).await.unwrap_or_else(|e| {
-        tracing::warn!("power regression: load failed: {e}");
-        HashMap::new()
-    })
+    with_table(
+        "power regression: load failed",
+        &[CREATE_TABLE],
+        async |conn| read_models(conn, &battery).await,
+    )
+    .await
+    .unwrap_or_default()
 }
 
 pub async fn save(battery: String, profile: Profile, state: RegressionState) {
-    if let Err(e) = try_save(&battery, profile, state).await {
-        tracing::warn!("power regression: save failed: {e}");
-    }
-}
-
-async fn try_load(battery: &str) -> Result<HashMap<Profile, RegressionState>, StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    read_models(&conn, battery).await
+    with_table(
+        "power regression: save failed",
+        &[CREATE_TABLE],
+        async |conn| write_model(conn, &battery, profile, state).await,
+    )
+    .await;
 }
 
 async fn read_models(
@@ -84,15 +85,6 @@ async fn read_models(
         );
     }
     Ok(states)
-}
-
-async fn try_save(
-    battery: &str,
-    profile: Profile,
-    state: RegressionState,
-) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    write_model(&conn, battery, profile, state).await
 }
 
 async fn write_model(

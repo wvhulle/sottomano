@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::state::{Columns, StoreError, connect};
+use crate::state::{Columns, StoreError, connect, with_table};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
     source TEXT PRIMARY KEY,
@@ -29,7 +29,11 @@ impl Backoff {
 }
 
 pub async fn load(source: &'static str) -> Option<Backoff> {
-    match try_load(source).await {
+    let stored = match connect(&[CREATE_TABLE]).await {
+        Ok(conn) => read_backoff(&conn, source).await,
+        Err(error) => Err(error),
+    };
+    match stored {
         Ok(backoff) => Some(backoff),
         Err(StoreError::NoRow) => None,
         Err(e) => {
@@ -40,20 +44,21 @@ pub async fn load(source: &'static str) -> Option<Backoff> {
 }
 
 pub async fn save(source: &'static str, backoff: &Backoff) {
-    if let Err(e) = try_save(source, backoff).await {
-        tracing::warn!("rate limit backoff: save failed for {source}: {e}");
-    }
+    with_table(
+        &format!("rate limit backoff: save failed for {source}"),
+        &[CREATE_TABLE],
+        async |conn| write_backoff(conn, source, backoff).await,
+    )
+    .await;
 }
 
 pub async fn clear(source: &'static str) {
-    if let Err(e) = try_clear(source).await {
-        tracing::warn!("rate limit backoff: clear failed for {source}: {e}");
-    }
-}
-
-async fn try_load(source: &str) -> Result<Backoff, StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    read_backoff(&conn, source).await
+    with_table(
+        &format!("rate limit backoff: clear failed for {source}"),
+        &[CREATE_TABLE],
+        async |conn| clear_backoff(conn, source).await,
+    )
+    .await;
 }
 
 async fn read_backoff(conn: &turso::Connection, source: &str) -> Result<Backoff, StoreError> {
@@ -72,11 +77,6 @@ async fn read_backoff(conn: &turso::Connection, source: &str) -> Result<Backoff,
         status: u16::try_from(columns.integer(&row, "status")?).unwrap_or(u16::MAX),
         message: columns.optional_text(&row, "message"),
     })
-}
-
-async fn try_save(source: &str, backoff: &Backoff) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    write_backoff(&conn, source, backoff).await
 }
 
 async fn write_backoff(
@@ -99,11 +99,6 @@ async fn write_backoff(
     )
     .await?;
     Ok(())
-}
-
-async fn try_clear(source: &str) -> Result<(), StoreError> {
-    let conn = connect(&[CREATE_TABLE]).await?;
-    clear_backoff(&conn, source).await
 }
 
 async fn clear_backoff(conn: &turso::Connection, source: &str) -> Result<(), StoreError> {

@@ -1,6 +1,6 @@
 use crate::{
     data::battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
-    state::{Columns, StoreError, connect},
+    state::{Columns, StoreError, with_table},
 };
 
 pub const SCHEMA: [&str; 2] = [
@@ -15,26 +15,20 @@ pub const SCHEMA: [&str; 2] = [
 ];
 
 pub async fn load(battery: String) -> Box<ChargeCurve> {
-    Box::new(try_load(&battery).await.unwrap_or_else(|e| {
-        tracing::warn!("charge curve: load failed: {e}");
-        ChargeCurve::default()
-    }))
+    Box::new(
+        with_table("charge curve: load failed", &SCHEMA, async |conn| {
+            read_curve(conn, &battery).await
+        })
+        .await
+        .unwrap_or_default(),
+    )
 }
 
 pub async fn save(battery: String, bin: usize, curve: ChargeCurve) {
-    if let Err(e) = try_save(&battery, bin, &curve).await {
-        tracing::warn!("charge curve: save failed: {e}");
-    }
-}
-
-async fn try_load(battery: &str) -> Result<ChargeCurve, StoreError> {
-    let conn = connect(&SCHEMA).await?;
-    read_curve(&conn, battery).await
-}
-
-async fn try_save(battery: &str, bin: usize, curve: &ChargeCurve) -> Result<(), StoreError> {
-    let conn = connect(&SCHEMA).await?;
-    write_bin(&conn, battery, bin, curve).await
+    with_table("charge curve: save failed", &SCHEMA, async |conn| {
+        write_bin(conn, &battery, bin, &curve).await
+    })
+    .await;
 }
 
 async fn read_curve(conn: &turso::Connection, battery: &str) -> Result<ChargeCurve, StoreError> {
