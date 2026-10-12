@@ -112,6 +112,7 @@ impl ClaudeLogin {
 fn spend_budget(config: &Config, monthly_limit_usd: Option<u32>) -> SpendBudget {
     SpendBudget {
         working_days: config.calendar.working_days.clone(),
+        working_hours: config.calendar.working_hours.clone(),
         monthly_limit_usd,
     }
 }

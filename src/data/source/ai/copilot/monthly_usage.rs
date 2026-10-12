@@ -24,7 +24,7 @@ impl QuotaLimited for CopilotCcusage {
             .budget_quota(
                 "Copilot CLI monthly budget",
                 &self.budget,
-                now.with_timezone(&Local).date_naive(),
+                now.with_timezone(&Local),
             )
             .into_iter()
             .collect()

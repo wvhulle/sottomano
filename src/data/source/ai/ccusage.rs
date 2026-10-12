@@ -9,13 +9,17 @@ use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, TimeZone, Utc, Wee
 use serde::Deserialize;
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::data::source::{
-    ai::quota::Quota,
-    command::{self, exists},
+use crate::{
+    config::calendar::WorkingHours,
+    data::source::{
+        ai::quota::Quota,
+        command::{self, exists},
+    },
 };
 
 const PROGRAM: &str = "ccusage";
 pub const POLL_INTERVAL: Duration = Duration::from_secs(15);
+const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -82,18 +86,33 @@ pub struct Period {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpendBudget {
     pub working_days: Vec<Weekday>,
+    pub working_hours: WorkingHours,
     pub monthly_limit_usd: Option<u32>,
 }
 
 impl Period {
-    fn elapsed_working_share(&self, today: NaiveDate, working_days: &[Weekday]) -> Option<f64> {
-        let elapsed = count_working_days(self.since, today + TimeDelta::days(1), working_days);
-        let whole = count_working_days(self.since, self.until, working_days);
-        (elapsed > 0).then(|| f64::from(elapsed) / f64::from(whole))
+    fn elapsed_working_days(&self, now: DateTime<Local>, budget: &SpendBudget) -> f64 {
+        let today = now.date_naive();
+        let whole_days_before_today =
+            count_working_days(self.since, today.min(self.until), &budget.working_days);
+        let today_is_working = (self.since..self.until).contains(&today)
+            && budget.working_days.contains(&today.weekday());
+        let today_share = budget
+            .working_hours
+            .elapsed_share(now.time())
+            .filter(|_| today_is_working)
+            .unwrap_or(0.0);
+        f64::from(whole_days_before_today) + today_share
     }
 
-    pub fn projected_cost(&self, today: NaiveDate, working_days: &[Weekday]) -> Option<f64> {
-        self.elapsed_working_share(today, working_days)
+    fn elapsed_working_share(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
+        let elapsed = self.elapsed_working_days(now, budget);
+        let whole = count_working_days(self.since, self.until, &budget.working_days);
+        (elapsed >= MIN_ELAPSED_WORKING_DAYS && whole > 0).then(|| elapsed / f64::from(whole))
+    }
+
+    pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
+        self.elapsed_working_share(now, budget)
             .map(|share| self.usage.cost / share)
     }
 
@@ -101,10 +120,10 @@ impl Period {
         &self,
         label: &'static str,
         budget: &SpendBudget,
-        today: NaiveDate,
+        now: DateTime<Local>,
     ) -> Option<Quota> {
         let limit_usd = budget.monthly_limit_usd?;
-        let elapsed = self.elapsed_working_share(today, &budget.working_days)?;
+        let elapsed = self.elapsed_working_share(now, budget)?;
         Some(Quota {
             label,
             used: Ratio::new::<ratio>(self.usage.cost / f64::from(limit_usd)),
@@ -404,35 +423,90 @@ mod tests {
         assert_eq!(next_month_start(date("2026-02-01")), date("2026-03-01"));
     }
 
-    #[test]
-    fn cost_is_projected_per_working_day_over_the_whole_period() {
-        let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
-        let thursday = date("2026-10-01");
-        let recent = report.recent(thursday);
-        let week = recent
-            .week
-            .projected_cost(thursday, &MONDAY_TO_FRIDAY)
-            .unwrap();
-        assert!((week - 7.0 * 5.0 / 4.0).abs() < 1e-9);
-        let month = recent
-            .month
-            .projected_cost(thursday, &MONDAY_TO_FRIDAY)
-            .unwrap();
-        assert!((month - 4.0 * 22.0).abs() < 1e-9);
+    fn weekday_budget() -> SpendBudget {
+        SpendBudget {
+            working_days: MONDAY_TO_FRIDAY.to_vec(),
+            working_hours: WorkingHours::default(),
+            monthly_limit_usd: None,
+        }
+    }
+
+    fn local(text: &str) -> DateTime<Local> {
+        text.parse::<chrono::NaiveDateTime>()
+            .unwrap()
+            .and_local_timezone(Local)
+            .unwrap()
     }
 
     #[test]
-    fn nothing_is_projected_before_the_first_working_day() {
+    fn cost_is_projected_per_elapsed_working_time_over_the_whole_period() {
         let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
-        let sunday = date("2026-11-01");
-        let recent = report.recent(sunday);
+        let recent = report.recent(date("2026-10-01"));
+        let budget = weekday_budget();
+        let thursday_midday = local("2026-10-01T13:00:00");
+        let today = recent
+            .today
+            .projected_cost(thursday_midday, &budget)
+            .unwrap();
+        assert!((today - 8.0).abs() < 1e-9);
+        let week = recent
+            .week
+            .projected_cost(thursday_midday, &budget)
+            .unwrap();
+        assert!((week - 7.0 * 5.0 / 3.5).abs() < 1e-9);
+        let month = recent
+            .month
+            .projected_cost(thursday_midday, &budget)
+            .unwrap();
+        assert!((month - 4.0 * 22.0 / 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn after_working_hours_today_counts_as_a_whole_day() {
+        let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
+        let recent = report.recent(date("2026-10-01"));
+        let budget = weekday_budget();
+        let thursday_evening = local("2026-10-01T20:00:00");
+        let today = recent
+            .today
+            .projected_cost(thursday_evening, &budget)
+            .unwrap();
+        assert!((today - 4.0).abs() < 1e-9);
+        let week = recent
+            .week
+            .projected_cost(thursday_evening, &budget)
+            .unwrap();
+        assert!((week - 7.0 * 5.0 / 4.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn nothing_is_projected_before_enough_working_time_has_elapsed() {
+        let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
+        let budget = weekday_budget();
+        let sunday = report.recent(date("2026-11-01"));
         assert!(
-            recent
+            sunday
                 .month
-                .projected_cost(sunday, &MONDAY_TO_FRIDAY)
+                .projected_cost(local("2026-11-01T13:00:00"), &budget)
                 .is_none()
         );
-        assert!(recent.week.projected_cost(sunday, &[]).is_none());
+        let thursday = report.recent(date("2026-10-01"));
+        assert!(
+            thursday
+                .today
+                .projected_cost(local("2026-10-01T09:30:00"), &budget)
+                .is_none()
+        );
+        let no_working_days = SpendBudget {
+            working_days: Vec::new(),
+            ..weekday_budget()
+        };
+        assert!(
+            thursday
+                .week
+                .projected_cost(local("2026-10-01T13:00:00"), &no_working_days)
+                .is_none()
+        );
     }
 
     #[test]
