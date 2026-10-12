@@ -22,7 +22,7 @@ impl BarWidget for CopilotCcusage {
 
     fn label(&self) -> Option<String> {
         Some(if self.period.usage.cost > 0.0 {
-            format!("${:.2}", self.period.usage.cost)
+            dollars(self.period.usage.cost)
         } else {
             "cli".to_owned()
         })
@@ -51,7 +51,7 @@ impl BarWidget for CopilotCcusage {
             ),
             Section::dictionary([
                 KeyValue::new("Tokens", usage.tokens.to_string()),
-                KeyValue::new("Cost", format!("${:.2}", usage.cost)),
+                KeyValue::new("Cost", dollars(usage.cost)),
                 KeyValue::new("Models", usage.models.clone()),
             ])
             .titled(self.month.clone()),

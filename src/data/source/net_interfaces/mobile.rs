@@ -8,8 +8,9 @@ use zbus::{
 };
 
 use crate::data::source::{
+    bus::{Properties, prop},
     hardware::{Adapter, ModemIdentity, reported},
-    net_interfaces::{Properties, interface, managed_objects_readings, prop},
+    net_interfaces::{interface, managed_objects_readings},
 };
 
 pub const NAME: &str = "mobile-broadband";

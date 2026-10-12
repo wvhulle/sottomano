@@ -3,7 +3,6 @@ use uom::{
     si::{
         f64::{Frequency, Ratio},
         frequency::megahertz,
-        ratio::percent,
     },
 };
 
@@ -11,6 +10,7 @@ use crate::{
     data::source::gpu::{GpuClocks, GpuModel, GpuSnapshot},
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
         hardware_section::HardwareEntries,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -37,10 +37,6 @@ impl BarWidget for GpuSnapshot {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new("GPU", percent_text(self.load))])
     }
-}
-
-fn percent_text(share: Ratio) -> String {
-    format!("{:.0}", share.into_format_args(percent, Abbreviation))
 }
 
 impl GpuClocks {

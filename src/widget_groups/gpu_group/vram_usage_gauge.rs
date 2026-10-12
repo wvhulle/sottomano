@@ -1,15 +1,10 @@
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{
-        f64::Ratio,
-        ratio::{percent, ratio},
-    },
-};
+use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     data::source::gpu::{GpuProcesses, VramUsage},
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
     },
@@ -43,10 +38,7 @@ impl BarWidget for VramUsage {
 impl VramUsage {
     pub fn sections(&self) -> Vec<Section> {
         vec![Section::dictionary([
-            KeyValue::new(
-                "VRAM",
-                format!("{:.0}", self.fill().into_format_args(percent, Abbreviation)),
-            ),
+            KeyValue::new("VRAM", percent_text(self.fill())),
             KeyValue::new("Used", self.used.display().iec().to_string()),
             KeyValue::new("Total", self.total.display().iec().to_string()),
         ])]

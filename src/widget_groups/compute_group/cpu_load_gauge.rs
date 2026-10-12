@@ -1,7 +1,4 @@
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{f64::Ratio, ratio::percent},
-};
+use uom::si::{f64::Ratio, ratio::percent};
 
 use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
@@ -14,6 +11,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
         phosphor::Phosphor,
         tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -28,10 +26,6 @@ fn busy_level(busy: Ratio) -> Severity {
     } else {
         Severity::Normal
     }
-}
-
-fn percent_text(fraction: Ratio) -> String {
-    format!("{:.0}", fraction.into_format_args(percent, Abbreviation))
 }
 
 struct CoreReading {

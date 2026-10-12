@@ -259,8 +259,7 @@ fn hint_window_id(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<u64>
 }
 
 fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
-    let s = hints.get(key)?.downcast_ref::<&str>().ok()?;
-    (!s.is_empty()).then(|| s.to_owned())
+    non_empty(hints.get(key)?.downcast_ref::<&str>().ok()?.to_owned())
 }
 
 fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {

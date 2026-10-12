@@ -25,10 +25,13 @@ use zbus::{
     names::{BusName, InterfaceName},
     proxy,
     proxy::CacheProperties,
-    zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
+    zvariant::{ObjectPath, OwnedObjectPath},
 };
 
-use crate::{data::source::bus::OwnerProcess, message_subscriptions::restarting};
+use crate::{
+    data::source::bus::{DeclaredProperties, OwnerProcess, Properties},
+    message_subscriptions::restarting,
+};
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
 const PLAYERCTLD: &str = "org.mpris.MediaPlayer2.playerctld";
@@ -36,7 +39,6 @@ const PATH: &str = "/org/mpris/MediaPlayer2";
 const ROOT_INTERFACE: &str = "org.mpris.MediaPlayer2";
 const PLAYER_INTERFACE: &str = "org.mpris.MediaPlayer2.Player";
 const NO_TRACK: &str = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
-type Properties = HashMap<String, OwnedValue>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
@@ -266,55 +268,11 @@ pub struct Media {
     pub seek_mode: SeekMode,
 }
 
-trait DeclaredProperties {
-    fn flag(&self, key: &str) -> bool;
-    fn boolean(&self, key: &str) -> Option<bool>;
-    fn text(&self, key: &str) -> Option<String>;
-    fn integer(&self, key: &str) -> Option<i64>;
-    fn float(&self, key: &str) -> Option<f64>;
-    fn dictionary(&self, key: &str) -> Option<Properties>;
-    fn object_path(&self, key: &str) -> Option<OwnedObjectPath>;
-}
-
-impl DeclaredProperties for Properties {
-    fn flag(&self, key: &str) -> bool {
-        self.boolean(key).unwrap_or(false)
-    }
-
-    fn boolean(&self, key: &str) -> Option<bool> {
-        bool::try_from(self.get(key)?).ok()
-    }
-
-    fn text(&self, key: &str) -> Option<String> {
-        let value = self.get(key)?.try_clone().ok()?;
-        let text = String::try_from(value).ok()?;
-        (!text.is_empty()).then_some(text)
-    }
-
-    fn integer(&self, key: &str) -> Option<i64> {
-        i64::try_from(self.get(key)?).ok()
-    }
-
-    fn float(&self, key: &str) -> Option<f64> {
-        f64::try_from(self.get(key)?).ok()
-    }
-
-    fn dictionary(&self, key: &str) -> Option<Properties> {
-        let value = self.get(key)?.try_clone().ok()?;
-        Properties::try_from(value).ok()
-    }
-
-    fn object_path(&self, key: &str) -> Option<OwnedObjectPath> {
-        let value = self.get(key)?.try_clone().ok()?;
-        OwnedObjectPath::try_from(value).ok()
-    }
-}
-
 fn controllable_setting<T>(player: &Properties, declared: Option<T>) -> Option<T> {
     declared.filter(|_| player.flag("CanControl"))
 }
 
-fn artist(metadata: &HashMap<String, OwnedValue>) -> Option<String> {
+fn artist(metadata: &Properties) -> Option<String> {
     metadata
         .get("xesam:artist")
         .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
@@ -322,11 +280,11 @@ fn artist(metadata: &HashMap<String, OwnedValue>) -> Option<String> {
         .filter(|artists| !artists.is_empty())
 }
 
-fn parsed<T: FromStr>(metadata: &HashMap<String, OwnedValue>, key: &str) -> Option<T> {
+fn parsed<T: FromStr>(metadata: &Properties, key: &str) -> Option<T> {
     metadata.text(key)?.parse().ok()
 }
 
-fn length(metadata: &HashMap<String, OwnedValue>) -> Option<Duration> {
+fn length(metadata: &Properties) -> Option<Duration> {
     let value = metadata.get("mpris:length")?;
     let micros = u64::try_from(value).ok().or_else(|| {
         i64::try_from(value)
@@ -633,7 +591,7 @@ pub fn micros(duration: Duration) -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use zbus::zvariant::{ObjectPath, Value};
+    use zbus::zvariant::{ObjectPath, OwnedValue, Value};
 
     use super::*;
 

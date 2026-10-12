@@ -20,7 +20,10 @@ use tokio::{
 };
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::{data::source::nix_store::Provenance, message_subscriptions::emit_changes};
+use crate::{
+    data::{empty_text::non_empty, source::nix_store::Provenance},
+    message_subscriptions::emit_changes,
+};
 
 const SCAN_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -345,8 +348,7 @@ pub fn inspection(watched: &Watched) -> impl Stream<Item = Result<Inspection, St
 
 fn binary_name(process: &Proc) -> Option<String> {
     let exe = process.exe().ok()?;
-    let name = exe.file_name()?.to_str()?.to_owned();
-    (!name.is_empty()).then_some(name)
+    non_empty(exe.file_name()?.to_str()?.to_owned())
 }
 
 fn booted() -> Option<f64> {

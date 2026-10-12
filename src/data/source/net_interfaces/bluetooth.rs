@@ -2,8 +2,9 @@ use iced::futures::{Stream, StreamExt};
 use zbus::fdo::ManagedObjects;
 
 use crate::data::source::{
+    bus::prop,
     hardware::Adapter,
-    net_interfaces::{interface, managed_objects_readings, prop},
+    net_interfaces::{interface, managed_objects_readings},
 };
 
 pub const NAME: &str = "bluetooth";

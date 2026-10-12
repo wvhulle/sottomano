@@ -19,12 +19,9 @@ use zbus::{
     fdo::{ManagedObjects, ObjectManagerProxy},
     message::Type,
     names::OwnedInterfaceName,
-    zvariant::OwnedValue,
 };
 
-use crate::message_subscriptions::restarting;
-
-pub(crate) type Properties = HashMap<String, OwnedValue>;
+use crate::{data::source::bus::Properties, message_subscriptions::restarting};
 
 const SIGNAL_BURST_LIMIT: usize = 64;
 
@@ -149,11 +146,4 @@ pub(crate) fn interface<'a>(
         .iter()
         .find(|(key, _)| key.as_str() == name)
         .map(|(_, properties)| properties)
-}
-
-pub(crate) fn prop<T: TryFrom<OwnedValue>>(properties: &Properties, key: &str) -> Option<T> {
-    properties
-        .get(key)
-        .and_then(|value| value.try_clone().ok())
-        .and_then(|value| T::try_from(value).ok())
 }

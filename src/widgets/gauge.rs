@@ -2,9 +2,12 @@ use iced::{
     Border, Color, Element, Theme,
     widget::{Space, column, container},
 };
-use uom::si::{
-    f64::Ratio,
-    ratio::{percent, ratio},
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{
+        f64::Ratio,
+        ratio::{percent, ratio},
+    },
 };
 
 const TRACK_ALPHA: f32 = 0.27;
@@ -14,6 +17,10 @@ const GIRTH: f32 = 3.0;
 #[allow(clippy::cast_precision_loss)]
 pub fn percent_fill(whole_percent: i64) -> Ratio {
     Ratio::new::<percent>(whole_percent as f64)
+}
+
+pub fn percent_text(fraction: Ratio) -> String {
+    format!("{:.0}", fraction.into_format_args(percent, Abbreviation))
 }
 
 pub struct Gauge {
