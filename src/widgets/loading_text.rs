@@ -112,7 +112,7 @@ impl<Message> LoadingText<'_, Message> {
                 align_x: Alignment::Left,
                 align_y: Vertical::Top,
                 shaping: Shaping::Advanced,
-                wrapping: Wrapping::Word,
+                wrapping: Wrapping::Glyph,
             },
             area.position(),
             color,
