@@ -7,7 +7,7 @@ use reqwest::{
     Method,
     header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue},
 };
-use serde::de::DeserializeOwned;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,8 +98,26 @@ pub async fn get_json<T: DeserializeOwned>(
     if response.status != 200 {
         return Err(Error::Status(response.status));
     }
-    serde_json::from_value(response.body.unwrap_or(Value::Null))
+    decode(response.body)
+}
+
+pub fn decode<T: DeserializeOwned>(body: Option<Value>) -> Result<T, Error> {
+    serde_json::from_value(body.unwrap_or(Value::Null))
         .map_err(|error| Error::Decode(error.to_string()))
+}
+
+#[derive(Deserialize)]
+struct ApiError {
+    error: ApiMessage,
+}
+
+#[derive(Deserialize)]
+struct ApiMessage {
+    message: String,
+}
+
+pub fn api_message(body: Option<Value>) -> Option<String> {
+    decode::<ApiError>(body).ok().map(|api| api.error.message)
 }
 
 fn client(timeout_secs: u64) -> Result<reqwest::Client, Error> {

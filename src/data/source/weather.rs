@@ -1,6 +1,5 @@
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
-    sync::Arc,
     time::Duration,
 };
 
@@ -22,7 +21,6 @@ use crate::data::source::{Source, http};
 pub enum Error {
     Situo(situo_client::Error),
     Fetch(http::Error),
-    Decode(Arc<serde_json::Error>),
     Malformed,
     OutsideRainRadar,
 }
@@ -32,7 +30,6 @@ impl Display for Error {
         match self {
             Error::Situo(error) => write!(f, "geolocation: {error}"),
             Error::Fetch(error) => write!(f, "{error}"),
-            Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Malformed => write!(f, "unexpected response shape"),
             Error::OutsideRainRadar => {
                 write!(f, "rain radar only covers the Netherlands and Belgium")
@@ -50,12 +47,6 @@ impl From<situo_client::Error> for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Error::Decode(Arc::new(error))
     }
 }
 
@@ -315,7 +306,7 @@ impl Source for Temperature {
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
             here.latitude, here.longitude
         );
-        let forecast: TemperatureForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let forecast: TemperatureForecast = http::get_json(&url, &[], 10).await?;
         Ok(Temperature {
             condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
             temp: forecast.current.temperature_2m,
@@ -351,7 +342,7 @@ impl Source for Wind {
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
             here.latitude, here.longitude
         );
-        let forecast: WindForecast = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let forecast: WindForecast = http::get_json(&url, &[], 10).await?;
         Ok(forecast.current)
     }
 }
@@ -608,7 +599,7 @@ impl Source for Pollen {
             "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
             here.latitude, here.longitude
         );
-        let air: AirQuality = serde_json::from_str(&http::get_text(&url, 10).await?)?;
+        let air: AirQuality = http::get_json(&url, &[], 10).await?;
         Ok(Pollen::of(&air.current))
     }
 }

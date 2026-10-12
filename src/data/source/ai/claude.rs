@@ -8,7 +8,6 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::Path,
-    sync::Arc,
     time::Duration,
 };
 
@@ -35,7 +34,6 @@ pub enum Error {
         cause: ApiFailure,
     },
     Api(ApiFailure),
-    Decode(Arc<serde_json::Error>),
     Fetch(http::Error),
     Ccusage(ccusage::Error),
 }
@@ -50,9 +48,7 @@ impl ApiFailure {
     fn from_body(body: Value, status: u16) -> Self {
         Self {
             status,
-            message: serde_json::from_value::<ApiError>(body)
-                .ok()
-                .map(|api| api.error.message),
+            message: http::api_message(Some(body)),
         }
     }
 }
@@ -77,7 +73,6 @@ impl Display for Error {
                 write!(f, "rate limited (retrying in {wait}): {cause}")
             }
             Error::Api(cause) => write!(f, "{cause}"),
-            Error::Decode(error) => write!(f, "unexpected response: {error}"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
         }
@@ -87,12 +82,6 @@ impl Display for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Error::Decode(Arc::new(error))
     }
 }
 
@@ -128,19 +117,9 @@ impl Oauth {
     }
 }
 
-#[derive(Deserialize)]
-struct ApiError {
-    error: ApiMessage,
-}
-
-#[derive(Deserialize)]
-struct ApiMessage {
-    message: String,
-}
-
 fn read_credentials(path: &Path) -> Result<Credentials, Error> {
     let raw = fs::read_to_string(path).map_err(|_| Error::Credentials)?;
-    Ok(serde_json::from_str(&raw)?)
+    serde_json::from_str(&raw).map_err(|_| Error::Credentials)
 }
 
 fn subscription_login(path: &Path) -> Option<Oauth> {
