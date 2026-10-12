@@ -5,13 +5,12 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use tokio::task::spawn_blocking;
 
 use self::{
     btrfs::{BtrfsFilesystem, BtrfsSpace},
     mount::RootMount,
 };
-use super::Source;
+use super::{Panicked, Source, blocking_poll};
 
 pub mod activity;
 pub mod btrfs;
@@ -26,6 +25,12 @@ pub enum Error {
     NotABlockDevice(String),
     NoBtrfsFilesystemOn(String),
     Panicked,
+}
+
+impl From<Panicked> for Error {
+    fn from(Panicked: Panicked) -> Self {
+        Error::Panicked
+    }
 }
 
 impl Display for Error {
@@ -77,9 +82,7 @@ impl Source for Disk {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_root_disk)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_root_disk).await
     }
 }
 

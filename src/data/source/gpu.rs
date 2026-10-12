@@ -24,7 +24,7 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 
-use crate::data::source::Source;
+use crate::data::source::{Panicked, Source, blocking_poll};
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";
 const NVIDIA_MODULE_VERSION: &str = "/sys/module/nvidia/version";
@@ -154,6 +154,12 @@ pub enum Error {
     DriverMismatch { loaded_module: String },
     Management(String),
     Panicked,
+}
+
+impl From<Panicked> for Error {
+    fn from(Panicked: Panicked) -> Self {
+        Error::Panicked
+    }
 }
 
 impl Display for Error {
@@ -304,9 +310,7 @@ async fn read_device<T: Send + 'static>(
     device: NvmlDevice,
     read: fn(&Device) -> Result<T, Error>,
 ) -> Result<T, Error> {
-    spawn_blocking(move || read(&device.nvml.device_by_pci_bus_id(device.bus.0.as_str())?))
-        .await
-        .map_err(|_| Error::Panicked)?
+    blocking_poll(move || read(&device.nvml.device_by_pci_bus_id(device.bus.0.as_str())?)).await
 }
 
 fn gpu_processes(device: &Device) -> Vec<GpuProcess> {

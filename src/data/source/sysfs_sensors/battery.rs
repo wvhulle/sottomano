@@ -6,10 +6,7 @@ use std::{
 };
 
 use iced::futures::{Stream, StreamExt, stream::select};
-use tokio::{
-    task::spawn_blocking,
-    time::{MissedTickBehavior, interval},
-};
+use tokio::time::{MissedTickBehavior, interval};
 use tokio_stream::wrappers::IntervalStream;
 use uom::si::{
     electric_charge::microampere_hour,
@@ -27,7 +24,7 @@ use super::{
     read_trimmed,
 };
 use crate::{
-    data::source::{Source, hardware::PowerSupplyIdentity},
+    data::source::{Source, blocking_poll, hardware::PowerSupplyIdentity},
     message_subscriptions::restarting,
 };
 
@@ -205,9 +202,7 @@ impl Source for Battery {
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(read_battery)
-            .await
-            .map_err(|_| Error::Panicked)?
+        blocking_poll(read_battery).await
     }
 }
 

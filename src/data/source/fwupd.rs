@@ -92,12 +92,7 @@ async fn connected_then_daemon_changes() -> zbus::Result<impl Stream<Item = ()>>
 }
 
 async fn pending_upgrades() -> PendingUpgrades {
-    let connection = Connection::system()
-        .await
-        .map_err(|error| bus::Error::Connect(error.to_string()))?;
-    let fwupd = FwupdProxy::new(&connection)
-        .await
-        .map_err(|error| bus::Error::Call(error.to_string()))?;
+    let fwupd: FwupdProxy = bus::system_proxy().await?;
     let devices = match bus::call(fwupd.get_devices().await) {
         Ok(devices) => devices,
         Err(bus::Error::Absent) => return Ok(Vec::new()),

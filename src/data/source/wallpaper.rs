@@ -18,7 +18,7 @@ use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
     data::source::{ai::read_secret, command, http},
-    message_subscriptions::restarting,
+    message_subscriptions::restarting_subscription,
 };
 
 const EVENT_BUFFER_BYTES: usize = 1024;
@@ -137,11 +137,7 @@ pub enum DisplayedWallpaper {
 }
 
 pub fn subscription() -> Subscription<Result<DisplayedWallpaper, command::Error>> {
-    Subscription::run(wallpapers)
-}
-
-fn wallpapers() -> impl Stream<Item = Result<DisplayedWallpaper, command::Error>> {
-    restarting("wallpaper watch", watch)
+    restarting_subscription("wallpaper watch", watch)
 }
 
 async fn watch() -> io::Result<impl Stream<Item = Result<DisplayedWallpaper, command::Error>>> {

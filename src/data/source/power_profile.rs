@@ -5,7 +5,7 @@ use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    data::source::{Source, sysfs_sensors},
+    data::source::{Source, blocking_poll, sysfs_sensors},
     message_subscriptions::restarting,
 };
 
@@ -121,9 +121,7 @@ impl Source for Conditions {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        spawn_blocking(Conditions::current)
-            .await
-            .map_err(|_| sysfs_sensors::Error::Panicked)
+        blocking_poll(|| Ok(Conditions::current())).await
     }
 }
 

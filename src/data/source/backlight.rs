@@ -9,7 +9,7 @@ use zbus::{blocking::Connection, proxy, zvariant::Type};
 
 use crate::{
     data::source::clight,
-    message_subscriptions::{restarting, ticked},
+    message_subscriptions::{restarting_subscription, ticked},
 };
 
 #[proxy(
@@ -53,7 +53,7 @@ pub struct Backlight {
 const INTERVAL: Duration = Duration::from_secs(10);
 
 pub fn subscription() -> Subscription<Vec<Backlight>> {
-    Subscription::run(|| restarting("backlight", backlight_readings))
+    restarting_subscription("backlight", backlight_readings)
 }
 
 async fn backlight_readings() -> zbus::Result<impl Stream<Item = Vec<Backlight>>> {

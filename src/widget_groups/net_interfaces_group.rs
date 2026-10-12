@@ -15,7 +15,7 @@ use crate::{
         wifi::{self, Wifi, WifiDetails, WifiPresence},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::dbus,
+    message_subscriptions::named_stream,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -73,13 +73,15 @@ impl NetInterfacesGroup {
     pub fn subscription(&self) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
             self.expansion.while_expanded(
-                dbus(bluetooth::NAME, bluetooth::readings).map(NetInterfacesMessage::Bluetooth),
+                named_stream(bluetooth::NAME, bluetooth::readings)
+                    .map(NetInterfacesMessage::Bluetooth),
             ),
             self.expansion.while_expanded(
-                dbus(ethernet::NAME, ethernet::readings).map(NetInterfacesMessage::Ethernet),
+                named_stream(ethernet::NAME, ethernet::readings)
+                    .map(NetInterfacesMessage::Ethernet),
             ),
-            dbus(wifi::NAME, wifi::readings).map(NetInterfacesMessage::Wifi),
-            dbus(mobile::NAME, mobile::readings).map(NetInterfacesMessage::Mobile),
+            named_stream(wifi::NAME, wifi::readings).map(NetInterfacesMessage::Wifi),
+            named_stream(mobile::NAME, mobile::readings).map(NetInterfacesMessage::Mobile),
         ])
     }
 

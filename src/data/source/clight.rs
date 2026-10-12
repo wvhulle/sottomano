@@ -42,12 +42,7 @@ impl Source for Clight {
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
-        let connection = zbus::Connection::session()
-            .await
-            .map_err(|error| Error::Connect(error.to_string()))?;
-        let proxy = ConfBacklightProxy::new(&connection)
-            .await
-            .map_err(|error| Error::Connect(error.to_string()))?;
+        let proxy: ConfBacklightProxy = bus::session_proxy().await?;
         Ok(Clight {
             auto: !bus::call(proxy.no_auto_calib().await)?,
         })

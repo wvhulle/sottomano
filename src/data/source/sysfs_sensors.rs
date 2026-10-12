@@ -8,6 +8,7 @@ use std::{
 use uom::si::{f64::Frequency, frequency::kilohertz};
 
 use self::cpu_clock::FrequencyLimit;
+use crate::data::source::Panicked;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -15,6 +16,12 @@ pub enum Error {
     Unparsable(String),
     NoTemperatureSensor,
     Panicked,
+}
+
+impl From<Panicked> for Error {
+    fn from(Panicked: Panicked) -> Self {
+        Error::Panicked
+    }
 }
 
 impl Display for Error {
