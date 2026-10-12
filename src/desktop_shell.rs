@@ -44,7 +44,7 @@ use crate::{
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
     },
-    message_subscriptions::{blocking, copy_to_clipboard, niri_action},
+    message_subscriptions::{ForcedRefresh, blocking, copy_to_clipboard, niri_action},
     state::{
         self, ShellSettings,
         niri_rules::{NiriRulesFile, StoredRules},
@@ -129,6 +129,7 @@ pub struct DesktopShell {
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
     pub tooltip: TooltipHost,
+    pub forced_refresh: Option<ForcedRefresh>,
     pub notifications: NotificationLayer,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
@@ -183,6 +184,7 @@ pub enum Message {
     PointerLeft,
     CopyText(String),
     OpenUrl(String),
+    RefreshSource(&'static str),
     FocusWindow(u64),
     TooltipTick,
     TooltipHideElapsed,
@@ -258,6 +260,7 @@ impl DesktopShell {
             backdrops: BTreeMap::new(),
             sidebar_widths: HashMap::new(),
             tooltip: TooltipHost::default(),
+            forced_refresh: None,
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
@@ -444,6 +447,10 @@ impl DesktopShell {
             Message::PointerLeft => self.tooltip.leave_after_grace(),
             Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => self.open_url(url),
+            Message::RefreshSource(source) => {
+                self.forced_refresh = Some(ForcedRefresh::next(self.forced_refresh, source));
+                self.retarget_hover_readings()
+            }
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_tooltip(),
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),

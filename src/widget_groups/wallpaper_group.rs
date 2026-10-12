@@ -293,10 +293,10 @@ impl WallpaperGroup {
             WallpaperMessage::DaemonFound(found) => self.wallpaper_daemon = found,
             WallpaperMessage::Displayed(Ok(displayed)) => return self.follow(displayed),
             WallpaperMessage::Displayed(Err(failure)) => {
-                self.lookup.receive(Err(Failure::Query(failure)));
+                self.lookup.push(Err(Failure::Query(failure)));
             }
             WallpaperMessage::Resolved(resolved) => {
-                self.lookup.receive(
+                self.lookup.push(
                     (*resolved)
                         .map(|wallpaper| Lookup::of(&wallpaper))
                         .map_err(Failure::Resolve),
@@ -329,13 +329,16 @@ impl WallpaperGroup {
     }
 
     pub fn tooltip_for(&self, target: WallpaperTarget) -> Option<Tooltip> {
-        let body = match target {
-            WallpaperTarget::Lookup => self.lookup.display()?.tooltip(),
-            WallpaperTarget::Place => self.lookup.get()?.place.as_ref()?.tooltip(),
-            WallpaperTarget::Article => self.lookup.get()?.article.as_ref()?.tooltip(),
-            WallpaperTarget::Photo => self.lookup.get()?.photo.tooltip(),
-        };
-        Some(Tooltip::of(body))
+        match target {
+            WallpaperTarget::Lookup => self.lookup.tooltip(),
+            WallpaperTarget::Place => self
+                .lookup
+                .tooltip_with(self.lookup.get()?.place.as_ref()?.tooltip()),
+            WallpaperTarget::Article => self
+                .lookup
+                .tooltip_with(self.lookup.get()?.article.as_ref()?.tooltip()),
+            WallpaperTarget::Photo => self.lookup.tooltip_with(self.lookup.get()?.photo.tooltip()),
+        }
     }
 
     pub fn group_content(&self) -> GroupContent<'_, WallpaperMessage> {

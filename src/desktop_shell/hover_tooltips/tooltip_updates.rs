@@ -7,7 +7,7 @@ use crate::{
         monitor_surfaces::PanelEdge,
     },
     widget_groups::workspaces_group::workspace_tooltip,
-    widgets::tooltip_body::Tooltip,
+    widgets::tooltip_body::{Refresh, Tooltip},
 };
 
 impl DesktopShell {
@@ -154,9 +154,12 @@ impl DesktopShell {
         ])
     }
 
-    pub fn tooltip_has_relative_time(&self) -> bool {
-        self.tooltip
-            .target()
-            .is_some_and(|target| self.tooltip_for(target).footer.is_some())
+    pub fn tooltip_has_periodic_refresh(&self) -> bool {
+        self.tooltip.target().is_some_and(|target| {
+            matches!(
+                self.tooltip_for(target).refresh_marker(),
+                Some(Refresh::Periodic(_))
+            )
+        })
     }
 }

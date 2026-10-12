@@ -17,8 +17,7 @@ use crate::{
     config::Config,
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::BarWidget,
-        group_item::GroupItem,
+        continuous_reading::ContinuousReading,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -40,9 +39,9 @@ impl From<ClockTarget> for HoverTarget {
 }
 
 pub struct ClockGroup {
-    time: LocalTime,
-    date: LocalDate,
-    zone_times: Vec<ZoneTime>,
+    time: ContinuousReading<LocalTime>,
+    date: ContinuousReading<LocalDate>,
+    zone_times: Vec<ContinuousReading<ZoneTime>>,
     expansion: GroupExpansion,
 }
 
@@ -54,13 +53,14 @@ pub enum ClockMessage {
 
 impl Default for ClockGroup {
     fn default() -> Self {
-        let now = Local::now();
-        Self {
-            time: LocalTime(now),
-            date: LocalDate(now),
+        let mut group = Self {
+            time: ContinuousReading::default(),
+            date: ContinuousReading::default(),
             zone_times: Vec::new(),
             expansion: GroupExpansion::default(),
-        }
+        };
+        group.tick(Local::now(), &[]);
+        group
     }
 }
 
@@ -84,25 +84,30 @@ impl ClockGroup {
     }
 
     fn tick(&mut self, now: DateTime<Local>, other_time_zones: &[Tz]) {
-        self.time = LocalTime(now);
-        self.date = LocalDate(now);
+        self.time.load(LocalTime(now));
+        self.date.load(LocalDate(now));
         self.zone_times = other_time_zones
             .iter()
-            .map(|zone| ZoneTime(now.with_timezone(zone)))
+            .map(|zone| {
+                let mut zone_time = ContinuousReading::default();
+                zone_time.load(ZoneTime(now.with_timezone(zone)));
+                zone_time
+            })
             .collect();
     }
 
+    fn zone_time(&self, zone: Tz) -> Option<&ContinuousReading<ZoneTime>> {
+        self.zone_times
+            .iter()
+            .find(|zone_time| zone_time.get().is_some_and(|time| time.zone() == zone))
+    }
+
     pub fn tooltip_for(&self, target: &ClockTarget) -> Option<Tooltip> {
-        let body = match target {
+        match target {
             ClockTarget::LocalTime => self.time.tooltip(),
             ClockTarget::LocalDate => self.date.tooltip(),
-            ClockTarget::ZoneTime(zone) => self
-                .zone_times
-                .iter()
-                .find(|zone_time| zone_time.zone() == *zone)?
-                .tooltip(),
-        };
-        Some(Tooltip::of(body))
+            ClockTarget::ZoneTime(zone) => self.zone_time(*zone)?.tooltip(),
+        }
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ClockMessage> {
@@ -110,13 +115,15 @@ impl ClockGroup {
             &self.expansion,
             ClockMessage::Expansion,
             [
-                GroupItem::reading(&self.time, ClockTarget::LocalTime),
-                GroupItem::reading(&self.date, ClockTarget::LocalDate),
+                self.time.group_item(ClockTarget::LocalTime),
+                self.date.group_item(ClockTarget::LocalDate),
             ]
             .into_iter()
             .chain(self.zone_times.iter().map(|zone_time| {
-                GroupItem::reading(zone_time, ClockTarget::ZoneTime(zone_time.zone()))
-            })),
+                let zone = zone_time.get()?.zone();
+                zone_time.group_item(ClockTarget::ZoneTime(zone))
+            }))
+            .flatten(),
         )
     }
 }

@@ -22,10 +22,11 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     data::{empty_text::non_empty, source::nix_store::Provenance},
-    message_subscriptions::emit_changes,
+    message_subscriptions::{Readings, emit_changes},
 };
 
-const SCAN_INTERVAL: Duration = Duration::from_millis(500);
+pub const SCAN_NAME: &str = "process scan";
+pub const SCAN_INTERVAL: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Process {
@@ -239,14 +240,15 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     Forest { roots }
 }
 
-pub fn watched_tree(watched: &Watched) -> impl Stream<Item = Result<Process, String>> + use<> {
+pub fn watched_tree(watched: &Watched) -> Readings<Process, String> {
     let pid = watched.pid;
-    emit_changes(scan()).map(move |forest| {
+    let subtrees = emit_changes(scan()).map(move |forest| {
         forest
             .subtree(pid)
             .cloned()
             .ok_or_else(|| format!("process {pid} exited"))
-    })
+    });
+    Readings::periodic(SCAN_NAME, SCAN_INTERVAL, subtrees)
 }
 
 fn scan() -> impl Stream<Item = Forest> {
@@ -334,16 +336,16 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     })
 }
 
-pub fn inspection(watched: &Watched) -> impl Stream<Item = Result<Inspection, String>> + use<> {
+pub fn inspection(watched: &Watched) -> Readings<Inspection, String> {
     let watched = watched.clone();
     let pid = watched.pid;
-    stream::once(async move {
+    Readings::once(stream::once(async move {
         spawn_blocking(move || inspect(&watched))
             .await
             .ok()
             .flatten()
             .ok_or_else(|| format!("process {pid} exited"))
-    })
+    }))
 }
 
 pub fn binary_name(process: &Proc) -> Option<String> {

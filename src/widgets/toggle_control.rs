@@ -3,7 +3,7 @@ use iced::{Subscription, Task};
 use crate::{
     data::source::Source,
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{blocking, polling},
+    message_subscriptions::{ForcedRefresh, blocking, polling},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -82,11 +82,15 @@ impl<S: Toggle> ToggleControl<S> {
         Task::future(async move { ToggleMessage::Available(S::available(&key).await) })
     }
 
-    pub fn subscription(&self, key: S::Key) -> Subscription<ToggleMessage<S>> {
+    pub fn subscription(
+        &self,
+        key: S::Key,
+        forced: Option<ForcedRefresh>,
+    ) -> Subscription<ToggleMessage<S>> {
         if !self.available {
             return Subscription::none();
         }
-        polling::<S>(key).map(ToggleMessage::Reading)
+        polling::<S>(key, forced).map(ToggleMessage::Reading)
     }
 
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {

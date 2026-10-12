@@ -25,7 +25,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polled,
+    message_subscriptions::{ForcedRefresh, polled},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -94,10 +94,10 @@ impl PowerGroup {
         ])
     }
 
-    pub fn subscription(&self) -> Subscription<PowerMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<PowerMessage> {
         Subscription::batch([
             self.power_profile
-                .subscription()
+                .subscription(forced)
                 .map(PowerMessage::PowerProfile),
             if self.installed {
                 Subscription::run(battery::readings).map(PowerMessage::Battery)
@@ -132,7 +132,7 @@ impl PowerGroup {
                 Task::none()
             }
             PowerMessage::Battery(reading) => {
-                self.battery.receive(reading);
+                self.battery.push(reading);
                 self.observe_battery()
             }
             PowerMessage::ChargerFetched(fetched) => {

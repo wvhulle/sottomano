@@ -16,7 +16,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
-        ongoing_toast::{OngoingKey, OngoingToast},
+        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
         phosphor::Phosphor,
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -71,7 +71,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
             key: OngoingKey::Reading(S::slow_job_target(job.unit.clone()).into()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
-            body_text: Some(format!(
+            body: OngoingBody::Text(format!(
                 "since {} · {}",
                 TimePart::TimeOfDay.format(&DateTime::<Local>::from(job.started_at), locale),
                 S::SCOPE_NAME

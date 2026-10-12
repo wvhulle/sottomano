@@ -9,7 +9,7 @@ mod wind_speed;
 use crate::{
     data::source::weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::polling,
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -60,20 +60,20 @@ impl WeatherGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self) -> Subscription<WeatherMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<WeatherMessage> {
         let location = Subscription::run(Location::published).map(WeatherMessage::Location);
         let Some(here) = self.location.get().map(Location::position) else {
             return location;
         };
         Subscription::batch([
             location,
-            polling::<Temperature>(here).map(WeatherMessage::Temp),
+            polling::<Temperature>(here, forced).map(WeatherMessage::Temp),
             self.expansion
-                .while_expanded(polling::<Wind>(here).map(WeatherMessage::Wind)),
+                .while_expanded(polling::<Wind>(here, forced).map(WeatherMessage::Wind)),
             self.expansion
-                .while_expanded(polling::<Rain>(here).map(WeatherMessage::Rain)),
+                .while_expanded(polling::<Rain>(here, forced).map(WeatherMessage::Rain)),
             self.expansion
-                .while_expanded(polling::<Pollen>(here).map(WeatherMessage::Pollen)),
+                .while_expanded(polling::<Pollen>(here, forced).map(WeatherMessage::Pollen)),
         ])
     }
 
@@ -83,7 +83,7 @@ impl WeatherGroup {
             WeatherMessage::Wind(reading) => self.wind.receive(reading),
             WeatherMessage::Rain(reading) => self.rain.receive(reading),
             WeatherMessage::Pollen(reading) => self.pollen.receive(reading),
-            WeatherMessage::Location(reading) => self.location.receive(reading),
+            WeatherMessage::Location(reading) => self.location.push(reading),
             WeatherMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -100,7 +100,7 @@ impl WeatherGroup {
             WeatherTarget::Allergen(allergen) => self
                 .pollen
                 .tooltip_with(self.pollen.get()?.concentration(allergen)?.tooltip()),
-            WeatherTarget::Location => self.location.live_tooltip(),
+            WeatherTarget::Location => self.location.tooltip(),
         }
     }
 

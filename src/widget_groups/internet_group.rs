@@ -13,7 +13,7 @@ use crate::{
         wireguard::{TunnelAddress, Wireguard, disconnect},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{polled, polling},
+    message_subscriptions::{ForcedRefresh, polled, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -86,14 +86,14 @@ impl InternetGroup {
         })
     }
 
-    pub fn subscription(&self) -> Subscription<InternetMessage> {
+    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<InternetMessage> {
         let wireguard = if self.installed.wireguard {
-            polling::<Wireguard>(()).map(InternetMessage::Wireguard)
+            polling::<Wireguard>((), forced).map(InternetMessage::Wireguard)
         } else {
             Subscription::none()
         };
         let tailscale = if self.installed.tailscale {
-            polling::<Tailscale>(()).map(InternetMessage::Tailscale)
+            polling::<Tailscale>((), forced).map(InternetMessage::Tailscale)
         } else {
             Subscription::none()
         };
@@ -158,9 +158,9 @@ impl InternetGroup {
                     self.tunnel_address.sections(TunnelAddress::sections),
                 )))
             }
-            InternetTarget::Down => self.down.live_tooltip(),
-            InternetTarget::Up => self.up.live_tooltip(),
-            InternetTarget::Total => self.total.live_tooltip(),
+            InternetTarget::Down => self.down.tooltip(),
+            InternetTarget::Up => self.up.tooltip(),
+            InternetTarget::Total => self.total.tooltip(),
             InternetTarget::Tailscale => self.tailscale.tooltip(),
         }
     }

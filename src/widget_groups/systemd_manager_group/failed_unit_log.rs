@@ -21,7 +21,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
-        ongoing_toast::{OngoingKey, OngoingToast, OngoingToastActionButton},
+        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
         tooltip_body::{Cell, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -53,7 +53,8 @@ impl<S: ScopeAppearance> Failed<S> {
                 key: OngoingKey::Reading(S::failed_unit_target(unit.name.clone()).into()),
                 severity: UNIT_FAILURE_PRIORITY.severity(),
                 summary_text: Cow::Owned(format!("{} failed", unit.name)),
-                body_text: failure_summary(unit, config.calendar.locale),
+                body: failure_summary(unit, config.calendar.locale)
+                    .map_or(OngoingBody::None, OngoingBody::Text),
                 progress: None,
                 since: unit.at.unwrap_or_else(SystemTime::now),
                 on_body_clicked: open_unit_log.clone(),

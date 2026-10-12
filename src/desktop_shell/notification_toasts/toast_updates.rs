@@ -31,7 +31,7 @@ use crate::{
     widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
     widgets::{
         announced_level::LevelReading,
-        ongoing_toast::{OngoingKey, OngoingToast},
+        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
         widget_group::GroupToastRequests,
     },
 };
@@ -201,11 +201,7 @@ impl NotificationLayer {
         let to_raise: Vec<OngoingToast<Message>> = active
             .into_iter()
             .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
-            .filter(|toast| {
-                !self
-                    .showing()
-                    .any(|n| n.shows_ongoing(&toast.key) && n.data.severity >= toast.severity)
-            })
+            .filter(|toast| !self.showing().any(|n| n.already_shows(toast)))
             .collect();
         let raised: Vec<Task<Message>> = to_raise
             .into_iter()
@@ -216,13 +212,20 @@ impl NotificationLayer {
 
     fn serve_ongoing(
         &mut self,
-        toast: OngoingToast<Message>,
+        mut toast: OngoingToast<Message>,
         context: &ToastContext,
     ) -> Task<Message> {
-        let toast_id = self
+        let shown = self
             .showing()
             .find(|n| n.shows_ongoing(&toast.key))
-            .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
+            .map(|n| (n.data.id, n.ongoing_since()));
+        let toast_id = match shown {
+            Some((id, since)) => {
+                toast.since = since.unwrap_or(toast.since);
+                id
+            }
+            None => self.fresh_shell_toast_id(),
+        };
         self.serve(ToastContent::ongoing(toast, toast_id), context)
     }
 
@@ -261,7 +264,7 @@ impl NotificationLayer {
                 key: OngoingKey::ConfigFile,
                 severity: Severity::Critical,
                 summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
-                body_text: Some(body),
+                body: OngoingBody::Text(body),
                 progress: None,
                 since: SystemTime::now(),
                 on_body_clicked: Message::OpenUrl(path.display().to_string()),

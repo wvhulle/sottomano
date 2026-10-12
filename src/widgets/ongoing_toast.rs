@@ -1,19 +1,66 @@
 use std::{borrow::Cow, time::SystemTime};
 
-use chrono::Locale;
+use chrono::{DateTime, Local, Locale, Utc};
 use uom::si::f64::Ratio;
 
 use crate::{
     data::{
         notifications::model::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
         severity::Severity,
+        source::ai::quota::{Pace, Quota},
     },
     desktop_shell::hover_tooltips::HoverTarget,
+    widget_groups::ai_group::amount_text::{duration_text, percent_text},
     widgets::{
         bar_widget::{BarWidget, OngoingToastThreshold},
+        localized_time::TimePart,
         widget_state::WidgetState,
     },
 };
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OngoingBody {
+    None,
+    Text(String),
+    QuotaPace(Vec<Quota>),
+}
+
+impl OngoingBody {
+    pub fn text(&self, now: DateTime<Utc>, locale: Locale) -> Option<String> {
+        match self {
+            Self::None => None,
+            Self::Text(text) => Some(text.clone()),
+            Self::QuotaPace(quotas) => Some(
+                quotas
+                    .iter()
+                    .map(|quota| quota_pace_line(quota, now, locale))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
+        }
+    }
+}
+
+fn quota_pace_line(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String {
+    let label = quota.label;
+    let used = percent_text(quota.used);
+    let elapsed = duration_text(now - quota.starts_at);
+    let window = duration_text(quota.resets_at - quota.starts_at);
+    let reset_at = TimePart::TimeOfDay.format(&quota.resets_at.with_timezone(&Local), locale);
+    match quota.pace() {
+        Some(Pace::RunsOut { at }) => format!(
+            "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets at \
+             {reset_at}.",
+            TimePart::TimeOfDay.format(&at.with_timezone(&Local), locale)
+        ),
+        Some(Pace::Lasts { at_reset }) => format!(
+            "{label}: {used} used after {elapsed} of {window}.\nReaches {} by the reset at \
+             {reset_at}.",
+            percent_text(at_reset)
+        ),
+        None => format!("{label}: {used} used, resets at {reset_at}."),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct OngoingToastActionButton<Message> {
@@ -47,7 +94,7 @@ pub struct OngoingToast<Message> {
     pub key: OngoingKey,
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
-    pub body_text: Option<String>,
+    pub body: OngoingBody,
     pub progress: Option<Ratio>,
     pub since: SystemTime,
     pub on_body_clicked: Message,
@@ -87,7 +134,9 @@ impl<Message> OngoingToast<Message> {
             key: OngoingKey::Reading(hover_target),
             severity,
             summary_text: Cow::Borrowed(summary_text),
-            body_text: widget.localized_label(locale),
+            body: widget
+                .localized_label(locale)
+                .map_or(OngoingBody::None, OngoingBody::Text),
             progress: widget.gauge(),
             since: SystemTime::now(),
             on_body_clicked,
@@ -107,7 +156,7 @@ impl<Message> OngoingToast<Message> {
             key: self.key,
             severity: self.severity,
             summary_text: self.summary_text,
-            body_text: self.body_text,
+            body: self.body,
             progress: self.progress,
             since: self.since,
             on_body_clicked: lift(self.on_body_clicked),
@@ -121,7 +170,7 @@ impl<Message> OngoingToast<Message> {
 
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
-            body: self.body_text.clone(),
+            body: None,
             progress: self.progress,
             actions: self
                 .action_buttons
@@ -225,6 +274,33 @@ mod tests {
             tint: ActionTint::Proceed,
             on_button_pressed,
         }
+    }
+
+    #[test]
+    fn quota_pace_bodies_compare_by_data_but_render_against_the_clock() {
+        use chrono::TimeDelta;
+        use uom::si::ratio::percent;
+
+        let start: DateTime<Utc> = "2026-10-02T10:00:00Z".parse().unwrap();
+        let length = TimeDelta::hours(5);
+        let quota = Quota::within_window(
+            "Session",
+            Ratio::new::<percent>(60.0),
+            start + length,
+            length,
+            start + TimeDelta::hours(2),
+        );
+        let body = OngoingBody::QuotaPace(vec![quota.clone()]);
+        assert_eq!(body, OngoingBody::QuotaPace(vec![quota]));
+        let locale = Locale::default();
+        let earlier = body.text(start + TimeDelta::hours(2), locale).unwrap();
+        let later = body
+            .text(start + TimeDelta::hours(2) + TimeDelta::seconds(1), locale)
+            .unwrap();
+        assert_ne!(earlier, later);
+        assert!(earlier.contains("used after 2h of 5h"));
+        assert!(later.contains("used after 2h 1s of 5h"));
+        assert!(later.contains("Runs out around "));
     }
 
     #[test]

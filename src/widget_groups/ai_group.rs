@@ -1,4 +1,4 @@
-mod amount_text;
+pub mod amount_text;
 mod claude_code_billing_block;
 mod claude_code_period_spend;
 mod claude_enterprise_credit_spend;
@@ -29,7 +29,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{polled, polling},
+    message_subscriptions::{ForcedRefresh, polled, polling},
     widgets::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
@@ -99,12 +99,16 @@ impl ClaudeLogin {
         }
     }
 
-    fn account_subscription(&self) -> Subscription<AiMessage> {
+    fn account_subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<AiMessage> {
         match self {
-            Self::Subscription(credentials) => polling::<ClaudeUsageWindows>(credentials.clone())
-                .map(|reading| AiMessage::ClaudeUsageWindows(Box::new(reading))),
-            Self::UsageBased(credentials) => polling::<ClaudeEnterpriseSpend>(credentials.clone())
-                .map(AiMessage::ClaudeEnterpriseSpend),
+            Self::Subscription(credentials) => {
+                polling::<ClaudeUsageWindows>(credentials.clone(), forced)
+                    .map(|reading| AiMessage::ClaudeUsageWindows(Box::new(reading)))
+            }
+            Self::UsageBased(credentials) => {
+                polling::<ClaudeEnterpriseSpend>(credentials.clone(), forced)
+                    .map(AiMessage::ClaudeEnterpriseSpend)
+            }
         }
     }
 }
@@ -121,14 +125,15 @@ fn claude_subscriptions(
     login: Option<&ClaudeLogin>,
     ccusage_installed: bool,
     config: &Config,
+    forced: Option<ForcedRefresh>,
 ) -> Vec<Subscription<AiMessage>> {
-    let account = login.map(ClaudeLogin::account_subscription);
+    let account = login.map(|login| login.account_subscription(forced));
     let local_logs = ccusage_installed.then(|| {
         if let Some(ClaudeLogin::Subscription(_)) = login {
-            polling::<ClaudeCcusageBlock>(()).map(AiMessage::ClaudeCcusageBlock)
+            polling::<ClaudeCcusageBlock>((), forced).map(AiMessage::ClaudeCcusageBlock)
         } else {
             let budget = config.widget_groups.ai_usage.monthly_budget_usd.claude_code;
-            polling::<ClaudeCcusagePeriods>(spend_budget(config, budget))
+            polling::<ClaudeCcusagePeriods>(spend_budget(config, budget), forced)
                 .map(AiMessage::ClaudeCcusagePeriods)
         }
     });
@@ -218,31 +223,38 @@ impl AiGroup {
         })
     }
 
-    pub fn subscription(&self, config: &Config) -> Subscription<AiMessage> {
+    pub fn subscription(
+        &self,
+        config: &Config,
+        forced: Option<ForcedRefresh>,
+    ) -> Subscription<AiMessage> {
         let secrets = &self.secrets;
         let available = &self.available;
         let mut subscriptions = Vec::new();
         if let Some(key) = secrets.openrouter_management.clone() {
-            subscriptions.push(polling::<OpenRouter>(key).map(AiMessage::OpenRouter));
+            subscriptions.push(polling::<OpenRouter>(key, forced).map(AiMessage::OpenRouter));
         }
         subscriptions.extend(claude_subscriptions(
             available.claude.as_ref(),
             available.ccusage_installed,
             config,
+            forced,
         ));
         if let Some(key) = secrets.gh_auth_token.clone() {
             if available.copilot.metered {
-                subscriptions
-                    .push(polling::<CopilotMetered>(key.clone()).map(AiMessage::CopilotMetered));
+                subscriptions.push(
+                    polling::<CopilotMetered>(key.clone(), forced).map(AiMessage::CopilotMetered),
+                );
             }
             if available.copilot.free {
-                subscriptions.push(polling::<CopilotFree>(key).map(AiMessage::CopilotFree));
+                subscriptions.push(polling::<CopilotFree>(key, forced).map(AiMessage::CopilotFree));
             }
         }
         if available.copilot.cli {
             let budget = config.widget_groups.ai_usage.monthly_budget_usd.copilot_cli;
             subscriptions.push(
-                polling::<CopilotCcusage>(spend_budget(config, budget)).map(AiMessage::CopilotCli),
+                polling::<CopilotCcusage>(spend_budget(config, budget), forced)
+                    .map(AiMessage::CopilotCli),
             );
         }
         Subscription::batch(subscriptions)

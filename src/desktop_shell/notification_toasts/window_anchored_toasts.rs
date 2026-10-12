@@ -117,19 +117,34 @@ fn motion(value: f32, duration: Duration) -> Animation<f32> {
         .duration(duration)
 }
 
+const CLOCK_TICK: Duration = Duration::from_secs(1);
+
 struct FieldState {
     order: ChildOrder,
     drift: Drifts,
     frame: Instant,
+    next_clock_tick: Instant,
 }
 
 impl Default for FieldState {
     fn default() -> Self {
+        let now = Instant::now();
         Self {
             order: ChildOrder::default(),
             drift: Drifts::default(),
-            frame: Instant::now(),
+            frame: now,
+            next_clock_tick: now + CLOCK_TICK,
         }
+    }
+}
+
+impl FieldState {
+    fn advance_clock(&mut self, frame: Instant, shell: &mut Shell<'_, NotificationMessage>) {
+        if frame >= self.next_clock_tick {
+            self.next_clock_tick = frame + CLOCK_TICK;
+            shell.publish(NotificationMessage::Tick);
+        }
+        shell.request_redraw_at(self.next_clock_tick);
     }
 }
 
@@ -361,6 +376,9 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             return;
         };
         let state = tree.state.downcast_mut::<FieldState>();
+        if !self.cards.is_empty() {
+            state.advance_clock(*frame, shell);
+        }
         if state.frame == *frame {
             shell.request_redraw();
             return;

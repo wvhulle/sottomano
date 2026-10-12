@@ -6,6 +6,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use iced::Size;
+use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     data::{
@@ -172,6 +173,7 @@ pub struct Section {
     heading: Option<Heading>,
     body: SectionBody,
     readiness: Readiness,
+    refresh: Option<RefreshInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -210,6 +212,7 @@ impl Section {
             heading: None,
             body,
             readiness: Readiness::Settled,
+            refresh: None,
         }
     }
 
@@ -244,6 +247,11 @@ impl Section {
     #[must_use]
     pub(in crate::widgets) fn with_readiness(self, readiness: Readiness) -> Self {
         Self { readiness, ..self }
+    }
+
+    #[must_use]
+    pub(in crate::widgets) fn with_refresh(self, refresh: Option<RefreshInfo>) -> Self {
+        Self { refresh, ..self }
     }
 
     pub fn readiness(&self) -> Readiness {
@@ -334,14 +342,29 @@ impl TooltipBody {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RefreshInfo {
+    pub source: &'static str,
     pub every: Duration,
     pub last: SystemTime,
+}
+
+impl RefreshInfo {
+    pub fn elapsed_since_last_poll(&self, now: SystemTime) -> Ratio {
+        let since_delivery = now.duration_since(self.last).unwrap_or(Duration::ZERO);
+        let within_cycle = since_delivery.as_secs_f64() % self.every.as_secs_f64();
+        Ratio::new::<ratio>(within_cycle / self.every.as_secs_f64())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refresh {
+    Periodic(RefreshInfo),
+    Live,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
     pub body: TooltipBody,
-    pub footer: Option<RefreshInfo>,
+    pub refresh: Option<Refresh>,
     pub press_hints: PressHints,
 }
 
@@ -353,9 +376,22 @@ impl Tooltip {
     pub fn of(body: TooltipBody) -> Self {
         Self {
             body,
-            footer: None,
+            refresh: None,
             press_hints: PressHints::default(),
         }
+    }
+
+    pub fn refresh_marker(&self) -> Option<Refresh> {
+        self.refresh.or_else(|| {
+            let TooltipBody::Sections(sections) = &self.body else {
+                return None;
+            };
+            sections
+                .iter()
+                .filter_map(|section| section.refresh)
+                .min_by_key(|refresh| refresh.every)
+                .map(Refresh::Periodic)
+        })
     }
 
     #[must_use]

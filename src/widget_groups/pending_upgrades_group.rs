@@ -54,7 +54,7 @@ impl PendingUpgradesGroup {
 
     pub fn update(&mut self, msg: PendingUpgradesMessage) -> Task<PendingUpgradesMessage> {
         match msg {
-            PendingUpgradesMessage::Firmware(upgrades) => self.firmware.receive(upgrades),
+            PendingUpgradesMessage::Firmware(upgrades) => self.firmware.push(upgrades),
             PendingUpgradesMessage::OpenTerminal(terminal) => return terminal.open(),
             PendingUpgradesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -64,11 +64,10 @@ impl PendingUpgradesGroup {
     }
 
     pub fn tooltip_for(&self, target: PendingUpgradesTarget) -> Option<Tooltip> {
-        let body = match target {
-            PendingUpgradesTarget::Firmware => self.firmware.display()?.tooltip(),
-            PendingUpgradesTarget::Summary => self.tooltip(),
-        };
-        Some(Tooltip::of(body))
+        match target {
+            PendingUpgradesTarget::Firmware => self.firmware.tooltip(),
+            PendingUpgradesTarget::Summary => Some(Tooltip::of(self.tooltip())),
+        }
     }
 
     pub fn group_content<'a>(

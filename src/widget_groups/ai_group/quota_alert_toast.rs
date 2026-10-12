@@ -1,39 +1,21 @@
 use std::{borrow::Cow, time::SystemTime};
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 
 use crate::{
     data::{
         severity::Severity,
         source::ai::quota::{Quota, QuotaLimited},
     },
-    widget_groups::ai_group::{
-        AiMessage, AiTarget,
-        amount_text::{countdown, percent_text},
-    },
+    widget_groups::ai_group::{AiMessage, AiTarget},
     widgets::{
         bar_widget::{BarWidget, Occasional},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        ongoing_toast::{OngoingKey, OngoingToast},
+        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
         widget_group::ExpansionMessage,
     },
 };
-
-impl Quota {
-    fn alert_line(&self, now: DateTime<Utc>) -> String {
-        let pace = self
-            .projected_at_reset()
-            .map(|projected| format!(", on pace for {}", percent_text(projected)))
-            .unwrap_or_default();
-        format!(
-            "{}: {} used{pace}, resets in {}",
-            self.label,
-            percent_text(self.used),
-            countdown(self.resets_at, now)
-        )
-    }
-}
 
 impl<S: QuotaLimited + BarWidget> ContinuousReading<S> {
     fn quota_alert_toast(&self, target: AiTarget) -> Option<OngoingToast<AiMessage>> {
@@ -50,14 +32,8 @@ impl<S: QuotaLimited + BarWidget> ContinuousReading<S> {
             key: OngoingKey::Reading(target.into()),
             severity: worst.severity(),
             summary_text: Cow::Owned(format!("{} runs out before reset", worst.label)),
-            body_text: Some(
-                alerting
-                    .iter()
-                    .map(|quota| quota.alert_line(now))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            ),
             progress: Some(worst.used),
+            body: OngoingBody::QuotaPace(alerting),
             since: SystemTime::now(),
             on_body_clicked: AiMessage::Expansion(ExpansionMessage::Expand),
             action_buttons: Vec::new(),

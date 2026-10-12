@@ -24,17 +24,17 @@ const PADDING: Padding = Padding {
     left: 4.0,
 };
 
-pub fn pressable_text<'a, Message: 'a>(
+pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
-    text: String,
-    on_press: impl Fn(String) -> Message + 'a,
+    payload: Payload,
+    on_press: impl Fn(Payload) -> Message + 'a,
     accent: Color,
     hold: Duration,
     interaction: Interaction,
 ) -> Element<'a, Message> {
     Element::new(PressableText {
         content: content.into(),
-        text,
+        payload,
         on_press: Box::new(on_press),
         accent,
         hold,
@@ -42,10 +42,10 @@ pub fn pressable_text<'a, Message: 'a>(
     })
 }
 
-struct PressableText<'a, Message> {
+struct PressableText<'a, Payload, Message> {
     content: Element<'a, Message>,
-    text: String,
-    on_press: Box<dyn Fn(String) -> Message + 'a>,
+    payload: Payload,
+    on_press: Box<dyn Fn(Payload) -> Message + 'a>,
     accent: Color,
     hold: Duration,
     interaction: Interaction,
@@ -64,7 +64,9 @@ impl CellState {
     }
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PressableText<'_, Message> {
+impl<Payload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
+    for PressableText<'_, Payload, Message>
+{
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<CellState>()
     }
@@ -133,7 +135,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PressableText<'_,
         }
         let now = Instant::now();
         state.copied_at = Some(now);
-        shell.publish((self.on_press)(self.text.clone()));
+        shell.publish((self.on_press)(self.payload.clone()));
         shell.capture_event();
         shell.request_redraw();
         shell.request_redraw_at(now + self.hold);

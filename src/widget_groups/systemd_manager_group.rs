@@ -225,22 +225,23 @@ impl SystemdManagerGroup {
     }
 
     pub fn tooltip_for(&self, target: &SystemdTarget) -> Option<Tooltip> {
-        let body = match target {
-            SystemdTarget::BootPhases => self.boot.get()?.tooltip(),
-            SystemdTarget::StartupUnits => self.boot.get()?.units().tooltip(),
-            SystemdTarget::FailedSystemUnits => self.failed_system.present_reading()?.tooltip(),
-            SystemdTarget::FailedUserUnits => self.failed_user.present_reading()?.tooltip(),
-            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.present_reading()?.tooltip(),
-            SystemdTarget::SlowUserJobs => self.slow_user_jobs.present_reading()?.tooltip(),
-            SystemdTarget::LastShutdown => self.last_shutdown.get()?.tooltip(),
-            SystemdTarget::Coredumps => self.coredumps.present_reading()?.tooltip(),
-            SystemdTarget::OomKills => self.oom_kills.present_reading()?.tooltip(),
+        match target {
+            SystemdTarget::BootPhases => self.boot.tooltip(),
+            SystemdTarget::StartupUnits => {
+                self.boot.tooltip_with(self.boot.get()?.units().tooltip())
+            }
+            SystemdTarget::FailedSystemUnits => self.failed_system.present_tooltip(),
+            SystemdTarget::FailedUserUnits => self.failed_user.present_tooltip(),
+            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.present_tooltip(),
+            SystemdTarget::SlowUserJobs => self.slow_user_jobs.present_tooltip(),
+            SystemdTarget::LastShutdown => self.last_shutdown.tooltip(),
+            SystemdTarget::Coredumps => self.coredumps.present_tooltip(),
+            SystemdTarget::OomKills => self.oom_kills.present_tooltip(),
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
-            | SystemdTarget::SlowUserJob(_) => return None,
-        };
-        Some(Tooltip::of(body))
+            | SystemdTarget::SlowUserJob(_) => None,
+        }
     }
 
     pub fn group_content<'a>(

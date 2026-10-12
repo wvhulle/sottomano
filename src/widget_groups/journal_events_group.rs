@@ -78,12 +78,11 @@ impl JournalEventsGroup {
     }
 
     pub fn tooltip_for(&self, target: JournalTarget) -> Option<Tooltip> {
-        let body = match target {
-            JournalTarget::Kernel => self.kernel.present_reading()?.tooltip(),
-            JournalTarget::ServiceErrors => self.service_errors.present_reading()?.tooltip(),
-            JournalTarget::Events => self.tooltip(),
-        };
-        Some(Tooltip::of(body))
+        match target {
+            JournalTarget::Kernel => self.kernel.present_tooltip(),
+            JournalTarget::ServiceErrors => self.service_errors.present_tooltip(),
+            JournalTarget::Events => Some(Tooltip::of(self.tooltip())),
+        }
     }
 
     pub fn group_content<'a>(

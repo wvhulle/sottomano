@@ -6,7 +6,7 @@ use std::{
 
 use chrono::Locale;
 use iced::{
-    Color, Element, Padding,
+    Color, Element, Length, Padding,
     alignment::{Horizontal, Vertical},
     border::Radius,
     mouse::Interaction,
@@ -30,11 +30,13 @@ use crate::{
         context_menu::context_menu,
         favicon::Favicons,
         loading_text::{LoadingPhase, loading_text},
+        phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
+        refresh_dial::RefreshDial,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, KeyValue, Readiness, RecordCells, RefreshInfo, Section, SectionBody, Tooltip,
-            TooltipBody, TrayMenuBody,
+            Cell, KeyValue, Readiness, RecordCells, Refresh, RefreshInfo, Section, SectionBody,
+            Tooltip, TooltipBody, TrayMenuBody,
         },
         uniform_width_column::uniform_width_column,
     },
@@ -60,6 +62,7 @@ const SECTION_GAP_PX: f32 = 8.0;
 const TRAY_MENU_WIDTH_PX: f32 = 250.0;
 const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
+const REFRESH_TRACK_ALPHA: f32 = 0.2;
 const DIM_ALPHA: f32 = 0.7;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
@@ -109,14 +112,27 @@ impl<'a> TooltipContent<'a> {
     pub fn view(self) -> Element<'static, Message> {
         let gestures = self.tooltip.press_hints.gestures();
         let press_hint = (!gestures.is_empty()).then(|| self.gesture_hints(&gestures));
-        let refresh = self
-            .tooltip
-            .footer
-            .map(|info| self.footer(footer_text(info, self.now)));
-        let body =
-            Column::with_children(press_hint.into_iter().chain([self.grid()]).chain(refresh))
-                .spacing(FOOTER_GAP_PX);
-        container(body).padding(SHELL_PADDING).into()
+        let refresh_footer = self.tooltip.refresh_marker().map(|refresh| {
+            let marker = match refresh {
+                Refresh::Periodic(info) => self.refresh_button(info),
+                Refresh::Live => self.live_marker(),
+            };
+            container(marker)
+                .align_right(Length::Fill)
+                .padding(CONTENT_INSET)
+                .into()
+        });
+        container(
+            uniform_width_column(
+                press_hint
+                    .into_iter()
+                    .chain([self.grid()])
+                    .chain(refresh_footer),
+            )
+            .spacing(FOOTER_GAP_PX),
+        )
+        .padding(SHELL_PADDING)
+        .into()
     }
 
     fn gesture_hints(&self, gestures: &[GestureHint]) -> Element<'static, Message> {
@@ -153,10 +169,43 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn footer(&self, text: String) -> Element<'static, Message> {
-        container(self.annotation(text))
-            .padding(FOOTER_PADDING)
+    fn refresh_dial(&self, info: RefreshInfo) -> Element<'static, Message> {
+        let dim = self.dim();
+        let letter_height = self.config.theme.font.small_text_size_px;
+        let ring = RefreshDial::new(
+            info.elapsed_since_last_poll(self.now),
+            letter_height,
+            dim,
+            dim.scale_alpha(REFRESH_TRACK_ALPHA),
+        )
+        .view();
+        let label = self.small_dim_text(humantime::format_duration(info.every).to_string());
+        row([label.into(), ring])
+            .spacing(GESTURE_ICON_GAP_PX)
+            .align_y(Vertical::Center)
             .into()
+    }
+
+    fn live_marker(&self) -> Element<'static, Message> {
+        let dim = self.dim();
+        row([
+            self.annotation("live".to_owned()).into(),
+            Phosphor::Pulse(Weight::Regular).view(self.config.theme.font.small_text_size_px, dim),
+        ])
+        .spacing(GESTURE_ICON_GAP_PX)
+        .align_y(Vertical::Center)
+        .into()
+    }
+
+    fn refresh_button(&self, info: RefreshInfo) -> Element<'static, Message> {
+        pressable_text(
+            self.refresh_dial(info),
+            info.source,
+            Message::RefreshSource,
+            self.flash(),
+            self.config.tooltips.copy_flash,
+            Interaction::Pointer,
+        )
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
@@ -482,14 +531,6 @@ fn cell(
 
 fn inset(content: Element<'static, Message>) -> Element<'static, Message> {
     container(content).padding(CONTENT_INSET).into()
-}
-
-fn footer_text(info: RefreshInfo, now: SystemTime) -> String {
-    format!(
-        "updated {} · every {}",
-        relative(info.last, now),
-        humantime::format_duration(info.every),
-    )
 }
 
 fn whole_seconds_between(at: SystemTime, now: SystemTime) -> humantime::FormattedDuration {

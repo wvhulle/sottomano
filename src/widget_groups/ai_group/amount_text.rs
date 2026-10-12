@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -27,15 +29,12 @@ pub fn token_count(tokens: u64) -> String {
 }
 
 pub fn countdown(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
-    let remaining = at.signed_duration_since(now).max(TimeDelta::zero());
-    let days = remaining.num_days();
-    let hours = remaining.num_hours() - days * 24;
-    let minutes = remaining.num_minutes() - remaining.num_hours() * 60;
-    if days > 0 {
-        format!("{days}d {hours}h")
-    } else {
-        format!("{hours}h {minutes}m")
-    }
+    duration_text(at.signed_duration_since(now).max(TimeDelta::zero()))
+}
+
+pub fn duration_text(span: TimeDelta) -> String {
+    let whole_seconds = Duration::from_secs(span.num_seconds().max(0).unsigned_abs());
+    humantime::format_duration(whole_seconds).to_string()
 }
 
 #[cfg(test)]

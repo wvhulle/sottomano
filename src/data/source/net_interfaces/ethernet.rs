@@ -2,9 +2,12 @@ use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
-use crate::data::source::{
-    hardware::Adapter,
-    net_interfaces::{ReadingError, nm, nm_readings},
+use crate::{
+    data::source::{
+        hardware::Adapter,
+        net_interfaces::{ReadingError, nm, nm_readings},
+    },
+    message_subscriptions::Readings,
 };
 
 pub const NAME: &str = "ethernet";
@@ -129,6 +132,9 @@ pub fn readings() -> impl Stream<Item = EthernetPresence> {
         .map(|ports| ports.map_or(EthernetPresence::NoPort, EthernetPresence::Ports))
 }
 
-pub fn details() -> impl Stream<Item = Result<EthernetDetails, &'static str>> {
-    nm_readings("ethernet details", read_details).map(|details| details.ok_or("no Ethernet device"))
+pub fn details() -> Readings<EthernetDetails, &'static str> {
+    Readings::once(
+        nm_readings("ethernet details", read_details)
+            .map(|details| details.ok_or("no Ethernet device")),
+    )
 }
