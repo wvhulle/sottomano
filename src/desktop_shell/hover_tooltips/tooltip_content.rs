@@ -35,8 +35,8 @@ use crate::{
         refresh_dial::RefreshDial,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, KeyValue, Readiness, RecordCells, Refresh, RefreshInfo, Section, SectionBody,
-            Tooltip, TooltipBody, TrayMenuBody,
+            Cell, KeyValue, Readiness, RecordCells, Refresh, Section, SectionBody, Tooltip,
+            TooltipBody, TrayMenuBody,
         },
         uniform_width_column::uniform_width_column,
     },
@@ -112,24 +112,9 @@ impl<'a> TooltipContent<'a> {
     pub fn view(self) -> Element<'static, Message> {
         let gestures = self.tooltip.press_hints.gestures();
         let press_hint = (!gestures.is_empty()).then(|| self.gesture_hints(&gestures));
-        let refresh_footer = self.tooltip.refresh_marker().map(|refresh| {
-            let marker = match refresh {
-                Refresh::Periodic(info) => self.refresh_button(info),
-                Refresh::Live => self.live_marker(),
-            };
-            container(marker)
-                .align_right(Length::Fill)
-                .padding(CONTENT_INSET)
-                .into()
-        });
         container(
-            uniform_width_column(
-                press_hint
-                    .into_iter()
-                    .chain([self.grid()])
-                    .chain(refresh_footer),
-            )
-            .spacing(FOOTER_GAP_PX),
+            uniform_width_column(press_hint.into_iter().chain([self.grid()]))
+                .spacing(FOOTER_GAP_PX),
         )
         .padding(SHELL_PADDING)
         .into()
@@ -169,43 +154,39 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn refresh_dial(&self, info: RefreshInfo) -> Element<'static, Message> {
+    fn refresh_marker(&self, refresh: Refresh) -> Element<'static, Message> {
         let dim = self.dim();
-        let letter_height = self.config.theme.font.small_text_size_px;
-        let ring = RefreshDial::new(
-            info.elapsed_since_last_poll(self.now),
-            letter_height,
-            dim,
-            dim.scale_alpha(REFRESH_TRACK_ALPHA),
-        )
-        .view();
-        let label = self.small_dim_text(humantime::format_duration(info.every).to_string());
-        row([label.into(), ring])
-            .spacing(GESTURE_ICON_GAP_PX)
-            .align_y(Vertical::Center)
-            .into()
-    }
-
-    fn live_marker(&self) -> Element<'static, Message> {
-        let dim = self.dim();
-        row([
-            self.annotation("live".to_owned()).into(),
-            Phosphor::Pulse(Weight::Regular).view(self.config.theme.font.small_text_size_px, dim),
-        ])
-        .spacing(GESTURE_ICON_GAP_PX)
-        .align_y(Vertical::Center)
-        .into()
-    }
-
-    fn refresh_button(&self, info: RefreshInfo) -> Element<'static, Message> {
-        pressable_text(
-            self.refresh_dial(info),
-            info.source,
-            Message::RefreshSource,
-            self.flash(),
-            self.config.tooltips.copy_flash,
-            Interaction::Pointer,
-        )
+        let glyph_size = self.config.theme.font.small_text_size_px;
+        let labelled = |label: Text<'static>, glyph: Element<'static, Message>| {
+            row([label.into(), glyph])
+                .spacing(GESTURE_ICON_GAP_PX)
+                .align_y(Vertical::Center)
+                .into()
+        };
+        let marker = match refresh {
+            Refresh::Periodic(info) => pressable_text(
+                labelled(
+                    self.small_dim_text(humantime::format_duration(info.every).to_string()),
+                    RefreshDial::new(
+                        info.elapsed_since_last_poll(self.now),
+                        glyph_size,
+                        dim,
+                        dim.scale_alpha(REFRESH_TRACK_ALPHA),
+                    )
+                    .view(),
+                ),
+                info.source,
+                Message::RefreshSource,
+                self.flash(),
+                self.config.tooltips.copy_flash,
+                Interaction::Pointer,
+            ),
+            Refresh::Live => labelled(
+                self.annotation("live".to_owned()),
+                Phosphor::Pulse(Weight::Regular).view(glyph_size, dim),
+            ),
+        };
+        container(marker).align_right(Length::Fill).into()
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
@@ -321,12 +302,17 @@ impl<'a> TooltipContent<'a> {
                 .into()
         });
 
+        let marker = section
+            .refresh()
+            .map(|refresh| self.refresh_marker(refresh));
+
         inset(
             Column::with_children(
                 title
                     .into_iter()
                     .chain(caption)
-                    .chain(once(self.body(section.body()))),
+                    .chain(once(self.body(section.body())))
+                    .chain(marker),
             )
             .spacing(ROW_SPACING_PX)
             .into(),
