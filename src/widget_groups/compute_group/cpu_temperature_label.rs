@@ -147,6 +147,8 @@ impl CpuCoreTemperatures {
             topology,
             self.cores.clone(),
             [ColumnHeading::new("Temp"), ColumnHeading::new("Limit")],
+            "Temp is each core's own sensor; Limit is the temperature its driver reports as the \
+             threshold.",
             CoreTemperature::table_record,
         )
     }

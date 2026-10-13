@@ -11,6 +11,7 @@ pub fn sections_by_core_kind<Reading: PerCore, const COLUMNS: usize>(
     topology: &CpuTopology,
     mut readings: Vec<Reading>,
     headings: [ColumnHeading; COLUMNS],
+    column_caption: &'static str,
     table_record: fn(&Reading) -> TableRecord<COLUMNS>,
 ) -> Vec<Section> {
     readings.sort_by_key(|reading| topology.kind_of(reading.core()));
@@ -20,7 +21,7 @@ pub fn sections_by_core_kind<Reading: PerCore, const COLUMNS: usize>(
             let kind = topology.kind_of(same_kind.first()?.core());
             Some(
                 Section::column_table(headings, same_kind.iter().map(table_record))
-                    .titled(kind.title()),
+                    .titled((kind.title(), column_caption)),
             )
         })
         .collect()

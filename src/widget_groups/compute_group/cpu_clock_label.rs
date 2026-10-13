@@ -90,6 +90,8 @@ impl CpuClock {
             topology,
             self.cores.clone(),
             [ColumnHeading::new("Clock"), ColumnHeading::new("Cap")],
+            "Clock is the current speed; Cap is the ceiling the governor allows. A cap below the \
+             hardware maximum is marked.",
             CoreFreq::table_record,
         )
     }
