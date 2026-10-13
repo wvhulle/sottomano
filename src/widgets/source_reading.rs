@@ -54,7 +54,7 @@ fn composed_reading<'a, Message: 'a>(
 }
 
 pub fn icon_value_gap(config: &Config) -> f32 {
-    config.panel_bar.widget_spacing_px / 2.0
+    config.layout.panel.widget_spacing / 2.0
 }
 
 pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {

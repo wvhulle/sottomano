@@ -412,7 +412,7 @@ impl SliderControl {
         .padding(0)
         .style(flat_button(config.theme.palette.bar_foreground))
         .on_press(ControlMessage::Press);
-        let gap = config.panel_bar.widget_spacing_px;
+        let gap = config.layout.panel.widget_spacing;
         let revealed = Row::with_children([slider, readout.into()])
             .spacing(gap)
             .align_y(Alignment::Center);

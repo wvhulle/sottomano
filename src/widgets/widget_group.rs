@@ -270,7 +270,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
             Row::with_children(items.iter().filter_map(|item| item.view(config, reveal)))
-                .spacing(config.panel_bar.widget_spacing_px)
+                .spacing(config.layout.panel.widget_spacing)
                 .align_y(Alignment::Center)
                 .into()
         };
@@ -339,7 +339,7 @@ struct EdgeIndicator {
 
 impl EdgeIndicator {
     fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
-        let thickness = config.panel_bar.indicator_thickness_px;
+        let thickness = config.panel_bar.indicator_thickness;
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
@@ -384,6 +384,6 @@ fn revealed_content<'a, Message: 'a>(
     reveal: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let gap = config.panel_bar.widget_spacing_px;
+    let gap = config.layout.panel.widget_spacing;
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }

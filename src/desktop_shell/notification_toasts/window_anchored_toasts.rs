@@ -46,7 +46,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 ids: Vec::new(),
                 anchors: Vec::new(),
                 cards: Vec::new(),
-                card_width_px: card.width_px,
+                card_width_px: card.width,
                 motion: card.motion,
                 placement: config.notification_toasts.placement.clone(),
                 revealing: false,

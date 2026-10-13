@@ -275,7 +275,7 @@ fn window_button<'a>(
     let rule = win.app_rule();
     let content = button_content(config, icons, rule, win, extras, opacity);
     let indicator = indicator_line(config, win, extras, opacity);
-    let slot = PagerSlot::new(content, indicator).spaced_by(config.panel_bar.group_spacing_px);
+    let slot = PagerSlot::new(content, indicator).spaced_by(config.layout.panel.group_spacing);
     let slot = match progress_ticks(config, extras, opacity) {
         Some(ticks) => slot.ticks(ticks),
         None => slot,
@@ -335,7 +335,7 @@ fn button_content<'a>(
         .extend(icon)
         .push(title)
         .extend(audio_glyph(config, extras, opacity))
-        .spacing(config.panel_bar.widget_spacing_px)
+        .spacing(config.layout.panel.widget_spacing)
         .align_y(Alignment::Center)
         .into()
 }
@@ -373,7 +373,7 @@ fn indicator_line<'a>(
     activity_line(
         config.theme.palette.urgent,
         severity * opacity,
-        config.panel_bar.indicator_thickness_px,
+        config.panel_bar.indicator_thickness,
     )
 }
 
@@ -383,7 +383,7 @@ fn progress_ticks<'a>(
     opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
     let fraction = extras.progress(config)?;
-    let thickness = config.panel_bar.indicator_thickness_px;
+    let thickness = config.panel_bar.indicator_thickness;
     let filled = config.theme.palette.warning.scale_alpha(opacity);
     let track = config.theme.palette.dim.scale_alpha(opacity);
     Some(
@@ -420,7 +420,7 @@ fn count_badge<'a>(
             .font(config.theme.font.iced_font)
             .color(foreground),
     )
-    .padding([0.0, config.panel_bar.widget_spacing_px])
+    .padding([0.0, config.layout.panel.widget_spacing])
     .style(move |_| container::Style {
         background: Some(background.into()),
         border: iced::Border {

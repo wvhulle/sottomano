@@ -35,8 +35,6 @@ use crate::{
     },
 };
 
-const PADDING_PX: f32 = 10.0;
-const COLUMN_SPACING: f32 = 4.0;
 const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
 const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
@@ -194,8 +192,8 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
         body_row = body_row.push(card.column(text));
 
         let framed_card = container(body_row)
-            .width(Length::Fixed(card.config.notification_toasts.card.width_px))
-            .padding(PADDING_PX)
+            .width(Length::Fixed(card.config.notification_toasts.card.width))
+            .padding(card.config.layout.overlay.content_inset)
             .style(move |_| style);
 
         mouse_area(framed_card)
@@ -275,7 +273,7 @@ impl ToastCard<'_> {
                 }
             }),
         )
-        .spacing(COLUMN_SPACING)
+        .spacing(self.config.layout.overlay.row_spacing)
         .width(Length::Fill)
     }
 
@@ -327,7 +325,9 @@ impl ToastCard<'_> {
             title = title.push(time);
         }
 
-        let mut column = Column::new().spacing(COLUMN_SPACING).push(title);
+        let mut column = Column::new()
+            .spacing(self.config.layout.overlay.row_spacing)
+            .push(title);
         if let Some(body) = &body_text {
             let body = Row::new()
                 .spacing(ROW_SPACING)
@@ -344,7 +344,7 @@ impl ToastCard<'_> {
                 self.config
                     .notification_toasts
                     .card
-                    .image_preview_max_height_px,
+                    .image_preview_max_height,
                 self.reveal,
                 text,
             ));
@@ -500,23 +500,18 @@ fn icon_slot<'a>(
         return icons
             .badge
             .as_ref()
-            .map(|badge| icon_widget(badge, card_size.icon_size_px, reveal, text));
+            .map(|badge| icon_widget(badge, card_size.icon_size, reveal, text));
     };
-    let main_size = card_size.icon_size_px;
+    let main_size = card_size.icon_size;
     let main = icon_widget(image, main_size, reveal, text);
     let Some(badge) = &icons.badge else {
         return Some(main);
     };
-    let overlay = container(icon_widget(
-        badge,
-        card_size.app_badge_size_px,
-        reveal,
-        text,
-    ))
-    .width(main_size)
-    .height(main_size)
-    .align_x(Alignment::Start)
-    .align_y(Alignment::Start);
+    let overlay = container(icon_widget(badge, card_size.app_badge_size, reveal, text))
+        .width(main_size)
+        .height(main_size)
+        .align_x(Alignment::Start)
+        .align_y(Alignment::Start);
     Some(iced::widget::stack![main, overlay].clip(true).into())
 }
 

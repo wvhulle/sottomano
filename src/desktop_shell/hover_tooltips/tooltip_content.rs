@@ -42,20 +42,6 @@ use crate::{
     },
 };
 
-const CONTENT_INSET_PX: f32 = 10.0;
-const CONTENT_INSET: Padding = Padding {
-    top: 0.0,
-    right: CONTENT_INSET_PX,
-    bottom: 0.0,
-    left: CONTENT_INSET_PX,
-};
-const SHELL_PADDING: Padding = Padding {
-    top: CONTENT_INSET_PX,
-    right: 0.0,
-    bottom: CONTENT_INSET_PX,
-    left: 0.0,
-};
-const ROW_SPACING_PX: f32 = 3.0;
 const COLUMN_GAP_PX: f32 = 14.0;
 const FOOTER_GAP_PX: f32 = 6.0;
 const SECTION_GAP_PX: f32 = 8.0;
@@ -67,9 +53,9 @@ const DIM_ALPHA: f32 = 0.7;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
-    right: 6.0 + CONTENT_INSET_PX,
+    right: 6.0,
     bottom: 2.0,
-    left: 6.0 + CONTENT_INSET_PX,
+    left: 6.0,
 };
 
 #[derive(Clone, Copy)]
@@ -122,8 +108,31 @@ impl<'a> TooltipContent<'a> {
             uniform_width_column(press_hint.into_iter().chain([self.grid()]))
                 .spacing(FOOTER_GAP_PX),
         )
-        .padding(SHELL_PADDING)
+        .padding(self.shell_padding())
         .into()
+    }
+
+    fn content_inset(&self) -> Padding {
+        let inset = self.config.layout.overlay.content_inset;
+        Padding::ZERO.left(inset).right(inset)
+    }
+
+    fn shell_padding(&self) -> Padding {
+        let inset = self.config.layout.overlay.content_inset;
+        Padding::ZERO.top(inset).bottom(inset)
+    }
+
+    fn footer_padding(&self) -> Padding {
+        let inset = self.config.layout.overlay.content_inset;
+        Padding {
+            left: FOOTER_PADDING.left + inset,
+            right: FOOTER_PADDING.right + inset,
+            ..FOOTER_PADDING
+        }
+    }
+
+    fn inset(&self, content: Element<'static, Message>) -> Element<'static, Message> {
+        container(content).padding(self.content_inset()).into()
     }
 
     fn gesture_hints(&self, gestures: &[GestureHint]) -> Element<'static, Message> {
@@ -141,7 +150,7 @@ impl<'a> TooltipContent<'a> {
             }))
             .spacing(COLUMN_GAP_PX),
         )
-        .padding(FOOTER_PADDING)
+        .padding(self.footer_padding())
         .into()
     }
 
@@ -210,8 +219,8 @@ impl<'a> TooltipContent<'a> {
         match &self.tooltip.body {
             SourcedBody::Sections(sections) => self.sections(sections),
             SourcedBody::Whole { body, freshness } => {
-                Column::with_children([self.whole(body), inset(self.freshness(*freshness))])
-                    .spacing(ROW_SPACING_PX)
+                Column::with_children([self.whole(body), self.inset(self.freshness(*freshness))])
+                    .spacing(self.config.layout.overlay.row_spacing)
                     .into()
             }
         }
@@ -219,11 +228,11 @@ impl<'a> TooltipContent<'a> {
 
     fn whole(&self, body: &WholeBody) -> Element<'static, Message> {
         match body {
-            WholeBody::Workspace(preview) => inset(
+            WholeBody::Workspace(preview) => self.inset(
                 WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.favicons)
                     .view(),
             ),
-            WholeBody::Text { title, body } => inset(self.text(title, body.as_deref())),
+            WholeBody::Text { title, body } => self.inset(self.text(title, body.as_deref())),
             WholeBody::TrayMenu(menu) => self.tray_menu(menu),
         }
     }
@@ -233,7 +242,6 @@ impl<'a> TooltipContent<'a> {
         let menu_path = menu.menu_path.clone();
         let entries = context_menu(
             self.config,
-            self.corner_radius,
             &menu.nodes,
             &menu.open_submenus,
             &move |id| {
@@ -249,7 +257,7 @@ impl<'a> TooltipContent<'a> {
             .spacing(SECTION_GAP_PX)
             .push(
                 container(self.text(&menu.title, menu.body.as_deref()))
-                    .padding(CONTENT_INSET)
+                    .padding(self.content_inset())
                     .width(TRAY_MENU_WIDTH_PX),
             )
             .push(container(entries).width(TRAY_MENU_WIDTH_PX))
@@ -263,7 +271,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn text(&self, title: &str, body: Option<&str>) -> Element<'static, Message> {
-        let max_width = self.config.tooltips.value_width_px;
+        let max_width = self.config.tooltips.value_width;
         let title = container(self.bold_title(title)).max_width(max_width);
         let body = body.map(|body| {
             cell(
@@ -275,7 +283,7 @@ impl<'a> TooltipContent<'a> {
         });
 
         Column::with_children(once(title).chain(body).map(Element::from))
-            .spacing(ROW_SPACING_PX)
+            .spacing(self.config.layout.overlay.row_spacing)
             .into()
     }
 
@@ -320,19 +328,19 @@ impl<'a> TooltipContent<'a> {
         });
         let caption = section.caption().map(|caption| {
             container(self.small_dim_text(caption.to_owned()))
-                .max_width(self.config.tooltips.caption_width_px)
+                .max_width(self.config.tooltips.caption_width)
                 .padding(title_padding)
                 .into()
         });
 
-        inset(
+        self.inset(
             Column::with_children(
                 title
                     .into_iter()
                     .chain(caption)
                     .chain([self.body(section.body()), freshness]),
             )
-            .spacing(ROW_SPACING_PX)
+            .spacing(self.config.layout.overlay.row_spacing)
             .into(),
         )
     }
@@ -350,7 +358,7 @@ impl<'a> TooltipContent<'a> {
     fn cell_view(&self) -> CellView {
         CellView {
             font: self.config.theme.monospace_font.clone(),
-            max_width: self.config.tooltips.value_width_px,
+            max_width: self.config.tooltips.value_width,
             locale: self.config.calendar.locale,
             flash: self.flash(),
             link: self.config.theme.palette.info,
@@ -415,7 +423,7 @@ impl<'a> TooltipContent<'a> {
         table::table(once(key_column).chain(values), entries.iter().cloned())
             .separator(0.0)
             .padding_x(COLUMN_GAP_PX / 2.0)
-            .padding_y(ROW_SPACING_PX / 2.0)
+            .padding_y(self.config.layout.overlay.row_spacing / 2.0)
             .into()
     }
 
@@ -548,10 +556,6 @@ fn cell(
     max_width: f32,
 ) -> Container<'static, Message> {
     container(bar_text(font, text).color(color)).max_width(max_width)
-}
-
-fn inset(content: Element<'static, Message>) -> Element<'static, Message> {
-    container(content).padding(CONTENT_INSET).into()
 }
 
 fn whole_seconds_between(at: SystemTime, now: SystemTime) -> humantime::FormattedDuration {

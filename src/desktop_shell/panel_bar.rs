@@ -20,16 +20,16 @@ impl DesktopShell {
         center: impl IntoIterator<Item = Option<Element<'a, Message>>>,
         end: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
-        let spacing = &self.config.panel_bar;
+        let spacing = &self.config.layout.panel;
         let clusters = row![
             self.group_cluster(position, start),
             container(self.group_cluster(position, center)).center_x(Length::Fill),
             self.group_cluster(position, end),
         ]
-        .spacing(spacing.group_spacing_px)
+        .spacing(spacing.group_spacing)
         .height(Length::Fill)
         .align_y(Alignment::Center)
-        .padding([0.0, spacing.group_padding_px]);
+        .padding([0.0, spacing.group_padding]);
         self.bar_band(position, clusters)
     }
 
@@ -61,7 +61,7 @@ impl DesktopShell {
         let strip = panel_frame(
             container(centered)
                 .width(Length::Fill)
-                .height(Length::Fixed(self.config.panel_bar.height_px)),
+                .height(Length::Fixed(self.config.layout.panel.height)),
             &band_style,
         )
         .outlined_sides(outlined_sides);
@@ -89,11 +89,11 @@ impl DesktopShell {
             }
             panel_frame(
                 container(group)
-                    .height(Length::Fixed(config.panel_bar.height_px))
+                    .height(Length::Fixed(config.layout.panel.height))
                     .align_y(Vertical::Center)
                     .padding([
                         0.0,
-                        panels.frame_corner_inset() + config.panel_bar.group_padding_px,
+                        panels.frame_corner_inset() + config.layout.panel.group_padding,
                     ]),
                 &frame_style,
             )
@@ -101,9 +101,9 @@ impl DesktopShell {
             .into()
         });
         let spacing = if groups_disconnected {
-            config.panel_bar.widget_spacing_px
+            config.layout.panel.widget_spacing
         } else {
-            config.panel_bar.group_spacing_px
+            config.layout.panel.group_spacing
         };
         let cluster = Row::with_children(framed)
             .spacing(spacing)
