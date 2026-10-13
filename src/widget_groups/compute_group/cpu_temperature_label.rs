@@ -17,7 +17,7 @@ use crate::{
         ongoing_toast::OngoingBody,
         phosphor::Phosphor,
         temperature_thresholds::celsius_text,
-        tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -146,7 +146,7 @@ impl CpuCoreTemperatures {
         sections_by_core_kind(
             topology,
             self.cores.clone(),
-            ["Temp", "Limit"],
+            [ColumnHeading::new("Temp"), ColumnHeading::new("Limit")],
             CoreTemperature::table_record,
         )
     }

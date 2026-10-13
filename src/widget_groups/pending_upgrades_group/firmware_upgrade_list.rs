@@ -1,3 +1,5 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     config::Config,
     data::{
@@ -17,7 +19,7 @@ use crate::{
         localized_time::TimePart,
         ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -92,12 +94,12 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                "Vendor",
-                "Installed",
-                "Offered",
-                "Released",
-                "Urgency",
-                "Summary",
+                ColumnHeading::new("Vendor").align_x(Horizontal::Left),
+                ColumnHeading::new("Installed"),
+                ColumnHeading::new("Offered"),
+                ColumnHeading::new("Released"),
+                ColumnHeading::new("Urgency").align_x(Horizontal::Left),
+                ColumnHeading::new("Summary").align_x(Horizontal::Left),
             ],
             self.iter().map(FirmwareUpgrade::table_record),
         )

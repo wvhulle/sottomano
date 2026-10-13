@@ -1,3 +1,5 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     config::Config,
     data::source::oom_kills::{OomKillEntry, OomKiller},
@@ -10,7 +12,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -85,7 +87,10 @@ impl BarWidget for Vec<OomKillEntry> {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
-            ["Unit", "Killed by"],
+            [
+                ColumnHeading::new("Unit").align_x(Horizontal::Left),
+                ColumnHeading::new("Killed by").align_x(Horizontal::Left),
+            ],
             self.iter().map(OomKillEntry::table_record),
         )
         .titled((

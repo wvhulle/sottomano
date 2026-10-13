@@ -1,6 +1,7 @@
 use std::{borrow::Cow, cmp::Reverse, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale};
+use iced::alignment::Horizontal;
 
 use crate::{
     config::Config,
@@ -22,7 +23,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::TimePart,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
-        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -140,7 +141,10 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
         TooltipBody::sections([Section::column_table(
-            ["Reason", "Failed"],
+            [
+                ColumnHeading::new("Reason").align_x(Horizontal::Left),
+                ColumnHeading::new("Failed"),
+            ],
             units.iter().map(FailedUnitInfo::table_record),
         )
         .titled((

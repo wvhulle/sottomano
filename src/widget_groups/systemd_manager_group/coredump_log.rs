@@ -1,3 +1,5 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     config::Config,
     data::{
@@ -14,7 +16,7 @@ use crate::{
         localized_time::TimePart,
         ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -135,7 +137,12 @@ impl BarWidget for Vec<CoredumpEntry> {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
-            ["Process", "Signal", "PID", "Unit"],
+            [
+                ColumnHeading::new("Process").align_x(Horizontal::Left),
+                ColumnHeading::new("Signal").align_x(Horizontal::Left),
+                ColumnHeading::new("PID"),
+                ColumnHeading::new("Unit").align_x(Horizontal::Left),
+            ],
             self.iter().map(CoredumpEntry::table_record),
         )
         .titled((

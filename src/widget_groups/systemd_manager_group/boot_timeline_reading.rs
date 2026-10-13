@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use iced::alignment::Horizontal;
+
 use crate::{
     data::source::systemd_manager::boot_timeline::{
         BootPhase, BootTimeline, RankedActivations, UnitActivation,
@@ -8,7 +10,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -84,7 +86,10 @@ impl BarWidget for BootTimeline {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
-            ["Took", "Meaning"],
+            [
+                ColumnHeading::new("Took"),
+                ColumnHeading::new("Meaning").align_x(Horizontal::Left),
+            ],
             self.timeline_records(),
         )])
     }

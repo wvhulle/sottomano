@@ -34,8 +34,8 @@ use crate::{
         refresh_dial::RefreshDial,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, Freshness, KeyValue, Readiness, RecordCells, Section, SectionBody, SourcedBody,
-            SourcedSection, Tooltip, TrayMenuBody, WholeBody,
+            Cell, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells, Section, SectionBody,
+            SourcedBody, SourcedSection, Tooltip, TrayMenuBody, WholeBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -279,6 +279,7 @@ impl<'a> TooltipContent<'a> {
                 body.to_owned(),
                 self.dim(),
                 max_width,
+                Wrapping::default(),
             )
         });
 
@@ -359,6 +360,7 @@ impl<'a> TooltipContent<'a> {
         CellView {
             font: self.config.theme.monospace_font.clone(),
             max_width: self.config.tooltips.value_width,
+            wrapping: Wrapping::default(),
             locale: self.config.calendar.locale,
             flash: self.flash(),
             link: self.config.theme.palette.info,
@@ -385,7 +387,7 @@ impl<'a> TooltipContent<'a> {
 
     fn column_table(
         &self,
-        headings: &[String],
+        headings: &[ColumnHeading],
         records: &[RecordCells],
     ) -> Element<'static, Message> {
         let heading_color = self.config.theme.palette.inactive;
@@ -394,10 +396,9 @@ impl<'a> TooltipContent<'a> {
             records,
             RecordCells::key,
             headings.iter().enumerate().map(|(position, heading)| {
-                let heading =
-                    column_heading(&self.config.theme.font, heading.clone(), heading_color);
-                self.record_column(position, heading.into())
-                    .align_x(Horizontal::Right)
+                let label = column_heading(&self.config.theme.font, heading.label(), heading_color);
+                self.record_column(position, label.into())
+                    .align_x(heading.alignment())
             }),
         )
     }
@@ -411,6 +412,7 @@ impl<'a> TooltipContent<'a> {
         let dim = self.dim();
         let label_view = CellView {
             font: self.config.theme.font.clone(),
+            wrapping: Wrapping::None,
             transition: self.transition(TextPresence::Shown),
             ..self.cell_view()
         };
@@ -452,6 +454,7 @@ impl<'a> TooltipContent<'a> {
 struct CellView {
     font: ResolvedFont,
     max_width: f32,
+    wrapping: Wrapping,
     locale: Locale,
     flash: Color,
     link: Color,
@@ -478,7 +481,13 @@ impl CellView {
 
     fn text(&self, text: String, color: Color, row: &Cell) -> Element<'static, Message> {
         TransitioningText::new(
-            cell(&self.font, text.clone(), color, self.max_width),
+            cell(
+                &self.font,
+                text.clone(),
+                color,
+                self.max_width,
+                self.wrapping,
+            ),
             text,
             self.transition,
             &self.font,
@@ -556,8 +565,9 @@ fn cell(
     text: String,
     color: Color,
     max_width: f32,
+    wrapping: Wrapping,
 ) -> Container<'static, Message> {
-    container(bar_text(font, text).color(color)).max_width(max_width)
+    container(bar_text(font, text).color(color).wrapping(wrapping)).max_width(max_width)
 }
 
 fn whole_seconds_between(at: SystemTime, now: SystemTime) -> humantime::FormattedDuration {

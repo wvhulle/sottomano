@@ -1,3 +1,5 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     config::Config,
     data::{severity::Severity, source::kernel_errors::KernelOccurrence},
@@ -12,7 +14,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -42,17 +44,20 @@ impl Occasional for Vec<KernelOccurrence> {
 }
 
 impl KernelOccurrence {
-    fn key_value(&self) -> KeyValue {
+    fn table_record(&self) -> TableRecord<2> {
         let message: String = self.message.chars().take(MESSAGE_CAP).collect();
-        let text = match self.count {
-            1 => message,
-            count => format!("{message} ×{count}"),
-        };
         let at = Cell::Time {
             at: self.latest.into(),
             part: TimePart::TimeOfDay,
         };
-        KeyValue::new(at, text).level(self.severity)
+        TableRecord::new(
+            at,
+            [
+                Some(Cell::Hint(self.count.to_string())),
+                Some(message.into()),
+            ],
+        )
+        .level(self.severity)
     }
 }
 
@@ -83,12 +88,20 @@ impl BarWidget for Vec<KernelOccurrence> {
 
     fn tooltip(&self) -> TooltipBody {
         let hidden = self.len().saturating_sub(TOOLTIP_ROWS);
-        let hidden_notice =
-            (hidden > 0).then(|| KeyValue::new("", format!("{hidden} earlier not shown")));
-        TooltipBody::sections([Section::dictionary(
+        let hidden_notice = (hidden > 0).then(|| {
+            TableRecord::new(
+                "",
+                [None, Some(format!("{hidden} earlier not shown").into())],
+            )
+        });
+        TooltipBody::sections([Section::column_table(
+            [
+                ColumnHeading::new("Count"),
+                ColumnHeading::new("Message").align_x(Horizontal::Left),
+            ],
             hidden_notice
                 .into_iter()
-                .chain(self[hidden..].iter().map(KernelOccurrence::key_value)),
+                .chain(self[hidden..].iter().map(KernelOccurrence::table_record)),
         )
         .titled((
             "Kernel log",
@@ -122,10 +135,13 @@ mod tests {
         let TooltipBody::Sections(sections) = errors.tooltip() else {
             panic!("expected sections");
         };
-        let SectionBody::Dictionary(entries) = sections[0].body() else {
-            panic!("expected dictionary");
+        let SectionBody::ColumnTable { records, .. } = sections[0].body() else {
+            panic!("expected column table");
         };
-        let values: Vec<Cell> = entries.iter().map(|entry| entry.value().clone()).collect();
+        let values: Vec<Cell> = records
+            .iter()
+            .filter_map(|record| record.cell(1).cloned())
+            .collect();
         let expected: Vec<Cell> = once("2 earlier not shown".to_string())
             .chain((2..17).map(|secs| format!("message {secs}")))
             .map(Cell::from)

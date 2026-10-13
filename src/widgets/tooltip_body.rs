@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use iced::Size;
+use iced::{Size, alignment::Horizontal};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
@@ -127,11 +127,39 @@ impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ColumnHeading {
+    label: &'static str,
+    align_x: Horizontal,
+}
+
+impl ColumnHeading {
+    pub const fn new(label: &'static str) -> Self {
+        Self {
+            label,
+            align_x: Horizontal::Right,
+        }
+    }
+
+    #[must_use]
+    pub const fn align_x(self, align_x: Horizontal) -> Self {
+        Self { align_x, ..self }
+    }
+
+    pub fn label(&self) -> &'static str {
+        self.label
+    }
+
+    pub fn alignment(&self) -> Horizontal {
+        self.align_x
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
     Dictionary(Vec<KeyValue>),
     ColumnTable {
-        headings: Vec<String>,
+        headings: Vec<ColumnHeading>,
         records: Vec<RecordCells>,
     },
     Tree {
@@ -142,11 +170,11 @@ pub enum SectionBody {
 
 impl SectionBody {
     fn column_table<const COLUMNS: usize>(
-        headings: [&str; COLUMNS],
+        headings: [ColumnHeading; COLUMNS],
         records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
     ) -> Self {
         SectionBody::ColumnTable {
-            headings: headings.map(str::to_owned).into(),
+            headings: headings.into(),
             records: records.into_iter().map(RecordCells::from).collect(),
         }
     }
@@ -249,7 +277,7 @@ impl Section {
     }
 
     pub fn column_table<const COLUMNS: usize>(
-        headings: [&str; COLUMNS],
+        headings: [ColumnHeading; COLUMNS],
         records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
     ) -> Self {
         Self::untitled(SectionBody::column_table(headings, records))
@@ -498,9 +526,13 @@ mod tests {
             },
         ];
         assert_eq!(
-            Section::column_table(["Moons", ""], planets.iter().map(Planet::table_record)).body(),
+            Section::column_table(
+                [ColumnHeading::new("Moons"), ColumnHeading::new("")],
+                planets.iter().map(Planet::table_record)
+            )
+            .body(),
             &SectionBody::ColumnTable {
-                headings: vec!["Moons".to_string(), String::new()],
+                headings: vec![ColumnHeading::new("Moons"), ColumnHeading::new("")],
                 records: vec![
                     TableRecord::new("Mars", [Some("2".into()), None]).into(),
                     TableRecord::new("Venus", [Some("0".into()), None])

@@ -15,7 +15,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -89,7 +89,7 @@ impl CpuClock {
         sections_by_core_kind(
             topology,
             self.cores.clone(),
-            ["Clock", "Cap"],
+            [ColumnHeading::new("Clock"), ColumnHeading::new("Cap")],
             CoreFreq::table_record,
         )
     }
