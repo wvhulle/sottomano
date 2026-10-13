@@ -197,10 +197,13 @@ impl BarWidget for Article {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([
-            Section::dictionary([
-                KeyValue::new("Article", self.title.as_str()),
-                KeyValue::new("Link", Cell::Link(self.url.clone())),
-            ])
+            Section::dictionary([KeyValue::new(
+                "Article",
+                Cell::Link {
+                    label: self.title.clone(),
+                    url: self.url.clone(),
+                },
+            )])
             .titled("Wikipedia"),
             Section::dictionary(
                 self.summary
@@ -233,7 +236,13 @@ impl BarWidget for Photo {
                     self.photographer
                         .as_deref()
                         .map(|photographer| KeyValue::new("Photographer", photographer)),
-                    Some(KeyValue::new("Unsplash", Cell::Link(self.url.clone()))),
+                    Some(KeyValue::new(
+                        "Unsplash",
+                        Cell::Link {
+                            label: "photo page".to_owned(),
+                            url: self.url.clone(),
+                        },
+                    )),
                 ]
                 .into_iter()
                 .flatten(),

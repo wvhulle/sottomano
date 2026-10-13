@@ -10,6 +10,7 @@ const HASH_LEN: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorePackage {
+    pub root: PathBuf,
     pub name: String,
     pub version: Option<String>,
 }
@@ -23,12 +24,15 @@ impl StorePackage {
                     .bytes()
                     .all(|byte| byte.is_ascii_alphanumeric())
         })?;
+        let root = Path::new(STORE).join(derivation);
         Some(match version_start(named) {
             Some(start) => Self {
+                root,
                 name: named[..start].to_owned(),
                 version: Some(named[start + 1..].to_owned()),
             },
             None => Self {
+                root,
                 name: named.to_owned(),
                 version: None,
             },
@@ -57,6 +61,12 @@ fn derivation(path: &str) -> Option<&str> {
         .split('/')
         .next()
         .filter(|root| !root.is_empty())
+}
+
+pub fn below_derivation(path: &str) -> Option<&str> {
+    path.strip_prefix(STORE)?
+        .split_once('/')
+        .map(|(_, below)| below)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -182,15 +192,29 @@ fn command_name(exe: &Path) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn found(path: &str) -> Option<StorePackage> {
-        package(Path::new(path))
+    fn found(path: &str) -> Option<(String, Option<String>)> {
+        package(Path::new(path)).map(|found| (found.name, found.version))
     }
 
-    fn store(name: &str, version: Option<&str>) -> StorePackage {
-        StorePackage {
-            name: name.to_owned(),
-            version: version.map(str::to_owned),
-        }
+    fn store(name: &str, version: Option<&str>) -> (String, Option<String>) {
+        (name.to_owned(), version.map(str::to_owned))
+    }
+
+    #[test]
+    fn package_root_is_the_store_entry_without_the_inner_path() {
+        let found = package(Path::new(
+            "/nix/store/pbsm8dv4d5nhdmdr494ibwsq393cvka2-kitty-0.48.2/bin/.kitty-wrapped",
+        ));
+        assert_eq!(
+            found.map(|found| found.root),
+            Some(PathBuf::from(
+                "/nix/store/pbsm8dv4d5nhdmdr494ibwsq393cvka2-kitty-0.48.2"
+            ))
+        );
+        assert_eq!(
+            below_derivation("/nix/store/abc-source/pkgs/by-name/ki/kitty/package.nix"),
+            Some("pkgs/by-name/ki/kitty/package.nix")
+        );
     }
 
     #[test]

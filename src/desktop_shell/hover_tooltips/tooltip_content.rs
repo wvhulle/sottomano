@@ -328,7 +328,7 @@ impl<'a> TooltipContent<'a> {
         });
         let caption = section.caption().map(|caption| {
             container(self.small_dim_text(caption.to_owned()))
-                .max_width(self.config.tooltips.caption_width)
+                .max_width(self.config.tooltips.value_width)
                 .padding(title_padding)
                 .into()
         });
@@ -465,7 +465,9 @@ impl CellView {
         let row = key.clone();
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) | Cell::Link(text) => self.copyable_text(text, color, &row),
+            Cell::Text(text) | Cell::Link { label: text, .. } => {
+                self.copyable_text(text, color, &row)
+            }
             Cell::Path(path) => self.path(&path, color, &row),
             Cell::Hint(text) => self.text(text, self.hint, &row),
             Cell::Time { at, part } => {
@@ -512,13 +514,13 @@ impl CellView {
             Cell::Time { at, part } => {
                 self.copyable_text(part.format(&at, self.locale), color, row)
             }
-            Cell::Link(url) => self.openable_link(url, row),
+            Cell::Link { label, url } => self.openable_link(label, url, row),
             Cell::Hint(text) => self.text(text, self.hint, row),
         }
     }
 
-    fn openable_link(&self, url: String, row: &Cell) -> Element<'static, Message> {
-        let value = self.text(url.clone(), self.link, row);
+    fn openable_link(&self, label: String, url: String, row: &Cell) -> Element<'static, Message> {
+        let value = self.text(label, self.link, row);
         pressable_text(
             value,
             url,

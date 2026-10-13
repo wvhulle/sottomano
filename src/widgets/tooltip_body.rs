@@ -24,7 +24,7 @@ pub enum Cell {
     Path(PathBuf),
     Glyph(Glyph),
     Time { at: DateTime<Utc>, part: TimePart },
-    Link(String),
+    Link { label: String, url: String },
     Hint(String),
 }
 

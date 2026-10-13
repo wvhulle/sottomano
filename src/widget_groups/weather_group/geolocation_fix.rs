@@ -125,10 +125,19 @@ fn estimate_section(estimate: Option<&Estimate>) -> Section {
 }
 
 fn map_section(position: Position) -> Section {
-    Section::dictionary(
-        MapService::ALL
-            .map(|service| KeyValue::new(service.name(), Cell::Link(service.url(position)))),
-    )
+    let Position {
+        latitude,
+        longitude,
+    } = position;
+    Section::dictionary(MapService::ALL.map(|service| {
+        KeyValue::new(
+            service.name(),
+            Cell::Link {
+                label: format!("{latitude:.5}, {longitude:.5}"),
+                url: service.url(position),
+            },
+        )
+    }))
     .titled("Map")
 }
 

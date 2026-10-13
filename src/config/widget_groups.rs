@@ -27,6 +27,7 @@ pub struct WindowListConfig {
     pub audio_indicator: bool,
     pub progress: bool,
     pub count_badge: bool,
+    pub nixpkgs_branch: String,
     pub agents: WindowAgentsConfig,
 }
 
@@ -36,6 +37,7 @@ impl Default for WindowListConfig {
             audio_indicator: true,
             progress: true,
             count_badge: true,
+            nixpkgs_branch: "nixpkgs-unstable".to_owned(),
             agents: WindowAgentsConfig::default(),
         }
     }
