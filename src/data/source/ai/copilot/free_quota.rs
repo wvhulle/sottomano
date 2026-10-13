@@ -1,9 +1,10 @@
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Utc};
+use iced::futures::Stream;
 
-use super::{Error, USER_POLL_INTERVAL, UserInfo, user_info};
-use crate::data::source::Source;
+use super::{Error, USER_POLL_INTERVAL, UserInfo, plan_polls, user_info};
+use crate::data::source::{Delivery, PolledSource, Source};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
@@ -18,10 +19,13 @@ impl Source for CopilotFree {
     type Key = PathBuf;
 
     const NAME: &'static str = "copilot-usage-free";
+}
+
+impl PolledSource for CopilotFree {
     const INTERVAL: Duration = USER_POLL_INTERVAL;
 
-    async fn available(key: &PathBuf) -> bool {
-        user_info(key).await.is_ok_and(|info| info.free_plan())
+    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
+        plan_polls::<Self>(key, UserInfo::free_plan)
     }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {

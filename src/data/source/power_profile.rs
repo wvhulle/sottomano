@@ -1,13 +1,18 @@
-use std::time::Duration;
+use std::{convert::Infallible, time::Duration};
 
 use iced::futures::{Stream, StreamExt};
-use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    data::source::{Source, blocking_poll, sysfs_sensors},
+    data::source::{
+        Delivery, LiveSource, PolledSource, Source, blocking_poll,
+        bus::{Bus, name_owned},
+        delivered, present_or_absent, sysfs_sensors, ticked_polls,
+    },
     message_subscriptions::restarting,
 };
+
+const DAEMON_SERVICE: &str = "net.hadess.PowerProfiles";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Profile {
@@ -114,25 +119,38 @@ impl Conditions {
 
 impl Source for Conditions {
     type Error = sysfs_sensors::Error;
-
     type Key = ();
 
     const NAME: &'static str = "power-conditions";
+}
+
+impl PolledSource for Conditions {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
         blocking_poll(|| Ok(Conditions::current())).await
     }
+
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
+    }
 }
 
-pub async fn available() -> bool {
-    spawn_blocking(|| daemon().is_some_and(|daemon| daemon.active_profile().is_ok()))
-        .await
-        .unwrap_or(false)
+impl Source for Profile {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "power profile";
 }
 
-pub fn active_profiles() -> impl Stream<Item = Profile> + Send {
-    restarting("power profiles", active_profile_changes)
+impl LiveSource for Profile {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), || {
+            delivered(restarting("power profiles", active_profile_changes).map(Ok)).boxed()
+        })
+    }
 }
 
 async fn active_profile_changes() -> zbus::Result<impl Stream<Item = Profile>> {

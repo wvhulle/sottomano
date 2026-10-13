@@ -8,14 +8,10 @@ use crate::{
         process::{self, Inspection, Launch},
     },
     desktop_shell::hover_tooltips::relative,
-    widgets::tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
+    widgets::tooltip_body::{Cell, KeyValue, Section, TooltipBody},
 };
 
-pub fn tooltip(
-    niri_state: &EventStreamState,
-    window: u64,
-    process_sections: &[Section],
-) -> Option<Tooltip> {
+pub fn body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBody> {
     let window = niri_state.windows.windows.get(&window)?;
     let window_entries = [
         window
@@ -34,13 +30,9 @@ pub fn tooltip(
             )
         }),
     ];
-    Some(Tooltip::of(TooltipBody::sections(
-        [
-            &[Section::dictionary(window_entries.into_iter().flatten())],
-            process_sections,
-        ]
-        .concat(),
-    )))
+    Some(TooltipBody::sections([Section::dictionary(
+        window_entries.into_iter().flatten(),
+    )]))
 }
 
 pub fn inspection_sections(inspected: &Inspection) -> Vec<Section> {

@@ -1,14 +1,16 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Local, Utc};
+use iced::futures::{Stream, StreamExt, stream};
 
 use super::Error;
 use crate::data::source::{
-    Source,
+    Delivery, PolledSource, Source,
     ai::{
         ccusage::{self, Agent, POLL_INTERVAL, Period, SpendBudget},
         quota::{Quota, QuotaLimited},
     },
+    present_or_absent, ticked_polls,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,10 +38,15 @@ impl Source for CopilotCcusage {
     type Key = SpendBudget;
 
     const NAME: &'static str = "copilot-usage-ccusage";
+}
+
+impl PolledSource for CopilotCcusage {
     const INTERVAL: Duration = POLL_INTERVAL;
 
-    async fn available(_budget: &SpendBudget) -> bool {
-        ccusage::installed().await
+    fn polls(budget: SpendBudget) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(stream::once(ccusage::installed()), move || {
+            ticked_polls::<Self>(budget.clone()).boxed()
+        })
     }
 
     async fn poll(budget: SpendBudget) -> Result<Self, Self::Error> {

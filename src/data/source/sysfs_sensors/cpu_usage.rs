@@ -6,7 +6,7 @@ use super::{
     Error, cpu_core_index,
     cpu_idle::{CoreDeepIdle, IdleSnapshot},
 };
-use crate::data::source::{Source, blocking_poll};
+use crate::data::source::{PolledSource, Source, blocking_poll};
 
 const CPU_STAT: &str = "/proc/stat";
 const SAMPLE_GAP: Duration = Duration::from_millis(200);
@@ -31,10 +31,12 @@ pub struct CpuCoreLoads {
 
 impl Source for CpuUsage {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "cpu";
+}
+
+impl PolledSource for CpuUsage {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
@@ -44,10 +46,12 @@ impl Source for CpuUsage {
 
 impl Source for CpuCoreLoads {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "cpu cores";
+}
+
+impl PolledSource for CpuCoreLoads {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

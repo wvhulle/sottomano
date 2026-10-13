@@ -3,16 +3,20 @@ use std::{
     path::PathBuf,
 };
 
-use iced::{Subscription, Task};
+use iced::{
+    Subscription, Task,
+    futures::{Stream, StreamExt, stream},
+};
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
     config::SecretPaths,
     data::source::{
-        command,
+        Delivery, LiveSource, Source, command, present_or_absent,
         wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
     },
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::{emit_changes, listening},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -53,6 +57,53 @@ impl Display for Failure {
             Failure::Query(error) => write!(f, "awww: {error}"),
             Failure::Resolve(error) => write!(f, "{error}"),
         }
+    }
+}
+
+impl Source for Lookup {
+    type Error = Failure;
+    type Key = PathBuf;
+
+    const NAME: &'static str = "wallpaper lookup";
+}
+
+impl LiveSource for Lookup {
+    fn events(unsplash_key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(stream::once(wallpaper::daemon_installed()), move || {
+            let unsplash_key = unsplash_key.clone();
+            emit_changes(wallpaper::displayed())
+                .flat_map(move |displayed| {
+                    let unsplash_key = unsplash_key.clone();
+                    match displayed {
+                        Err(failure) => {
+                            stream::iter([Delivery::Reading(Err(Failure::Query(failure)))]).boxed()
+                        }
+                        Ok(DisplayedWallpaper::NoImageFile) => {
+                            stream::iter([Delivery::Absent]).boxed()
+                        }
+                        Ok(DisplayedWallpaper::ImageFile(path)) => {
+                            match wallpaper::photo_id(&path) {
+                                None => stream::iter([Delivery::Absent]).boxed(),
+                                Some(id) => {
+                                    let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
+                                    let resolved = async move {
+                                        Delivery::Reading(
+                                            wallpaper::resolve(path, id, &unsplash_key)
+                                                .await
+                                                .map(|wallpaper| Lookup::of(&wallpaper))
+                                                .map_err(Failure::Resolve),
+                                        )
+                                    };
+                                    stream::iter([Delivery::Reading(Ok(unresolved))])
+                                        .chain(stream::once(resolved))
+                                        .boxed()
+                                }
+                            }
+                        }
+                    }
+                })
+                .boxed()
+        })
     }
 }
 
@@ -245,17 +296,13 @@ impl From<WallpaperTarget> for HoverTarget {
 
 pub struct WallpaperGroup {
     lookup: ContinuousReading<Lookup>,
-    shown: Option<DisplayedWallpaper>,
     unsplash_key: Option<PathBuf>,
-    wallpaper_daemon: bool,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum WallpaperMessage {
-    DaemonFound(bool),
-    Displayed(Result<DisplayedWallpaper, command::Error>),
-    Resolved(Box<Result<Wallpaper, wallpaper::Error>>),
+    Lookup(Box<Delivery<Lookup>>),
     Expansion(ExpansionMessage),
 }
 
@@ -267,65 +314,27 @@ impl WallpaperGroup {
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
             lookup: ContinuousReading::default(),
-            shown: None,
             unsplash_key: secrets.unsplash_access_key.clone(),
-            wallpaper_daemon: false,
             expansion: GroupExpansion::default(),
         }
     }
 
-    pub fn probe(&self) -> Task<WallpaperMessage> {
-        if self.unsplash_key.is_none() {
-            return Task::none();
-        }
-        Task::future(async { WallpaperMessage::DaemonFound(wallpaper::daemon_installed().await) })
-    }
-
     pub fn subscription(&self) -> Subscription<WallpaperMessage> {
-        if self.unsplash_key.is_none() || !self.wallpaper_daemon {
-            return Subscription::none();
+        match &self.unsplash_key {
+            Some(unsplash_key) => listening::<Lookup>(unsplash_key.clone())
+                .map(|reading| WallpaperMessage::Lookup(Box::new(reading))),
+            None => Subscription::none(),
         }
-        wallpaper::subscription().map(WallpaperMessage::Displayed)
     }
 
     pub fn update(&mut self, message: WallpaperMessage) -> Task<WallpaperMessage> {
         match message {
-            WallpaperMessage::DaemonFound(found) => self.wallpaper_daemon = found,
-            WallpaperMessage::Displayed(Ok(displayed)) => return self.follow(displayed),
-            WallpaperMessage::Displayed(Err(failure)) => {
-                self.lookup.push(Err(Failure::Query(failure)));
-            }
-            WallpaperMessage::Resolved(resolved) => {
-                self.lookup.push(
-                    (*resolved)
-                        .map(|wallpaper| Lookup::of(&wallpaper))
-                        .map_err(Failure::Resolve),
-                );
-            }
+            WallpaperMessage::Lookup(delivery) => self.lookup.push(*delivery),
             WallpaperMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
         }
         Task::none()
-    }
-
-    fn follow(&mut self, displayed: DisplayedWallpaper) -> Task<WallpaperMessage> {
-        if self.shown.as_ref() == Some(&displayed) {
-            return Task::none();
-        }
-        self.shown = Some(displayed.clone());
-        let DisplayedWallpaper::ImageFile(path) = displayed else {
-            self.lookup = ContinuousReading::default();
-            return Task::none();
-        };
-        let (Some(id), Some(key)) = (wallpaper::photo_id(&path), self.unsplash_key.clone()) else {
-            self.lookup = ContinuousReading::default();
-            return Task::none();
-        };
-        self.lookup
-            .load(Lookup::of(&wallpaper::unresolved(&path, &id)));
-        Task::future(async move { wallpaper::resolve(path, id, &key).await })
-            .map(|resolved| WallpaperMessage::Resolved(Box::new(resolved)))
     }
 
     pub fn tooltip_for(&self, target: WallpaperTarget) -> Option<Tooltip> {

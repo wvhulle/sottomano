@@ -5,9 +5,9 @@ mod service_error_log;
 
 use crate::{
     config::Config,
-    data::source::{kernel_errors::KernelOccurrence, service_errors::ServiceErrors},
+    data::source::{Delivery, kernel_errors::KernelOccurrence, service_errors::ServiceErrors},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::journal_subscription,
+    message_subscriptions::listening,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -44,8 +44,8 @@ pub struct JournalEventsGroup {
 
 #[derive(Debug, Clone)]
 pub enum JournalEventsMessage {
-    Kernel(Vec<KernelOccurrence>),
-    ServiceErrors(ServiceErrors),
+    Kernel(Delivery<Vec<KernelOccurrence>>),
+    ServiceErrors(Delivery<ServiceErrors>),
     OpenLog(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -57,18 +57,17 @@ impl JournalEventsGroup {
 
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            journal_subscription(
-                KernelOccurrence::merged_oldest_first,
-                JournalEventsMessage::Kernel,
-            ),
-            journal_subscription(ServiceErrors::from, JournalEventsMessage::ServiceErrors),
+            listening::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
+            listening::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
         ])
     }
 
     pub fn update(&mut self, msg: JournalEventsMessage) -> Task<JournalEventsMessage> {
         match msg {
-            JournalEventsMessage::Kernel(reading) => self.kernel.load(reading),
-            JournalEventsMessage::ServiceErrors(reading) => self.service_errors.load(reading),
+            JournalEventsMessage::Kernel(delivery) => self.kernel.push_or_keep(delivery),
+            JournalEventsMessage::ServiceErrors(delivery) => {
+                self.service_errors.push_or_keep(delivery);
+            }
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -81,7 +80,10 @@ impl JournalEventsGroup {
         match target {
             JournalTarget::Kernel => self.kernel.present_tooltip(),
             JournalTarget::ServiceErrors => self.service_errors.present_tooltip(),
-            JournalTarget::Events => Some(Tooltip::of(self.tooltip())),
+            JournalTarget::Events => self
+                .kernel
+                .tooltip_with(self.tooltip())
+                .or_else(|| self.service_errors.tooltip_with(self.tooltip())),
         }
     }
 

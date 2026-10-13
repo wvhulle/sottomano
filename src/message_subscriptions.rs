@@ -2,7 +2,6 @@ use std::{
     convert::identity,
     fmt::Display,
     future::{Future, ready},
-    pin::Pin,
     time::{Duration, SystemTime},
 };
 
@@ -30,19 +29,17 @@ use crate::{
             server,
         },
         sink::clipboard,
-        source::{
-            Source, desktop_entries,
-            journal::{JournalEvent, journal_events},
-            niri,
-        },
+        source::{Delivery, LiveSource, PolledSource, Source, desktop_entries, niri},
     },
     desktop_shell::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
         notification_toasts::NotificationMessage,
     },
     widget_groups::{
-        audio_group::AudioGroup, clock_group::ClockGroup, disk_group::DiskGroup,
-        journal_events_group::JournalEventsGroup, pending_upgrades_group::PendingUpgradesGroup,
+        audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
+        dark_mode_group::DarkModeGroup, disk_group::DiskGroup,
+        journal_events_group::JournalEventsGroup, monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
         systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
         window_group::WindowGroup,
     },
@@ -71,7 +68,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    let tooltip_tick = if state.tooltip_has_periodic_refresh() {
+    let tooltip_tick = if state.tooltip_has_polled_data() {
         frames().map(|_| Message::TooltipTick)
     } else {
         Subscription::none()
@@ -93,10 +90,8 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .subscription(forced)
             .map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
-        state.power_group.subscription(forced).map(Message::Power),
-        state
-            .compute_group
-            .subscription(&state.config.widget_groups.temperature_sensors.cpu, forced)
+        PowerGroup::subscription(forced).map(Message::Power),
+        ComputeGroup::subscription(&state.config.widget_groups.temperature_sensors.cpu, forced)
             .map(Message::Compute),
         state.gpu_group.subscription(forced).map(Message::Gpu),
         DiskGroup::subscription(
@@ -104,7 +99,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             forced,
         )
         .map(Message::Disk),
-        ClockGroup::subscription().map(Message::Clock),
+        ClockGroup::subscription(&state.config, forced).map(Message::Clock),
         SystemdManagerGroup::subscription(&state.config.widget_groups.systemd_manager)
             .map(Message::SystemdManager),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
@@ -117,18 +112,12 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .net_interfaces_group
             .subscription()
             .map(Message::NetInterfaces),
-        state
-            .monitor_group
-            .subscription(forced)
-            .map(Message::Monitor),
+        MonitorGroup::subscription(forced).map(Message::Monitor),
         state
             .color_temperature_group
             .subscription(forced)
             .map(Message::ColorTemperature),
-        state
-            .dark_mode_group
-            .subscription(forced)
-            .map(Message::DarkMode),
+        DarkModeGroup::subscription(forced).map(Message::DarkMode),
         state.media_group.subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
@@ -202,35 +191,6 @@ where
         .flatten()
 }
 
-fn emit_reading_changes<S: Clone + PartialEq, E>(
-    readings: impl Stream<Item = Result<S, E>>,
-) -> impl Stream<Item = Result<S, E>> {
-    use iced::futures::StreamExt;
-    readings
-        .scan(None, |previous, reading| {
-            let emit = if let Ok(value) = &reading {
-                let changed = previous.as_ref() != Some(value);
-                *previous = Some(value.clone());
-                changed
-            } else {
-                *previous = None;
-                true
-            };
-            ready(Some(emit.then_some(reading)))
-        })
-        .filter_map(ready)
-}
-
-pub fn journal_subscription<E: JournalEvent, R: 'static, M: 'static>(
-    from_entries: fn(Vec<E>) -> R,
-    map: fn(R) -> M,
-) -> Subscription<M> {
-    Subscription::run_with((E::NAME, from_entries, map), |&(_, from_entries, map)| {
-        use iced::futures::StreamExt;
-        ReceiverStream::new(journal_events::<E>()).map(move |entries| map(from_entries(entries)))
-    })
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ForcedRefresh {
     pub source: &'static str,
@@ -246,20 +206,24 @@ impl ForcedRefresh {
     }
 }
 
-pub fn polling<S: Source>(
+pub fn polling<S: PolledSource>(
     key: S::Key,
     forced: Option<ForcedRefresh>,
-) -> Subscription<Result<S, S::Error>> {
-    polling_with::<S, _>(key, forced, polled_stream::<S>)
+) -> Subscription<Delivery<S>> {
+    polling_through::<S, _>(key, forced, S::polls)
 }
 
-pub fn polling_with<S: Source, St>(
+pub fn listening<S: LiveSource>(key: S::Key) -> Subscription<Delivery<S>> {
+    Subscription::run_with((S::NAME, key), |(_, key)| S::events(key.clone()))
+}
+
+pub fn polling_through<S: PolledSource, St>(
     key: S::Key,
     forced: Option<ForcedRefresh>,
     readings: fn(S::Key) -> St,
-) -> Subscription<Result<S, S::Error>>
+) -> Subscription<Delivery<S>>
 where
-    St: Stream<Item = Result<S, S::Error>> + Send + 'static,
+    St: Stream<Item = Delivery<S>> + Send + 'static,
 {
     let restart = forced.filter(|forced| forced.source == S::NAME);
     Subscription::run_with(
@@ -268,65 +232,26 @@ where
     )
 }
 
-pub fn holding_earliest<S, E>(
-    readings: impl Stream<Item = Result<S, E>>,
+pub fn holding_earliest<S: Source>(
+    deliveries: impl Stream<Item = Delivery<S>>,
     stamp: fn(&mut S) -> &mut Option<SystemTime>,
-) -> impl Stream<Item = Result<S, E>> {
+) -> impl Stream<Item = Delivery<S>> {
     use iced::futures::StreamExt;
-    readings.scan(None, move |held, reading| {
-        let reading = reading.map(|mut reading| {
-            let current = stamp(&mut reading);
-            *held = current.map(|now| held.unwrap_or(now));
-            *current = *held;
-            reading
-        });
-        if reading.is_err() {
-            *held = None;
-        }
-        ready(Some(reading))
+    deliveries.scan(None, move |held, delivery| {
+        let delivery = match delivery {
+            Delivery::Reading(Ok(mut reading)) => {
+                let current = stamp(&mut reading);
+                *held = current.map(|now| held.unwrap_or(now));
+                *current = *held;
+                Delivery::Reading(Ok(reading))
+            }
+            interrupted => {
+                *held = None;
+                interrupted
+            }
+        };
+        ready(Some(delivery))
     })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Cadence {
-    Periodic {
-        source: &'static str,
-        every: Duration,
-    },
-    Once,
-}
-
-pub struct Readings<S, E> {
-    pub cadence: Cadence,
-    pub stream: Pin<Box<dyn Stream<Item = Result<S, E>> + Send>>,
-}
-
-impl<S, E> Readings<S, E> {
-    pub fn periodic(
-        source: &'static str,
-        every: Duration,
-        stream: impl Stream<Item = Result<S, E>> + Send + 'static,
-    ) -> Self {
-        Self {
-            cadence: Cadence::Periodic { source, every },
-            stream: Box::pin(stream),
-        }
-    }
-
-    pub fn once(stream: impl Stream<Item = Result<S, E>> + Send + 'static) -> Self {
-        Self {
-            cadence: Cadence::Once,
-            stream: Box::pin(stream),
-        }
-    }
-}
-
-pub fn polled<S: Source>(key: S::Key) -> Readings<S, S::Error> {
-    Readings::periodic(S::NAME, S::INTERVAL, polled_stream::<S>(key))
-}
-
-pub fn polled_stream<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
-    emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
 }
 
 pub fn emit_changes<T: Clone + PartialEq>(
@@ -342,14 +267,6 @@ pub fn emit_changes<T: Clone + PartialEq>(
             ready(Some(changed.then_some(reading)))
         })
         .filter_map(ready)
-}
-
-pub fn named_stream<S, St>(name: &'static str, readings: fn() -> St) -> Subscription<S>
-where
-    S: Send + 'static,
-    St: Stream<Item = S> + Send + 'static,
-{
-    Subscription::run_with((name, readings), |&(_, readings)| readings())
 }
 
 pub fn restarting_subscription<F, S, E>(
@@ -408,7 +325,7 @@ async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{convert::Infallible, time::Duration};
 
     use iced::futures::{StreamExt, executor::block_on, stream};
 
@@ -419,18 +336,29 @@ mod tests {
         since: Option<SystemTime>,
     }
 
+    impl Source for Stamped {
+        type Error = Infallible;
+        type Key = ();
+
+        const NAME: &'static str = "stamped";
+    }
+
     #[test]
     fn holding_earliest_keeps_the_first_stamp_until_a_gap() {
         let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
         let second = first + Duration::from_secs(5);
         let third = first + Duration::from_secs(15);
-        let readings = stream::iter(
+        let deliveries = stream::iter(
             [Some(first), Some(second), None, Some(third)]
-                .map(|since| Ok::<_, ()>(Stamped { since })),
+                .map(|since| Delivery::Reading(Ok(Stamped { since }))),
         );
         let held: Vec<Option<SystemTime>> = block_on(
-            holding_earliest(readings, |stamped| &mut stamped.since)
-                .map(|reading| reading.unwrap().since)
+            holding_earliest(deliveries, |stamped| &mut stamped.since)
+                .map(|delivery| match delivery {
+                    Delivery::Reading(Ok(stamped)) => stamped.since,
+                    Delivery::Reading(Err(never)) => match never {},
+                    Delivery::Absent => None,
+                })
                 .collect(),
         );
         assert_eq!(held, [Some(first), Some(first), None, Some(third)]);

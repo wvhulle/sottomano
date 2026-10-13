@@ -16,16 +16,15 @@ use crate::{
     data::{
         notifications::model::ActionTint,
         source::{
-            Source,
+            Delivery,
             sysfs_sensors::{
-                self,
-                battery::{self, Battery, ChargerSupply},
+                battery::{Battery, ChargerSupply},
                 cpu_tuning::CpuTuning,
             },
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polled},
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -34,7 +33,7 @@ use crate::{
         on_hover_reading::OnHoverReading,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Tooltip, TooltipBody},
+        tooltip_body::Tooltip,
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -62,7 +61,6 @@ pub struct PowerGroup {
     draw: Option<PowerDraw>,
     time: Option<BatteryTime>,
     time_reading: BatteryTimeReading,
-    installed: bool,
     power_profile: PowerProfileControl,
     charger: OnHoverReading<ChargerSupply>,
     cpu_tuning: OnHoverReading<CpuTuning>,
@@ -71,10 +69,9 @@ pub struct PowerGroup {
 
 #[derive(Debug, Clone)]
 pub enum PowerMessage {
-    Installed(bool),
-    Battery(Result<Battery, sysfs_sensors::Error>),
-    ChargerFetched(Result<ChargerSupply, String>),
-    CpuTuningFetched(Result<CpuTuning, String>),
+    Battery(Delivery<Battery>),
+    ChargerFetched(Delivery<ChargerSupply>),
+    CpuTuningFetched(Delivery<CpuTuning>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
     Expansion(ExpansionMessage),
@@ -87,23 +84,10 @@ impl PowerGroup {
         }
     }
 
-    pub fn probe() -> Task<PowerMessage> {
-        Task::batch([
-            Task::future(async { PowerMessage::Installed(Battery::available(&()).await) }),
-            PowerProfileControl::probe().map(PowerMessage::PowerProfile),
-        ])
-    }
-
-    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<PowerMessage> {
+    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<PowerMessage> {
         Subscription::batch([
-            self.power_profile
-                .subscription(forced)
-                .map(PowerMessage::PowerProfile),
-            if self.installed {
-                Subscription::run(battery::readings).map(PowerMessage::Battery)
-            } else {
-                Subscription::none()
-            },
+            PowerProfileControl::subscription(forced).map(PowerMessage::PowerProfile),
+            polling::<Battery>((), forced).map(PowerMessage::Battery),
         ])
     }
 
@@ -111,28 +95,21 @@ impl PowerGroup {
         self.charger.stop();
         self.cpu_tuning.stop();
         match hovered {
-            Some(HoverTarget::Power(PowerTarget::Draw)) => self.charger.fetch(
-                polled::<ChargerSupply>(()),
-                PowerMessage::ChargerFetched,
-                config,
-            ),
-            Some(HoverTarget::Power(PowerTarget::CpuTuning)) => self.cpu_tuning.fetch(
-                polled::<CpuTuning>(()),
-                PowerMessage::CpuTuningFetched,
-                config,
-            ),
+            Some(HoverTarget::Power(PowerTarget::Draw)) => {
+                self.charger.poll((), PowerMessage::ChargerFetched, config)
+            }
+            Some(HoverTarget::Power(PowerTarget::CpuTuning)) => {
+                self.cpu_tuning
+                    .poll((), PowerMessage::CpuTuningFetched, config)
+            }
             _ => Task::none(),
         }
     }
 
     pub fn update(&mut self, msg: PowerMessage) -> Task<PowerMessage> {
         let task = match msg {
-            PowerMessage::Installed(installed) => {
-                self.installed = installed;
-                Task::none()
-            }
             PowerMessage::Battery(reading) => {
-                self.battery.push(reading);
+                self.battery.receive(reading);
                 self.observe_battery()
             }
             PowerMessage::ChargerFetched(fetched) => {
@@ -184,11 +161,10 @@ impl PowerGroup {
 
     pub fn tooltip_for(&self, target: PowerTarget) -> Option<Tooltip> {
         match target {
-            PowerTarget::Battery => self.battery.tooltip_with_sections([self
-                .battery
-                .get()
-                .map(|battery| &battery.identity)
-                .hardware_section()]),
+            PowerTarget::Battery => self.battery.tooltip_with_sections(
+                self.battery
+                    .sections(|battery| vec![battery.identity.hardware_section()]),
+            ),
             PowerTarget::Draw => {
                 let draw = self.draw.as_ref()?;
                 let charger = if draw.on_battery() {
@@ -196,13 +172,16 @@ impl PowerGroup {
                 } else {
                     self.charger.sections(ChargerSupply::sections)
                 };
-                self.battery
-                    .tooltip_with(draw.tooltip().with_sections(charger))
+                Some(
+                    self.battery
+                        .tooltip_with(draw.tooltip())?
+                        .with_sections(charger),
+                )
             }
             PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
-            PowerTarget::CpuTuning => Some(Tooltip::of(TooltipBody::sections(
+            PowerTarget::CpuTuning => Some(Tooltip::sections(
                 self.cpu_tuning.sections(CpuTuning::sections),
-            ))),
+            )),
             PowerTarget::Profile => self.power_profile.tooltip(),
         }
     }

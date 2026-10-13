@@ -1,11 +1,30 @@
-use std::{collections::HashSet, io, time::SystemTime};
+use std::{collections::HashSet, convert::Infallible, io, time::SystemTime};
 
+use iced::futures::{Stream, StreamExt};
 use systemd::journal::{Journal, JournalRecord};
 
 use crate::data::{
     severity::Severity,
-    source::journal::{JournalEvent, JournalPriority, OwningUnit, field},
+    source::{
+        Delivery, LiveSource, Source, delivered,
+        journal::{JournalEvent, JournalPriority, OwningUnit, field, journal_windows},
+    },
 };
+
+impl Source for Vec<OomKillEntry> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = OomKillEntry::NAME;
+}
+
+impl LiveSource for Vec<OomKillEntry> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(
+            journal_windows::<OomKillEntry>().map(|entries| Ok(OomKillEntry::innermost(entries))),
+        )
+    }
+}
 
 const KERNEL_OOM_KILL_MESSAGE_ID: &str = "fe6faa94e7774663a0da52717891d8ef";
 const OOMD_KILL_MESSAGE_ID: &str = "d989611b15e44c9dbf31e3c81256e4ed";

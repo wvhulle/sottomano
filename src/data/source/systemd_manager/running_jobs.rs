@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    convert::Infallible,
     marker::PhantomData,
     pin::Pin,
     time::{Duration, SystemTime},
@@ -12,7 +13,10 @@ use super::{
     JobRow, ManagerProxy, UnitScope, connect, manager_signal, signals_matching, sleep_until,
     state_changed_at,
 };
-use crate::message_subscriptions::{emit_changes, restarting};
+use crate::{
+    data::source::{Delivery, LiveSource, Source, delivered},
+    message_subscriptions::{emit_changes, restarting},
+};
 
 const RUNNING_JOB_STATE: &str = "running";
 
@@ -48,10 +52,22 @@ impl<S: UnitScope> SlowJobs<S> {
     }
 }
 
-pub fn slow_jobs_stream(per_user: bool, slow_after: Duration) -> impl Stream<Item = Vec<SlowJob>> {
-    emit_changes(restarting("systemd running jobs", move || {
-        watch_running_jobs(per_user, slow_after)
-    }))
+impl<S: UnitScope> Source for SlowJobs<S> {
+    type Error = Infallible;
+    type Key = Duration;
+
+    const NAME: &'static str = S::SLOW_JOBS_SOURCE;
+}
+
+impl<S: UnitScope> LiveSource for SlowJobs<S> {
+    fn events(slow_after: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(
+            emit_changes(restarting("systemd running jobs", move || {
+                watch_running_jobs(S::PER_USER, slow_after)
+            }))
+            .map(|jobs| Ok(SlowJobs::from(jobs))),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

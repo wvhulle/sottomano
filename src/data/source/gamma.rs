@@ -1,9 +1,16 @@
 use std::{ops::RangeInclusive, time::Duration};
 
+use iced::futures::{Stream, StreamExt};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{Source, bus, bus::Error};
+use crate::data::source::{
+    Delivery, PolledSource, Source, bus,
+    bus::{Error, name_owned},
+    present_or_absent, ticked_polls,
+};
+
+const RELAY_SERVICE: &str = "rs.wl-gammarelay";
 
 #[proxy(
     interface = "rs.wl.gammarelay",
@@ -31,14 +38,18 @@ pub struct Gamma {
 
 impl Source for Gamma {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "gamma";
+}
+
+impl PolledSource for Gamma {
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn available((): &()) -> bool {
-        Self::poll(()).await.is_ok()
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(name_owned(bus::Bus::Session, RELAY_SERVICE), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {

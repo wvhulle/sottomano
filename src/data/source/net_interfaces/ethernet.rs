@@ -1,13 +1,13 @@
+use std::convert::Infallible;
+
 use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
-use crate::{
-    data::source::{
-        hardware::Adapter,
-        net_interfaces::{ReadingError, nm, nm_readings},
-    },
-    message_subscriptions::Readings,
+use crate::data::source::{
+    Delivery, LiveSource, Source,
+    hardware::Adapter,
+    net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
 };
 
 pub const NAME: &str = "ethernet";
@@ -121,20 +121,30 @@ async fn read_details(connection: Connection) -> Result<EthernetDetails, Reading
     Ok(EthernetDetails { ports })
 }
 
-#[derive(Debug, Clone)]
-pub enum EthernetPresence {
-    NoPort,
-    Ports(Ethernet),
+impl Source for Ethernet {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = NAME;
 }
 
-pub fn readings() -> impl Stream<Item = EthernetPresence> {
-    nm_readings(NAME, read)
-        .map(|ports| ports.map_or(EthernetPresence::NoPort, EthernetPresence::Ports))
+impl LiveSource for Ethernet {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        device_or_absent(nm::SERVICE, || nm_readings(NAME, read).boxed())
+    }
 }
 
-pub fn details() -> Readings<EthernetDetails, &'static str> {
-    Readings::once(
-        nm_readings("ethernet details", read_details)
-            .map(|details| details.ok_or("no Ethernet device")),
-    )
+impl Source for EthernetDetails {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "ethernet details";
+}
+
+impl LiveSource for EthernetDetails {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        device_or_absent(nm::SERVICE, || {
+            nm_readings(Self::NAME, read_details).boxed()
+        })
+    }
 }

@@ -1,8 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::{
+    convert::Infallible,
+    future::ready,
+    path::{Path, PathBuf},
+};
 
 use iced::{
     Subscription,
-    futures::{SinkExt, channel::mpsc::Sender},
+    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender},
     stream,
     widget::image,
 };
@@ -18,7 +22,10 @@ use tokio::{
     time::{Duration, sleep},
 };
 
-use crate::data::{empty_text::non_empty, source::app_icon::DesktopEntries};
+use crate::data::{
+    empty_text::non_empty,
+    source::{Delivery, LiveSource, Source, app_icon::DesktopEntries, delivered},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconSource {
@@ -251,14 +258,34 @@ fn build_item(
 }
 
 pub fn subscription() -> Subscription<TrayUpdate> {
-    Subscription::run(|| {
-        stream::channel(64, |mut output: Sender<TrayUpdate>| async move {
-            loop {
-                run(&mut output).await;
-                sleep(Duration::from_secs(2)).await;
-            }
-        })
+    Subscription::run(updates)
+}
+
+fn updates() -> impl Stream<Item = TrayUpdate> + Send {
+    stream::channel(64, |mut output: Sender<TrayUpdate>| async move {
+        loop {
+            run(&mut output).await;
+            sleep(Duration::from_secs(2)).await;
+        }
     })
+}
+
+impl Source for Vec<TrayItem> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "tray";
+}
+
+impl LiveSource for Vec<TrayItem> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(updates().filter_map(|update| {
+            ready(match update {
+                TrayUpdate::Items(items) => Some(Ok(items)),
+                TrayUpdate::Connected(_) => None,
+            })
+        }))
+    }
 }
 
 async fn run(output: &mut Sender<TrayUpdate>) {

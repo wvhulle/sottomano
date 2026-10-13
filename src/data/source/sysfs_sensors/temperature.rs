@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use iced::futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 use uom::si::{
     f64::{TemperatureInterval, ThermodynamicTemperature},
@@ -20,7 +21,7 @@ use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::{
         severity::Severity,
-        source::{Source, blocking_poll},
+        source::{Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls},
     },
     widgets::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
 };
@@ -64,10 +65,12 @@ pub struct CpuCoreTemperatures {
 
 impl Source for CpuCoreTemperatures {
     type Error = Error;
-
     type Key = ThresholdOverrides;
 
     const NAME: &'static str = "cpu core temperatures";
+}
+
+impl PolledSource for CpuCoreTemperatures {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(overrides: ThresholdOverrides) -> Result<Self, Self::Error> {
@@ -144,17 +147,24 @@ impl Temperature {
 
 impl Source for Temperature {
     type Error = Error;
-
     type Key = SensorConfig;
 
     const NAME: &'static str = "temperature";
+}
+
+impl PolledSource for Temperature {
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    async fn available(config: &SensorConfig) -> bool {
+    fn polls(config: SensorConfig) -> impl Stream<Item = Delivery<Self>> + Send {
         let choice = config.sensor.clone();
-        spawn_blocking(move || cpu_temp_readings(&choice))
-            .await
-            .is_ok_and(|readings| !readings.is_empty())
+        let exposed = async move {
+            spawn_blocking(move || cpu_temp_readings(&choice))
+                .await
+                .is_ok_and(|readings| !readings.is_empty())
+        };
+        present_or_absent(stream::once(exposed), move || {
+            ticked_polls::<Self>(config.clone()).boxed()
+        })
     }
 
     async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {

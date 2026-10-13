@@ -19,17 +19,18 @@ use crate::{
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Tooltip, TooltipBody, TrayMenuBody},
+        tooltip_body::{Tooltip, TooltipBody, TrayMenuBody, WholeBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
 
 #[derive(Default)]
 pub struct TrayGroup {
-    items: Vec<TrayItem>,
+    items: ContinuousReading<Vec<TrayItem>>,
     commands: Option<mpsc::Sender<TrayCommand>>,
     open_submenus: HashSet<i32>,
     expansion: GroupExpansion,
@@ -75,7 +76,7 @@ impl TrayGroup {
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::Items(items)) => {
-                self.items = items;
+                self.items.load(items);
                 Action::None
             }
             TrayMessage::Expansion(m) => {
@@ -121,12 +122,15 @@ impl TrayGroup {
 
     pub fn tooltip_for(&self, address: &str) -> Tooltip {
         self.items
-            .iter()
+            .get()
+            .into_iter()
+            .flatten()
             .find(|item| item.address == address)
-            .map_or_else(Tooltip::empty, |item| self.item_tooltip(item))
+            .and_then(|item| self.items.tooltip_with(self.item_tooltip(item)))
+            .unwrap_or_else(Tooltip::empty)
     }
 
-    fn item_tooltip(&self, item: &TrayItem) -> Tooltip {
+    fn item_tooltip(&self, item: &TrayItem) -> TooltipBody {
         let tip = item.tooltip.as_ref();
         let title = tip
             .and_then(|tip| tip.title.clone())
@@ -137,17 +141,17 @@ impl TrayGroup {
             .as_ref()
             .filter(|_| !item.menu.is_empty())
             .cloned();
-        match menu_path {
-            Some(menu_path) => Tooltip::of(TooltipBody::TrayMenu(TrayMenuBody {
+        TooltipBody::Whole(match menu_path {
+            Some(menu_path) => WholeBody::TrayMenu(TrayMenuBody {
                 address: item.address.clone(),
                 menu_path,
                 title,
                 body,
                 nodes: item.menu.clone(),
                 open_submenus: self.open_submenus.clone(),
-            })),
-            None => Tooltip::of(TooltipBody::Text { title, body }),
-        }
+            }),
+            None => WholeBody::Text { title, body },
+        })
     }
 
     fn command(&self, command: TrayCommand) {
@@ -158,7 +162,9 @@ impl TrayGroup {
 
     pub fn visible<'a>(&'a self, config: &Config) -> Vec<&'a TrayItem> {
         self.items
-            .iter()
+            .get()
+            .into_iter()
+            .flatten()
             .filter(|item| !config.widget_groups.tray.rule(&item.id).hide_icon)
             .collect()
     }

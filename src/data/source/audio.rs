@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    convert::Infallible,
     env, fmt, io,
     path::PathBuf,
     rc::Rc,
@@ -12,8 +13,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::{Subscription, futures::Stream};
-use inotify::{Inotify, WatchMask};
+use iced::{
+    Subscription,
+    futures::{Stream, stream::BoxStream},
+};
 use pipewire::{
     channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
     context::Context,
@@ -41,7 +44,13 @@ use pipewire::{
 use tokio::sync::{oneshot, watch};
 use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
-use crate::message_subscriptions::restarting_subscription;
+use crate::{
+    data::source::{
+        Delivery, LiveSource, Source, file_presence::path_present, present_or_absent, settled,
+        while_present,
+    },
+    message_subscriptions::restarting,
+};
 
 mod meter;
 
@@ -49,7 +58,6 @@ pub use meter::Peaks;
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 const DEFAULT_REMOTE: &str = "pipewire-0";
-const SOCKET_EVENT_BUFFER_BYTES: usize = 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reading {
@@ -166,12 +174,41 @@ impl Commands {
     }
 }
 
-pub fn subscription() -> Subscription<AudioEvent> {
-    restarting_subscription("audio", connect)
+pub fn subscription() -> Subscription<Option<AudioEvent>> {
+    Subscription::run(|| while_present(socket_present(), || Box::pin(restarting("audio", connect))))
+}
+
+fn socket_present() -> BoxStream<'static, bool> {
+    match pipewire_socket() {
+        Ok(socket) => Box::pin(path_present(socket)),
+        Err(e) => {
+            tracing::warn!("audio: {e}");
+            Box::pin(settled(false))
+        }
+    }
+}
+
+impl Source for AudioState {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "audio";
+}
+
+impl LiveSource for AudioState {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(socket_present(), || {
+            Box::pin(
+                restarting("audio", connect).filter_map(|event| match event {
+                    AudioEvent::State(state) => Some(Delivery::Reading(Ok(state))),
+                    AudioEvent::Connected(_) | AudioEvent::Peaks(_) => None,
+                }),
+            )
+        })
+    }
 }
 
 async fn connect() -> io::Result<impl Stream<Item = AudioEvent>> {
-    pipewire_socket_present().await?;
     let (states, updates) = watch::channel(AudioState::default());
     let (peaks, peak_updates) = watch::channel(Peaks::default());
     let (commands, requests) = command_channel::<Command>();
@@ -186,37 +223,6 @@ async fn connect() -> io::Result<impl Stream<Item = AudioEvent>> {
         .map(AudioEvent::State)
         .merge(WatchStream::from_changes(peak_updates).map(AudioEvent::Peaks));
     Ok(stream::iter([AudioEvent::Connected(Commands { sender: commands })]).chain(changes))
-}
-
-async fn pipewire_socket_present() -> io::Result<()> {
-    let socket = pipewire_socket()?;
-    let Some(name) = socket.file_name() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("pipewire socket {} has no file name", socket.display()),
-        ));
-    };
-    let Some(directory) = socket.parent() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("pipewire socket {} has no directory", socket.display()),
-        ));
-    };
-    let inotify = Inotify::init()?;
-    inotify.watches().add(directory, WatchMask::CREATE)?;
-    if socket.exists() {
-        return Ok(());
-    }
-    inotify
-        .into_event_stream([0u8; SOCKET_EVENT_BUFFER_BYTES])?
-        .filter(|event| match event {
-            Ok(event) => event.name.as_deref() == Some(name),
-            Err(_) => true,
-        })
-        .next()
-        .await
-        .transpose()?;
-    Ok(())
 }
 
 fn pipewire_socket() -> io::Result<PathBuf> {

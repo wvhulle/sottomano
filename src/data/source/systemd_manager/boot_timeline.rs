@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, time::Duration};
+use std::{cmp::Reverse, convert::Infallible, time::Duration};
 
 use iced::futures::{
     Stream, StreamExt,
@@ -8,7 +8,10 @@ use iced::futures::{
 use zbus::proxy::CacheProperties;
 
 use super::{ManagerProxy, UnitRow, connect, manager_signal, signals_matching, unit_proxy};
-use crate::data::severity::Severity;
+use crate::data::{
+    severity::Severity,
+    source::{Delivery, LiveSource, Source, delivered},
+};
 
 const SLOWEST_UNIT_COUNT: usize = 10;
 const SHORTEST_REPORTED_ACTIVATION: Duration = Duration::from_millis(100);
@@ -138,7 +141,20 @@ pub struct BootTimeline {
     pub user_startup: Option<UserStartup>,
 }
 
-pub fn boot_timeline_stream(slow_unit: Duration) -> impl Stream<Item = BootTimeline> {
+impl Source for BootTimeline {
+    type Error = Infallible;
+    type Key = Duration;
+
+    const NAME: &'static str = "boot timeline";
+}
+
+impl LiveSource for BootTimeline {
+    fn events(slow_unit: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(boot_timeline_stream(slow_unit).map(Ok))
+    }
+}
+
+fn boot_timeline_stream(slow_unit: Duration) -> impl Stream<Item = BootTimeline> + Send {
     stream::once(system_boot(slow_unit))
         .filter_map(|boot| ready(logged("system boot", boot)))
         .flat_map(move |boot| {

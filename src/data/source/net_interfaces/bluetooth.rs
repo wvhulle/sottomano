@@ -1,10 +1,13 @@
+use std::convert::Infallible;
+
 use iced::futures::{Stream, StreamExt};
 use zbus::fdo::ManagedObjects;
 
 use crate::data::source::{
+    Delivery, LiveSource, Source,
     bus::prop,
     hardware::Adapter,
-    net_interfaces::{interface, managed_objects_readings},
+    net_interfaces::{device_or_absent, interface, managed_objects_readings},
 };
 
 pub const NAME: &str = "bluetooth";
@@ -97,13 +100,17 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
     })
 }
 
-#[derive(Debug, Clone)]
-pub enum BluetoothPresence {
-    NoAdapter,
-    Adapter(Bluetooth),
+impl Source for Bluetooth {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = NAME;
 }
 
-pub fn readings() -> impl Stream<Item = BluetoothPresence> {
-    managed_objects_readings(NAME, SERVICE, ROOT, reading)
-        .map(|adapter| adapter.map_or(BluetoothPresence::NoAdapter, BluetoothPresence::Adapter))
+impl LiveSource for Bluetooth {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        device_or_absent(SERVICE, || {
+            managed_objects_readings(NAME, SERVICE, ROOT, reading).boxed()
+        })
+    }
 }

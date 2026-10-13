@@ -12,7 +12,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::IconToggle,
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -93,8 +93,8 @@ impl OverlayGroup {
     }
 
     pub fn tooltip_for(&self, target: OverlayTarget, overlays: OverlaySettings) -> Tooltip {
-        let entry = match target {
-            OverlayTarget::ToastSpatialLayout => KeyValue::new(
+        match target {
+            OverlayTarget::ToastSpatialLayout => IconToggle::readout_tooltip(
                 "Notifications",
                 if overlays.toast_spatial_layout {
                     "beside the window that sent them"
@@ -102,16 +102,13 @@ impl OverlayGroup {
                     "in the screen corner"
                 },
             ),
-            OverlayTarget::Opacity => KeyValue::new(
-                "Notification and tooltip opacity",
-                self.opacity.readout_text(),
-            ),
-            OverlayTarget::CornerRadius => KeyValue::new(
-                "Notification and tooltip corner radius",
-                self.corner_radius.readout_text(),
-            ),
-        };
-        Tooltip::of(TooltipBody::dictionary([entry]))
+            OverlayTarget::Opacity => self
+                .opacity
+                .readout_tooltip("Notification and tooltip opacity"),
+            OverlayTarget::CornerRadius => self
+                .corner_radius
+                .readout_tooltip("Notification and tooltip corner radius"),
+        }
     }
 
     pub fn update(&mut self, msg: OverlayMessage, overlays: &mut OverlaySettings) -> Action {

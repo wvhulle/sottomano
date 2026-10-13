@@ -7,9 +7,12 @@ mod temperature_forecast;
 mod wind_speed;
 
 use crate::{
-    data::source::weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},
+    data::source::{
+        Delivery,
+        weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
+    },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, listening, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -47,11 +50,11 @@ pub struct WeatherGroup {
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Temp(Result<Temperature, weather::Error>),
-    Wind(Result<Wind, weather::Error>),
-    Rain(Result<Rain, weather::Error>),
-    Pollen(Result<Pollen, weather::Error>),
-    Location(Result<Location, weather::Error>),
+    Temp(Delivery<Temperature>),
+    Wind(Delivery<Wind>),
+    Rain(Delivery<Rain>),
+    Pollen(Delivery<Pollen>),
+    Location(Delivery<Location>),
     Expansion(ExpansionMessage),
 }
 
@@ -61,7 +64,7 @@ impl WeatherGroup {
     }
 
     pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<WeatherMessage> {
-        let location = Subscription::run(Location::published).map(WeatherMessage::Location);
+        let location = listening::<Location>(()).map(WeatherMessage::Location);
         let Some(here) = self.location.get().map(Location::position) else {
             return location;
         };

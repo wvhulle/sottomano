@@ -8,7 +8,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -64,15 +64,12 @@ impl Default for PanelAppearanceGroup {
 
 impl PanelAppearanceGroup {
     pub fn tooltip_for(&self, target: PanelAppearanceTarget) -> Tooltip {
-        let entry = match target {
-            PanelAppearanceTarget::Opacity => {
-                KeyValue::new("Panel opacity", self.opacity.readout_text())
-            }
+        match target {
+            PanelAppearanceTarget::Opacity => self.opacity.readout_tooltip("Panel opacity"),
             PanelAppearanceTarget::CornerRadius => {
-                KeyValue::new("Corner radius", self.corner_radius.readout_text())
+                self.corner_radius.readout_tooltip("Corner radius")
             }
-        };
-        Tooltip::of(TooltipBody::dictionary([entry]))
+        }
     }
 
     fn close_sliders(&mut self) {

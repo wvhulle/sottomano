@@ -24,7 +24,7 @@ use crate::{
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
         text::bar_text,
-        tooltip_body::TooltipBody,
+        tooltip_body::{Cell, KeyValue, Provenance, Tooltip, TooltipBody},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
         widget_state::WidgetState,
     },
@@ -270,6 +270,13 @@ impl SliderControl {
 
     pub fn readout_text(&self) -> String {
         (self.readout)(self.current())
+    }
+
+    pub fn readout_tooltip(&self, label: impl Into<Cell>) -> Tooltip {
+        Tooltip::sourced(
+            TooltipBody::dictionary([KeyValue::new(label, self.readout_text())]),
+            Provenance::Live,
+        )
     }
 
     fn severity(&self) -> Severity {

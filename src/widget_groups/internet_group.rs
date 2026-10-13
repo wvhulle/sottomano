@@ -7,13 +7,13 @@ mod wireguard_tunnel_tooltip;
 use crate::{
     config::Config,
     data::source::{
-        Source, command,
-        tailscale::{self, Tailscale, open_admin},
-        throughput::{self, Download, Readings, Throughput, Total, Upload},
+        Delivery,
+        tailscale::{Tailscale, open_admin},
+        throughput::{Download, Readings, Throughput, Total, Upload},
         wireguard::{TunnelAddress, Wireguard, disconnect},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polled, polling},
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -49,24 +49,16 @@ pub struct InternetGroup {
     total: ContinuousReading<Throughput<Total>>,
     wireguard: ContinuousReading<Wireguard>,
     tailscale: ContinuousReading<Tailscale>,
-    installed: Installed,
     tunnel_address: OnHoverReading<TunnelAddress>,
     expansion: GroupExpansion,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Installed {
-    wireguard: bool,
-    tailscale: bool,
-}
-
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
-    Installed(Installed),
-    Throughput(Readings),
-    Wireguard(Result<Wireguard, command::Error>),
-    TunnelAddressFetched(Result<TunnelAddress, String>),
-    Tailscale(Result<Tailscale, tailscale::Error>),
+    Throughput(Delivery<Readings>),
+    Wireguard(Delivery<Wireguard>),
+    TunnelAddressFetched(Delivery<TunnelAddress>),
+    Tailscale(Delivery<Tailscale>),
     Expansion(ExpansionMessage),
     Disconnect(String),
     OpenTailscale,
@@ -77,41 +69,29 @@ impl InternetGroup {
         self.expansion.collapse();
     }
 
-    pub fn probe() -> Task<InternetMessage> {
-        Task::future(async {
-            InternetMessage::Installed(Installed {
-                wireguard: Wireguard::available(&()).await,
-                tailscale: Tailscale::available(&()).await,
-            })
-        })
-    }
-
     pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<InternetMessage> {
-        let wireguard = if self.installed.wireguard {
-            polling::<Wireguard>((), forced).map(InternetMessage::Wireguard)
-        } else {
-            Subscription::none()
-        };
-        let tailscale = if self.installed.tailscale {
-            polling::<Tailscale>((), forced).map(InternetMessage::Tailscale)
-        } else {
-            Subscription::none()
-        };
         Subscription::batch([
-            throughput::subscription().map(InternetMessage::Throughput),
-            self.expansion.while_expanded(wireguard),
-            self.expansion.while_expanded(tailscale),
+            polling::<Readings>((), forced).map(InternetMessage::Throughput),
+            self.expansion
+                .while_expanded(polling::<Wireguard>((), forced).map(InternetMessage::Wireguard)),
+            self.expansion
+                .while_expanded(polling::<Tailscale>((), forced).map(InternetMessage::Tailscale)),
         ])
     }
 
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
         use crate::message_subscriptions::blocking;
         match msg {
-            InternetMessage::Installed(installed) => self.installed = installed,
-            InternetMessage::Throughput(readings) => {
-                self.down.load(readings.down);
-                self.up.load(readings.up);
-                self.total.load(readings.total);
+            InternetMessage::Throughput(Delivery::Reading(Ok(readings))) => {
+                self.down.receive(Delivery::Reading(Ok(readings.down)));
+                self.up.receive(Delivery::Reading(Ok(readings.up)));
+                self.total.receive(Delivery::Reading(Ok(readings.total)));
+            }
+            InternetMessage::Throughput(Delivery::Reading(Err(never))) => match never {},
+            InternetMessage::Throughput(Delivery::Absent) => {
+                self.down.receive(Delivery::Absent);
+                self.up.receive(Delivery::Absent);
+                self.total.receive(Delivery::Absent);
             }
             InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
             InternetMessage::TunnelAddressFetched(fetched) => self.tunnel_address.receive(fetched),
@@ -138,8 +118,8 @@ impl InternetGroup {
         let Some(HoverTarget::Internet(InternetTarget::Wireguard(tunnel))) = hovered else {
             return Task::none();
         };
-        self.tunnel_address.fetch(
-            polled::<TunnelAddress>(tunnel.clone()),
+        self.tunnel_address.poll(
+            tunnel.clone(),
             InternetMessage::TunnelAddressFetched,
             config,
         )
@@ -154,9 +134,11 @@ impl InternetGroup {
                     .tunnels
                     .iter()
                     .find(|t| &t.name == name)?;
-                Some(Tooltip::of(tunnel.tooltip().with_sections(
-                    self.tunnel_address.sections(TunnelAddress::sections),
-                )))
+                Some(
+                    self.wireguard
+                        .tooltip_with(tunnel.tooltip())?
+                        .with_sections(self.tunnel_address.sections(TunnelAddress::sections)),
+                )
             }
             InternetTarget::Down => self.down.tooltip(),
             InternetTarget::Up => self.up.tooltip(),

@@ -1,16 +1,20 @@
-use std::{collections::HashMap, env, ops::RangeInclusive, sync::Arc, thread, time::Duration};
+use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration};
 
 use iced::{Function, Subscription, Task};
 
 use crate::{
     config::Config,
-    data::source::audio::{
-        self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
+    data::source::{
+        Delivery,
+        audio::{
+            self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
+        },
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
@@ -53,9 +57,7 @@ impl ControlKind {
 }
 
 pub struct AudioGroup {
-    sink: Option<Reading>,
-    source: Option<Reading>,
-    windows: Arc<HashMap<i32, WindowAudio>>,
+    state: ContinuousReading<AudioState>,
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
@@ -65,9 +67,7 @@ pub struct AudioGroup {
 impl Default for AudioGroup {
     fn default() -> Self {
         Self {
-            sink: None,
-            source: None,
-            windows: Arc::default(),
+            state: ContinuousReading::default(),
             commands: None,
             expansion: GroupExpansion::default(),
             sink_control: SliderControl::new(
@@ -100,8 +100,8 @@ impl Default for AudioGroup {
 }
 
 impl AudioGroup {
-    pub fn window_audio(&self) -> &HashMap<i32, WindowAudio> {
-        &self.windows
+    pub fn window_audio(&self) -> Option<&HashMap<i32, WindowAudio>> {
+        self.state.get().map(|state| state.windows.as_ref())
     }
 
     pub fn toggle_window_mute(&self, pid: i32) -> Task<AudioMessage> {
@@ -114,6 +114,7 @@ pub enum AudioMessage {
     Connected(Commands),
     State(AudioState),
     Peaks(Peaks),
+    Disconnected,
     Control(ControlKind, ControlMessage),
     Expansion(ExpansionMessage),
 }
@@ -121,9 +122,10 @@ pub enum AudioMessage {
 impl AudioGroup {
     pub fn subscription() -> Subscription<AudioMessage> {
         audio::subscription().map(|event| match event {
-            AudioEvent::Connected(commands) => AudioMessage::Connected(commands),
-            AudioEvent::State(state) => AudioMessage::State(state),
-            AudioEvent::Peaks(peaks) => AudioMessage::Peaks(peaks),
+            Some(AudioEvent::Connected(commands)) => AudioMessage::Connected(commands),
+            Some(AudioEvent::State(state)) => AudioMessage::State(state),
+            Some(AudioEvent::Peaks(peaks)) => AudioMessage::Peaks(peaks),
+            None => AudioMessage::Disconnected,
         })
     }
 
@@ -134,15 +136,18 @@ impl AudioGroup {
                 self.meter(Peaks::default());
                 Task::none()
             }
+            AudioMessage::Disconnected => {
+                self.commands = None;
+                self.state.push_or_keep(Delivery::Absent);
+                Task::none()
+            }
             AudioMessage::State(state) => {
-                self.sink = state.sink;
-                self.source = state.source;
-                self.windows = state.windows;
-                feed(&mut self.sink_control, self.sink.as_ref());
-                feed(&mut self.source_control, self.source.as_ref());
-                let muted = self.sink.as_ref().is_some_and(|sink| sink.muted);
+                feed(&mut self.sink_control, state.sink.as_ref());
+                feed(&mut self.source_control, state.source.as_ref());
+                let muted = state.sink.as_ref().is_some_and(|sink| sink.muted);
                 self.sink_control
                     .set_icon(output_icon(state.output_kind, muted));
+                self.state.load(state);
                 Task::none()
             }
             AudioMessage::Peaks(peaks) => {
@@ -230,38 +235,41 @@ impl AudioGroup {
     }
 
     pub fn tooltip_for(&self, kind: ControlKind) -> Option<Tooltip> {
+        let state = self.state.get()?;
         let (reading, control) = match kind {
-            ControlKind::Sink => (self.sink.as_ref()?, &self.sink_control),
-            ControlKind::Source => (self.source.as_ref()?, &self.source_control),
+            ControlKind::Sink => (state.sink.as_ref()?, &self.sink_control),
+            ControlKind::Source => (state.source.as_ref()?, &self.source_control),
         };
         let state = if reading.muted { "muted" } else { "active" };
         let device = reading
             .device
             .as_deref()
             .map(|device| KeyValue::new("Device", device));
-        Some(Tooltip::of(TooltipBody::dictionary(
+        self.state.tooltip_with(TooltipBody::dictionary(
             [
                 KeyValue::new(kind.label(), control.readout_text()),
                 KeyValue::new("State", state),
             ]
             .into_iter()
             .chain(device),
-        )))
+        ))
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, AudioMessage> {
+        let sink = self.state.get().and_then(|state| state.sink.as_ref());
+        let source = self.state.get().and_then(|state| state.source.as_ref());
         GroupContent::new(
             &self.expansion,
             AudioMessage::Expansion,
             [
-                self.sink.as_ref().map(|_| {
+                sink.map(|_| {
                     GroupItem::slider(
                         &self.sink_control,
                         config,
                         AudioMessage::Control.with(ControlKind::Sink),
                     )
                 }),
-                self.source.as_ref().map(|_| {
+                source.map(|_| {
                     GroupItem::slider(
                         &self.source_control,
                         config,
@@ -276,12 +284,8 @@ impl AudioGroup {
             glyph: Phosphor::Waveform(Weight::Regular).into(),
             reading: &self.sink_control,
         })
-        .preview(
-            self.sink
-                .as_ref()
-                .map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)),
-        )
-        .forwards_scroll(self.sink.is_some())
+        .preview(sink.map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)))
+        .forwards_scroll(sink.is_some())
     }
 
     pub fn collapse(&mut self) {

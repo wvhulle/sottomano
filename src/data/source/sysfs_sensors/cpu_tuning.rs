@@ -1,7 +1,7 @@
 use std::{path::Path, time::Duration};
 
 use super::{CPU_FREQ, Error, read_field, read_trimmed};
-use crate::data::source::{Source, blocking_poll};
+use crate::data::source::{PolledSource, Source, blocking_poll};
 
 const PLATFORM_PROFILE: &str = "/sys/firmware/acpi";
 
@@ -46,10 +46,12 @@ fn read_cpu_tuning() -> Result<CpuTuning, Error> {
 
 impl Source for CpuTuning {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "cpu-tuning";
+}
+
+impl PolledSource for CpuTuning {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    convert::Infallible,
     marker::PhantomData,
     pin::Pin,
     time::SystemTime,
@@ -19,7 +20,9 @@ use super::{
     systemd_signal,
 };
 use crate::{
-    data::source::{coredumps::CoredumpEntry, journal::JournalPriority},
+    data::source::{
+        Delivery, LiveSource, Source, coredumps::CoredumpEntry, delivered, journal::JournalPriority,
+    },
     message_subscriptions::restarting,
 };
 
@@ -104,8 +107,20 @@ impl FailedUnitRestart {
     }
 }
 
-pub fn failed_stream(per_user: bool) -> impl Stream<Item = Vec<FailedUnitInfo>> {
-    restarting("systemd failed units", move || watch_failed(per_user))
+impl<S: UnitScope> Source for Failed<S> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = S::FAILED_SOURCE;
+}
+
+impl<S: UnitScope> LiveSource for Failed<S> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(
+            restarting("systemd failed units", || watch_failed(S::PER_USER))
+                .map(|units| Ok(Failed::from(units))),
+        )
+    }
 }
 
 async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedUnitInfo>>> {

@@ -1,10 +1,6 @@
-use std::{convert, time::Duration};
+use std::time::Duration;
 
-use iced::{
-    Subscription, Task,
-    futures::{StreamExt, future::ready, stream},
-};
-use tokio::task::spawn_blocking;
+use iced::{Subscription, Task};
 
 mod boot_timeline_reading;
 mod coredump_log;
@@ -16,18 +12,19 @@ mod running_job_reading;
 use crate::{
     config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
     data::source::{
+        Delivery,
         coredumps::CoredumpEntry,
         oom_kills::OomKillEntry,
-        previous_shutdown::{LastShutdown, ShutdownReadError, read_last_shutdown},
+        previous_shutdown::LastShutdown,
         systemd_manager::{
             System, UnitScope, User,
-            boot_timeline::{BootTimeline, boot_timeline_stream},
-            failed_units::{Failed, FailedUnitRestart, failed_stream},
-            running_jobs::{SlowJobs, slow_jobs_stream},
+            boot_timeline::BootTimeline,
+            failed_units::{Failed, FailedUnitRestart},
+            running_jobs::SlowJobs,
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{copy_to_clipboard, journal_subscription},
+    message_subscriptions::{copy_to_clipboard, listening},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -137,14 +134,14 @@ pub struct SystemdManagerGroup {
 
 #[derive(Debug, Clone)]
 pub enum SystemdManagerMessage {
-    Boot(BootTimeline),
-    FailedSystem(Failed<System>),
-    FailedUser(Failed<User>),
-    SlowSystemJobs(SlowJobs<System>),
-    SlowUserJobs(SlowJobs<User>),
-    LastShutdown(LastShutdown),
-    Coredumps(Vec<CoredumpEntry>),
-    OomKills(Vec<OomKillEntry>),
+    Boot(Delivery<BootTimeline>),
+    FailedSystem(Delivery<Failed<System>>),
+    FailedUser(Delivery<Failed<User>>),
+    SlowSystemJobs(Delivery<SlowJobs<System>>),
+    SlowUserJobs(Delivery<SlowJobs<User>>),
+    LastShutdown(Delivery<LastShutdown>),
+    Coredumps(Delivery<Vec<CoredumpEntry>>),
+    OomKills(Delivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
@@ -159,58 +156,37 @@ impl SystemdManagerGroup {
 
     pub fn subscription(config: &SystemdManagerConfig) -> Subscription<SystemdManagerMessage> {
         Subscription::batch([
-            Subscription::run_with(
-                ("systemd-boot-timeline", config.slow_boot_unit),
-                |&(_, slow_unit)| boot_timeline_stream(slow_unit).map(SystemdManagerMessage::Boot),
-            ),
-            failed_subscription::<System>(SystemdManagerMessage::FailedSystem),
-            failed_subscription::<User>(SystemdManagerMessage::FailedUser),
-            slow_jobs_subscription::<System>(
-                config.slow_job,
-                SystemdManagerMessage::SlowSystemJobs,
-            ),
-            slow_jobs_subscription::<User>(config.slow_job, SystemdManagerMessage::SlowUserJobs),
-            Subscription::run_with(
-                ("systemd-last-shutdown", config.slow_shutdown_stop),
-                |&(_, slow_stop)| {
-                    stream::once(spawn_blocking(move || read_last_shutdown(slow_stop))).filter_map(
-                        |read| {
-                            ready(match read {
-                                Ok(Ok(last_shutdown)) => {
-                                    Some(SystemdManagerMessage::LastShutdown(last_shutdown))
-                                }
-                                Ok(Err(
-                                    ShutdownReadError::NoPreviousBoot
-                                    | ShutdownReadError::NoShutdownRecorded,
-                                )) => None,
-                                Ok(Err(e)) => {
-                                    tracing::warn!("systemd last shutdown: {e}");
-                                    None
-                                }
-                                Err(e) => {
-                                    tracing::error!("systemd last shutdown: task panicked: {e}");
-                                    None
-                                }
-                            })
-                        },
-                    )
-                },
-            ),
-            journal_subscription(convert::identity, SystemdManagerMessage::Coredumps),
-            journal_subscription(OomKillEntry::innermost, SystemdManagerMessage::OomKills),
+            listening::<BootTimeline>(config.slow_boot_unit).map(SystemdManagerMessage::Boot),
+            listening::<Failed<System>>(()).map(SystemdManagerMessage::FailedSystem),
+            listening::<Failed<User>>(()).map(SystemdManagerMessage::FailedUser),
+            listening::<SlowJobs<System>>(config.slow_job)
+                .map(SystemdManagerMessage::SlowSystemJobs),
+            listening::<SlowJobs<User>>(config.slow_job).map(SystemdManagerMessage::SlowUserJobs),
+            listening::<LastShutdown>(config.slow_shutdown_stop)
+                .map(SystemdManagerMessage::LastShutdown),
+            listening::<Vec<CoredumpEntry>>(()).map(SystemdManagerMessage::Coredumps),
+            listening::<Vec<OomKillEntry>>(()).map(SystemdManagerMessage::OomKills),
         ])
     }
 
     pub fn update(&mut self, msg: SystemdManagerMessage) -> Task<SystemdManagerMessage> {
         match msg {
-            SystemdManagerMessage::Boot(boot) => self.boot.load(boot),
-            SystemdManagerMessage::FailedSystem(reading) => self.failed_system.load(reading),
-            SystemdManagerMessage::FailedUser(reading) => self.failed_user.load(reading),
-            SystemdManagerMessage::SlowSystemJobs(reading) => self.slow_system_jobs.load(reading),
-            SystemdManagerMessage::SlowUserJobs(reading) => self.slow_user_jobs.load(reading),
-            SystemdManagerMessage::LastShutdown(reading) => self.last_shutdown.load(reading),
-            SystemdManagerMessage::Coredumps(reading) => self.coredumps.load(reading),
-            SystemdManagerMessage::OomKills(reading) => self.oom_kills.load(reading),
+            SystemdManagerMessage::Boot(delivery) => self.boot.push_or_keep(delivery),
+            SystemdManagerMessage::FailedSystem(delivery) => {
+                self.failed_system.push_or_keep(delivery);
+            }
+            SystemdManagerMessage::FailedUser(delivery) => self.failed_user.push_or_keep(delivery),
+            SystemdManagerMessage::SlowSystemJobs(delivery) => {
+                self.slow_system_jobs.push_or_keep(delivery);
+            }
+            SystemdManagerMessage::SlowUserJobs(delivery) => {
+                self.slow_user_jobs.push_or_keep(delivery);
+            }
+            SystemdManagerMessage::LastShutdown(delivery) => {
+                self.last_shutdown.push_or_keep(delivery);
+            }
+            SystemdManagerMessage::Coredumps(delivery) => self.coredumps.push_or_keep(delivery),
+            SystemdManagerMessage::OomKills(delivery) => self.oom_kills.push_or_keep(delivery),
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::RestartFailedUnit(restart) => {
                 return Task::future(restart.apply()).discard();
@@ -366,25 +342,4 @@ impl BarWidget for SystemdManagerGroup {
             .flatten(),
         )
     }
-}
-
-fn failed_subscription<S: UnitScope + 'static>(
-    map: fn(Failed<S>) -> SystemdManagerMessage,
-) -> Subscription<SystemdManagerMessage> {
-    Subscription::run_with(
-        ("systemd-failed-units", S::PER_USER, map),
-        |&(_, per_user, map)| failed_stream(per_user).map(move |units| map(Failed::from(units))),
-    )
-}
-
-fn slow_jobs_subscription<S: UnitScope + 'static>(
-    slow_after: Duration,
-    map: fn(SlowJobs<S>) -> SystemdManagerMessage,
-) -> Subscription<SystemdManagerMessage> {
-    Subscription::run_with(
-        ("systemd-slow-jobs", S::PER_USER, slow_after, map),
-        |&(_, per_user, slow_after, map)| {
-            slow_jobs_stream(per_user, slow_after).map(move |jobs| map(SlowJobs::from(jobs)))
-        },
-    )
 }

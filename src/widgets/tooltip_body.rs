@@ -172,8 +172,39 @@ pub enum Readiness {
 pub struct Section {
     heading: Option<Heading>,
     body: SectionBody,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourcedSection {
+    section: Section,
     readiness: Readiness,
-    refresh: Option<Refresh>,
+    provenance: Provenance,
+}
+
+impl SourcedSection {
+    pub(in crate::widgets) fn new(
+        section: Section,
+        readiness: Readiness,
+        provenance: Provenance,
+    ) -> Self {
+        Self {
+            section,
+            readiness,
+            provenance,
+        }
+    }
+
+    pub fn section(&self) -> &Section {
+        &self.section
+    }
+
+    pub fn readiness(&self) -> Readiness {
+        self.readiness
+    }
+
+    pub fn provenance(&self) -> Provenance {
+        self.provenance
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -211,8 +242,6 @@ impl Section {
         Self {
             heading: None,
             body,
-            readiness: Readiness::Settled,
-            refresh: None,
         }
     }
 
@@ -242,24 +271,6 @@ impl Section {
             heading: Some(heading.into()),
             ..self
         }
-    }
-
-    #[must_use]
-    pub(in crate::widgets) fn with_readiness(self, readiness: Readiness) -> Self {
-        Self { readiness, ..self }
-    }
-
-    #[must_use]
-    pub(in crate::widgets) fn with_refresh(self, refresh: Option<Refresh>) -> Self {
-        Self { refresh, ..self }
-    }
-
-    pub fn readiness(&self) -> Readiness {
-        self.readiness
-    }
-
-    pub fn refresh(&self) -> Option<Refresh> {
-        self.refresh
     }
 
     pub fn title(&self) -> Option<&str> {
@@ -294,11 +305,27 @@ pub struct WorkspacePreview {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TooltipBody {
-    Sections(Vec<Section>),
+pub enum WholeBody {
     Text { title: String, body: Option<String> },
     Workspace(WorkspacePreview),
     TrayMenu(TrayMenuBody),
+}
+
+impl WholeBody {
+    fn is_empty(&self) -> bool {
+        match self {
+            WholeBody::Workspace(preview) => {
+                preview.columns.is_empty() && preview.floating.is_empty()
+            }
+            WholeBody::Text { .. } | WholeBody::TrayMenu(_) => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TooltipBody {
+    Sections(Vec<Section>),
+    Whole(WholeBody),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -327,56 +354,19 @@ impl TooltipBody {
                 sections.extend(extra);
                 TooltipBody::Sections(sections)
             }
-            other => other,
-        }
-    }
-
-    #[must_use]
-    pub(in crate::widgets) fn with_unmarked_refresh(self, refresh: Option<Refresh>) -> Self {
-        match self {
-            TooltipBody::Sections(sections) => TooltipBody::Sections(
-                sections
-                    .into_iter()
-                    .map(|section| {
-                        let marked = section.refresh.or(refresh);
-                        section.with_refresh(marked)
-                    })
-                    .collect(),
-            ),
-            other => other,
-        }
-    }
-
-    fn has_periodic_refresh(&self) -> bool {
-        let TooltipBody::Sections(sections) = self else {
-            return false;
-        };
-        sections
-            .iter()
-            .any(|section| matches!(section.refresh, Some(Refresh::Periodic(_))))
-    }
-
-    fn is_empty(&self) -> bool {
-        match self {
-            TooltipBody::Sections(sections) => {
-                sections.iter().all(|section| section.body.is_empty())
-            }
-            TooltipBody::Workspace(preview) => {
-                preview.columns.is_empty() && preview.floating.is_empty()
-            }
-            TooltipBody::Text { .. } | TooltipBody::TrayMenu(_) => false,
+            whole @ TooltipBody::Whole(_) => whole,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RefreshInfo {
+pub struct PollInfo {
     pub source: &'static str,
     pub every: Duration,
     pub last: SystemTime,
 }
 
-impl RefreshInfo {
+impl PollInfo {
     pub fn elapsed_since_last_poll(&self, now: SystemTime) -> Ratio {
         let since_delivery = now.duration_since(self.last).unwrap_or(Duration::ZERO);
         let within_cycle = since_delivery.as_secs_f64() % self.every.as_secs_f64();
@@ -385,31 +375,84 @@ impl RefreshInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Refresh {
-    Periodic(RefreshInfo),
+pub enum Provenance {
+    Polled(PollInfo),
     Live,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum SourcedBody {
+    Sections(Vec<SourcedSection>),
+    Whole {
+        body: WholeBody,
+        provenance: Provenance,
+    },
+}
+
+impl SourcedBody {
+    fn has_polled_data(&self) -> bool {
+        match self {
+            SourcedBody::Sections(sections) => sections
+                .iter()
+                .any(|section| matches!(section.provenance, Provenance::Polled(_))),
+            SourcedBody::Whole { provenance, .. } => matches!(provenance, Provenance::Polled(_)),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            SourcedBody::Sections(sections) => sections
+                .iter()
+                .all(|section| section.section.body.is_empty()),
+            SourcedBody::Whole { body, .. } => body.is_empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
-    pub body: TooltipBody,
+    pub body: SourcedBody,
     pub press_hints: PressHints,
 }
 
 impl Tooltip {
     pub fn empty() -> Self {
-        Self::of(TooltipBody::sections([]))
+        Self::sections([])
     }
 
-    pub fn of(body: TooltipBody) -> Self {
+    pub fn sections(sections: impl IntoIterator<Item = SourcedSection>) -> Self {
+        Self {
+            body: SourcedBody::Sections(sections.into_iter().collect()),
+            press_hints: PressHints::default(),
+        }
+    }
+
+    pub(in crate::widgets) fn sourced(body: TooltipBody, provenance: Provenance) -> Self {
+        let body = match body {
+            TooltipBody::Sections(sections) => SourcedBody::Sections(
+                sections
+                    .into_iter()
+                    .map(|section| SourcedSection::new(section, Readiness::Settled, provenance))
+                    .collect(),
+            ),
+            TooltipBody::Whole(body) => SourcedBody::Whole { body, provenance },
+        };
         Self {
             body,
             press_hints: PressHints::default(),
         }
     }
 
-    pub fn has_periodic_refresh(&self) -> bool {
-        self.body.has_periodic_refresh()
+    #[must_use]
+    pub fn with_sections(mut self, extra: impl IntoIterator<Item = SourcedSection>) -> Self {
+        if let SourcedBody::Sections(sections) = &mut self.body {
+            sections.extend(extra);
+        }
+        self
+    }
+
+    pub fn has_polled_data(&self) -> bool {
+        self.body.has_polled_data()
     }
 
     #[must_use]

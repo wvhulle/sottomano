@@ -1,8 +1,10 @@
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
+    future::ready,
 };
 
+use iced::futures::{Stream, StreamExt, stream};
 use zbus::{
     fdo::DBusProxy,
     names::BusName,
@@ -119,6 +121,39 @@ impl OwnerProcess {
             }
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bus {
+    Session,
+    System,
+}
+
+pub fn name_owned(bus: Bus, name: &'static str) -> impl Stream<Item = bool> + Send {
+    stream::once(owner_changes(bus, name)).flat_map(move |watched| match watched {
+        Ok(presence) => presence.boxed(),
+        Err(e) => {
+            tracing::warn!("{name}: owner watch: {e}");
+            stream::iter([false]).boxed()
+        }
+    })
+}
+
+async fn owner_changes(
+    bus: Bus,
+    name: &'static str,
+) -> zbus::Result<impl Stream<Item = bool> + Send> {
+    let connection = match bus {
+        Bus::Session => zbus::Connection::session().await?,
+        Bus::System => zbus::Connection::system().await?,
+    };
+    let dbus = DBusProxy::new(&connection).await?;
+    let owned = dbus.name_has_owner(BusName::try_from(name)?).await?;
+    let changes = dbus
+        .receive_name_owner_changed_with_args(&[(0, name)])
+        .await?
+        .filter_map(|signal| ready(signal.args().ok().map(|args| args.new_owner().is_some())));
+    Ok(stream::iter([owned]).chain(changes))
 }
 
 pub fn service_absent(error: &zbus::Error) -> bool {

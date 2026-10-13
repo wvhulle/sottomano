@@ -1,16 +1,20 @@
-use std::{collections::HashSet, fs, future::ready, time::Duration};
+use std::{collections::HashSet, convert::Infallible, fs, future::ready, time::Duration};
 
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, stream::select},
-};
+use iced::futures::{Stream, StreamExt, stream::select};
 use serde::{Deserialize, Serialize};
+use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy, zvariant::Type};
 
 use crate::{
-    data::source::clight,
-    message_subscriptions::{restarting_subscription, ticked},
+    data::source::{
+        Delivery, PolledSource, Source,
+        bus::{Bus, name_owned},
+        clight, delivered, emit_delivery_changes, present_or_absent,
+    },
+    message_subscriptions::{restarting, ticked},
 };
+
+const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
 
 #[proxy(
     interface = "org.clightd.clightd.Backlight",
@@ -52,20 +56,35 @@ pub struct Backlight {
 
 const INTERVAL: Duration = Duration::from_secs(10);
 
-pub fn subscription() -> Subscription<Vec<Backlight>> {
-    restarting_subscription("backlight", backlight_readings)
+impl Source for Vec<Backlight> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "backlight";
 }
 
-async fn backlight_readings() -> zbus::Result<impl Stream<Item = Vec<Backlight>>> {
+impl PolledSource for Vec<Backlight> {
+    const INTERVAL: Duration = INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Infallible> {
+        Ok(spawn_blocking(poll_all).await.unwrap_or_default())
+    }
+
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(name_owned(Bus::System, CLIGHTD_SERVICE), move || {
+            emit_delivery_changes(delivered(
+                restarting("backlight", backlight_changes).then(move |()| Self::poll(key)),
+            ))
+            .boxed()
+        })
+    }
+}
+
+async fn backlight_changes() -> zbus::Result<impl Stream<Item = ()>> {
     let connection = zbus::Connection::system().await?;
     let proxy = ClightdBacklightProxy::new(&connection).await?;
     let changes = proxy.receive_changed().await?.map(drop);
-    Ok(
-        select(ticked(INTERVAL, || ready(())), changes).then(move |()| {
-            let proxy = proxy.clone();
-            async move { proxy.get_all("").await.map(backlights).unwrap_or_default() }
-        }),
-    )
+    Ok(select(ticked(INTERVAL, || ready(())), changes))
 }
 
 pub fn poll_all() -> Vec<Backlight> {

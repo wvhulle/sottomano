@@ -35,8 +35,8 @@ use crate::{
         refresh_dial::RefreshDial,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, KeyValue, Readiness, RecordCells, Refresh, Section, SectionBody, Tooltip,
-            TooltipBody, TrayMenuBody,
+            Cell, KeyValue, Provenance, Readiness, RecordCells, Section, SectionBody, SourcedBody,
+            SourcedSection, Tooltip, TrayMenuBody, WholeBody,
         },
         uniform_width_column::uniform_width_column,
     },
@@ -154,7 +154,7 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn refresh_marker(&self, refresh: Refresh) -> Element<'static, Message> {
+    fn provenance_marker(&self, provenance: Provenance) -> Element<'static, Message> {
         let dim = self.dim();
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, Message>| {
@@ -163,8 +163,8 @@ impl<'a> TooltipContent<'a> {
                 .align_y(Vertical::Center)
                 .into()
         };
-        let marker = match refresh {
-            Refresh::Periodic(info) => pressable_text(
+        let marker = match provenance {
+            Provenance::Polled(info) => pressable_text(
                 labelled(
                     self.small_dim_text(humantime::format_duration(info.every).to_string()),
                     RefreshDial::new(
@@ -181,7 +181,7 @@ impl<'a> TooltipContent<'a> {
                 self.config.tooltips.copy_flash,
                 Interaction::Pointer,
             ),
-            Refresh::Live => labelled(
+            Provenance::Live => labelled(
                 self.annotation("live".to_owned()),
                 Phosphor::Pulse(Weight::Regular).view(glyph_size, dim),
             ),
@@ -202,13 +202,24 @@ impl<'a> TooltipContent<'a> {
 
     fn grid(&self) -> Element<'static, Message> {
         match &self.tooltip.body {
-            TooltipBody::Sections(sections) => self.sections(sections),
-            TooltipBody::Workspace(preview) => inset(
+            SourcedBody::Sections(sections) => self.sections(sections),
+            SourcedBody::Whole { body, provenance } => Column::with_children([
+                self.whole(body),
+                inset(self.provenance_marker(*provenance)),
+            ])
+            .spacing(ROW_SPACING_PX)
+            .into(),
+        }
+    }
+
+    fn whole(&self, body: &WholeBody) -> Element<'static, Message> {
+        match body {
+            WholeBody::Workspace(preview) => inset(
                 WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.favicons)
                     .view(),
             ),
-            TooltipBody::Text { title, body } => inset(self.text(title, body.as_deref())),
-            TooltipBody::TrayMenu(menu) => self.tray_menu(menu),
+            WholeBody::Text { title, body } => inset(self.text(title, body.as_deref())),
+            WholeBody::TrayMenu(menu) => self.tray_menu(menu),
         }
     }
 
@@ -263,11 +274,19 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
-    fn sections(&self, sections: &[Section]) -> Element<'static, Message> {
-        let filled = sections
+    fn sections(&self, sections: &[SourcedSection]) -> Element<'static, Message> {
+        let filled: Vec<&SourcedSection> = sections
             .iter()
-            .filter(|section| !section.body().is_empty())
-            .map(|section| self.in_readiness(section.readiness()).section(section));
+            .filter(|section| !section.section().body().is_empty())
+            .collect();
+        let filled = filled.iter().enumerate().map(|(index, sourced)| {
+            let closes_run = filled
+                .get(index + 1)
+                .is_none_or(|next| next.provenance() != sourced.provenance());
+            let marker = closes_run.then(|| self.provenance_marker(sourced.provenance()));
+            self.in_readiness(sourced.readiness())
+                .section(sourced.section(), marker)
+        });
 
         let dim = self.config.theme.palette.dim;
         let divider = move || {
@@ -288,7 +307,11 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
-    fn section(&self, section: &Section) -> Element<'static, Message> {
+    fn section(
+        &self,
+        section: &Section,
+        marker: Option<Element<'static, Message>>,
+    ) -> Element<'static, Message> {
         let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
         let title = section.title().map(|title| {
             container(self.bold_title(title))
@@ -301,10 +324,6 @@ impl<'a> TooltipContent<'a> {
                 .padding(title_padding)
                 .into()
         });
-
-        let marker = section
-            .refresh()
-            .map(|refresh| self.refresh_marker(refresh));
 
         inset(
             Column::with_children(

@@ -1,61 +1,85 @@
-use std::{fmt::Display, time::SystemTime};
+use std::time::SystemTime;
 
 use iced::{
     Task,
-    futures::{StreamExt, stream},
+    futures::{Stream, StreamExt, stream},
     task::Handle,
 };
 use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    message_subscriptions::{Cadence, Readings},
-    widgets::tooltip_body::{KeyValue, Readiness, Refresh, RefreshInfo, Section},
+    data::source::{Delivery, LiveSource, PolledSource, Source},
+    widgets::tooltip_body::{KeyValue, PollInfo, Provenance, Readiness, Section, SourcedSection},
 };
 
 #[derive(Debug)]
-pub struct OnHoverReading<S> {
-    latest: Option<Result<S, String>>,
+pub struct OnHoverReading<S: Source> {
+    latest: Option<Result<S, S::Error>>,
     shape: Option<S>,
     fetching: Option<Handle>,
-    cadence: Cadence,
-    fetch_started: Option<SystemTime>,
+    provenance: Option<Provenance>,
 }
 
-impl<S> Default for OnHoverReading<S> {
+impl<S: Source> Default for OnHoverReading<S> {
     fn default() -> Self {
         Self {
             latest: None,
             shape: None,
             fetching: None,
-            cadence: Cadence::Once,
-            fetch_started: None,
+            provenance: None,
         }
     }
 }
 
-impl<S: Send + 'static> OnHoverReading<S> {
-    pub fn fetch<E: Display + 'static, Message: Send + 'static>(
+impl<S: Source> OnHoverReading<S> {
+    pub fn poll<Message: Send + 'static>(
         &mut self,
-        readings: Readings<S, E>,
-        delivered: fn(Result<S, String>) -> Message,
+        key: S::Key,
+        delivered: fn(Delivery<S>) -> Message,
+        config: &Config,
+    ) -> Task<Message>
+    where
+        S: PolledSource,
+    {
+        let provenance = Provenance::Polled(PollInfo {
+            source: S::NAME,
+            every: S::INTERVAL,
+            last: SystemTime::now(),
+        });
+        self.start(S::polls(key), provenance, delivered, config)
+    }
+
+    pub fn listen<Message: Send + 'static>(
+        &mut self,
+        key: S::Key,
+        delivered: fn(Delivery<S>) -> Message,
+        config: &Config,
+    ) -> Task<Message>
+    where
+        S: LiveSource,
+    {
+        self.start(S::events(key), Provenance::Live, delivered, config)
+    }
+
+    fn start<Message: Send + 'static>(
+        &mut self,
+        deliveries: impl Stream<Item = Delivery<S>> + Send + 'static,
+        provenance: Provenance,
+        delivered: fn(Delivery<S>) -> Message,
         config: &Config,
     ) -> Task<Message> {
         self.keep_shape();
-        self.cadence = readings.cadence;
-        self.fetch_started = Some(SystemTime::now());
+        self.provenance = Some(provenance);
         let debug_delay = config.tooltips.loading.debug_delay;
         let delayed = stream::once(async move {
             sleep(debug_delay).await;
-            readings.stream
+            deliveries
         })
         .flatten();
-        let (task, fetching) = Task::run(delayed, |reading| {
-            reading.map_err(|failure| failure.to_string())
-        })
-        .abortable();
+        let (task, fetching) = Task::run(delayed, delivered).abortable();
         self.fetching = Some(fetching.abort_on_drop());
-        task.map(delivered)
+        task
     }
 
     pub fn stop(&mut self) {
@@ -69,27 +93,26 @@ impl<S: Send + 'static> OnHoverReading<S> {
         }
     }
 
-    pub fn receive(&mut self, fetched: Result<S, String>) {
-        if self.fetching.is_some() {
-            self.latest = Some(fetched);
-            self.fetch_started = Some(SystemTime::now());
+    pub fn receive(&mut self, delivery: Delivery<S>) {
+        if self.fetching.is_none() {
+            return;
+        }
+        match delivery {
+            Delivery::Absent => {
+                self.latest = None;
+                self.shape = None;
+            }
+            Delivery::Reading(reading) => self.latest = Some(reading),
+        }
+        if let Some(Provenance::Polled(poll)) = &mut self.provenance {
+            poll.last = SystemTime::now();
         }
     }
 
-    fn refresh(&self) -> Option<Refresh> {
-        let Cadence::Periodic { source, every } = self.cadence else {
-            return None;
+    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<SourcedSection> {
+        let Some(provenance) = self.provenance else {
+            return Vec::new();
         };
-        self.fetch_started.map(|last| {
-            Refresh::Periodic(RefreshInfo {
-                source,
-                every,
-                last,
-            })
-        })
-    }
-
-    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
         let readiness = if self.latest.is_some() {
             Readiness::Arriving
         } else {
@@ -100,13 +123,12 @@ impl<S: Send + 'static> OnHoverReading<S> {
             Some(Ok(reading)) => sections(reading),
             Some(Err(failure)) => vec![Section::dictionary([KeyValue::new(
                 "Error",
-                failure.clone(),
+                failure.to_string(),
             )])],
         };
-        let refresh = self.refresh();
         unmarked
             .into_iter()
-            .map(|section| section.with_readiness(readiness).with_refresh(refresh))
+            .map(|section| SourcedSection::new(section, readiness, provenance))
             .collect()
     }
 }

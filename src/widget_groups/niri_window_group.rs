@@ -8,7 +8,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -70,13 +70,12 @@ impl NiriWindowGroup {
     }
 
     pub fn tooltip_for(&self, target: NiriWindowTarget) -> Tooltip {
-        let entry = match target {
+        match target {
             NiriWindowTarget::CornerRadius => {
-                KeyValue::new("Window corner radius", self.corner_radius.readout_text())
+                self.corner_radius.readout_tooltip("Window corner radius")
             }
-            NiriWindowTarget::Gaps => KeyValue::new("Window gaps", self.gaps.readout_text()),
-        };
-        Tooltip::of(TooltipBody::dictionary([entry]))
+            NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
+        }
     }
 
     fn close_sliders(&mut self) {

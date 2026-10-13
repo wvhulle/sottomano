@@ -1,11 +1,30 @@
-use std::{collections::HashMap, io, time::SystemTime};
+use std::{collections::HashMap, convert::Infallible, io, time::SystemTime};
 
+use iced::futures::{Stream, StreamExt};
 use systemd::journal::{Journal, JournalRecord};
 
 use crate::data::{
     severity::Severity,
-    source::journal::{JournalEvent, JournalPriority, OwningUnit, either_of, field},
+    source::{
+        Delivery, LiveSource, Source, delivered,
+        journal::{JournalEvent, JournalPriority, OwningUnit, either_of, field, journal_windows},
+    },
 };
+
+impl Source for ServiceErrors {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = ServiceErrorEntry::NAME;
+}
+
+impl LiveSource for ServiceErrors {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(
+            journal_windows::<ServiceErrorEntry>().map(|entries| Ok(ServiceErrors::from(entries))),
+        )
+    }
+}
 
 const SERVICE_UNIT_SUFFIX: &str = ".service";
 

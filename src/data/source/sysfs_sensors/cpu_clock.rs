@@ -1,10 +1,13 @@
 use std::time::Duration;
 
+use iced::futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, Error, core_freqs};
-use crate::data::source::{Source, blocking_poll};
+use crate::data::source::{
+    Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrequencyLimit {
@@ -72,16 +75,23 @@ impl CpuClock {
 
 impl Source for CpuClock {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "cpu-clock";
+}
+
+impl PolledSource for CpuClock {
     const INTERVAL: Duration = Duration::from_secs(3);
 
-    async fn available(_key: &()) -> bool {
-        spawn_blocking(core_freqs)
-            .await
-            .is_ok_and(|cores| !cores.is_empty())
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        let exposed = async {
+            spawn_blocking(core_freqs)
+                .await
+                .is_ok_and(|cores| !cores.is_empty())
+        };
+        present_or_absent(stream::once(exposed), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

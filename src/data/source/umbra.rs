@@ -1,7 +1,9 @@
 use std::time::Duration;
 
+use iced::futures::{Stream, StreamExt, stream};
+
 use crate::data::{
-    source::{Source, command},
+    source::{Delivery, PolledSource, Source, command, present_or_absent, ticked_polls},
     sun_schedule::ColorMode,
 };
 
@@ -15,10 +17,15 @@ impl Source for Umbra {
     type Key = ();
 
     const NAME: &'static str = "umbra";
+}
+
+impl PolledSource for Umbra {
     const INTERVAL: Duration = Duration::from_secs(30);
 
-    async fn available((): &()) -> bool {
-        command::exists("umbra").await
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(stream::once(command::exists("umbra")), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {

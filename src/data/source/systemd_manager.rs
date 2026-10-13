@@ -3,6 +3,7 @@ pub mod failed_units;
 pub mod running_jobs;
 
 use std::{
+    fmt,
     future::pending,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -26,7 +27,9 @@ use crate::data::source::journal::either_of;
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
 
-pub trait UnitScope {
+pub trait UnitScope: Clone + fmt::Debug + Send + 'static {
+    const FAILED_SOURCE: &'static str;
+    const SLOW_JOBS_SOURCE: &'static str;
     const PER_USER: bool;
     const CLI_FLAG: Option<&'static str>;
     const LOGGED_BY: &'static str;
@@ -56,6 +59,8 @@ pub trait UnitScope {
 pub struct User;
 
 impl UnitScope for User {
+    const FAILED_SOURCE: &'static str = "failed user units";
+    const SLOW_JOBS_SOURCE: &'static str = "slow user jobs";
     const PER_USER: bool = true;
     const CLI_FLAG: Option<&'static str> = Some("--user");
     const LOGGED_BY: &'static str = "_SYSTEMD_USER_UNIT";
@@ -66,6 +71,8 @@ impl UnitScope for User {
 pub struct System;
 
 impl UnitScope for System {
+    const FAILED_SOURCE: &'static str = "failed system units";
+    const SLOW_JOBS_SOURCE: &'static str = "slow system jobs";
     const PER_USER: bool = false;
     const CLI_FLAG: Option<&'static str> = None;
     const LOGGED_BY: &'static str = "_SYSTEMD_UNIT";

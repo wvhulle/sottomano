@@ -11,25 +11,24 @@ use crate::{
     config::Config,
     data::{
         source::{
-            logind,
+            Delivery, logind,
             umbra::{self, Umbra},
-            weather::{self, Location},
+            weather::Location,
         },
         sun_schedule::ColorMode,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, blocking},
+    message_subscriptions::{ForcedRefresh, blocking, listening},
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::Tooltip,
         weather_icons::WeatherIcon,
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
@@ -71,8 +70,8 @@ struct ArmedSwitch {
 
 #[derive(Debug, Clone)]
 pub enum DarkModeMessage {
-    ScheduleLoaded(DarkModeSchedule),
-    LocationFix(Result<Location, weather::Error>),
+    ScheduleLoaded(Delivery<DarkModeSchedule>),
+    LocationFix(Delivery<Location>),
     SwitchDue,
     ModeToggle(ToggleMessage<Umbra>),
     ToggleAutoSwitch,
@@ -102,19 +101,11 @@ impl Default for DarkModeGroup {
 }
 
 impl DarkModeGroup {
-    pub fn probe() -> Task<DarkModeMessage> {
-        Task::batch([
-            ToggleControl::<Umbra>::probe(()).map(DarkModeMessage::ModeToggle),
-            Task::perform(state::dark_mode::load(), DarkModeMessage::ScheduleLoaded),
-        ])
-    }
-
-    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<DarkModeMessage> {
+    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<DarkModeMessage> {
         Subscription::batch([
-            self.mode_toggle
-                .subscription((), forced)
-                .map(DarkModeMessage::ModeToggle),
-            Subscription::run(Location::published).map(DarkModeMessage::LocationFix),
+            ToggleControl::<Umbra>::subscription((), forced).map(DarkModeMessage::ModeToggle),
+            listening::<DarkModeSchedule>(()).map(DarkModeMessage::ScheduleLoaded),
+            listening::<Location>(()).map(DarkModeMessage::LocationFix),
             Subscription::run(logind::resumes).map(|()| DarkModeMessage::SwitchDue),
         ])
     }
@@ -166,8 +157,16 @@ impl DarkModeGroup {
 
     fn handle(&mut self, msg: DarkModeMessage) -> Task<DarkModeMessage> {
         match msg {
-            DarkModeMessage::ScheduleLoaded(saved) => {
-                self.auto_switch_toggle.saved_schedule = saved;
+            DarkModeMessage::ScheduleLoaded(delivery) => {
+                self.auto_switch_toggle
+                    .saved_schedule
+                    .push_or_keep(delivery);
+                let saved = self
+                    .auto_switch_toggle
+                    .saved_schedule
+                    .get()
+                    .copied()
+                    .unwrap_or_default();
                 for edge in [ColorMode::Light, ColorMode::Dark] {
                     let minutes =
                         time_delta_to_minutes(saved.sun_event_offsets.offset_for_mode(edge));
@@ -176,8 +175,8 @@ impl DarkModeGroup {
                 }
                 Task::none()
             }
-            DarkModeMessage::LocationFix(reading) => {
-                if let Ok(location) = reading {
+            DarkModeMessage::LocationFix(delivery) => {
+                if let Delivery::Reading(Ok(location)) = delivery {
                     self.auto_switch_toggle.update_location(location.position());
                 }
                 Task::none()
@@ -214,11 +213,18 @@ impl DarkModeGroup {
                 let offsets = self
                     .auto_switch_toggle
                     .saved_schedule
+                    .get()
+                    .copied()
+                    .unwrap_or_default()
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
                 self.auto_switch_toggle.change_sun_event_offsets(offsets);
                 Task::future(state::dark_mode::save(
-                    self.auto_switch_toggle.saved_schedule,
+                    self.auto_switch_toggle
+                        .saved_schedule
+                        .get()
+                        .copied()
+                        .unwrap_or_default(),
                 ))
                 .map(move |ok| {
                     DarkModeMessage::OffsetSlider(edge, ControlMessage::Persisted { value, ok })
@@ -246,7 +252,11 @@ impl DarkModeGroup {
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {
         Task::future(state::dark_mode::save(
-            self.auto_switch_toggle.saved_schedule,
+            self.auto_switch_toggle
+                .saved_schedule
+                .get()
+                .copied()
+                .unwrap_or_default(),
         ))
         .discard()
     }
@@ -268,17 +278,15 @@ impl DarkModeGroup {
     pub fn tooltip_for(&self, target: DarkModeTarget) -> Option<Tooltip> {
         match target {
             DarkModeTarget::Mode => self.mode_toggle.tooltip(),
-            DarkModeTarget::Schedule => Some(Tooltip::of(self.auto_switch_toggle.tooltip())),
+            DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_tooltip(),
             DarkModeTarget::SunriseOffset => Some(self.offset_slider_tooltip(ColorMode::Light)),
             DarkModeTarget::SunsetOffset => Some(self.offset_slider_tooltip(ColorMode::Dark)),
         }
     }
 
     fn offset_slider_tooltip(&self, edge: ColorMode) -> Tooltip {
-        Tooltip::of(TooltipBody::dictionary([KeyValue::new(
-            format!("{} offset", edge.sun_event_label()),
-            self.offset_slider_for(edge).readout_text(),
-        )]))
+        self.offset_slider_for(edge)
+            .readout_tooltip(format!("{} offset", edge.sun_event_label()))
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, DarkModeMessage> {

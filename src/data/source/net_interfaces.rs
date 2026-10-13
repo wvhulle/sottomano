@@ -12,7 +12,7 @@ use std::{
 
 use iced::futures::{
     Stream, StreamExt,
-    stream::{self, select},
+    stream::{self, BoxStream, select},
 };
 use zbus::{
     Connection, MatchRule, MessageStream,
@@ -21,7 +21,14 @@ use zbus::{
     names::OwnedInterfaceName,
 };
 
-use crate::{data::source::bus::Properties, message_subscriptions::restarting};
+use crate::{
+    data::source::{
+        Delivery, Source,
+        bus::{Bus, Properties, name_owned},
+        present_or_absent,
+    },
+    message_subscriptions::restarting,
+};
 
 const SIGNAL_BURST_LIMIT: usize = 64;
 
@@ -29,6 +36,18 @@ const SIGNAL_BURST_LIMIT: usize = 64;
 pub enum ReadingError {
     Bus(zbus::Error),
     Absent,
+}
+
+pub fn device_or_absent<S: Source>(
+    service: &'static str,
+    readings: impl FnMut() -> BoxStream<'static, Option<S>> + Send + 'static,
+) -> impl Stream<Item = Delivery<S>> + Send {
+    let mut readings = readings;
+    present_or_absent(name_owned(Bus::System, service), move || {
+        readings()
+            .map(|device| device.map_or(Delivery::Absent, |device| Delivery::Reading(Ok(device))))
+            .boxed()
+    })
 }
 
 impl From<zbus::Error> for ReadingError {

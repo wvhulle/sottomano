@@ -1,10 +1,22 @@
-use std::{collections::HashMap, fmt, process, thread};
+use std::{collections::HashMap, convert::Infallible, fmt, future::ready, process, thread};
 
-use iced::{Rectangle, Size};
-use niri_ipc::{Event, Request, Response, Window, socket::Socket, state::EventStreamState};
+use iced::{
+    Rectangle, Size,
+    futures::{Stream, StreamExt},
+};
+use niri_ipc::{
+    Event, Request, Response, Window,
+    socket::Socket,
+    state::{EventStreamState, EventStreamStatePart},
+};
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
-use crate::data::source::app_rules::{self, AppRule, TitleParts};
+use crate::data::source::{
+    Delivery, LiveSource, Source,
+    app_rules::{self, AppRule, TitleParts},
+    delivered,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VEdge {
@@ -41,11 +53,30 @@ pub struct ActiveWorkspace<'a> {
     pub name: Option<&'a str>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Snapshot {
     workspaces: HashMap<String, Vec<WorkspaceIndicator>>,
     windows: HashMap<u64, Vec<WinEntry>>,
     active: HashMap<String, u64>,
+}
+
+impl Source for Snapshot {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "niri";
+}
+
+impl LiveSource for Snapshot {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(ReceiverStream::new(spawn_event_thread()).scan(
+            EventStreamState::default(),
+            |state, event| {
+                let _ = state.apply(event);
+                ready(Some(Ok(Snapshot::derive(state))))
+            },
+        ))
+    }
 }
 
 impl Snapshot {

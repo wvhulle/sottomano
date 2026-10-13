@@ -1,7 +1,13 @@
+use std::convert::Infallible;
+
 use chrono::TimeDelta;
+use iced::futures::{Stream, StreamExt, stream};
 
 use crate::{
-    data::sun_schedule::SunEventOffsets,
+    data::{
+        source::{Delivery, LiveSource, Source, delivered},
+        sun_schedule::SunEventOffsets,
+    },
     state::{Columns, StoreError, with_table},
 };
 
@@ -27,7 +33,20 @@ impl Default for DarkModeSchedule {
     }
 }
 
-pub async fn load() -> DarkModeSchedule {
+impl Source for DarkModeSchedule {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "dark mode schedule";
+}
+
+impl LiveSource for DarkModeSchedule {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(stream::once(load()).map(Ok))
+    }
+}
+
+async fn load() -> DarkModeSchedule {
     with_table(
         "dark mode schedule: load failed",
         &[CREATE_TABLE],
