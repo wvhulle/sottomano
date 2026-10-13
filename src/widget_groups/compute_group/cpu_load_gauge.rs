@@ -13,7 +13,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_text,
         phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -40,7 +40,14 @@ impl CpuCoreLoads {
         sections_by_core_kind(
             topology,
             self.core_readings(),
-            ["Load", "User", "Sys", "IO", "IRQ", "Idle"],
+            [
+                ColumnHeading::new("Load"),
+                ColumnHeading::new("User"),
+                ColumnHeading::new("Sys"),
+                ColumnHeading::new("IO"),
+                ColumnHeading::new("IRQ"),
+                ColumnHeading::new("Idle"),
+            ],
             CoreReading::table_record,
         )
     }

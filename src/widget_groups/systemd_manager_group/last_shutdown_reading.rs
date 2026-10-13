@@ -1,3 +1,5 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     config::Config,
     data::{
@@ -12,7 +14,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{Section, TableRecord, TooltipBody},
+        tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -69,7 +71,10 @@ impl BarWidget for LastShutdown {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
-            ["Took", "Result"],
+            [
+                ColumnHeading::new("Took"),
+                ColumnHeading::new("Result").align_x(Horizontal::Left),
+            ],
             self.slowest_stops.iter().map(UnitStop::table_record),
         )
         .titled((

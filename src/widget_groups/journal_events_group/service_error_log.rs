@@ -1,3 +1,5 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     config::Config,
     data::source::service_errors::{ServiceErrors, UnitErrors},
@@ -10,7 +12,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -34,7 +36,7 @@ impl UnitErrors {
                     at: self.latest.into(),
                     part: TimePart::TimeOfDay,
                 }),
-                Some(self.count.to_string().into()),
+                Some(Cell::Hint(self.count.to_string())),
                 Some(message.into()),
             ],
         )
@@ -72,7 +74,11 @@ impl BarWidget for ServiceErrors {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
-            ["Latest", "Count", "Message"],
+            [
+                ColumnHeading::new("Latest"),
+                ColumnHeading::new("Count"),
+                ColumnHeading::new("Message").align_x(Horizontal::Left),
+            ],
             self.by_unit_oldest_first
                 .iter()
                 .map(UnitErrors::table_record),

@@ -1,8 +1,15 @@
 use std::time::Duration;
 
-use crate::{data::battery_forecast::Estimate, widgets::tooltip_body::Cell};
+use crate::{
+    data::battery_forecast::Estimate,
+    widgets::tooltip_body::{Cell, ColumnHeading},
+};
 
-pub const ESTIMATE_HEADINGS: [&str; 3] = ["Earliest", "Median", "Latest"];
+pub const ESTIMATE_HEADINGS: [ColumnHeading; 3] = [
+    ColumnHeading::new("Earliest"),
+    ColumnHeading::new("Median"),
+    ColumnHeading::new("Latest"),
+];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Forecast {

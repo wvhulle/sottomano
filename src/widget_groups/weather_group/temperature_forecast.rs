@@ -1,3 +1,4 @@
+use iced::alignment::Horizontal;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
@@ -9,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_text,
         localized_time::TimePart,
-        tooltip_body::{Cell, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         weather_icons::WeatherIcon,
     },
 };
@@ -37,7 +38,10 @@ impl BarWidget for Temperature {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([
             Section::column_table(
-                ["", "Conditions"],
+                [
+                    ColumnHeading::new(""),
+                    ColumnHeading::new("Conditions").align_x(Horizontal::Left),
+                ],
                 self.condition
                     .map(|condition| TableRecord::new("Conditions", condition_cells(condition))),
             ),
@@ -69,7 +73,11 @@ impl BarWidget for Temperature {
     }
 }
 
-const HOURLY_HEADINGS: [&str; 3] = ["Temp", "", "Conditions"];
+const HOURLY_HEADINGS: [ColumnHeading; 3] = [
+    ColumnHeading::new("Temp"),
+    ColumnHeading::new(""),
+    ColumnHeading::new("Conditions").align_x(Horizontal::Left),
+];
 
 fn condition_cells(condition: WeatherCondition) -> [Option<Cell>; 2] {
     [

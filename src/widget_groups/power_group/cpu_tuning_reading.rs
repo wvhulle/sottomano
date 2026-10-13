@@ -1,13 +1,18 @@
+use iced::alignment::Horizontal;
+
 use crate::{
     data::source::sysfs_sensors::cpu_tuning::CpuTuning,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
     },
 };
 
-const HEADINGS: [&str; 2] = ["Value", "Meaning"];
+const HEADINGS: [ColumnHeading; 2] = [
+    ColumnHeading::new("Value"),
+    ColumnHeading::new("Meaning").align_x(Horizontal::Left),
+];
 
 fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> {
     TableRecord::new(

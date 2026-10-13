@@ -1,6 +1,6 @@
 use crate::{
     data::source::sysfs_sensors::cpu_topology::CpuTopology,
-    widgets::tooltip_body::{Section, TableRecord},
+    widgets::tooltip_body::{ColumnHeading, Section, TableRecord},
 };
 
 pub trait PerCore {
@@ -10,7 +10,7 @@ pub trait PerCore {
 pub fn sections_by_core_kind<Reading: PerCore, const COLUMNS: usize>(
     topology: &CpuTopology,
     mut readings: Vec<Reading>,
-    headings: [&str; COLUMNS],
+    headings: [ColumnHeading; COLUMNS],
     table_record: fn(&Reading) -> TableRecord<COLUMNS>,
 ) -> Vec<Section> {
     readings.sort_by_key(|reading| topology.kind_of(reading.core()));
