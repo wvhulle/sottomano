@@ -20,15 +20,18 @@ use super::{
 use crate::{
     config::{Config, LoadError},
     data::{
-        notifications::model::{Outbound, close_reason},
+        notifications::model::{NotificationData, Outbound, close_reason},
         severity::Severity,
         sink::sound::{self, SoundTheme},
         source::niri::Placement,
     },
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
-    state::{self, NotificationSettings, OverlaySettings},
-    widget_groups::notification_group::{NotificationGroupMessage, NotificationToggle},
+    state::{self, OverlaySettings},
+    widget_groups::{
+        notification_group::NotificationGroupMessage,
+        quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietStart, QuietUpdate},
+    },
     widgets::{
         announced_level::LevelReading,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
@@ -55,6 +58,7 @@ impl DesktopShell {
                 self.desktop_entries.get(),
                 &self.config,
                 &self.shell_settings,
+                self.quiet_schedule_group.is_quiet(),
             ),
             &|output| panels.get(output).copied(),
         )
@@ -66,9 +70,61 @@ impl DesktopShell {
                 self.notification_group.update(menu);
                 Task::none()
             }
-            NotificationGroupMessage::Toggle(toggle) => self
-                .notifications
-                .toggle(toggle, &mut self.shell_settings.notifications),
+            NotificationGroupMessage::ToggleSound => {
+                let notifications = &mut self.shell_settings.notifications;
+                notifications.sound = !notifications.sound;
+                Task::future(state::shell_settings::save_sound(notifications.sound)).discard()
+            }
+            NotificationGroupMessage::ToggleDoNotDisturb => {
+                self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)
+            }
+        }
+    }
+
+    pub fn update_quiet_schedule(&mut self, msg: QuietScheduleMessage) -> Task<Message> {
+        let QuietUpdate { task, change } = self.quiet_schedule_group.update(msg);
+        Task::batch([
+            task.map(Message::QuietSchedule),
+            self.apply_quiet_change(change),
+        ])
+    }
+
+    fn apply_quiet_change(&mut self, change: QuietChange) -> Task<Message> {
+        match change {
+            QuietChange::None => Task::none(),
+            QuietChange::Began { start, screen_off } => {
+                let sleep_time = match start {
+                    QuietStart::Scheduled => Task::batch([
+                        niri_action(niri_ipc::Action::PowerOffMonitors {}),
+                        self.audio_group.mute_sink_for_quiet().map(Message::Audio),
+                    ]),
+                    QuietStart::Manual => Task::none(),
+                };
+                Task::batch([
+                    sleep_time,
+                    self.idle_timeouts_group
+                        .override_screen_off(screen_off)
+                        .map(Message::IdleTimeouts),
+                ])
+            }
+            QuietChange::Ended => {
+                let released = self.notifications.release_held(&ToastContext::new(
+                    &self.niri,
+                    self.desktop_entries.get(),
+                    &self.config,
+                    &self.shell_settings,
+                    false,
+                ));
+                Task::batch([
+                    released,
+                    self.audio_group
+                        .restore_sink_after_quiet()
+                        .map(Message::Audio),
+                    self.idle_timeouts_group
+                        .override_screen_off(None)
+                        .map(Message::IdleTimeouts),
+                ])
+            }
         }
     }
 }
@@ -124,9 +180,10 @@ impl NotificationLayer {
             NotificationMessage::DefaultActivated { id, token } => {
                 self.invoke_default(id, token, context.config)
             }
-            NotificationMessage::CloseRequested(id) => {
-                self.close_all([id], close_reason::CLOSED_BY_CALL, context.config)
-            }
+            NotificationMessage::CloseRequested(id) => Task::batch([
+                self.drop_held(id),
+                self.close_all([id], close_reason::CLOSED_BY_CALL, context.config),
+            ]),
             NotificationMessage::Tick => self.expire(context.config),
             NotificationMessage::Reply { id, message } => {
                 self.update_reply(id, message, panel_on, context.config)
@@ -180,7 +237,7 @@ impl NotificationLayer {
         active: Vec<OngoingToast<Message>>,
         context: &ToastContext,
     ) -> Task<Message> {
-        if context.shell_settings.notifications.do_not_disturb {
+        if context.quiet {
             return Task::none();
         }
         self.snoozed.retain(|snoozed| {
@@ -283,6 +340,35 @@ impl NotificationLayer {
         self.close_all(shown, close_reason::CLOSED_BY_CALL, config)
     }
 
+    fn hold_while_quiet(&mut self, toast: ToastContent) {
+        if !toast.kind.is_from_dbus_client() {
+            return;
+        }
+        self.held.retain(|held| held.id != toast.data.id);
+        self.held.push(toast.data);
+    }
+
+    pub fn release_held(&mut self, context: &ToastContext) -> Task<Message> {
+        let held: Vec<NotificationData> = mem::take(&mut self.held);
+        Task::batch(
+            held.into_iter()
+                .map(|data| self.serve(ToastContent::from_dbus_client(data), context)),
+        )
+    }
+
+    fn drop_held(&mut self, id: u32) -> Task<Message> {
+        let was_held = self.held.iter().any(|held| held.id == id);
+        self.held.retain(|held| held.id != id);
+        if was_held {
+            self.emit_in_order(vec![Outbound::Closed {
+                id,
+                reason: close_reason::CLOSED_BY_CALL,
+            }])
+        } else {
+            Task::none()
+        }
+    }
+
     fn snooze_ongoing_toast(&mut self, toast_id: u32) {
         let snoozed = self
             .showing()
@@ -303,9 +389,11 @@ impl NotificationLayer {
             entries,
             config,
             shell_settings,
+            quiet,
         } = context;
         let notifications = &shell_settings.notifications;
-        if notifications.do_not_disturb {
+        if *quiet {
+            self.hold_while_quiet(toast);
             return Task::none();
         }
         let data = &toast.data;
@@ -545,34 +633,6 @@ impl NotificationLayer {
                 }),
         );
         self.emit_in_order(outbound)
-    }
-
-    pub fn toggle(
-        &mut self,
-        toggle: NotificationToggle,
-        notifications: &mut NotificationSettings,
-    ) -> Task<Message> {
-        match toggle {
-            NotificationToggle::DoNotDisturb => {
-                notifications.do_not_disturb = !notifications.do_not_disturb;
-                self.sync_dnd(notifications);
-                Task::future(state::shell_settings::save_do_not_disturb(
-                    notifications.do_not_disturb,
-                ))
-                .discard()
-            }
-            NotificationToggle::Sound => {
-                notifications.sound = !notifications.sound;
-                Task::future(state::shell_settings::save_sound(notifications.sound)).discard()
-            }
-        }
-    }
-
-    fn sync_dnd(&mut self, notifications: &NotificationSettings) {
-        if notifications.do_not_disturb {
-            self.live.clear();
-            self.hovered = None;
-        }
     }
 
     pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Message> {

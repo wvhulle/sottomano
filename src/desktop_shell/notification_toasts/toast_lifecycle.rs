@@ -82,6 +82,16 @@ pub enum ToastKind {
 }
 
 impl ToastKind {
+    pub(super) fn is_from_dbus_client(&self) -> bool {
+        matches!(
+            self,
+            Self::Event {
+                source: EventSource::DbusClient,
+                ..
+            }
+        )
+    }
+
     pub(super) fn glyph(&self) -> Option<Glyph> {
         match self {
             Self::Event {
@@ -275,13 +285,7 @@ impl Notification {
     }
 
     pub(super) fn sent_by_dbus_client(&self) -> bool {
-        matches!(
-            self.kind,
-            ToastKind::Event {
-                source: EventSource::DbusClient,
-                ..
-            }
-        )
+        self.kind.is_from_dbus_client()
     }
 
     pub(super) fn withdraw(&mut self, now: Instant, pace: ExitPace, config: &Config) {

@@ -126,7 +126,15 @@ impl IdleTimer {
     }
 
     pub fn tooltip(&self) -> Tooltip {
-        let when = match timeout_at(self.control.current()) {
+        self.tooltip_of(timeout_at(self.control.current()), None)
+    }
+
+    pub fn tooltip_overridden_by(&self, overrider: &'static str, timeout: Duration) -> Tooltip {
+        self.tooltip_of(Some(timeout), Some(overrider))
+    }
+
+    fn tooltip_of(&self, timeout: Option<Duration>, overrider: Option<&'static str>) -> Tooltip {
+        let when = match timeout {
             None => KeyValue::new("State", "disabled"),
             Some(timeout) => KeyValue::new(
                 format!("{} at", self.action.verb()),
@@ -136,8 +144,15 @@ impl IdleTimer {
                 },
             ),
         };
+        let overridden = overrider.zip(timeout).map(|(overrider, timeout)| {
+            KeyValue::new(overrider, format_duration(timeout).to_string())
+        });
         Tooltip::sourced(
-            TooltipBody::dictionary([when, KeyValue::new("Via", self.action.mechanism())]),
+            TooltipBody::dictionary(
+                [when, KeyValue::new("Via", self.action.mechanism())]
+                    .into_iter()
+                    .chain(overridden),
+            ),
             Freshness::Live,
         )
     }

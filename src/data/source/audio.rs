@@ -160,6 +160,10 @@ impl Commands {
         self.request(target, CommandKind::ToggleMute)
     }
 
+    pub fn set_mute(&self, target: Target, muted: bool) -> Option<i64> {
+        self.request(target, CommandKind::SetMute(muted))
+    }
+
     fn request(&self, target: Target, kind: CommandKind) -> Option<i64> {
         let (reply, outcome) = sync_channel(1);
         self.sender
@@ -250,6 +254,7 @@ enum CommandKind {
     SetVolume(i64),
     AdjustVolume(i64),
     ToggleMute,
+    SetMute(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -561,6 +566,10 @@ fn resolve(levels: &Levels, kind: CommandKind) -> Option<Resolved> {
         CommandKind::AdjustVolume(delta) => uniform((current + delta).clamp(0, 100)),
         CommandKind::ToggleMute => Some(Resolved {
             change: LevelChange::Mute(!levels.mute),
+            percent: current,
+        }),
+        CommandKind::SetMute(muted) => Some(Resolved {
+            change: LevelChange::Mute(muted),
             percent: current,
         }),
     }

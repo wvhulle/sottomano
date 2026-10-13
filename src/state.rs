@@ -5,6 +5,7 @@ pub mod launches;
 pub mod niri_rules;
 pub mod overlay_settings;
 pub mod power;
+pub mod quiet_hours;
 pub mod rate_limit;
 pub mod shell_settings;
 pub mod store;
@@ -176,15 +177,11 @@ impl PanelAppearance {
 
 #[derive(Debug, Clone)]
 pub struct NotificationSettings {
-    pub do_not_disturb: bool,
     pub sound: bool,
 }
 
 impl Default for NotificationSettings {
     fn default() -> Self {
-        Self {
-            do_not_disturb: false,
-            sound: true,
-        }
+        Self { sound: true }
     }
 }
