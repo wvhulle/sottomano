@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use crate::{
     config::Config,
     data::source::{Delivery, LiveSource, PolledSource, Source},
-    widgets::tooltip_body::{KeyValue, PollInfo, Provenance, Readiness, Section, SourcedSection},
+    widgets::tooltip_body::{Freshness, KeyValue, PollInfo, Readiness, Section, SourcedSection},
 };
 
 #[derive(Debug)]
@@ -18,7 +18,7 @@ pub struct OnHoverReading<S: Source> {
     latest: Option<Result<S, S::Error>>,
     shape: Option<S>,
     fetching: Option<Handle>,
-    provenance: Option<Provenance>,
+    freshness: Option<Freshness>,
 }
 
 impl<S: Source> Default for OnHoverReading<S> {
@@ -27,7 +27,7 @@ impl<S: Source> Default for OnHoverReading<S> {
             latest: None,
             shape: None,
             fetching: None,
-            provenance: None,
+            freshness: None,
         }
     }
 }
@@ -42,12 +42,12 @@ impl<S: Source> OnHoverReading<S> {
     where
         S: PolledSource,
     {
-        let provenance = Provenance::Polled(PollInfo {
+        let freshness = Freshness::Polled(PollInfo {
             source: S::NAME,
             every: S::INTERVAL,
             last: SystemTime::now(),
         });
-        self.start(S::polls(key), provenance, delivered, config)
+        self.start(S::polls(key), freshness, delivered, config)
     }
 
     pub fn listen<Message: Send + 'static>(
@@ -59,18 +59,18 @@ impl<S: Source> OnHoverReading<S> {
     where
         S: LiveSource,
     {
-        self.start(S::events(key), Provenance::Live, delivered, config)
+        self.start(S::events(key), Freshness::Live, delivered, config)
     }
 
     fn start<Message: Send + 'static>(
         &mut self,
         deliveries: impl Stream<Item = Delivery<S>> + Send + 'static,
-        provenance: Provenance,
+        freshness: Freshness,
         delivered: fn(Delivery<S>) -> Message,
         config: &Config,
     ) -> Task<Message> {
         self.keep_shape();
-        self.provenance = Some(provenance);
+        self.freshness = Some(freshness);
         let debug_delay = config.tooltips.loading.debug_delay;
         let delayed = stream::once(async move {
             sleep(debug_delay).await;
@@ -104,13 +104,13 @@ impl<S: Source> OnHoverReading<S> {
             }
             Delivery::Reading(reading) => self.latest = Some(reading),
         }
-        if let Some(Provenance::Polled(poll)) = &mut self.provenance {
+        if let Some(Freshness::Polled(poll)) = &mut self.freshness {
             poll.last = SystemTime::now();
         }
     }
 
     pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<SourcedSection> {
-        let Some(provenance) = self.provenance else {
+        let Some(freshness) = self.freshness else {
             return Vec::new();
         };
         let readiness = if self.latest.is_some() {
@@ -128,7 +128,7 @@ impl<S: Source> OnHoverReading<S> {
         };
         unmarked
             .into_iter()
-            .map(|section| SourcedSection::new(section, readiness, provenance))
+            .map(|section| SourcedSection::new(section, readiness, freshness))
             .collect()
     }
 }

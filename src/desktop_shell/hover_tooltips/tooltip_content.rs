@@ -35,7 +35,7 @@ use crate::{
         refresh_dial::RefreshDial,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, KeyValue, Provenance, Readiness, RecordCells, Section, SectionBody, SourcedBody,
+            Cell, Freshness, KeyValue, Readiness, RecordCells, Section, SectionBody, SourcedBody,
             SourcedSection, Tooltip, TrayMenuBody, WholeBody,
         },
         uniform_width_column::uniform_width_column,
@@ -154,7 +154,7 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn provenance_marker(&self, provenance: Provenance) -> Element<'static, Message> {
+    fn freshness(&self, freshness: Freshness) -> Element<'static, Message> {
         let dim = self.dim();
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, Message>| {
@@ -163,8 +163,8 @@ impl<'a> TooltipContent<'a> {
                 .align_y(Vertical::Center)
                 .into()
         };
-        let marker = match provenance {
-            Provenance::Polled(info) => pressable_text(
+        let shown = match freshness {
+            Freshness::Polled(info) => pressable_text(
                 labelled(
                     self.small_dim_text(humantime::format_duration(info.every).to_string()),
                     RefreshDial::new(
@@ -181,12 +181,12 @@ impl<'a> TooltipContent<'a> {
                 self.config.tooltips.copy_flash,
                 Interaction::Pointer,
             ),
-            Provenance::Live => labelled(
+            Freshness::Live => labelled(
                 self.annotation("live".to_owned()),
                 Phosphor::Pulse(Weight::Regular).view(glyph_size, dim),
             ),
         };
-        container(marker).align_right(Length::Fill).into()
+        container(shown).align_right(Length::Fill).into()
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
@@ -203,12 +203,11 @@ impl<'a> TooltipContent<'a> {
     fn grid(&self) -> Element<'static, Message> {
         match &self.tooltip.body {
             SourcedBody::Sections(sections) => self.sections(sections),
-            SourcedBody::Whole { body, provenance } => Column::with_children([
-                self.whole(body),
-                inset(self.provenance_marker(*provenance)),
-            ])
-            .spacing(ROW_SPACING_PX)
-            .into(),
+            SourcedBody::Whole { body, freshness } => {
+                Column::with_children([self.whole(body), inset(self.freshness(*freshness))])
+                    .spacing(ROW_SPACING_PX)
+                    .into()
+            }
         }
     }
 
@@ -275,18 +274,13 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn sections(&self, sections: &[SourcedSection]) -> Element<'static, Message> {
-        let filled: Vec<&SourcedSection> = sections
+        let filled = sections
             .iter()
             .filter(|section| !section.section().body().is_empty())
-            .collect();
-        let filled = filled.iter().enumerate().map(|(index, sourced)| {
-            let closes_run = filled
-                .get(index + 1)
-                .is_none_or(|next| next.provenance() != sourced.provenance());
-            let marker = closes_run.then(|| self.provenance_marker(sourced.provenance()));
-            self.in_readiness(sourced.readiness())
-                .section(sourced.section(), marker)
-        });
+            .map(|sourced| {
+                self.in_readiness(sourced.readiness())
+                    .section(sourced.section(), self.freshness(sourced.freshness()))
+            });
 
         let dim = self.config.theme.palette.dim;
         let divider = move || {
@@ -310,7 +304,7 @@ impl<'a> TooltipContent<'a> {
     fn section(
         &self,
         section: &Section,
-        marker: Option<Element<'static, Message>>,
+        freshness: Element<'static, Message>,
     ) -> Element<'static, Message> {
         let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
         let title = section.title().map(|title| {
@@ -330,8 +324,7 @@ impl<'a> TooltipContent<'a> {
                 title
                     .into_iter()
                     .chain(caption)
-                    .chain(once(self.body(section.body())))
-                    .chain(marker),
+                    .chain([self.body(section.body()), freshness]),
             )
             .spacing(ROW_SPACING_PX)
             .into(),

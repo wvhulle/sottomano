@@ -7,8 +7,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         tooltip_body::{
-            KeyValue, PollInfo, Provenance, Readiness, Section, SourcedSection, Tooltip,
-            TooltipBody,
+            Freshness, KeyValue, PollInfo, Readiness, Section, SourcedSection, Tooltip, TooltipBody,
         },
         widget_state::WidgetState,
     },
@@ -40,7 +39,7 @@ impl BarWidget for FailedReading {
 pub struct ContinuousReading<S> {
     data: Option<S>,
     failure: Option<FailedReading>,
-    provenance: Option<Provenance>,
+    freshness: Option<Freshness>,
 }
 
 impl<S> Default for ContinuousReading<S> {
@@ -48,7 +47,7 @@ impl<S> Default for ContinuousReading<S> {
         Self {
             data: None,
             failure: None,
-            provenance: None,
+            freshness: None,
         }
     }
 }
@@ -59,19 +58,19 @@ impl<S> ContinuousReading<S> {
     }
 
     pub fn assume(&mut self, data: S) {
-        if self.provenance.is_some() {
+        if self.freshness.is_some() {
             self.data = Some(data);
             self.failure = None;
         }
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        let tooltip = Tooltip::sourced(body, self.provenance?);
+        let tooltip = Tooltip::sourced(body, self.freshness?);
         (!tooltip.is_empty()).then_some(tooltip)
     }
 
     pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<SourcedSection> {
-        let Some(provenance) = self.provenance else {
+        let Some(freshness) = self.freshness else {
             return Vec::new();
         };
         self.data
@@ -79,7 +78,7 @@ impl<S> ContinuousReading<S> {
             .map(sections)
             .unwrap_or_default()
             .into_iter()
-            .map(|section| SourcedSection::new(section, Readiness::Settled, provenance))
+            .map(|section| SourcedSection::new(section, Readiness::Settled, freshness))
             .collect()
     }
 
@@ -95,7 +94,7 @@ impl<S: Source> ContinuousReading<S> {
     fn stamp(
         &mut self,
         delivery: Delivery<S>,
-        provenance: Provenance,
+        freshness: Freshness,
     ) -> Option<Result<S, S::Error>> {
         match delivery {
             Delivery::Absent => {
@@ -103,7 +102,7 @@ impl<S: Source> ContinuousReading<S> {
                 None
             }
             Delivery::Reading(reading) => {
-                self.provenance = Some(provenance);
+                self.freshness = Some(freshness);
                 Some(reading)
             }
         }
@@ -114,11 +113,11 @@ impl<S: LiveSource> ContinuousReading<S> {
     pub fn load(&mut self, data: S) {
         self.data = Some(data);
         self.failure = None;
-        self.provenance = Some(Provenance::Live);
+        self.freshness = Some(Freshness::Live);
     }
 
     pub fn push_or_keep(&mut self, delivery: Delivery<S>) {
-        if let Some(reading) = self.stamp(delivery, Provenance::Live) {
+        if let Some(reading) = self.stamp(delivery, Freshness::Live) {
             self.keep(reading, S::NAME);
         }
     }
@@ -126,15 +125,15 @@ impl<S: LiveSource> ContinuousReading<S> {
 
 impl<S: LiveSource + BarWidget> ContinuousReading<S> {
     pub fn push(&mut self, delivery: Delivery<S>) {
-        if let Some(reading) = self.stamp(delivery, Provenance::Live) {
+        if let Some(reading) = self.stamp(delivery, Freshness::Live) {
             self.accept(reading);
         }
     }
 }
 
 impl<S: PolledSource> ContinuousReading<S> {
-    fn polled_now() -> Provenance {
-        Provenance::Polled(PollInfo {
+    fn polled_now() -> Freshness {
+        Freshness::Polled(PollInfo {
             source: S::NAME,
             every: S::INTERVAL,
             last: SystemTime::now(),

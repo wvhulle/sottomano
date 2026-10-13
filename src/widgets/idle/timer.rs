@@ -14,7 +14,7 @@ use crate::{
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, KeyValue, Provenance, Tooltip, TooltipBody},
+        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
     },
 };
 
@@ -138,7 +138,7 @@ impl IdleTimer {
         };
         Tooltip::sourced(
             TooltipBody::dictionary([when, KeyValue::new("Via", self.action.mechanism())]),
-            Provenance::Live,
+            Freshness::Live,
         )
     }
 
