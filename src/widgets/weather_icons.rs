@@ -20,7 +20,7 @@ macro_rules! weather_svg {
     };
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WeatherIcon {
     DaySunny,
     DaySunnyOvercast,

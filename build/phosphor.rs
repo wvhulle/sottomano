@@ -105,7 +105,7 @@ pub fn generate(assets_dir: &Path) -> String {
         .unwrap();
     }
     format!(
-        r"#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        r"#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(clippy::enum_variant_names)]
 pub enum Phosphor {{
 {variants}}}

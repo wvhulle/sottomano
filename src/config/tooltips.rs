@@ -29,61 +29,92 @@ impl Default for TooltipsConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TooltipLoading {
-    pub effect: TooltipLoadingEffect,
     #[serde(with = "humantime_serde")]
     pub debug_delay: Duration,
-    #[serde(with = "humantime_serde")]
-    pub reveal_duration: Duration,
-    pub decode: DecodeTiming,
-    pub skeleton: SkeletonTiming,
+    pub placeholder: PlaceholderEffect,
+    pub intro: IntroEffect,
+    pub replace: ReplaceEffect,
 }
 
 impl Default for TooltipLoading {
     fn default() -> Self {
         Self {
-            effect: TooltipLoadingEffect::default(),
             debug_delay: Duration::ZERO,
-            reveal_duration: Duration::from_millis(500),
-            decode: DecodeTiming::default(),
-            skeleton: SkeletonTiming::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TooltipLoadingEffect {
-    Decode,
-    #[default]
-    Skeleton,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct DecodeTiming {
-    #[serde(with = "humantime_serde")]
-    pub glyph_change: Duration,
-}
-
-impl Default for DecodeTiming {
-    fn default() -> Self {
-        Self {
-            glyph_change: Duration::from_millis(55),
+            placeholder: PlaceholderEffect::Pulse {
+                period: Duration::from_millis(1400),
+            },
+            intro: IntroEffect::Fade {
+                duration: Duration::from_millis(500),
+            },
+            replace: ReplaceEffect::Decode {
+                duration: Duration::from_millis(350),
+                glyph_change: Duration::from_millis(55),
+            },
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SkeletonTiming {
-    #[serde(with = "humantime_serde")]
-    pub pulse_period: Duration,
+#[serde(tag = "effect", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PlaceholderEffect {
+    Pulse {
+        #[serde(with = "humantime_serde")]
+        period: Duration,
+    },
+    Shimmer {
+        #[serde(with = "humantime_serde")]
+        sweep_period: Duration,
+    },
+    Noise {
+        #[serde(with = "humantime_serde")]
+        glyph_change: Duration,
+    },
 }
 
-impl Default for SkeletonTiming {
-    fn default() -> Self {
-        Self {
-            pulse_period: Duration::from_millis(1400),
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "effect", rename_all = "snake_case", deny_unknown_fields)]
+pub enum IntroEffect {
+    Fade {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+    },
+    Decode {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+        #[serde(with = "humantime_serde")]
+        glyph_change: Duration,
+    },
+    Wipe {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+    },
+    Typewriter {
+        #[serde(with = "humantime_serde")]
+        per_char: Duration,
+    },
+    Immediate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "effect", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ReplaceEffect {
+    Decode {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+        #[serde(with = "humantime_serde")]
+        glyph_change: Duration,
+    },
+    Crossfade {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+    },
+    Roll {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+    },
+    Flash {
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+    },
+    Immediate,
 }

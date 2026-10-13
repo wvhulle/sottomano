@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use chrono::{DateTime, Local, Locale, TimeZone};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimePart {
     TimeOfDay,
     Date,

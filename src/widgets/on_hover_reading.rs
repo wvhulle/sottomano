@@ -114,7 +114,7 @@ impl<S: Source> OnHoverReading<S> {
             return Vec::new();
         };
         let readiness = if self.latest.is_some() {
-            Readiness::Arriving
+            Readiness::Settled
         } else {
             Readiness::Estimated
         };

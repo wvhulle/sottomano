@@ -3,7 +3,7 @@ use simpleicons_rs::{SICLAUDE, SIGITHUBCOPILOT, SIOPENROUTER, SIUNSPLASH, SIWIKI
 
 use crate::widgets::bar_widget::Glyph;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SimpleIcon {
     Claude,
     OpenRouter,
