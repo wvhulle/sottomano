@@ -178,19 +178,19 @@ pub struct Section {
 pub struct SourcedSection {
     section: Section,
     readiness: Readiness,
-    provenance: Provenance,
+    freshness: Freshness,
 }
 
 impl SourcedSection {
     pub(in crate::widgets) fn new(
         section: Section,
         readiness: Readiness,
-        provenance: Provenance,
+        freshness: Freshness,
     ) -> Self {
         Self {
             section,
             readiness,
-            provenance,
+            freshness,
         }
     }
 
@@ -202,8 +202,8 @@ impl SourcedSection {
         self.readiness
     }
 
-    pub fn provenance(&self) -> Provenance {
-        self.provenance
+    pub fn freshness(&self) -> Freshness {
+        self.freshness
     }
 }
 
@@ -375,7 +375,7 @@ impl PollInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Provenance {
+pub enum Freshness {
     Polled(PollInfo),
     Live,
 }
@@ -385,7 +385,7 @@ pub enum SourcedBody {
     Sections(Vec<SourcedSection>),
     Whole {
         body: WholeBody,
-        provenance: Provenance,
+        freshness: Freshness,
     },
 }
 
@@ -394,8 +394,8 @@ impl SourcedBody {
         match self {
             SourcedBody::Sections(sections) => sections
                 .iter()
-                .any(|section| matches!(section.provenance, Provenance::Polled(_))),
-            SourcedBody::Whole { provenance, .. } => matches!(provenance, Provenance::Polled(_)),
+                .any(|section| matches!(section.freshness, Freshness::Polled(_))),
+            SourcedBody::Whole { freshness, .. } => matches!(freshness, Freshness::Polled(_)),
         }
     }
 
@@ -427,15 +427,15 @@ impl Tooltip {
         }
     }
 
-    pub(in crate::widgets) fn sourced(body: TooltipBody, provenance: Provenance) -> Self {
+    pub(in crate::widgets) fn sourced(body: TooltipBody, freshness: Freshness) -> Self {
         let body = match body {
             TooltipBody::Sections(sections) => SourcedBody::Sections(
                 sections
                     .into_iter()
-                    .map(|section| SourcedSection::new(section, Readiness::Settled, provenance))
+                    .map(|section| SourcedSection::new(section, Readiness::Settled, freshness))
                     .collect(),
             ),
-            TooltipBody::Whole(body) => SourcedBody::Whole { body, provenance },
+            TooltipBody::Whole(body) => SourcedBody::Whole { body, freshness },
         };
         Self {
             body,

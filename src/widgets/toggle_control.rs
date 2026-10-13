@@ -9,7 +9,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, Provenance, Tooltip, TooltipBody},
+        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -35,7 +35,7 @@ impl IconToggle {
     pub fn readout_tooltip(label: impl Into<Cell>, readout: impl Into<Cell>) -> Tooltip {
         Tooltip::sourced(
             TooltipBody::dictionary([KeyValue::new(label, readout)]),
-            Provenance::Live,
+            Freshness::Live,
         )
     }
 
