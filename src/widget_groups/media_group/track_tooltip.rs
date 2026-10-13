@@ -64,10 +64,16 @@ fn path_segment(value: &str) -> String {
 }
 
 pub fn track_section(media: &Media) -> Section {
-    let source = media
-        .url
-        .as_ref()
-        .map(|url| KeyValue::new("Source", Cell::Link(url.to_string())));
+    let source = media.url.as_ref().and_then(|url| {
+        let label = url.host_str()?.to_owned();
+        Some(KeyValue::new(
+            "Source",
+            Cell::Link {
+                label,
+                url: url.to_string(),
+            },
+        ))
+    });
     Section::dictionary(
         [
             ("Title", &media.title),
@@ -118,7 +124,15 @@ pub fn search_section(media: &Media) -> Section {
         SearchPlatform::ALL
             .into_iter()
             .filter(move |platform| Some(*platform) != playing_on)
-            .map(move |platform| KeyValue::new(platform.name(), Cell::Link(platform.url(&query))))
+            .map(move |platform| {
+                KeyValue::new(
+                    platform.name(),
+                    Cell::Link {
+                        label: query.clone(),
+                        url: platform.url(&query),
+                    },
+                )
+            })
     });
     Section::dictionary(links).titled("Search")
 }

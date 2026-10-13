@@ -3,9 +3,13 @@ use std::time::{Duration, SystemTime};
 use niri_ipc::state::EventStreamState;
 
 use crate::{
-    data::source::{
-        nix_store::StorePackage,
-        process::{self, Inspection, Launch},
+    data::{
+        severity::Severity,
+        source::{
+            nix_package_facts::{Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
+            nix_store::StorePackage,
+            process::{self, Inspection, Launch},
+        },
     },
     desktop_shell::hover_tooltips::relative,
     widgets::tooltip_body::{Cell, KeyValue, Section, TooltipBody},
@@ -37,12 +41,112 @@ pub fn body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBody> {
 
 pub fn inspection_sections(inspected: &Inspection) -> Vec<Section> {
     let provenance = &inspected.provenance;
+    let profile = provenance
+        .profile
+        .as_deref()
+        .map(|profile| KeyValue::new("Profile", profile));
     vec![
-        Section::dictionary(provenance.package.as_ref().map(versioned)).titled("Package"),
+        Section::dictionary(
+            provenance
+                .package
+                .as_ref()
+                .map(versioned)
+                .into_iter()
+                .chain(profile),
+        )
+        .titled("Package"),
         Section::dictionary(provenance.runtime.as_ref().map(versioned)).titled("Runtime"),
         Section::dictionary(provenance.referenced.iter().map(versioned)).titled("Referenced"),
         Section::dictionary(command(inspected)).titled("Command"),
     ]
+}
+
+pub fn package_facts_sections(facts: &NixPackageFacts) -> Vec<Section> {
+    let nixpkgs = facts.nixpkgs.as_ref();
+    let closure = &facts.closure;
+    let identity = [
+        nixpkgs
+            .and_then(|entry| entry.description.as_deref())
+            .map(|description| KeyValue::new("", description)),
+        nixpkgs
+            .and_then(|entry| entry.license.as_deref())
+            .map(|license| KeyValue::new("License", license)),
+        nixpkgs
+            .and_then(|entry| entry.homepage.clone())
+            .map(|homepage| KeyValue::new("Homepage", homepage_link(homepage))),
+        nixpkgs.map(|entry| {
+            KeyValue::new(
+                "Nix file",
+                Cell::Link {
+                    label: entry.definition.file.clone(),
+                    url: entry.definition.url.clone(),
+                },
+            )
+        }),
+    ];
+    let store_path = [
+        KeyValue::new("Alone", closure.own_size.display().iec().to_string()),
+        KeyValue::new(
+            "Closure",
+            format!(
+                "{} in {} paths",
+                closure.closure_size.display().iec(),
+                closure.path_count
+            ),
+        ),
+        origin_entry(&facts.origin),
+        KeyValue::new("Added", relative(facts.registered, SystemTime::now())),
+    ];
+    let freshness = [
+        nixpkgs.map(|entry| generation_entry(&entry.generation)),
+        facts.upstream.as_ref().map(upstream_entry),
+    ];
+    vec![
+        Section::dictionary(identity.into_iter().flatten()).titled("Nixpkgs"),
+        Section::dictionary(store_path).titled((
+            "Store path",
+            "This package alone, and with every path it needs at runtime.",
+        )),
+        Section::dictionary(freshness.into_iter().flatten()).titled("Freshness"),
+    ]
+}
+
+fn homepage_link(url: String) -> Cell {
+    let label = ["https://", "http://"]
+        .into_iter()
+        .find_map(|scheme| url.strip_prefix(scheme))
+        .unwrap_or(&url)
+        .to_owned();
+    Cell::Link { label, url }
+}
+
+fn origin_entry(origin: &Origin) -> KeyValue {
+    match origin {
+        Origin::Signed { by } => KeyValue::new("Obtained", format!("signed by {}", by.join(", "))),
+        Origin::BuiltLocally => KeyValue::new("Obtained", "built locally"),
+        Origin::Unsigned => KeyValue::new("Obtained", "unsigned"),
+    }
+}
+
+fn generation_entry(generation: &Generation) -> KeyValue {
+    match generation {
+        Generation::Current => KeyValue::new("System generation", "running"),
+        Generation::Rebuilt { version } => KeyValue::new(
+            "System generation",
+            format!("has {version}, restart to use it"),
+        )
+        .level(Severity::Warning),
+    }
+}
+
+fn upstream_entry(upstream: &Upstream) -> KeyValue {
+    let branch = upstream.branch.as_str();
+    match &upstream.state {
+        UpstreamState::UpToDate => KeyValue::new(branch, "same version"),
+        UpstreamState::Newer { version } => {
+            KeyValue::new(branch, format!("has {version}")).level(Severity::Warning)
+        }
+    }
 }
 
 fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
@@ -67,11 +171,6 @@ fn command(inspected: &Inspection) -> Vec<KeyValue> {
             let key = if index == 0 { "Command" } else { "" };
             KeyValue::new(key, argument.as_str())
         });
-    let profile = inspected
-        .provenance
-        .profile
-        .as_deref()
-        .map(|profile| KeyValue::new("Profile", profile));
     let binary = launched
         .binary
         .as_ref()
@@ -80,12 +179,7 @@ fn command(inspected: &Inspection) -> Vec<KeyValue> {
         .scope
         .as_deref()
         .map(|scope| KeyValue::new("Scope", scope));
-    profile
-        .into_iter()
-        .chain(binary)
-        .chain(arguments)
-        .chain(scope)
-        .collect()
+    binary.into_iter().chain(arguments).chain(scope).collect()
 }
 
 fn beyond_binary(launched: &Launch) -> impl Iterator<Item = &String> {

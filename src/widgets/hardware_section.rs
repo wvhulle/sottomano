@@ -165,7 +165,10 @@ impl Adapter {
         .chain(driver)
         .chain([KeyValue::new(
             "Lookup",
-            Cell::Link(self.bus_id.lookup_url()),
+            Cell::Link {
+                label: format!("{} id database", self.bus_id.bus_name()),
+                url: self.bus_id.lookup_url(),
+            },
         )])
     }
 }

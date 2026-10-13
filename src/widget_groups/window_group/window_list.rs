@@ -18,6 +18,7 @@ use crate::{
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
+        nix_package_facts::{NixPackageFacts, PackageWatch},
         process::{Inspection, Process, Watched},
         window_agents::{self, WindowProcesses},
     },
@@ -56,6 +57,7 @@ pub struct WindowList {
     hovered_window: Option<u64>,
     process_tree: OnHoverReading<Process>,
     inspection: OnHoverReading<Inspection>,
+    package_facts: OnHoverReading<NixPackageFacts>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +72,7 @@ pub enum WindowListMessage {
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
     ProcessInspected(Box<Delivery<Inspection>>),
+    PackageFactsRead(Box<Delivery<NixPackageFacts>>),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -102,6 +105,7 @@ impl WindowList {
             self.hovered_window = None;
             self.process_tree.stop();
             self.inspection.stop();
+            self.package_facts.stop();
             return Task::none();
         };
         self.hovered_window = Some(watched.window);
@@ -112,8 +116,16 @@ impl WindowList {
                 config,
             ),
             self.inspection.poll(
-                watched,
+                watched.clone(),
                 |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
+                config,
+            ),
+            self.package_facts.poll(
+                PackageWatch {
+                    watched,
+                    upstream_branch: config.widget_groups.window_list.nixpkgs_branch.clone(),
+                },
+                |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,
             ),
         ])
@@ -126,6 +138,8 @@ impl WindowList {
                 [
                     self.inspection
                         .sections(window_tooltip::inspection_sections),
+                    self.package_facts
+                        .sections(window_tooltip::package_facts_sections),
                     self.process_tree.sections(|tree| {
                         let kept = self
                             .window_processes
@@ -167,6 +181,10 @@ impl WindowList {
             }
             WindowListMessage::ProcessInspected(fetched) => {
                 self.inspection.receive(*fetched);
+                Action::None
+            }
+            WindowListMessage::PackageFactsRead(fetched) => {
+                self.package_facts.receive(*fetched);
                 Action::None
             }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,

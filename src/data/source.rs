@@ -43,6 +43,7 @@ pub mod logind;
 pub mod mpris;
 pub mod net_interfaces;
 pub mod niri;
+pub mod nix_package_facts;
 pub mod nix_store;
 pub mod oom_kills;
 pub mod power_profile;
