@@ -66,18 +66,9 @@ pub enum QuietScheduleMessage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QuietStart {
-    Scheduled,
-    Manual,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuietChange {
     None,
-    Began {
-        start: QuietStart,
-        screen_off: Option<Duration>,
-    },
+    Began { screen_off: Option<Duration> },
     Ended,
 }
 
@@ -194,11 +185,6 @@ impl QuietScheduleGroup {
 
     pub fn update(&mut self, msg: QuietScheduleMessage) -> QuietUpdate {
         let before = self.phase;
-        let start = if matches!(msg, QuietScheduleMessage::ToggleQuietNow) {
-            QuietStart::Manual
-        } else {
-            QuietStart::Scheduled
-        };
         let handled = self.handle(msg);
         let now = Local::now();
         self.phase = self.phase_at(now);
@@ -206,7 +192,6 @@ impl QuietScheduleGroup {
             QuietChange::None
         } else if self.phase.is_quiet() {
             QuietChange::Began {
-                start,
                 screen_off: self.schedule().screen_off,
             }
         } else {

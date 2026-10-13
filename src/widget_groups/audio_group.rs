@@ -59,7 +59,6 @@ impl ControlKind {
 pub struct AudioGroup {
     state: ContinuousReading<AudioState>,
     commands: Option<Commands>,
-    sink_muted_before_quiet: Option<bool>,
     sink_control: SliderControl,
     source_control: SliderControl,
     expansion: GroupExpansion,
@@ -70,7 +69,6 @@ impl Default for AudioGroup {
         Self {
             state: ContinuousReading::default(),
             commands: None,
-            sink_muted_before_quiet: None,
             expansion: GroupExpansion::default(),
             sink_control: SliderControl::new(
                 "Speaker volume",
@@ -108,33 +106,6 @@ impl AudioGroup {
 
     pub fn toggle_window_mute(&self, pid: i32) -> Task<AudioMessage> {
         self.mute(Target::AppStreams(pid))
-    }
-
-    pub fn mute_sink_for_quiet(&mut self) -> Task<AudioMessage> {
-        let muted = self
-            .state
-            .get()
-            .and_then(|state| state.sink.as_ref())
-            .map(|sink| sink.muted);
-        self.sink_muted_before_quiet = muted;
-        self.set_sink_mute(true)
-    }
-
-    pub fn restore_sink_after_quiet(&mut self) -> Task<AudioMessage> {
-        match self.sink_muted_before_quiet.take() {
-            Some(false) => self.set_sink_mute(false),
-            Some(true) | None => Task::none(),
-        }
-    }
-
-    fn set_sink_mute(&self, muted: bool) -> Task<AudioMessage> {
-        match self.commands.clone() {
-            Some(commands) => blocking("audio set mute", move || {
-                commands.set_mute(Target::DefaultSink, muted)
-            })
-            .discard(),
-            None => Task::none(),
-        }
     }
 }
 
