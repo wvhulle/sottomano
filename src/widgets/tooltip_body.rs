@@ -173,7 +173,7 @@ pub struct Section {
     heading: Option<Heading>,
     body: SectionBody,
     readiness: Readiness,
-    refresh: Option<RefreshInfo>,
+    refresh: Option<Refresh>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -250,12 +250,16 @@ impl Section {
     }
 
     #[must_use]
-    pub(in crate::widgets) fn with_refresh(self, refresh: Option<RefreshInfo>) -> Self {
+    pub(in crate::widgets) fn with_refresh(self, refresh: Option<Refresh>) -> Self {
         Self { refresh, ..self }
     }
 
     pub fn readiness(&self) -> Readiness {
         self.readiness
+    }
+
+    pub fn refresh(&self) -> Option<Refresh> {
+        self.refresh
     }
 
     pub fn title(&self) -> Option<&str> {
@@ -327,6 +331,31 @@ impl TooltipBody {
         }
     }
 
+    #[must_use]
+    pub(in crate::widgets) fn with_unmarked_refresh(self, refresh: Option<Refresh>) -> Self {
+        match self {
+            TooltipBody::Sections(sections) => TooltipBody::Sections(
+                sections
+                    .into_iter()
+                    .map(|section| {
+                        let marked = section.refresh.or(refresh);
+                        section.with_refresh(marked)
+                    })
+                    .collect(),
+            ),
+            other => other,
+        }
+    }
+
+    fn has_periodic_refresh(&self) -> bool {
+        let TooltipBody::Sections(sections) = self else {
+            return false;
+        };
+        sections
+            .iter()
+            .any(|section| matches!(section.refresh, Some(Refresh::Periodic(_))))
+    }
+
     fn is_empty(&self) -> bool {
         match self {
             TooltipBody::Sections(sections) => {
@@ -364,7 +393,6 @@ pub enum Refresh {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
     pub body: TooltipBody,
-    pub refresh: Option<Refresh>,
     pub press_hints: PressHints,
 }
 
@@ -376,22 +404,12 @@ impl Tooltip {
     pub fn of(body: TooltipBody) -> Self {
         Self {
             body,
-            refresh: None,
             press_hints: PressHints::default(),
         }
     }
 
-    pub fn refresh_marker(&self) -> Option<Refresh> {
-        self.refresh.or_else(|| {
-            let TooltipBody::Sections(sections) = &self.body else {
-                return None;
-            };
-            sections
-                .iter()
-                .filter_map(|section| section.refresh)
-                .min_by_key(|refresh| refresh.every)
-                .map(Refresh::Periodic)
-        })
+    pub fn has_periodic_refresh(&self) -> bool {
+        self.body.has_periodic_refresh()
     }
 
     #[must_use]

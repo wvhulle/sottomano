@@ -93,15 +93,16 @@ impl<S: BarWidget> ContinuousReading<S> {
         &self,
         extra: impl IntoIterator<Item = Section>,
     ) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip().with_sections(extra))
+        let own = self
+            .display()?
+            .tooltip()
+            .with_unmarked_refresh(self.refresh);
+        self.tooltip_with(own.with_sections(extra))
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
         self.display()?;
-        let tooltip = Tooltip {
-            refresh: self.refresh,
-            ..Tooltip::of(body)
-        };
+        let tooltip = Tooltip::of(body.with_unmarked_refresh(self.refresh));
         (!tooltip.is_empty()).then_some(tooltip)
     }
 

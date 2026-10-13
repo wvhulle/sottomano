@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use crate::{
     config::Config,
     message_subscriptions::{Cadence, Readings},
-    widgets::tooltip_body::{KeyValue, Readiness, RefreshInfo, Section},
+    widgets::tooltip_body::{KeyValue, Readiness, Refresh, RefreshInfo, Section},
 };
 
 #[derive(Debug)]
@@ -76,14 +76,16 @@ impl<S: Send + 'static> OnHoverReading<S> {
         }
     }
 
-    fn refresh_info(&self) -> Option<RefreshInfo> {
+    fn refresh(&self) -> Option<Refresh> {
         let Cadence::Periodic { source, every } = self.cadence else {
             return None;
         };
-        self.fetch_started.map(|last| RefreshInfo {
-            source,
-            every,
-            last,
+        self.fetch_started.map(|last| {
+            Refresh::Periodic(RefreshInfo {
+                source,
+                every,
+                last,
+            })
         })
     }
 
@@ -101,7 +103,7 @@ impl<S: Send + 'static> OnHoverReading<S> {
                 failure.clone(),
             )])],
         };
-        let refresh = self.refresh_info();
+        let refresh = self.refresh();
         unmarked
             .into_iter()
             .map(|section| section.with_readiness(readiness).with_refresh(refresh))
