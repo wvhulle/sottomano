@@ -1,12 +1,12 @@
 use std::{
     collections::HashMap,
+    convert::Infallible,
     fmt::{self, Display, Formatter},
     str::FromStr,
     time::Instant,
 };
 
 use iced::{
-    Subscription,
     futures::{
         Stream, StreamExt,
         future::ready,
@@ -29,8 +29,12 @@ use zbus::{
 };
 
 use crate::{
-    data::source::bus::{DeclaredProperties, OwnerProcess, Properties},
-    message_subscriptions::restarting_subscription,
+    data::source::{
+        Delivery, LiveSource, Source,
+        bus::{DeclaredProperties, OwnerProcess, Properties},
+        delivered,
+    },
+    message_subscriptions::restarting,
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
@@ -455,8 +459,17 @@ async fn load_art(url: &str) -> Option<image::Handle> {
     None
 }
 
-pub fn subscription() -> Subscription<Vec<Media>> {
-    restarting_subscription("mpris", connect)
+impl Source for Vec<Media> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "mpris";
+}
+
+impl LiveSource for Vec<Media> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(restarting("mpris", connect).map(Ok))
+    }
 }
 
 struct Session<Changes> {

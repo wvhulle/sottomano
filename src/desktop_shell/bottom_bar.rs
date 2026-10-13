@@ -62,7 +62,7 @@ impl DesktopShell {
         match self.shell_settings.layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => None,
             WorkspacesPlacement::BottomPanel => workspaces_group::inline_view(
-                &self.niri_snapshot,
+                self.niri_snapshot.get()?,
                 output,
                 &self.config,
                 Position::Bottom,
@@ -74,7 +74,7 @@ impl DesktopShell {
     fn window_group_view<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
         self.window_group
             .view(
-                &self.niri_snapshot,
+                self.niri_snapshot.get()?,
                 WindowAssets {
                     entries: &self.desktop_entries,
                     favicons: &self.favicons,

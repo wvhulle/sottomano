@@ -10,20 +10,21 @@ use uom::si::f64::Ratio;
 use crate::{
     config::Config,
     data::source::{
+        Delivery,
         bus::OwnerProcess,
         desktop_entries::DesktopIndex,
-        mpris,
-        mpris::{Command, Media, Progress, Status},
+        mpris::{self, Command, Media, Progress, Status},
         niri::WindowOwner,
     },
     desktop_shell::{
         AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
-    message_subscriptions::blocking,
+    message_subscriptions::{blocking, listening},
     widgets::{
         bar_widget::Glyph,
         confirm_button::{ConfirmButton, Press},
+        continuous_reading::ContinuousReading,
         flat_button,
         gauge::Gauge,
         group_item::GroupItem,
@@ -51,7 +52,7 @@ const PROGRESS_TICK: Duration = Duration::from_secs(1);
 const RAISE_PLAYER_HINT: &str = "bring the player's window forward";
 
 pub struct MediaGroup {
-    players: Vec<Media>,
+    players: ContinuousReading<Vec<Media>>,
     forced: Option<String>,
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
@@ -62,7 +63,7 @@ pub struct MediaGroup {
 impl Default for MediaGroup {
     fn default() -> Self {
         Self {
-            players: Vec::new(),
+            players: ContinuousReading::default(),
             forced: None,
             seek_bar: SeekBar::default(),
             quit_button: ConfirmButton::new(true),
@@ -74,7 +75,7 @@ impl Default for MediaGroup {
 
 #[derive(Debug, Clone)]
 pub enum MediaMessage {
-    Reading(Vec<Media>),
+    Reading(Delivery<Vec<Media>>),
     Tick(Instant),
     Expansion(ExpansionMessage),
     Command(Command),
@@ -96,7 +97,7 @@ impl MediaGroup {
     }
 
     pub fn subscription(&self) -> Subscription<MediaMessage> {
-        let readings = mpris::subscription().map(MediaMessage::Reading);
+        let readings = listening::<Vec<Media>>(()).map(MediaMessage::Reading);
         if self.is_progressing() {
             Subscription::batch([readings, every(PROGRESS_TICK).map(MediaMessage::Tick)])
         } else {
@@ -111,22 +112,28 @@ impl MediaGroup {
     }
 
     fn current(&self) -> Option<&Media> {
+        let players = self.players.get()?;
         self.forced
             .as_ref()
-            .and_then(|bus| self.players.iter().find(|m| &m.bus == bus))
-            .or_else(|| self.players.iter().find(|m| m.status == Status::Playing))
-            .or_else(|| self.players.iter().find(|m| m.status == Status::Paused))
-            .or_else(|| self.players.first())
+            .and_then(|bus| players.iter().find(|m| &m.bus == bus))
+            .or_else(|| players.iter().find(|m| m.status == Status::Playing))
+            .or_else(|| players.iter().find(|m| m.status == Status::Paused))
+            .or_else(|| players.first())
     }
 
     pub fn update(&mut self, msg: MediaMessage) -> Action {
         match msg {
             MediaMessage::Tick(now) => self.now = now,
-            MediaMessage::Reading(reading) => {
-                self.players = reading;
+            MediaMessage::Reading(delivery) => {
+                self.players.push_or_keep(delivery);
                 self.now = Instant::now();
                 if let Some(bus) = &self.forced
-                    && !self.players.iter().any(|m| &m.bus == bus)
+                    && !self
+                        .players
+                        .get()
+                        .into_iter()
+                        .flatten()
+                        .any(|m| &m.bus == bus)
                 {
                     self.forced = None;
                 }
@@ -219,13 +226,20 @@ impl MediaGroup {
 
     pub fn icon_keys(&self) -> Vec<String> {
         self.players
-            .iter()
+            .get()
+            .into_iter()
+            .flatten()
             .filter_map(|media| media.desktop_entry.clone())
             .collect()
     }
 
     fn titled_players(&self) -> Vec<&Media> {
-        self.players.iter().filter(|m| m.title.is_some()).collect()
+        self.players
+            .get()
+            .into_iter()
+            .flatten()
+            .filter(|m| m.title.is_some())
+            .collect()
     }
 
     fn sources<'a>(
@@ -256,11 +270,11 @@ impl MediaGroup {
 
     pub fn tooltip(&self) -> Option<Tooltip> {
         let media = self.current()?;
-        Some(Tooltip::of(TooltipBody::sections([
+        self.players.tooltip_with(TooltipBody::sections([
             track_section(media),
             playback_section(media, self.now),
             search_section(media),
-        ])))
+        ]))
     }
 
     pub fn group_content<'a>(

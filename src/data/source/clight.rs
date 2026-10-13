@@ -1,8 +1,15 @@
 use std::{env, fs, time::Duration};
 
+use iced::futures::{Stream, StreamExt};
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{Source, backlight, bus, bus::Error};
+use crate::data::source::{
+    Delivery, PolledSource, Source, backlight, bus,
+    bus::{Error, name_owned},
+    present_or_absent, ticked_polls,
+};
+
+const CLIGHT_SERVICE: &str = "org.clight.clight";
 
 #[proxy(
     interface = "org.clight.clight.Conf.Backlight",
@@ -35,10 +42,15 @@ impl Source for Clight {
     type Key = ();
 
     const NAME: &'static str = "clight";
+}
+
+impl PolledSource for Clight {
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn available((): &()) -> bool {
-        Self::poll(()).await.is_ok()
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(name_owned(bus::Bus::Session, CLIGHT_SERVICE), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
     }
 
     async fn poll((): ()) -> Result<Self, Self::Error> {

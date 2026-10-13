@@ -7,19 +7,23 @@ mod usage_windows;
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
+use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 use serde_json::Value;
 
 pub use self::{
-    ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods},
+    ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
     enterprise_spend::{ClaudeEnterpriseSpend, ClaudeOrganization},
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
 };
-use crate::data::source::{ai::ccusage, http};
+use crate::data::source::{
+    Delivery, PolledSource, ai::ccusage, all_of, file_presence::path_present, http,
+    present_or_absent, settled, ticked_polls,
+};
 
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
 const ENTERPRISE_SUBSCRIPTION: &str = "enterprise";
@@ -127,6 +131,51 @@ fn subscription_login(path: &Path) -> Option<Oauth> {
         .ok()?
         .oauth
         .filter(Oauth::grants_subscription_usage)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoginKind {
+    Subscription,
+    Enterprise,
+}
+
+fn login_kind(path: &Path) -> Option<LoginKind> {
+    let oauth = subscription_login(path)?;
+    Some(if oauth.is_enterprise() {
+        LoginKind::Enterprise
+    } else {
+        LoginKind::Subscription
+    })
+}
+
+fn logins(credentials: PathBuf) -> impl Stream<Item = Option<LoginKind>> + Send {
+    path_present(credentials.clone()).map(move |_| login_kind(&credentials))
+}
+
+fn login_polls<S: PolledSource<Key = PathBuf>>(
+    credentials: PathBuf,
+    wanted: LoginKind,
+) -> impl Stream<Item = Delivery<S>> + Send {
+    present_or_absent(
+        logins(credentials.clone()).map(move |kind| kind == Some(wanted)),
+        move || ticked_polls::<S>(credentials.clone()).boxed(),
+    )
+}
+
+fn local_log_polls<S: PolledSource<Key = ClaudeLocalLogs>>(
+    logs: ClaudeLocalLogs,
+    metered_by_subscription: bool,
+) -> impl Stream<Item = Delivery<S>> + Send {
+    let login_matches = match logs.credentials.clone() {
+        Some(credentials) => logins(credentials)
+            .map(move |kind| (kind == Some(LoginKind::Subscription)) == metered_by_subscription)
+            .boxed(),
+        None => settled(!metered_by_subscription).boxed(),
+    };
+    present_or_absent(
+        all_of([stream::once(ccusage::installed()).boxed(), login_matches]),
+        move || ticked_polls::<S>(logs.clone()).boxed(),
+    )
 }
 
 fn plan(oauth: &Oauth) -> Option<String> {

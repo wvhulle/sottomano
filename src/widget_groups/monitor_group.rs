@@ -13,14 +13,16 @@ use output_details::ConnectedOutput;
 use crate::{
     config::Config,
     data::source::{
+        Delivery,
         backlight::{self, Backlight},
         clight::Clight,
         niri::OutputInfo,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, blocking},
+    message_subscriptions::{ForcedRefresh, blocking, polling},
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
@@ -49,7 +51,7 @@ impl From<MonitorTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MonitorGroup {
-    backlights: Vec<Backlight>,
+    backlights: ContinuousReading<Vec<Backlight>>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<Clight>,
     expansion: GroupExpansion,
@@ -58,22 +60,16 @@ pub struct MonitorGroup {
 #[derive(Debug, Clone)]
 pub enum MonitorMessage {
     Expansion(ExpansionMessage),
-    Backlights(Vec<Backlight>),
+    Backlights(Delivery<Vec<Backlight>>),
     Backlight(String, ControlMessage),
     Clight(ToggleMessage<Clight>),
 }
 
 impl MonitorGroup {
-    pub fn probe() -> Task<MonitorMessage> {
-        ToggleControl::<Clight>::probe(()).map(MonitorMessage::Clight)
-    }
-
-    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<MonitorMessage> {
+    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<MonitorMessage> {
         Subscription::batch([
-            backlight::subscription().map(MonitorMessage::Backlights),
-            self.clight
-                .subscription((), forced)
-                .map(MonitorMessage::Clight),
+            polling::<Vec<Backlight>>((), forced).map(MonitorMessage::Backlights),
+            ToggleControl::<Clight>::subscription((), forced).map(MonitorMessage::Clight),
         ])
     }
 
@@ -98,10 +94,12 @@ impl MonitorGroup {
                 }
                 Task::none()
             }
-            MonitorMessage::Backlights(list) => {
+            MonitorMessage::Backlights(delivery) => {
+                self.backlights.receive_or_keep(delivery);
+                let list = self.backlights.get().into_iter().flatten();
                 self.sliders
-                    .retain(|serial, _| list.iter().any(|b| &b.serial == serial));
-                for backlight in &list {
+                    .retain(|serial, _| list.clone().any(|b| &b.serial == serial));
+                for backlight in list {
                     self.sliders
                         .entry(backlight.serial.clone())
                         .or_insert_with(|| {
@@ -117,7 +115,6 @@ impl MonitorGroup {
                         })
                         .update(ControlMessage::Reading(percent_f(backlight.percent)));
                 }
-                self.backlights = list;
                 Task::none()
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
@@ -153,7 +150,8 @@ impl MonitorGroup {
                 .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => {
-                blocking("backlight reread", backlight::poll_all).map(MonitorMessage::Backlights)
+                blocking("backlight reread", backlight::poll_all)
+                    .map(|list| MonitorMessage::Backlights(Delivery::Reading(Ok(list))))
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
@@ -174,29 +172,33 @@ impl MonitorGroup {
     ) -> Option<Tooltip> {
         match target {
             MonitorTarget::Backlight(serial) => {
-                let backlight = self.backlights.iter().find(|b| &b.serial == serial)?;
+                let backlight = self
+                    .backlights
+                    .get()?
+                    .iter()
+                    .find(|b| &b.serial == serial)?;
                 let brightness = self.sliders.get(serial)?.readout_text();
-                Some(Tooltip::of(backlight_display::tooltip(
+                self.backlights.tooltip_with(backlight_display::tooltip(
                     backlight,
                     brightness,
                     ConnectedOutput::driving(backlight, outputs).as_ref(),
-                )))
+                ))
             }
             MonitorTarget::ClightAuto => self.clight.tooltip(),
         }
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, MonitorMessage> {
-        let backlight_sliders: Vec<&'a SliderControl> = self
-            .backlights
-            .iter()
+        let backlights = self.backlights.get().into_iter().flatten();
+        let backlight_sliders: Vec<&'a SliderControl> = backlights
+            .clone()
             .filter_map(|backlight| self.sliders.get(&backlight.serial))
             .collect();
         let previewed_value = backlight_sliders
             .first()
             .map(|slider| *slider as &dyn BarWidget)
             .or(self.clight.reading());
-        let backlight_items = self.backlights.iter().filter_map(|backlight| {
+        let backlight_items = backlights.filter_map(|backlight| {
             let slider = self.sliders.get(&backlight.serial)?;
             let serial = backlight.serial.clone();
             Some(GroupItem::slider(slider, config, move |m| {

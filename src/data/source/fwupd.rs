@@ -1,16 +1,18 @@
 use chrono::{DateTime, Utc};
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, stream},
-};
+use iced::futures::{Stream, StreamExt, stream};
 use zbus::{Connection, proxy};
 
 use crate::{
-    data::source::bus::{self, Properties, prop, service_absent},
+    data::source::{
+        Delivery, LiveSource, Source,
+        bus::{self, Bus, Properties, name_owned, prop, service_absent},
+        delivered, present_or_absent,
+    },
     message_subscriptions::restarting,
 };
 
 const UPDATABLE_DEVICE_FLAG: u64 = 1 << 1;
+const FWUPD_SERVICE: &str = "org.freedesktop.fwupd";
 
 #[proxy(
     interface = "org.freedesktop.fwupd",
@@ -72,11 +74,22 @@ pub struct FirmwareUpgrade {
 
 pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, bus::Error>;
 
-pub fn subscription() -> Subscription<PendingUpgrades> {
-    Subscription::run(signalled_upgrades)
+impl Source for Vec<FirmwareUpgrade> {
+    type Error = bus::Error;
+    type Key = ();
+
+    const NAME: &'static str = "firmware upgrades";
 }
 
-fn signalled_upgrades() -> impl Stream<Item = PendingUpgrades> {
+impl LiveSource for Vec<FirmwareUpgrade> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(name_owned(Bus::System, FWUPD_SERVICE), || {
+            delivered(signalled_upgrades()).boxed()
+        })
+    }
+}
+
+fn signalled_upgrades() -> impl Stream<Item = PendingUpgrades> + Send {
     restarting("fwupd change signal", connected_then_daemon_changes).then(|()| pending_upgrades())
 }
 

@@ -5,7 +5,10 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{Stream, StreamExt, stream::select};
+use iced::futures::{
+    Stream, StreamExt,
+    stream::{self, select},
+};
 use tokio::time::{MissedTickBehavior, interval};
 use tokio_stream::wrappers::IntervalStream;
 use uom::si::{
@@ -17,14 +20,17 @@ use uom::si::{
     power::{microwatt, watt},
     ratio::{percent, ratio},
 };
-use zbus::{Connection, proxy};
+use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
 
 use super::{
     Error, POWER_SUPPLY, first_power_supply, list_dir, parse_field, read_field, read_i64,
     read_trimmed,
 };
 use crate::{
-    data::source::{Source, blocking_poll, hardware::PowerSupplyIdentity},
+    data::source::{
+        Delivery, PolledSource, Source, blocking_poll, delivered, hardware::PowerSupplyIdentity,
+        present_or_absent,
+    },
     message_subscriptions::restarting,
 };
 
@@ -110,10 +116,12 @@ pub struct ChargerSupply {
 
 impl Source for ChargerSupply {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "charger";
+}
+
+impl PolledSource for ChargerSupply {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     fn poll(_key: ()) -> impl Future<Output = Result<Self, Self::Error>> + Send {
@@ -191,26 +199,26 @@ impl Battery {
 
 impl Source for Battery {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "battery";
-    const INTERVAL: Duration = Duration::from_secs(5);
+}
 
-    fn available(_key: &()) -> impl Future<Output = bool> + Send {
-        ready(first_power_supply("BAT").is_some())
-    }
+impl PolledSource for Battery {
+    const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
         blocking_poll(read_battery).await
     }
-}
 
-pub fn readings() -> impl Stream<Item = Result<Battery, Error>> + Send {
-    let mut ticks = interval(Battery::INTERVAL);
-    ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    let ticks = IntervalStream::new(ticks).map(|_| ());
-    select(ticks, supply_state_changes()).then(|()| Battery::poll(()))
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(present(), move || {
+            let mut ticks = interval(Battery::INTERVAL);
+            ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            let ticks = IntervalStream::new(ticks).map(|_| ());
+            delivered(select(ticks, supply_state_changes()).then(move |()| Self::poll(key))).boxed()
+        })
+    }
 }
 
 #[proxy(
@@ -221,6 +229,39 @@ pub fn readings() -> impl Stream<Item = Result<Battery, Error>> + Send {
 trait DisplayDevice {
     #[zbus(property)]
     fn state(&self) -> zbus::Result<u32>;
+}
+
+#[proxy(
+    interface = "org.freedesktop.UPower",
+    default_service = "org.freedesktop.UPower",
+    default_path = "/org/freedesktop/UPower"
+)]
+trait UPower {
+    #[zbus(signal)]
+    fn device_added(&self, device: OwnedObjectPath) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn device_removed(&self, device: OwnedObjectPath) -> zbus::Result<()>;
+}
+
+fn present() -> impl Stream<Item = bool> + Send {
+    stream::once(device_changes()).flat_map(|watched| match watched {
+        Ok(presence) => presence.boxed(),
+        Err(e) => {
+            tracing::warn!("upower device watch: {e}");
+            stream::iter([first_power_supply("BAT").is_some()]).boxed()
+        }
+    })
+}
+
+async fn device_changes() -> zbus::Result<impl Stream<Item = bool> + Send> {
+    let connection = Connection::system().await?;
+    let upower = UPowerProxy::new(&connection).await?;
+    let changes = select(
+        upower.receive_device_added().await?.map(drop),
+        upower.receive_device_removed().await?.map(drop),
+    )
+    .map(|()| first_power_supply("BAT").is_some());
+    Ok(stream::iter([first_power_supply("BAT").is_some()]).chain(changes))
 }
 
 fn supply_state_changes() -> impl Stream<Item = ()> + Send {

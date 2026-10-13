@@ -24,7 +24,7 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 
-use crate::data::source::{Panicked, Source, blocking_poll};
+use crate::data::source::{Panicked, PolledSource, Source, blocking_poll};
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";
 const NVIDIA_MODULE_VERSION: &str = "/sys/module/nvidia/version";
@@ -58,8 +58,34 @@ pub struct GpuDiscovery {
     pub nvml: Result<Arc<Nvml>, Error>,
 }
 
+impl PartialEq for GpuDiscovery {
+    fn eq(&self, other: &Self) -> bool {
+        let same_management = match (&self.nvml, &other.nvml) {
+            (Ok(mine), Ok(theirs)) => Arc::ptr_eq(mine, theirs),
+            (Err(mine), Err(theirs)) => mine == theirs,
+            _ => false,
+        };
+        self.gpus == other.gpus && same_management
+    }
+}
+
+impl Source for GpuDiscovery {
+    type Error = Error;
+    type Key = ();
+
+    const NAME: &'static str = "gpu discovery";
+}
+
+impl PolledSource for GpuDiscovery {
+    const INTERVAL: Duration = Duration::from_hours(1);
+
+    async fn poll(_key: ()) -> Result<Self, Error> {
+        Ok(Self::bound_to_nvidia().await)
+    }
+}
+
 impl GpuDiscovery {
-    pub async fn bound_to_nvidia() -> GpuDiscovery {
+    async fn bound_to_nvidia() -> GpuDiscovery {
         spawn_blocking(|| {
             let mut buses: Vec<PciBusId> = fs::read_dir(NVIDIA_PCI_DRIVER)
                 .into_iter()
@@ -231,10 +257,12 @@ pub struct GpuProcesses {
 
 impl Source for GpuSnapshot {
     type Error = Error;
-
     type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu";
+}
+
+impl PolledSource for GpuSnapshot {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
@@ -256,10 +284,12 @@ impl Source for GpuSnapshot {
 
 impl Source for GpuClocks {
     type Error = Error;
-
     type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu clocks";
+}
+
+impl PolledSource for GpuClocks {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
@@ -290,10 +320,12 @@ impl Source for GpuClocks {
 
 impl Source for GpuProcesses {
     type Error = Error;
-
     type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu processes";
+}
+
+impl PolledSource for GpuProcesses {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {

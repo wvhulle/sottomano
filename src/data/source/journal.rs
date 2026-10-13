@@ -4,8 +4,10 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use iced::futures::Stream;
 use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::data::severity::Severity;
 
@@ -22,7 +24,11 @@ pub trait JournalEvent: Clone + Send + 'static {
     fn at(&self) -> SystemTime;
 }
 
-pub fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Vec<E>> {
+pub fn journal_windows<E: JournalEvent>() -> impl Stream<Item = Vec<E>> + Send {
+    ReceiverStream::new(journal_events::<E>())
+}
+
+fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Vec<E>> {
     let (tx, rx) = mpsc::channel(16);
     thread::spawn(move || {
         let mut journal = match WindowedJournal::<E>::open() {

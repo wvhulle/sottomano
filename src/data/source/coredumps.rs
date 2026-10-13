@@ -1,11 +1,28 @@
-use std::{io, path::PathBuf, time::SystemTime};
+use std::{convert::Infallible, io, path::PathBuf, time::SystemTime};
 
+use iced::futures::{Stream, StreamExt};
 use systemd::journal::{Journal, JournalRecord, OpenOptions};
 
 use crate::data::{
     severity::Severity,
-    source::journal::{JournalEvent, JournalPriority, OwningUnit, field},
+    source::{
+        Delivery, LiveSource, Source, delivered,
+        journal::{JournalEvent, JournalPriority, OwningUnit, field, journal_windows},
+    },
 };
+
+impl Source for Vec<CoredumpEntry> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = CoredumpEntry::NAME;
+}
+
+impl LiveSource for Vec<CoredumpEntry> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(journal_windows::<CoredumpEntry>().map(Ok))
+    }
+}
 
 const COREDUMP_MESSAGE_ID: &str = "fc2e22bc6ee647b6b90729ab34a250b1";
 

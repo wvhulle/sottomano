@@ -1,10 +1,11 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Local, Utc};
+use iced::futures::Stream;
 
-use super::Error;
+use super::{Error, local_log_polls};
 use crate::data::source::{
-    Source,
+    Delivery, PolledSource, Source,
     ai::{
         ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage, SpendBudget},
         quota::{Quota, QuotaLimited},
@@ -15,6 +16,12 @@ use crate::data::source::{
 pub struct ClaudeCcusagePeriods {
     pub recent: RecentUsage,
     pub budget: SpendBudget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClaudeLocalLogs {
+    pub budget: SpendBudget,
+    pub credentials: Option<PathBuf>,
 }
 
 impl QuotaLimited for ClaudeCcusagePeriods {
@@ -33,19 +40,22 @@ impl QuotaLimited for ClaudeCcusagePeriods {
 
 impl Source for ClaudeCcusagePeriods {
     type Error = Error;
-    type Key = SpendBudget;
+    type Key = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-periods";
+}
+
+impl PolledSource for ClaudeCcusagePeriods {
     const INTERVAL: Duration = POLL_INTERVAL;
 
-    async fn available(_budget: &SpendBudget) -> bool {
-        ccusage::installed().await
+    fn polls(logs: ClaudeLocalLogs) -> impl Stream<Item = Delivery<Self>> + Send {
+        local_log_polls::<Self>(logs, false)
     }
 
-    async fn poll(budget: SpendBudget) -> Result<Self, Self::Error> {
+    async fn poll(logs: ClaudeLocalLogs) -> Result<Self, Self::Error> {
         Ok(ClaudeCcusagePeriods {
             recent: ccusage::recent(Agent::ClaudeCode).await?,
-            budget,
+            budget: logs.budget,
         })
     }
 }
@@ -57,16 +67,19 @@ pub struct ClaudeCcusageBlock {
 
 impl Source for ClaudeCcusageBlock {
     type Error = Error;
-    type Key = ();
+    type Key = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-block";
+}
+
+impl PolledSource for ClaudeCcusageBlock {
     const INTERVAL: Duration = POLL_INTERVAL;
 
-    async fn available((): &()) -> bool {
-        ccusage::installed().await
+    fn polls(logs: ClaudeLocalLogs) -> impl Stream<Item = Delivery<Self>> + Send {
+        local_log_polls::<Self>(logs, true)
     }
 
-    async fn poll((): ()) -> Result<Self, Self::Error> {
+    async fn poll(_logs: ClaudeLocalLogs) -> Result<Self, Self::Error> {
         Ok(ClaudeCcusageBlock {
             active: ccusage::active_blocks(Agent::ClaudeCode)
                 .await?

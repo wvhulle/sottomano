@@ -28,8 +28,9 @@ impl DesktopShell {
             .outlined_sides(Position::Left.inward_sides());
         let framed_workspaces = (self.shell_settings.layout.workspaces_placement
             == WorkspacesPlacement::Sidebar)
-            .then(|| workspaces_group::vertical_view(&self.niri_snapshot, output, config))
+            .then(|| self.niri_snapshot.get())
             .flatten()
+            .and_then(|snapshot| workspaces_group::vertical_view(snapshot, output, config))
             .map(|workspaces| {
                 panel_frame(
                     container(workspaces.map(Message::from))

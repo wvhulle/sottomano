@@ -1,21 +1,20 @@
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
-    future::{Future, ready},
     path::PathBuf,
     time::Duration,
 };
 
 use chrono::{DateTime, TimeDelta, Utc};
+use iced::futures::Stream;
 use serde::{Deserialize, Deserializer};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
-    Error,
+    Error, LoginKind, login_polls,
     oauth_api::{self, PlanReply},
-    subscription_login,
 };
 use crate::data::source::{
-    Source,
+    Delivery, PolledSource, Source,
     ai::quota::{Quota, QuotaLimited},
 };
 
@@ -170,10 +169,13 @@ impl Source for ClaudeUsageWindows {
     type Key = PathBuf;
 
     const NAME: &'static str = "claude-usage-windows";
+}
+
+impl PolledSource for ClaudeUsageWindows {
     const INTERVAL: Duration = Duration::from_mins(1);
 
-    fn available(key: &PathBuf) -> impl Future<Output = bool> + Send {
-        ready(subscription_login(key).is_some_and(|oauth| !oauth.is_enterprise()))
+    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
+        login_polls::<Self>(key, LoginKind::Subscription)
     }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {

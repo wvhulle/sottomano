@@ -1,16 +1,46 @@
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    convert::Infallible,
+    future::{Future, ready},
+    time::Duration,
+};
 
 use chrono::{DateTime, Local, Locale, Offset};
 use chrono_tz::Tz;
+use iced::futures::Stream;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::TimePart,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{KeyValue, TooltipBody},
+use crate::{
+    data::source::{Delivery, PolledSource, Source},
+    widget_groups::clock_group::{TICK, polled_at_second_boundaries},
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::TimePart,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, TooltipBody},
+    },
 };
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct ZoneTime(pub DateTime<Tz>);
+
+impl Source for ZoneTime {
+    type Error = Infallible;
+    type Key = Tz;
+
+    const NAME: &'static str = "zone time";
+}
+
+impl PolledSource for ZoneTime {
+    const INTERVAL: Duration = TICK;
+
+    fn poll(zone: Tz) -> impl Future<Output = Result<Self, Infallible>> + Send {
+        ready(Ok(ZoneTime(Local::now().with_timezone(&zone))))
+    }
+
+    fn polls(zone: Tz) -> impl Stream<Item = Delivery<Self>> + Send {
+        polled_at_second_boundaries::<Self>(zone)
+    }
+}
 
 impl ZoneTime {
     pub fn zone(&self) -> Tz {

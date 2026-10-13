@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use super::Error;
-use crate::data::source::{Source, blocking_poll, process::binary_name};
+use crate::data::source::{PolledSource, Source, blocking_poll, process::binary_name};
 
 const MEMINFO: &str = "/proc/meminfo";
 const PROC: &str = "/proc";
@@ -24,10 +24,12 @@ impl Memory {
 
 impl Source for Memory {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "memory";
+}
+
+impl PolledSource for Memory {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {
@@ -59,10 +61,12 @@ pub struct MemoryProcesses {
 
 impl Source for MemoryProcesses {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "memory processes";
+}
+
+impl PolledSource for MemoryProcesses {
     const INTERVAL: Duration = Duration::from_secs(3);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

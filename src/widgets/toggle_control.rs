@@ -1,7 +1,7 @@
 use iced::{Subscription, Task};
 
 use crate::{
-    data::source::Source,
+    data::source::{Delivery, PolledSource},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{ForcedRefresh, blocking, polling},
     widgets::{
@@ -9,7 +9,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{Tooltip, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Provenance, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -31,6 +31,17 @@ impl IconToggle {
             enabled,
         }
     }
+
+    pub fn readout_tooltip(label: impl Into<Cell>, readout: impl Into<Cell>) -> Tooltip {
+        Tooltip::sourced(
+            TooltipBody::dictionary([KeyValue::new(label, readout)]),
+            Provenance::Live,
+        )
+    }
+
+    pub fn switch_tooltip(&self, label: impl Into<Cell>, described: &str) -> Tooltip {
+        Self::readout_tooltip(label, if self.enabled { described } else { "off" })
+    }
 }
 
 impl BarWidget for IconToggle {
@@ -51,59 +62,44 @@ impl BarWidget for IconToggle {
     }
 }
 
-pub trait Toggle: Source + BarWidget {
+pub trait Toggle: PolledSource + BarWidget {
     fn toggled(&self) -> Self;
     fn toggle(&self) -> bool;
 }
 
 pub struct ToggleControl<S> {
-    cell: ContinuousReading<S>,
-    available: bool,
+    reading: ContinuousReading<S>,
 }
 
 impl<S> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
-            cell: ContinuousReading::default(),
-            available: false,
+            reading: ContinuousReading::default(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum ToggleMessage<S: Toggle> {
-    Available(bool),
-    Reading(Result<S, S::Error>),
+    Reading(Delivery<S>),
     Press,
 }
 
 impl<S: Toggle> ToggleControl<S> {
-    pub fn probe(key: S::Key) -> Task<ToggleMessage<S>> {
-        Task::future(async move { ToggleMessage::Available(S::available(&key).await) })
-    }
-
     pub fn subscription(
-        &self,
         key: S::Key,
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ToggleMessage<S>> {
-        if !self.available {
-            return Subscription::none();
-        }
         polling::<S>(key, forced).map(ToggleMessage::Reading)
     }
 
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {
         match message {
-            ToggleMessage::Available(available) => {
-                self.available = available;
-                Task::none()
-            }
             ToggleMessage::Reading(reading) => {
-                self.cell.receive(reading);
+                self.reading.receive(reading);
                 Task::none()
             }
-            ToggleMessage::Press => match self.cell.get().cloned() {
+            ToggleMessage::Press => match self.reading.get().cloned() {
                 Some(current) => {
                     self.assume(current.toggled());
                     blocking(S::NAME, move || current.toggle()).discard()
@@ -114,15 +110,15 @@ impl<S: Toggle> ToggleControl<S> {
     }
 
     pub fn assume(&mut self, value: S) {
-        self.cell.load(value);
+        self.reading.assume(value);
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {
-        self.cell.tooltip()
+        self.reading.tooltip()
     }
 
     pub fn reading(&self) -> Option<&dyn BarWidget> {
-        self.cell.get().map(|display| display as &dyn BarWidget)
+        self.reading.get().map(|display| display as &dyn BarWidget)
     }
 
     pub fn group_item<'a, M: 'a>(

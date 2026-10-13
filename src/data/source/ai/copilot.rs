@@ -4,19 +4,25 @@ mod monthly_usage;
 
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
-    path::Path,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 pub use self::{
     free_quota::CopilotFree, metered_quota::CopilotMetered, monthly_usage::CopilotCcusage,
 };
 use crate::data::source::{
+    Delivery, PolledSource,
     ai::{ccusage, read_secret},
+    all_of,
+    file_presence::path_present,
     http,
+    net_interfaces::nm,
+    present_or_absent, ticked_polls,
 };
 
 const API_BASE: &str = "https://api.github.com";
@@ -94,6 +100,27 @@ impl UserInfo {
             .find(|plan| !plan.is_empty())
             .cloned()
     }
+}
+
+fn plan_polls<S>(
+    key: PathBuf,
+    on_plan: fn(&UserInfo) -> bool,
+) -> impl Stream<Item = Delivery<S>> + Send
+where
+    S: PolledSource<Key = PathBuf, Error = Error>,
+{
+    let reachable = all_of([path_present(key.clone()).boxed(), nm::connected().boxed()]);
+    present_or_absent(reachable, move || {
+        let checked = key.clone();
+        let polled = key.clone();
+        stream::once(async move { user_info(&checked).await })
+            .flat_map(move |info| match info {
+                Ok(info) if on_plan(&info) => ticked_polls::<S>(polled.clone()).boxed(),
+                Ok(_) => stream::iter([Delivery::Absent]).boxed(),
+                Err(e) => stream::iter([Delivery::Reading(Err(e))]).boxed(),
+            })
+            .boxed()
+    })
 }
 
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {

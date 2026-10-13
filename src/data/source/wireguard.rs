@@ -1,9 +1,13 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytesize::ByteSize;
+use iced::futures::{Stream, StreamExt, stream};
 use serde_json::Value as Json;
 
-use crate::data::source::{Source, command, command::blocking::run};
+use crate::data::source::{
+    Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
+    ticked_polls,
+};
 
 const CONNECTED_WINDOW: u64 = 180;
 
@@ -38,10 +42,12 @@ pub struct TunnelAddress {
 
 impl Source for TunnelAddress {
     type Error = command::Error;
-
     type Key = String;
 
     const NAME: &'static str = "wireguard tunnel address";
+}
+
+impl PolledSource for TunnelAddress {
     const INTERVAL: Duration = Duration::from_secs(10);
 
     async fn poll(tunnel: String) -> Result<Self, Self::Error> {
@@ -64,14 +70,18 @@ pub struct Wireguard {
 
 impl Source for Wireguard {
     type Error = command::Error;
-
     type Key = ();
 
     const NAME: &'static str = "wireguard";
+}
+
+impl PolledSource for Wireguard {
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn available(_key: &()) -> bool {
-        command::exists("wg").await
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(stream::once(command::exists("wg")), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

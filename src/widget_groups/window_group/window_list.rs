@@ -12,12 +12,13 @@ use iced::{
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
+        Delivery,
         app_rules::AppRule,
         audio::WindowAudio,
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
-        process::{self, Inspection, Process, Watched},
+        process::{Inspection, Process, Watched},
         window_agents::{self, WindowProcesses},
     },
     desktop_shell::{
@@ -34,7 +35,7 @@ use crate::{
         pager_slot::PagerSlot,
         phosphor::{Phosphor, Weight},
         text::LINE_HEIGHT,
-        tooltip_body::Section,
+        tooltip_body::{Section, SourcedSection},
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
@@ -65,10 +66,10 @@ pub enum WindowListMessage {
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
-    ProcessTreeScanned(Result<Process, String>),
+    ProcessTreeScanned(Delivery<Process>),
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
-    ProcessInspected(Box<Result<Inspection, String>>),
+    ProcessInspected(Box<Delivery<Inspection>>),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -105,20 +106,20 @@ impl WindowList {
         };
         self.hovered_window = Some(watched.window);
         Task::batch([
-            self.process_tree.fetch(
-                process::watched_tree(&watched),
+            self.process_tree.poll(
+                watched.clone(),
                 WindowListMessage::ProcessTreeScanned,
                 config,
             ),
-            self.inspection.fetch(
-                process::inspection(&watched),
+            self.inspection.poll(
+                watched,
                 |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
                 config,
             ),
         ])
     }
 
-    pub fn process_sections(&self) -> Vec<Section> {
+    pub fn process_sections(&self) -> Vec<SourcedSection> {
         self.hovered_window
             .iter()
             .flat_map(|window| {
@@ -185,7 +186,7 @@ impl WindowList {
         &'a self,
         niri: &niri::Snapshot,
         icons: WindowAssets<'a>,
-        audio: &HashMap<i32, WindowAudio>,
+        audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
         config: &Config,
         position: Position,
@@ -203,7 +204,7 @@ impl WindowList {
                     .widget_groups
                     .window_list
                     .audio_indicator
-                    .then(|| win.pid.and_then(|pid| audio.get(&pid)).copied())
+                    .then(|| win.pid.and_then(|pid| audio?.get(&pid)).copied())
                     .flatten(),
                 launcher: win.app_id.as_deref().and_then(|id| self.launcher.get(id)),
                 job: win.app_id.as_deref().and_then(|id| self.jobs.get(id)),

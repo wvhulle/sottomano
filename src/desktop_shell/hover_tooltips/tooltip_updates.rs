@@ -117,7 +117,10 @@ impl DesktopShell {
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
             HoverTarget::Notification(_) => None,
             HoverTarget::Tray(address) => Some(self.tray_group.tooltip_for(address)),
-            HoverTarget::Window(window) => self.window_group.window_tooltip(&self.niri, *window),
+            HoverTarget::Window(window) => {
+                self.window_group
+                    .window_tooltip(&self.niri, &self.niri_snapshot, *window)
+            }
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
@@ -154,9 +157,9 @@ impl DesktopShell {
         ])
     }
 
-    pub fn tooltip_has_periodic_refresh(&self) -> bool {
+    pub fn tooltip_has_polled_data(&self) -> bool {
         self.tooltip
             .target()
-            .is_some_and(|target| self.tooltip_for(target).has_periodic_refresh())
+            .is_some_and(|target| self.tooltip_for(target).has_polled_data())
     }
 }

@@ -8,7 +8,7 @@ use chrono::{Local, SecondsFormat, TimeZone, Utc};
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::data::source::{Source, ai::read_secret, http};
+use crate::data::source::{PolledSource, Source, ai::read_secret, http};
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
@@ -78,6 +78,9 @@ impl Source for OpenRouter {
     type Key = PathBuf;
 
     const NAME: &'static str = "openrouter-usage";
+}
+
+impl PolledSource for OpenRouter {
     const INTERVAL: Duration = Duration::from_secs(20);
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {

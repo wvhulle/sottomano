@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::Infallible};
 
 use bytesize::ByteSize;
 use iced::futures::{Stream, StreamExt};
@@ -8,9 +8,10 @@ use zbus::{
 };
 
 use crate::data::source::{
+    Delivery, LiveSource, Source,
     bus::{Properties, prop},
     hardware::{Adapter, ModemIdentity, reported},
-    net_interfaces::{interface, managed_objects_readings},
+    net_interfaces::{device_or_absent, interface, managed_objects_readings},
 };
 
 pub const NAME: &str = "mobile-broadband";
@@ -245,16 +246,17 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     })
 }
 
-#[derive(Debug, Clone)]
-pub enum ModemPresence {
-    NoModem,
-    Modem(Box<Mobile>),
+impl Source for Mobile {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = NAME;
 }
 
-pub fn readings() -> impl Stream<Item = ModemPresence> {
-    managed_objects_readings(NAME, SERVICE, ROOT, reading).map(|modem| {
-        modem.map_or(ModemPresence::NoModem, |mobile| {
-            ModemPresence::Modem(Box::new(mobile))
+impl LiveSource for Mobile {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        device_or_absent(SERVICE, || {
+            managed_objects_readings(NAME, SERVICE, ROOT, reading).boxed()
         })
-    })
+    }
 }

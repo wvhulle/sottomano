@@ -6,10 +6,13 @@ use iced::{Subscription, Task};
 
 use crate::{
     config::widget_groups::temperature_sensors::SensorConfig,
-    data::source::disk::{
-        self, Disk,
-        activity::{self, DiskActivity, DiskTransfer, Reading, Writing},
-        health::DriveHealth,
+    data::source::{
+        Delivery,
+        disk::{
+            Disk,
+            activity::{DiskActivity, DiskTransfer, Reading, Writing},
+            health::DriveHealth,
+        },
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{ForcedRefresh, polling},
@@ -45,9 +48,9 @@ pub struct DiskGroup {
 
 #[derive(Debug, Clone)]
 pub enum DiskMessage {
-    Usage(Result<Disk, disk::Error>),
-    DiskActivity(Result<DiskActivity, disk::Error>),
-    DriveHealth(Result<DriveHealth, disk::Error>),
+    Usage(Delivery<Disk>),
+    DiskActivity(Delivery<DiskActivity>),
+    DriveHealth(Delivery<DriveHealth>),
     Expansion(ExpansionMessage),
 }
 
@@ -62,7 +65,7 @@ impl DiskGroup {
     ) -> Subscription<DiskMessage> {
         Subscription::batch([
             polling::<Disk>((), forced).map(DiskMessage::Usage),
-            Subscription::run(activity::readings).map(DiskMessage::DiskActivity),
+            polling::<DiskActivity>((), forced).map(DiskMessage::DiskActivity),
             polling::<DriveHealth>(drive_sensor.clone(), forced).map(DiskMessage::DriveHealth),
         ])
     }
@@ -79,10 +82,20 @@ impl DiskGroup {
         Task::none()
     }
 
-    fn receive_disk_activity(&mut self, reading: Result<DiskActivity, disk::Error>) {
-        self.disk_read
-            .push(reading.clone().map(|activity| activity.read));
-        self.disk_write.push(reading.map(|activity| activity.write));
+    fn receive_disk_activity(&mut self, delivery: Delivery<DiskActivity>) {
+        match delivery {
+            Delivery::Absent => {
+                self.disk_read.receive(Delivery::Absent);
+                self.disk_write.receive(Delivery::Absent);
+            }
+            Delivery::Reading(reading) => {
+                self.disk_read.receive(Delivery::Reading(
+                    reading.clone().map(|activity| activity.read),
+                ));
+                self.disk_write
+                    .receive(Delivery::Reading(reading.map(|activity| activity.write)));
+            }
+        }
     }
 
     pub fn group_content(&self) -> GroupContent<'_, DiskMessage> {

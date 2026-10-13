@@ -1,12 +1,15 @@
 use std::{fmt::Display, time::SystemTime};
 
 use crate::{
-    data::source::Source,
+    data::source::{Delivery, LiveSource, PolledSource, Source},
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        tooltip_body::{KeyValue, Refresh, RefreshInfo, Section, Tooltip, TooltipBody},
+        tooltip_body::{
+            KeyValue, PollInfo, Provenance, Readiness, Section, SourcedSection, Tooltip,
+            TooltipBody,
+        },
         widget_state::WidgetState,
     },
 };
@@ -37,7 +40,7 @@ impl BarWidget for FailedReading {
 pub struct ContinuousReading<S> {
     data: Option<S>,
     failure: Option<FailedReading>,
-    refresh: Option<Refresh>,
+    provenance: Option<Provenance>,
 }
 
 impl<S> Default for ContinuousReading<S> {
@@ -45,20 +48,111 @@ impl<S> Default for ContinuousReading<S> {
         Self {
             data: None,
             failure: None,
-            refresh: None,
+            provenance: None,
         }
     }
 }
 
 impl<S> ContinuousReading<S> {
+    pub fn get(&self) -> Option<&S> {
+        self.data.as_ref()
+    }
+
+    pub fn assume(&mut self, data: S) {
+        if self.provenance.is_some() {
+            self.data = Some(data);
+            self.failure = None;
+        }
+    }
+
+    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
+        let tooltip = Tooltip::sourced(body, self.provenance?);
+        (!tooltip.is_empty()).then_some(tooltip)
+    }
+
+    pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<SourcedSection> {
+        let Some(provenance) = self.provenance else {
+            return Vec::new();
+        };
+        self.data
+            .as_ref()
+            .map(sections)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|section| SourcedSection::new(section, Readiness::Settled, provenance))
+            .collect()
+    }
+
+    fn keep<E: Display>(&mut self, reading: Result<S, E>, source: &'static str) {
+        match reading {
+            Ok(data) => self.data = Some(data),
+            Err(failure) => tracing::warn!("{source}: {failure}"),
+        }
+    }
+}
+
+impl<S: Source> ContinuousReading<S> {
+    fn stamp(
+        &mut self,
+        delivery: Delivery<S>,
+        provenance: Provenance,
+    ) -> Option<Result<S, S::Error>> {
+        match delivery {
+            Delivery::Absent => {
+                *self = Self::default();
+                None
+            }
+            Delivery::Reading(reading) => {
+                self.provenance = Some(provenance);
+                Some(reading)
+            }
+        }
+    }
+}
+
+impl<S: LiveSource> ContinuousReading<S> {
     pub fn load(&mut self, data: S) {
         self.data = Some(data);
         self.failure = None;
-        self.refresh = Some(Refresh::Live);
+        self.provenance = Some(Provenance::Live);
     }
 
-    pub fn get(&self) -> Option<&S> {
-        self.data.as_ref()
+    pub fn push_or_keep(&mut self, delivery: Delivery<S>) {
+        if let Some(reading) = self.stamp(delivery, Provenance::Live) {
+            self.keep(reading, S::NAME);
+        }
+    }
+}
+
+impl<S: LiveSource + BarWidget> ContinuousReading<S> {
+    pub fn push(&mut self, delivery: Delivery<S>) {
+        if let Some(reading) = self.stamp(delivery, Provenance::Live) {
+            self.accept(reading);
+        }
+    }
+}
+
+impl<S: PolledSource> ContinuousReading<S> {
+    fn polled_now() -> Provenance {
+        Provenance::Polled(PollInfo {
+            source: S::NAME,
+            every: S::INTERVAL,
+            last: SystemTime::now(),
+        })
+    }
+
+    pub fn receive_or_keep(&mut self, delivery: Delivery<S>) {
+        if let Some(reading) = self.stamp(delivery, Self::polled_now()) {
+            self.keep(reading, S::NAME);
+        }
+    }
+}
+
+impl<S: PolledSource + BarWidget> ContinuousReading<S> {
+    pub fn receive(&mut self, delivery: Delivery<S>) {
+        if let Some(reading) = self.stamp(delivery, Self::polled_now()) {
+            self.accept(reading);
+        }
     }
 }
 
@@ -91,24 +185,10 @@ impl<S: BarWidget> ContinuousReading<S> {
 
     pub fn tooltip_with_sections(
         &self,
-        extra: impl IntoIterator<Item = Section>,
+        extra: impl IntoIterator<Item = SourcedSection>,
     ) -> Option<Tooltip> {
-        let own = self
-            .display()?
-            .tooltip()
-            .with_unmarked_refresh(self.refresh);
-        self.tooltip_with(own.with_sections(extra))
-    }
-
-    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        self.display()?;
-        let tooltip = Tooltip::of(body.with_unmarked_refresh(self.refresh));
-        (!tooltip.is_empty()).then_some(tooltip)
-    }
-
-    pub fn push<E: Display>(&mut self, reading: Result<S, E>) {
-        self.refresh = Some(Refresh::Live);
-        self.accept(reading);
+        let own = self.tooltip_with(self.display()?.tooltip())?;
+        Some(own.with_sections(extra))
     }
 
     fn accept<E: Display>(&mut self, reading: Result<S, E>) {
@@ -157,16 +237,5 @@ impl<S: Occasional> ContinuousReading<S> {
 
     pub fn present_tooltip(&self) -> Option<Tooltip> {
         self.tooltip_with(self.present_reading()?.tooltip())
-    }
-}
-
-impl<S: Source + BarWidget> ContinuousReading<S> {
-    pub fn receive<E: Display>(&mut self, reading: Result<S, E>) {
-        self.refresh = Some(Refresh::Periodic(RefreshInfo {
-            source: S::NAME,
-            every: S::INTERVAL,
-            last: SystemTime::now(),
-        }));
-        self.accept(reading);
     }
 }

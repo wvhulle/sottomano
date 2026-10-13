@@ -4,9 +4,13 @@ use std::{
     time::Duration,
 };
 
+use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
-use crate::data::source::{Source, command, command::blocking::run};
+use crate::data::source::{
+    Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
+    ticked_polls,
+};
 
 const RUNNING_BACKEND_STATE: &str = "Running";
 
@@ -87,14 +91,18 @@ impl From<&Node> for Peer {
 
 impl Source for Tailscale {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "tailscale";
+}
+
+impl PolledSource for Tailscale {
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn available(_key: &()) -> bool {
-        command::exists("tailscale").await
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(stream::once(command::exists("tailscale")), move || {
+            ticked_polls::<Self>(key).boxed()
+        })
     }
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

@@ -7,10 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, TryStreamExt, future::ready, stream},
-};
+use iced::futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
 use icu_locale_core::Locale;
 use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;
@@ -18,7 +15,7 @@ use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
     data::source::{ai::read_secret, command, http},
-    message_subscriptions::restarting_subscription,
+    message_subscriptions::restarting,
 };
 
 const EVENT_BUFFER_BYTES: usize = 1024;
@@ -136,8 +133,8 @@ pub enum DisplayedWallpaper {
     NoImageFile,
 }
 
-pub fn subscription() -> Subscription<Result<DisplayedWallpaper, command::Error>> {
-    restarting_subscription("wallpaper watch", watch)
+pub fn displayed() -> impl Stream<Item = Result<DisplayedWallpaper, command::Error>> + Send {
+    restarting("wallpaper watch", watch)
 }
 
 async fn watch() -> io::Result<impl Stream<Item = Result<DisplayedWallpaper, command::Error>>> {

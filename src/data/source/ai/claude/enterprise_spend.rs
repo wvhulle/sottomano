@@ -1,20 +1,17 @@
-use std::{
-    future::{Future, ready},
-    path::PathBuf,
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Utc};
+use iced::futures::Stream;
 use serde::Deserialize;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
-    Error, ExtraStatus, Money, Oauth,
+    Error, ExtraStatus, LoginKind, Money, login_polls,
     oauth_api::{self, PlanReply},
-    subscription_login, title_case,
+    title_case,
 };
 use crate::data::source::{
-    Source,
+    Delivery, PolledSource, Source,
     ai::quota::{Quota, QuotaLimited},
 };
 
@@ -87,7 +84,14 @@ impl Source for ClaudeOrganization {
     type Key = PathBuf;
 
     const NAME: &'static str = "claude-organization";
+}
+
+impl PolledSource for ClaudeOrganization {
     const INTERVAL: Duration = Duration::from_mins(5);
+
+    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
+        login_polls::<Self>(key, LoginKind::Enterprise)
+    }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
         let PlanReply { reply: profile, .. } =
@@ -101,14 +105,13 @@ impl Source for ClaudeEnterpriseSpend {
     type Key = PathBuf;
 
     const NAME: &'static str = "claude-enterprise-spend";
+}
+
+impl PolledSource for ClaudeEnterpriseSpend {
     const INTERVAL: Duration = Duration::from_mins(5);
 
-    fn available(key: &PathBuf) -> impl Future<Output = bool> + Send {
-        ready(
-            subscription_login(key)
-                .as_ref()
-                .is_some_and(Oauth::is_enterprise),
-        )
+    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
+        login_polls::<Self>(key, LoginKind::Enterprise)
     }
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {

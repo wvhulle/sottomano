@@ -3,7 +3,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
+use iced::futures::{Stream, StreamExt, future::try_join_all, stream, try_join};
 use uom::si::{
     f64::{Frequency, InformationRate},
     frequency::megahertz,
@@ -227,6 +227,28 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
 pub struct Uplink {
     pub activated_interfaces: Vec<String>,
     pub connectivity: Option<Connectivity>,
+}
+
+pub fn connected() -> impl Stream<Item = bool> + Send {
+    stream::once(connectivity_changes()).flat_map(|watched| match watched {
+        Ok(presence) => presence.boxed(),
+        Err(e) => {
+            tracing::warn!("network connectivity watch: {e}");
+            stream::iter([false]).boxed()
+        }
+    })
+}
+
+async fn connectivity_changes() -> zbus::Result<impl Stream<Item = bool> + Send> {
+    let connection = Connection::system().await?;
+    let manager = ManagerProxy::new(&connection).await?;
+    let full = |code: u32| Connectivity::try_from(code) == Ok(Connectivity::Full);
+    let now = full(manager.connectivity().await?);
+    let changes = manager
+        .receive_connectivity_changed()
+        .await
+        .filter_map(move |change| async move { Some(full(change.get().await.ok()?)) });
+    Ok(stream::iter([now]).chain(changes))
 }
 
 pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {

@@ -1,11 +1,10 @@
 use std::{
     fs,
-    future::ready,
     marker::PhantomData,
     time::{Duration, Instant},
 };
 
-use iced::futures::{Stream, StreamExt};
+use tokio::time::sleep;
 use uom::si::{
     f64::{Information, InformationRate, Ratio, Time},
     information::byte,
@@ -14,9 +13,10 @@ use uom::si::{
 };
 
 use super::{Error, mount::RootMount};
-use crate::message_subscriptions::ticked;
+use crate::data::source::{PolledSource, Source};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
+const SAMPLE_WINDOW: Duration = Duration::from_secs(1);
 const SECTOR_BYTES: f64 = 512.0;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +39,56 @@ pub struct DiskActivity {
     pub write: DiskTransfer<Writing>,
 }
 
+impl Source for DiskActivity {
+    type Error = Error;
+    type Key = ();
+
+    const NAME: &'static str = "disk activity";
+}
+
+impl PolledSource for DiskActivity {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Error> {
+        let earlier = CounterSample::take()?;
+        sleep(SAMPLE_WINDOW).await;
+        let later = CounterSample::take()?;
+        Ok(later
+            .counters
+            .activity_since(&earlier.counters, later.at - earlier.at, later.disk))
+    }
+}
+
+impl Source for DiskTransfer<Reading> {
+    type Error = Error;
+    type Key = ();
+
+    const NAME: &'static str = "disk read";
+}
+
+impl PolledSource for DiskTransfer<Reading> {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Error> {
+        DiskActivity::poll(()).await.map(|activity| activity.read)
+    }
+}
+
+impl Source for DiskTransfer<Writing> {
+    type Error = Error;
+    type Key = ();
+
+    const NAME: &'static str = "disk write";
+}
+
+impl PolledSource for DiskTransfer<Writing> {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Error> {
+        DiskActivity::poll(()).await.map(|activity| activity.write)
+    }
+}
+
 struct CounterSample {
     disk: String,
     counters: BlockCounters,
@@ -58,31 +108,6 @@ impl CounterSample {
             at: Instant::now(),
         })
     }
-}
-
-pub fn readings() -> impl Stream<Item = Result<DiskActivity, Error>> {
-    ticked(SAMPLE_INTERVAL, || ready(CounterSample::take()))
-        .scan(None::<CounterSample>, |earlier, sample| {
-            let activity = match sample {
-                Err(failure) => {
-                    *earlier = None;
-                    Some(Err(failure))
-                }
-                Ok(later) => {
-                    let activity = earlier.as_ref().map(|earlier| {
-                        Ok(later.counters.activity_since(
-                            &earlier.counters,
-                            later.at - earlier.at,
-                            later.disk.clone(),
-                        ))
-                    });
-                    *earlier = Some(later);
-                    activity
-                }
-            };
-            ready(Some(activity))
-        })
-        .filter_map(ready)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

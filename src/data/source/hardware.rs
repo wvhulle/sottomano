@@ -3,13 +3,16 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use bytesize::ByteSize;
 use serde_json::Value;
-use tokio::task::spawn_blocking;
 
-use crate::data::source::command;
+use crate::data::source::{
+    Panicked, PolledSource, Source, blocking_poll, command,
+    sysfs_sensors::cpu_topology::CpuTopology,
+};
 
 const UDEV_DATA: &str = "/run/udev/data";
 const CPU_INFO: &str = "/proc/cpuinfo";
@@ -240,16 +243,28 @@ impl PowerSupplyIdentity {
 pub struct HostHardware {
     pub cpu: CpuModel,
     pub memory: MemoryModules,
+    pub topology: CpuTopology,
 }
 
-impl HostHardware {
-    pub async fn identify() -> Self {
-        spawn_blocking(|| HostHardware {
-            cpu: CpuModel::current(),
-            memory: MemoryModules::current(),
+impl Source for HostHardware {
+    type Error = Panicked;
+    type Key = ();
+
+    const NAME: &'static str = "host hardware";
+}
+
+impl PolledSource for HostHardware {
+    const INTERVAL: Duration = Duration::from_hours(1);
+
+    async fn poll(_key: ()) -> Result<Self, Panicked> {
+        blocking_poll(|| {
+            Ok(HostHardware {
+                cpu: CpuModel::current(),
+                memory: MemoryModules::current(),
+                topology: CpuTopology::detect(),
+            })
         })
         .await
-        .unwrap_or_default()
     }
 }
 

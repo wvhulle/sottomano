@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    convert::Infallible,
     fs,
     future::ready,
     marker::PhantomData,
@@ -9,12 +10,8 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, stream::select},
-};
-use tokio::time::{MissedTickBehavior, interval};
-use tokio_stream::wrappers::IntervalStream;
+use iced::futures::{Stream, StreamExt};
+use tokio::time::sleep;
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,
@@ -22,16 +19,18 @@ use uom::si::{
     ratio::ratio,
     time::second,
 };
+use zbus::Connection;
 
 use crate::{
-    data::source::net_interfaces::{
-        nm::{self, Connectivity, Uplink},
-        nm_readings,
+    data::source::{
+        Delivery, PolledSource, Source, delivered, emit_delivery_changes,
+        net_interfaces::nm::{self, Connectivity},
     },
-    message_subscriptions::emit_changes,
+    message_subscriptions::ticked,
 };
 
-const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
+const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
+const SAMPLE_WINDOW: Duration = Duration::from_secs(1);
 const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
 const SCALE_START_KB_PER_S: f64 = 100.0;
 pub const SCALE_END_MB_PER_S: f64 = 125.0;
@@ -94,27 +93,110 @@ pub struct Readings {
     pub total: Throughput<Total>,
 }
 
-pub fn subscription() -> Subscription<Readings> {
-    Subscription::run(|| emit_changes(readings_over_time()))
+impl Source for Readings {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "throughput";
 }
 
-fn readings_over_time() -> impl Stream<Item = Readings> {
-    let relinks = nm_readings("throughput", nm::uplink)
-        .filter_map(ready)
-        .map(Pulse::Relink);
-    let mut ticks = interval(SAMPLE_INTERVAL);
-    ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
-    let elapsed = IntervalStream::new(ticks).map(|_| Pulse::Elapsed);
-    select(relinks, elapsed)
-        .scan(Session::default(), |session, pulse| {
-            ready(Some(session.advance(pulse)))
-        })
-        .filter_map(ready)
+impl PolledSource for Readings {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Infallible> {
+        let uplink = match Connection::system().await {
+            Ok(connection) => nm::uplink(connection).await.ok(),
+            Err(_) => None,
+        };
+        let connectivity = uplink.as_ref().and_then(|uplink| uplink.connectivity);
+        let interfaces: Vec<String> = uplink
+            .map(|uplink| uplink.activated_interfaces)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|interface| is_physical(interface))
+            .collect();
+        let earlier = capture(&interfaces);
+        sleep(SAMPLE_WINDOW).await;
+        let current = capture(&interfaces);
+        let rates = current.rates_since(&earlier);
+        Ok(readings(&current, rates, rates, connectivity))
+    }
+
+    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        emit_delivery_changes(delivered(
+            ticked(Self::INTERVAL, move || Self::poll(key)).scan(
+                Rates::default(),
+                |peak, reading| {
+                    let reading = reading.map(|readings| {
+                        *peak = peak.raised_by(readings.rates());
+                        readings.with_peak(*peak)
+                    });
+                    ready(Some(reading))
+                },
+            ),
+        ))
+    }
 }
 
-enum Pulse {
-    Relink(Uplink),
-    Elapsed,
+impl Source for Throughput<Download> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "download";
+}
+
+impl PolledSource for Throughput<Download> {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Infallible> {
+        Readings::poll(()).await.map(|readings| readings.down)
+    }
+}
+
+impl Source for Throughput<Upload> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "upload";
+}
+
+impl PolledSource for Throughput<Upload> {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Infallible> {
+        Readings::poll(()).await.map(|readings| readings.up)
+    }
+}
+
+impl Source for Throughput<Total> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "total throughput";
+}
+
+impl PolledSource for Throughput<Total> {
+    const INTERVAL: Duration = SAMPLE_INTERVAL;
+
+    async fn poll(_key: ()) -> Result<Self, Infallible> {
+        Readings::poll(()).await.map(|readings| readings.total)
+    }
+}
+
+impl Readings {
+    fn rates(&self) -> Rates {
+        Rates {
+            rx: self.down.rate,
+            tx: self.up.rate,
+        }
+    }
+
+    fn with_peak(mut self, peak: Rates) -> Self {
+        self.down.peak_rate = peak.rx;
+        self.up.peak_rate = peak.tx;
+        self.total.peak_rate = peak.both_directions();
+        self
+    }
 }
 
 #[derive(Default, Clone, Copy)]
@@ -126,51 +208,6 @@ struct Counters {
 struct Sample {
     counters: BTreeMap<String, Counters>,
     at: Instant,
-}
-
-#[derive(Default)]
-struct Session {
-    interfaces: Vec<String>,
-    connectivity: Option<Connectivity>,
-    previous: Option<Sample>,
-    peak: Rates,
-}
-
-impl Session {
-    fn advance(&mut self, pulse: Pulse) -> Option<Readings> {
-        match pulse {
-            Pulse::Relink(uplink) => {
-                self.relink(uplink);
-                Some(self.sample())
-            }
-            Pulse::Elapsed => self.is_carrying().then(|| self.sample()),
-        }
-    }
-
-    fn relink(&mut self, uplink: Uplink) {
-        self.interfaces = uplink
-            .activated_interfaces
-            .into_iter()
-            .filter(|interface| is_physical(interface))
-            .collect();
-        self.connectivity = uplink.connectivity;
-    }
-
-    fn is_carrying(&self) -> bool {
-        !self.interfaces.is_empty()
-    }
-
-    fn sample(&mut self) -> Readings {
-        let current = capture(&self.interfaces);
-        let rates = self
-            .previous
-            .as_ref()
-            .map_or_else(Rates::default, |previous| current.rates_since(previous));
-        self.peak = self.peak.raised_by(rates);
-        let readings = readings(&current, rates, self.peak, self.connectivity);
-        self.previous = Some(current);
-        readings
-    }
 }
 
 #[derive(Default, Clone, Copy)]

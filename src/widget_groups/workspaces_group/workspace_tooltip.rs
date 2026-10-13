@@ -8,25 +8,26 @@ use crate::{
         niri,
     },
     widgets::{
+        continuous_reading::ContinuousReading,
         text::FontFallbacks,
-        tooltip_body::{PreviewTile, Tooltip, TooltipBody, WorkspacePreview},
+        tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
         window_title::title_runs,
     },
 };
 
 pub fn tooltip(
-    snapshot: &niri::Snapshot,
+    snapshot: &ContinuousReading<niri::Snapshot>,
     icons: &DesktopIndex,
     font: &ResolvedFont,
     fallbacks: &FontFallbacks,
     workspace: u64,
 ) -> Option<Tooltip> {
-    let windows = snapshot.windows_on_workspace(workspace);
+    let windows = snapshot.get()?.windows_on_workspace(workspace);
     if windows.is_empty() {
         return None;
     }
     let tile = |window| preview_tile(icons, font, fallbacks, window);
-    Some(Tooltip::of(TooltipBody::Workspace(WorkspacePreview {
+    snapshot.tooltip_with(TooltipBody::Whole(WholeBody::Workspace(WorkspacePreview {
         columns: scrolling_columns(windows)
             .into_iter()
             .map(|column| column.into_iter().map(&tile).collect())

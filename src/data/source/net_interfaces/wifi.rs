@@ -1,13 +1,13 @@
+use std::convert::Infallible;
+
 use iced::futures::{Stream, StreamExt, try_join};
 use uom::si::f64::{Frequency, InformationRate};
 use zbus::Connection;
 
-use crate::{
-    data::source::{
-        hardware::Adapter,
-        net_interfaces::{ReadingError, nm, nm_readings},
-    },
-    message_subscriptions::Readings,
+use crate::data::source::{
+    Delivery, LiveSource, Source,
+    hardware::Adapter,
+    net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
 };
 
 pub const NAME: &str = "wifi";
@@ -101,19 +101,30 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
     })
 }
 
-#[derive(Debug, Clone)]
-pub enum WifiPresence {
-    NoAdapter,
-    Adapter(Wifi),
+impl Source for Wifi {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = NAME;
 }
 
-pub fn readings() -> impl Stream<Item = WifiPresence> {
-    nm_readings(NAME, read)
-        .map(|adapter| adapter.map_or(WifiPresence::NoAdapter, WifiPresence::Adapter))
+impl LiveSource for Wifi {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        device_or_absent(nm::SERVICE, || nm_readings(NAME, read).boxed())
+    }
 }
 
-pub fn details() -> Readings<WifiDetails, &'static str> {
-    Readings::once(
-        nm_readings("wifi details", read_details).map(|details| details.ok_or("no Wi-Fi device")),
-    )
+impl Source for WifiDetails {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = "wifi details";
+}
+
+impl LiveSource for WifiDetails {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        device_or_absent(nm::SERVICE, || {
+            nm_readings(Self::NAME, read_details).boxed()
+        })
+    }
 }

@@ -15,7 +15,9 @@ use tokio::time::sleep;
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     config::Config,
+    data::source::{Delivery, PolledSource, delivered},
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         continuous_reading::ContinuousReading,
         tooltip_body::Tooltip,
@@ -23,7 +25,7 @@ use crate::{
     },
 };
 
-const TICK: Duration = Duration::from_secs(1);
+pub const TICK: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClockTarget {
@@ -38,30 +40,20 @@ impl From<ClockTarget> for HoverTarget {
     }
 }
 
+#[derive(Default)]
 pub struct ClockGroup {
     time: ContinuousReading<LocalTime>,
     date: ContinuousReading<LocalDate>,
-    zone_times: Vec<ContinuousReading<ZoneTime>>,
+    zone_times: Vec<(Tz, ContinuousReading<ZoneTime>)>,
     expansion: GroupExpansion,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum ClockMessage {
-    Tick(DateTime<Local>),
+    Time(Delivery<LocalTime>),
+    Date(Delivery<LocalDate>),
+    Zone(Tz, Delivery<ZoneTime>),
     Expansion(ExpansionMessage),
-}
-
-impl Default for ClockGroup {
-    fn default() -> Self {
-        let mut group = Self {
-            time: ContinuousReading::default(),
-            date: ContinuousReading::default(),
-            zone_times: Vec::new(),
-            expansion: GroupExpansion::default(),
-        };
-        group.tick(Local::now(), &[]);
-        group
-    }
 }
 
 impl ClockGroup {
@@ -69,9 +61,11 @@ impl ClockGroup {
         self.expansion.collapse();
     }
 
-    pub fn update(&mut self, msg: ClockMessage, config: &Config) -> Task<ClockMessage> {
+    pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Tick(now) => self.tick(now, &config.calendar.other_time_zones),
+            ClockMessage::Time(reading) => self.time.receive(reading),
+            ClockMessage::Date(reading) => self.date.receive(reading),
+            ClockMessage::Zone(zone, reading) => self.zone_time_mut(zone).receive(reading),
             ClockMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -79,27 +73,42 @@ impl ClockGroup {
         Task::none()
     }
 
-    pub fn subscription() -> Subscription<ClockMessage> {
-        Subscription::run(ticks)
+    pub fn subscription(
+        config: &Config,
+        forced: Option<ForcedRefresh>,
+    ) -> Subscription<ClockMessage> {
+        let zones = config.calendar.other_time_zones.iter().map(|zone| {
+            polling::<ZoneTime>(*zone, forced)
+                .with(*zone)
+                .map(|(zone, reading)| ClockMessage::Zone(zone, reading))
+        });
+        Subscription::batch(
+            [
+                polling::<LocalTime>((), forced).map(ClockMessage::Time),
+                polling::<LocalDate>((), forced).map(ClockMessage::Date),
+            ]
+            .into_iter()
+            .chain(zones),
+        )
     }
 
-    fn tick(&mut self, now: DateTime<Local>, other_time_zones: &[Tz]) {
-        self.time.load(LocalTime(now));
-        self.date.load(LocalDate(now));
-        self.zone_times = other_time_zones
+    fn zone_time_mut(&mut self, zone: Tz) -> &mut ContinuousReading<ZoneTime> {
+        let position = self
+            .zone_times
             .iter()
-            .map(|zone| {
-                let mut zone_time = ContinuousReading::default();
-                zone_time.load(ZoneTime(now.with_timezone(zone)));
-                zone_time
-            })
-            .collect();
+            .position(|(known, _)| *known == zone)
+            .unwrap_or_else(|| {
+                self.zone_times.push((zone, ContinuousReading::default()));
+                self.zone_times.len() - 1
+            });
+        &mut self.zone_times[position].1
     }
 
     fn zone_time(&self, zone: Tz) -> Option<&ContinuousReading<ZoneTime>> {
         self.zone_times
             .iter()
-            .find(|zone_time| zone_time.get().is_some_and(|time| time.zone() == zone))
+            .find(|(known, _)| *known == zone)
+            .map(|(_, zone_time)| zone_time)
     }
 
     pub fn tooltip_for(&self, target: &ClockTarget) -> Option<Tooltip> {
@@ -119,22 +128,29 @@ impl ClockGroup {
                 self.date.group_item(ClockTarget::LocalDate),
             ]
             .into_iter()
-            .chain(self.zone_times.iter().map(|zone_time| {
-                let zone = zone_time.get()?.zone();
-                zone_time.group_item(ClockTarget::ZoneTime(zone))
-            }))
+            .chain(
+                self.zone_times
+                    .iter()
+                    .map(|(zone, zone_time)| zone_time.group_item(ClockTarget::ZoneTime(*zone))),
+            )
             .flatten(),
         )
     }
 }
 
-fn ticks() -> impl Stream<Item = ClockMessage> {
-    stream::repeat_with(tick_at_next_boundary).then(identity)
-}
-
-async fn tick_at_next_boundary() -> ClockMessage {
-    sleep(until_next_boundary(Local::now(), TICK)).await;
-    ClockMessage::Tick(Local::now())
+pub fn polled_at_second_boundaries<S: PolledSource>(
+    key: S::Key,
+) -> impl Stream<Item = Delivery<S>> + Send {
+    delivered(
+        stream::repeat_with(move || {
+            let key = key.clone();
+            async move {
+                sleep(until_next_boundary(Local::now(), TICK)).await;
+                S::poll(key).await
+            }
+        })
+        .then(identity),
+    )
 }
 
 fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {

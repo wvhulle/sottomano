@@ -9,7 +9,7 @@ use uom::si::thermodynamic_temperature::kelvin;
 use crate::{
     config::Config,
     data::source::{
-        Source, bus,
+        Delivery,
         gamma::{self, Gamma},
         screen_temperature::{self, SunFollow},
     },
@@ -53,15 +53,13 @@ pub struct ColorTemperatureGroup {
     dim: SliderControl,
     warmth: SliderControl,
     auto: ToggleControl<SunFollow>,
-    relay: bool,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ColorTemperatureMessage {
     Expansion(ExpansionMessage),
-    Relay(bool),
-    Gamma(Result<Gamma, bus::Error>),
+    Gamma(Delivery<Gamma>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
     Auto(ToggleMessage<SunFollow>),
@@ -91,32 +89,18 @@ impl ColorTemperatureGroup {
             .readout(|value| format!("{}K", as_kelvin(value)))
             .label_with_gauge(|value| Some(format!("{}K", as_kelvin(value)))),
             auto: ToggleControl::default(),
-            relay: false,
             expansion: GroupExpansion::default(),
         }
-    }
-
-    pub fn probe(&self) -> Task<ColorTemperatureMessage> {
-        Task::batch([
-            Task::future(async { ColorTemperatureMessage::Relay(Gamma::available(&()).await) }),
-            ToggleControl::<SunFollow>::probe(self.unit.clone()).map(ColorTemperatureMessage::Auto),
-        ])
     }
 
     pub fn subscription(
         &self,
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ColorTemperatureMessage> {
-        let gamma = if self.relay {
-            polling::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma)
-        } else {
-            Subscription::none()
-        };
         Subscription::batch([
-            gamma,
+            polling::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma),
             self.expansion.while_expanded(
-                self.auto
-                    .subscription(self.unit.clone(), forced)
+                ToggleControl::<SunFollow>::subscription(self.unit.clone(), forced)
                     .map(ColorTemperatureMessage::Auto),
             ),
         ])
@@ -135,10 +119,6 @@ impl ColorTemperatureGroup {
 
     pub fn update(&mut self, msg: ColorTemperatureMessage) -> Task<ColorTemperatureMessage> {
         match msg {
-            ColorTemperatureMessage::Relay(relay) => {
-                self.relay = relay;
-                Task::none()
-            }
             ColorTemperatureMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => self
                 .update(ColorTemperatureMessage::Warmth(ControlMessage::Scroll(
                     delta,

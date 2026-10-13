@@ -7,15 +7,16 @@ use crate::{
     state::dark_mode::DarkModeSchedule,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
 pub struct AutoSwitchToggle {
-    pub saved_schedule: DarkModeSchedule,
+    pub saved_schedule: ContinuousReading<DarkModeSchedule>,
     observer: Observer,
     last_switch_check: DateTime<Utc>,
 }
@@ -43,7 +44,7 @@ pub enum SwitchDecision {
 impl Default for AutoSwitchToggle {
     fn default() -> Self {
         Self {
-            saved_schedule: DarkModeSchedule::default(),
+            saved_schedule: ContinuousReading::default(),
             observer: Observer::AwaitingLocationFix,
             last_switch_check: Utc::now(),
         }
@@ -51,16 +52,24 @@ impl Default for AutoSwitchToggle {
 }
 
 impl AutoSwitchToggle {
+    pub fn schedule_tooltip(&self) -> Option<Tooltip> {
+        self.saved_schedule.tooltip_with(self.tooltip())
+    }
+
     pub fn update_location(&mut self, observer_location: Position) {
         self.observer = Observer::Located(observer_location);
     }
 
     pub fn toggle_auto_switch(&mut self) {
-        self.saved_schedule.auto_switch_armed = !self.saved_schedule.auto_switch_armed;
+        let mut schedule = self.saved_schedule.get().copied().unwrap_or_default();
+        schedule.auto_switch_armed = !schedule.auto_switch_armed;
+        self.saved_schedule.load(schedule);
     }
 
     pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets) {
-        self.saved_schedule.sun_event_offsets = offsets;
+        let mut schedule = self.saved_schedule.get().copied().unwrap_or_default();
+        schedule.sun_event_offsets = offsets;
+        self.saved_schedule.load(schedule);
     }
 
     pub fn mark_checked(&mut self, now: DateTime<Utc>) {
@@ -68,7 +77,8 @@ impl AutoSwitchToggle {
     }
 
     pub fn status_at(&self, now: DateTime<Utc>) -> ScheduleStatus {
-        if !self.saved_schedule.auto_switch_armed {
+        let saved = self.saved_schedule.get().copied().unwrap_or_default();
+        if !saved.auto_switch_armed {
             return ScheduleStatus::Disarmed;
         }
         let Observer::Located(observer_location) = self.observer else {
@@ -76,7 +86,7 @@ impl AutoSwitchToggle {
         };
         let schedule = SolarSwitchSchedule {
             observer_location,
-            sun_event_offsets: self.saved_schedule.sun_event_offsets,
+            sun_event_offsets: saved.sun_event_offsets,
         };
         match schedule.outlook_at(now) {
             SunOutlook::NoSunEvents => ScheduleStatus::NoSunEvents,
@@ -128,7 +138,13 @@ impl BarWidget for AutoSwitchToggle {
     }
 
     fn state(&self) -> WidgetState {
-        WidgetState::of_toggle(self.saved_schedule.auto_switch_armed)
+        WidgetState::of_toggle(
+            self.saved_schedule
+                .get()
+                .copied()
+                .unwrap_or_default()
+                .auto_switch_armed,
+        )
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -152,6 +168,9 @@ impl BarWidget for AutoSwitchToggle {
         };
         let offset = self
             .saved_schedule
+            .get()
+            .copied()
+            .unwrap_or_default()
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
         TooltipBody::dictionary([

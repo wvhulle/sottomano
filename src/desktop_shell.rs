@@ -26,7 +26,7 @@ use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use crate::{
     config::{
         Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig,
-        theme::font::ResolvedFont, widget_groups::temperature_sensors::SensorConfig,
+        theme::font::ResolvedFont,
     },
     data::{
         sink::sound::SoundTheme,
@@ -78,7 +78,10 @@ use crate::{
         weather_group::{WeatherGroup, WeatherMessage},
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
-    widgets::{favicon::Favicons, text::FontFallbacks, widget_group::GroupEvent},
+    widgets::{
+        continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks,
+        widget_group::GroupEvent,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -123,7 +126,7 @@ pub struct DesktopShell {
     pub window_group: WindowGroup,
     pub launch_tracker: LaunchTracker,
     pub niri: EventStreamState,
-    pub niri_snapshot: niri::Snapshot,
+    pub niri_snapshot: ContinuousReading<niri::Snapshot>,
     pub outputs: HashMap<String, niri::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
@@ -254,7 +257,7 @@ impl DesktopShell {
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
-            niri_snapshot: niri::Snapshot::default(),
+            niri_snapshot: ContinuousReading::default(),
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
@@ -282,19 +285,6 @@ impl DesktopShell {
             shell.niri_rules.read().map(Message::NiriRulesLoaded),
             blocking("sound theme", SoundTheme::read_session).map(Message::SoundThemeLoaded),
             query_outputs(),
-            PowerGroup::probe().map(Message::Power),
-            ComputeGroup::probe(&shell.config.widget_groups.temperature_sensors.cpu)
-                .map(Message::Compute),
-            GpuGroup::probe().map(Message::Gpu),
-            InternetGroup::probe().map(Message::Internet),
-            MonitorGroup::probe().map(Message::Monitor),
-            DarkModeGroup::probe().map(Message::DarkMode),
-            shell
-                .color_temperature_group
-                .probe()
-                .map(Message::ColorTemperature),
-            shell.ai_group.probe().map(Message::Ai),
-            shell.wallpaper_group.probe().map(Message::Wallpaper),
         ]);
         (shell, init)
     }
@@ -382,10 +372,7 @@ impl DesktopShell {
             ),
             Message::NiriWindow(msg) => self.niri_window_group.update(msg, &mut self.niri_rules),
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
-            Message::Clock(msg) => self
-                .clock_group
-                .update(msg, &self.config)
-                .map(Message::Clock),
+            Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::SystemdManager(msg) => self
                 .systemd_manager_group
@@ -624,16 +611,7 @@ impl DesktopShell {
             self.adopt_color_temperature_service(
                 &previous.launched_programs.color_temperature_service,
             ),
-            self.adopt_cpu_temperature_sensor(&previous.widget_groups.temperature_sensors.cpu),
         ])
-    }
-
-    fn adopt_cpu_temperature_sensor(&self, previous: &SensorConfig) -> Task<Message> {
-        if &self.config.widget_groups.temperature_sensors.cpu == previous {
-            return Task::none();
-        }
-        ComputeGroup::probe(&self.config.widget_groups.temperature_sensors.cpu)
-            .map(Message::Compute)
     }
 
     fn adopt_font(&mut self, previous: &ResolvedFont) -> Task<Message> {
@@ -666,9 +644,7 @@ impl DesktopShell {
                 .color_temperature_service
                 .clone(),
         );
-        self.color_temperature_group
-            .probe()
-            .map(Message::ColorTemperature)
+        Task::none()
     }
 
     fn reject_config(&mut self, error: &LoadError) -> Task<Message> {
@@ -742,7 +718,7 @@ impl DesktopShell {
             }
             let _ = self.niri.apply(event);
         }
-        self.niri_snapshot = niri::Snapshot::derive(&self.niri);
+        self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
         if focus_change {
             self.collapse_groups();
         }
@@ -767,13 +743,15 @@ impl DesktopShell {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
         };
+        let Some(snapshot) = self.niri_snapshot.get() else {
+            return Task::none();
+        };
         let now = Utc::now();
-        let ranked = self
-            .niri_snapshot
+        let ranked = snapshot
             .active_workspaces()
             .filter_map(|active| {
                 let workspace = active.name?;
-                let open = self.niri_snapshot.open_app_ids(active.output);
+                let open = snapshot.open_app_ids(active.output);
                 let apps = self.launch_tracker.rank(workspace, &open, now, |app_id| {
                     entries.is_launchable(app_id)
                 });

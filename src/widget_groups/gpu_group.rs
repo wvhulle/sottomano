@@ -10,19 +10,22 @@ use iced::{Subscription, Task};
 
 use crate::{
     config::Config,
-    data::source::gpu::{
-        self, GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot,
-        NvmlDevice, PciBusId,
+    data::source::{
+        Delivery,
+        gpu::{
+            GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, NvmlDevice,
+            PciBusId,
+        },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polled, polling},
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{SourcedSection, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -75,6 +78,7 @@ impl GpuDevice {
 
 #[derive(Default)]
 pub struct GpuGroup {
+    discovery: ContinuousReading<GpuDiscovery>,
     devices: BTreeMap<PciBusId, GpuDevice>,
     hovered_bus: Option<PciBusId>,
     clocks: OnHoverReading<GpuClocks>,
@@ -84,10 +88,10 @@ pub struct GpuGroup {
 
 #[derive(Debug, Clone)]
 pub enum GpuMessage {
-    Discovered(GpuDiscovery),
-    Snapshot(PciBusId, Result<GpuSnapshot, gpu::Error>),
-    ClocksFetched(Result<GpuClocks, String>),
-    ProcessesFetched(Result<GpuProcesses, String>),
+    Discovered(Delivery<GpuDiscovery>),
+    Snapshot(PciBusId, Delivery<GpuSnapshot>),
+    ClocksFetched(Delivery<GpuClocks>),
+    ProcessesFetched(Delivery<GpuProcesses>),
     Expansion(ExpansionMessage),
 }
 
@@ -96,18 +100,19 @@ impl GpuGroup {
         self.expansion.collapse();
     }
 
-    pub fn probe() -> Task<GpuMessage> {
-        Task::future(GpuDiscovery::bound_to_nvidia()).map(GpuMessage::Discovered)
-    }
-
     pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<GpuMessage> {
-        Subscription::batch(self.devices.iter().filter_map(|(bus, device)| {
+        let snapshots = self.devices.iter().filter_map(|(bus, device)| {
             Some(
                 polling::<GpuSnapshot>(device.nvml.clone()?, forced)
                     .with(bus.clone())
                     .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
             )
-        }))
+        });
+        Subscription::batch(
+            [polling::<GpuDiscovery>((), forced).map(GpuMessage::Discovered)]
+                .into_iter()
+                .chain(snapshots),
+        )
     }
 
     pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<GpuMessage> {
@@ -126,24 +131,18 @@ impl GpuGroup {
             return Task::none();
         };
         Task::batch([
-            self.clocks.fetch(
-                polled::<GpuClocks>(nvml.clone()),
-                GpuMessage::ClocksFetched,
-                config,
-            ),
-            self.processes.fetch(
-                polled::<GpuProcesses>(nvml),
-                GpuMessage::ProcessesFetched,
-                config,
-            ),
+            self.clocks
+                .poll(nvml.clone(), GpuMessage::ClocksFetched, config),
+            self.processes
+                .poll(nvml, GpuMessage::ProcessesFetched, config),
         ])
     }
 
     fn hovered_sections(
         &self,
         bus: &PciBusId,
-        sections: impl FnOnce(&Self) -> Vec<Section>,
-    ) -> Vec<Section> {
+        sections: impl FnOnce(&Self) -> Vec<SourcedSection>,
+    ) -> Vec<SourcedSection> {
         if self.hovered_bus.as_ref() == Some(bus) {
             sections(self)
         } else {
@@ -153,17 +152,21 @@ impl GpuGroup {
 
     pub fn update(&mut self, msg: GpuMessage) -> Task<GpuMessage> {
         match msg {
-            GpuMessage::Discovered(discovery) => {
+            GpuMessage::Discovered(reading) => {
+                self.discovery.receive_or_keep(reading);
+                let Some(discovery) = self.discovery.get() else {
+                    return Task::none();
+                };
                 self.devices = discovery
                     .gpus
-                    .into_iter()
+                    .iter()
                     .map(|gpu| {
                         let mut snapshot = ContinuousReading::default();
                         if let Err(failure) = &discovery.nvml {
-                            snapshot.receive(Err::<GpuSnapshot, _>(failure.clone()));
+                            snapshot.receive(Delivery::Reading(Err(failure.clone())));
                         }
                         let device = GpuDevice {
-                            model: gpu.model,
+                            model: gpu.model.clone(),
                             nvml: discovery
                                 .nvml
                                 .as_ref()
@@ -171,7 +174,7 @@ impl GpuGroup {
                                 .map(|nvml| NvmlDevice::new(gpu.bus.clone(), nvml)),
                             snapshot,
                         };
-                        (gpu.bus, device)
+                        (gpu.bus.clone(), device)
                     })
                     .collect();
             }
@@ -226,19 +229,18 @@ impl GpuGroup {
                     self.hovered_sections(&target.bus, |group| {
                         group.clocks.sections(GpuClocks::sections)
                     }),
-                    vec![device.model.hardware_section()],
+                    self.discovery
+                        .sections(|_| vec![device.model.hardware_section()]),
                 ]
                 .concat(),
             ),
-            GpuReading::Memory => snapshot.tooltip_with(TooltipBody::sections(
-                [
-                    snapshot.get()?.vram.sections(),
-                    self.hovered_sections(&target.bus, |group| {
+            GpuReading::Memory => Some(
+                snapshot
+                    .tooltip_with(TooltipBody::sections(snapshot.get()?.vram.sections()))?
+                    .with_sections(self.hovered_sections(&target.bus, |group| {
                         group.processes.sections(GpuProcesses::sections)
-                    }),
-                ]
-                .concat(),
-            )),
+                    })),
+            ),
             GpuReading::Temperature => snapshot.tooltip_with(device.temperature_label()?.tooltip()),
             GpuReading::Power => snapshot.tooltip_with(device.power_label()?.tooltip()),
         }

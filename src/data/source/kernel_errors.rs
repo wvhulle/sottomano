@@ -1,11 +1,31 @@
-use std::{collections::HashMap, io, time::SystemTime};
+use std::{collections::HashMap, convert::Infallible, io, time::SystemTime};
 
+use iced::futures::{Stream, StreamExt};
 use systemd::journal::{Journal, JournalRecord};
 
 use crate::data::{
     severity::Severity,
-    source::journal::{JournalEvent, JournalPriority, field},
+    source::{
+        Delivery, LiveSource, Source, delivered,
+        journal::{JournalEvent, JournalPriority, field, journal_windows},
+    },
 };
+
+impl Source for Vec<KernelOccurrence> {
+    type Error = Infallible;
+    type Key = ();
+
+    const NAME: &'static str = KernelEntry::NAME;
+}
+
+impl LiveSource for Vec<KernelOccurrence> {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(
+            journal_windows::<KernelEntry>()
+                .map(|entries| Ok(KernelOccurrence::merged_oldest_first(entries))),
+        )
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct KernelEntry {

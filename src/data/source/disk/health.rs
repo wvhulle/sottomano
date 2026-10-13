@@ -10,7 +10,7 @@ use super::{
 use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::source::{
-        Source, blocking_poll,
+        PolledSource, Source, blocking_poll,
         hardware::DriveIdentity,
         sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
     },
@@ -46,10 +46,12 @@ pub enum MissingSensor {
 
 impl Source for DriveHealth {
     type Error = Error;
-
     type Key = SensorConfig;
 
     const NAME: &'static str = "drive_health";
+}
+
+impl PolledSource for DriveHealth {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {

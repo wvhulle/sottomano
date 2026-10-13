@@ -1,19 +1,26 @@
 use std::{
     cmp::Reverse,
     collections::HashMap,
+    convert::Infallible,
     fmt::{Display, Formatter, Result as FmtResult},
+    future::ready,
     io,
     time::{Duration, SystemTime},
 };
 
+use iced::futures::{Stream, StreamExt, stream};
 use systemd::{
     id128::Id128,
     journal::{JournalRecord, OpenOptions},
 };
+use tokio::task::spawn_blocking;
 
 use crate::data::{
     severity::Severity,
-    source::journal::{OwningUnit, either_of, field},
+    source::{
+        Delivery, LiveSource, Source, delivered,
+        journal::{OwningUnit, either_of, field},
+    },
 };
 
 const SHUTDOWN_MESSAGE_ID: &str = "98268866d1d54a499c4e98921d93bc40";
@@ -210,7 +217,40 @@ impl Display for ShutdownReadError {
     }
 }
 
-pub fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadError> {
+impl Source for LastShutdown {
+    type Error = Infallible;
+    type Key = Duration;
+
+    const NAME: &'static str = "last shutdown";
+}
+
+impl LiveSource for LastShutdown {
+    fn events(slow_stop: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(
+            stream::once(spawn_blocking(move || read_last_shutdown(slow_stop))).filter_map(
+                |read| {
+                    ready(match read {
+                        Ok(Ok(last_shutdown)) => Some(Ok(last_shutdown)),
+                        Ok(Err(
+                            ShutdownReadError::NoPreviousBoot
+                            | ShutdownReadError::NoShutdownRecorded,
+                        )) => None,
+                        Ok(Err(e)) => {
+                            tracing::warn!("systemd last shutdown: {e}");
+                            None
+                        }
+                        Err(e) => {
+                            tracing::error!("systemd last shutdown: task panicked: {e}");
+                            None
+                        }
+                    })
+                },
+            ),
+        )
+    }
+}
+
+fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadError> {
     let mut journal = OpenOptions::default()
         .system(true)
         .current_user(true)

@@ -15,7 +15,7 @@ use uom::si::{
     velocity::kilometer_per_hour,
 };
 
-use crate::data::source::{Source, http};
+use crate::data::source::{Delivery, LiveSource, PolledSource, Source, delivered, http};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -295,17 +295,19 @@ pub struct HourlyTemperature {
 
 impl Source for Temperature {
     type Error = Error;
-
     type Key = Position;
 
     const NAME: &'static str = "weather-temp";
+}
+
+impl PolledSource for Temperature {
     const INTERVAL: Duration = Duration::from_secs(300);
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
-            here.latitude, here.longitude
-        );
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
+        here.latitude, here.longitude
+    );
         let forecast: TemperatureForecast = http::get_json(&url, &[], 10).await?;
         Ok(Temperature {
             condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
@@ -331,17 +333,19 @@ pub struct Wind {
 
 impl Source for Wind {
     type Error = Error;
-
     type Key = Position;
 
     const NAME: &'static str = "weather-wind";
+}
+
+impl PolledSource for Wind {
     const INTERVAL: Duration = Duration::from_secs(300);
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
-            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
-            here.latitude, here.longitude
-        );
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
+        here.latitude, here.longitude
+    );
         let forecast: WindForecast = http::get_json(&url, &[], 10).await?;
         Ok(forecast.current)
     }
@@ -474,10 +478,12 @@ fn downpour(line: &str, now: DateTime<Local>) -> Option<Downpour> {
 
 impl Source for Rain {
     type Error = Error;
-
     type Key = Position;
 
     const NAME: &'static str = "weather-rain";
+}
+
+impl PolledSource for Rain {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
@@ -588,17 +594,19 @@ impl Pollen {
 
 impl Source for Pollen {
     type Error = Error;
-
     type Key = Position;
 
     const NAME: &'static str = "pollen";
+}
+
+impl PolledSource for Pollen {
     const INTERVAL: Duration = Duration::from_mins(30);
 
     async fn poll(here: Position) -> Result<Self, Self::Error> {
         let url = format!(
-            "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
-            here.latitude, here.longitude
-        );
+        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
+        here.latitude, here.longitude
+    );
         let air: AirQuality = http::get_json(&url, &[], 10).await?;
         Ok(Pollen::of(&air.current))
     }
@@ -613,9 +621,18 @@ impl Location {
     pub const fn position(&self) -> Position {
         self.geo.position
     }
+}
 
-    pub fn published() -> impl Stream<Item = Result<Self, Error>> {
-        fix_updates().map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
+impl Source for Location {
+    type Error = Error;
+    type Key = ();
+
+    const NAME: &'static str = "location";
+}
+
+impl LiveSource for Location {
+    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        delivered(fix_updates().map(|update| update.map(|geo| Self { geo }).map_err(Error::from)))
     }
 }
 #[cfg(test)]

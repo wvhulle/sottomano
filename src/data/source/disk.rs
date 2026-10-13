@@ -10,7 +10,7 @@ use self::{
     btrfs::{BtrfsFilesystem, BtrfsSpace},
     mount::RootMount,
 };
-use super::{Panicked, Source, blocking_poll};
+use super::{Panicked, PolledSource, Source, blocking_poll};
 
 pub mod activity;
 pub mod btrfs;
@@ -75,10 +75,12 @@ impl Disk {
 
 impl Source for Disk {
     type Error = Error;
-
     type Key = ();
 
     const NAME: &'static str = "disk";
+}
+
+impl PolledSource for Disk {
     const INTERVAL: Duration = Duration::from_secs(60);
 
     async fn poll(_key: ()) -> Result<Self, Self::Error> {

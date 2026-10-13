@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    future::ready,
     mem::zeroed,
     ops::Add,
     path::PathBuf,
@@ -8,25 +7,21 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::{Stream, StreamExt, stream};
 use procfs::{
     Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
-use tokio::{
-    task::spawn_blocking,
-    time::{MissedTickBehavior, interval},
-};
+use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::{
-    data::{empty_text::non_empty, source::nix_store::Provenance},
-    message_subscriptions::{Readings, emit_changes},
+use crate::data::{
+    empty_text::non_empty,
+    source::{PolledSource, Source, nix_store::Provenance},
 };
 
-pub const SCAN_NAME: &str = "process scan";
-pub const SCAN_INTERVAL: Duration = Duration::from_millis(500);
+const SCAN_INTERVAL: Duration = Duration::from_secs(1);
+const SAMPLE_WINDOW: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Process {
@@ -240,35 +235,32 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     Forest { roots }
 }
 
-pub fn watched_tree(watched: &Watched) -> Readings<Process, String> {
-    let pid = watched.pid;
-    let subtrees = emit_changes(scan()).map(move |forest| {
+impl Source for Process {
+    type Error = String;
+    type Key = Watched;
+
+    const NAME: &'static str = "process scan";
+}
+
+impl PolledSource for Process {
+    const INTERVAL: Duration = SCAN_INTERVAL;
+
+    async fn poll(watched: Watched) -> Result<Self, String> {
+        let pid = watched.pid;
+        let capacity = CpuCapacity::current();
+        let scan = |samples: CpuSamples| spawn_blocking(move || sample(&samples, capacity));
+        let first = scan(CpuSamples::none_yet())
+            .await
+            .map_err(|e| format!("process scan: {e}"))?;
+        sleep(SAMPLE_WINDOW).await;
+        let Sampled { forest, .. } = scan(first.samples)
+            .await
+            .map_err(|e| format!("process scan: {e}"))?;
         forest
             .subtree(pid)
             .cloned()
             .ok_or_else(|| format!("process {pid} exited"))
-    });
-    Readings::periodic(SCAN_NAME, SCAN_INTERVAL, subtrees)
-}
-
-fn scan() -> impl Stream<Item = Forest> {
-    let capacity = CpuCapacity::current();
-    let mut timer = interval(SCAN_INTERVAL);
-    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    stream::unfold(
-        (CpuSamples::none_yet(), timer),
-        move |(samples, mut timer)| async move {
-            timer.tick().await;
-            match spawn_blocking(move || sample(&samples, capacity)).await {
-                Ok(Sampled { forest, samples }) => Some((Some(forest), (samples, timer))),
-                Err(e) => {
-                    tracing::warn!("process scan: {e}");
-                    Some((None, (CpuSamples::none_yet(), timer)))
-                }
-            }
-        },
-    )
-    .filter_map(ready)
+    }
 }
 
 fn by_parent(nodes: impl IntoIterator<Item = Process>) -> HashMap<i32, Vec<Process>> {
@@ -336,16 +328,24 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     })
 }
 
-pub fn inspection(watched: &Watched) -> Readings<Inspection, String> {
-    let watched = watched.clone();
-    let pid = watched.pid;
-    Readings::once(stream::once(async move {
+impl Source for Inspection {
+    type Error = String;
+    type Key = Watched;
+
+    const NAME: &'static str = "process inspection";
+}
+
+impl PolledSource for Inspection {
+    const INTERVAL: Duration = Duration::from_secs(30);
+
+    async fn poll(watched: Watched) -> Result<Self, String> {
+        let pid = watched.pid;
         spawn_blocking(move || inspect(&watched))
             .await
             .ok()
             .flatten()
             .ok_or_else(|| format!("process {pid} exited"))
-    }))
+    }
 }
 
 pub fn binary_name(process: &Proc) -> Option<String> {

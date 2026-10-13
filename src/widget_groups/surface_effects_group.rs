@@ -12,7 +12,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::IconToggle,
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -33,18 +33,32 @@ impl From<SurfaceEffectsTarget> for HoverTarget {
     }
 }
 
-fn switch_tooltip(label: &str, on: bool, described: &str) -> Tooltip {
-    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
-        label,
-        if on { described } else { "off" },
-    )]))
+fn blur_toggle(styling: NiriStyling) -> IconToggle {
+    IconToggle::new(
+        "Blur background",
+        Phosphor::Snowflake(Weight::Regular),
+        styling.blurred,
+    )
 }
 
-fn slider_tooltip(label: &str, slider: &SliderControl) -> Tooltip {
-    Tooltip::of(TooltipBody::dictionary([KeyValue::new(
-        label,
-        slider.readout_text(),
-    )]))
+fn xray_toggle(styling: NiriStyling) -> IconToggle {
+    IconToggle::new("X-ray", Phosphor::Eye(Weight::Regular), styling.xray)
+}
+
+fn shadow_toggle(shadow: ShadowStyle) -> IconToggle {
+    IconToggle::new(
+        "Drop shadow",
+        Phosphor::SelectionBackground(Weight::Regular),
+        shadow.cast,
+    )
+}
+
+fn outline_toggle(outline: OutlineStyle) -> IconToggle {
+    IconToggle::new(
+        "Outline",
+        Phosphor::Rectangle(Weight::Regular),
+        outline.drawn,
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -115,28 +129,23 @@ impl SurfaceEffectsGroup {
         styling: NiriStyling,
     ) -> Tooltip {
         match target {
-            SurfaceEffectsTarget::BlurBackground => switch_tooltip(
-                "Blur",
-                styling.blurred,
-                "on — frosted behind panels and tooltips",
-            ),
+            SurfaceEffectsTarget::BlurBackground => blur_toggle(styling)
+                .switch_tooltip("Blur", "on — frosted behind panels and tooltips"),
             SurfaceEffectsTarget::Xray => {
-                switch_tooltip("Xray", styling.xray, "on — blur shows only the wallpaper")
+                xray_toggle(styling).switch_tooltip("Xray", "on — blur shows only the wallpaper")
             }
-            SurfaceEffectsTarget::DropShadow => switch_tooltip(
+            SurfaceEffectsTarget::DropShadow => shadow_toggle(shadow).switch_tooltip(
                 "Shadow",
-                shadow.cast,
                 "on — panels, notifications and tooltips cast a drop shadow",
             ),
             SurfaceEffectsTarget::ShadowSoftness => {
-                slider_tooltip("Shadow softness", &self.shadow_softness)
+                self.shadow_softness.readout_tooltip("Shadow softness")
             }
             SurfaceEffectsTarget::ShadowOpacity => {
-                slider_tooltip("Shadow opacity", &self.shadow_opacity)
+                self.shadow_opacity.readout_tooltip("Shadow opacity")
             }
-            SurfaceEffectsTarget::Outline => switch_tooltip(
+            SurfaceEffectsTarget::Outline => outline_toggle(outline).switch_tooltip(
                 "Outline",
-                outline.drawn,
                 "on — panels and tooltips trace their edges facing the screen interior",
             ),
         }
@@ -209,25 +218,17 @@ impl SurfaceEffectsGroup {
             SurfaceEffectsMessage::Expansion,
             [
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Blur background",
-                        Phosphor::Snowflake(Weight::Regular),
-                        styling.blurred,
-                    ),
+                    blur_toggle(styling),
                     SurfaceEffectsTarget::BlurBackground,
                     SurfaceEffectsMessage::ToggleBlur,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new("X-ray", Phosphor::Eye(Weight::Regular), styling.xray),
+                    xray_toggle(styling),
                     SurfaceEffectsTarget::Xray,
                     SurfaceEffectsMessage::ToggleXray,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Drop shadow",
-                        Phosphor::SelectionBackground(Weight::Regular),
-                        shadow.cast,
-                    ),
+                    shadow_toggle(shadow),
                     SurfaceEffectsTarget::DropShadow,
                     SurfaceEffectsMessage::ToggleShadow,
                 ),
@@ -242,11 +243,7 @@ impl SurfaceEffectsGroup {
                     SurfaceEffectsMessage::ShadowOpacity,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Outline",
-                        Phosphor::Rectangle(Weight::Regular),
-                        outline.drawn,
-                    ),
+                    outline_toggle(outline),
                     SurfaceEffectsTarget::Outline,
                     SurfaceEffectsMessage::ToggleOutline,
                 ),

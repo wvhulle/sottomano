@@ -4,8 +4,9 @@ mod firmware_upgrade_list;
 
 use crate::{
     config::Config,
-    data::source::fwupd::{self, FirmwareUpgrade, PendingUpgrades},
+    data::source::{Delivery, fwupd::FirmwareUpgrade},
     desktop_shell::hover_tooltips::HoverTarget,
+    message_subscriptions::listening,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -38,7 +39,7 @@ pub struct PendingUpgradesGroup {
 
 #[derive(Debug, Clone)]
 pub enum PendingUpgradesMessage {
-    Firmware(PendingUpgrades),
+    Firmware(Delivery<Vec<FirmwareUpgrade>>),
     OpenTerminal(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -49,7 +50,7 @@ impl PendingUpgradesGroup {
     }
 
     pub fn subscription() -> Subscription<PendingUpgradesMessage> {
-        fwupd::subscription().map(PendingUpgradesMessage::Firmware)
+        listening::<Vec<FirmwareUpgrade>>(()).map(PendingUpgradesMessage::Firmware)
     }
 
     pub fn update(&mut self, msg: PendingUpgradesMessage) -> Task<PendingUpgradesMessage> {
@@ -66,7 +67,7 @@ impl PendingUpgradesGroup {
     pub fn tooltip_for(&self, target: PendingUpgradesTarget) -> Option<Tooltip> {
         match target {
             PendingUpgradesTarget::Firmware => self.firmware.tooltip(),
-            PendingUpgradesTarget::Summary => Some(Tooltip::of(self.tooltip())),
+            PendingUpgradesTarget::Summary => self.firmware.tooltip_with(self.tooltip()),
         }
     }
 

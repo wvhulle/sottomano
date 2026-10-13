@@ -7,7 +7,7 @@ use uom::si::{
     ratio::ratio,
 };
 
-use crate::data::source::{Source, sysfs_sensors::battery::Battery};
+use crate::data::source::{PolledSource, sysfs_sensors::battery::Battery};
 
 pub const CHARGE_BINS: usize = 20;
 const BIN_DRIFT_W2_PER_S: f64 = 2e-7;

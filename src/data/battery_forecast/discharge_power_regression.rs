@@ -4,7 +4,7 @@ use uom::si::{f64::Power, power::watt};
 
 use crate::data::{
     battery_forecast::random_walk_kalman_models::{LinearObservation, RandomWalk},
-    source::{Source, power_profile::Conditions, sysfs_sensors::battery::Battery},
+    source::{PolledSource, power_profile::Conditions, sysfs_sensors::battery::Battery},
 };
 
 const BASE_DRIFT_W2_PER_S: f64 = 2e-7;

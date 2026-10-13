@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use crate::data::source::{Source, command, gamma};
+use iced::futures::{Stream, StreamExt, stream};
+
+use crate::data::source::{
+    Delivery, PolledSource, Source, command, gamma, present_or_absent, ticked_polls,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SunFollow {
@@ -13,10 +17,15 @@ impl Source for SunFollow {
     type Key = String;
 
     const NAME: &'static str = "screen temperature";
+}
+
+impl PolledSource for SunFollow {
     const INTERVAL: Duration = Duration::from_secs(10);
 
-    async fn available(_unit: &String) -> bool {
-        command::exists("systemctl").await
+    fn polls(unit: String) -> impl Stream<Item = Delivery<Self>> + Send {
+        present_or_absent(stream::once(command::exists("systemctl")), move || {
+            ticked_polls::<Self>(unit.clone()).boxed()
+        })
     }
 
     async fn poll(unit: String) -> Result<Self, Self::Error> {

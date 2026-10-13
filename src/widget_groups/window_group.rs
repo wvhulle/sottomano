@@ -14,7 +14,10 @@ use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
     desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
-    widgets::{tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets},
+    widgets::{
+        continuous_reading::ContinuousReading, tooltip_body::Tooltip, widget_group::GroupEvent,
+        window_icon::WindowAssets,
+    },
 };
 
 #[derive(Default)]
@@ -58,8 +61,17 @@ impl WindowGroup {
             .map(WindowGroupMessage::WindowList)
     }
 
-    pub fn window_tooltip(&self, niri_state: &EventStreamState, window: u64) -> Option<Tooltip> {
-        window_tooltip::tooltip(niri_state, window, &self.window_list.process_sections())
+    pub fn window_tooltip(
+        &self,
+        niri_state: &EventStreamState,
+        snapshot: &ContinuousReading<niri::Snapshot>,
+        window: u64,
+    ) -> Option<Tooltip> {
+        Some(
+            snapshot
+                .tooltip_with(window_tooltip::body(niri_state, window)?)?
+                .with_sections(self.window_list.process_sections()),
+        )
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage) -> Action {
@@ -89,7 +101,7 @@ impl WindowGroup {
         &'a self,
         niri: &niri::Snapshot,
         icons: WindowAssets<'a>,
-        audio: &HashMap<i32, WindowAudio>,
+        audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
         config: &'a Config,
         position: Position,
