@@ -2,11 +2,17 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::layout::spacing::{Length, Spacing};
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct TooltipsConfig {
-    pub value_width_px: f32,
-    pub caption_width_px: f32,
+#[serde(
+    default,
+    deny_unknown_fields,
+    bound(deserialize = "L: Deserialize<'de> + Length")
+)]
+pub struct TooltipsConfig<L = f32> {
+    pub value_width: L,
+    pub caption_width: L,
     #[serde(with = "humantime_serde")]
     pub popup_morph: Duration,
     #[serde(with = "humantime_serde")]
@@ -14,14 +20,26 @@ pub struct TooltipsConfig {
     pub loading: TooltipLoading,
 }
 
-impl Default for TooltipsConfig {
+impl<L: Length> Default for TooltipsConfig<L> {
     fn default() -> Self {
         Self {
-            value_width_px: 620.0,
-            caption_width_px: 300.0,
+            value_width: L::px(620.0),
+            caption_width: L::px(300.0),
             popup_morph: Duration::from_millis(160),
             copy_flash: Duration::from_millis(700),
             loading: TooltipLoading::default(),
+        }
+    }
+}
+
+impl TooltipsConfig<Spacing> {
+    pub fn resolve(self, em_px: f32) -> TooltipsConfig {
+        TooltipsConfig {
+            value_width: self.value_width.resolve(em_px),
+            caption_width: self.caption_width.resolve(em_px),
+            popup_morph: self.popup_morph,
+            copy_flash: self.copy_flash,
+            loading: self.loading,
         }
     }
 }

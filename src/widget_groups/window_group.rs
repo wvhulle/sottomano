@@ -127,7 +127,7 @@ impl WindowGroup {
             Row::new()
                 .extend(quick_launch)
                 .extend(window_list)
-                .spacing(config.panel_bar.group_spacing_px)
+                .spacing(config.layout.panel.group_spacing)
                 .align_y(Alignment::Center)
                 .into(),
         )

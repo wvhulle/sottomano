@@ -263,7 +263,7 @@ impl MediaGroup {
             })
             .collect();
         Row::with_children(icons)
-            .spacing(config.panel_bar.widget_spacing_px)
+            .spacing(config.layout.panel.widget_spacing)
             .align_y(Alignment::Center)
             .into()
     }

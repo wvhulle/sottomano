@@ -36,7 +36,7 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
     }
 
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
-        let band = config.panel_bar.indicator_thickness_px;
+        let band = config.panel_bar.indicator_thickness;
         let Self {
             content,
             indicator,

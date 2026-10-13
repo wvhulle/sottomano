@@ -162,7 +162,7 @@ fn member_origin(
     area: Rectangle,
     config: &ToastPlacementConfig,
 ) -> Point {
-    let gap = config.edge_gap_px;
+    let gap = config.edge_gap;
     match anchor {
         ToastAnchor::Edge {
             vertical,
@@ -183,7 +183,7 @@ fn member_origin(
 }
 
 fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, config: &ToastPlacementConfig) -> f32 {
-    let gap = config.edge_gap_px;
+    let gap = config.edge_gap;
     match horizontal {
         HEdge::Left => area.x + gap,
         HEdge::Right => area.x + area.width - size.width - gap,
@@ -192,13 +192,13 @@ fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, config: &ToastPlacemen
 }
 
 fn window_origin(bounds: Rectangle, size: Size, config: &ToastPlacementConfig) -> Point {
-    let from_right = config.window_right_offset_px;
+    let from_right = config.window_right_offset;
     let x = if bounds.width >= size.width + 2.0 * from_right {
         bounds.x + bounds.width - size.width - from_right
     } else {
         bounds.center_x() - size.width / 2.0
     };
-    Point::new(x, bounds.y + config.window_top_offset_px)
+    Point::new(x, bounds.y + config.window_top_offset)
 }
 
 fn overflowed_edge(
@@ -207,7 +207,7 @@ fn overflowed_edge(
     area: Rectangle,
     config: &ToastPlacementConfig,
 ) -> Option<HEdge> {
-    let gap = config.edge_gap_px;
+    let gap = config.edge_gap;
     if x < area.x + gap {
         Some(HEdge::Left)
     } else if x > area.x + area.width - size.width - gap {
@@ -218,7 +218,7 @@ fn overflowed_edge(
 }
 
 fn clamped(origin: Point, size: Size, area: Rectangle, config: &ToastPlacementConfig) -> Point {
-    let gap = config.edge_gap_px;
+    let gap = config.edge_gap;
     let left = area.x + gap;
     let top = area.y + gap;
     Point::new(

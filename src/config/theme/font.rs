@@ -7,16 +7,16 @@ use iced::{
 use serde::{Deserialize, Serialize};
 use ttf_parser::FaceParsingError;
 
-use crate::data::source::command;
+use crate::{config::layout::spacing::Spacing, data::source::command};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FontChoice {
     pub name: Option<String>,
     pub monospace_name: Option<String>,
-    pub text_size_px: f32,
-    pub small_text_size_px: f32,
-    pub icon_size_px: f32,
+    pub text_size: Spacing,
+    pub small_text_size: Spacing,
+    pub icon_size: Spacing,
 }
 
 impl Default for FontChoice {
@@ -24,9 +24,18 @@ impl Default for FontChoice {
         Self {
             name: None,
             monospace_name: None,
-            text_size_px: 14.0,
-            small_text_size_px: 12.0,
-            icon_size_px: 15.5,
+            text_size: Spacing::Px(14.0),
+            small_text_size: Spacing::Px(12.0),
+            icon_size: Spacing::Px(15.5),
+        }
+    }
+}
+
+impl FontChoice {
+    pub(in crate::config) fn text_size_px(&self) -> Result<f32, FontError> {
+        match self.text_size {
+            Spacing::Px(px) => Ok(px),
+            relative @ Spacing::Em(_) => Err(FontError::RelativeTextSize(relative)),
         }
     }
 }
@@ -63,6 +72,7 @@ impl ResolvedFont {
 
 #[derive(Debug)]
 pub enum FontError {
+    RelativeTextSize(Spacing),
     Unmatched(String),
     Unreadable {
         file: String,
@@ -77,6 +87,10 @@ pub enum FontError {
 impl fmt::Display for FontError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RelativeTextSize(size) => write!(
+                f,
+                "font text_size {size} is relative; the base text size must be given in px"
+            ),
             Self::Unmatched(pattern) => write!(f, "fc-match found no font file for {pattern:?}"),
             Self::Unreadable { file, error } => {
                 write!(f, "font file {file} cannot be read: {error}")
@@ -119,11 +133,12 @@ pub(in crate::config) fn resolve(
     })?;
     let covered = covered_chars(&face);
     let name = configured.map_or(matched.family, str::to_owned);
+    let text_size_px = config.text_size_px()?;
     Ok(ResolvedFont {
         iced_font: Font::with_name(String::leak(name)),
-        text_size_px: config.text_size_px,
-        small_text_size_px: config.small_text_size_px,
-        icon_size_px: config.icon_size_px,
+        text_size_px,
+        small_text_size_px: config.small_text_size.resolve(text_size_px),
+        icon_size_px: config.icon_size.resolve(text_size_px),
         data: Arc::from(bytes),
         covered: Arc::new(covered),
     })

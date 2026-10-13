@@ -10,6 +10,7 @@ use toml::{de, ser};
 use super::{
     calendar::{self, Calendar, CalendarChoice},
     launched_programs::LaunchedPrograms,
+    layout::{LayoutConfig, spacing::Spacing},
     notification_toasts::NotificationToastsConfig,
     panel_bar::PanelBarConfig,
     theme::{
@@ -23,6 +24,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct Config {
     pub theme: Theme,
+    pub layout: LayoutConfig,
     pub panel_bar: PanelBarConfig,
     pub tooltips: TooltipsConfig,
     pub widget_groups: WidgetGroupsConfig,
@@ -43,10 +45,11 @@ impl Config {
 #[serde(default, deny_unknown_fields)]
 struct UserConfig {
     theme: ThemeChoice,
-    panel_bar: PanelBarConfig,
-    tooltips: TooltipsConfig,
+    layout: LayoutConfig<Spacing>,
+    panel_bar: PanelBarConfig<Spacing>,
+    tooltips: TooltipsConfig<Spacing>,
     widget_groups: WidgetGroupsConfig,
-    notification_toasts: NotificationToastsConfig,
+    notification_toasts: NotificationToastsConfig<Spacing>,
     calendar: CalendarChoice,
     launched_programs: LaunchedPrograms,
 }
@@ -59,17 +62,20 @@ impl UserConfig {
                 .parse::<Locale>()
                 .map_err(|_| LoadError::UnknownLocale(configured))?,
         };
+        let font = font::resolve(&self.theme.font, FontRole::Text).map_err(LoadError::Font)?;
+        let em_px = font.text_size_px;
         Ok(Config {
             theme: Theme {
-                font: font::resolve(&self.theme.font, FontRole::Text).map_err(LoadError::Font)?,
+                font,
                 monospace_font: font::resolve(&self.theme.font, FontRole::Monospace)
                     .map_err(LoadError::Font)?,
                 palette: self.theme.palette,
             },
-            panel_bar: self.panel_bar,
-            tooltips: self.tooltips,
+            layout: self.layout.resolve(em_px),
+            panel_bar: self.panel_bar.resolve(em_px),
+            tooltips: self.tooltips.resolve(em_px),
             widget_groups: self.widget_groups,
-            notification_toasts: self.notification_toasts,
+            notification_toasts: self.notification_toasts.resolve(em_px),
             calendar: Calendar {
                 locale,
                 other_time_zones: self.calendar.other_time_zones,
@@ -187,7 +193,7 @@ mod tests {
 
     use chrono_tz::Asia;
 
-    use super::{ConfigFile, LoadError, UserConfig, default_config_toml};
+    use super::{ConfigFile, FontError, LoadError, Spacing, UserConfig, default_config_toml};
 
     fn file_containing(test: &str, toml: &str) -> ConfigFile {
         let directory = env::temp_dir().join(format!("vetrata-{test}-{}", process::id()));
@@ -203,6 +209,35 @@ mod tests {
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
         assert!(matches!(error, LoadError::Invalid { .. }));
         assert!(error.to_string().contains("chrome"));
+    }
+
+    #[test]
+    fn spacing_in_em_resolves_against_the_text_size() {
+        let file = file_containing("em", "[layout.overlay]\ncontent_inset = \"0.5em\"\n");
+        let read = file.read().unwrap();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        let overlay = read.layout.resolve(14.0).overlay;
+        assert!((overlay.content_inset - 7.0).abs() < f32::EPSILON);
+        assert!((overlay.row_spacing - 4.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn a_bare_number_is_rejected_as_spacing() {
+        let file = file_containing("bare", "[layout.panel]\nheight = 24\n");
+        let read = file.read();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert!(matches!(read, Err(LoadError::Invalid { .. })));
+    }
+
+    #[test]
+    fn the_base_text_size_cannot_be_relative() {
+        let file = file_containing("base", "[theme.font]\ntext_size = \"1em\"\n");
+        let read = file.read().unwrap();
+        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+        assert!(matches!(
+            read.theme.font.text_size_px(),
+            Err(FontError::RelativeTextSize(Spacing::Em(_)))
+        ));
     }
 
     #[test]

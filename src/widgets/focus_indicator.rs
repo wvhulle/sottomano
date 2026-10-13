@@ -30,7 +30,7 @@ pub fn focus_indicator<'a, Message>(
         active,
         color,
         motion: config.panel_bar.focus_indicator_motion,
-        thickness: config.panel_bar.indicator_thickness_px,
+        thickness: config.panel_bar.indicator_thickness,
         edge: Position::Bottom,
     }
 }

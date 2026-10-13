@@ -1,10 +1,9 @@
 use std::collections::HashSet;
 
 use iced::{
-    Background, Border, Color, Element, Length, Padding,
+    Background, Color, Element, Length, Padding,
     alignment::Vertical,
-    border::Radius,
-    widget::{Column, Row, Space, button, container},
+    widget::{Column, Row, Space, button},
 };
 
 use crate::{
@@ -20,33 +19,39 @@ use crate::{
     },
 };
 
-const ROW_SPACING: f32 = 1.0;
 const DIVIDER_THICKNESS: f32 = 1.0;
-const DIVIDER_PADDING: [f32; 2] = [4.0, 0.0];
-const ROW_PADDING: [f32; 2] = [5.0, 8.0];
-const SUBMENU_INDENT: f32 = 16.0;
 const HOVER_ALPHA: f32 = 0.22;
 
 pub fn context_menu<'a, Message: Clone + 'a>(
     config: &Config,
-    corner_radius: Radius,
     nodes: &[MenuNode],
     open: &HashSet<i32>,
     on_activate: &impl Fn(i32) -> Message,
     on_toggle: &impl Fn(i32) -> Message,
 ) -> Element<'a, Message> {
-    let rows = clean_separators(nodes)
-        .into_iter()
-        .flat_map(|node| entry_rows(config, corner_radius, node, open, on_activate, on_toggle));
-    Column::with_children(rows)
-        .spacing(ROW_SPACING)
+    Column::with_children(nested_rows(config, 0, nodes, open, on_activate, on_toggle))
+        .spacing(config.layout.overlay.row_spacing)
         .width(Length::Fill)
         .into()
 }
 
+fn nested_rows<'a, Message: Clone + 'a>(
+    config: &Config,
+    depth: usize,
+    nodes: &[MenuNode],
+    open: &HashSet<i32>,
+    on_activate: &impl Fn(i32) -> Message,
+    on_toggle: &impl Fn(i32) -> Message,
+) -> Vec<Element<'a, Message>> {
+    clean_separators(nodes)
+        .into_iter()
+        .flat_map(|node| entry_rows(config, depth, node, open, on_activate, on_toggle))
+        .collect()
+}
+
 fn entry_rows<'a, Message: Clone + 'a>(
     config: &Config,
-    corner_radius: Radius,
+    depth: usize,
     node: &MenuNode,
     open: &HashSet<i32>,
     on_activate: &impl Fn(i32) -> Message,
@@ -54,46 +59,34 @@ fn entry_rows<'a, Message: Clone + 'a>(
 ) -> Vec<Element<'a, Message>> {
     match node.kind {
         MenuKind::Separator => vec![divider(config)],
-        MenuKind::Submenu if open.contains(&node.id) => vec![
-            entry(config, corner_radius, node, true, on_toggle(node.id)),
-            container(context_menu(
+        MenuKind::Submenu if open.contains(&node.id) => {
+            let mut rows = vec![entry(config, depth, node, true, on_toggle(node.id))];
+            rows.extend(nested_rows(
                 config,
-                corner_radius,
+                depth + 1,
                 &node.children,
                 open,
                 on_activate,
                 on_toggle,
-            ))
-            .padding(Padding::ZERO.left(SUBMENU_INDENT))
-            .into(),
-        ],
-        MenuKind::Submenu => vec![entry(
-            config,
-            corner_radius,
-            node,
-            false,
-            on_toggle(node.id),
-        )],
+            ));
+            rows
+        }
+        MenuKind::Submenu => vec![entry(config, depth, node, false, on_toggle(node.id))],
         MenuKind::Standard | MenuKind::Toggle(_) => {
-            vec![entry(
-                config,
-                corner_radius,
-                node,
-                false,
-                on_activate(node.id),
-            )]
+            vec![entry(config, depth, node, false, on_activate(node.id))]
         }
     }
 }
 
 fn entry<'a, Message: Clone + 'a>(
     config: &Config,
-    corner_radius: Radius,
+    depth: usize,
     node: &MenuNode,
     submenu_open: bool,
     message: Message,
 ) -> Element<'a, Message> {
     let icon_size = config.theme.font.icon_size_px;
+    let row_spacing = config.layout.overlay.row_spacing;
     let color = config
         .theme
         .palette
@@ -110,7 +103,7 @@ fn entry<'a, Message: Clone + 'a>(
         });
 
     let mut row = Row::new()
-        .spacing(config.panel_bar.widget_spacing_px)
+        .spacing(row_spacing)
         .align_y(Vertical::Center)
         .width(Length::Fill);
     if let Some(element) = leading {
@@ -130,11 +123,19 @@ fn entry<'a, Message: Clone + 'a>(
             .push(Glyph::from(chevron.with_weight(Weight::Regular)).view(icon_size, color));
     }
 
+    let glyph_column = icon_size + row_spacing;
+    let inset = config.layout.overlay.content_inset;
+    let padding = Padding {
+        top: row_spacing,
+        right: inset,
+        bottom: row_spacing,
+        left: inset + depth as f32 * glyph_column,
+    };
     let accent = config.theme.palette.focus;
     let styled = button(row)
         .width(Length::Fill)
-        .padding(ROW_PADDING)
-        .style(move |_theme, status| button_style(status, color, accent, corner_radius));
+        .padding(padding)
+        .style(move |_theme, status| button_style(status, color, accent));
     if node.enabled {
         styled.on_press(message).into()
     } else {
@@ -142,31 +143,18 @@ fn entry<'a, Message: Clone + 'a>(
     }
 }
 
-fn button_style(
-    status: button::Status,
-    text: Color,
-    accent: Color,
-    radius: Radius,
-) -> button::Style {
+fn button_style(status: button::Status, text: Color, accent: Color) -> button::Style {
     let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
         .then(|| Background::Color(accent.scale_alpha(HOVER_ALPHA)));
     button::Style {
         background,
         text_color: text,
-        border: Border {
-            radius,
-            ..Default::default()
-        },
         ..Default::default()
     }
 }
 
 fn divider<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
-    let color = config.theme.palette.surface_raised;
-    container(activity_line(color, 1.0, DIVIDER_THICKNESS))
-        .width(Length::Fill)
-        .padding(DIVIDER_PADDING)
-        .into()
+    activity_line(config.theme.palette.surface_raised, 1.0, DIVIDER_THICKNESS)
 }
 
 fn clean_separators(nodes: &[MenuNode]) -> Vec<&MenuNode> {

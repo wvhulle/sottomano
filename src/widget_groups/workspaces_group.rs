@@ -52,7 +52,7 @@ pub fn vertical_view<'a>(
         .map(|p| hit_area(p, sidebar_row(config, niri, p), config));
     Some(indicated(
         uniform_width_column(rows)
-            .spacing(config.panel_bar.widget_spacing_px)
+            .spacing(config.layout.panel.widget_spacing)
             .into(),
         workspaces,
         config,
@@ -72,8 +72,8 @@ fn sidebar_row<'a>(
     .width(Length::Shrink)
     .align_x(Alignment::Center);
     let label_with_urgency = row![label_over_markers, urgency_line(config, p, Position::Left)]
-        .spacing(config.panel_bar.widget_spacing_px)
-        .height(config.panel_bar.height_px)
+        .spacing(config.layout.panel.widget_spacing)
+        .height(config.layout.panel.height)
         .align_y(Alignment::Center);
     container(label_with_urgency)
         .width(Length::Fill)
@@ -94,7 +94,7 @@ pub fn inline_view<'a>(
     let slots = workspaces.iter().map(|p| {
         let slot = PagerSlot::new(inline_label(config, p), urgency_line(config, p, position))
             .ticks(window_markers(config, niri, p.id, position).view())
-            .spaced_by(config.panel_bar.widget_spacing_px)
+            .spaced_by(config.layout.panel.widget_spacing)
             .view(config, position);
         hit_area(p, slot, config)
     });
@@ -177,7 +177,7 @@ fn window_markers(
         .iter()
         .map(|w| window_color(config, w, config.theme.palette.inactive))
         .collect();
-    MarkerTrack::new(colors, config.panel_bar.indicator_thickness_px, position)
+    MarkerTrack::new(colors, config.panel_bar.indicator_thickness, position)
 }
 
 fn urgency_line<'a>(
@@ -190,7 +190,7 @@ fn urgency_line<'a>(
         position,
         config.theme.palette.urgent,
         opacity,
-        config.panel_bar.indicator_thickness_px,
+        config.panel_bar.indicator_thickness,
     )
 }
 

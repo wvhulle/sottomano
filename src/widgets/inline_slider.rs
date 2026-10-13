@@ -39,7 +39,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     mouse_area(stack![
         interaction_slider(config, range, value, step, on_change, on_release),
         canvas(face)
-            .width(config.panel_bar.slider_width_px)
+            .width(config.panel_bar.slider_width)
             .height(Slider::<f32, Message>::DEFAULT_HEIGHT)
     ])
     .on_scroll(on_scroll)
@@ -57,7 +57,7 @@ fn interaction_slider<'a, Message: Clone + 'a>(
     slider(range, value, on_change)
         .step(step)
         .on_release(on_release)
-        .width(config.panel_bar.slider_width_px)
+        .width(config.panel_bar.slider_width)
         .style(|_theme, _status| slider::Style {
             rail: slider::Rail {
                 backgrounds: (Color::TRANSPARENT.into(), Color::TRANSPARENT.into()),

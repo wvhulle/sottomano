@@ -219,7 +219,7 @@ fn item_view<'a>(
             activity_line(
                 config.theme.palette.focus,
                 reveal,
-                config.panel_bar.indicator_thickness_px,
+                config.panel_bar.indicator_thickness,
             ),
         ])
         .spacing(1.0)

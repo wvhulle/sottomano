@@ -1,5 +1,6 @@
 pub mod calendar;
 pub mod launched_programs;
+pub mod layout;
 pub mod load;
 pub mod notification_toasts;
 pub mod panel_bar;

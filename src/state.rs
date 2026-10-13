@@ -129,7 +129,7 @@ impl OutlineStyle {
         }
         Border {
             color: config.theme.palette.frame_outline,
-            width: config.panel_bar.frame_outline_px,
+            width: config.panel_bar.frame_outline,
             radius: Radius::default(),
         }
     }
