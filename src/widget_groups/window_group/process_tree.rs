@@ -19,10 +19,10 @@ use crate::{
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
-        loading_text::{LoadingPhase, loading_text},
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
         text::{bar_text, column_heading},
+        transitioning_text::{TransitionStyle, TransitioningText},
     },
 };
 
@@ -132,7 +132,7 @@ pub struct ProcessTree<'a> {
     root: &'a Process,
     folding: &'a Folding,
     config: &'a Config,
-    phase: Option<LoadingPhase>,
+    transition: TransitionStyle,
 }
 
 impl<'a> ProcessTree<'a> {
@@ -140,13 +140,13 @@ impl<'a> ProcessTree<'a> {
         root: &'a Process,
         folding: &'a Folding,
         config: &'a Config,
-        phase: Option<LoadingPhase>,
+        transition: TransitionStyle,
     ) -> Self {
         Self {
             root,
             folding,
             config,
-            phase,
+            transition,
         }
     }
 
@@ -161,7 +161,7 @@ impl<'a> ProcessTree<'a> {
         let font = self.config.theme.font.clone();
         let monospace = self.config.theme.monospace_font.clone();
         let bold = monospace.bold();
-        let phase = self.phase;
+        let transition = self.transition;
         let copy_flash = self.copy_flash();
 
         table::table(
@@ -176,13 +176,14 @@ impl<'a> ProcessTree<'a> {
                             let color = tint.or(level, calm);
                             let name = bar_text(&monospace, listing.label()).color(color);
                             let name = if is_root { name.font(bold) } else { name };
-                            let cell = loading_text(
+                            let cell = TransitioningText::new(
                                 container(name).max_width(NAME_WIDTH_PX),
                                 listing.label(),
-                                phase,
+                                transition,
                                 &monospace,
                                 color,
-                            );
+                            )
+                            .identified_by(&listing.pid);
                             Row::new()
                                 .push(caret(&listing, caret_size, tint.or(level, dim)))
                                 .push(pressable_text(
@@ -239,7 +240,7 @@ impl<'a> ProcessTree<'a> {
         let flash = self.flash();
         let tint = self.tint();
         let font = self.config.theme.monospace_font.clone();
-        let phase = self.phase;
+        let transition = self.transition;
         let copy_flash = self.copy_flash();
         table::column(self.heading(title), move |branch: Branch| {
             let Entry::Listed(listing) = branch.entry else {
@@ -247,13 +248,14 @@ impl<'a> ProcessTree<'a> {
             };
             let text = field(&listing);
             let color = tint.or(listing.level(), dim);
-            let cell = loading_text(
+            let cell = TransitioningText::new(
                 bar_text(&font, text.clone()).color(color),
                 text.clone(),
-                phase,
+                transition,
                 &font,
                 color,
-            );
+            )
+            .identified_by(&listing.pid);
             pressable_text(
                 cell,
                 text,

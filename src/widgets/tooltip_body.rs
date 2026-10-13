@@ -18,7 +18,7 @@ use crate::{
     widgets::{bar_widget::Glyph, localized_time::TimePart, window_title::TitleRun},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Cell {
     Text(String),
     Path(PathBuf),
@@ -165,7 +165,6 @@ pub enum Readiness {
     #[default]
     Settled,
     Estimated,
-    Arriving,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -29,7 +29,6 @@ use crate::{
         bar_widget::Glyph,
         context_menu::context_menu,
         favicon::Favicons,
-        loading_text::{LoadingPhase, loading_text},
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
@@ -38,6 +37,7 @@ use crate::{
             Cell, Freshness, KeyValue, Readiness, RecordCells, Section, SectionBody, SourcedBody,
             SourcedSection, Tooltip, TrayMenuBody, WholeBody,
         },
+        transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
     },
 };
@@ -79,7 +79,7 @@ pub struct TooltipContent<'a> {
     corner_radius: Radius,
     favicons: &'a Favicons,
     now: SystemTime,
-    phase: Option<LoadingPhase>,
+    presence: TextPresence,
 }
 
 impl<'a> TooltipContent<'a> {
@@ -95,18 +95,24 @@ impl<'a> TooltipContent<'a> {
             corner_radius,
             favicons,
             now: SystemTime::now(),
-            phase: None,
+            presence: TextPresence::Shown,
         }
     }
 
     fn in_readiness(self, readiness: Readiness) -> Self {
-        let loading = self.config.tooltips.loading;
-        let phase = match readiness {
-            Readiness::Settled => None,
-            Readiness::Estimated => Some(LoadingPhase::Estimated(loading)),
-            Readiness::Arriving => Some(LoadingPhase::Arriving(loading)),
+        let presence = match readiness {
+            Readiness::Settled => TextPresence::Shown,
+            Readiness::Estimated => TextPresence::Placeholder,
         };
-        Self { phase, ..self }
+        Self { presence, ..self }
+    }
+
+    fn transition(&self, presence: TextPresence) -> TransitionStyle {
+        TransitionStyle {
+            loading: self.config.tooltips.loading,
+            presence,
+            highlight: self.flash(),
+        }
     }
 
     pub fn view(self) -> Element<'static, Message> {
@@ -336,7 +342,7 @@ impl<'a> TooltipContent<'a> {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
             SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
             SectionBody::Tree { root, folding } => {
-                ProcessTree::new(root, folding, self.config, self.phase).view()
+                ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
             }
         }
     }
@@ -349,7 +355,7 @@ impl<'a> TooltipContent<'a> {
             flash: self.flash(),
             link: self.config.theme.palette.info,
             hint: self.dim(),
-            phase: self.phase,
+            transition: self.transition(self.presence),
             copy_flash: self.config.tooltips.copy_flash,
         }
     }
@@ -358,7 +364,11 @@ impl<'a> TooltipContent<'a> {
         let palette = self.config.theme.palette.clone();
         let cell_view = self.cell_view();
         let value_column = table::column(Space::new(), move |entry: KeyValue| {
-            cell_view.value(entry.value().clone(), entry.severity().color(&palette))
+            cell_view.value(
+                entry.value().clone(),
+                entry.severity().color(&palette),
+                entry.key(),
+            )
         })
         .align_y(Vertical::Top);
 
@@ -393,7 +403,7 @@ impl<'a> TooltipContent<'a> {
         let dim = self.dim();
         let label_view = CellView {
             font: self.config.theme.font.clone(),
-            phase: None,
+            transition: self.transition(TextPresence::Shown),
             ..self.cell_view()
         };
         let key_column = table::column(Space::new(), move |entry: Entry| {
@@ -419,7 +429,11 @@ impl<'a> TooltipContent<'a> {
 
         table::column(heading, move |record: RecordCells| {
             match record.cell(position) {
-                Some(value) => cell_view.value(value.clone(), record.severity().color(&palette)),
+                Some(value) => cell_view.value(
+                    value.clone(),
+                    record.severity().color(&palette),
+                    record.key(),
+                ),
                 None => Space::new().into(),
             }
         })
@@ -434,37 +448,44 @@ struct CellView {
     flash: Color,
     link: Color,
     hint: Color,
-    phase: Option<LoadingPhase>,
+    transition: TransitionStyle,
     copy_flash: Duration,
 }
 
 impl CellView {
     fn key(&self, key: Cell, color: Color) -> Element<'static, Message> {
+        let row = key.clone();
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) | Cell::Link(text) => self.copyable_text(text, color),
-            Cell::Path(path) => self.path(&path, color),
-            Cell::Hint(text) => self.text(text, self.hint),
-            Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
+            Cell::Text(text) | Cell::Link(text) => self.copyable_text(text, color, &row),
+            Cell::Path(path) => self.path(&path, color, &row),
+            Cell::Hint(text) => self.text(text, self.hint, &row),
+            Cell::Time { at, part } => {
+                self.copyable_text(part.format(&at, self.locale), color, &row)
+            }
         }
     }
 
-    fn text(&self, text: String, color: Color) -> Element<'static, Message> {
-        loading_text(
+    fn text(&self, text: String, color: Color, row: &Cell) -> Element<'static, Message> {
+        TransitioningText::new(
             cell(&self.font, text.clone(), color, self.max_width),
             text,
-            self.phase,
+            self.transition,
             &self.font,
             color,
         )
+        .identified_by(row)
+        .into()
     }
 
-    fn path(&self, path: &Path, color: Color) -> Element<'static, Message> {
+    fn path(&self, path: &Path, color: Color, row: &Cell) -> Element<'static, Message> {
         let text = path.display().to_string();
         let unwrapped = bar_text(&self.font, text.clone())
             .color(color)
             .wrapping(Wrapping::None);
-        let value = loading_text(unwrapped, text.clone(), self.phase, &self.font, color);
+        let value =
+            TransitioningText::new(unwrapped, text.clone(), self.transition, &self.font, color)
+                .identified_by(row);
         pressable_text(
             value,
             text,
@@ -475,19 +496,21 @@ impl CellView {
         )
     }
 
-    fn value(&self, value: Cell, color: Color) -> Element<'static, Message> {
+    fn value(&self, value: Cell, color: Color, row: &Cell) -> Element<'static, Message> {
         match value {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) => self.copyable_text(text, color),
-            Cell::Path(path) => self.path(&path, color),
-            Cell::Time { at, part } => self.copyable_text(part.format(&at, self.locale), color),
-            Cell::Link(url) => self.openable_link(url),
-            Cell::Hint(text) => self.text(text, self.hint),
+            Cell::Text(text) => self.copyable_text(text, color, row),
+            Cell::Path(path) => self.path(&path, color, row),
+            Cell::Time { at, part } => {
+                self.copyable_text(part.format(&at, self.locale), color, row)
+            }
+            Cell::Link(url) => self.openable_link(url, row),
+            Cell::Hint(text) => self.text(text, self.hint, row),
         }
     }
 
-    fn openable_link(&self, url: String) -> Element<'static, Message> {
-        let value = self.text(url.clone(), self.link);
+    fn openable_link(&self, url: String, row: &Cell) -> Element<'static, Message> {
+        let value = self.text(url.clone(), self.link, row);
         pressable_text(
             value,
             url,
@@ -502,8 +525,8 @@ impl CellView {
         icon.view(self.font.text_size_px, color)
     }
 
-    fn copyable_text(&self, text: String, color: Color) -> Element<'static, Message> {
-        let value = self.text(text.clone(), color);
+    fn copyable_text(&self, text: String, color: Color, row: &Cell) -> Element<'static, Message> {
+        let value = self.text(text.clone(), color, row);
         if text.trim().is_empty() {
             return value;
         }
