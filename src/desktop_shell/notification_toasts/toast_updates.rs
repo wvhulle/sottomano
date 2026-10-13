@@ -30,7 +30,7 @@ use crate::{
     state::{self, OverlaySettings},
     widget_groups::{
         notification_group::NotificationGroupMessage,
-        quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietStart, QuietUpdate},
+        quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
     },
     widgets::{
         announced_level::LevelReading,
@@ -92,21 +92,10 @@ impl DesktopShell {
     fn apply_quiet_change(&mut self, change: QuietChange) -> Task<Message> {
         match change {
             QuietChange::None => Task::none(),
-            QuietChange::Began { start, screen_off } => {
-                let sleep_time = match start {
-                    QuietStart::Scheduled => Task::batch([
-                        niri_action(niri_ipc::Action::PowerOffMonitors {}),
-                        self.audio_group.mute_sink_for_quiet().map(Message::Audio),
-                    ]),
-                    QuietStart::Manual => Task::none(),
-                };
-                Task::batch([
-                    sleep_time,
-                    self.idle_timeouts_group
-                        .override_screen_off(screen_off)
-                        .map(Message::IdleTimeouts),
-                ])
-            }
+            QuietChange::Began { screen_off } => self
+                .idle_timeouts_group
+                .override_screen_off(screen_off)
+                .map(Message::IdleTimeouts),
             QuietChange::Ended => {
                 let released = self.notifications.release_held(&ToastContext::new(
                     &self.niri,
@@ -117,9 +106,6 @@ impl DesktopShell {
                 ));
                 Task::batch([
                     released,
-                    self.audio_group
-                        .restore_sink_after_quiet()
-                        .map(Message::Audio),
                     self.idle_timeouts_group
                         .override_screen_off(None)
                         .map(Message::IdleTimeouts),
