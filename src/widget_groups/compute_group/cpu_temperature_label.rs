@@ -1,52 +1,28 @@
-use uom::si::{
-    f64::{TemperatureInterval, ThermodynamicTemperature},
-    temperature_interval,
-};
+use std::time::{Duration, SystemTime};
+
+use chrono::{DateTime, Local, Locale};
 
 use super::core_kind_sections::{PerCore, sections_by_core_kind};
 use crate::{
-    config::widget_groups::temperature_sensors::ThresholdOverrides,
     data::{
         severity::Severity,
         source::sysfs_sensors::{
             cpu_topology::CpuTopology,
-            temperature::{CoreTemperature, CpuCoreTemperatures, Temperature},
+            temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
         },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_time::TimePart,
+        ongoing_toast::OngoingBody,
         phosphor::Phosphor,
-        temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
+        temperature_thresholds::celsius_text,
         tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-const WARNING_MARGIN_CELSIUS: f64 = 20.0;
-const CRITICAL_MARGIN_CELSIUS: f64 = 5.0;
-const UNREPORTED_WARNING_CELSIUS: f64 = 70.0;
-const UNREPORTED_CRITICAL_CELSIUS: f64 = 85.0;
-
-fn margin(degrees: f64) -> TemperatureInterval {
-    TemperatureInterval::new::<temperature_interval::degree_celsius>(degrees)
-}
-
-fn cpu_thresholds(
-    limit: Option<ThermodynamicTemperature>,
-    overrides: ThresholdOverrides,
-) -> TemperatureThresholds {
-    let from_hardware = match limit {
-        Some(throttle) => TemperatureThresholds {
-            warning: throttle - margin(WARNING_MARGIN_CELSIUS),
-            critical: throttle - margin(CRITICAL_MARGIN_CELSIUS),
-        },
-        None => TemperatureThresholds {
-            warning: celsius(UNREPORTED_WARNING_CELSIUS),
-            critical: celsius(UNREPORTED_CRITICAL_CELSIUS),
-        },
-    };
-    from_hardware.overridden_by(overrides)
-}
+const SUSTAINED_CRITICAL: Duration = Duration::from_secs(30);
 
 impl PerCore for CoreTemperature {
     fn core(&self) -> u32 {
@@ -68,12 +44,16 @@ impl CoreTemperature {
 }
 
 impl Temperature {
-    fn thresholds(&self) -> TemperatureThresholds {
-        cpu_thresholds(self.throttle_limit, self.overrides)
-    }
-
     fn throttle_text(&self) -> Option<String> {
         self.throttle_limit.map(celsius_text)
+    }
+
+    fn critical_sustained(&self) -> bool {
+        self.critical_since.is_some_and(|since| {
+            SystemTime::now()
+                .duration_since(since)
+                .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
+        })
     }
 }
 
@@ -87,7 +67,11 @@ impl BarWidget for Temperature {
     }
 
     fn state(&self) -> WidgetState {
-        self.thresholds().level(self.hottest()).into()
+        match self.thresholds().level(self.hottest()) {
+            Severity::Critical if !self.critical_sustained() => Severity::Warning,
+            level => level,
+        }
+        .into()
     }
 
     fn label(&self) -> Option<String> {
@@ -99,6 +83,35 @@ impl BarWidget for Temperature {
             minimum_severity: Severity::Critical,
             summary_text: "CPU overheating",
         }
+    }
+
+    fn ongoing_toast_body(&self, locale: Locale) -> OngoingBody {
+        let thresholds = self.thresholds();
+        let hottest = self.hottest_reading().map_or_else(
+            || format!("CPU at {}", celsius_text(self.hottest())),
+            |reading| {
+                format!(
+                    "{} {} at {}",
+                    reading.chip,
+                    reading.label,
+                    celsius_text(reading.temperature)
+                )
+            },
+        );
+        let since = self
+            .critical_since
+            .map(|since| {
+                format!(
+                    ", above {} since {}",
+                    celsius_text(thresholds.critical),
+                    TimePart::TimeOfDay.format(&DateTime::<Local>::from(since), locale)
+                )
+            })
+            .unwrap_or_default();
+        OngoingBody::Text(format!(
+            "{hottest}{since}\nCritical threshold {}",
+            thresholds.basis.text(thresholds.critical)
+        ))
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -119,10 +132,7 @@ impl BarWidget for Temperature {
                     "Warns above",
                     celsius_text(thresholds.warning),
                 )),
-                Some(KeyValue::new(
-                    "Critical above",
-                    celsius_text(thresholds.critical),
-                )),
+                Some(KeyValue::new("Critical above", thresholds.critical_text())),
             ]
             .into_iter()
             .flatten(),
@@ -145,20 +155,31 @@ impl CpuCoreTemperatures {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        config::widget_groups::temperature_sensors::ThresholdOverrides,
+        data::source::sysfs_sensors::temperature::TempReading,
+        widgets::temperature_thresholds::celsius,
+    };
 
-    #[test]
-    fn reported_limit_sets_thresholds_below_throttling() {
-        let thresholds = cpu_thresholds(Some(celsius(100.0)), ThresholdOverrides::default());
-        assert_eq!(thresholds.level(celsius(79.0)), Severity::Normal);
-        assert_eq!(thresholds.level(celsius(81.0)), Severity::Warning);
-        assert_eq!(thresholds.level(celsius(96.0)), Severity::Critical);
+    fn hot_reading(critical_since: Option<SystemTime>) -> Temperature {
+        Temperature {
+            readings: vec![TempReading {
+                chip: "k10temp".into(),
+                label: "Tccd1".into(),
+                temperature: celsius(90.0),
+                limit: None,
+            }],
+            throttle_limit: None,
+            overrides: ThresholdOverrides::default(),
+            critical_since,
+        }
     }
 
     #[test]
-    fn unreported_limit_falls_back_to_fixed_thresholds() {
-        let thresholds = cpu_thresholds(None, ThresholdOverrides::default());
-        assert_eq!(thresholds.level(celsius(69.0)), Severity::Normal);
-        assert_eq!(thresholds.level(celsius(71.0)), Severity::Warning);
-        assert_eq!(thresholds.level(celsius(86.0)), Severity::Critical);
+    fn critical_heat_counts_as_warning_until_sustained() {
+        let fresh = hot_reading(Some(SystemTime::now()));
+        assert_eq!(fresh.state(), WidgetState::Warning);
+        let sustained = hot_reading(Some(SystemTime::now() - SUSTAINED_CRITICAL));
+        assert_eq!(sustained.state(), WidgetState::Critical);
     }
 }

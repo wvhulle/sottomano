@@ -1,7 +1,15 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 
 use tokio::task::spawn_blocking;
-use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::kelvin};
+use uom::si::{
+    f64::{TemperatureInterval, ThermodynamicTemperature},
+    temperature_interval,
+    thermodynamic_temperature::kelvin,
+};
 
 use super::{
     CPU_FREQ, Error, cpu_core_index,
@@ -10,9 +18,17 @@ use super::{
 };
 use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
-    data::source::{Source, blocking_poll},
+    data::{
+        severity::Severity,
+        source::{Source, blocking_poll},
+    },
+    widgets::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
 };
 
+const WARNING_MARGIN_CELSIUS: f64 = 20.0;
+const CRITICAL_MARGIN_CELSIUS: f64 = 5.0;
+const UNREPORTED_WARNING_CELSIUS: f64 = 70.0;
+const UNREPORTED_CRITICAL_CELSIUS: f64 = 85.0;
 const CPU_PACKAGE_CHIPS: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const SOC_THERMAL_ZONE_MARKERS: [&str; 2] = ["cpu", "soc"];
 const PACKAGE_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
@@ -20,8 +36,9 @@ const PACKAGE_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
 #[derive(Debug, Clone, PartialEq)]
 pub struct TempReading {
     pub chip: String,
+    pub label: String,
     pub temperature: ThermodynamicTemperature,
-    limit: Option<ThermodynamicTemperature>,
+    pub limit: Option<ThermodynamicTemperature>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -37,6 +54,7 @@ pub struct Temperature {
     pub readings: Vec<TempReading>,
     pub throttle_limit: Option<ThermodynamicTemperature>,
     pub overrides: ThresholdOverrides,
+    pub critical_since: Option<SystemTime>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,7 +80,38 @@ impl Source for CpuCoreTemperatures {
     }
 }
 
+fn margin(degrees: f64) -> TemperatureInterval {
+    TemperatureInterval::new::<temperature_interval::degree_celsius>(degrees)
+}
+
+pub fn cpu_thresholds(
+    limit: Option<ThermodynamicTemperature>,
+    overrides: ThresholdOverrides,
+) -> TemperatureThresholds {
+    let from_hardware = match limit {
+        Some(throttle) => TemperatureThresholds {
+            warning: throttle - margin(WARNING_MARGIN_CELSIUS),
+            critical: throttle - margin(CRITICAL_MARGIN_CELSIUS),
+            basis: ThresholdBasis::BelowThrottle(throttle),
+        },
+        None => TemperatureThresholds {
+            warning: celsius(UNREPORTED_WARNING_CELSIUS),
+            critical: celsius(UNREPORTED_CRITICAL_CELSIUS),
+            basis: ThresholdBasis::Assumed,
+        },
+    };
+    from_hardware.overridden_by(overrides)
+}
+
 impl Temperature {
+    pub fn thresholds(&self) -> TemperatureThresholds {
+        cpu_thresholds(self.throttle_limit, self.overrides)
+    }
+
+    pub fn critical(&self) -> bool {
+        self.thresholds().level(self.hottest()) == Severity::Critical
+    }
+
     fn temperatures(&self) -> impl Iterator<Item = ThermodynamicTemperature> + '_ {
         self.readings.iter().map(|reading| reading.temperature)
     }
@@ -82,6 +131,14 @@ impl Temperature {
 
     pub fn lowest(&self) -> Option<ThermodynamicTemperature> {
         self.temperatures().reduce(ThermodynamicTemperature::min)
+    }
+
+    pub fn hottest_reading(&self) -> Option<&TempReading> {
+        self.readings.iter().max_by(|a, b| {
+            a.temperature
+                .partial_cmp(&b.temperature)
+                .unwrap_or(Ordering::Equal)
+        })
     }
 }
 
@@ -110,10 +167,15 @@ fn read_temperature(config: &SensorConfig) -> Result<Temperature, Error> {
     if readings.is_empty() {
         return Err(Error::NoTemperatureSensor);
     }
-    Ok(Temperature {
+    let temperature = Temperature {
         throttle_limit: throttle_limit(&readings),
         readings,
         overrides: config.overrides(),
+        critical_since: None,
+    };
+    Ok(Temperature {
+        critical_since: temperature.critical().then(SystemTime::now),
+        ..temperature
     })
 }
 
@@ -196,6 +258,7 @@ impl ChosenSensors {
             .filter_map(|sensor| {
                 Some(TempReading {
                     chip: self.chip.name.clone(),
+                    label: sensor.label.clone(),
                     temperature: self.chip.temperature(sensor)?,
                     limit: self.chip.limit(sensor, LimitKind::Crit),
                 })
@@ -254,4 +317,30 @@ fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
                 })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reported_limit_sets_thresholds_below_throttling() {
+        let thresholds = cpu_thresholds(Some(celsius(100.0)), ThresholdOverrides::default());
+        assert_eq!(
+            thresholds.basis,
+            ThresholdBasis::BelowThrottle(celsius(100.0))
+        );
+        assert_eq!(thresholds.level(celsius(79.0)), Severity::Normal);
+        assert_eq!(thresholds.level(celsius(81.0)), Severity::Warning);
+        assert_eq!(thresholds.level(celsius(96.0)), Severity::Critical);
+    }
+
+    #[test]
+    fn unreported_limit_falls_back_to_fixed_thresholds() {
+        let thresholds = cpu_thresholds(None, ThresholdOverrides::default());
+        assert_eq!(thresholds.basis, ThresholdBasis::Assumed);
+        assert_eq!(thresholds.level(celsius(69.0)), Severity::Normal);
+        assert_eq!(thresholds.level(celsius(71.0)), Severity::Warning);
+        assert_eq!(thresholds.level(celsius(86.0)), Severity::Critical);
+    }
 }

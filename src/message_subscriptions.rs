@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
     future::{Future, ready},
     pin::Pin,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use iced::{
@@ -250,9 +250,40 @@ pub fn polling<S: Source>(
     key: S::Key,
     forced: Option<ForcedRefresh>,
 ) -> Subscription<Result<S, S::Error>> {
+    polling_with::<S, _>(key, forced, polled_stream::<S>)
+}
+
+pub fn polling_with<S: Source, St>(
+    key: S::Key,
+    forced: Option<ForcedRefresh>,
+    readings: fn(S::Key) -> St,
+) -> Subscription<Result<S, S::Error>>
+where
+    St: Stream<Item = Result<S, S::Error>> + Send + 'static,
+{
     let restart = forced.filter(|forced| forced.source == S::NAME);
-    Subscription::run_with((S::NAME, key, restart), |(_, key, _)| {
-        polled_stream::<S>(key.clone())
+    Subscription::run_with(
+        (S::NAME, key, restart, readings),
+        |(_, key, _, readings)| readings(key.clone()),
+    )
+}
+
+pub fn holding_earliest<S, E>(
+    readings: impl Stream<Item = Result<S, E>>,
+    stamp: fn(&mut S) -> &mut Option<SystemTime>,
+) -> impl Stream<Item = Result<S, E>> {
+    use iced::futures::StreamExt;
+    readings.scan(None, move |held, reading| {
+        let reading = reading.map(|mut reading| {
+            let current = stamp(&mut reading);
+            *held = current.map(|now| held.unwrap_or(now));
+            *current = *held;
+            reading
+        });
+        if reading.is_err() {
+            *held = None;
+        }
+        ready(Some(reading))
     })
 }
 
@@ -294,7 +325,7 @@ pub fn polled<S: Source>(key: S::Key) -> Readings<S, S::Error> {
     Readings::periodic(S::NAME, S::INTERVAL, polled_stream::<S>(key))
 }
 
-fn polled_stream<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
+pub fn polled_stream<S: Source>(key: S::Key) -> impl Stream<Item = Result<S, S::Error>> {
     emit_reading_changes(ticked(S::INTERVAL, move || S::poll(key.clone())))
 }
 
@@ -373,4 +404,35 @@ async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<
     Ok(stream::iter([connected])
         .chain(served)
         .map(|message| Ok(Message::Notification(message))))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use iced::futures::{StreamExt, executor::block_on, stream};
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct Stamped {
+        since: Option<SystemTime>,
+    }
+
+    #[test]
+    fn holding_earliest_keeps_the_first_stamp_until_a_gap() {
+        let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
+        let second = first + Duration::from_secs(5);
+        let third = first + Duration::from_secs(15);
+        let readings = stream::iter(
+            [Some(first), Some(second), None, Some(third)]
+                .map(|since| Ok::<_, ()>(Stamped { since })),
+        );
+        let held: Vec<Option<SystemTime>> = block_on(
+            holding_earliest(readings, |stamped| &mut stamped.since)
+                .map(|reading| reading.unwrap().since)
+                .collect(),
+        );
+        assert_eq!(held, [Some(first), Some(first), None, Some(third)]);
+    }
 }

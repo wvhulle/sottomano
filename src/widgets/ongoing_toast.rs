@@ -134,9 +134,7 @@ impl<Message> OngoingToast<Message> {
             key: OngoingKey::Reading(hover_target),
             severity,
             summary_text: Cow::Borrowed(summary_text),
-            body: widget
-                .localized_label(locale)
-                .map_or(OngoingBody::None, OngoingBody::Text),
+            body: widget.ongoing_toast_body(locale),
             progress: widget.gauge(),
             since: SystemTime::now(),
             on_body_clicked,
