@@ -4,7 +4,7 @@ mod cpu_load_gauge;
 mod cpu_temperature_label;
 mod memory_usage_gauge;
 
-use iced::{Subscription, Task};
+use iced::{Subscription, Task, futures::Stream};
 
 use crate::{
     config::{Config, widget_groups::temperature_sensors::SensorConfig},
@@ -21,7 +21,9 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polled, polling},
+    message_subscriptions::{
+        ForcedRefresh, holding_earliest, polled, polled_stream, polling, polling_with,
+    },
     widgets::{
         continuous_reading::ContinuousReading,
         hardware_section::HardwareEntries,
@@ -73,6 +75,14 @@ pub enum ComputeMessage {
     CoreTemperaturesFetched(Result<CpuCoreTemperatures, String>),
     MemoryProcessesFetched(Result<MemoryProcesses, String>),
     Expansion(ExpansionMessage),
+}
+
+fn confirmed_heat(
+    sensor: SensorConfig,
+) -> impl Stream<Item = Result<Temperature, sysfs_sensors::Error>> {
+    holding_earliest(polled_stream::<Temperature>(sensor), |reading| {
+        &mut reading.critical_since
+    })
 }
 
 impl ComputeGroup {
@@ -128,7 +138,8 @@ impl ComputeGroup {
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ComputeMessage> {
         let temperature = if self.sensors {
-            polling::<Temperature>(sensor.clone(), forced).map(ComputeMessage::Temperature)
+            polling_with::<Temperature, _>(sensor.clone(), forced, confirmed_heat)
+                .map(ComputeMessage::Temperature)
         } else {
             Subscription::none()
         };

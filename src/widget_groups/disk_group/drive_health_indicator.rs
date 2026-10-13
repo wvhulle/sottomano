@@ -12,7 +12,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         hardware_section::HardwareEntries,
         phosphor::Phosphor,
-        temperature_thresholds::{TemperatureThresholds, celsius, celsius_text},
+        temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius, celsius_text},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -65,7 +65,7 @@ impl BarWidget for DriveHealth {
             .chain(thresholds.into_iter().flat_map(|thresholds| {
                 [
                     KeyValue::new("Warns above", celsius_text(thresholds.warning)),
-                    KeyValue::new("Critical above", celsius_text(thresholds.critical)),
+                    KeyValue::new("Critical above", thresholds.critical_text()),
                 ]
             })),
         );
@@ -97,6 +97,10 @@ impl DriveHealth {
                 .temperature
                 .critical()
                 .unwrap_or_else(|| celsius(UNREPORTED_CRITICAL_CELSIUS)),
+            basis: match self.temperature.critical() {
+                Some(_) => ThresholdBasis::Reported,
+                None => ThresholdBasis::Assumed,
+            },
         }
         .overridden_by(self.overrides)
     }
