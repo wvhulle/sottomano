@@ -126,6 +126,12 @@ impl BarWidget for Temperature {
                     .map(|lowest| KeyValue::new("Min", celsius_text(lowest))),
                 Some(KeyValue::new("Avg", celsius_text(self.average()))),
                 Some(KeyValue::new("Max", celsius_text(self.hottest()))),
+            ]
+            .into_iter()
+            .flatten(),
+        );
+        let threshold_section = Section::dictionary(
+            [
                 self.throttle_text()
                     .map(|throttle| KeyValue::new("Throttles at", throttle)),
                 Some(KeyValue::new(
@@ -136,8 +142,9 @@ impl BarWidget for Temperature {
             ]
             .into_iter()
             .flatten(),
-        );
-        TooltipBody::sections([summary])
+        )
+        .titled("Thresholds");
+        TooltipBody::sections([summary, threshold_section])
     }
 }
 

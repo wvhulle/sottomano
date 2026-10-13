@@ -56,21 +56,21 @@ impl BarWidget for DriveHealth {
             .temperature
             .current()
             .map(|_| self.temperature_thresholds());
-        let summary = Section::dictionary(
-            [
-                KeyValue::new("Drive", self.device_name.as_str()),
-                KeyValue::new("Temperature", self.temperature.text()),
-            ]
-            .into_iter()
-            .chain(thresholds.into_iter().flat_map(|thresholds| {
+        let summary = Section::dictionary([
+            KeyValue::new("Drive", self.device_name.as_str()),
+            KeyValue::new("Temperature", self.temperature.text()),
+        ]);
+        let threshold_section =
+            Section::dictionary(thresholds.into_iter().flat_map(|thresholds| {
                 [
                     KeyValue::new("Warns above", celsius_text(thresholds.warning)),
                     KeyValue::new("Critical above", thresholds.critical_text()),
                 ]
-            })),
-        );
+            }))
+            .titled("Thresholds");
         TooltipBody::sections([
             summary,
+            threshold_section,
             self.identity.hardware_section(),
             Section::dictionary(self.errors.iter().flat_map(error_entries)).titled("I/O errors"),
         ])
