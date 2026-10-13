@@ -48,6 +48,10 @@ impl CpuCoreLoads {
                 ColumnHeading::new("IRQ"),
                 ColumnHeading::new("Idle"),
             ],
+            "Load is the share of the last sample each thread spent busy, split into user \
+             programs, the kernel (Sys), waiting on disks or the network (IO) and interrupt \
+             handling (IRQ). Idle is the share spent in the deepest sleep state, counted when the \
+             thread wakes, so a row need not add up to 100 %.",
             CoreReading::table_record,
         )
     }

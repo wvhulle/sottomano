@@ -165,14 +165,9 @@ impl ComputeGroup {
             .get()
             .map_or(&uniform, |hardware| &hardware.topology);
         match target {
-            ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
-                [
-                    self.core_loads.sections(|loads| loads.sections(topology)),
-                    self.hardware
-                        .sections(|hardware| hardware.cpu.hardware_sections().to_vec()),
-                ]
-                .concat(),
-            ),
+            ComputeTarget::Cpu => self
+                .cpu
+                .tooltip_with_sections(self.core_loads.sections(|loads| loads.sections(topology))),
             ComputeTarget::Memory => self.memory.tooltip_with_sections(
                 [
                     self.memory_processes.sections(MemoryProcesses::sections),
@@ -181,9 +176,14 @@ impl ComputeGroup {
                 ]
                 .concat(),
             ),
-            ComputeTarget::CpuClock => self
-                .clock
-                .tooltip_with_sections(self.clock.sections(|clock| clock.core_sections(topology))),
+            ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
+                [
+                    self.clock.sections(|clock| clock.core_sections(topology)),
+                    self.hardware
+                        .sections(|hardware| hardware.cpu.hardware_sections().to_vec()),
+                ]
+                .concat(),
+            ),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
                     .sections(|cores| cores.sections(topology)),
