@@ -7,7 +7,7 @@ use crate::{
 
 pub(super) struct TopBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 10],
-    pub center: [GroupContent<'a, Message>; 2],
+    pub center: [GroupContent<'a, Message>; 3],
     pub end: [GroupContent<'a, Message>; 8],
 }
 
@@ -54,8 +54,13 @@ impl DesktopShell {
                         config,
                         &self.shell_settings.notifications,
                         self.notifications.live_count(),
+                        self.notifications.held_count(),
+                        self.quiet_schedule_group.is_quiet(),
                     )
                     .map(Message::NotificationGroup),
+                self.quiet_schedule_group
+                    .group_content(config)
+                    .map(Message::QuietSchedule),
             ],
             end: [
                 self.ai_group.group_content().map(Message::Ai),

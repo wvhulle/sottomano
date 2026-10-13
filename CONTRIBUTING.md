@@ -22,6 +22,10 @@ options in `rustfmt.toml`. Version control is jj, not the `git` CLI.
 - Widget state lives in its widget and routes through its group's `Action` —
   no `App`-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
+- No user instructions in `README.md` beyond running, installing and
+  configuring. The UX should be intuitive; where help or explanation is
+  needed, keep it next to the widget in question through descriptive labels,
+  tooltip cards and visual indicators rather than prose in the docs.
 
 ## Upstream docs
 

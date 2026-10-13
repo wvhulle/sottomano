@@ -15,14 +15,13 @@ pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
     drop_shadow INTEGER,
     shadow_softness_px REAL,
     shadow_opacity REAL,
-    do_not_disturb INTEGER,
     sound INTEGER
 )";
 
 const SELECT_SHELL_SETTINGS: &str = "SELECT float_offset_px, disconnected_groups,
         auto_collapse_groups, workspaces_in_sidebar, panel_opacity,
         panel_corner_radius_px, surface_outline, drop_shadow, shadow_softness_px, shadow_opacity,
-        do_not_disturb, sound
+        sound
     FROM shell_settings WHERE id = 0";
 
 #[derive(Debug, Clone, Copy)]
@@ -31,7 +30,6 @@ enum Setting {
     PanelOpacity,
     DisconnectedGroups,
     AutoCollapseGroups,
-    DoNotDisturb,
     Sound,
     WorkspacesInSidebar,
     PanelCornerRadius,
@@ -53,7 +51,6 @@ impl Setting {
             Self::PanelOpacity => "panel_opacity",
             Self::DisconnectedGroups => "disconnected_groups",
             Self::AutoCollapseGroups => "auto_collapse_groups",
-            Self::DoNotDisturb => "do_not_disturb",
             Self::Sound => "sound",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
         }
@@ -116,10 +113,6 @@ pub async fn save_shadow_opacity(opacity: f32) -> bool {
     put(Setting::ShadowOpacity, real(opacity)).await
 }
 
-pub async fn save_do_not_disturb(dnd: bool) {
-    put(Setting::DoNotDisturb, flag(dnd)).await;
-}
-
 pub async fn save_sound(sound: bool) {
     put(Setting::Sound, flag(sound)).await;
 }
@@ -166,12 +159,8 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
             WorkspacesPlacement::BottomPanel
         };
     }
-    let notifications = &mut shell_settings.notifications;
-    if let Some(dnd) = columns.optional_flag(&row, "do_not_disturb") {
-        notifications.do_not_disturb = dnd;
-    }
     if let Some(sound) = columns.optional_flag(&row, "sound") {
-        notifications.sound = sound;
+        shell_settings.notifications.sound = sound;
     }
     let panels = &mut shell_settings.panels;
     if let Some(opacity) = columns.optional_real(&row, "panel_opacity") {
@@ -216,7 +205,6 @@ mod tests {
             (Setting::PanelOpacity, real(0.75)),
             (Setting::DisconnectedGroups, flag(true)),
             (Setting::AutoCollapseGroups, flag(false)),
-            (Setting::DoNotDisturb, flag(true)),
             (Setting::Sound, flag(false)),
             (Setting::WorkspacesInSidebar, flag(false)),
             (Setting::PanelCornerRadius, real(6.5)),
@@ -241,7 +229,6 @@ mod tests {
         assert!((panels.opacity - 0.75).abs() < f32::EPSILON);
         assert!(layout.disconnected_groups);
         assert!(!layout.auto_collapse_groups);
-        assert!(shell_settings.notifications.do_not_disturb);
         assert!(!shell_settings.notifications.sound);
         assert_eq!(
             layout.workspaces_placement,
@@ -252,14 +239,13 @@ mod tests {
     #[tokio::test]
     async fn unwritten_columns_keep_their_defaults() {
         let conn = connection().await;
-        write_setting(&conn, Setting::DoNotDisturb, flag(true))
+        write_setting(&conn, Setting::Sound, flag(false))
             .await
             .unwrap();
 
         let shell_settings = read_shell_settings(&conn).await.unwrap();
-        assert!(shell_settings.notifications.do_not_disturb);
+        assert!(!shell_settings.notifications.sound);
         assert!(shell_settings.layout.auto_collapse_groups);
-        assert!(shell_settings.notifications.sound);
         assert_eq!(
             shell_settings.layout.workspaces_placement,
             WorkspacesPlacement::Sidebar

@@ -40,8 +40,8 @@ use crate::{
         dark_mode_group::DarkModeGroup, disk_group::DiskGroup,
         journal_events_group::JournalEventsGroup, monitor_group::MonitorGroup,
         pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
-        window_group::WindowGroup,
+        quiet_schedule_group::QuietScheduleGroup, systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
 
@@ -118,6 +118,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .subscription(forced)
             .map(Message::ColorTemperature),
         DarkModeGroup::subscription(forced).map(Message::DarkMode),
+        QuietScheduleGroup::subscription().map(Message::QuietSchedule),
         state.media_group.subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),

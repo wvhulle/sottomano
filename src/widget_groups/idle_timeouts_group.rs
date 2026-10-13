@@ -52,6 +52,7 @@ pub struct IdleTimeoutsGroup {
     screen_off: IdleTimer,
     standby: IdleTimer,
     power_down: IdleTimer,
+    quiet_screen_off: Option<Duration>,
     idle_watcher: Option<task::Handle>,
     expansion: GroupExpansion,
 }
@@ -94,6 +95,7 @@ impl Default for IdleTimeoutsGroup {
                 IdleAction::PowerOff,
                 true,
             ),
+            quiet_screen_off: None,
             idle_watcher: None,
             expansion: GroupExpansion::default(),
         }
@@ -201,7 +203,18 @@ impl IdleTimeoutsGroup {
             TimerKind::Standby => &self.standby,
             TimerKind::PowerDown => &self.power_down,
         };
-        timer.tooltip()
+        if kind == TimerKind::ScreenOff
+            && let Some(override_timeout) = self.quiet_screen_off
+        {
+            timer.tooltip_overridden_by("Quiet hours", override_timeout)
+        } else {
+            timer.tooltip()
+        }
+    }
+
+    pub fn override_screen_off(&mut self, timeout: Option<Duration>) -> Task<IdleTimeoutsMessage> {
+        self.quiet_screen_off = timeout;
+        self.rearm()
     }
 
     fn rearm(&mut self) -> Task<IdleTimeoutsMessage> {
@@ -215,7 +228,18 @@ impl IdleTimeoutsGroup {
     fn triggers(&self) -> Vec<IdleTrigger> {
         self.entries()
             .into_iter()
-            .filter_map(|(_, timer)| timer.trigger())
+            .filter_map(|(kind, timer)| {
+                if kind == TimerKind::ScreenOff
+                    && let Some(after) = self.quiet_screen_off
+                {
+                    Some(IdleTrigger {
+                        after,
+                        action: IdleAction::ScreenOff,
+                    })
+                } else {
+                    timer.trigger()
+                }
+            })
             .collect()
     }
 

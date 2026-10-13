@@ -22,7 +22,7 @@ use window_anchored_toasts::WindowAnchoredToasts;
 use crate::{
     config::Config,
     data::{
-        notifications::model::Outbound,
+        notifications::model::{NotificationData, Outbound},
         severity::Severity,
         sink::sound::SoundTheme,
         source::{app_icon::DesktopEntries, niri::Placement},
@@ -42,6 +42,7 @@ pub struct ToastContext<'a> {
     pub entries: Option<&'a DesktopEntries>,
     pub config: &'a Config,
     pub shell_settings: &'a ShellSettings,
+    pub quiet: bool,
 }
 
 impl<'a> ToastContext<'a> {
@@ -50,12 +51,14 @@ impl<'a> ToastContext<'a> {
         entries: Option<&'a DesktopEntries>,
         config: &'a Config,
         shell_settings: &'a ShellSettings,
+        quiet: bool,
     ) -> Self {
         Self {
             placement: Placement::derive(niri),
             entries,
             config,
             shell_settings,
+            quiet,
         }
     }
 }
@@ -70,6 +73,7 @@ pub struct NotificationLayer {
     outbound: Option<mpsc::Sender<Outbound>>,
     sound_theme: SoundTheme,
     live: Vec<Notification>,
+    held: Vec<NotificationData>,
     next_seq: u64,
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
@@ -148,6 +152,10 @@ impl NotificationLayer {
 
     pub fn live_count(&self) -> usize {
         self.live.len()
+    }
+
+    pub fn held_count(&self) -> usize {
+        self.held.len()
     }
 
     pub fn has_running_countdown(&self) -> bool {

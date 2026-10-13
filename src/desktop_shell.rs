@@ -70,6 +70,7 @@ use crate::{
         panel_appearance_group::{PanelAppearanceGroup, PanelAppearanceMessage},
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
         power_group::{PowerGroup, PowerMessage},
+        quiet_schedule_group::{QuietScheduleGroup, QuietScheduleMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage},
@@ -110,6 +111,7 @@ pub struct DesktopShell {
     pub niri_window_group: NiriWindowGroup,
     pub clock_group: ClockGroup,
     pub notification_group: NotificationGroup,
+    pub quiet_schedule_group: QuietScheduleGroup,
     pub systemd_manager_group: SystemdManagerGroup,
     pub journal_events_group: JournalEventsGroup,
     pub pending_upgrades_group: PendingUpgradesGroup,
@@ -155,6 +157,7 @@ pub enum Message {
     NiriWindow(NiriWindowMessage),
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
+    QuietSchedule(QuietScheduleMessage),
     SystemdManager(SystemdManagerMessage),
     JournalEvents(JournalEventsMessage),
     PendingUpgrades(PendingUpgradesMessage),
@@ -239,6 +242,7 @@ impl DesktopShell {
             niri_window_group: NiriWindowGroup::default(),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
+            quiet_schedule_group: QuietScheduleGroup::default(),
             systemd_manager_group: SystemdManagerGroup::default(),
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
@@ -311,6 +315,7 @@ impl DesktopShell {
                 self.desktop_entries.get(),
                 &self.config,
                 &self.shell_settings,
+                self.quiet_schedule_group.is_quiet(),
             ),
         );
         Task::batch([
@@ -374,6 +379,7 @@ impl DesktopShell {
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
             Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
+            Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
             Message::SystemdManager(msg) => self
                 .systemd_manager_group
                 .update(msg)
@@ -658,6 +664,7 @@ impl DesktopShell {
                 self.desktop_entries.get(),
                 &self.config,
                 &self.shell_settings,
+                self.quiet_schedule_group.is_quiet(),
             ),
         )
     }
@@ -690,6 +697,7 @@ impl DesktopShell {
         self.tray_group.collapse();
         self.ai_group.collapse();
         self.notification_group.collapse();
+        self.quiet_schedule_group.collapse();
         self.systemd_manager_group.collapse();
         self.journal_events_group.collapse();
         self.pending_upgrades_group.collapse();

@@ -116,6 +116,7 @@ impl DesktopShell {
             HoverTarget::Ai(target) => self.ai_group.tooltip_for(*target),
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
             HoverTarget::Notification(_) => None,
+            HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),
             HoverTarget::Tray(address) => Some(self.tray_group.tooltip_for(address)),
             HoverTarget::Window(window) => {
                 self.window_group

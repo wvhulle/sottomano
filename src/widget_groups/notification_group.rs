@@ -4,33 +4,28 @@ use crate::{
     config::Config,
     desktop_shell::hover_tooltips::HoverTarget,
     state::NotificationSettings,
+    widget_groups::quiet_schedule_group::QuietScheduleTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         source_reading::source_reading,
         toggle_control::IconToggle,
-        tooltip_body::TooltipBody,
+        tooltip_body::{KeyValue, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
         widget_state::WidgetState,
     },
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum NotificationToggle {
-    DoNotDisturb,
-    Sound,
-}
-
-#[derive(Debug, Clone, Copy)]
 pub enum NotificationGroupMessage {
     Expansion(ExpansionMessage),
-    Toggle(NotificationToggle),
+    ToggleSound,
+    ToggleDoNotDisturb,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotificationTarget {
-    DoNotDisturb,
     Sound,
 }
 
@@ -59,11 +54,10 @@ impl NotificationGroup {
         config: &'a Config,
         notification_settings: &NotificationSettings,
         live: usize,
+        held: usize,
+        quiet: bool,
     ) -> GroupContent<'a, NotificationGroupMessage> {
-        let status = NotificationStatus {
-            dnd: notification_settings.do_not_disturb,
-            live,
-        };
+        let status = NotificationStatus { quiet, live, held };
         let sound_icon = if notification_settings.sound {
             Phosphor::Bell(Weight::Regular)
         } else {
@@ -78,14 +72,13 @@ impl NotificationGroup {
                         .unwrap_or_else(|| Row::new().into())
                         .map(GroupEvent::Group)
                 }),
-                GroupItem::toggle(
-                    IconToggle::new(
-                        "Do not disturb",
-                        Phosphor::Prohibit(Weight::Regular),
-                        notification_settings.do_not_disturb,
-                    ),
-                    NotificationTarget::DoNotDisturb,
-                    NotificationGroupMessage::Toggle(NotificationToggle::DoNotDisturb),
+                GroupItem::reading(
+                    DoNotDisturbStatus { quiet },
+                    QuietScheduleTarget::DoNotDisturb,
+                )
+                .on_press(
+                    "start or end do not disturb now",
+                    NotificationGroupMessage::ToggleDoNotDisturb,
                 ),
                 GroupItem::toggle(
                     IconToggle::new(
@@ -94,7 +87,7 @@ impl NotificationGroup {
                         notification_settings.sound,
                     ),
                     NotificationTarget::Sound,
-                    NotificationGroupMessage::Toggle(NotificationToggle::Sound),
+                    NotificationGroupMessage::ToggleSound,
                 ),
             ],
         )
@@ -103,8 +96,9 @@ impl NotificationGroup {
 
 #[derive(Clone, Copy)]
 struct NotificationStatus {
-    dnd: bool,
+    quiet: bool,
     live: usize,
+    held: usize,
 }
 
 impl BarWidget for NotificationStatus {
@@ -113,7 +107,7 @@ impl BarWidget for NotificationStatus {
     }
 
     fn icon(&self) -> Glyph {
-        if self.dnd {
+        if self.quiet {
             Phosphor::ChatCircleSlash(self.state().weight()).into()
         } else {
             Phosphor::ChatCircle(self.state().weight()).into()
@@ -121,17 +115,49 @@ impl BarWidget for NotificationStatus {
     }
 
     fn badge(&self) -> Option<u32> {
-        u32::try_from(self.live).ok().filter(|live| *live > 0)
+        u32::try_from(self.live + self.held)
+            .ok()
+            .filter(|count| *count > 0)
     }
 
     fn state(&self) -> WidgetState {
-        if self.dnd {
+        if self.quiet {
             WidgetState::Off
         } else if self.live > 0 {
             WidgetState::On
         } else {
             WidgetState::Idle
         }
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        if self.held > 0 {
+            TooltipBody::dictionary([KeyValue::new(
+                "Held until do not disturb ends",
+                self.held.to_string(),
+            )])
+        } else {
+            TooltipBody::sections([])
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct DoNotDisturbStatus {
+    quiet: bool,
+}
+
+impl BarWidget for DoNotDisturbStatus {
+    fn name(&self) -> &'static str {
+        "Do not disturb"
+    }
+
+    fn icon(&self) -> Glyph {
+        Phosphor::Prohibit(self.state().weight()).into()
+    }
+
+    fn state(&self) -> WidgetState {
+        WidgetState::of_toggle(self.quiet)
     }
 
     fn tooltip(&self) -> TooltipBody {
