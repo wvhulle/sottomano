@@ -120,7 +120,7 @@ impl DesktopShell {
             HoverTarget::Wallpaper(target) => self.wallpaper_group.tooltip_for(*target),
             HoverTarget::Media => self.media_group.tooltip(),
             HoverTarget::Ai(target) => self.ai_group.tooltip_for(*target),
-            HoverTarget::FocusTime(target) => Some(self.focus_time_group.tooltip_for(
+            HoverTarget::SessionFocus(target) => Some(self.session_focus_group.tooltip_for(
                 *target,
                 &self.config,
                 self.quiet_schedule_group.waking_window(),
@@ -171,9 +171,9 @@ impl DesktopShell {
                 .hover(hovered, &self.config)
                 .map(Message::Power),
             self.ai_group.hover(hovered, &self.config).map(Message::Ai),
-            self.focus_time_group
+            self.session_focus_group
                 .hover(hovered, &self.config)
-                .map(Message::FocusTime),
+                .map(Message::SessionFocus),
         ])
     }
 

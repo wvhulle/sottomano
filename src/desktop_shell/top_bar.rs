@@ -6,9 +6,9 @@ use crate::{
 };
 
 pub(super) struct TopBarGroups<'a> {
-    pub start: [GroupContent<'a, Message>; 11],
+    pub start: [GroupContent<'a, Message>; 10],
     pub center: [GroupContent<'a, Message>; 3],
-    pub end: [GroupContent<'a, Message>; 8],
+    pub end: [GroupContent<'a, Message>; 10],
 }
 
 impl DesktopShell {
@@ -20,9 +20,7 @@ impl DesktopShell {
             Position::Top,
             start.map(view),
             center.map(view),
-            end.map(view)
-                .into_iter()
-                .chain([self.session_menu.view(config, Position::Top)]),
+            end.map(view),
         )
     }
 
@@ -48,9 +46,6 @@ impl DesktopShell {
                     .group_content(config)
                     .map(Message::PendingUpgrades),
                 self.internet_group.group_content().map(Message::Internet),
-                self.focus_time_group
-                    .group_content(config, self.quiet_schedule_group.waking_window())
-                    .map(Message::FocusTime),
             ],
             center: [
                 self.clock_group.group_content().map(Message::Clock),
@@ -86,6 +81,12 @@ impl DesktopShell {
                     .group_content(config, &self.desktop_entries)
                     .map(Message::Media),
                 self.audio_group.group_content(config).map(Message::Audio),
+                self.session_focus_group
+                    .group_content(config, self.quiet_schedule_group.waking_window())
+                    .map(Message::SessionFocus),
+                self.session_menu
+                    .group_content(config)
+                    .map(Message::Session),
             ],
         }
     }

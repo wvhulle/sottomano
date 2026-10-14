@@ -57,7 +57,6 @@ use crate::{
         compute_group::{ComputeGroup, ComputeMessage},
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         disk_group::{DiskGroup, DiskMessage},
-        focus_time_group::{FocusTimeGroup, FocusTimeMessage},
         gpu_group::{GpuGroup, GpuMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
@@ -72,6 +71,7 @@ use crate::{
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
         power_group::{PowerGroup, PowerMessage},
         quiet_schedule_group::{QuietScheduleGroup, QuietScheduleMessage},
+        session_focus_group::{SessionFocusGroup, SessionFocusMessage},
         session_menu::{self, SessionMenu, SessionMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
@@ -127,7 +127,7 @@ pub struct DesktopShell {
     pub media_group: MediaGroup,
     pub audio_group: AudioGroup,
     pub ai_group: AiGroup,
-    pub focus_time_group: FocusTimeGroup,
+    pub session_focus_group: SessionFocusGroup,
     pub tray_group: TrayGroup,
     pub window_group: WindowGroup,
     pub launch_tracker: LaunchTracker,
@@ -181,7 +181,7 @@ pub enum Message {
     SoundThemeLoaded(SoundTheme),
     Audio(AudioMessage),
     Ai(AiMessage),
-    FocusTime(FocusTimeMessage),
+    SessionFocus(SessionFocusMessage),
     WindowGroup(WindowGroupMessage),
     TrackerLoaded(Vec<Launch>),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
@@ -264,7 +264,7 @@ impl DesktopShell {
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
             ai_group: AiGroup::new(secrets),
-            focus_time_group: FocusTimeGroup::default(),
+            session_focus_group: SessionFocusGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
@@ -290,7 +290,7 @@ impl DesktopShell {
             Task::done(Message::ConfigLoaded(loaded)),
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(state::launches::load(), Message::TrackerLoaded),
-            FocusTimeGroup::load().map(Message::FocusTime),
+            SessionFocusGroup::load().map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
             Task::perform(state::idle::load(), |t| {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
@@ -432,7 +432,10 @@ impl DesktopShell {
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
-            Message::FocusTime(msg) => self.focus_time_group.update(msg).map(Message::FocusTime),
+            Message::SessionFocus(msg) => self
+                .session_focus_group
+                .update(msg)
+                .map(Message::SessionFocus),
             Message::DismissPressed => {
                 self.collapse_groups();
                 Task::none()
@@ -717,7 +720,7 @@ impl DesktopShell {
         self.window_group.collapse();
         self.tray_group.collapse();
         self.ai_group.collapse();
-        self.focus_time_group.collapse();
+        self.session_focus_group.collapse();
         self.notification_group.collapse();
         self.quiet_schedule_group.collapse();
         self.systemd_manager_group.collapse();
@@ -750,9 +753,9 @@ impl DesktopShell {
         }
         self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
         tasks.push(
-            self.focus_time_group
+            self.session_focus_group
                 .refocus(&self.niri)
-                .map(Message::FocusTime),
+                .map(Message::SessionFocus),
         );
         if focus_change {
             self.collapse_groups();

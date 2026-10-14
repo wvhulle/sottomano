@@ -13,7 +13,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -58,7 +58,32 @@ impl DailyTotalsGauge<'_> {
         .level(quota.map(Quota::severity).unwrap_or_default())
     }
 
-    pub fn section(&self) -> Section {
+    fn thresholds(&self) -> Section {
+        Section::dictionary(
+            [
+                self.accounting
+                    .screen_budget()
+                    .map(|budget| KeyValue::new("Screen budget", duration_text(budget))),
+                Some(KeyValue::new(
+                    "Waking hours",
+                    format!(
+                        "{} to {}",
+                        self.waking.start.format("%H:%M"),
+                        self.waking.end.format("%H:%M")
+                    ),
+                )),
+            ]
+            .into_iter()
+            .flatten(),
+        )
+        .titled("Thresholds")
+    }
+
+    pub fn sections(&self) -> [Section; 2] {
+        [self.today(), self.thresholds()]
+    }
+
+    fn today(&self) -> Section {
         let now = Utc::now();
         let window = self.waking.around(now);
         let quotas = self.quotas(now);
@@ -83,14 +108,7 @@ impl DailyTotalsGauge<'_> {
             ],
             units.chain([screen]),
         )
-        .titled((
-            "Today",
-            format!(
-                "{} to {}",
-                self.waking.start.format("%H:%M"),
-                self.waking.end.format("%H:%M")
-            ),
-        ))
+        .titled("Today")
     }
 }
 
@@ -109,6 +127,18 @@ impl BarWidget for DailyTotalsGauge<'_> {
         Phosphor::HourglassMedium(self.state().weight()).into()
     }
 
+    fn label(&self) -> Option<String> {
+        let now = Utc::now();
+        let spent = duration_text(self.accounting.screen_spent(self.waking.around(now), now));
+        Some(
+            self.accounting
+                .screen_budget()
+                .map_or(spent.clone(), |budget| {
+                    format!("{spent} / {}", duration_text(budget))
+                }),
+        )
+    }
+
     fn state(&self) -> WidgetState {
         self.quota_severity(Utc::now()).unwrap_or_default().into()
     }
@@ -118,6 +148,6 @@ impl BarWidget for DailyTotalsGauge<'_> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([self.section()])
+        TooltipBody::sections(self.sections())
     }
 }

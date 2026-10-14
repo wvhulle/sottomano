@@ -720,6 +720,30 @@ impl Accounting<'_> {
             .collect()
     }
 
+    pub fn runs_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
+        self.active_within(window, now)
+    }
+
+    pub fn longest_run_within(&self, window: Interval, now: DateTime<Utc>) -> Option<Interval> {
+        self.runs_within(window, now)
+            .into_iter()
+            .max_by_key(|run| run.length())
+    }
+
+    pub fn breaks_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
+        self.breaks(now)
+            .into_iter()
+            .filter_map(|gap| gap.intersect(window))
+            .collect()
+    }
+
+    pub fn switches_within(&self, window: Interval, now: DateTime<Utc>) -> usize {
+        self.ledger
+            .focus_until(now)
+            .filter(|span| window.from <= span.started_at && span.started_at < window.until)
+            .count()
+    }
+
     pub fn screen_spent(&self, window: Interval, now: DateTime<Utc>) -> TimeDelta {
         self.active_within(window, now)
             .into_iter()
@@ -989,6 +1013,68 @@ mod tests {
         assert_eq!(
             accounted.dominant_run(at(20)).unwrap().unit,
             FocusUnit::Project(PathBuf::from("/code/vetrata"))
+        );
+    }
+
+    #[test]
+    fn switches_count_span_starts_inside_the_window() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(focused("firefox", None), 30),
+            step(focused("kitty", None), 50),
+        ]);
+        let last_hour = Interval {
+            from: at(10),
+            until: at(70),
+        };
+        assert_eq!(
+            ledger.accounted(&config).switches_within(last_hour, at(70)),
+            2
+        );
+    }
+
+    #[test]
+    fn breaks_are_clipped_to_the_window() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Idle(IdleEdge::Idled), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 30),
+        ]);
+        let window = Interval {
+            from: at(20),
+            until: at(60),
+        };
+        assert_eq!(
+            ledger.accounted(&config).breaks_within(window, at(40)),
+            vec![Interval {
+                from: at(20),
+                until: at(30)
+            }]
+        );
+    }
+
+    #[test]
+    fn the_longest_run_spans_a_short_pause_but_not_a_break() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Idle(IdleEdge::Idled), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 11),
+            step(FocusSignal::Idle(IdleEdge::Idled), 25),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 35),
+        ]);
+        let longest = ledger
+            .accounted(&config)
+            .longest_run_within(window(), at(40))
+            .unwrap();
+        assert_eq!(
+            longest,
+            Interval {
+                from: at(0),
+                until: at(25)
+            }
         );
     }
 

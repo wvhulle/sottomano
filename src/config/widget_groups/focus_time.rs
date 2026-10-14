@@ -13,6 +13,7 @@ pub struct FocusTimeConfig {
     pub session_critical: Duration,
     #[serde(with = "humantime_serde")]
     pub break_grace: Duration,
+    pub switches_per_hour_warning: u32,
     pub screen_daily_budget_minutes: Option<u32>,
     pub app_daily_budget_minutes: BTreeMap<String, u32>,
     pub project_daily_budget_minutes: BTreeMap<String, u32>,
@@ -25,6 +26,7 @@ impl Default for FocusTimeConfig {
             session_warning: Duration::from_mins(45),
             session_critical: Duration::from_mins(90),
             break_grace: Duration::from_mins(5),
+            switches_per_hour_warning: 30,
             screen_daily_budget_minutes: None,
             app_daily_budget_minutes: BTreeMap::new(),
             project_daily_budget_minutes: BTreeMap::new(),

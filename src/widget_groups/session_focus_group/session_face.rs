@@ -5,7 +5,7 @@ use crate::{
         severity::Severity,
         source::focus_ledger::{Accounting, FocusRun, FocusUnit, Interval, ScreenRun},
     },
-    widget_groups::{ai_group::amount_text::duration_text, focus_time_group::BreakPledge},
+    widget_groups::{ai_group::amount_text::duration_text, session_focus_group::BreakPledge},
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::TimePart,
@@ -58,9 +58,31 @@ impl SessionFace<'_> {
         self.accounting.dominant_run(now)
     }
 
-    pub fn section(&self) -> Section {
-        let now = Utc::now();
+    fn thresholds(&self) -> Section {
         let config = self.accounting.config;
+        Section::dictionary([
+            KeyValue::new(
+                "Warns after",
+                humantime::format_duration(config.session_warning).to_string(),
+            ),
+            KeyValue::new(
+                "Critical after",
+                humantime::format_duration(config.session_critical).to_string(),
+            ),
+            KeyValue::new(
+                "Break grace",
+                humantime::format_duration(config.break_grace).to_string(),
+            ),
+        ])
+        .titled("Thresholds")
+    }
+
+    pub fn sections(&self) -> [Section; 2] {
+        [self.now(), self.thresholds()]
+    }
+
+    fn now(&self) -> Section {
+        let now = Utc::now();
         let units = self.accounting.ledger.focused_units();
         let project = units.iter().find_map(|unit| match unit {
             FocusUnit::Project(root) => Some(root.clone()),
@@ -98,20 +120,8 @@ impl SessionFace<'_> {
                         ),
                     )
                 }),
-            Some(KeyValue::new(
-                "Break after idling",
-                humantime::format_duration(config.idle_after).to_string(),
-            )),
-            Some(KeyValue::new(
-                "Warns after",
-                humantime::format_duration(config.session_warning).to_string(),
-            )),
-            Some(KeyValue::new(
-                "Critical after",
-                humantime::format_duration(config.session_critical).to_string(),
-            )),
         ];
-        Section::dictionary(entries.into_iter().flatten())
+        Section::dictionary(entries.into_iter().flatten()).titled("Now")
     }
 }
 
@@ -162,7 +172,7 @@ impl BarWidget for SessionFace<'_> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([self.section()])
+        TooltipBody::sections(self.sections())
     }
 }
 

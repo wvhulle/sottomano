@@ -1,6 +1,6 @@
 use std::{thread, time::Duration};
 
-use iced::{Element, Task};
+use iced::Task;
 
 use crate::{
     config::Config,
@@ -8,26 +8,21 @@ use crate::{
         logind::permissions::{self, Permissions},
         session_action::SessionAction,
     },
-    desktop_shell::{
-        Message,
-        hover_tooltips::{HoverTarget, pressable_card},
-        monitor_surfaces::Position,
-    },
+    desktop_shell::hover_tooltips::{HoverTarget, pressable_card},
     message_subscriptions::blocking,
     state::idle::Timeouts,
     widgets::{
-        activity_line::activity_line,
         bar_widget::Glyph,
-        pager_slot::PagerSlot,
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             Freshness, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody, WholeBody,
         },
+        widget_group::{GroupContent, GroupEvent},
     },
 };
 
 const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
-const RESTING_INDICATOR_OPACITY: f32 = 0.12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionTarget {
@@ -97,22 +92,19 @@ impl SessionMenu {
         }
     }
 
-    pub fn view<'a>(&self, config: &Config, position: Position) -> Option<Element<'a, Message>> {
-        if self.permissions.allowed.is_empty() {
-            return None;
-        }
-        let foreground = config.theme.palette.bar_foreground;
-        let handle = pressable_card(
-            Glyph::from(Phosphor::Power(Weight::Regular))
-                .view(config.theme.font.icon_size_px, foreground),
-            SessionTarget::Menu.into(),
-            Message::Tooltip,
-        );
-        let indicator = activity_line(
-            foreground,
-            RESTING_INDICATOR_OPACITY,
-            config.panel_bar.indicator_thickness,
-        );
-        Some(PagerSlot::new(handle, indicator).view(config, position))
+    pub fn group_content<'a>(&self, config: &'a Config) -> GroupContent<'a, SessionMessage> {
+        let glyph = Glyph::from(Phosphor::Power(Weight::Regular));
+        GroupContent::single((!self.permissions.allowed.is_empty()).then(|| {
+            GroupItem::element(move |reveal| {
+                pressable_card(
+                    glyph.view(
+                        config.theme.font.icon_size_px,
+                        config.theme.palette.bar_foreground.scale_alpha(reveal),
+                    ),
+                    SessionTarget::Menu.into(),
+                    GroupEvent::Tooltip,
+                )
+            })
+        }))
     }
 }
