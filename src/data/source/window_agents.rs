@@ -24,17 +24,30 @@ pub struct AgentWindow {
     pub id: u64,
     pub title_holder: u64,
     pub title: String,
+    pub shown_pid: i32,
     pub pids: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PairedWindow {
+    shown: i32,
+    pids: Vec<i32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WindowProcesses {
-    by_window: HashMap<u64, Vec<i32>>,
+    by_window: HashMap<u64, PairedWindow>,
 }
 
 impl WindowProcesses {
     pub fn of_window(&self, window: u64) -> Option<&[i32]> {
-        self.by_window.get(&window).map(Vec::as_slice)
+        self.by_window
+            .get(&window)
+            .map(|paired| paired.pids.as_slice())
+    }
+
+    pub fn shown_in(&self, window: u64) -> Option<i32> {
+        self.by_window.get(&window).map(|paired| paired.shown)
     }
 }
 
@@ -100,9 +113,13 @@ impl Pairing {
                     .iter()
                     .find(|agent_window| agent_window.id == key.window)
                 {
-                    processes
-                        .by_window
-                        .insert(niri_window, agent_window.pids.clone());
+                    processes.by_window.insert(
+                        niri_window,
+                        PairedWindow {
+                            shown: agent_window.shown_pid,
+                            pids: agent_window.pids.clone(),
+                        },
+                    );
                 }
             }
         }

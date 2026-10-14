@@ -1,0 +1,303 @@
+use chrono::{DateTime, TimeDelta, Utc};
+
+use super::{
+    Accounting,
+    focus_units::{FocusUnit, Presence},
+    recorded_spans::OpenSpan,
+    time_intervals::{Interval, gaps_between, merged},
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FocusRun {
+    pub unit: FocusUnit,
+    pub since: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScreenRun {
+    pub since: DateTime<Utc>,
+}
+
+impl Accounting<'_> {
+    fn idle_after(&self) -> TimeDelta {
+        TimeDelta::from_std(self.config.idle_after).unwrap_or(TimeDelta::MAX)
+    }
+
+    pub fn active_intervals(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        let idle_after = self.idle_after();
+        merged(
+            self.ledger
+                .presence_until(now)
+                .filter(|span| match span.state {
+                    Presence::Active => true,
+                    Presence::Idle => span.interval().length() < idle_after,
+                    Presence::Asleep | Presence::ScreenOff => false,
+                })
+                .map(|span| span.interval())
+                .collect(),
+        )
+    }
+
+    fn unmistakably_away(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        self.ledger
+            .presence_until(now)
+            .filter(|span| matches!(span.state, Presence::Asleep | Presence::ScreenOff))
+            .map(|span| span.interval())
+            .collect()
+    }
+
+    fn breaks(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        let idle_after = self.idle_after();
+        let away = self.unmistakably_away(now);
+        self.ledger
+            .first_presence(now)
+            .map(|first| gaps_between(&self.active_intervals(now), first, now))
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|gap| {
+                gap.length() >= idle_after || away.iter().any(|span| span.intersect(*gap).is_some())
+            })
+            .collect()
+    }
+
+    pub fn last_break(&self, now: DateTime<Utc>) -> Option<Interval> {
+        self.breaks(now).into_iter().last()
+    }
+
+    pub fn screen_run(&self, now: DateTime<Utc>) -> Option<ScreenRun> {
+        let first = self.ledger.first_presence(now)?;
+        match self.last_break(now) {
+            Some(gap) if gap.until >= now => None,
+            Some(gap) => Some(ScreenRun { since: gap.until }),
+            None => Some(ScreenRun { since: first }),
+        }
+    }
+
+    pub fn runs(&self, now: DateTime<Utc>) -> Vec<FocusRun> {
+        let floor = self
+            .last_break(now)
+            .map_or(DateTime::<Utc>::MIN_UTC, |gap| gap.until);
+        let Some(OpenSpan { span: open, .. }) = &self.ledger.open_focus else {
+            return Vec::new();
+        };
+        open.units
+            .iter()
+            .map(|unit| {
+                let chain_start = self
+                    .ledger
+                    .focus
+                    .iter()
+                    .rev()
+                    .scan(open.started_at, |since, span| {
+                        (*since <= span.ended_at && span.units.contains(unit)).then(|| {
+                            *since = span.started_at;
+                            *since
+                        })
+                    })
+                    .last()
+                    .unwrap_or(open.started_at);
+                FocusRun {
+                    unit: unit.clone(),
+                    since: chain_start.max(floor),
+                }
+            })
+            .collect()
+    }
+
+    pub fn dominant_run(&self, now: DateTime<Utc>) -> Option<FocusRun> {
+        self.runs(now).into_iter().min_by_key(|run| run.since)
+    }
+
+    pub(super) fn active_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
+        self.active_intervals(now)
+            .into_iter()
+            .filter_map(|interval| interval.intersect(window))
+            .collect()
+    }
+
+    pub fn longest_run_within(&self, window: Interval, now: DateTime<Utc>) -> Option<Interval> {
+        self.active_within(window, now)
+            .into_iter()
+            .max_by_key(|run| run.length())
+    }
+
+    pub fn breaks_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
+        self.breaks(now)
+            .into_iter()
+            .filter_map(|gap| gap.intersect(window))
+            .collect()
+    }
+
+    pub fn screen_spent(&self, window: Interval, now: DateTime<Utc>) -> TimeDelta {
+        self.active_within(window, now)
+            .into_iter()
+            .map(Interval::length)
+            .sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::data::source::{
+        drm_connectors::ScreenEdge,
+        focus_ledger::{
+            FocusSignal,
+            test_steps::{at, config, focused, folded, kitty, step, whole_day},
+        },
+        idle_notify::IdleEdge,
+        logind::SleepEdge,
+    };
+
+    #[test]
+    fn a_short_pause_counts_as_active_and_a_long_one_is_a_break() {
+        let config = config();
+        let paused = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Idle(IdleEdge::Idled), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 11),
+        ]);
+        let paused = paused.accounted(&config);
+        assert_eq!(
+            paused.spent(&kitty(), whole_day(), at(20)),
+            TimeDelta::minutes(20)
+        );
+        assert_eq!(paused.screen_run(at(20)), Some(ScreenRun { since: at(0) }));
+
+        let rested = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Idle(IdleEdge::Idled), 20),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 30),
+        ]);
+        let rested = rested.accounted(&config);
+        assert_eq!(
+            rested.spent(&kitty(), whole_day(), at(40)),
+            TimeDelta::minutes(30)
+        );
+        assert_eq!(
+            rested.last_break(at(40)),
+            Some(Interval {
+                from: at(20),
+                until: at(30)
+            })
+        );
+        assert_eq!(rested.screen_run(at(40)), Some(ScreenRun { since: at(30) }));
+        assert_eq!(rested.runs(at(40))[0].since, at(30));
+    }
+
+    #[test]
+    fn suspending_is_a_break_and_being_away_has_no_screen_run() {
+        let config = config();
+        let asleep = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Sleep(SleepEdge::Suspending), 5),
+        ]);
+        assert_eq!(asleep.accounted(&config).screen_run(at(30)), None);
+        let woken = asleep
+            .fold(FocusSignal::Sleep(SleepEdge::Resumed), at(60))
+            .ledger;
+        assert_eq!(
+            woken.accounted(&config).screen_run(at(61)),
+            Some(ScreenRun { since: at(60) })
+        );
+    }
+
+    #[test]
+    fn a_dark_screen_is_a_break_until_it_lights_up_again() {
+        let config = config();
+        let dark = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Screen(ScreenEdge::Off), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 20),
+        ]);
+        let accounted = dark.accounted(&config);
+        assert_eq!(accounted.screen_run(at(11)), None);
+        assert_eq!(
+            accounted.last_break(at(11)),
+            Some(Interval {
+                from: at(10),
+                until: at(11)
+            })
+        );
+        assert_eq!(accounted.screen_run(at(30)), None);
+        assert_eq!(
+            accounted.spent(&kitty(), whole_day(), at(30)),
+            TimeDelta::minutes(10)
+        );
+        assert_eq!(dark.screen_off_since(), Some(at(10)));
+
+        let lit = dark
+            .fold(FocusSignal::Screen(ScreenEdge::On), at(40))
+            .ledger;
+        assert_eq!(
+            lit.accounted(&config).screen_run(at(41)),
+            Some(ScreenRun { since: at(40) })
+        );
+        assert_eq!(lit.screen_off_since(), None);
+    }
+
+    #[test]
+    fn switching_apps_inside_a_project_keeps_the_project_run() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", Some("/code/vetrata")), 0),
+            step(focused("code", Some("/code/vetrata")), 15),
+        ]);
+        let accounted = ledger.accounted(&config);
+        let runs = accounted.runs(at(20));
+        let run_of = |unit: FocusUnit| runs.iter().find(|run| run.unit == unit).unwrap().since;
+        assert_eq!(
+            run_of(FocusUnit::Project(PathBuf::from("/code/vetrata"))),
+            at(0)
+        );
+        assert_eq!(run_of(FocusUnit::App("code".to_owned())), at(15));
+        assert_eq!(
+            accounted.dominant_run(at(20)).unwrap().unit,
+            FocusUnit::Project(PathBuf::from("/code/vetrata"))
+        );
+    }
+
+    #[test]
+    fn breaks_are_clipped_to_the_window() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Idle(IdleEdge::Idled), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 30),
+        ]);
+        let window = Interval {
+            from: at(20),
+            until: at(60),
+        };
+        assert_eq!(
+            ledger.accounted(&config).breaks_within(window, at(40)),
+            vec![Interval {
+                from: at(20),
+                until: at(30)
+            }]
+        );
+    }
+
+    #[test]
+    fn the_longest_run_spans_a_short_pause_but_not_a_break() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Idle(IdleEdge::Idled), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 11),
+            step(FocusSignal::Idle(IdleEdge::Idled), 25),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 35),
+        ]);
+        assert_eq!(
+            ledger
+                .accounted(&config)
+                .longest_run_within(whole_day(), at(40)),
+            Some(Interval {
+                from: at(0),
+                until: at(25)
+            })
+        );
+    }
+}

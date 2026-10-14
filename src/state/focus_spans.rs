@@ -9,15 +9,18 @@ use crate::{
 
 const RETENTION: TimeDelta = TimeDelta::days(400);
 
-pub const SCHEMA: [&str; 5] = [
-    "CREATE TABLE IF NOT EXISTS focus_spans (
+pub const SCHEMA: [&str; 7] = [
+    "DROP TABLE IF EXISTS focus_span_facets",
+    "DROP TABLE IF EXISTS focus_spans",
+    "CREATE TABLE IF NOT EXISTS window_focus_spans (
         id INTEGER PRIMARY KEY,
+        window_id INTEGER NOT NULL,
         started_at INTEGER NOT NULL,
         ended_at INTEGER NOT NULL
     )",
-    "CREATE INDEX IF NOT EXISTS focus_spans_by_start ON focus_spans (started_at)",
-    "CREATE TABLE IF NOT EXISTS focus_span_facets (
-        span_id INTEGER NOT NULL REFERENCES focus_spans (id),
+    "CREATE INDEX IF NOT EXISTS window_focus_spans_by_start ON window_focus_spans (started_at)",
+    "CREATE TABLE IF NOT EXISTS window_focus_span_facets (
+        span_id INTEGER NOT NULL REFERENCES window_focus_spans (id),
         facet TEXT NOT NULL,
         value TEXT NOT NULL,
         PRIMARY KEY (span_id, facet)
@@ -66,13 +69,13 @@ fn at_seconds(seconds: i64) -> Option<DateTime<Utc>> {
 
 async fn forget_before(conn: &turso::Connection, cutoff: DateTime<Utc>) -> Result<(), StoreError> {
     conn.execute(
-        "DELETE FROM focus_span_facets WHERE span_id IN (SELECT id FROM focus_spans WHERE \
-         started_at < ?1)",
+        "DELETE FROM window_focus_span_facets WHERE span_id IN (SELECT id FROM window_focus_spans \
+         WHERE started_at < ?1)",
         (seconds(cutoff),),
     )
     .await?;
     conn.execute(
-        "DELETE FROM focus_spans WHERE started_at < ?1",
+        "DELETE FROM window_focus_spans WHERE started_at < ?1",
         (seconds(cutoff),),
     )
     .await?;
@@ -86,6 +89,7 @@ async fn forget_before(conn: &turso::Connection, cutoff: DateTime<Utc>) -> Resul
 
 struct FacetRow {
     id: i64,
+    window: u64,
     started_at: DateTime<Utc>,
     ended_at: DateTime<Utc>,
     unit: Option<FocusUnit>,
@@ -97,8 +101,8 @@ async fn read_spans(
 ) -> Result<LoadedSpans, StoreError> {
     let mut rows = conn
         .query(
-            "SELECT s.id, s.started_at, s.ended_at, f.facet, f.value
-             FROM focus_spans s LEFT JOIN focus_span_facets f ON f.span_id = s.id
+            "SELECT s.id, s.window_id, s.started_at, s.ended_at, f.facet, f.value
+             FROM window_focus_spans s LEFT JOIN window_focus_span_facets f ON f.span_id = s.id
              WHERE s.ended_at >= ?1 ORDER BY s.started_at, s.id",
             (seconds(since),),
         )
@@ -118,6 +122,7 @@ async fn read_spans(
         };
         facet_rows.push(FacetRow {
             id: columns.integer(&row, "id")?,
+            window: columns.integer(&row, "window_id")?.cast_unsigned(),
             started_at,
             ended_at,
             unit: stored.and_then(|stored| FocusUnit::try_from(stored).ok()),
@@ -128,6 +133,7 @@ async fn read_spans(
         .filter_map(|rows| {
             let first = rows.first()?;
             Some(FocusSpan {
+                window: first.window,
                 units: rows.iter().filter_map(|row| row.unit.clone()).collect(),
                 started_at: first.started_at,
                 ended_at: first.ended_at,
@@ -177,13 +183,19 @@ async fn write_span(conn: &turso::Connection, write: &SpanWrite) -> Result<Writt
         SpanWrite::OpenFocus(span) => {
             let id = inserted_id(
                 conn,
-                "INSERT INTO focus_spans (started_at, ended_at) VALUES (?1, ?2) RETURNING id",
-                (seconds(span.started_at), seconds(span.ended_at)),
+                "INSERT INTO window_focus_spans (window_id, started_at, ended_at) VALUES (?1, ?2, \
+                 ?3) RETURNING id",
+                (
+                    span.window.cast_signed(),
+                    seconds(span.started_at),
+                    seconds(span.ended_at),
+                ),
             )
             .await?;
             for stored in span.units.iter().map(StoredFacet::from) {
                 conn.execute(
-                    "INSERT INTO focus_span_facets (span_id, facet, value) VALUES (?1, ?2, ?3)",
+                    "INSERT INTO window_focus_span_facets (span_id, facet, value) VALUES (?1, ?2, \
+                     ?3)",
                     (id, stored.facet, stored.value),
                 )
                 .await?;
@@ -212,7 +224,7 @@ async fn write_span(conn: &turso::Connection, write: &SpanWrite) -> Result<Writt
         }
         SpanWrite::ExtendFocus { id, ended_at } => {
             conn.execute(
-                "UPDATE focus_spans SET ended_at = ?1 WHERE id = ?2",
+                "UPDATE window_focus_spans SET ended_at = ?1 WHERE id = ?2",
                 (seconds(*ended_at), *id),
             )
             .await?;
@@ -253,6 +265,7 @@ mod tests {
 
     fn focus_span(minute: i64) -> FocusSpan {
         FocusSpan {
+            window: 42,
             units: vec![
                 FocusUnit::App("kitty".to_owned()),
                 FocusUnit::Project(PathBuf::from("/code/vetrata")),
@@ -341,7 +354,10 @@ mod tests {
             .unwrap();
         forget_before(&conn, at(0)).await.unwrap();
         let mut rows = conn
-            .query("SELECT COUNT(*) AS facets FROM focus_span_facets", ())
+            .query(
+                "SELECT COUNT(*) AS facets FROM window_focus_span_facets",
+                (),
+            )
             .await
             .unwrap();
         let columns = Columns::of(&rows);

@@ -1,6 +1,7 @@
 pub mod charge_power_curve;
 pub mod dark_mode;
 pub mod focus_spans;
+pub mod focus_tracker;
 pub mod idle;
 pub mod launches;
 pub mod niri_rules;

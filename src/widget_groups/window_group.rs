@@ -12,7 +12,10 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
-    data::source::{app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched},
+    data::source::{
+        app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched,
+        window_agents::WindowProcesses,
+    },
     desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widgets::{
         continuous_reading::ContinuousReading, tooltip_body::Tooltip, widget_group::GroupEvent,
@@ -97,6 +100,10 @@ impl WindowGroup {
             ),
             WindowGroupMessage::WindowList(m) => Action::WindowList(self.window_list.update(m)),
         }
+    }
+
+    pub fn window_processes(&self) -> &WindowProcesses {
+        self.window_list.window_processes()
     }
 
     pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) {

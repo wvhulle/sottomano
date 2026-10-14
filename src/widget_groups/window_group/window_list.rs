@@ -131,6 +131,10 @@ impl WindowList {
         ])
     }
 
+    pub fn window_processes(&self) -> &WindowProcesses {
+        &self.window_processes
+    }
+
     pub fn process_sections(&self) -> Vec<SourcedSection> {
         self.hovered_window
             .iter()
