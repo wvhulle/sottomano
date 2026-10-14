@@ -162,6 +162,7 @@ impl OsWindow {
             id: self.id,
             title_holder: shown.id,
             title: shown.title.clone(),
+            shown_pid: shown.pid,
             pids: self
                 .tabs
                 .iter()
@@ -199,6 +200,7 @@ mod tests {
         assert_eq!(window.id, 92);
         assert_eq!(window.title_holder, 93);
         assert_eq!(window.title, "vetrata — pkill");
+        assert_eq!(window.shown_pid, 500);
         assert_eq!(window.pids, [400, 500, 501]);
     }
 }

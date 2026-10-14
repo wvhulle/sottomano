@@ -78,10 +78,22 @@ impl ConnectorTriangle {
 
     fn bounds(&self) -> Rectangle {
         let corners = [self.apex, self.base_start, self.base_end];
-        let left = corners.iter().map(|corner| corner.x).fold(f32::INFINITY, f32::min);
-        let top = corners.iter().map(|corner| corner.y).fold(f32::INFINITY, f32::min);
-        let right = corners.iter().map(|corner| corner.x).fold(f32::NEG_INFINITY, f32::max);
-        let bottom = corners.iter().map(|corner| corner.y).fold(f32::NEG_INFINITY, f32::max);
+        let left = corners
+            .iter()
+            .map(|corner| corner.x)
+            .fold(f32::INFINITY, f32::min);
+        let top = corners
+            .iter()
+            .map(|corner| corner.y)
+            .fold(f32::INFINITY, f32::min);
+        let right = corners
+            .iter()
+            .map(|corner| corner.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let bottom = corners
+            .iter()
+            .map(|corner| corner.y)
+            .fold(f32::NEG_INFINITY, f32::max);
         Rectangle::new(Point::new(left, top), Size::new(right - left, bottom - top))
     }
 

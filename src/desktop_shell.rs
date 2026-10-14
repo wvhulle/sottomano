@@ -545,7 +545,18 @@ impl DesktopShell {
             .on_niri_changed(&placement, &self.config, self.shell_settings.overlays)
     }
 
+    fn refocus_session(&mut self) -> Task<Message> {
+        self.session_focus_group
+            .refocus(&self.niri, self.window_group.window_processes())
+            .map(Message::SessionFocus)
+    }
+
     fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
+        let handled = self.dispatch_window_group(msg);
+        Task::batch([handled, self.refocus_session()])
+    }
+
+    fn dispatch_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
         match self.window_group.update(msg) {
             window_group::Action::Run(task) => task.map(Message::WindowGroup),
             window_group::Action::WindowList(window_list::Action::FocusWindow(window)) => {
@@ -762,11 +773,7 @@ impl DesktopShell {
             let _ = self.niri.apply(event);
         }
         self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
-        tasks.push(
-            self.session_focus_group
-                .refocus(&self.niri)
-                .map(Message::SessionFocus),
-        );
+        tasks.push(self.refocus_session());
         if focus_change {
             self.collapse_groups();
         }

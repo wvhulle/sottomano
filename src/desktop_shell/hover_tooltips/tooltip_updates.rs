@@ -140,19 +140,13 @@ impl DesktopShell {
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip())
             }
-            HoverTarget::Window(WindowTarget::Usage(window)) => self
-                .niri
-                .windows
-                .windows
-                .get(window)
-                .and_then(|window| window.app_id.as_deref())
-                .map(|app_id| {
-                    self.session_focus_group.app_usage_tooltip(
-                        app_id,
-                        &self.config,
-                        self.quiet_schedule_group.waking_window(),
-                    )
-                }),
+            HoverTarget::Window(WindowTarget::Usage(window)) => {
+                Some(self.session_focus_group.window_usage_tooltip(
+                    *window,
+                    &self.config,
+                    self.quiet_schedule_group.waking_window(),
+                ))
+            }
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
