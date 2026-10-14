@@ -8,7 +8,7 @@ use crate::{
 pub(super) struct TopBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 10],
     pub center: [GroupContent<'a, Message>; 3],
-    pub end: [GroupContent<'a, Message>; 10],
+    pub end: [GroupContent<'a, Message>; 11],
 }
 
 impl DesktopShell {
@@ -84,6 +84,9 @@ impl DesktopShell {
                 self.session_focus_group
                     .group_content(config, self.quiet_schedule_group.waking_window())
                     .map(Message::SessionFocus),
+                self.login_session_group
+                    .group_content()
+                    .map(Message::LoginSession),
                 self.session_menu
                     .group_content(config)
                     .map(Message::Session),

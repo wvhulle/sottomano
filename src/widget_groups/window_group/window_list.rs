@@ -308,9 +308,17 @@ fn window_button<'a>(
         press_hints,
         WindowListMessage::Tooltip,
     );
+    let usage = win.is_focused.then(|| {
+        hoverable(
+            secondary_glyph(config, Phosphor::UserFocus, opacity),
+            WindowTarget::Usage(win.id).into(),
+            press_hints,
+            WindowListMessage::Tooltip,
+        )
+    });
     let inspecting = win.is_focused.then(|| {
         hoverable(
-            inspect_glyph(config, opacity),
+            secondary_glyph(config, Phosphor::Package, opacity),
             WindowTarget::Inspect(win.id).into(),
             press_hints,
             WindowListMessage::Tooltip,
@@ -318,6 +326,7 @@ fn window_button<'a>(
     });
     let content = Row::new()
         .push(picking)
+        .extend(usage)
         .extend(inspecting)
         .spacing(config.layout.panel.widget_spacing)
         .align_y(Alignment::Center);
@@ -344,10 +353,14 @@ fn window_button<'a>(
         .into()
 }
 
-fn inspect_glyph<'a>(config: &Config, opacity: f32) -> Element<'a, WindowListMessage> {
+fn secondary_glyph<'a>(
+    config: &Config,
+    icon: fn(Weight) -> Phosphor,
+    opacity: f32,
+) -> Element<'a, WindowListMessage> {
     let state = WidgetState::Off;
     let color = state.color(&config.theme.palette).scale_alpha(opacity);
-    Glyph::from(Phosphor::Package(state.weight())).view(config.theme.font.icon_size_px, color)
+    Glyph::from(icon(state.weight())).view(config.theme.font.icon_size_px, color)
 }
 
 fn button_content<'a>(

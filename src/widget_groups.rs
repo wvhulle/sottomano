@@ -9,6 +9,7 @@ pub mod gpu_group;
 pub mod idle_timeouts_group;
 pub mod internet_group;
 pub mod journal_events_group;
+pub mod login_session_group;
 pub mod media_group;
 pub mod monitor_group;
 pub mod net_interfaces_group;

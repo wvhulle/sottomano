@@ -125,6 +125,7 @@ impl DesktopShell {
                 &self.config,
                 self.quiet_schedule_group.waking_window(),
             )),
+            HoverTarget::LoginSession(target) => self.login_session_group.tooltip_for(*target),
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
             HoverTarget::Notification(_) => None,
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),
@@ -139,6 +140,19 @@ impl DesktopShell {
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip())
             }
+            HoverTarget::Window(WindowTarget::Usage(window)) => self
+                .niri
+                .windows
+                .windows
+                .get(window)
+                .and_then(|window| window.app_id.as_deref())
+                .map(|app_id| {
+                    self.session_focus_group.app_usage_tooltip(
+                        app_id,
+                        &self.config,
+                        self.quiet_schedule_group.waking_window(),
+                    )
+                }),
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
@@ -171,9 +185,9 @@ impl DesktopShell {
                 .hover(hovered, &self.config)
                 .map(Message::Power),
             self.ai_group.hover(hovered, &self.config).map(Message::Ai),
-            self.session_focus_group
+            self.login_session_group
                 .hover(hovered, &self.config)
-                .map(Message::SessionFocus),
+                .map(Message::LoginSession),
         ])
     }
 

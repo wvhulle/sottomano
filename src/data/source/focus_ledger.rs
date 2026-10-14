@@ -14,7 +14,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     config::widget_groups::focus_time::FocusTimeConfig,
-    data::source::{ai::quota::Quota, idle_notify::IdleEdge, logind::SleepEdge},
+    data::source::{
+        ai::quota::Quota, drm_connectors::ScreenEdge, idle_notify::IdleEdge, logind::SleepEdge,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -75,7 +77,7 @@ impl FocusUnit {
         }
     }
 
-    fn budget(&self, config: &FocusTimeConfig) -> Option<TimeDelta> {
+    pub fn budget(&self, config: &FocusTimeConfig) -> Option<TimeDelta> {
         match self {
             FocusUnit::App(app_id) => config.app_daily_budget_minutes.get(app_id),
             FocusUnit::Project(root) => config
@@ -91,6 +93,7 @@ pub enum Presence {
     Active,
     Idle,
     Asleep,
+    ScreenOff,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,6 +113,7 @@ impl FromStr for Presence {
             "active" => Ok(Presence::Active),
             "idle" => Ok(Presence::Idle),
             "asleep" => Ok(Presence::Asleep),
+            "screen_off" => Ok(Presence::ScreenOff),
             _ => Err(UnknownPresence(stored.to_owned())),
         }
     }
@@ -121,6 +125,7 @@ impl Presence {
             Presence::Active => "active",
             Presence::Idle => "idle",
             Presence::Asleep => "asleep",
+            Presence::ScreenOff => "screen_off",
         }
     }
 }
@@ -350,6 +355,7 @@ pub enum FocusSignal {
     Focused(Option<Focused>),
     Idle(IdleEdge),
     Sleep(SleepEdge),
+    Screen(ScreenEdge),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -489,10 +495,31 @@ impl FocusLedger {
             FocusSignal::Sleep(SleepEdge::Suspending) => self
                 .focus_extended(now)
                 .then(|ledger| ledger.present_as(Presence::Asleep, now)),
-            FocusSignal::Idle(IdleEdge::Resumed) | FocusSignal::Sleep(SleepEdge::Resumed) => self
+            FocusSignal::Screen(ScreenEdge::Off) => self
+                .focus_extended(now)
+                .then(|ledger| ledger.present_as(Presence::ScreenOff, now)),
+            FocusSignal::Idle(IdleEdge::Resumed) if self.screen_is_off() => {
+                self.focus_extended(now)
+            }
+            FocusSignal::Idle(IdleEdge::Resumed)
+            | FocusSignal::Sleep(SleepEdge::Resumed)
+            | FocusSignal::Screen(ScreenEdge::On) => self
                 .focus_extended(now)
                 .then(|ledger| ledger.present_as(Presence::Active, now)),
         }
+    }
+
+    fn screen_is_off(&self) -> bool {
+        self.open_presence
+            .as_ref()
+            .is_some_and(|open| open.span.state == Presence::ScreenOff)
+    }
+
+    pub fn screen_off_since(&self) -> Option<DateTime<Utc>> {
+        self.open_presence
+            .as_ref()
+            .filter(|open| open.span.state == Presence::ScreenOff)
+            .map(|open| open.span.started_at)
     }
 
     #[must_use]
@@ -647,21 +674,32 @@ impl Accounting<'_> {
                 .filter(|span| match span.state {
                     Presence::Active => true,
                     Presence::Idle => span.interval().length() < idle_after,
-                    Presence::Asleep => false,
+                    Presence::Asleep | Presence::ScreenOff => false,
                 })
                 .map(|span| span.interval())
                 .collect(),
         )
     }
 
+    fn unmistakably_away(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        self.ledger
+            .presence_until(now)
+            .filter(|span| matches!(span.state, Presence::Asleep | Presence::ScreenOff))
+            .map(|span| span.interval())
+            .collect()
+    }
+
     fn breaks(&self, now: DateTime<Utc>) -> Vec<Interval> {
         let idle_after = self.idle_after();
+        let away = self.unmistakably_away(now);
         self.ledger
             .first_presence(now)
             .map(|first| gaps_between(&self.active_intervals(now), first, now))
             .unwrap_or_default()
             .into_iter()
-            .filter(|gap| gap.length() >= idle_after)
+            .filter(|gap| {
+                gap.length() >= idle_after || away.iter().any(|span| span.intersect(*gap).is_some())
+            })
             .collect()
     }
 
@@ -742,6 +780,85 @@ impl Accounting<'_> {
             .focus_until(now)
             .filter(|span| window.from <= span.started_at && span.started_at < window.until)
             .count()
+    }
+
+    pub fn switches_to(&self, unit: &FocusUnit, window: Interval, now: DateTime<Utc>) -> usize {
+        self.ledger
+            .focus_until(now)
+            .filter(|span| span.units.contains(unit))
+            .filter(|span| window.from <= span.started_at && span.started_at < window.until)
+            .count()
+    }
+
+    pub fn longest_stay_on(
+        &self,
+        unit: &FocusUnit,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> Option<Interval> {
+        let active = self.active_within(window, now);
+        let stays = merged(
+            self.ledger
+                .focus_until(now)
+                .filter(|span| span.units.contains(unit))
+                .flat_map(|span| {
+                    active
+                        .iter()
+                        .filter_map(move |interval| interval.intersect(span.interval()))
+                        .collect::<Vec<_>>()
+                })
+                .collect(),
+        );
+        stays.into_iter().max_by_key(|stay| stay.length())
+    }
+
+    pub fn unit_totals_with(
+        &self,
+        unit: &FocusUnit,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> Vec<UnitTotal> {
+        let mut companions: Vec<FocusUnit> = self
+            .ledger
+            .focus_until(now)
+            .filter(|span| span.units.contains(unit))
+            .filter(|span| span.interval().intersect(window).is_some())
+            .flat_map(|span| span.units)
+            .filter(|companion| companion != unit)
+            .collect();
+        companions.sort();
+        companions.dedup();
+        let mut totals: Vec<UnitTotal> = companions
+            .into_iter()
+            .map(|companion| UnitTotal {
+                spent: self.spent_together(unit, &companion, window, now),
+                budget: companion.budget(self.config),
+                unit: companion,
+            })
+            .collect();
+        totals.sort_by_key(|total| Reverse(total.spent));
+        totals
+    }
+
+    fn spent_together(
+        &self,
+        unit: &FocusUnit,
+        companion: &FocusUnit,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> TimeDelta {
+        let active = self.active_within(window, now);
+        self.ledger
+            .focus_until(now)
+            .filter(|span| span.units.contains(unit) && span.units.contains(companion))
+            .flat_map(|span| {
+                active
+                    .iter()
+                    .filter_map(move |interval| interval.intersect(span.interval()))
+                    .collect::<Vec<_>>()
+            })
+            .map(Interval::length)
+            .sum()
     }
 
     pub fn screen_spent(&self, window: Interval, now: DateTime<Utc>) -> TimeDelta {
@@ -1136,6 +1253,69 @@ mod tests {
             window.until.with_timezone(&Local).naive_local(),
             "2026-03-10T02:00:00".parse().unwrap()
         );
+    }
+
+    #[test]
+    fn a_dark_screen_is_a_break_until_it_lights_up_again() {
+        let config = config();
+        let unit = FocusUnit::App("kitty".to_owned());
+        let dark = folded([
+            step(focused("kitty", None), 0),
+            step(FocusSignal::Screen(ScreenEdge::Off), 10),
+            step(FocusSignal::Idle(IdleEdge::Resumed), 20),
+        ]);
+        let accounted = dark.accounted(&config);
+        assert_eq!(accounted.screen_run(at(11)), None);
+        assert_eq!(
+            accounted.last_break(at(11)),
+            Some(Interval {
+                from: at(10),
+                until: at(11)
+            })
+        );
+        assert_eq!(accounted.screen_run(at(30)), None);
+        assert_eq!(
+            accounted.spent(&unit, window(), at(30)),
+            TimeDelta::minutes(10)
+        );
+        assert_eq!(dark.screen_off_since(), Some(at(10)));
+
+        let lit = dark
+            .fold(FocusSignal::Screen(ScreenEdge::On), at(40))
+            .ledger;
+        assert_eq!(
+            lit.accounted(&config).screen_run(at(41)),
+            Some(ScreenRun { since: at(40) })
+        );
+        assert_eq!(lit.screen_off_since(), None);
+    }
+
+    #[test]
+    fn per_app_switches_stays_and_companions() {
+        let config = config();
+        let kitty = FocusUnit::App("kitty".to_owned());
+        let ledger = folded([
+            step(focused("kitty", Some("/code/vetrata")), 0),
+            step(focused("firefox", None), 10),
+            step(focused("kitty", Some("/code/other")), 20),
+            step(focused("kitty", Some("/code/vetrata")), 25),
+        ]);
+        let accounted = ledger.accounted(&config);
+        assert_eq!(accounted.switches_to(&kitty, window(), at(28)), 3);
+        assert_eq!(
+            accounted.longest_stay_on(&kitty, window(), at(28)),
+            Some(Interval {
+                from: at(0),
+                until: at(10)
+            })
+        );
+        let companions = accounted.unit_totals_with(&kitty, window(), at(28));
+        assert_eq!(companions.len(), 2);
+        assert_eq!(
+            companions[0].unit,
+            FocusUnit::Project(PathBuf::from("/code/vetrata"))
+        );
+        assert_eq!(companions[0].spent, TimeDelta::minutes(13));
     }
 
     #[test]

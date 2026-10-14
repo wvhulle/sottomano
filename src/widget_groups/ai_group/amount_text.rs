@@ -37,9 +37,29 @@ pub fn duration_text(span: TimeDelta) -> String {
     humantime::format_duration(whole_seconds).to_string()
 }
 
+pub fn coarse_duration_text(span: TimeDelta) -> String {
+    let seconds = span.num_seconds().max(0).unsigned_abs();
+    let shown = if seconds < 60 {
+        seconds
+    } else {
+        seconds - seconds % 60
+    };
+    humantime::format_duration(Duration::from_secs(shown)).to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coarse_durations_drop_seconds_from_a_minute_on() {
+        assert_eq!(coarse_duration_text(TimeDelta::seconds(48)), "48s");
+        assert_eq!(coarse_duration_text(TimeDelta::seconds(61)), "1m");
+        assert_eq!(
+            coarse_duration_text(TimeDelta::seconds(4 * 3600 + 28 * 60 + 9)),
+            "4h 28m"
+        );
+    }
 
     #[test]
     fn fractional_amounts_keep_up_to_two_decimals() {
