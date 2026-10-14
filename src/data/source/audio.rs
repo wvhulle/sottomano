@@ -19,9 +19,9 @@ use iced::{
 };
 use pipewire::{
     channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
-    context::Context,
+    context::ContextRc,
     device::{Device, DeviceChangeMask, DeviceInfoRef, DeviceListener},
-    main_loop::MainLoop,
+    main_loop::MainLoopRc,
     metadata::{Metadata, MetadataListener},
     node::{Node, NodeInfoRef, NodeListener, NodeState},
     proxy::ProxyT,
@@ -744,11 +744,11 @@ fn serve(
     commands: CommandReceiver<Command>,
     connected: oneshot::Sender<()>,
 ) -> Result<(), pipewire::Error> {
-    let main_loop = MainLoop::new(None)?;
-    let context = Context::new(&main_loop)?;
-    let core = context.connect(None)?;
+    let main_loop = MainLoopRc::new(None)?;
+    let context = ContextRc::new(&main_loop, None)?;
+    let core = context.connect_rc(None)?;
     let _ = connected.send(());
-    let registry = Rc::new(core.get_registry()?);
+    let registry = Rc::new(core.get_registry_rc()?);
     let _meters = meter::attach(&core, peaks);
     let session = Shared::default();
 

@@ -77,12 +77,12 @@ pub fn body_paragraphs<'a>(
                     stack.remove(pos);
                 }
             }
-            Ok(Event::Text(text)) => push_text(String::from_utf8_lossy(&text).into_owned(), &stack),
+            Ok(Event::Text(text)) => push_text((*text).to_owned(), &stack),
             Ok(Event::CData(text)) => {
-                push_text(String::from_utf8_lossy(&text).into_owned(), &stack);
+                push_text((*text).to_owned(), &stack);
             }
             Ok(Event::GeneralRef(reference)) => {
-                let name = String::from_utf8_lossy(&reference);
+                let name: &str = &reference;
                 let resolved = match reference.resolve_char_ref() {
                     Ok(Some(character)) => character.to_string(),
                     _ => {
@@ -124,7 +124,7 @@ pub fn body_paragraphs<'a>(
 }
 
 fn lowercase_name(name: &LocalName) -> String {
-    String::from_utf8_lossy(name.as_ref()).to_ascii_lowercase()
+    name.as_ref().to_ascii_lowercase()
 }
 
 #[cfg(test)]
