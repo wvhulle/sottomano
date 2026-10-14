@@ -1,5 +1,8 @@
 mod account_face;
+mod breaks_today;
+mod context_switch_rate;
 mod daily_totals_gauge;
+mod longest_run;
 mod session_face;
 
 use std::{mem::take, time::Duration};
@@ -27,8 +30,10 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     state::focus_spans::{self, Written},
-    widget_groups::focus_time_group::{
-        account_face::AccountFace, daily_totals_gauge::DailyTotalsGauge, session_face::SessionFace,
+    widget_groups::session_focus_group::{
+        account_face::AccountFace, breaks_today::BreaksToday,
+        context_switch_rate::ContextSwitchRate, daily_totals_gauge::DailyTotalsGauge,
+        longest_run::LongestRun, session_face::SessionFace,
     },
     widgets::{
         bar_widget::BarWidget,
@@ -44,15 +49,18 @@ const PRESENCE_RESOLUTION: Duration = Duration::from_secs(30);
 const LOADED_HISTORY: TimeDelta = TimeDelta::days(2);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusTimeTarget {
+pub enum SessionFocusTarget {
     Account,
     Session,
     DailyTotals,
+    Breaks,
+    LongestRun,
+    ContextSwitches,
 }
 
-impl From<FocusTimeTarget> for HoverTarget {
-    fn from(target: FocusTimeTarget) -> Self {
-        HoverTarget::FocusTime(target)
+impl From<SessionFocusTarget> for HoverTarget {
+    fn from(target: SessionFocusTarget) -> Self {
+        HoverTarget::SessionFocus(target)
     }
 }
 
@@ -62,7 +70,7 @@ pub struct BreakPledge {
 }
 
 #[derive(Default)]
-pub struct FocusTimeGroup {
+pub struct SessionFocusGroup {
     account_face: AccountFace,
     account_facts: OnHoverReading<SessionFacts>,
     ledger: FocusLedger,
@@ -72,7 +80,7 @@ pub struct FocusTimeGroup {
 }
 
 #[derive(Debug, Clone)]
-pub enum FocusTimeMessage {
+pub enum SessionFocusMessage {
     IdentityLoaded(Option<SessionIdentity>),
     AccountFactsFetched(Box<Delivery<SessionFacts>>),
     Loaded(LoadedSpans),
@@ -84,19 +92,19 @@ pub enum FocusTimeMessage {
     Expansion(ExpansionMessage),
 }
 
-impl FocusTimeGroup {
+impl SessionFocusGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
 
-    pub fn load() -> Task<FocusTimeMessage> {
+    pub fn load() -> Task<SessionFocusMessage> {
         Task::batch([
             Task::perform(
                 focus_spans::load_since(Utc::now() - LOADED_HISTORY),
-                FocusTimeMessage::Loaded,
+                SessionFocusMessage::Loaded,
             ),
             blocking("session identity", session_facts::identity)
-                .map(FocusTimeMessage::IdentityLoaded),
+                .map(SessionFocusMessage::IdentityLoaded),
         ])
     }
 
@@ -104,79 +112,81 @@ impl FocusTimeGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
-    ) -> Task<FocusTimeMessage> {
+    ) -> Task<SessionFocusMessage> {
         self.account_facts.stop();
         match hovered {
-            Some(HoverTarget::FocusTime(FocusTimeTarget::Account)) => self.account_facts.poll(
-                (),
-                |delivery| FocusTimeMessage::AccountFactsFetched(Box::new(delivery)),
-                config,
-            ),
+            Some(HoverTarget::SessionFocus(SessionFocusTarget::Account)) => {
+                self.account_facts.poll(
+                    (),
+                    |delivery| SessionFocusMessage::AccountFactsFetched(Box::new(delivery)),
+                    config,
+                )
+            }
             _ => Task::none(),
         }
     }
 
-    pub fn subscription() -> Subscription<FocusTimeMessage> {
+    pub fn subscription() -> Subscription<SessionFocusMessage> {
         Subscription::batch([
-            Subscription::run(|| idle_edges(PRESENCE_RESOLUTION)).map(FocusTimeMessage::Idle),
-            Subscription::run(logind::sleep_edges).map(FocusTimeMessage::Sleep),
+            Subscription::run(|| idle_edges(PRESENCE_RESOLUTION)).map(SessionFocusMessage::Idle),
+            Subscription::run(logind::sleep_edges).map(SessionFocusMessage::Sleep),
         ])
     }
 
-    pub fn refocus(&mut self, niri: &EventStreamState) -> Task<FocusTimeMessage> {
+    pub fn refocus(&mut self, niri: &EventStreamState) -> Task<SessionFocusMessage> {
         let identity = FocusIdentity::of(niri);
         if identity == self.focused {
             return Task::none();
         }
         self.focused.clone_from(&identity);
         blocking("focus probe", move || identity.map(FocusIdentity::probed))
-            .map(FocusTimeMessage::Focused)
+            .map(SessionFocusMessage::Focused)
     }
 
-    pub fn update(&mut self, message: FocusTimeMessage) -> Task<FocusTimeMessage> {
+    pub fn update(&mut self, message: SessionFocusMessage) -> Task<SessionFocusMessage> {
         match message {
-            FocusTimeMessage::IdentityLoaded(identity) => {
+            SessionFocusMessage::IdentityLoaded(identity) => {
                 self.account_face.adopt(identity);
                 Task::none()
             }
-            FocusTimeMessage::AccountFactsFetched(delivery) => {
+            SessionFocusMessage::AccountFactsFetched(delivery) => {
                 self.account_facts.receive(*delivery);
                 Task::none()
             }
-            FocusTimeMessage::Loaded(loaded) => {
+            SessionFocusMessage::Loaded(loaded) => {
                 self.ledger = take(&mut self.ledger).with_history(loaded);
                 Task::none()
             }
-            FocusTimeMessage::Focused(focused) => self.fold(FocusSignal::Focused(focused)),
-            FocusTimeMessage::Idle(edge) => self.fold(FocusSignal::Idle(edge)),
-            FocusTimeMessage::Sleep(edge) => self.fold(FocusSignal::Sleep(edge)),
-            FocusTimeMessage::Written(Written::OpenedFocus(opened)) => {
+            SessionFocusMessage::Focused(focused) => self.fold(FocusSignal::Focused(focused)),
+            SessionFocusMessage::Idle(edge) => self.fold(FocusSignal::Idle(edge)),
+            SessionFocusMessage::Sleep(edge) => self.fold(FocusSignal::Sleep(edge)),
+            SessionFocusMessage::Written(Written::OpenedFocus(opened)) => {
                 self.ledger = take(&mut self.ledger).with_focus_opened(opened);
                 Task::none()
             }
-            FocusTimeMessage::Written(Written::OpenedPresence(opened)) => {
+            SessionFocusMessage::Written(Written::OpenedPresence(opened)) => {
                 self.ledger = take(&mut self.ledger).with_presence_opened(opened);
                 Task::none()
             }
-            FocusTimeMessage::Written(Written::Extended | Written::Failed) => Task::none(),
-            FocusTimeMessage::BreakPledged => {
+            SessionFocusMessage::Written(Written::Extended | Written::Failed) => Task::none(),
+            SessionFocusMessage::BreakPledged => {
                 self.pledge = Some(BreakPledge { at: Utc::now() });
                 Task::none()
             }
-            FocusTimeMessage::Expansion(expansion) => {
+            SessionFocusMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);
                 Task::none()
             }
         }
     }
 
-    fn fold(&mut self, signal: FocusSignal) -> Task<FocusTimeMessage> {
+    fn fold(&mut self, signal: FocusSignal) -> Task<SessionFocusMessage> {
         let Folded { ledger, writes } = take(&mut self.ledger).fold(signal, Utc::now());
         self.ledger = ledger;
         Task::batch(
-            writes
-                .into_iter()
-                .map(|write| Task::perform(focus_spans::apply(write), FocusTimeMessage::Written)),
+            writes.into_iter().map(|write| {
+                Task::perform(focus_spans::apply(write), SessionFocusMessage::Written)
+            }),
         )
     }
 
@@ -198,49 +208,93 @@ impl FocusTimeGroup {
         }
     }
 
+    fn breaks_today<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> BreaksToday<'a> {
+        BreaksToday {
+            accounting: self.ledger.accounted(&config.widget_groups.focus_time),
+            waking,
+        }
+    }
+
+    fn longest_run<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> LongestRun<'a> {
+        LongestRun {
+            accounting: self.ledger.accounted(&config.widget_groups.focus_time),
+            waking,
+        }
+    }
+
+    fn context_switch_rate<'a>(
+        &'a self,
+        config: &'a Config,
+        waking: WakingWindow,
+    ) -> ContextSwitchRate<'a> {
+        ContextSwitchRate {
+            accounting: self.ledger.accounted(&config.widget_groups.focus_time),
+            waking,
+        }
+    }
+
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         waking: WakingWindow,
-    ) -> GroupContent<'a, FocusTimeMessage> {
-        let session = GroupItem::reading(self.session_face(config), FocusTimeTarget::Session)
+    ) -> GroupContent<'a, SessionFocusMessage> {
+        let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
             .ongoing_toast_action_buttons([OngoingToastActionButton {
                 button_label: "Taking a break".to_owned(),
                 tint: ActionTint::Proceed,
-                on_button_pressed: FocusTimeMessage::BreakPledged,
+                on_button_pressed: SessionFocusMessage::BreakPledged,
             }]);
         let gauge = self.daily_totals_gauge(config, waking);
         let budget_toast = OngoingToast::from_quota_pace(
-            FocusTimeTarget::DailyTotals,
+            SessionFocusTarget::DailyTotals,
             &gauge,
-            FocusTimeMessage::Expansion(ExpansionMessage::Expand),
+            SessionFocusMessage::Expansion(ExpansionMessage::Expand),
         );
         let totals =
-            GroupItem::reading(gauge, FocusTimeTarget::DailyTotals).ongoing_toasts(budget_toast);
+            GroupItem::reading(gauge, SessionFocusTarget::DailyTotals).ongoing_toasts(budget_toast);
         let account = self
             .account_face
             .identity()
-            .map(|_| GroupItem::reading(&self.account_face, FocusTimeTarget::Account));
+            .map(|_| GroupItem::reading(&self.account_face, SessionFocusTarget::Account));
+        let breaks = GroupItem::reading(
+            self.breaks_today(config, waking),
+            SessionFocusTarget::Breaks,
+        );
+        let longest = GroupItem::reading(
+            self.longest_run(config, waking),
+            SessionFocusTarget::LongestRun,
+        );
+        let switches = GroupItem::reading(
+            self.context_switch_rate(config, waking),
+            SessionFocusTarget::ContextSwitches,
+        );
         GroupContent::new(
             &self.expansion,
-            FocusTimeMessage::Expansion,
-            account.into_iter().chain([session, totals]),
+            SessionFocusMessage::Expansion,
+            account
+                .into_iter()
+                .chain([session, totals, breaks, longest, switches]),
         )
     }
 
     pub fn tooltip_for(
         &self,
-        target: FocusTimeTarget,
+        target: SessionFocusTarget,
         config: &Config,
         waking: WakingWindow,
     ) -> Tooltip {
         let body = match target {
-            FocusTimeTarget::Account => {
+            SessionFocusTarget::Account => {
                 return Tooltip::sourced(self.account_face.tooltip(), Freshness::Live)
                     .with_sections(self.account_facts.sections(SessionFacts::sections));
             }
-            FocusTimeTarget::Session => self.session_face(config).tooltip(),
-            FocusTimeTarget::DailyTotals => self.daily_totals_gauge(config, waking).tooltip(),
+            SessionFocusTarget::Session => self.session_face(config).tooltip(),
+            SessionFocusTarget::DailyTotals => self.daily_totals_gauge(config, waking).tooltip(),
+            SessionFocusTarget::Breaks => self.breaks_today(config, waking).tooltip(),
+            SessionFocusTarget::LongestRun => self.longest_run(config, waking).tooltip(),
+            SessionFocusTarget::ContextSwitches => {
+                self.context_switch_rate(config, waking).tooltip()
+            }
         };
         Tooltip::sourced(body, Freshness::Live)
     }
