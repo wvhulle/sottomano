@@ -2,42 +2,33 @@ use std::time::Duration;
 
 use chrono::Utc;
 use humantime::format_duration;
-use iced::{Alignment, Element, widget::Row};
+use iced::Element;
 
 use crate::{
     config::Config,
+    data::source::session_action::SessionAction,
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
-        confirm_button::{ConfirmButton, Press},
-        idle::{ActionTrigger, IdleAction, MAX_POSITION, position, timeout_at},
+        idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_time::TimePart,
-        phosphor::{Phosphor, Weight},
+        phosphor::Phosphor,
         slider_control::{Action, ControlMessage, SliderControl},
         tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
     },
 };
 
-#[derive(Debug, Clone)]
-pub enum TimerMessage {
-    Slider(ControlMessage),
-    Trigger,
-    Cancel,
-}
-
 pub enum TimerChange {
     None,
     Opened,
     Persist(f32),
-    Fire(IdleAction),
 }
 
 pub struct IdleTimer {
     target: HoverTarget,
     timeout: Option<Duration>,
     control: SliderControl,
-    button: ConfirmButton,
-    action: IdleAction,
+    action: SessionAction,
 }
 
 impl IdleTimer {
@@ -45,8 +36,7 @@ impl IdleTimer {
         name: &'static str,
         icon: Phosphor,
         target: impl Into<HoverTarget>,
-        action: IdleAction,
-        confirms: bool,
+        action: SessionAction,
     ) -> Self {
         let target = target.into();
         Self {
@@ -62,7 +52,6 @@ impl IdleTimer {
                 }),
             target,
             timeout: None,
-            button: ConfirmButton::new(confirms),
             action,
         }
     }
@@ -98,30 +87,16 @@ impl IdleTimer {
         self.control.close();
     }
 
-    pub fn disarm(&mut self) {
-        self.button.disarm();
-    }
-
-    pub fn update(&mut self, msg: TimerMessage) -> TimerChange {
-        match msg {
-            TimerMessage::Slider(msg) => match self.control.update(msg) {
-                Action::Opened => TimerChange::Opened,
-                Action::Commit(value) => {
-                    self.timeout = timeout_at(value);
-                    self.control
-                        .update(ControlMessage::Disabled(self.timeout.is_none()));
-                    TimerChange::Persist(value)
-                }
-                Action::None | Action::Right | Action::Adjust(_) => TimerChange::None,
-            },
-            TimerMessage::Trigger => match self.button.press() {
-                Press::Armed => TimerChange::None,
-                Press::Fire => TimerChange::Fire(self.action),
-            },
-            TimerMessage::Cancel => {
-                self.button.disarm();
-                TimerChange::None
+    pub fn update(&mut self, msg: ControlMessage) -> TimerChange {
+        match self.control.update(msg) {
+            Action::Opened => TimerChange::Opened,
+            Action::Commit(value) => {
+                self.timeout = timeout_at(value);
+                self.control
+                    .update(ControlMessage::Disabled(self.timeout.is_none()));
+                TimerChange::Persist(value)
             }
+            Action::None | Action::Right | Action::Adjust(_) => TimerChange::None,
         }
     }
 
@@ -157,20 +132,7 @@ impl IdleTimer {
         )
     }
 
-    pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, TimerMessage> {
-        let slider = self.control.view(config, reveal).map(TimerMessage::Slider);
-        let trigger = self.button.view(
-            config,
-            reveal,
-            self.timeout.is_some(),
-            Phosphor::Lightning(Weight::Regular),
-            TimerMessage::Trigger,
-            TimerMessage::Cancel,
-        );
-        let pair_gap = config.layout.panel.widget_spacing * 0.25;
-        Row::with_children([slider, trigger])
-            .spacing(pair_gap)
-            .align_y(Alignment::Center)
-            .into()
+    pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, ControlMessage> {
+        self.control.view(config, reveal)
     }
 }

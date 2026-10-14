@@ -20,7 +20,9 @@ impl DesktopShell {
             Position::Top,
             start.map(view),
             center.map(view),
-            end.map(view),
+            end.map(view)
+                .into_iter()
+                .chain([self.session_menu.view(config, Position::Top)]),
         )
     }
 

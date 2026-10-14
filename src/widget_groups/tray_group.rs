@@ -1,3 +1,5 @@
+pub mod menu_lines;
+
 use std::collections::HashSet;
 
 use iced::{

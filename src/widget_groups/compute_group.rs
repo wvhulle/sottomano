@@ -22,7 +22,9 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{ForcedRefresh, holding_earliest, polling, polling_through},
     widgets::{
+        bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
+        group_item::GroupItem,
         hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         tooltip_body::Tooltip,
@@ -36,6 +38,7 @@ pub enum ComputeTarget {
     CpuClock,
     Memory,
     Temperature,
+    Machine,
 }
 
 impl From<ComputeTarget> for HoverTarget {
@@ -152,6 +155,9 @@ impl ComputeGroup {
                 self.memory.group_item(ComputeTarget::Memory),
                 self.clock.group_item(ComputeTarget::CpuClock),
                 self.temperature.group_item(ComputeTarget::Temperature),
+                self.hardware
+                    .get()
+                    .map(|hardware| GroupItem::reading(&hardware.machine, ComputeTarget::Machine)),
             ]
             .into_iter()
             .flatten(),
@@ -188,6 +194,9 @@ impl ComputeGroup {
                 self.core_temperatures
                     .sections(|cores| cores.sections(topology)),
             ),
+            ComputeTarget::Machine => self
+                .hardware
+                .tooltip_with(self.hardware.get()?.machine.tooltip()),
         }
     }
 }

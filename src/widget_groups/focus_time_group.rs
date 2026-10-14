@@ -1,3 +1,4 @@
+mod account_face;
 mod daily_totals_gauge;
 mod session_face;
 
@@ -12,22 +13,27 @@ use crate::{
     data::{
         notifications::model::ActionTint,
         source::{
+            Delivery,
             focus_ledger::{
                 FocusIdentity, FocusLedger, FocusSignal, Focused, Folded, LoadedSpans, WakingWindow,
             },
             idle_notify::{IdleEdge, idle_edges},
-            logind::{self, SleepEdge},
+            logind::{
+                self, SleepEdge,
+                session_facts::{self, SessionFacts, SessionIdentity},
+            },
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     state::focus_spans::{self, Written},
     widget_groups::focus_time_group::{
-        daily_totals_gauge::DailyTotalsGauge, session_face::SessionFace,
+        account_face::AccountFace, daily_totals_gauge::DailyTotalsGauge, session_face::SessionFace,
     },
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
+        on_hover_reading::OnHoverReading,
         ongoing_toast::{OngoingToast, OngoingToastActionButton},
         tooltip_body::{Freshness, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -39,6 +45,7 @@ const LOADED_HISTORY: TimeDelta = TimeDelta::days(2);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusTimeTarget {
+    Account,
     Session,
     DailyTotals,
 }
@@ -56,6 +63,8 @@ pub struct BreakPledge {
 
 #[derive(Default)]
 pub struct FocusTimeGroup {
+    account_face: AccountFace,
+    account_facts: OnHoverReading<SessionFacts>,
     ledger: FocusLedger,
     focused: Option<FocusIdentity>,
     pledge: Option<BreakPledge>,
@@ -64,6 +73,8 @@ pub struct FocusTimeGroup {
 
 #[derive(Debug, Clone)]
 pub enum FocusTimeMessage {
+    IdentityLoaded(Option<SessionIdentity>),
+    AccountFactsFetched(Box<Delivery<SessionFacts>>),
     Loaded(LoadedSpans),
     Focused(Option<Focused>),
     Idle(IdleEdge),
@@ -79,10 +90,30 @@ impl FocusTimeGroup {
     }
 
     pub fn load() -> Task<FocusTimeMessage> {
-        Task::perform(
-            focus_spans::load_since(Utc::now() - LOADED_HISTORY),
-            FocusTimeMessage::Loaded,
-        )
+        Task::batch([
+            Task::perform(
+                focus_spans::load_since(Utc::now() - LOADED_HISTORY),
+                FocusTimeMessage::Loaded,
+            ),
+            blocking("session identity", session_facts::identity)
+                .map(FocusTimeMessage::IdentityLoaded),
+        ])
+    }
+
+    pub fn hover(
+        &mut self,
+        hovered: Option<&HoverTarget>,
+        config: &Config,
+    ) -> Task<FocusTimeMessage> {
+        self.account_facts.stop();
+        match hovered {
+            Some(HoverTarget::FocusTime(FocusTimeTarget::Account)) => self.account_facts.poll(
+                (),
+                |delivery| FocusTimeMessage::AccountFactsFetched(Box::new(delivery)),
+                config,
+            ),
+            _ => Task::none(),
+        }
     }
 
     pub fn subscription() -> Subscription<FocusTimeMessage> {
@@ -104,6 +135,14 @@ impl FocusTimeGroup {
 
     pub fn update(&mut self, message: FocusTimeMessage) -> Task<FocusTimeMessage> {
         match message {
+            FocusTimeMessage::IdentityLoaded(identity) => {
+                self.account_face.adopt(identity);
+                Task::none()
+            }
+            FocusTimeMessage::AccountFactsFetched(delivery) => {
+                self.account_facts.receive(*delivery);
+                Task::none()
+            }
             FocusTimeMessage::Loaded(loaded) => {
                 self.ledger = take(&mut self.ledger).with_history(loaded);
                 Task::none()
@@ -178,10 +217,14 @@ impl FocusTimeGroup {
         );
         let totals =
             GroupItem::reading(gauge, FocusTimeTarget::DailyTotals).ongoing_toasts(budget_toast);
+        let account = self
+            .account_face
+            .identity()
+            .map(|_| GroupItem::reading(&self.account_face, FocusTimeTarget::Account));
         GroupContent::new(
             &self.expansion,
             FocusTimeMessage::Expansion,
-            [session, totals],
+            account.into_iter().chain([session, totals]),
         )
     }
 
@@ -192,6 +235,10 @@ impl FocusTimeGroup {
         waking: WakingWindow,
     ) -> Tooltip {
         let body = match target {
+            FocusTimeTarget::Account => {
+                return Tooltip::sourced(self.account_face.tooltip(), Freshness::Live)
+                    .with_sections(self.account_facts.sections(SessionFacts::sections));
+            }
             FocusTimeTarget::Session => self.session_face(config).tooltip(),
             FocusTimeTarget::DailyTotals => self.daily_totals_gauge(config, waking).tooltip(),
         };

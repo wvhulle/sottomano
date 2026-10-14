@@ -7,7 +7,7 @@ pub mod tooltip_updates;
 use iced::{Rectangle, window::Id};
 
 pub use crate::desktop_shell::hover_tooltips::{
-    hover_area::{hoverable, on_surface},
+    hover_area::{hoverable, on_surface, pressable_card},
     tooltip_content::{ongoing_for, relative},
     tooltip_surfaces::TooltipHost,
 };
@@ -23,9 +23,10 @@ use crate::{
         notification_group::NotificationTarget, overlay_group::OverlayTarget,
         panel_appearance_group::PanelAppearanceTarget,
         pending_upgrades_group::PendingUpgradesTarget, power_group::PowerTarget,
-        quiet_schedule_group::QuietScheduleTarget, shell_layout_group::ShellLayoutTarget,
-        surface_effects_group::SurfaceEffectsTarget, systemd_manager_group::SystemdTarget,
-        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget, window_group::WindowTarget,
+        quiet_schedule_group::QuietScheduleTarget, session_menu::SessionTarget,
+        shell_layout_group::ShellLayoutTarget, surface_effects_group::SurfaceEffectsTarget,
+        systemd_manager_group::SystemdTarget, wallpaper_group::WallpaperTarget,
+        weather_group::WeatherTarget, window_group::WindowTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -59,6 +60,7 @@ pub enum HoverTarget {
     Clock(ClockTarget),
     Notification(NotificationTarget),
     QuietSchedule(QuietScheduleTarget),
+    Session(SessionTarget),
     Tray(String),
     Window(WindowTarget),
     Workspace(u64),

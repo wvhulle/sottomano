@@ -10,7 +10,7 @@ use bytesize::ByteSize;
 use serde_json::Value;
 
 use crate::data::source::{
-    Panicked, PolledSource, Source, blocking_poll, command,
+    Panicked, PolledSource, Source, blocking_poll, command, hostname::MachineInfo,
     sysfs_sensors::cpu_topology::CpuTopology,
 };
 
@@ -244,6 +244,7 @@ pub struct HostHardware {
     pub cpu: CpuModel,
     pub memory: MemoryModules,
     pub topology: CpuTopology,
+    pub machine: MachineInfo,
 }
 
 impl Source for HostHardware {
@@ -257,11 +258,13 @@ impl PolledSource for HostHardware {
     const INTERVAL: Duration = Duration::from_hours(1);
 
     async fn poll(_key: ()) -> Result<Self, Panicked> {
-        blocking_poll(|| {
+        let machine = MachineInfo::read().await;
+        blocking_poll(move || {
             Ok(HostHardware {
                 cpu: CpuModel::current(),
                 memory: MemoryModules::current(),
                 topology: CpuTopology::detect(),
+                machine,
             })
         })
         .await

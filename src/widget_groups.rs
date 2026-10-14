@@ -20,6 +20,7 @@ pub mod panel_appearance_group;
 pub mod pending_upgrades_group;
 pub mod power_group;
 pub mod quiet_schedule_group;
+pub mod session_menu;
 pub mod shell_layout_group;
 pub mod surface_effects_group;
 pub mod systemd_manager_group;
