@@ -20,7 +20,7 @@ use crate::{
     state::ShellSettings,
     widgets::{
         child_view::{ChildView, ChildViewMut},
-        popup_connector::{notch, notch_blur_rows, notch_region},
+        popup_connector::ConnectorTriangle,
         region_reporter::RegionRoles,
     },
 };
@@ -74,7 +74,6 @@ pub fn anchored_popup<'a>(
     let outline = settings.outline.border(config);
     Element::new(AnchoredPopup {
         renderings,
-        notch: notch(position, background, outline),
         anchor,
         edge_inset: config.layout.panel.height + config.layout.overlay.panel_gap,
         bar_thickness: config.layout.panel.height,
@@ -91,7 +90,6 @@ pub fn anchored_popup<'a>(
 
 struct AnchoredPopup<'a> {
     renderings: Vec<Rendering<'a>>,
-    notch: Element<'a, Message>,
     anchor: Rectangle,
     edge_inset: f32,
     bar_thickness: f32,
@@ -112,6 +110,7 @@ struct MorphState {
     progress: f32,
     from: Rectangle,
     current: Rectangle,
+    connector: ConnectorTriangle,
 }
 
 fn around_hole(outer: Rectangle, hole: Rectangle) -> Vec<Rectangle> {
@@ -174,8 +173,9 @@ impl<'a> AnchoredPopup<'a> {
     }
 
     fn child_elements(&self) -> Vec<&Element<'a, Message>> {
-        once(&self.notch)
-            .chain(self.renderings.iter().map(|rendering| &rendering.element))
+        self.renderings
+            .iter()
+            .map(|rendering| &rendering.element)
             .collect()
     }
 
@@ -209,8 +209,8 @@ impl<'a> AnchoredPopup<'a> {
     ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, Message>> {
         self.renderings
             .iter()
-            .zip(&tree.children[1..])
-            .zip(layout.children().skip(1))
+            .zip(&tree.children)
+            .zip(layout.children())
             .map(|((rendering, state), layout)| ChildView {
                 widget: &rendering.element,
                 state,
@@ -225,8 +225,8 @@ impl<'a> AnchoredPopup<'a> {
     ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, Message>> {
         self.renderings
             .iter_mut()
-            .zip(&mut tree.children[1..])
-            .zip(layout.children().skip(1))
+            .zip(&mut tree.children)
+            .zip(layout.children())
             .map(|((rendering, state), layout)| ChildViewMut {
                 widget: &mut rendering.element,
                 state,
@@ -240,30 +240,6 @@ impl<'a> AnchoredPopup<'a> {
 
     fn is_settled(&self, state: &MorphState) -> bool {
         state.progress >= 1.0 && self.is_live()
-    }
-
-    fn notch_join(&self, box_bounds: Rectangle, notch_bounds: Rectangle) -> Rectangle {
-        let reach = 2.0 * self.outline.width;
-        match self.position {
-            Position::Top => Rectangle {
-                x: notch_bounds.x,
-                y: box_bounds.y,
-                width: notch_bounds.width,
-                height: reach,
-            },
-            Position::Bottom => Rectangle {
-                x: notch_bounds.x,
-                y: box_bounds.y + box_bounds.height - reach,
-                width: notch_bounds.width,
-                height: reach,
-            },
-            Position::Left => Rectangle {
-                x: box_bounds.x,
-                y: notch_bounds.y,
-                width: reach,
-                height: notch_bounds.height,
-            },
-        }
     }
 
     fn draw_outline(
@@ -294,14 +270,14 @@ impl<'a> AnchoredPopup<'a> {
 
     fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
         let settled = self.is_settled(state);
+        let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         let notch_rows = if settled {
-            let notch_bounds = layout.children().next().unwrap().bounds();
-            notch_blur_rows(notch_bounds, self.position)
+            state.connector.translated(origin).blur_rows()
         } else {
             Vec::new()
         };
         PopupFrame {
-            bounds: state.current + Vector::new(layout.bounds().x, layout.bounds().y),
+            bounds: state.current + origin,
             notch_rows,
             settled,
         }
@@ -314,8 +290,8 @@ impl<'a> AnchoredPopup<'a> {
     ) -> Option<ChildViewMut<'t, 'a, Message>> {
         self.renderings
             .iter_mut()
-            .zip(&mut tree.children[1..])
-            .zip(layout.children().skip(1))
+            .zip(&mut tree.children)
+            .zip(layout.children())
             .find(|((rendering, _), _)| rendering.incoming)
             .map(|((rendering, state), layout)| ChildViewMut {
                 widget: &mut rendering.element,
@@ -338,6 +314,13 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             progress: 1.0,
             from: Rectangle::default(),
             current: Rectangle::default(),
+            connector: ConnectorTriangle::between(
+                self.anchor,
+                0.0,
+                Rectangle::default(),
+                self.position,
+                self.radius,
+            ),
         })
     }
 
@@ -351,7 +334,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         if switched {
             self.renderings
                 .iter()
-                .zip(&mut tree.children[1..])
+                .zip(&mut tree.children)
                 .filter(|(rendering, _)| rendering.incoming)
                 .for_each(|(rendering, child)| *child = Tree::new(&rendering.element));
         }
@@ -367,7 +350,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         let nodes: Vec<Node> = self
             .renderings
             .iter_mut()
-            .zip(&mut tree.children[1..])
+            .zip(&mut tree.children)
             .map(|(rendering, child)| {
                 rendering
                     .element
@@ -402,28 +385,19 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
         state.current = lerp(state.from, target, state.progress);
         let popup = state.current;
-
-        let region = notch_region(
+        state.connector = ConnectorTriangle::between(
             self.anchor,
             self.bar_edge(surface),
             popup,
             self.position,
             self.radius,
         );
-        let notch_node = self
-            .notch
-            .as_widget_mut()
-            .layout(
-                &mut tree.children[0],
-                renderer,
-                &Limits::new(Size::ZERO, region.size()),
-            )
-            .move_to(region.position());
 
         Node::with_children(
             surface,
-            once(notch_node)
-                .chain(nodes.into_iter().map(|node| node.move_to(popup.position())))
+            nodes
+                .into_iter()
+                .map(|node| node.move_to(popup.position()))
                 .collect(),
         )
     }
@@ -458,20 +432,11 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             },
             self.background,
         );
-        let settled = self.is_settled(state);
-        let notch_layout = layout.children().next().unwrap();
-        if settled {
-            self.notch.as_widget().draw(
-                &tree.children[0],
-                renderer,
-                theme,
-                style,
-                notch_layout,
-                cursor,
-                viewport,
-            );
-        }
-        let notch_join = settled.then(|| self.notch_join(box_bounds, notch_layout.bounds()));
+        let notch_join = self.is_settled(state).then(|| {
+            let connector = state.connector.translated(origin);
+            connector.draw(renderer, self.background, self.outline);
+            connector.base_span(2.0 * self.outline.width)
+        });
         self.draw_outline(renderer, box_bounds, notch_join);
         renderer.with_layer(box_bounds, |renderer| {
             self.views(tree, layout).for_each(|rendering| {

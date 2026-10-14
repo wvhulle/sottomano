@@ -1,137 +1,18 @@
 use iced::{
-    Border, Color, Element, Length, Point, Rectangle, Renderer, Size, Theme,
-    mouse::Cursor,
-    widget::canvas::{self, Canvas, Frame, Geometry, Path, Stroke},
+    Border, Color, Point, Rectangle, Size, Vector,
+    advanced::graphics::geometry::Renderer as _,
+    widget::canvas::{Frame, Path, Stroke},
 };
 
 use crate::desktop_shell::monitor_surfaces::Position;
 
-const BASE_HALF_WIDTH_PX: f32 = 4.0;
+const BASE_HALF_WIDTH_PX: f32 = 6.0;
 
-pub fn notch<'a, Message: 'a>(
+pub struct ConnectorTriangle {
     position: Position,
-    fill: Color,
-    outline: Border,
-) -> Element<'a, Message> {
-    Canvas::new(Notch {
-        position,
-        fill,
-        outline,
-    })
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
-}
-
-struct Notch {
-    position: Position,
-    fill: Color,
-    outline: Border,
-}
-
-impl Notch {
-    fn outline(&self, size: Size) -> Path {
-        let half = BASE_HALF_WIDTH_PX;
-        Path::new(|path| match self.position {
-            Position::Top => {
-                path.move_to(Point::new(0.0, size.height));
-                path.line_to(Point::new(half, 0.0));
-                path.line_to(Point::new(size.width, size.height));
-            }
-            Position::Bottom => {
-                path.move_to(Point::ORIGIN);
-                path.line_to(Point::new(half, size.height));
-                path.line_to(Point::new(size.width, 0.0));
-            }
-            Position::Left => {
-                path.move_to(Point::new(size.width, 0.0));
-                path.line_to(Point::new(0.0, half));
-                path.line_to(Point::new(size.width, size.height));
-            }
-        })
-    }
-}
-
-impl<Message> canvas::Program<Message> for Notch {
-    type State = ();
-
-    fn draw(
-        &self,
-        (): &(),
-        renderer: &Renderer,
-        _theme: &Theme,
-        bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> Vec<Geometry> {
-        let mut frame = Frame::new(renderer, bounds.size());
-        let slanted_sides = self.outline(bounds.size());
-        frame.fill(&slanted_sides, self.fill);
-        if self.outline.width > 0.0 {
-            frame.stroke(
-                &slanted_sides,
-                Stroke::default()
-                    .with_color(self.outline.color)
-                    .with_width(self.outline.width),
-            );
-        }
-        vec![frame.into_geometry()]
-    }
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-pub fn notch_blur_rows(bounds: Rectangle, position: Position) -> Vec<Rectangle> {
-    let center_x = bounds.center_x();
-    let center_y = bounds.center_y();
-    match position {
-        Position::Top | Position::Bottom => {
-            let top = bounds.y.ceil() as i32;
-            let bottom = (bounds.y + bounds.height).floor() as i32;
-            (top..bottom)
-                .map(|row| {
-                    let from_apex = if position == Position::Top {
-                        row as f32 + 1.0 - bounds.y
-                    } else {
-                        bounds.y + bounds.height - row as f32
-                    };
-                    let width = bounds.width * (from_apex / bounds.height).min(1.0);
-                    Rectangle::new(
-                        Point::new(center_x - width / 2.0, row as f32),
-                        Size::new(width, 1.0),
-                    )
-                })
-                .collect()
-        }
-        Position::Left => {
-            let left = bounds.x.ceil() as i32;
-            let right = (bounds.x + bounds.width).floor() as i32;
-            (left..right)
-                .map(|column| {
-                    let from_apex = column as f32 + 1.0 - bounds.x;
-                    let height = bounds.height * (from_apex / bounds.width).min(1.0);
-                    Rectangle::new(
-                        Point::new(column as f32, center_y - height / 2.0),
-                        Size::new(1.0, height),
-                    )
-                })
-                .collect()
-        }
-    }
-}
-
-pub fn notch_region(
-    anchor: Rectangle,
-    bar_edge: f32,
-    popup: Rectangle,
-    position: Position,
-    corner_radius: f32,
-) -> Rectangle {
-    let inset = BASE_HALF_WIDTH_PX + corner_radius;
-    match position {
-        Position::Top | Position::Bottom => {
-            below_or_above(anchor, bar_edge, popup, position, inset)
-        }
-        Position::Left => beside(anchor, bar_edge, popup, inset),
-    }
+    apex: Point,
+    base_start: Point,
+    base_end: Point,
 }
 
 fn centered_within(target: f32, start: f32, end: f32, inset: f32) -> f32 {
@@ -144,34 +25,158 @@ fn centered_within(target: f32, start: f32, end: f32, inset: f32) -> f32 {
     }
 }
 
-fn below_or_above(
-    anchor: Rectangle,
-    bar_edge_y: f32,
-    popup: Rectangle,
-    position: Position,
-    inset: f32,
-) -> Rectangle {
-    let base_y = if position == Position::Top {
-        popup.y
-    } else {
-        popup.y + popup.height
-    };
-    let center = centered_within(anchor.center_x(), popup.x, popup.x + popup.width, inset);
-    Rectangle {
-        x: center - BASE_HALF_WIDTH_PX,
-        y: base_y.min(bar_edge_y),
-        width: BASE_HALF_WIDTH_PX * 2.0,
-        height: (base_y - bar_edge_y).abs(),
-    }
+fn toward(from: Point, to: Point, fraction: f32) -> Point {
+    from + (to - from) * fraction
 }
 
-fn beside(anchor: Rectangle, bar_edge_x: f32, popup: Rectangle, inset: f32) -> Rectangle {
-    let base_x = popup.x;
-    let center = centered_within(anchor.center_y(), popup.y, popup.y + popup.height, inset);
-    Rectangle {
-        x: base_x.min(bar_edge_x),
-        y: center - BASE_HALF_WIDTH_PX,
-        width: (base_x - bar_edge_x).abs(),
-        height: BASE_HALF_WIDTH_PX * 2.0,
+impl ConnectorTriangle {
+    pub fn between(
+        anchor: Rectangle,
+        bar_edge: f32,
+        popup: Rectangle,
+        position: Position,
+        corner_radius: f32,
+    ) -> Self {
+        let inset = BASE_HALF_WIDTH_PX + corner_radius;
+        match position {
+            Position::Top | Position::Bottom => {
+                let base_y = if position == Position::Top {
+                    popup.y
+                } else {
+                    popup.y + popup.height
+                };
+                let base_center =
+                    centered_within(anchor.center_x(), popup.x, popup.x + popup.width, inset);
+                Self {
+                    position,
+                    apex: Point::new(anchor.center_x(), bar_edge),
+                    base_start: Point::new(base_center - BASE_HALF_WIDTH_PX, base_y),
+                    base_end: Point::new(base_center + BASE_HALF_WIDTH_PX, base_y),
+                }
+            }
+            Position::Left => {
+                let base_center =
+                    centered_within(anchor.center_y(), popup.y, popup.y + popup.height, inset);
+                Self {
+                    position,
+                    apex: Point::new(bar_edge, anchor.center_y()),
+                    base_start: Point::new(popup.x, base_center - BASE_HALF_WIDTH_PX),
+                    base_end: Point::new(popup.x, base_center + BASE_HALF_WIDTH_PX),
+                }
+            }
+        }
+    }
+
+    pub fn translated(&self, offset: Vector) -> Self {
+        Self {
+            position: self.position,
+            apex: self.apex + offset,
+            base_start: self.base_start + offset,
+            base_end: self.base_end + offset,
+        }
+    }
+
+    fn bounds(&self) -> Rectangle {
+        let corners = [self.apex, self.base_start, self.base_end];
+        let left = corners.iter().map(|corner| corner.x).fold(f32::INFINITY, f32::min);
+        let top = corners.iter().map(|corner| corner.y).fold(f32::INFINITY, f32::min);
+        let right = corners.iter().map(|corner| corner.x).fold(f32::NEG_INFINITY, f32::max);
+        let bottom = corners.iter().map(|corner| corner.y).fold(f32::NEG_INFINITY, f32::max);
+        Rectangle::new(Point::new(left, top), Size::new(right - left, bottom - top))
+    }
+
+    fn depth(&self) -> f32 {
+        match self.position {
+            Position::Top | Position::Bottom => (self.base_start.y - self.apex.y).abs(),
+            Position::Left => (self.base_start.x - self.apex.x).abs(),
+        }
+    }
+
+    fn cross_section(&self, from_apex: f32) -> [Point; 2] {
+        let fraction = (from_apex / self.depth()).min(1.0);
+        [
+            toward(self.apex, self.base_start, fraction),
+            toward(self.apex, self.base_end, fraction),
+        ]
+    }
+
+    pub fn base_span(&self, reach: f32) -> Rectangle {
+        match self.position {
+            Position::Top => Rectangle {
+                x: self.base_start.x,
+                y: self.base_start.y,
+                width: self.base_end.x - self.base_start.x,
+                height: reach,
+            },
+            Position::Bottom => Rectangle {
+                x: self.base_start.x,
+                y: self.base_start.y - reach,
+                width: self.base_end.x - self.base_start.x,
+                height: reach,
+            },
+            Position::Left => Rectangle {
+                x: self.base_start.x,
+                y: self.base_start.y,
+                width: reach,
+                height: self.base_end.y - self.base_start.y,
+            },
+        }
+    }
+
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    pub fn blur_rows(&self) -> Vec<Rectangle> {
+        let bounds = self.bounds();
+        match self.position {
+            Position::Top | Position::Bottom => {
+                let top = bounds.y.ceil() as i32;
+                let bottom = (bounds.y + bounds.height).floor() as i32;
+                (top..bottom)
+                    .map(|row| {
+                        let from_apex = if self.position == Position::Top {
+                            row as f32 + 1.0 - self.apex.y
+                        } else {
+                            self.apex.y - row as f32
+                        };
+                        let [start, end] = self.cross_section(from_apex);
+                        Rectangle::new(
+                            Point::new(start.x, row as f32),
+                            Size::new(end.x - start.x, 1.0),
+                        )
+                    })
+                    .collect()
+            }
+            Position::Left => {
+                let left = bounds.x.ceil() as i32;
+                let right = (bounds.x + bounds.width).floor() as i32;
+                (left..right)
+                    .map(|column| {
+                        let [start, end] = self.cross_section(column as f32 + 1.0 - self.apex.x);
+                        Rectangle::new(
+                            Point::new(column as f32, start.y),
+                            Size::new(1.0, end.y - start.y),
+                        )
+                    })
+                    .collect()
+            }
+        }
+    }
+
+    pub fn draw(&self, renderer: &mut iced::Renderer, fill: Color, outline: Border) {
+        let mut frame = Frame::with_bounds(renderer, self.bounds());
+        let slanted_sides = Path::new(|path| {
+            path.move_to(self.base_start);
+            path.line_to(self.apex);
+            path.line_to(self.base_end);
+        });
+        frame.fill(&slanted_sides, fill);
+        if outline.width > 0.0 {
+            frame.stroke(
+                &slanted_sides,
+                Stroke::default()
+                    .with_color(outline.color)
+                    .with_width(outline.width),
+            );
+        }
+        renderer.draw_geometry(frame.into_geometry());
     }
 }
