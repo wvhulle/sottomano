@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub(super) struct TopBarGroups<'a> {
-    pub start: [GroupContent<'a, Message>; 10],
+    pub start: [GroupContent<'a, Message>; 11],
     pub center: [GroupContent<'a, Message>; 3],
     pub end: [GroupContent<'a, Message>; 8],
 }
@@ -46,6 +46,9 @@ impl DesktopShell {
                     .group_content(config)
                     .map(Message::PendingUpgrades),
                 self.internet_group.group_content().map(Message::Internet),
+                self.focus_time_group
+                    .group_content(config, self.quiet_schedule_group.waking_window())
+                    .map(Message::FocusTime),
             ],
             center: [
                 self.clock_group.group_content().map(Message::Clock),

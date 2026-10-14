@@ -9,7 +9,7 @@ use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    data::source::{Delivery, logind},
+    data::source::{Delivery, focus_ledger::WakingWindow, logind},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::listening,
     state::{self, quiet_hours::QuietHoursSchedule},
@@ -143,6 +143,14 @@ impl QuietScheduleGroup {
 
     pub fn is_quiet(&self) -> bool {
         self.phase.is_quiet()
+    }
+
+    pub fn waking_window(&self) -> WakingWindow {
+        let schedule = self.schedule();
+        WakingWindow {
+            start: schedule.end,
+            end: schedule.start,
+        }
     }
 
     fn schedule(&self) -> QuietHoursSchedule {

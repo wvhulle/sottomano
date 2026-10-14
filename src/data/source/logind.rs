@@ -44,19 +44,35 @@ pub fn lock() {
     }
 }
 
-pub fn resumes() -> impl Stream<Item = ()> {
-    restarting("resume signal", resume_signals)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SleepEdge {
+    Suspending,
+    Resumed,
 }
 
-async fn resume_signals() -> zbus::Result<impl Stream<Item = ()>> {
+pub fn sleep_edges() -> impl Stream<Item = SleepEdge> + Send {
+    restarting("sleep signal", sleep_signals)
+}
+
+pub fn resumes() -> impl Stream<Item = ()> {
+    sleep_edges().filter_map(|edge| ready((edge == SleepEdge::Resumed).then_some(())))
+}
+
+async fn sleep_signals() -> zbus::Result<impl Stream<Item = SleepEdge> + Send> {
     let connection = zbus::Connection::system().await?;
     let manager = ManagerProxy::new(&connection).await?;
-    let resumes = manager
+    let edges = manager
         .receive_prepare_for_sleep()
         .await?
         .filter_map(|signal| {
-            let resumed = signal.args().is_ok_and(|args| !*args.start());
-            ready(resumed.then_some(()))
+            let edge = signal.args().ok().map(|args| {
+                if *args.start() {
+                    SleepEdge::Suspending
+                } else {
+                    SleepEdge::Resumed
+                }
+            });
+            ready(edge)
         });
-    Ok(resumes)
+    Ok(edges)
 }

@@ -114,6 +114,11 @@ impl DesktopShell {
             HoverTarget::Wallpaper(target) => self.wallpaper_group.tooltip_for(*target),
             HoverTarget::Media => self.media_group.tooltip(),
             HoverTarget::Ai(target) => self.ai_group.tooltip_for(*target),
+            HoverTarget::FocusTime(target) => Some(self.focus_time_group.tooltip_for(
+                *target,
+                &self.config,
+                self.quiet_schedule_group.waking_window(),
+            )),
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
             HoverTarget::Notification(_) => None,
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),

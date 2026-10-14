@@ -10,7 +10,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         confirm_button::{ConfirmButton, Press},
-        idle::{IdleAction, IdleTrigger, MAX_POSITION, position, timeout_at},
+        idle::{ActionTrigger, IdleAction, MAX_POSITION, position, timeout_at},
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
@@ -75,10 +75,10 @@ impl IdleTimer {
         self.timeout
     }
 
-    pub fn trigger(&self) -> Option<IdleTrigger> {
-        self.timeout.map(|after| IdleTrigger {
+    pub fn trigger(&self) -> Option<ActionTrigger> {
+        self.timeout.map(|after| ActionTrigger {
             after,
-            action: self.action,
+            tag: self.action,
         })
     }
 

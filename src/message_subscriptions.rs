@@ -37,7 +37,7 @@ use crate::{
     },
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
-        dark_mode_group::DarkModeGroup, disk_group::DiskGroup,
+        dark_mode_group::DarkModeGroup, disk_group::DiskGroup, focus_time_group::FocusTimeGroup,
         journal_events_group::JournalEventsGroup, monitor_group::MonitorGroup,
         pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
         quiet_schedule_group::QuietScheduleGroup, systemd_manager_group::SystemdManagerGroup,
@@ -128,6 +128,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(Message::Ai),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
+        FocusTimeGroup::subscription().map(Message::FocusTime),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),

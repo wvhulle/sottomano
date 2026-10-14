@@ -7,7 +7,7 @@ use crate::{
     data::{
         notifications::model::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
         severity::Severity,
-        source::ai::quota::{Pace, Quota},
+        source::ai::quota::{Pace, Quota, QuotaLimited},
     },
     desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::ai_group::amount_text::{duration_text, percent_text},
@@ -42,7 +42,7 @@ impl OngoingBody {
 }
 
 fn quota_pace_line(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String {
-    let label = quota.label;
+    let label = &quota.label;
     let used = percent_text(quota.used);
     let elapsed = duration_text(now - quota.starts_at);
     let window = duration_text(quota.resets_at - quota.starts_at);
@@ -136,6 +136,30 @@ impl<Message> OngoingToast<Message> {
             summary_text: Cow::Borrowed(summary_text),
             body: widget.ongoing_toast_body(locale),
             progress: widget.gauge(),
+            since: SystemTime::now(),
+            on_body_clicked,
+            action_buttons: Vec::new(),
+        })
+    }
+
+    pub fn from_quota_pace(
+        hover_target: impl Into<HoverTarget>,
+        widget: &(impl QuotaLimited + BarWidget),
+        on_body_clicked: Message,
+    ) -> Option<Self> {
+        let alerting: Vec<Quota> = widget
+            .quotas(Utc::now())
+            .into_iter()
+            .filter(|quota| quota.severity() >= Severity::Warning)
+            .collect();
+        let worst = alerting.iter().max_by_key(|quota| quota.severity())?;
+        Some(Self {
+            widget_name: widget.name(),
+            key: OngoingKey::Reading(hover_target.into()),
+            severity: worst.severity(),
+            summary_text: Cow::Owned(format!("{} runs out before reset", worst.label)),
+            progress: Some(worst.used),
+            body: OngoingBody::QuotaPace(alerting),
             since: SystemTime::now(),
             on_body_clicked,
             action_buttons: Vec::new(),

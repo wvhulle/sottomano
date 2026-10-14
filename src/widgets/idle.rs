@@ -1,13 +1,12 @@
 pub mod timer;
-pub mod wayland;
 
 use std::{convert::Infallible, time::Duration};
 
 use tokio::task::spawn_blocking;
 
-use crate::{
-    data::source::{logind, niri},
-    widgets::idle::wayland::{IdleNotifier, WaylandError},
+use crate::data::source::{
+    idle_notify::{IdleNotifier, IdleTrigger, WaylandError},
+    logind, niri,
 };
 
 const RECONNECT_ATTEMPTS: usize = 3;
@@ -78,13 +77,9 @@ pub fn perform(action: IdleAction) {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
-pub struct IdleTrigger {
-    pub after: Duration,
-    pub action: IdleAction,
-}
+pub type ActionTrigger = IdleTrigger<IdleAction>;
 
-pub async fn perform_when_idle(triggers: Vec<IdleTrigger>) {
+pub async fn perform_when_idle(triggers: Vec<ActionTrigger>) {
     if triggers.is_empty() {
         return;
     }
@@ -97,7 +92,7 @@ pub async fn perform_when_idle(triggers: Vec<IdleTrigger>) {
     }
 }
 
-async fn perform_while_connected(triggers: &[IdleTrigger]) -> Result<Infallible, WaylandError> {
+async fn perform_while_connected(triggers: &[ActionTrigger]) -> Result<Infallible, WaylandError> {
     let mut notifier = IdleNotifier::connect().await?;
     notifier.arm(triggers);
     loop {

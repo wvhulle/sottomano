@@ -454,7 +454,7 @@ impl Tooltip {
         }
     }
 
-    pub(in crate::widgets) fn sourced(body: TooltipBody, freshness: Freshness) -> Self {
+    pub fn sourced(body: TooltipBody, freshness: Freshness) -> Self {
         let body = match body {
             TooltipBody::Sections(sections) => SourcedBody::Sections(
                 sections
