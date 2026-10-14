@@ -57,6 +57,7 @@ use crate::{
         compute_group::{ComputeGroup, ComputeMessage},
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         disk_group::{DiskGroup, DiskMessage},
+        focus_time_group::{FocusTimeGroup, FocusTimeMessage},
         gpu_group::{GpuGroup, GpuMessage},
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
@@ -124,6 +125,7 @@ pub struct DesktopShell {
     pub media_group: MediaGroup,
     pub audio_group: AudioGroup,
     pub ai_group: AiGroup,
+    pub focus_time_group: FocusTimeGroup,
     pub tray_group: TrayGroup,
     pub window_group: WindowGroup,
     pub launch_tracker: LaunchTracker,
@@ -176,6 +178,7 @@ pub enum Message {
     SoundThemeLoaded(SoundTheme),
     Audio(AudioMessage),
     Ai(AiMessage),
+    FocusTime(FocusTimeMessage),
     WindowGroup(WindowGroupMessage),
     TrackerLoaded(Vec<Launch>),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
@@ -257,6 +260,7 @@ impl DesktopShell {
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
             ai_group: AiGroup::new(secrets),
+            focus_time_group: FocusTimeGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
@@ -282,6 +286,7 @@ impl DesktopShell {
             Task::done(Message::ConfigLoaded(loaded)),
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(state::launches::load(), Message::TrackerLoaded),
+            FocusTimeGroup::load().map(Message::FocusTime),
             Task::perform(state::idle::load(), |t| {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
@@ -421,6 +426,7 @@ impl DesktopShell {
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
+            Message::FocusTime(msg) => self.focus_time_group.update(msg).map(Message::FocusTime),
             Message::DismissPressed => {
                 self.collapse_groups();
                 Task::none()
@@ -696,6 +702,7 @@ impl DesktopShell {
         self.window_group.collapse();
         self.tray_group.collapse();
         self.ai_group.collapse();
+        self.focus_time_group.collapse();
         self.notification_group.collapse();
         self.quiet_schedule_group.collapse();
         self.systemd_manager_group.collapse();
@@ -727,6 +734,11 @@ impl DesktopShell {
             let _ = self.niri.apply(event);
         }
         self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
+        tasks.push(
+            self.focus_time_group
+                .refocus(&self.niri)
+                .map(Message::FocusTime),
+        );
         if focus_change {
             self.collapse_groups();
         }

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, Datelike, Months, NaiveDate, TimeDelta, Utc};
 use uom::si::{
     f64::Ratio,
@@ -12,7 +14,7 @@ const FULL_PERCENT: f64 = 100.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quota {
-    pub label: &'static str,
+    pub label: Cow<'static, str>,
     pub used: Ratio,
     pub elapsed: Ratio,
     pub starts_at: DateTime<Utc>,
@@ -35,7 +37,7 @@ pub trait QuotaLimited {
 
 impl Quota {
     pub fn within_window(
-        label: &'static str,
+        label: impl Into<Cow<'static, str>>,
         used: Ratio,
         resets_at: DateTime<Utc>,
         length: TimeDelta,
@@ -44,7 +46,7 @@ impl Quota {
         let starts_at = resets_at - length;
         let elapsed = (now - starts_at).as_seconds_f64() / length.as_seconds_f64();
         Quota {
-            label,
+            label: label.into(),
             used,
             elapsed: Ratio::new::<ratio>(elapsed.clamp(0.0, 1.0)),
             starts_at,
@@ -53,7 +55,7 @@ impl Quota {
     }
 
     pub fn within_month_before(
-        label: &'static str,
+        label: impl Into<Cow<'static, str>>,
         used: Ratio,
         resets_at: DateTime<Utc>,
         now: DateTime<Utc>,
@@ -69,7 +71,7 @@ impl Quota {
     }
 
     pub fn within_calendar_month(
-        label: &'static str,
+        label: impl Into<Cow<'static, str>>,
         used: Ratio,
         now: DateTime<Utc>,
     ) -> Option<Self> {

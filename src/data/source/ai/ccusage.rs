@@ -125,7 +125,7 @@ impl Period {
         let limit_usd = budget.monthly_limit_usd?;
         let elapsed = self.elapsed_working_share(now, budget)?;
         Some(Quota {
-            label,
+            label: label.into(),
             used: Ratio::new::<ratio>(self.usage.cost / f64::from(limit_usd)),
             elapsed: Ratio::new::<ratio>(elapsed),
             starts_at: local_midnight(self.since)?,

@@ -5,6 +5,7 @@ pub mod color_temperature_group;
 pub mod compute_group;
 pub mod dark_mode_group;
 pub mod disk_group;
+pub mod focus_time_group;
 pub mod gpu_group;
 pub mod idle_timeouts_group;
 pub mod internet_group;

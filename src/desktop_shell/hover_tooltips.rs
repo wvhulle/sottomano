@@ -16,8 +16,8 @@ use crate::{
     widget_groups::{
         ai_group::AiTarget, audio_group::ControlKind, clock_group::ClockTarget,
         color_temperature_group::ColorTemperatureTarget, compute_group::ComputeTarget,
-        dark_mode_group::DarkModeTarget, disk_group::DiskTarget, gpu_group::GpuTarget,
-        idle_timeouts_group::TimerKind, internet_group::InternetTarget,
+        dark_mode_group::DarkModeTarget, disk_group::DiskTarget, focus_time_group::FocusTimeTarget,
+        gpu_group::GpuTarget, idle_timeouts_group::TimerKind, internet_group::InternetTarget,
         journal_events_group::JournalTarget, monitor_group::MonitorTarget,
         net_interfaces_group::NetInterfaceTarget, niri_window_group::NiriWindowTarget,
         notification_group::NotificationTarget, overlay_group::OverlayTarget,
@@ -55,6 +55,7 @@ pub enum HoverTarget {
     Wallpaper(WallpaperTarget),
     Media,
     Ai(AiTarget),
+    FocusTime(FocusTimeTarget),
     Clock(ClockTarget),
     Notification(NotificationTarget),
     QuietSchedule(QuietScheduleTarget),

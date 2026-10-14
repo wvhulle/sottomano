@@ -1,0 +1,232 @@
+use chrono::{DateTime, Locale, TimeDelta, Utc};
+
+use crate::{
+    data::{
+        severity::Severity,
+        source::focus_ledger::{Accounting, FocusRun, FocusUnit, Interval, ScreenRun},
+    },
+    widget_groups::{ai_group::amount_text::duration_text, focus_time_group::BreakPledge},
+    widgets::{
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_time::TimePart,
+        ongoing_toast::OngoingBody,
+        phosphor::Phosphor,
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
+};
+
+pub struct SessionFace<'a> {
+    pub accounting: Accounting<'a>,
+    pub pledge: Option<BreakPledge>,
+}
+
+impl SessionFace<'_> {
+    fn pledge_broken(&self, now: DateTime<Utc>) -> bool {
+        let Some(pledge) = self.pledge else {
+            return false;
+        };
+        let grace =
+            TimeDelta::from_std(self.accounting.config.break_grace).unwrap_or(TimeDelta::MAX);
+        let honoured = self
+            .accounting
+            .last_break(now)
+            .is_some_and(|gap| gap.until >= pledge.at)
+            || self.accounting.screen_run(now).is_none();
+        !honoured && now - pledge.at >= grace
+    }
+
+    fn run_length(&self, now: DateTime<Utc>) -> Option<TimeDelta> {
+        self.accounting
+            .screen_run(now)
+            .map(|ScreenRun { since }| now - since)
+    }
+
+    fn severity(&self, now: DateTime<Utc>) -> Severity {
+        let config = self.accounting.config;
+        let critical = TimeDelta::from_std(config.session_critical).unwrap_or(TimeDelta::MAX);
+        let warning = TimeDelta::from_std(config.session_warning).unwrap_or(TimeDelta::MAX);
+        match self.run_length(now) {
+            _ if self.pledge_broken(now) => Severity::Critical,
+            Some(run) if run >= critical => Severity::Critical,
+            Some(run) if run >= warning => Severity::Warning,
+            _ => Severity::Normal,
+        }
+    }
+
+    fn dominant(&self, now: DateTime<Utc>) -> Option<FocusRun> {
+        self.accounting.dominant_run(now)
+    }
+
+    pub fn section(&self) -> Section {
+        let now = Utc::now();
+        let config = self.accounting.config;
+        let units = self.accounting.ledger.focused_units();
+        let project = units.iter().find_map(|unit| match unit {
+            FocusUnit::Project(root) => Some(root.clone()),
+            FocusUnit::App(_) => None,
+        });
+        let app = units.iter().find_map(|unit| match unit {
+            FocusUnit::App(app_id) => Some(app_id.clone()),
+            FocusUnit::Project(_) => None,
+        });
+        let entries = [
+            project.map(|root| KeyValue::new("Project", Cell::Path(root))),
+            app.map(|app_id| KeyValue::new("App", app_id)),
+            self.dominant(now).map(|run| {
+                KeyValue::new(
+                    format!("{} since", run.unit.label()),
+                    Cell::Time {
+                        at: run.since,
+                        part: TimePart::TimeOfDay,
+                    },
+                )
+            }),
+            self.accounting.screen_run(now).map(|ScreenRun { since }| {
+                KeyValue::new("At the screen for", duration_text(now - since))
+                    .level(self.severity(now))
+            }),
+            self.accounting
+                .last_break(now)
+                .map(|Interval { from, until }| {
+                    KeyValue::new(
+                        "Last break",
+                        format!(
+                            "{} ago, {}",
+                            duration_text(now - until),
+                            duration_text(until - from)
+                        ),
+                    )
+                }),
+            Some(KeyValue::new(
+                "Break after idling",
+                humantime::format_duration(config.idle_after).to_string(),
+            )),
+            Some(KeyValue::new(
+                "Warns after",
+                humantime::format_duration(config.session_warning).to_string(),
+            )),
+            Some(KeyValue::new(
+                "Critical after",
+                humantime::format_duration(config.session_critical).to_string(),
+            )),
+        ];
+        Section::dictionary(entries.into_iter().flatten())
+    }
+}
+
+impl BarWidget for SessionFace<'_> {
+    fn name(&self) -> &'static str {
+        "Focus session"
+    }
+
+    fn icon(&self) -> Glyph {
+        Phosphor::UserFocus(self.state().weight()).into()
+    }
+
+    fn label(&self) -> Option<String> {
+        self.run_length(Utc::now()).map(duration_text)
+    }
+
+    fn state(&self) -> WidgetState {
+        self.severity(Utc::now()).into()
+    }
+
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
+            minimum_severity: Severity::Warning,
+            summary_text: "Long focus session",
+        }
+    }
+
+    fn ongoing_toast_body(&self, locale: Locale) -> OngoingBody {
+        let now = Utc::now();
+        let Some(ScreenRun { since }) = self.accounting.screen_run(now) else {
+            return OngoingBody::None;
+        };
+        let mostly = self
+            .dominant(now)
+            .map(|run| {
+                format!(
+                    " Mostly {} ({}).",
+                    run.unit.label(),
+                    duration_text(now - run.since)
+                )
+            })
+            .unwrap_or_default();
+        OngoingBody::Text(format!(
+            "At the screen since {}, {} without a break.{mostly}",
+            TimePart::TimeOfDay.format(&since, locale),
+            duration_text(now - since)
+        ))
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        TooltipBody::sections([self.section()])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+    use crate::{
+        config::widget_groups::focus_time::FocusTimeConfig,
+        data::source::{
+            focus_ledger::{FocusLedger, FocusSignal, Focused},
+            idle_notify::IdleEdge,
+        },
+    };
+
+    fn at(minutes: i64) -> DateTime<Utc> {
+        "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
+    }
+
+    fn focused() -> FocusSignal {
+        FocusSignal::Focused(Some(Focused {
+            window: 1,
+            app_id: "kitty".to_owned(),
+            project: None,
+        }))
+    }
+
+    fn config() -> FocusTimeConfig {
+        FocusTimeConfig {
+            idle_after: Duration::from_mins(3),
+            break_grace: Duration::from_mins(5),
+            ..FocusTimeConfig::default()
+        }
+    }
+
+    #[test]
+    fn a_pledge_without_a_break_turns_critical_after_the_grace() {
+        let config = config();
+        let ledger = FocusLedger::default().fold(focused(), at(0)).ledger;
+        let face = SessionFace {
+            accounting: ledger.accounted(&config),
+            pledge: Some(BreakPledge { at: at(10) }),
+        };
+        assert_eq!(face.severity(at(12)), Severity::Normal);
+        assert_eq!(face.severity(at(16)), Severity::Critical);
+    }
+
+    #[test]
+    fn a_break_after_the_pledge_honours_it() {
+        let config = config();
+        let ledger = [
+            (focused(), 0),
+            (FocusSignal::Idle(IdleEdge::Idled), 11),
+            (FocusSignal::Idle(IdleEdge::Resumed), 15),
+        ]
+        .into_iter()
+        .fold(FocusLedger::default(), |ledger, (signal, minute)| {
+            ledger.fold(signal, at(minute)).ledger
+        });
+        let face = SessionFace {
+            accounting: ledger.accounted(&config),
+            pledge: Some(BreakPledge { at: at(10) }),
+        };
+        assert_eq!(face.severity(at(30)), Severity::Normal);
+    }
+}

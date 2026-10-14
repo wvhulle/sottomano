@@ -10,7 +10,7 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         idle::{
-            IdleAction, IdleTrigger, perform, perform_when_idle,
+            ActionTrigger, IdleAction, perform, perform_when_idle,
             timer::{IdleTimer, TimerChange, TimerMessage},
         },
         phosphor::{Phosphor, Weight},
@@ -225,16 +225,16 @@ impl IdleTimeoutsGroup {
         watcher
     }
 
-    fn triggers(&self) -> Vec<IdleTrigger> {
+    fn triggers(&self) -> Vec<ActionTrigger> {
         self.entries()
             .into_iter()
             .filter_map(|(kind, timer)| {
                 if kind == TimerKind::ScreenOff
                     && let Some(after) = self.quiet_screen_off
                 {
-                    Some(IdleTrigger {
+                    Some(ActionTrigger {
                         after,
-                        action: IdleAction::ScreenOff,
+                        tag: IdleAction::ScreenOff,
                     })
                 } else {
                     timer.trigger()
