@@ -5,6 +5,7 @@ use std::{
 };
 
 use chrono::Locale;
+use humantime::format_duration;
 use iced::{
     Color, Element, Length, Padding,
     alignment::{Horizontal, Vertical},
@@ -21,13 +22,16 @@ use iced::{
 use crate::{
     config::{Config, theme::font::ResolvedFont},
     desktop_shell::{Message, hover_tooltips::GestureHint},
+    state::idle::ScheduledAfterIdle,
     widget_groups::{
-        tray_group::TrayMessage, window_group::process_tree::ProcessTree,
+        session_menu::SessionMessage,
+        tray_group::{TrayMessage, menu_lines::TrayMenuLines},
+        window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
         bar_widget::Glyph,
-        context_menu::context_menu,
+        context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         favicon::Favicons,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
@@ -35,7 +39,8 @@ use crate::{
         text::{bar_text, column_heading},
         tooltip_body::{
             Cell, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells, Section, SectionBody,
-            SourcedBody, SourcedSection, Tooltip, TrayMenuBody, WholeBody,
+            SessionMenuBody, SessionMenuEntry, SourcedBody, SourcedSection, Tooltip, TrayMenuBody,
+            WholeBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -234,25 +239,29 @@ impl<'a> TooltipContent<'a> {
             ),
             WholeBody::Text { title, body } => self.inset(self.text(title, body.as_deref())),
             WholeBody::TrayMenu(menu) => self.tray_menu(menu),
+            WholeBody::SessionMenu(menu) => self.session_menu(menu),
         }
     }
 
     fn tray_menu(&self, menu: &TrayMenuBody) -> Element<'static, Message> {
         let address = menu.address.clone();
         let menu_path = menu.menu_path.clone();
-        let entries = context_menu(
-            self.config,
-            &menu.nodes,
-            &menu.open_submenus,
-            &move |id| {
-                Message::Tray(TrayMessage::MenuItemClicked {
-                    address: address.clone(),
-                    menu_path: menu_path.clone(),
-                    id,
-                })
-            },
-            &|id| Message::Tray(TrayMessage::ToggleSubmenu(id)),
-        );
+        let on_activate = move |id| {
+            Message::Tray(TrayMessage::MenuItemClicked {
+                address: address.clone(),
+                menu_path: menu_path.clone(),
+                id,
+            })
+        };
+        let on_toggle = |id| Message::Tray(TrayMessage::ToggleSubmenu(id));
+        let lines = TrayMenuLines {
+            config: self.config,
+            open: &menu.open_submenus,
+            on_activate: &on_activate,
+            on_toggle: &on_toggle,
+        }
+        .lines(&menu.nodes);
+        let entries = context_menu(self.config, lines);
         Column::new()
             .spacing(SECTION_GAP_PX)
             .push(
@@ -262,6 +271,49 @@ impl<'a> TooltipContent<'a> {
             )
             .push(container(entries).width(TRAY_MENU_WIDTH_PX))
             .into()
+    }
+
+    fn session_menu(&self, menu: &SessionMenuBody) -> Element<'static, Message> {
+        let lines = menu
+            .entries
+            .iter()
+            .scan(None, |previous_family, entry| {
+                let family = entry.action.family();
+                let divider = previous_family.is_some_and(|previous| previous != family);
+                *previous_family = Some(family);
+                Some(
+                    divider
+                        .then_some(MenuLine::Divider)
+                        .into_iter()
+                        .chain(once(self.session_menu_row(*entry))),
+                )
+            })
+            .flatten();
+        container(context_menu(self.config, lines))
+            .width(TRAY_MENU_WIDTH_PX)
+            .into()
+    }
+
+    fn session_menu_row(&self, entry: SessionMenuEntry) -> MenuLine<'static, Message> {
+        let icon_size = self.config.theme.font.icon_size_px;
+        let note = match entry.idle {
+            ScheduledAfterIdle::After(after) => {
+                Trailing::Note(format!("after {} idle", format_duration(after)))
+            }
+            ScheduledAfterIdle::Disabled => Trailing::Note("idle: disabled".to_owned()),
+            ScheduledAfterIdle::Never if entry.needs_authorisation => {
+                Trailing::Note("asks for authorisation".to_owned())
+            }
+            ScheduledAfterIdle::Never => Trailing::Nothing,
+        };
+        MenuLine::Row(MenuRow {
+            leading: Some(Glyph::from(entry.action.glyph()).view(icon_size, self.foreground())),
+            label: Some(entry.action.verb().to_owned()),
+            trailing: note,
+            enabled: true,
+            depth: 0,
+            on_press: Some(Message::Session(SessionMessage::Press(entry.action))),
+        })
     }
 
     fn bold_title(&self, title: &str) -> Text<'static> {

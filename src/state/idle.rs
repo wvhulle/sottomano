@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use crate::state::{Columns, StoreError, with_table};
+use crate::{
+    data::source::session_action::SessionAction,
+    state::{Columns, StoreError, with_table},
+};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -16,6 +19,26 @@ pub struct Timeouts {
     pub screen_off: Option<Duration>,
     pub standby: Option<Duration>,
     pub power_down: Option<Duration>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScheduledAfterIdle {
+    Never,
+    Disabled,
+    After(Duration),
+}
+
+impl Timeouts {
+    pub fn scheduled(self, action: SessionAction) -> ScheduledAfterIdle {
+        let timeout = match action {
+            SessionAction::Lock => self.lock_user,
+            SessionAction::ScreenOff => self.screen_off,
+            SessionAction::Suspend => self.standby,
+            SessionAction::PowerOff => self.power_down,
+            _ => return ScheduledAfterIdle::Never,
+        };
+        timeout.map_or(ScheduledAfterIdle::Disabled, ScheduledAfterIdle::After)
+    }
 }
 
 pub async fn load() -> Timeouts {

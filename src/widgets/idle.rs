@@ -6,7 +6,7 @@ use tokio::task::spawn_blocking;
 
 use crate::data::source::{
     idle_notify::{IdleNotifier, IdleTrigger, WaylandError},
-    logind, niri,
+    session_action::SessionAction,
 };
 
 const RECONNECT_ATTEMPTS: usize = 3;
@@ -40,44 +40,7 @@ pub fn timeout_at(position: f32) -> Option<Duration> {
     LADDER.get(position.round().max(0.0) as usize).copied()
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
-pub enum IdleAction {
-    Lock,
-    ScreenOff,
-    Suspend,
-    PowerOff,
-}
-
-impl IdleAction {
-    pub fn verb(self) -> &'static str {
-        match self {
-            IdleAction::Lock => "Lock",
-            IdleAction::ScreenOff => "Screen off",
-            IdleAction::Suspend => "Suspend",
-            IdleAction::PowerOff => "Power off",
-        }
-    }
-
-    pub fn mechanism(self) -> &'static str {
-        match self {
-            IdleAction::Lock => "logind LockSession",
-            IdleAction::ScreenOff => "niri PowerOffMonitors",
-            IdleAction::Suspend => "logind Suspend",
-            IdleAction::PowerOff => "logind PowerOff",
-        }
-    }
-}
-
-pub fn perform(action: IdleAction) {
-    match action {
-        IdleAction::Lock => logind::lock(),
-        IdleAction::ScreenOff => niri::send_action(&niri_ipc::Action::PowerOffMonitors {}),
-        IdleAction::Suspend => logind::suspend(),
-        IdleAction::PowerOff => logind::power_off(),
-    }
-}
-
-pub type ActionTrigger = IdleTrigger<IdleAction>;
+pub type ActionTrigger = IdleTrigger<SessionAction>;
 
 pub async fn perform_when_idle(triggers: Vec<ActionTrigger>) {
     if triggers.is_empty() {
@@ -97,7 +60,7 @@ async fn perform_while_connected(triggers: &[ActionTrigger]) -> Result<Infallibl
     notifier.arm(triggers);
     loop {
         for action in notifier.elapsed().await? {
-            spawn_blocking(move || perform(action));
+            spawn_blocking(move || action.perform());
         }
     }
 }

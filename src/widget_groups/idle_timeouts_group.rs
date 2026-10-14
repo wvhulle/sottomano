@@ -1,17 +1,17 @@
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 use iced::{Task, task};
 
 use crate::{
     config::Config,
+    data::source::session_action::SessionAction,
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::blocking,
     state::{self, idle::Timeouts},
     widgets::{
         group_item::GroupItem,
         idle::{
-            ActionTrigger, IdleAction, perform, perform_when_idle,
-            timer::{IdleTimer, TimerChange, TimerMessage},
+            ActionTrigger, perform_when_idle,
+            timer::{IdleTimer, TimerChange},
         },
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
@@ -36,8 +36,6 @@ impl From<TimerKind> for HoverTarget {
     }
 }
 
-const TRIGGER_SETTLE_DELAY: Duration = Duration::from_millis(600);
-
 impl TimerKind {
     const ALL: [TimerKind; 4] = [
         Self::LockUser,
@@ -61,7 +59,7 @@ pub struct IdleTimeoutsGroup {
 pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
     Expansion(ExpansionMessage),
-    Timer(TimerKind, TimerMessage),
+    Timer(TimerKind, ControlMessage),
 }
 
 impl Default for IdleTimeoutsGroup {
@@ -71,29 +69,25 @@ impl Default for IdleTimeoutsGroup {
                 "Lock timeout",
                 Phosphor::Lock(Weight::Regular),
                 TimerKind::LockUser,
-                IdleAction::Lock,
-                false,
+                SessionAction::Lock,
             ),
             screen_off: IdleTimer::new(
                 "Screen-off timeout",
                 Phosphor::Monitor(Weight::Regular),
                 TimerKind::ScreenOff,
-                IdleAction::ScreenOff,
-                false,
+                SessionAction::ScreenOff,
             ),
             standby: IdleTimer::new(
                 "Standby timeout",
                 Phosphor::Bed(Weight::Regular),
                 TimerKind::Standby,
-                IdleAction::Suspend,
-                true,
+                SessionAction::Suspend,
             ),
             power_down: IdleTimer::new(
                 "Power-down timeout",
                 Phosphor::Power(Weight::Regular),
                 TimerKind::PowerDown,
-                IdleAction::PowerOff,
-                true,
+                SessionAction::PowerOff,
             ),
             quiet_screen_off: None,
             idle_watcher: None,
@@ -129,18 +123,14 @@ impl IdleTimeoutsGroup {
 
     fn close_all(&mut self) {
         for kind in TimerKind::ALL {
-            let timer = self.timer_mut(kind);
-            timer.disarm();
-            timer.close();
+            self.timer_mut(kind).close();
         }
     }
 
     fn close_others(&mut self, kept: TimerKind) {
         for kind in TimerKind::ALL {
             if kind != kept {
-                let timer = self.timer_mut(kind);
-                timer.disarm();
-                timer.close();
+                self.timer_mut(kind).close();
             }
         }
     }
@@ -168,20 +158,9 @@ impl IdleTimeoutsGroup {
                 }
                 TimerChange::Persist(value) => {
                     let persist = Task::future(state::idle::save(self.timeouts())).map(move |ok| {
-                        IdleTimeoutsMessage::Timer(
-                            kind,
-                            TimerMessage::Slider(ControlMessage::Persisted { value, ok }),
-                        )
+                        IdleTimeoutsMessage::Timer(kind, ControlMessage::Persisted { value, ok })
                     });
                     Task::batch([persist, self.rearm()])
-                }
-                TimerChange::Fire(action) => {
-                    self.close_others(kind);
-                    blocking("idle action", move || {
-                        thread::sleep(TRIGGER_SETTLE_DELAY);
-                        perform(action);
-                    })
-                    .discard()
                 }
             },
         }
@@ -234,7 +213,7 @@ impl IdleTimeoutsGroup {
                 {
                     Some(ActionTrigger {
                         after,
-                        tag: IdleAction::ScreenOff,
+                        tag: SessionAction::ScreenOff,
                     })
                 } else {
                     timer.trigger()
@@ -253,7 +232,7 @@ impl IdleTimeoutsGroup {
             self.entries().map(|(kind, timer)| {
                 GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
                     timer.view(config, reveal).map(move |m| match m {
-                        TimerMessage::Slider(ControlMessage::Tooltip(t)) => GroupEvent::Tooltip(t),
+                        ControlMessage::Tooltip(t) => GroupEvent::Tooltip(t),
                         m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
                     })
                 })

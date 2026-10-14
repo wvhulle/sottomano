@@ -11,9 +11,10 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     data::{
         severity::Severity,
-        source::{process::Process, tray::MenuNode},
+        source::{process::Process, session_action::SessionAction, tray::MenuNode},
     },
     desktop_shell::hover_tooltips::PressHints,
+    state::idle::ScheduledAfterIdle,
     widget_groups::window_group::process_tree::Folding,
     widgets::{bar_widget::Glyph, localized_time::TimePart, window_title::TitleRun},
 };
@@ -336,6 +337,7 @@ pub enum WholeBody {
     Text { title: String, body: Option<String> },
     Workspace(WorkspacePreview),
     TrayMenu(TrayMenuBody),
+    SessionMenu(SessionMenuBody),
 }
 
 impl WholeBody {
@@ -344,6 +346,7 @@ impl WholeBody {
             WholeBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
             }
+            WholeBody::SessionMenu(menu) => menu.entries.is_empty(),
             WholeBody::Text { .. } | WholeBody::TrayMenu(_) => false,
         }
     }
@@ -363,6 +366,18 @@ pub struct TrayMenuBody {
     pub body: Option<String>,
     pub nodes: Vec<MenuNode>,
     pub open_submenus: HashSet<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SessionMenuEntry {
+    pub action: SessionAction,
+    pub needs_authorisation: bool,
+    pub idle: ScheduledAfterIdle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionMenuBody {
+    pub entries: Vec<SessionMenuEntry>,
 }
 
 impl TooltipBody {

@@ -128,6 +128,10 @@ impl DesktopShell {
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
             HoverTarget::Notification(_) => None,
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),
+            HoverTarget::Session(target) => Some(
+                self.session_menu
+                    .tooltip_for(*target, self.idle_timeouts_group.timeouts()),
+            ),
             HoverTarget::Tray(address) => self.tray_group.tooltip_for(address),
             HoverTarget::Window(WindowTarget::Pick(window)) => {
                 WindowGroup::pick_tooltip(&self.niri, &self.niri_snapshot, *window)
@@ -167,6 +171,9 @@ impl DesktopShell {
                 .hover(hovered, &self.config)
                 .map(Message::Power),
             self.ai_group.hover(hovered, &self.config).map(Message::Ai),
+            self.focus_time_group
+                .hover(hovered, &self.config)
+                .map(Message::FocusTime),
         ])
     }
 

@@ -17,6 +17,12 @@ use crate::desktop_shell::{
     monitor_surfaces::Position,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Opening {
+    Hover,
+    Press,
+}
+
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
@@ -27,6 +33,21 @@ pub fn hoverable<'a, M: 'a>(
         content,
         target,
         press_hints,
+        opening: Opening::Hover,
+        wrap: Box::new(wrap),
+    })
+}
+
+pub fn pressable_card<'a, M: 'a>(
+    content: Element<'a, M>,
+    target: HoverTarget,
+    wrap: impl Fn(TooltipMessage) -> M + 'a,
+) -> Element<'a, M> {
+    Element::new(HoverArea {
+        content,
+        target,
+        press_hints: PressHints::default(),
+        opening: Opening::Press,
         wrap: Box::new(wrap),
     })
 }
@@ -57,12 +78,63 @@ struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
     press_hints: PressHints,
+    opening: Opening,
     wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
 }
 
 #[derive(Default)]
 struct HoverState {
     hovered: bool,
+    opened_by_press: bool,
+}
+
+impl<M> HoverArea<'_, M> {
+    fn enter(&self, anchor: Rectangle) -> M {
+        (self.wrap)(TooltipMessage::EnterAnchor {
+            target: self.target.clone(),
+            anchor,
+            press_hints: self.press_hints,
+        })
+    }
+
+    fn exit(&self) -> M {
+        (self.wrap)(TooltipMessage::Exit {
+            target: self.target.clone(),
+        })
+    }
+
+    fn on_hover_change(
+        &self,
+        state: &mut HoverState,
+        hovered: bool,
+        anchor: Rectangle,
+    ) -> Option<M> {
+        if hovered == state.hovered {
+            return None;
+        }
+        state.hovered = hovered;
+        match self.opening {
+            Opening::Hover if hovered => Some(self.enter(anchor)),
+            Opening::Hover => Some(self.exit()),
+            Opening::Press if hovered => None,
+            Opening::Press => state.opened_by_press.then(|| {
+                state.opened_by_press = false;
+                self.exit()
+            }),
+        }
+    }
+
+    fn on_press(&self, state: &mut HoverState, anchor: Rectangle) -> Option<M> {
+        if self.opening != Opening::Press || !state.hovered {
+            return None;
+        }
+        state.opened_by_press = !state.opened_by_press;
+        Some(if state.opened_by_press {
+            self.enter(anchor)
+        } else {
+            self.exit()
+        })
+    }
 }
 
 impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
@@ -138,19 +210,14 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
         let state: &mut HoverState = tree.state.downcast_mut();
         let anchor = layout.bounds();
         let hovered = cursor.is_over(anchor);
-        if hovered != state.hovered {
-            state.hovered = hovered;
-            shell.publish((self.wrap)(if hovered {
-                TooltipMessage::EnterAnchor {
-                    target: self.target.clone(),
-                    anchor,
-                    press_hints: self.press_hints,
-                }
-            } else {
-                TooltipMessage::Exit {
-                    target: self.target.clone(),
-                }
-            }));
+        let published = match event {
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+                self.on_press(state, anchor)
+            }
+            _ => self.on_hover_change(state, hovered, anchor),
+        };
+        if let Some(message) = published {
+            shell.publish(message);
         }
     }
 

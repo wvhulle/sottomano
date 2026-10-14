@@ -72,6 +72,7 @@ use crate::{
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
         power_group::{PowerGroup, PowerMessage},
         quiet_schedule_group::{QuietScheduleGroup, QuietScheduleMessage},
+        session_menu::{self, SessionMenu, SessionMessage},
         shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
         surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage},
@@ -113,6 +114,7 @@ pub struct DesktopShell {
     pub clock_group: ClockGroup,
     pub notification_group: NotificationGroup,
     pub quiet_schedule_group: QuietScheduleGroup,
+    pub session_menu: SessionMenu,
     pub systemd_manager_group: SystemdManagerGroup,
     pub journal_events_group: JournalEventsGroup,
     pub pending_upgrades_group: PendingUpgradesGroup,
@@ -160,6 +162,7 @@ pub enum Message {
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
     QuietSchedule(QuietScheduleMessage),
+    Session(SessionMessage),
     SystemdManager(SystemdManagerMessage),
     JournalEvents(JournalEventsMessage),
     PendingUpgrades(PendingUpgradesMessage),
@@ -246,6 +249,7 @@ impl DesktopShell {
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
             quiet_schedule_group: QuietScheduleGroup::default(),
+            session_menu: SessionMenu::default(),
             systemd_manager_group: SystemdManagerGroup::default(),
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
@@ -287,6 +291,7 @@ impl DesktopShell {
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(state::launches::load(), Message::TrackerLoaded),
             FocusTimeGroup::load().map(Message::FocusTime),
+            SessionMenu::load().map(Message::Session),
             Task::perform(state::idle::load(), |t| {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
@@ -385,6 +390,7 @@ impl DesktopShell {
             Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
+            Message::Session(msg) => self.update_session(msg),
             Message::SystemdManager(msg) => self
                 .systemd_manager_group
                 .update(msg)
@@ -561,6 +567,15 @@ impl DesktopShell {
             Task::batch([task, self.resolve_icons()])
         } else {
             task
+        }
+    }
+
+    fn update_session(&mut self, msg: SessionMessage) -> Task<Message> {
+        match self.session_menu.update(msg) {
+            session_menu::Action::Run(task) => task.map(Message::Session),
+            session_menu::Action::Performed(task) => {
+                Task::batch([self.dismiss_tooltip(), task.map(Message::Session)])
+            }
         }
     }
 
