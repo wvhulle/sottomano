@@ -272,7 +272,7 @@ mod tests {
             panic!("focus span not opened");
         };
         let presence = PresenceSpan {
-            state: Presence::Idle,
+            state: Presence::ScreenOff,
             started_at: at(0),
             ended_at: at(0),
         };

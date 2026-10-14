@@ -517,6 +517,16 @@ fn current_mode(output: &niri_ipc::Output) -> Option<OutputMode> {
     })
 }
 
+pub fn version() -> Option<String> {
+    let reply = Socket::connect()
+        .and_then(|mut socket| socket.send(Request::Version))
+        .ok()?;
+    match reply {
+        Ok(Response::Version(version)) => Some(version),
+        _ => None,
+    }
+}
+
 pub fn output_info() -> HashMap<String, OutputInfo> {
     let Ok(reply) = Socket::connect().and_then(|mut socket| socket.send(Request::Outputs)) else {
         return HashMap::new();

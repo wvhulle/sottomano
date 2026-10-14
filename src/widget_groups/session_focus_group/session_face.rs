@@ -3,9 +3,14 @@ use chrono::{DateTime, Locale, TimeDelta, Utc};
 use crate::{
     data::{
         severity::Severity,
-        source::focus_ledger::{Accounting, FocusRun, FocusUnit, Interval, ScreenRun},
+        source::focus_ledger::{
+            Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
+        },
     },
-    widget_groups::{ai_group::amount_text::duration_text, session_focus_group::BreakPledge},
+    widget_groups::{
+        ai_group::amount_text::{coarse_duration_text, duration_text},
+        session_focus_group::BreakPledge,
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::TimePart,
@@ -18,6 +23,7 @@ use crate::{
 
 pub struct SessionFace<'a> {
     pub accounting: Accounting<'a>,
+    pub waking: WakingWindow,
     pub pledge: Option<BreakPledge>,
 }
 
@@ -77,8 +83,36 @@ impl SessionFace<'_> {
         .titled("Thresholds")
     }
 
-    pub fn sections(&self) -> [Section; 2] {
-        [self.now(), self.thresholds()]
+    pub fn sections(&self) -> [Section; 3] {
+        [self.now(), self.today(), self.thresholds()]
+    }
+
+    fn today(&self) -> Section {
+        let now = Utc::now();
+        let window = self.waking.around(now);
+        let breaks = self.accounting.breaks_within(window, now);
+        let longest_break = breaks.iter().copied().max_by_key(|gap| gap.length());
+        let longest_run = self.accounting.longest_run_within(window, now);
+        let entries = [
+            Some(KeyValue::new("Breaks", breaks.len().to_string())),
+            longest_break.map(|gap| KeyValue::new("Longest break", duration_text(gap.length()))),
+            longest_run.map(|run| {
+                KeyValue::new(
+                    "Longest run",
+                    format!(
+                        "{}, from {} to {}",
+                        duration_text(run.length()),
+                        run.from.with_timezone(&chrono::Local).format("%H:%M"),
+                        run.until.with_timezone(&chrono::Local).format("%H:%M")
+                    ),
+                )
+            }),
+            Some(KeyValue::new(
+                "Break after idling",
+                humantime::format_duration(self.accounting.config.idle_after).to_string(),
+            )),
+        ];
+        Section::dictionary(entries.into_iter().flatten()).titled("Today")
     }
 
     fn now(&self) -> Section {
@@ -108,6 +142,15 @@ impl SessionFace<'_> {
                 KeyValue::new("At the screen for", duration_text(now - since))
                     .level(self.severity(now))
             }),
+            self.accounting.ledger.screen_off_since().map(|since| {
+                KeyValue::new(
+                    "Screen off since",
+                    Cell::Time {
+                        at: since,
+                        part: TimePart::TimeOfDay,
+                    },
+                )
+            }),
             self.accounting
                 .last_break(now)
                 .map(|Interval { from, until }| {
@@ -135,7 +178,7 @@ impl BarWidget for SessionFace<'_> {
     }
 
     fn label(&self) -> Option<String> {
-        self.run_length(Utc::now()).map(duration_text)
+        self.run_length(Utc::now()).map(coarse_duration_text)
     }
 
     fn state(&self) -> WidgetState {
@@ -193,6 +236,13 @@ mod tests {
         "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
     }
 
+    fn all_day() -> WakingWindow {
+        WakingWindow {
+            start: chrono::NaiveTime::MIN,
+            end: chrono::NaiveTime::MIN,
+        }
+    }
+
     fn focused() -> FocusSignal {
         FocusSignal::Focused(Some(Focused {
             window: 1,
@@ -215,6 +265,7 @@ mod tests {
         let ledger = FocusLedger::default().fold(focused(), at(0)).ledger;
         let face = SessionFace {
             accounting: ledger.accounted(&config),
+            waking: all_day(),
             pledge: Some(BreakPledge { at: at(10) }),
         };
         assert_eq!(face.severity(at(12)), Severity::Normal);
@@ -235,6 +286,7 @@ mod tests {
         });
         let face = SessionFace {
             accounting: ledger.accounted(&config),
+            waking: all_day(),
             pledge: Some(BreakPledge { at: at(10) }),
         };
         assert_eq!(face.severity(at(30)), Severity::Normal);

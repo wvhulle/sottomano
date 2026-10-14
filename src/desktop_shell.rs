@@ -61,6 +61,7 @@ use crate::{
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_events_group::{JournalEventsGroup, JournalEventsMessage},
+        login_session_group::{LoginSessionGroup, LoginSessionMessage},
         media_group::{self, MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
@@ -128,6 +129,7 @@ pub struct DesktopShell {
     pub audio_group: AudioGroup,
     pub ai_group: AiGroup,
     pub session_focus_group: SessionFocusGroup,
+    pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
     pub window_group: WindowGroup,
     pub launch_tracker: LaunchTracker,
@@ -182,6 +184,7 @@ pub enum Message {
     Audio(AudioMessage),
     Ai(AiMessage),
     SessionFocus(SessionFocusMessage),
+    LoginSession(LoginSessionMessage),
     WindowGroup(WindowGroupMessage),
     TrackerLoaded(Vec<Launch>),
     DesktopEntriesLoaded(Arc<DesktopEntries>),
@@ -265,6 +268,7 @@ impl DesktopShell {
             audio_group: AudioGroup::default(),
             ai_group: AiGroup::new(secrets),
             session_focus_group: SessionFocusGroup::default(),
+            login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
@@ -291,6 +295,7 @@ impl DesktopShell {
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(state::launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load().map(Message::SessionFocus),
+            LoginSessionGroup::load().map(Message::LoginSession),
             SessionMenu::load().map(Message::Session),
             Task::perform(state::idle::load(), |t| {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
@@ -436,6 +441,10 @@ impl DesktopShell {
                 .session_focus_group
                 .update(msg)
                 .map(Message::SessionFocus),
+            Message::LoginSession(msg) => self
+                .login_session_group
+                .update(msg)
+                .map(Message::LoginSession),
             Message::DismissPressed => {
                 self.collapse_groups();
                 Task::none()
@@ -721,6 +730,7 @@ impl DesktopShell {
         self.tray_group.collapse();
         self.ai_group.collapse();
         self.session_focus_group.collapse();
+        self.login_session_group.collapse();
         self.notification_group.collapse();
         self.quiet_schedule_group.collapse();
         self.systemd_manager_group.collapse();

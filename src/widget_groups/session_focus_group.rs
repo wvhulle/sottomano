@@ -1,11 +1,13 @@
-mod account_face;
-mod breaks_today;
+mod app_usage;
 mod context_switch_rate;
 mod daily_totals_gauge;
-mod longest_run;
 mod session_face;
 
-use std::{mem::take, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    mem::take,
+    time::Duration,
+};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
@@ -16,29 +18,26 @@ use crate::{
     data::{
         notifications::model::ActionTint,
         source::{
-            Delivery,
+            Delivery, Source,
+            drm_connectors::ScreenPower,
             focus_ledger::{
                 FocusIdentity, FocusLedger, FocusSignal, Focused, Folded, LoadedSpans, WakingWindow,
             },
             idle_notify::{IdleEdge, idle_edges},
-            logind::{
-                self, SleepEdge,
-                session_facts::{self, SessionFacts, SessionIdentity},
-            },
+            logind::{self, SleepEdge},
+            niri::OutputInfo,
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::blocking,
+    message_subscriptions::{blocking, polling},
     state::focus_spans::{self, Written},
     widget_groups::session_focus_group::{
-        account_face::AccountFace, breaks_today::BreaksToday,
-        context_switch_rate::ContextSwitchRate, daily_totals_gauge::DailyTotalsGauge,
-        longest_run::LongestRun, session_face::SessionFace,
+        app_usage::AppUsage, context_switch_rate::ContextSwitchRate,
+        daily_totals_gauge::DailyTotalsGauge, session_face::SessionFace,
     },
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
         ongoing_toast::{OngoingToast, OngoingToastActionButton},
         tooltip_body::{Freshness, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -50,11 +49,8 @@ const LOADED_HISTORY: TimeDelta = TimeDelta::days(2);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionFocusTarget {
-    Account,
     Session,
     DailyTotals,
-    Breaks,
-    LongestRun,
     ContextSwitches,
 }
 
@@ -71,8 +67,6 @@ pub struct BreakPledge {
 
 #[derive(Default)]
 pub struct SessionFocusGroup {
-    account_face: AccountFace,
-    account_facts: OnHoverReading<SessionFacts>,
     ledger: FocusLedger,
     focused: Option<FocusIdentity>,
     pledge: Option<BreakPledge>,
@@ -81,12 +75,11 @@ pub struct SessionFocusGroup {
 
 #[derive(Debug, Clone)]
 pub enum SessionFocusMessage {
-    IdentityLoaded(Option<SessionIdentity>),
-    AccountFactsFetched(Box<Delivery<SessionFacts>>),
     Loaded(LoadedSpans),
     Focused(Option<Focused>),
     Idle(IdleEdge),
     Sleep(SleepEdge),
+    ScreenPower(Delivery<ScreenPower>),
     Written(Written),
     BreakPledged,
     Expansion(ExpansionMessage),
@@ -98,38 +91,20 @@ impl SessionFocusGroup {
     }
 
     pub fn load() -> Task<SessionFocusMessage> {
-        Task::batch([
-            Task::perform(
-                focus_spans::load_since(Utc::now() - LOADED_HISTORY),
-                SessionFocusMessage::Loaded,
-            ),
-            blocking("session identity", session_facts::identity)
-                .map(SessionFocusMessage::IdentityLoaded),
-        ])
+        Task::perform(
+            focus_spans::load_since(Utc::now() - LOADED_HISTORY),
+            SessionFocusMessage::Loaded,
+        )
     }
 
-    pub fn hover(
-        &mut self,
-        hovered: Option<&HoverTarget>,
-        config: &Config,
-    ) -> Task<SessionFocusMessage> {
-        self.account_facts.stop();
-        match hovered {
-            Some(HoverTarget::SessionFocus(SessionFocusTarget::Account)) => {
-                self.account_facts.poll(
-                    (),
-                    |delivery| SessionFocusMessage::AccountFactsFetched(Box::new(delivery)),
-                    config,
-                )
-            }
-            _ => Task::none(),
-        }
-    }
-
-    pub fn subscription() -> Subscription<SessionFocusMessage> {
+    pub fn subscription(
+        outputs: &HashMap<String, OutputInfo>,
+    ) -> Subscription<SessionFocusMessage> {
+        let enabled: BTreeSet<String> = outputs.keys().cloned().collect();
         Subscription::batch([
             Subscription::run(|| idle_edges(PRESENCE_RESOLUTION)).map(SessionFocusMessage::Idle),
             Subscription::run(logind::sleep_edges).map(SessionFocusMessage::Sleep),
+            polling::<ScreenPower>(enabled, None).map(SessionFocusMessage::ScreenPower),
         ])
     }
 
@@ -145,14 +120,6 @@ impl SessionFocusGroup {
 
     pub fn update(&mut self, message: SessionFocusMessage) -> Task<SessionFocusMessage> {
         match message {
-            SessionFocusMessage::IdentityLoaded(identity) => {
-                self.account_face.adopt(identity);
-                Task::none()
-            }
-            SessionFocusMessage::AccountFactsFetched(delivery) => {
-                self.account_facts.receive(*delivery);
-                Task::none()
-            }
             SessionFocusMessage::Loaded(loaded) => {
                 self.ledger = take(&mut self.ledger).with_history(loaded);
                 Task::none()
@@ -160,6 +127,13 @@ impl SessionFocusGroup {
             SessionFocusMessage::Focused(focused) => self.fold(FocusSignal::Focused(focused)),
             SessionFocusMessage::Idle(edge) => self.fold(FocusSignal::Idle(edge)),
             SessionFocusMessage::Sleep(edge) => self.fold(FocusSignal::Sleep(edge)),
+            SessionFocusMessage::ScreenPower(Delivery::Reading(Ok(power))) => {
+                self.fold(FocusSignal::Screen(power.edge()))
+            }
+            SessionFocusMessage::ScreenPower(Delivery::Reading(Err(failure))) => {
+                tracing::warn!("{}: {failure}", ScreenPower::NAME);
+                Task::none()
+            }
             SessionFocusMessage::Written(Written::OpenedFocus(opened)) => {
                 self.ledger = take(&mut self.ledger).with_focus_opened(opened);
                 Task::none()
@@ -168,7 +142,8 @@ impl SessionFocusGroup {
                 self.ledger = take(&mut self.ledger).with_presence_opened(opened);
                 Task::none()
             }
-            SessionFocusMessage::Written(Written::Extended | Written::Failed) => Task::none(),
+            SessionFocusMessage::Written(Written::Extended | Written::Failed)
+            | SessionFocusMessage::ScreenPower(Delivery::Absent) => Task::none(),
             SessionFocusMessage::BreakPledged => {
                 self.pledge = Some(BreakPledge { at: Utc::now() });
                 Task::none()
@@ -190,9 +165,10 @@ impl SessionFocusGroup {
         )
     }
 
-    fn session_face<'a>(&'a self, config: &'a Config) -> SessionFace<'a> {
+    fn session_face<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> SessionFace<'a> {
         SessionFace {
             accounting: self.ledger.accounted(&config.widget_groups.focus_time),
+            waking,
             pledge: self.pledge,
         }
     }
@@ -203,20 +179,6 @@ impl SessionFocusGroup {
         waking: WakingWindow,
     ) -> DailyTotalsGauge<'a> {
         DailyTotalsGauge {
-            accounting: self.ledger.accounted(&config.widget_groups.focus_time),
-            waking,
-        }
-    }
-
-    fn breaks_today<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> BreaksToday<'a> {
-        BreaksToday {
-            accounting: self.ledger.accounted(&config.widget_groups.focus_time),
-            waking,
-        }
-    }
-
-    fn longest_run<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> LongestRun<'a> {
-        LongestRun {
             accounting: self.ledger.accounted(&config.widget_groups.focus_time),
             waking,
         }
@@ -233,17 +195,34 @@ impl SessionFocusGroup {
         }
     }
 
+    pub fn app_usage_tooltip(
+        &self,
+        app_id: &str,
+        config: &Config,
+        waking: WakingWindow,
+    ) -> Tooltip {
+        let usage = AppUsage {
+            accounting: self.ledger.accounted(&config.widget_groups.focus_time),
+            waking,
+            app_id: app_id.to_owned(),
+        };
+        Tooltip::sourced(usage.body(), Freshness::Live)
+    }
+
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         waking: WakingWindow,
     ) -> GroupContent<'a, SessionFocusMessage> {
-        let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
-            .ongoing_toast_action_buttons([OngoingToastActionButton {
-                button_label: "Taking a break".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: SessionFocusMessage::BreakPledged,
-            }]);
+        let session = GroupItem::reading(
+            self.session_face(config, waking),
+            SessionFocusTarget::Session,
+        )
+        .ongoing_toast_action_buttons([OngoingToastActionButton {
+            button_label: "Taking a break".to_owned(),
+            tint: ActionTint::Proceed,
+            on_button_pressed: SessionFocusMessage::BreakPledged,
+        }]);
         let gauge = self.daily_totals_gauge(config, waking);
         let budget_toast = OngoingToast::from_quota_pace(
             SessionFocusTarget::DailyTotals,
@@ -252,18 +231,6 @@ impl SessionFocusGroup {
         );
         let totals =
             GroupItem::reading(gauge, SessionFocusTarget::DailyTotals).ongoing_toasts(budget_toast);
-        let account = self
-            .account_face
-            .identity()
-            .map(|_| GroupItem::reading(&self.account_face, SessionFocusTarget::Account));
-        let breaks = GroupItem::reading(
-            self.breaks_today(config, waking),
-            SessionFocusTarget::Breaks,
-        );
-        let longest = GroupItem::reading(
-            self.longest_run(config, waking),
-            SessionFocusTarget::LongestRun,
-        );
         let switches = GroupItem::reading(
             self.context_switch_rate(config, waking),
             SessionFocusTarget::ContextSwitches,
@@ -271,9 +238,7 @@ impl SessionFocusGroup {
         GroupContent::new(
             &self.expansion,
             SessionFocusMessage::Expansion,
-            account
-                .into_iter()
-                .chain([session, totals, breaks, longest, switches]),
+            [session, totals, switches],
         )
     }
 
@@ -284,14 +249,8 @@ impl SessionFocusGroup {
         waking: WakingWindow,
     ) -> Tooltip {
         let body = match target {
-            SessionFocusTarget::Account => {
-                return Tooltip::sourced(self.account_face.tooltip(), Freshness::Live)
-                    .with_sections(self.account_facts.sections(SessionFacts::sections));
-            }
-            SessionFocusTarget::Session => self.session_face(config).tooltip(),
+            SessionFocusTarget::Session => self.session_face(config, waking).tooltip(),
             SessionFocusTarget::DailyTotals => self.daily_totals_gauge(config, waking).tooltip(),
-            SessionFocusTarget::Breaks => self.breaks_today(config, waking).tooltip(),
-            SessionFocusTarget::LongestRun => self.longest_run(config, waking).tooltip(),
             SessionFocusTarget::ContextSwitches => {
                 self.context_switch_rate(config, waking).tooltip()
             }

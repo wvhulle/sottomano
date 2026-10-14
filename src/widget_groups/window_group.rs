@@ -40,6 +40,7 @@ pub enum Action {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowTarget {
     Pick(u64),
+    Usage(u64),
     Inspect(u64),
 }
 

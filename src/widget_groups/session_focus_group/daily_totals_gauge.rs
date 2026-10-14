@@ -4,11 +4,14 @@ use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::source::{
-        ai::quota::{Pace, Quota, QuotaLimited},
-        focus_ledger::{Accounting, UnitTotal, WakingWindow},
+    data::{
+        severity::Severity,
+        source::{
+            ai::quota::{Pace, Quota, QuotaLimited},
+            focus_ledger::{Accounting, UnitTotal, WakingWindow},
+        },
     },
-    widget_groups::ai_group::amount_text::duration_text,
+    widget_groups::ai_group::amount_text::{coarse_duration_text, duration_text},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
@@ -40,75 +43,94 @@ impl DailyTotalsGauge<'_> {
         }
     }
 
-    fn record(
-        quotas: &[Quota],
-        label: &str,
-        spent: TimeDelta,
-        budget: Option<TimeDelta>,
-    ) -> TableRecord<3> {
-        let quota = quotas.iter().find(|quota| quota.label == label);
-        TableRecord::new(
-            label.to_owned(),
-            [
-                Some(duration_text(spent).into()),
-                budget.map(|budget| duration_text(budget).into()),
-                Self::runs_out_cell(quota),
-            ],
-        )
-        .level(quota.map(Quota::severity).unwrap_or_default())
+    fn thresholds(&self) -> Option<Section> {
+        self.accounting.screen_budget().map(|budget| {
+            Section::dictionary([KeyValue::new("Screen budget", duration_text(budget))])
+                .titled("Thresholds")
+        })
     }
 
-    fn thresholds(&self) -> Section {
-        Section::dictionary(
-            [
-                self.accounting
-                    .screen_budget()
-                    .map(|budget| KeyValue::new("Screen budget", duration_text(budget))),
-                Some(KeyValue::new(
-                    "Waking hours",
-                    format!(
-                        "{} to {}",
-                        self.waking.start.format("%H:%M"),
-                        self.waking.end.format("%H:%M")
-                    ),
-                )),
-            ]
+    pub fn sections(&self) -> Vec<Section> {
+        [Some(self.today()), self.thresholds()]
             .into_iter()
-            .flatten(),
-        )
-        .titled("Thresholds")
+            .flatten()
+            .collect()
     }
 
-    pub fn sections(&self) -> [Section; 2] {
-        [self.today(), self.thresholds()]
-    }
-
-    fn today(&self) -> Section {
-        let now = Utc::now();
+    fn rows(&self, now: DateTime<Utc>) -> Vec<TotalRow> {
         let window = self.waking.around(now);
         let quotas = self.quotas(now);
+        let quota_of = |label: &str| quotas.iter().find(|quota| quota.label == label).cloned();
         let units = self.accounting.unit_totals(window, now).into_iter().map(
             |UnitTotal {
                  unit,
                  spent,
                  budget,
-             }| { Self::record(&quotas, &unit.label(), spent, budget) },
+             }| TotalRow {
+                quota: quota_of(&unit.label()),
+                label: unit.label().into_owned(),
+                spent,
+                budget,
+            },
         );
-        let screen = Self::record(
-            &quotas,
-            "Screen",
-            self.accounting.screen_spent(window, now),
-            self.accounting.screen_budget(),
-        );
-        Section::column_table(
-            [
-                ColumnHeading::new("Today"),
-                ColumnHeading::new("Budget"),
-                ColumnHeading::new("Runs out"),
-            ],
-            units.chain([screen]),
-        )
+        let screen = TotalRow {
+            quota: quota_of("Screen"),
+            label: "Screen".to_owned(),
+            spent: self.accounting.screen_spent(window, now),
+            budget: self.accounting.screen_budget(),
+        };
+        units.chain([screen]).collect()
+    }
+
+    fn today(&self) -> Section {
+        let rows = self.rows(Utc::now());
+        if rows.iter().any(|row| row.budget.is_some()) {
+            Section::column_table(
+                [
+                    ColumnHeading::new("Today"),
+                    ColumnHeading::new("Budget"),
+                    ColumnHeading::new("Runs out"),
+                ],
+                rows.into_iter().map(TotalRow::budgeted_record),
+            )
+        } else {
+            Section::column_table(
+                [ColumnHeading::new("Today")],
+                rows.into_iter().map(TotalRow::plain_record),
+            )
+        }
         .titled("Today")
+    }
+}
+
+struct TotalRow {
+    label: String,
+    spent: TimeDelta,
+    budget: Option<TimeDelta>,
+    quota: Option<Quota>,
+}
+
+impl TotalRow {
+    fn severity(&self) -> Severity {
+        self.quota.as_ref().map(Quota::severity).unwrap_or_default()
+    }
+
+    fn plain_record(self) -> TableRecord<1> {
+        let level = self.severity();
+        TableRecord::new(self.label, [Some(duration_text(self.spent).into())]).level(level)
+    }
+
+    fn budgeted_record(self) -> TableRecord<3> {
+        let level = self.severity();
+        TableRecord::new(
+            self.label,
+            [
+                Some(duration_text(self.spent).into()),
+                self.budget.map(|budget| duration_text(budget).into()),
+                DailyTotalsGauge::runs_out_cell(self.quota.as_ref()),
+            ],
+        )
+        .level(level)
     }
 }
 
@@ -129,12 +151,13 @@ impl BarWidget for DailyTotalsGauge<'_> {
 
     fn label(&self) -> Option<String> {
         let now = Utc::now();
-        let spent = duration_text(self.accounting.screen_spent(self.waking.around(now), now));
+        let spent =
+            coarse_duration_text(self.accounting.screen_spent(self.waking.around(now), now));
         Some(
             self.accounting
                 .screen_budget()
                 .map_or(spent.clone(), |budget| {
-                    format!("{spent} / {}", duration_text(budget))
+                    format!("{spent} / {}", coarse_duration_text(budget))
                 }),
         )
     }
