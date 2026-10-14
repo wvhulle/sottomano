@@ -8,7 +8,7 @@ use crate::{
         battery_forecast::{Estimate, RegressionState, time_until_empty},
         source::{
             Delivery,
-            power_profile::{self, Conditions, Profile},
+            power_profile::{self, Conditions, Profile, ProfileStatus},
             sysfs_sensors::battery::Battery,
         },
     },
@@ -22,7 +22,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Section, TableRecord, Tooltip, TooltipBody, WholeBody},
+        tooltip_body::{KeyValue, Section, TableRecord, Tooltip, TooltipBody},
     },
 };
 
@@ -40,7 +40,7 @@ const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {
     control: SliderControl,
-    active_profile: ContinuousReading<Profile>,
+    status: ContinuousReading<ProfileStatus>,
     conditions: Option<Conditions>,
     battery: Option<Battery>,
     profile_models: Option<HashMap<Profile, RegressionState>>,
@@ -62,7 +62,7 @@ impl Default for PowerProfileControl {
             .icon_only()
             .readout(|value| Profile::from_position(value).title().to_string())
             .glyph(|value, _| profile_face(Profile::from_position(value))),
-            active_profile: ContinuousReading::default(),
+            status: ContinuousReading::default(),
             conditions: None,
             battery: None,
             profile_models: None,
@@ -74,7 +74,7 @@ impl Default for PowerProfileControl {
 
 #[derive(Debug, Clone)]
 pub enum PowerProfileMessage {
-    ActiveProfile(Delivery<Profile>),
+    Status(Delivery<ProfileStatus>),
     Conditions(Delivery<Conditions>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
@@ -101,16 +101,16 @@ impl PowerProfileControl {
 
     pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<PowerProfileMessage> {
         Subscription::batch([
-            listening::<Profile>(()).map(PowerProfileMessage::ActiveProfile),
+            listening::<ProfileStatus>(()).map(PowerProfileMessage::Status),
             polling::<Conditions>((), forced).map(PowerProfileMessage::Conditions),
         ])
     }
 
     pub fn update(&mut self, msg: PowerProfileMessage) -> Task<PowerProfileMessage> {
         match msg {
-            PowerProfileMessage::ActiveProfile(delivery) => {
-                self.active_profile.push_or_keep(delivery);
-                if let Some(profile) = self.active_profile.get() {
+            PowerProfileMessage::Status(delivery) => {
+                self.status.push_or_keep(delivery);
+                if let Some(profile) = self.active_profile() {
                     self.control
                         .update(ControlMessage::Reading(profile.position()));
                 }
@@ -143,8 +143,12 @@ impl PowerProfileControl {
         Task::none()
     }
 
+    fn active_profile(&self) -> Option<Profile> {
+        self.status.get().map(|status| status.active)
+    }
+
     pub fn profiles_saving_more_power(&self) -> impl Iterator<Item = Profile> {
-        let active_profile = self.active_profile.get();
+        let active_profile = self.active_profile();
         Profile::ALL.into_iter().filter(move |profile| {
             active_profile.is_some_and(|active| profile.scale() < active.scale())
         })
@@ -161,7 +165,7 @@ impl PowerProfileControl {
         let measurable =
             battery.is_discharging() && battery.power > Power::new::<watt>(MIN_SAMPLE_W);
         Some(DrainSample {
-            profile: *self.active_profile.get()?,
+            profile: self.active_profile()?,
             conditions: self.conditions?,
             draw: measurable.then_some(battery.power)?,
         })
@@ -198,7 +202,7 @@ impl PowerProfileControl {
             .filter(|battery| battery.is_discharging())?;
         Some(time_until_empty(
             battery,
-            *self.active_profile.get()?,
+            self.active_profile()?,
             self.conditions?,
             self.profile_models.as_ref()?,
         ))
@@ -209,32 +213,32 @@ impl PowerProfileControl {
     }
 
     pub fn expected_draw(&self) -> Option<Power> {
-        let model = self
-            .profile_models
-            .as_ref()?
-            .get(self.active_profile.get()?)?;
+        let model = self.profile_models.as_ref()?.get(&self.active_profile()?)?;
         Some(model.expected_draw(self.conditions?)).filter(|draw| *draw > Power::default())
     }
 
     pub fn active_estimate(&self) -> Option<Estimate> {
         self.estimates
-            .get(self.active_profile.get()?)
+            .get(&self.active_profile()?)
             .copied()
             .flatten()
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {
-        if self.estimates.is_empty() {
-            return self
-                .active_profile
-                .tooltip_with(TooltipBody::Whole(WholeBody::Text {
-                    title: "Power profile".to_owned(),
-                    body: Some(
-                        "Lower profiles trade speed for less power draw, heat and fan noise."
-                            .to_owned(),
-                    ),
-                }));
-        }
+        let profile = Section::dictionary([KeyValue::new("Active", self.control.readout_text())])
+            .titled((
+                "Power profile",
+                "Lower profiles trade speed for less power draw, heat and fan noise.",
+            ));
+        let battery_life = (!self.estimates.is_empty()).then(|| self.battery_life_section());
+        self.status
+            .tooltip_with(TooltipBody::sections(
+                [Some(profile), battery_life].into_iter().flatten(),
+            ))
+            .map(|tooltip| tooltip.with_sections(self.status.sections(ProfileStatus::sections)))
+    }
+
+    fn battery_life_section(&self) -> Section {
         let active_profile = Profile::from_position(self.control.current());
         let lives = Profile::ALL.map(|profile| ProfileLife {
             profile,
@@ -244,19 +248,14 @@ impl PowerProfileControl {
                 Unforecastable::NoDrainHistory,
             ),
         });
-        let battery_life =
-            Section::column_table(ESTIMATE_HEADINGS, lives.map(|life| life.table_record())).titled(
-                (
-                    "Battery life",
-                    "Time until empty if you switch to each profile now.",
-                ),
-            );
-        self.active_profile
-            .tooltip_with(TooltipBody::sections([battery_life]))
+        Section::column_table(ESTIMATE_HEADINGS, lives.map(|life| life.table_record())).titled((
+            "Battery life",
+            "Time until empty if you switch to each profile now.",
+        ))
     }
 
     pub fn slider(&self) -> Option<&SliderControl> {
-        self.active_profile.get().map(|_| &self.control)
+        self.status.get().map(|_| &self.control)
     }
 }
 

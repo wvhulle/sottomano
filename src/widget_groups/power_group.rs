@@ -1,12 +1,12 @@
 mod battery_charge_gauge;
 mod battery_time_reading;
-mod cpu_tuning_reading;
+mod cpu_tuning_sections;
 mod estimate_columns;
 mod power_draw_gauge;
 mod power_profile_control;
+mod profile_status_sections;
 
 use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
-use cpu_tuning_reading::CpuTuningEntry;
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
@@ -46,7 +46,6 @@ pub enum PowerTarget {
     Draw,
     BatteryTime,
     Profile,
-    CpuTuning,
 }
 
 impl From<PowerTarget> for HoverTarget {
@@ -98,7 +97,7 @@ impl PowerGroup {
             Some(HoverTarget::Power(PowerTarget::Draw)) => {
                 self.charger.poll((), PowerMessage::ChargerFetched, config)
             }
-            Some(HoverTarget::Power(PowerTarget::CpuTuning)) => {
+            Some(HoverTarget::Power(PowerTarget::Profile)) => {
                 self.cpu_tuning
                     .poll((), PowerMessage::CpuTuningFetched, config)
             }
@@ -179,10 +178,9 @@ impl PowerGroup {
                 )
             }
             PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
-            PowerTarget::CpuTuning => Some(Tooltip::sections(
-                self.cpu_tuning.sections(CpuTuning::sections),
-            )),
-            PowerTarget::Profile => self.power_profile.tooltip(),
+            PowerTarget::Profile => self.power_profile.tooltip().map(|tooltip| {
+                tooltip.with_sections(self.cpu_tuning.sections(CpuTuning::sections))
+            }),
         }
     }
 
@@ -214,9 +212,6 @@ impl PowerGroup {
                         PowerMessage::PowerProfile(PowerProfileMessage::Control(control))
                     })
                 }),
-                self.power_profile
-                    .slider()
-                    .map(|_| GroupItem::reading(CpuTuningEntry, PowerTarget::CpuTuning)),
             ]
             .into_iter()
             .flatten(),

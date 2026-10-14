@@ -2,11 +2,7 @@ use iced::alignment::Horizontal;
 
 use crate::{
     data::source::sysfs_sensors::cpu_tuning::CpuTuning,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
-    },
+    widgets::tooltip_body::{Cell, ColumnHeading, Section, TableRecord},
 };
 
 const HEADINGS: [ColumnHeading; 2] = [
@@ -19,22 +15,6 @@ fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> 
         key,
         [Some(value.into()), Some(Cell::Hint(meaning.to_owned()))],
     )
-}
-
-pub struct CpuTuningEntry;
-
-impl BarWidget for CpuTuningEntry {
-    fn name(&self) -> &'static str {
-        "CPU tuning"
-    }
-
-    fn icon(&self) -> Glyph {
-        Phosphor::Circuitry(Weight::Regular).into()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([])
-    }
 }
 
 impl CpuTuning {
