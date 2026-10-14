@@ -6,7 +6,10 @@ use crate::{
         hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
-    widget_groups::workspaces_group::workspace_tooltip,
+    widget_groups::{
+        window_group::{WindowGroup, WindowTarget},
+        workspaces_group::workspace_tooltip,
+    },
     widgets::tooltip_body::Tooltip,
 };
 
@@ -20,8 +23,11 @@ impl DesktopShell {
                 anchor,
                 press_hints,
             } => {
-                let content = self.tooltip_for(&target);
-                let Some(host) = self.surfaces.get(&surface).filter(|_| !content.is_empty()) else {
+                let Some(host) = self
+                    .surfaces
+                    .get(&surface)
+                    .filter(|_| self.tooltip_for(&target).is_some())
+                else {
                     return Task::none();
                 };
                 let parent = PanelEdge {
@@ -56,7 +62,7 @@ impl DesktopShell {
         let content = self
             .tooltip
             .target()
-            .map(|target| self.tooltip_for(target))?;
+            .and_then(|target| self.tooltip_for(target))?;
         self.tooltip.departure(content)
     }
 
@@ -72,8 +78,8 @@ impl DesktopShell {
         Task::none()
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Tooltip {
-        let tooltip = match target {
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+        match target {
             HoverTarget::Compute(target) => self.compute_group.tooltip_for(*target),
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target),
             HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target),
@@ -122,10 +128,12 @@ impl DesktopShell {
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
             HoverTarget::Notification(_) => None,
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),
-            HoverTarget::Tray(address) => Some(self.tray_group.tooltip_for(address)),
-            HoverTarget::Window(window) => {
-                self.window_group
-                    .window_tooltip(&self.niri, &self.niri_snapshot, *window)
+            HoverTarget::Tray(address) => self.tray_group.tooltip_for(address),
+            HoverTarget::Window(WindowTarget::Pick(window)) => {
+                WindowGroup::pick_tooltip(&self.niri, &self.niri_snapshot, *window)
+            }
+            HoverTarget::Window(WindowTarget::Inspect(_)) => {
+                Some(self.window_group.inspect_tooltip())
             }
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
@@ -134,8 +142,7 @@ impl DesktopShell {
                 &self.font_fallbacks,
                 *workspace,
             ),
-        };
-        tooltip.unwrap_or_else(Tooltip::empty)
+        }
     }
 
     pub fn retarget_hover_readings(&mut self) -> Task<Message> {
@@ -166,6 +173,7 @@ impl DesktopShell {
     pub fn tooltip_has_polled_data(&self) -> bool {
         self.tooltip
             .target()
-            .is_some_and(|target| self.tooltip_for(target).has_polled_data())
+            .and_then(|target| self.tooltip_for(target))
+            .is_some_and(|tooltip| tooltip.has_polled_data())
     }
 }

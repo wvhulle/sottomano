@@ -82,7 +82,7 @@ use crate::{
     },
     widgets::{
         continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks,
-        widget_group::GroupEvent,
+        tooltip_body::Tooltip, widget_group::GroupEvent,
     },
 };
 
@@ -827,7 +827,7 @@ impl DesktopShell {
             &self.config,
             &self.shell_settings,
             &self.favicons,
-            |target| self.tooltip_for(target),
+            |target| self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
         ) {
             return tooltip;
         }

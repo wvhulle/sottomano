@@ -37,6 +37,18 @@ pub enum Action {
     WindowList(window_list::Action),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowTarget {
+    Pick(u64),
+    Inspect(u64),
+}
+
+impl From<WindowTarget> for HoverTarget {
+    fn from(target: WindowTarget) -> Self {
+        HoverTarget::Window(target)
+    }
+}
+
 impl WindowGroup {
     pub fn collapse(&mut self) {
         self.quick_launch.expansion.collapse();
@@ -53,7 +65,9 @@ impl WindowGroup {
         config: &Config,
     ) -> Task<WindowGroupMessage> {
         let watched = match hovered {
-            Some(HoverTarget::Window(window)) => watched(niri_state, *window),
+            Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
+                watched(niri_state, *window)
+            }
             _ => None,
         };
         self.window_list
@@ -61,17 +75,16 @@ impl WindowGroup {
             .map(WindowGroupMessage::WindowList)
     }
 
-    pub fn window_tooltip(
-        &self,
+    pub fn pick_tooltip(
         niri_state: &EventStreamState,
         snapshot: &ContinuousReading<niri::Snapshot>,
         window: u64,
     ) -> Option<Tooltip> {
-        Some(
-            snapshot
-                .tooltip_with(window_tooltip::body(niri_state, window)?)?
-                .with_sections(self.window_list.process_sections()),
-        )
+        snapshot.tooltip_with(window_tooltip::pick_body(niri_state, window)?)
+    }
+
+    pub fn inspect_tooltip(&self) -> Tooltip {
+        Tooltip::sections(self.window_list.process_sections())
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage) -> Action {

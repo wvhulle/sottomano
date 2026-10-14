@@ -15,7 +15,7 @@ use crate::{
     widgets::tooltip_body::{Cell, KeyValue, Section, TooltipBody},
 };
 
-pub fn body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBody> {
+pub fn pick_body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBody> {
     let window = niri_state.windows.windows.get(&window)?;
     let window_entries = [
         window
@@ -45,32 +45,31 @@ pub fn inspection_sections(inspected: &Inspection) -> Vec<Section> {
         .profile
         .as_deref()
         .map(|profile| KeyValue::new("Profile", profile));
-    vec![
-        Section::dictionary(
+    let packages = provenance
+        .package
+        .as_ref()
+        .map(|package| versioned("Package", package))
+        .into_iter()
+        .chain(
             provenance
-                .package
+                .runtime
                 .as_ref()
-                .map(versioned)
-                .into_iter()
-                .chain(profile),
+                .map(|runtime| versioned("Runtime", runtime)),
         )
-        .titled("Package"),
-        Section::dictionary(provenance.runtime.as_ref().map(versioned)).titled("Runtime"),
-        Section::dictionary(provenance.referenced.iter().map(versioned)).titled("Referenced"),
-        Section::dictionary(command(inspected)).titled("Command"),
-    ]
+        .chain(
+            provenance
+                .referenced
+                .iter()
+                .map(|referenced| versioned("Referenced", referenced)),
+        )
+        .chain(profile);
+    vec![Section::dictionary(packages.chain(command(inspected))).titled("Package")]
 }
 
 pub fn package_facts_sections(facts: &NixPackageFacts) -> Vec<Section> {
     let nixpkgs = facts.nixpkgs.as_ref();
     let closure = &facts.closure;
-    let identity = [
-        nixpkgs
-            .and_then(|entry| entry.description.as_deref())
-            .map(|description| KeyValue::new("", description)),
-        nixpkgs
-            .and_then(|entry| entry.license.as_deref())
-            .map(|license| KeyValue::new("License", license)),
+    let rows = [
         nixpkgs
             .and_then(|entry| entry.homepage.clone())
             .map(|homepage| KeyValue::new("Homepage", homepage_link(homepage))),
@@ -83,32 +82,30 @@ pub fn package_facts_sections(facts: &NixPackageFacts) -> Vec<Section> {
                 },
             )
         }),
-    ];
-    let store_path = [
-        KeyValue::new("Alone", closure.own_size.display().iec().to_string()),
-        KeyValue::new(
-            "Closure",
+        nixpkgs
+            .and_then(|entry| entry.license.as_deref())
+            .map(|license| KeyValue::new("License", license)),
+        Some(KeyValue::new(
+            "Closure size",
             format!(
                 "{} in {} paths",
                 closure.closure_size.display().iec(),
                 closure.path_count
             ),
-        ),
-        origin_entry(&facts.origin),
-        KeyValue::new("Added", relative(facts.registered, SystemTime::now())),
-    ];
-    let freshness = [
-        nixpkgs.map(|entry| generation_entry(&entry.generation)),
-        facts.upstream.as_ref().map(upstream_entry),
-    ];
-    vec![
-        Section::dictionary(identity.into_iter().flatten()).titled("Nixpkgs"),
-        Section::dictionary(store_path).titled((
-            "Store path",
-            "This package alone, and with every path it needs at runtime.",
         )),
-        Section::dictionary(freshness.into_iter().flatten()).titled("Freshness"),
-    ]
+        Some(KeyValue::new(
+            "Own size",
+            closure.own_size.display().iec().to_string(),
+        )),
+        Some(KeyValue::new(
+            "Added",
+            relative(facts.registered, SystemTime::now()),
+        )),
+        origin_entry(&facts.origin),
+        nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
+        facts.upstream.as_ref().and_then(upstream_entry),
+    ];
+    vec![Section::dictionary(rows.into_iter().flatten()).titled("Nix")]
 }
 
 fn homepage_link(url: String) -> Cell {
@@ -120,32 +117,34 @@ fn homepage_link(url: String) -> Cell {
     Cell::Link { label, url }
 }
 
-fn origin_entry(origin: &Origin) -> KeyValue {
+fn origin_entry(origin: &Origin) -> Option<KeyValue> {
     match origin {
-        Origin::Signed { by } => KeyValue::new("Obtained", format!("signed by {}", by.join(", "))),
-        Origin::BuiltLocally => KeyValue::new("Obtained", "built locally"),
-        Origin::Unsigned => KeyValue::new("Obtained", "unsigned"),
+        Origin::Signed { .. } => None,
+        Origin::BuiltLocally => Some(KeyValue::new("Obtained", "built locally")),
+        Origin::Unsigned => Some(KeyValue::new("Obtained", "unsigned").level(Severity::Warning)),
     }
 }
 
-fn generation_entry(generation: &Generation) -> KeyValue {
+fn generation_entry(generation: &Generation) -> Option<KeyValue> {
     match generation {
-        Generation::Current => KeyValue::new("System generation", "running"),
-        Generation::Rebuilt { version } => KeyValue::new(
-            "System generation",
-            format!("has {version}, restart to use it"),
-        )
-        .level(Severity::Warning),
+        Generation::Current => None,
+        Generation::Rebuilt { version } => Some(
+            KeyValue::new(
+                "System generation",
+                format!("has {version}, restart to use it"),
+            )
+            .level(Severity::Warning),
+        ),
     }
 }
 
-fn upstream_entry(upstream: &Upstream) -> KeyValue {
-    let branch = upstream.branch.as_str();
+fn upstream_entry(upstream: &Upstream) -> Option<KeyValue> {
     match &upstream.state {
-        UpstreamState::UpToDate => KeyValue::new(branch, "same version"),
-        UpstreamState::Newer { version } => {
-            KeyValue::new(branch, format!("has {version}")).level(Severity::Warning)
-        }
+        UpstreamState::UpToDate => None,
+        UpstreamState::Newer { version } => Some(
+            KeyValue::new(upstream.branch.as_str(), format!("has {version}"))
+                .level(Severity::Warning),
+        ),
     }
 }
 
@@ -155,12 +154,12 @@ fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
     process::monotonic()?.checked_sub(stamp)
 }
 
-fn versioned(package: &StorePackage) -> KeyValue {
+fn versioned(key: &'static str, package: &StorePackage) -> KeyValue {
     let named = match &package.version {
         Some(version) => format!("{} {version}", package.name),
         None => package.name.clone(),
     };
-    KeyValue::new("", named)
+    KeyValue::new(key, named)
 }
 
 fn command(inspected: &Inspection) -> Vec<KeyValue> {
