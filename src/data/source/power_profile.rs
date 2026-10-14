@@ -1,13 +1,16 @@
-use std::{convert::Infallible, time::Duration};
+use std::time::Duration;
 
-use iced::futures::{Stream, StreamExt};
+use iced::futures::{Stream, StreamExt, stream};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    data::source::{
-        Delivery, LiveSource, PolledSource, Source, blocking_poll,
-        bus::{Bus, name_owned},
-        delivered, present_or_absent, sysfs_sensors, ticked_polls,
+    data::{
+        empty_text::non_empty,
+        source::{
+            Delivery, LiveSource, PolledSource, Source, blocking_poll,
+            bus::{self, Bus, DeclaredProperties, Properties, name_owned, prop},
+            delivered, present_or_absent, sysfs_sensors, ticked_polls,
+        },
     },
     message_subscriptions::restarting,
 };
@@ -85,6 +88,10 @@ trait PowerProfiles {
     fn active_profile(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn set_active_profile(&self, value: &str) -> zbus::Result<()>;
+    #[zbus(property)]
+    fn active_profile_holds(&self) -> zbus::Result<Vec<Properties>>;
+    #[zbus(property)]
+    fn performance_degraded(&self) -> zbus::Result<String>;
 }
 
 fn daemon() -> Option<PowerProfilesProxyBlocking<'static>> {
@@ -138,26 +145,83 @@ impl PolledSource for Conditions {
     }
 }
 
-impl Source for Profile {
-    type Error = Infallible;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileHold {
+    pub application_id: String,
+    pub profile: Profile,
+    pub reason: String,
+}
+
+impl ProfileHold {
+    fn from_properties(properties: &Properties) -> Option<Self> {
+        Some(ProfileHold {
+            application_id: properties.text("ApplicationId")?,
+            profile: Profile::from_name(&properties.text("Profile")?)?,
+            reason: prop(properties, "Reason")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileStatus {
+    pub active: Profile,
+    pub holds: Vec<ProfileHold>,
+    pub degraded: Option<String>,
+}
+
+impl Source for ProfileStatus {
+    type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "power profile";
 }
 
-impl LiveSource for Profile {
+impl LiveSource for ProfileStatus {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), || {
-            delivered(restarting("power profiles", active_profile_changes).map(Ok)).boxed()
+            delivered(restarting("power profiles", status_changes)).boxed()
         })
     }
 }
 
-async fn active_profile_changes() -> zbus::Result<impl Stream<Item = Profile>> {
+async fn status_changes() -> zbus::Result<impl Stream<Item = Result<ProfileStatus, bus::Error>>> {
     let connection = zbus::Connection::system().await?;
     let daemon = PowerProfilesProxy::new(&connection).await?;
-    Ok(daemon
-        .receive_active_profile_changed()
-        .await
-        .filter_map(|change| async move { Profile::from_name(&change.get().await.ok()?) }))
+    let changes = stream::select_all([
+        daemon
+            .receive_active_profile_changed()
+            .await
+            .map(|_| ())
+            .boxed(),
+        daemon
+            .receive_active_profile_holds_changed()
+            .await
+            .map(|_| ())
+            .boxed(),
+        daemon
+            .receive_performance_degraded_changed()
+            .await
+            .map(|_| ())
+            .boxed(),
+    ]);
+    Ok(stream::once(async {}).chain(changes).then(move |()| {
+        let daemon = daemon.clone();
+        async move { read_status(&daemon).await }
+    }))
+}
+
+async fn read_status(daemon: &PowerProfilesProxy<'_>) -> Result<ProfileStatus, bus::Error> {
+    let active = bus::call(daemon.active_profile().await)?;
+    let active = Profile::from_name(&active)
+        .ok_or_else(|| bus::Error::Call(format!("unknown power profile {active:?}")))?;
+    let holds = bus::call(daemon.active_profile_holds().await)?;
+    let degraded = bus::call(daemon.performance_degraded().await)?;
+    Ok(ProfileStatus {
+        active,
+        holds: holds
+            .iter()
+            .filter_map(ProfileHold::from_properties)
+            .collect(),
+        degraded: non_empty(degraded),
+    })
 }
