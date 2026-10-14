@@ -13,19 +13,19 @@ cast_sign_loss = "allow"
 needless_for_each = "allow"
 
 [dependencies]
-chrono = { version = "0.4", default-features = false, features = [
+chrono = { version = "0.4.45", default-features = false, features = [
   "clock",
   "serde",
   "std",
   "unstable-locales",
 ] }
-clap = { version = "4.5", features = ["derive"] }
-form_urlencoded = "1.2"
+clap = { version = "4.6.7", features = ["derive"] }
+form_urlencoded = "1.2.2"
 color = { version = "0.3.3", features = ["serde"] }
-freedesktop-desktop-entry = "0.8.1"
+freedesktop-desktop-entry = "0.8.3"
 freedesktop-icons = "0.4.0"
-freedesktop-sound = "0.1"
-humantime = "2.3"
+freedesktop-sound = "0.1.0"
+humantime = "2.4.0"
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",
@@ -41,37 +41,37 @@ iced = { version = "0.14.0", default-features = false, features = [
   "svg",
   "canvas",
 ] }
-icu_locale_core = "2.2"
-sys-locale = "0.3"
+icu_locale_core = "2.3.0"
+sys-locale = "0.3.2"
 iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
-wayland-client = "0.31"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-image = { version = "0.25", default-features = false, features = [
+wayland-client = "0.31.15"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+image = { version = "0.25.10", default-features = false, features = [
   "png",
   "jpeg",
   "webp",
   "ico",
   "gif",
 ] }
-libc = "0.2.176"
+libc = "0.2.190"
 niri-ipc = "26.4.0"
-procfs = { version = "0.18", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls-native-roots",
+procfs = { version = "0.18.0", default-features = false }
+reqwest = { version = "0.13.5", default-features = false, features = [
+  "rustls",
 ] }
-rusqlite = { version = "0.32", features = ["bundled"] }
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1"
-sha2 = "0.10"
-simpleicons-rs = "16.27"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+simpleicons-rs = "16.35.0"
 situo-client = { git = "https://codeberg.org/wvhulle/situo", branch = "main" }
-sunrise = "3"
-systemd = "0.10"
-system-tray = "0.8"
-ttf-parser = "0.25"
-tokio = { version = "1.53.0", features = [
+sunrise = "3.0.0"
+systemd = "0.10.1"
+system-tray = "0.8.9"
+ttf-parser = "0.25.1"
+tokio = { version = "1.53.3", features = [
   "fs",
   "process",
   "rt-multi-thread",
@@ -79,23 +79,23 @@ tokio = { version = "1.53.0", features = [
   "time",
   "sync",
 ] }
-tokio-stream = { version = "0.1", default-features = false, features = [
+tokio-stream = { version = "0.1.19", default-features = false, features = [
   "sync",
   "time",
 ] }
-toml = "1.1"
-quick-xml = "0.41"
-turso = "0.8.0-pre.1"
-usvg = "0.45"
-wayrs-client = { version = "1", features = ["tokio"] }
-wayrs-protocols = { version = "0.14", features = ["ext-idle-notify-v1"] }
-zbus = { version = "5.18", default-features = false, features = [
+toml = "1.1.8"
+quick-xml = "0.42"
+turso = "0.8.3"
+usvg = "0.48.1"
+wayrs-client = { version = "1.3.1", features = ["tokio"] }
+wayrs-protocols = { version = "0.14.11", features = ["ext-idle-notify-v1"] }
+zbus = { version = "5.19.0", default-features = false, features = [
   "tokio",
   "blocking-api",
 ] }
-adskalman = "0.17.0"
-nalgebra = "0.34"
-pipewire = "0.8"
+adskalman = "0.18.0"
+nalgebra = "0.35"
+pipewire = "0.10.1"
 bytesize = "2.7.0"
 inotify = "0.11.5"
 uom = { version = "0.38.0", default-features = false, features = [

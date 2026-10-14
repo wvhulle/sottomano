@@ -6,7 +6,7 @@ use std::{
 };
 
 use pipewire::{
-    core::Core,
+    core::CoreRc,
     keys,
     properties::properties,
     spa::{
@@ -21,7 +21,7 @@ use pipewire::{
         },
         utils::{Direction as Flow, SpaTypes},
     },
-    stream::{Stream, StreamFlags, StreamListener, StreamRef, StreamState},
+    stream::{Stream, StreamFlags, StreamListener, StreamRc, StreamState},
 };
 use tokio::sync::watch;
 
@@ -85,11 +85,11 @@ impl From<pipewire::Error> for MeterError {
 }
 
 pub struct Meter {
-    _stream: Stream,
+    _stream: StreamRc,
     _listener: StreamListener<Capture>,
 }
 
-pub fn attach(core: &Core, peaks: &watch::Sender<Peaks>) -> Vec<Meter> {
+pub fn attach(core: &CoreRc, peaks: &watch::Sender<Peaks>) -> Vec<Meter> {
     [Direction::Output, Direction::Input]
         .into_iter()
         .filter_map(|direction| {
@@ -167,7 +167,7 @@ impl Capture {
 }
 
 fn capture(
-    core: &Core,
+    core: &CoreRc,
     direction: Direction,
     peaks: &watch::Sender<Peaks>,
 ) -> Result<Meter, MeterError> {
@@ -180,7 +180,7 @@ fn capture(
         props.insert(*keys::STREAM_CAPTURE_SINK, "true");
     }
 
-    let stream = Stream::new(core, stream_name(direction), props)?;
+    let stream = StreamRc::new(core.clone(), stream_name(direction), props)?;
     let listener = stream
         .add_local_listener_with_user_data(Capture::new(direction, peaks.clone()))
         .state_changed(|_, capture, _, state| {
@@ -210,7 +210,7 @@ fn capture(
     })
 }
 
-fn quantum_peak(stream: &StreamRef) -> Option<f32> {
+fn quantum_peak(stream: &Stream) -> Option<f32> {
     let mut buffer = stream.dequeue_buffer()?;
     Some(buffer.datas_mut().first_mut().map_or(0.0, sample_peak))
 }
