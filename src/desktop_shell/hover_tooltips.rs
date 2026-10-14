@@ -25,7 +25,7 @@ use crate::{
         pending_upgrades_group::PendingUpgradesTarget, power_group::PowerTarget,
         quiet_schedule_group::QuietScheduleTarget, shell_layout_group::ShellLayoutTarget,
         surface_effects_group::SurfaceEffectsTarget, systemd_manager_group::SystemdTarget,
-        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget,
+        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget, window_group::WindowTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -60,7 +60,7 @@ pub enum HoverTarget {
     Notification(NotificationTarget),
     QuietSchedule(QuietScheduleTarget),
     Tray(String),
-    Window(u64),
+    Window(WindowTarget),
     Workspace(u64),
 }
 

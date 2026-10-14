@@ -23,10 +23,10 @@ use crate::{
         window_agents::{self, WindowProcesses},
     },
     desktop_shell::{
-        hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
+        hover_tooltips::{PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
-    widget_groups::window_group::{process_tree::Folding, window_tooltip},
+    widget_groups::window_group::{WindowTarget, process_tree::Folding, window_tooltip},
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
@@ -291,22 +291,7 @@ fn window_button<'a>(
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
     let rule = win.app_rule();
-    let content = button_content(config, icons, rule, win, extras, opacity);
-    let indicator = indicator_line(config, win, extras, opacity);
-    let slot = PagerSlot::new(content, indicator).spaced_by(config.layout.panel.group_spacing);
-    let slot = match progress_ticks(config, extras, opacity) {
-        Some(ticks) => slot.ticks(ticks),
-        None => slot,
-    };
     let maximize_toggles = win.is_focused && !win.layout.is_floating;
-    let pressable = button(slot.view(config, position))
-        .padding(0)
-        .style(flat_button(config.theme.palette.bar_foreground))
-        .on_press(if maximize_toggles {
-            WindowListMessage::MaximizeToggled
-        } else {
-            WindowListMessage::Clicked(win.id)
-        });
     let audio_pid = win.pid.filter(|_| extras.audio.is_some());
     let press_hints = PressHints {
         left: Some(if maximize_toggles {
@@ -317,18 +302,52 @@ fn window_button<'a>(
         middle: audio_pid.map(|_| "mute or unmute its audio"),
         ..PressHints::default()
     };
-    let hover = hoverable(
-        pressable.into(),
-        HoverTarget::Window(win.id),
+    let picking = hoverable(
+        button_content(config, icons, rule, win, extras, opacity),
+        WindowTarget::Pick(win.id).into(),
         press_hints,
         WindowListMessage::Tooltip,
     );
-    let Some(pid) = audio_pid else {
-        return hover;
+    let inspecting = win.is_focused.then(|| {
+        hoverable(
+            inspect_glyph(config, opacity),
+            WindowTarget::Inspect(win.id).into(),
+            press_hints,
+            WindowListMessage::Tooltip,
+        )
+    });
+    let content = Row::new()
+        .push(picking)
+        .extend(inspecting)
+        .spacing(config.layout.panel.widget_spacing)
+        .align_y(Alignment::Center);
+    let indicator = indicator_line(config, win, extras, opacity);
+    let slot =
+        PagerSlot::new(content.into(), indicator).spaced_by(config.layout.panel.group_spacing);
+    let slot = match progress_ticks(config, extras, opacity) {
+        Some(ticks) => slot.ticks(ticks),
+        None => slot,
     };
-    mouse_area(hover)
+    let pressable = button(slot.view(config, position))
+        .padding(0)
+        .style(flat_button(config.theme.palette.bar_foreground))
+        .on_press(if maximize_toggles {
+            WindowListMessage::MaximizeToggled
+        } else {
+            WindowListMessage::Clicked(win.id)
+        });
+    let Some(pid) = audio_pid else {
+        return pressable.into();
+    };
+    mouse_area(pressable)
         .on_middle_press(WindowListMessage::ToggleAudio(pid))
         .into()
+}
+
+fn inspect_glyph<'a>(config: &Config, opacity: f32) -> Element<'a, WindowListMessage> {
+    let state = WidgetState::Off;
+    let color = state.color(&config.theme.palette).scale_alpha(opacity);
+    Glyph::from(Phosphor::Package(state.weight())).view(config.theme.font.icon_size_px, color)
 }
 
 fn button_content<'a>(

@@ -120,14 +120,13 @@ impl TrayGroup {
         }
     }
 
-    pub fn tooltip_for(&self, address: &str) -> Tooltip {
+    pub fn tooltip_for(&self, address: &str) -> Option<Tooltip> {
         self.items
             .get()
             .into_iter()
             .flatten()
             .find(|item| item.address == address)
             .and_then(|item| self.items.tooltip_with(self.item_tooltip(item)))
-            .unwrap_or_else(Tooltip::empty)
     }
 
     fn item_tooltip(&self, item: &TrayItem) -> TooltipBody {
