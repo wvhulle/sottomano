@@ -1,10 +1,11 @@
 mod account_face;
 mod compositor_face;
 mod console_face;
+mod desktop_services_face;
 mod login_face;
 mod power_policy_face;
 mod seat_face;
-mod user_services_face;
+mod service_manager_face;
 
 use iced::Task;
 
@@ -13,21 +14,26 @@ use crate::{
     data::source::{
         Delivery,
         logind::session_facts::{self, PowerPolicy, SessionIdentity, SessionInfo},
-        systemd_manager::graphical_session::{GraphicalSession, GraphicalSessionTarget},
+        systemd_manager::{
+            graphical_session::{GraphicalSession, GraphicalSessionTarget},
+            user_service_manager::UserServiceManager,
+        },
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace, console_face::ConsoleFace,
-        login_face::LoginFace, power_policy_face::PowerPolicyFace, seat_face::SeatFace,
-        user_services_face::UserServicesFace,
+        desktop_services_face::DesktopServicesFace, login_face::LoginFace,
+        power_policy_face::PowerPolicyFace, seat_face::SeatFace,
+        service_manager_face::ServiceManagerFace,
     },
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Freshness, Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -37,8 +43,9 @@ pub enum LoginSessionTarget {
     Console,
     Login,
     Account,
+    ServiceManager,
     Compositor,
-    UserServices,
+    DesktopServices,
     PowerPolicy,
 }
 
@@ -52,6 +59,7 @@ impl From<LoginSessionTarget> for HoverTarget {
 pub struct LoginSessionGroup {
     identity: Option<SessionIdentity>,
     session: OnHoverReading<SessionInfo>,
+    service_manager: OnHoverReading<UserServiceManager>,
     graphical: OnHoverReading<GraphicalSession>,
     graphical_target: OnHoverReading<GraphicalSessionTarget>,
     power: OnHoverReading<PowerPolicy>,
@@ -62,6 +70,7 @@ pub struct LoginSessionGroup {
 pub enum LoginSessionMessage {
     IdentityLoaded(Option<SessionIdentity>),
     SessionFetched(Box<Delivery<SessionInfo>>),
+    ServiceManagerFetched(Delivery<UserServiceManager>),
     GraphicalFetched(Delivery<GraphicalSession>),
     GraphicalTargetFetched(Delivery<GraphicalSessionTarget>),
     PowerFetched(Box<Delivery<PowerPolicy>>),
@@ -84,6 +93,7 @@ impl LoginSessionGroup {
         config: &Config,
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
+        self.service_manager.stop();
         self.graphical.stop();
         self.graphical_target.stop();
         self.power.stop();
@@ -93,11 +103,14 @@ impl LoginSessionGroup {
                 |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
                 config,
             ),
+            Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => self
+                .service_manager
+                .poll((), LoginSessionMessage::ServiceManagerFetched, config),
             Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => {
                 self.graphical
                     .poll((), LoginSessionMessage::GraphicalFetched, config)
             }
-            Some(HoverTarget::LoginSession(LoginSessionTarget::UserServices)) => self
+            Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => self
                 .graphical_target
                 .poll((), LoginSessionMessage::GraphicalTargetFetched, config),
             Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => self.power.poll(
@@ -113,6 +126,9 @@ impl LoginSessionGroup {
         match message {
             LoginSessionMessage::IdentityLoaded(identity) => self.identity = identity,
             LoginSessionMessage::SessionFetched(delivery) => self.session.receive(*delivery),
+            LoginSessionMessage::ServiceManagerFetched(delivery) => {
+                self.service_manager.receive(delivery);
+            }
             LoginSessionMessage::GraphicalFetched(delivery) => self.graphical.receive(delivery),
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
                 self.graphical_target.receive(delivery);
@@ -143,12 +159,15 @@ impl LoginSessionGroup {
             seat.into_iter().chain(console).chain([
                 GroupItem::reading(LoginFace { identity }, LoginSessionTarget::Login),
                 GroupItem::reading(AccountFace { identity }, LoginSessionTarget::Account),
+                GroupItem::reading(ServiceManagerFace, LoginSessionTarget::ServiceManager),
                 GroupItem::reading(CompositorFace { identity }, LoginSessionTarget::Compositor),
-                GroupItem::reading(UserServicesFace, LoginSessionTarget::UserServices),
+                GroupItem::reading(DesktopServicesFace, LoginSessionTarget::DesktopServices),
                 GroupItem::reading(PowerPolicyFace, LoginSessionTarget::PowerPolicy),
             ])
         });
-        GroupContent::new(&self.expansion, LoginSessionMessage::Expansion, items)
+        GroupContent::new(&self.expansion, LoginSessionMessage::Expansion, items).face(
+            HandleFace::Icon(Phosphor::StackSimple(Weight::Regular).into()),
+        )
     }
 
     pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {
@@ -167,7 +186,9 @@ impl LoginSessionGroup {
             LoginSessionTarget::Account => sourced(&AccountFace { identity }),
             LoginSessionTarget::Compositor => sourced(&CompositorFace { identity })
                 .with_sections(self.graphical.sections(GraphicalSession::sections)),
-            LoginSessionTarget::UserServices => sourced(&UserServicesFace).with_sections(
+            LoginSessionTarget::ServiceManager => sourced(&ServiceManagerFace)
+                .with_sections(self.service_manager.sections(UserServiceManager::sections)),
+            LoginSessionTarget::DesktopServices => sourced(&DesktopServicesFace).with_sections(
                 self.graphical_target
                     .sections(GraphicalSessionTarget::sections),
             ),

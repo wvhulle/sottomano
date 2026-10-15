@@ -31,7 +31,7 @@ impl BarWidget for AccountFace<'_> {
             KeyValue::new("Host", self.identity.host.clone()),
         ])
         .titled((
-            "Account",
+            "Account this session runs as",
             "The user this session runs as; everything above runs with its permissions.",
         ))])
     }

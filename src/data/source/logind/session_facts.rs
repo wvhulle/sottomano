@@ -319,7 +319,7 @@ impl SessionInfo {
     pub fn sections(&self) -> Vec<Section> {
         vec![
             Section::dictionary(entry("Greeter", self.greeter.clone())).titled((
-                "Login screen",
+                "Login screen shown before this session",
                 "Drew the password prompt in its own short session, closed once you logged in.",
             )),
             Section::dictionary(
@@ -347,7 +347,7 @@ impl SessionInfo {
                 .flatten(),
             )
             .titled((
-                "Login session",
+                "Login session tracked by logind",
                 "logind tracks this login and every process started from it.",
             )),
             Section::dictionary(
@@ -360,7 +360,7 @@ impl SessionInfo {
                 .flatten(),
             )
             .titled((
-                "Processes",
+                "Processes belonging to this login",
                 "Everything launched in this login lives in one systemd scope.",
             )),
         ]
@@ -427,7 +427,7 @@ impl PowerPolicy {
                 .chain(sleep_tries),
             )
             .titled((
-                "Keys and lid",
+                "What the keys and lid trigger",
                 "What logind does when these are pressed or closed.",
             )),
             Section::dictionary(
@@ -447,15 +447,15 @@ impl PowerPolicy {
                 .flatten(),
             )
             .titled((
-                "Machine state",
+                "Current state of the machine",
                 "Conditions that change which of these actions applies.",
             )),
             Section::column_table(lock_headings, locks_in_mode(InhibitMode::Delay)).titled((
-                "Holding off briefly",
+                "Apps briefly holding off sleep or shutdown",
                 "Each gets a few seconds to clean up first; the action still happens.",
             )),
             Section::column_table(lock_headings, locks_in_mode(InhibitMode::Block)).titled((
-                "Taken over from logind",
+                "Apps that took over from logind",
                 "logind skips its own action; the app handles or prevents it.",
             )),
         ]

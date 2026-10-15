@@ -32,6 +32,9 @@ impl BarWidget for SeatFace<'_> {
                 },
             ),
         ])
-        .titled(("Seat", "The screen, keyboard and mouse this login owns."))])
+        .titled((
+            "Hardware seat in use",
+            "The screen, keyboard and mouse this login owns.",
+        ))])
     }
 }

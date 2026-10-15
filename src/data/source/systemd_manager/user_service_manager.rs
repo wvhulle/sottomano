@@ -6,7 +6,7 @@ use crate::{
     data::source::{
         PolledSource, Source,
         bus::{self, call},
-        hostname::{at_micros, entry},
+        hostname::at_micros,
         systemd_manager::ManagerProxy,
     },
     widgets::{
@@ -66,7 +66,7 @@ impl UserServiceManager {
                 .flatten(),
             )
             .titled((
-                "Your systemd",
+                "Your systemd instance right now",
                 "One instance per user; it outlives this login and stops at your last logout.",
             )),
         ]
