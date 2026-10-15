@@ -167,6 +167,25 @@ pub enum SectionBody {
         root: Process,
         folding: Folding,
     },
+    CoreGrid(Vec<ChipletCells>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChipletCells {
+    pub title: String,
+    pub facts: Vec<KeyValue>,
+    pub cores: Vec<PhysicalCoreCells>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PhysicalCoreCells {
+    pub threads: Vec<ThreadCell>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ThreadCell {
+    pub fill: Ratio,
+    pub level: Severity,
 }
 
 impl SectionBody {
@@ -185,6 +204,7 @@ impl SectionBody {
             SectionBody::Dictionary(entries) => entries.is_empty(),
             SectionBody::ColumnTable { records, .. } => records.is_empty(),
             SectionBody::Tree { .. } => false,
+            SectionBody::CoreGrid(chiplets) => chiplets.is_empty(),
         }
     }
 }
@@ -282,6 +302,10 @@ impl Section {
         records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
     ) -> Self {
         Self::untitled(SectionBody::column_table(headings, records))
+    }
+
+    pub fn core_grid(chiplets: impl IntoIterator<Item = ChipletCells>) -> Self {
+        Self::untitled(SectionBody::CoreGrid(chiplets.into_iter().collect()))
     }
 
     pub fn tree(root: Option<&Process>, folding: &Folding) -> Self {

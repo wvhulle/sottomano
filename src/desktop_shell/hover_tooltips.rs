@@ -1,3 +1,4 @@
+pub mod core_grid;
 pub mod hover_area;
 pub mod tooltip_content;
 pub mod tooltip_surfaces;

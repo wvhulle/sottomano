@@ -21,7 +21,10 @@ use iced::{
 
 use crate::{
     config::{Config, theme::font::ResolvedFont},
-    desktop_shell::{Message, hover_tooltips::GestureHint},
+    desktop_shell::{
+        Message,
+        hover_tooltips::{GestureHint, core_grid::CoreCellGrid},
+    },
     state::idle::ScheduledAfterIdle,
     widget_groups::{
         session_menu::SessionMessage,
@@ -38,9 +41,9 @@ use crate::{
         refresh_dial::RefreshDial,
         text::{bar_text, column_heading},
         tooltip_body::{
-            Cell, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells, Section, SectionBody,
-            SessionMenuBody, SessionMenuEntry, SourcedBody, SourcedSection, Tooltip, TrayMenuBody,
-            WholeBody,
+            Cell, ChipletCells, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells,
+            Section, SectionBody, SessionMenuBody, SessionMenuEntry, SourcedBody, SourcedSection,
+            Tooltip, TrayMenuBody, WholeBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -402,6 +405,7 @@ impl<'a> TooltipContent<'a> {
         match body {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
             SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
+            SectionBody::CoreGrid(chiplets) => self.core_grid(chiplets),
             SectionBody::Tree { root, folding } => {
                 ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
             }
@@ -435,6 +439,30 @@ impl<'a> TooltipContent<'a> {
         .align_y(Vertical::Top);
 
         self.keyed_table(entries, KeyValue::key, once(value_column))
+    }
+
+    fn core_grid(&self, chiplets: &[ChipletCells]) -> Element<'static, Message> {
+        let spacing = self.config.layout.overlay.row_spacing;
+        Column::with_children(chiplets.iter().map(|chiplet| {
+            let cells = container(CoreCellGrid::new(&chiplet.cores, self.config).view())
+                .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0));
+            Column::with_children([
+                container(
+                    bar_text(&self.config.theme.font, chiplet.title.clone())
+                        .color(self.foreground()),
+                )
+                .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0))
+                .into(),
+                row![cells, self.dictionary(&chiplet.facts)]
+                    .spacing(COLUMN_GAP_PX)
+                    .align_y(Vertical::Center)
+                    .into(),
+            ])
+            .spacing(spacing / 2.0)
+            .into()
+        }))
+        .spacing(spacing)
+        .into()
     }
 
     fn column_table(
