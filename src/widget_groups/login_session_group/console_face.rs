@@ -45,7 +45,7 @@ impl BarWidget for ConsoleFace<'_> {
             .flatten(),
         )
         .titled((
-            "Console",
+            "Virtual console this login started on",
             "The text terminal this login started on; the compositor took it over.",
         ))])
     }

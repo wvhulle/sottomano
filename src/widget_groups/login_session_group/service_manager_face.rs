@@ -4,11 +4,11 @@ use crate::widgets::{
     tooltip_body::{Cell, KeyValue, Section, TooltipBody},
 };
 
-pub struct UserServicesFace;
+pub struct ServiceManagerFace;
 
-impl BarWidget for UserServicesFace {
+impl BarWidget for ServiceManagerFace {
     fn name(&self) -> &'static str {
-        "User services"
+        "Service manager"
     }
 
     fn icon(&self) -> Glyph {
@@ -17,7 +17,7 @@ impl BarWidget for UserServicesFace {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
-            KeyValue::new("Session manager", "systemd --user"),
+            KeyValue::new("Service manager", "systemd --user"),
             KeyValue::new(
                 "Wiki",
                 Cell::Link {
@@ -27,9 +27,8 @@ impl BarWidget for UserServicesFace {
             ),
         ])
         .titled((
-            "User services",
-            "Per-user services such as the panel and notifications, started once the compositor \
-             is up.",
+            "Per-user service manager",
+            "Starts and supervises your services, the compositor included.",
         ))])
     }
 }

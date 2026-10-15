@@ -27,7 +27,7 @@ impl BarWidget for PowerPolicyFace {
             ),
         ])
         .titled((
-            "Power policy",
+            "Machine-wide power policy",
             "What the power key, lid and idle timeout do, for every login on this machine.",
         ))])
     }

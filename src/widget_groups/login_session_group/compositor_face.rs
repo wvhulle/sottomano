@@ -36,7 +36,7 @@ impl BarWidget for CompositorFace<'_> {
             ),
         ])
         .titled((
-            "Display",
+            "Compositor drawing the desktop",
             "The compositor draws every window and routes input; apps connect to it.",
         ))])
     }

@@ -117,7 +117,7 @@ impl GraphicalSession {
                 .flatten(),
             )
             .titled((
-                "Compositor",
+                "Where apps connect to it",
                 "Apps find the compositor through these sockets.",
             )),
         ]
@@ -127,9 +127,9 @@ impl GraphicalSession {
 impl GraphicalSessionTarget {
     pub fn sections(&self) -> Vec<Section> {
         let entries = match self {
-            Self::NotLoaded => vec![KeyValue::new("Desktop services", "not loaded")],
+            Self::NotLoaded => vec![KeyValue::new("State", "not loaded")],
             Self::Loaded { state, reached_at } => [
-                Some(KeyValue::new("Desktop services", state.clone())),
+                Some(KeyValue::new("State", state.clone())),
                 reached_at.map(|at| {
                     KeyValue::new(
                         "Ready since",
@@ -145,7 +145,7 @@ impl GraphicalSessionTarget {
             .collect(),
         };
         vec![Section::dictionary(entries).titled((
-            "Startup",
+            "Desktop startup progress",
             "graphical-session.target is reached once the compositor is ready for services.",
         ))]
     }

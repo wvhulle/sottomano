@@ -45,7 +45,7 @@ impl BarWidget for LoginFace<'_> {
             .flatten(),
         )
         .titled((
-            "Login",
+            "Login manager that let you in",
             "The login manager that checked your password and started this session.",
         ))])
     }
