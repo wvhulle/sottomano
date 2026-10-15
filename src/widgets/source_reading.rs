@@ -16,10 +16,10 @@ use crate::{
 
 pub fn source_reading<'a, Message: 'a>(
     config: &Config,
-    widget: Option<&dyn BarWidget>,
+    widget: &dyn BarWidget,
     opacity: f32,
-) -> Option<Element<'a, Message>> {
-    Some(composed_reading(config, widget?, opacity, reading_value))
+) -> Element<'a, Message> {
+    composed_reading(config, widget, opacity, reading_value)
 }
 
 pub fn labeled_reading<'a, Message: 'a>(

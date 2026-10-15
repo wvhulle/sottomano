@@ -72,30 +72,27 @@ pub struct SliderControl {
     label: Option<fn(f32) -> Option<String>>,
     icon: Glyph,
     glyph: Option<fn(f32, bool) -> Phosphor>,
-    thresholds: SeverityThresholds,
+    thresholds: Option<SeverityThresholds>,
     target: HoverTarget,
     right_click: Option<&'static str>,
     relative_scroll: bool,
     level_announcement: Option<LevelAnnouncement>,
 }
 
-#[derive(Default)]
 struct SeverityThresholds {
-    warn: Option<f32>,
-    urgent: Option<f32>,
+    warn: f32,
+    urgent: f32,
     higher_worse: bool,
 }
 
 impl SeverityThresholds {
     fn level(&self, value: f32) -> Severity {
-        let hit = |t: Option<f32>| {
-            t.is_some_and(|t| {
-                if self.higher_worse {
-                    value >= t
-                } else {
-                    value <= t
-                }
-            })
+        let hit = |t: f32| {
+            if self.higher_worse {
+                value >= t
+            } else {
+                value <= t
+            }
         };
         if hit(self.urgent) {
             Severity::Critical
@@ -164,7 +161,7 @@ impl SliderControl {
             label: None,
             icon: icon.into(),
             glyph: None,
-            thresholds: SeverityThresholds::default(),
+            thresholds: None,
             target: target.into(),
             right_click: None,
             relative_scroll: false,
@@ -217,11 +214,11 @@ impl SliderControl {
 
     #[must_use]
     pub fn thresholds(mut self, warn: f32, urgent: f32, higher_worse: bool) -> Self {
-        self.thresholds = SeverityThresholds {
-            warn: Some(warn),
-            urgent: Some(urgent),
+        self.thresholds = Some(SeverityThresholds {
+            warn,
+            urgent,
             higher_worse,
-        };
+        });
         self
     }
 
@@ -280,7 +277,11 @@ impl SliderControl {
     }
 
     fn severity(&self) -> Severity {
-        self.thresholds.level(self.current())
+        self.thresholds
+            .as_ref()
+            .map_or(Severity::Normal, |thresholds| {
+                thresholds.level(self.current())
+            })
     }
 
     fn effective_icon(&self) -> Glyph {
@@ -431,8 +432,7 @@ impl SliderControl {
     fn collapsed_view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
         let reading = match self.label {
             Some(_) => labeled_reading(config, self, reveal),
-            None => source_reading(config, Some(self as &dyn BarWidget), reveal)
-                .unwrap_or_else(|| Row::new().into()),
+            None => source_reading(config, self, reveal),
         };
         let press_hints = PressHints {
             left: Some("open the slider"),

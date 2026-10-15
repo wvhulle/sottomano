@@ -116,11 +116,10 @@ const fn alerting_severity_of(state: WidgetState) -> Severity {
 impl<Message> OngoingToast<Message> {
     pub fn from_widget_state(
         hover_target: HoverTarget,
-        widget: Option<&dyn BarWidget>,
+        widget: &dyn BarWidget,
         on_body_clicked: Message,
         locale: Locale,
     ) -> Option<Self> {
-        let widget = widget?;
         let OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity,
             summary_text,
@@ -264,7 +263,7 @@ mod tests {
     fn alert_for(state: WidgetState, threshold: OngoingToastThreshold) -> Option<OngoingToast<u8>> {
         OngoingToast::from_widget_state(
             HoverTarget::Power(PowerTarget::BatteryTime),
-            Some(&FixedReading { state, threshold }),
+            &FixedReading { state, threshold },
             0,
             Locale::default(),
         )

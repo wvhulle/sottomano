@@ -21,7 +21,7 @@ pub use self::{
     presence_accounting::{FocusRun, ScreenRun},
     recorded_spans::{FocusScope, FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
     time_intervals::{Interval, WakingWindow},
-    unit_accounting::UnitTotal,
+    unit_accounting::{BudgetStatus, UnitTotal},
     window_focus_timeline::WindowFocusChange,
 };
 #[cfg(test)]

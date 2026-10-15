@@ -1,5 +1,3 @@
-use iced::widget::Row;
-
 use crate::{
     config::Config,
     desktop_shell::hover_tooltips::HoverTarget,
@@ -68,9 +66,7 @@ impl NotificationGroup {
             NotificationGroupMessage::Expansion,
             [
                 GroupItem::element(move |reveal| {
-                    source_reading(config, Some(&status), reveal)
-                        .unwrap_or_else(|| Row::new().into())
-                        .map(GroupEvent::Group)
+                    source_reading(config, &status, reveal).map(GroupEvent::Group)
                 }),
                 GroupItem::reading(
                     DoNotDisturbStatus { quiet },
