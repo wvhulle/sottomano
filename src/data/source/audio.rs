@@ -485,8 +485,8 @@ fn effective_levels<'graph>(graph: &'graph Graph, node: &'graph AudioNode) -> &'
     route_levels(graph, node).unwrap_or(&node.levels)
 }
 
-fn reading(graph: &Graph, name: Option<&str>) -> Option<Reading> {
-    let node = graph.nodes.get(&node_id_by_name(graph, name?)?)?;
+fn reading(graph: &Graph, name: &str) -> Option<Reading> {
+    let node = graph.nodes.get(&node_id_by_name(graph, name)?)?;
     let levels = effective_levels(graph, node);
     let percent = levels.percent();
     Some(Reading {
@@ -507,8 +507,14 @@ fn default_output_kind(graph: &Graph) -> OutputKind {
 
 fn snapshot(graph: &Graph) -> AudioState {
     AudioState {
-        sink: reading(graph, graph.default_sink.as_deref()),
-        source: reading(graph, graph.default_source.as_deref()),
+        sink: graph
+            .default_sink
+            .as_deref()
+            .and_then(|name| reading(graph, name)),
+        source: graph
+            .default_source
+            .as_deref()
+            .and_then(|name| reading(graph, name)),
         output_kind: default_output_kind(graph),
         windows: Arc::new(window_audio(graph)),
     }

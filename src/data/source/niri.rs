@@ -295,7 +295,7 @@ impl Placement {
     pub fn derive(state: &EventStreamState) -> Self {
         let mut ws_idx = HashMap::new();
         let mut output_by_workspace = HashMap::new();
-        let mut active_ws_by_output: HashMap<String, u64> = HashMap::new();
+        let mut active_ws_by_output: HashMap<String, OutputActiveWorkspace> = HashMap::new();
         let mut ws_active_window = HashMap::new();
         let mut focused_output = None;
         for w in state.workspaces.workspaces.values() {
@@ -303,7 +303,13 @@ impl Placement {
             if let Some(output) = &w.output {
                 output_by_workspace.insert(w.id, output.clone());
                 if w.is_active {
-                    active_ws_by_output.insert(output.clone(), w.id);
+                    active_ws_by_output.insert(
+                        output.clone(),
+                        OutputActiveWorkspace {
+                            id: w.id,
+                            idx: w.idx,
+                        },
+                    );
                 }
                 if w.is_focused {
                     focused_output = Some(output.clone());
@@ -345,14 +351,10 @@ impl Placement {
             .iter()
             .map(|(&id, &ws)| {
                 let output = output_by_workspace.get(&ws).cloned();
-                let active_ws = output
-                    .as_ref()
-                    .and_then(|o| active_ws_by_output.get(o).copied());
-                let vertical = vertical_edge(
-                    ws_idx.get(&ws).copied(),
-                    active_ws.and_then(|a| ws_idx.get(&a).copied()),
-                );
-                let horizontal = if active_ws == Some(ws) {
+                let active_ws = output.as_ref().and_then(|o| active_ws_by_output.get(o));
+                let vertical =
+                    vertical_edge(ws_idx.get(&ws).copied(), active_ws.map(|active| active.idx));
+                let horizontal = if active_ws.is_some_and(|active| active.id == ws) {
                     let ws_focused_col = ws_active_window
                         .get(&ws)
                         .and_then(|win| column_by_window.get(win).copied());
@@ -415,14 +417,22 @@ impl Placement {
     }
 }
 
+struct OutputActiveWorkspace {
+    id: u64,
+    idx: u8,
+}
+
 fn viewed_rect(
     window: &Window,
     output_by_workspace: &HashMap<u64, String>,
-    active_ws_by_output: &HashMap<String, u64>,
+    active_ws_by_output: &HashMap<String, OutputActiveWorkspace>,
 ) -> Option<Rectangle> {
     let workspace = window.workspace_id?;
     let output = output_by_workspace.get(&workspace)?;
-    if active_ws_by_output.get(output) != Some(&workspace) {
+    if active_ws_by_output
+        .get(output)
+        .is_none_or(|active| active.id != workspace)
+    {
         return None;
     }
     let (tile_x, tile_y) = window.layout.tile_pos_in_workspace_view?;

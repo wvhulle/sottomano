@@ -334,16 +334,16 @@ impl CacheDomainRoles {
             }
         }
         let every_cpu_reports_its_cache = cpus.iter().all(|cpu| cpu.last_level_cache.is_some());
-        if !every_cpu_reports_its_cache || domains.len() < 2 {
-            return CacheDomainRoles::OneDomain;
-        }
-        let Some(largest_size) = domains
-            .iter()
-            .map(|domain| domain.size)
-            .reduce(Information::max)
-        else {
+        let [first, rest @ ..] = domains.as_slice() else {
             return CacheDomainRoles::OneDomain;
         };
+        if !every_cpu_reports_its_cache || rest.is_empty() {
+            return CacheDomainRoles::OneDomain;
+        }
+        let largest_size = rest
+            .iter()
+            .map(|domain| domain.size)
+            .fold(first.size, Information::max);
         if domains.iter().all(|domain| domain.size == largest_size) {
             return CacheDomainRoles::EqualComplexes { domains };
         }
