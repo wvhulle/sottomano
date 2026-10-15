@@ -150,26 +150,13 @@ impl Accounting<'_> {
             .map(|minutes| TimeDelta::minutes(i64::from(minutes)))
     }
 
-    fn budget_quota(
-        label: Cow<'static, str>,
-        spent: TimeDelta,
-        budget: TimeDelta,
+    pub fn screen_budget_status(
+        &self,
         window: Interval,
         now: DateTime<Utc>,
-    ) -> Quota {
-        let used = spent.as_seconds_f64() / budget.as_seconds_f64().max(1.0);
-        Quota::within_window(
-            label,
-            Ratio::new::<ratio>(used),
-            window.until,
-            window.length(),
-            now,
-        )
-    }
-
-    pub fn screen_quota(&self, window: Interval, now: DateTime<Utc>) -> Option<Quota> {
+    ) -> Option<BudgetStatus> {
         self.screen_budget().map(|budget| {
-            Self::budget_quota(
+            BudgetStatus::within(
                 Cow::Borrowed("Screen"),
                 self.screen_spent(window, now),
                 budget,
@@ -182,16 +169,17 @@ impl Accounting<'_> {
     pub fn quotas_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Quota> {
         self.unit_totals(window, now)
             .iter()
-            .filter_map(|total| total.quota(window, now))
-            .chain(self.screen_quota(window, now))
+            .filter_map(|total| total.budget_status(window, now))
+            .chain(self.screen_budget_status(window, now))
+            .map(|status| status.quota)
             .collect()
     }
 }
 
 impl UnitTotal {
-    pub fn quota(&self, window: Interval, now: DateTime<Utc>) -> Option<Quota> {
+    pub fn budget_status(&self, window: Interval, now: DateTime<Utc>) -> Option<BudgetStatus> {
         self.budget.map(|budget| {
-            Accounting::budget_quota(
+            BudgetStatus::within(
                 Cow::Owned(self.unit.label().into_owned()),
                 self.spent,
                 budget,
@@ -199,6 +187,34 @@ impl UnitTotal {
                 now,
             )
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BudgetStatus {
+    pub budget: TimeDelta,
+    pub quota: Quota,
+}
+
+impl BudgetStatus {
+    fn within(
+        label: Cow<'static, str>,
+        spent: TimeDelta,
+        budget: TimeDelta,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> Self {
+        let used = spent.as_seconds_f64() / budget.as_seconds_f64().max(1.0);
+        BudgetStatus {
+            budget,
+            quota: Quota::within_window(
+                label,
+                Ratio::new::<ratio>(used),
+                window.until,
+                window.length(),
+                now,
+            ),
+        }
     }
 }
 

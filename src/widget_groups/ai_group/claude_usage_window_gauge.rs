@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use chrono::{DateTime, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -39,28 +41,29 @@ impl BarWidget for ClaudeUsageWindows {
 
     fn tooltip(&self) -> TooltipBody {
         let now = Utc::now();
-        TooltipBody::sections([
-            Section::dictionary(self.plan.as_deref().map(|plan| KeyValue::new("Plan", plan))),
-            window_section(
-                "Session",
-                Some(&self.session),
-                self.session_quota(now).as_ref(),
-                now,
-            ),
-            window_section(
-                "Weekly",
-                Some(&self.weekly),
-                self.weekly_quota(now).as_ref(),
-                now,
-            ),
+        let sonnet = self.sonnet.as_ref().map(|sonnet| {
             window_section(
                 "Weekly Sonnet",
-                self.sonnet.as_ref(),
+                sonnet,
                 self.sonnet_quota(now).as_ref(),
                 now,
-            ),
-            extra_section(self.extra.as_ref()),
-        ])
+            )
+        });
+        TooltipBody::sections(
+            [
+                Section::dictionary(self.plan.as_deref().map(|plan| KeyValue::new("Plan", plan))),
+                window_section(
+                    "Session",
+                    &self.session,
+                    self.session_quota(now).as_ref(),
+                    now,
+                ),
+                window_section("Weekly", &self.weekly, self.weekly_quota(now).as_ref(), now),
+            ]
+            .into_iter()
+            .chain(sonnet)
+            .chain([extra_section(self.extra.as_ref())]),
+        )
     }
 }
 
@@ -72,19 +75,19 @@ impl Occasional for ClaudeUsageWindows {
 
 fn window_section(
     title: &str,
-    window: Option<&WindowUsage>,
+    window: &WindowUsage,
     quota: Option<&Quota>,
     now: DateTime<Utc>,
 ) -> Section {
+    let used = KeyValue::new("Used", percent_text(window.utilization));
     let pace_entry = quota.and_then(Quota::pace).map(|pace| match pace {
         Pace::Lasts { at_reset } => KeyValue::new("Projected At Reset", percent_text(at_reset)),
         Pace::RunsOut { at } => KeyValue::new("Runs Out In", countdown(at, now)),
     });
-    let used = window.map(|window| KeyValue::new("Used", percent_text(window.utilization)));
     let resets = window
-        .and_then(|window| window.resets_at)
+        .resets_at
         .map(|at| KeyValue::new("Resets In", countdown(at, now)));
-    Section::dictionary([used, pace_entry, resets].into_iter().flatten()).titled(title)
+    Section::dictionary(once(used).chain(pace_entry).chain(resets)).titled(title)
 }
 
 fn extra_section(extra: Option<&ExtraUsage>) -> Section {

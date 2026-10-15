@@ -328,9 +328,9 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             }),
             HandleFace::FirstItem => items.remove(0),
         };
-        let draw_face = move || face.view(config, 1.0).unwrap_or_else(|| Row::new().into());
+        let draw_face = move || face.view(config, 1.0);
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
-            Row::with_children(items.iter().filter_map(|item| item.view(config, reveal)))
+            Row::with_children(items.iter().map(|item| item.view(config, reveal)))
                 .spacing(config.layout.panel.widget_spacing)
                 .align_y(Alignment::Center)
                 .into()
@@ -397,7 +397,7 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
     config: &'a Config,
     bar_position: Position,
 ) -> Element<'a, Outer> {
-    let row = Row::with_children(items.iter().filter_map(|item| item.view(config, 1.0)))
+    let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0)))
         .spacing(config.layout.panel.widget_spacing)
         .align_y(Alignment::Center);
     let indicator = EdgeIndicator {

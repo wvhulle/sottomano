@@ -37,97 +37,133 @@ impl BarWidget for FailedReading {
 }
 
 pub struct ContinuousReading<S> {
-    data: Option<S>,
-    failure: Option<FailedReading>,
-    freshness: Option<Freshness>,
+    stamped: Option<StampedReading<S>>,
+}
+
+struct StampedReading<S> {
+    freshness: Freshness,
+    outcome: ReadingOutcome<S>,
+}
+
+enum ReadingOutcome<S> {
+    Awaiting,
+    Read(S),
+    Failed(FailedReading),
+}
+
+impl<S> ReadingOutcome<S> {
+    fn data(&self) -> Option<&S> {
+        match self {
+            ReadingOutcome::Read(data) => Some(data),
+            ReadingOutcome::Awaiting | ReadingOutcome::Failed(_) => None,
+        }
+    }
+
+    fn keep<E: Display>(self, reading: Result<S, E>, source: &'static str) -> Self {
+        match reading {
+            Ok(data) => ReadingOutcome::Read(data),
+            Err(failure) => {
+                tracing::warn!("{source}: {failure}");
+                self
+            }
+        }
+    }
+}
+
+impl<S: BarWidget> ReadingOutcome<S> {
+    fn accept<E: Display>(self, reading: Result<S, E>) -> Self {
+        match reading {
+            Ok(data) => ReadingOutcome::Read(data),
+            Err(failure) => ReadingOutcome::Failed(FailedReading {
+                icon: match self {
+                    ReadingOutcome::Read(data) => data.icon(),
+                    ReadingOutcome::Failed(failed) => failed.icon,
+                    ReadingOutcome::Awaiting => S::fallback_icon(),
+                },
+                message: failure.to_string(),
+            }),
+        }
+    }
 }
 
 impl<S> Default for ContinuousReading<S> {
     fn default() -> Self {
-        Self {
-            data: None,
-            failure: None,
-            freshness: None,
-        }
+        Self { stamped: None }
     }
 }
 
 impl<S> ContinuousReading<S> {
     pub fn get(&self) -> Option<&S> {
-        self.data.as_ref()
+        self.stamped.as_ref()?.outcome.data()
     }
 
     pub fn assume(&mut self, data: S) {
-        if self.freshness.is_some() {
-            self.data = Some(data);
-            self.failure = None;
+        if let Some(stamped) = &mut self.stamped {
+            stamped.outcome = ReadingOutcome::Read(data);
         }
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        let tooltip = Tooltip::sourced(body, self.freshness?);
+        let tooltip = Tooltip::sourced(body, self.stamped.as_ref()?.freshness);
         (!tooltip.is_empty()).then_some(tooltip)
     }
 
     pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<SourcedSection> {
-        let Some(freshness) = self.freshness else {
+        let Some(stamped) = &self.stamped else {
             return Vec::new();
         };
-        self.data
-            .as_ref()
+        stamped
+            .outcome
+            .data()
             .map(sections)
             .unwrap_or_default()
             .into_iter()
-            .map(|section| SourcedSection::new(section, Readiness::Settled, freshness))
+            .map(|section| SourcedSection::new(section, Readiness::Settled, stamped.freshness))
             .collect()
-    }
-
-    fn keep<E: Display>(&mut self, reading: Result<S, E>, source: &'static str) {
-        match reading {
-            Ok(data) => self.data = Some(data),
-            Err(failure) => tracing::warn!("{source}: {failure}"),
-        }
     }
 }
 
 impl<S: Source> ContinuousReading<S> {
-    fn stamp(
+    fn settle(
         &mut self,
         delivery: Delivery<S>,
         freshness: Freshness,
-    ) -> Option<Result<S, S::Error>> {
-        match delivery {
-            Delivery::Absent => {
-                *self = Self::default();
-                None
-            }
+        settle: impl FnOnce(ReadingOutcome<S>, Result<S, S::Error>) -> ReadingOutcome<S>,
+    ) {
+        self.stamped = match delivery {
+            Delivery::Absent => None,
             Delivery::Reading(reading) => {
-                self.freshness = Some(freshness);
-                Some(reading)
+                let previous = self
+                    .stamped
+                    .take()
+                    .map_or(ReadingOutcome::Awaiting, |stamped| stamped.outcome);
+                Some(StampedReading {
+                    freshness,
+                    outcome: settle(previous, reading),
+                })
             }
-        }
+        };
     }
 }
 
 impl<S: LiveSource> ContinuousReading<S> {
     pub fn load(&mut self, data: S) {
-        self.data = Some(data);
-        self.failure = None;
-        self.freshness = Some(Freshness::Live);
+        self.stamped = Some(StampedReading {
+            freshness: Freshness::Live,
+            outcome: ReadingOutcome::Read(data),
+        });
     }
 
     pub fn push_or_keep(&mut self, delivery: Delivery<S>) {
-        if let Some(reading) = self.stamp(delivery, Freshness::Live) {
-            self.keep(reading, S::NAME);
-        }
+        self.settle(delivery, Freshness::Live, |previous, reading| {
+            previous.keep(reading, S::NAME)
+        });
     }
 }
 
 impl<S: LiveSource + BarWidget> ContinuousReading<S> {
     pub fn push(&mut self, delivery: Delivery<S>) {
-        if let Some(reading) = self.stamp(delivery, Freshness::Live) {
-            self.accept(reading);
-        }
+        self.settle(delivery, Freshness::Live, ReadingOutcome::accept);
     }
 }
 
@@ -141,33 +177,32 @@ impl<S: PolledSource> ContinuousReading<S> {
     }
 
     pub fn receive_or_keep(&mut self, delivery: Delivery<S>) {
-        if let Some(reading) = self.stamp(delivery, Self::polled_now()) {
-            self.keep(reading, S::NAME);
-        }
+        self.settle(delivery, Self::polled_now(), |previous, reading| {
+            previous.keep(reading, S::NAME)
+        });
     }
 }
 
 impl<S: PolledSource + BarWidget> ContinuousReading<S> {
     pub fn receive(&mut self, delivery: Delivery<S>) {
-        if let Some(reading) = self.stamp(delivery, Self::polled_now()) {
-            self.accept(reading);
-        }
+        self.settle(delivery, Self::polled_now(), ReadingOutcome::accept);
     }
 }
 
 impl<S: BarWidget> ContinuousReading<S> {
     pub fn display(&self) -> Option<&dyn BarWidget> {
-        match (self.data.as_ref(), self.failure.as_ref()) {
-            (Some(data), _) => Some(data),
-            (None, Some(failure)) => Some(failure),
-            (None, None) => None,
+        match &self.stamped.as_ref()?.outcome {
+            ReadingOutcome::Read(data) => Some(data),
+            ReadingOutcome::Failed(failure) => Some(failure),
+            ReadingOutcome::Awaiting => None,
         }
     }
 
     pub fn failure(&self) -> Option<&dyn BarWidget> {
-        self.failure
-            .as_ref()
-            .map(|failure| failure as &dyn BarWidget)
+        match &self.stamped.as_ref()?.outcome {
+            ReadingOutcome::Failed(failure) => Some(failure),
+            ReadingOutcome::Awaiting | ReadingOutcome::Read(_) => None,
+        }
     }
 
     pub fn group_item<M: 'static>(
@@ -189,40 +224,18 @@ impl<S: BarWidget> ContinuousReading<S> {
         let own = self.tooltip_with(self.display()?.tooltip())?;
         Some(own.with_sections(extra))
     }
-
-    fn accept<E: Display>(&mut self, reading: Result<S, E>) {
-        match reading {
-            Ok(data) => {
-                self.data = Some(data);
-                self.failure = None;
-            }
-            Err(failure) => {
-                let icon = self
-                    .data
-                    .as_ref()
-                    .map(BarWidget::icon)
-                    .or_else(|| self.failure.as_ref().map(|failed| failed.icon))
-                    .unwrap_or_else(S::fallback_icon);
-                self.data = None;
-                self.failure = Some(FailedReading {
-                    icon,
-                    message: failure.to_string(),
-                });
-            }
-        }
-    }
 }
 
 impl<S: Occasional> ContinuousReading<S> {
     pub fn present_reading(&self) -> Option<&S> {
-        self.data.as_ref().filter(|data| data.present())
+        self.get().filter(|data| data.present())
     }
 
     pub fn present(&self) -> Option<&dyn BarWidget> {
-        match (self.present_reading(), self.failure.as_ref()) {
-            (Some(data), _) => Some(data),
-            (None, Some(failure)) => Some(failure),
-            (None, None) => None,
+        match &self.stamped.as_ref()?.outcome {
+            ReadingOutcome::Read(data) => data.present().then_some(data as &dyn BarWidget),
+            ReadingOutcome::Failed(failure) => Some(failure),
+            ReadingOutcome::Awaiting => None,
         }
     }
 

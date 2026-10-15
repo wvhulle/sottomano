@@ -189,21 +189,17 @@ impl MonitorGroup {
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, MonitorMessage> {
-        let backlights = self.backlights.get().into_iter().flatten();
-        let backlight_sliders: Vec<&'a SliderControl> = backlights
-            .clone()
-            .filter_map(|backlight| self.sliders.get(&backlight.serial))
-            .collect();
-        let previewed_value = backlight_sliders
-            .first()
-            .map(|slider| *slider as &dyn BarWidget)
+        let previewed_value = self
+            .sliders
+            .values()
+            .next()
+            .map(|slider| slider as &dyn BarWidget)
             .or(self.clight.reading());
-        let backlight_items = backlights.filter_map(|backlight| {
-            let slider = self.sliders.get(&backlight.serial)?;
-            let serial = backlight.serial.clone();
-            Some(GroupItem::slider(slider, config, move |m| {
+        let backlight_items = self.sliders.iter().map(|(serial, slider)| {
+            let serial = serial.clone();
+            GroupItem::slider(slider, config, move |m| {
                 MonitorMessage::Backlight(serial.clone(), m)
-            }))
+            })
         });
         GroupContent::new(
             &self.expansion,

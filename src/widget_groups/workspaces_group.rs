@@ -116,9 +116,7 @@ fn indicated<'a>(
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
     let active = workspaces.iter().position(|p| p.is_active);
-    let active_is_urgent = active
-        .and_then(|i| workspaces.get(i))
-        .is_some_and(|p| p.is_urgent);
+    let active_is_urgent = workspaces.iter().any(|p| p.is_active && p.is_urgent);
     let color = if active_is_urgent {
         config.theme.palette.urgent
     } else {

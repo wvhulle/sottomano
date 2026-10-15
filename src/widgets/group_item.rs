@@ -243,12 +243,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             self.kind
                 .announcing_reading()
                 .and_then(|AnnouncingReading { widget, target }| {
-                    OngoingToast::from_widget_state(
-                        target.clone(),
-                        Some(widget),
-                        on_body_clicked,
-                        locale,
-                    )
+                    OngoingToast::from_widget_state(target.clone(), widget, on_body_clicked, locale)
                 });
         ongoing_toast
             .map(|alert| {
@@ -261,13 +256,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .chain(self.ongoing_toasts.iter().cloned())
     }
 
-    pub(super) fn view(&self, config: &Config, reveal: f32) -> Option<Element<'a, GroupEvent<M>>>
+    pub(super) fn view(&self, config: &Config, reveal: f32) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
         let mut element = match &self.kind {
             ItemKind::Reading { widget, target } => hoverable(
-                source_reading(config, Some(widget.as_ref()), reveal)?,
+                source_reading(config, widget.as_ref(), reveal),
                 target.clone(),
                 self.press_hints(),
                 GroupEvent::Tooltip,
@@ -286,6 +281,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .on_right_press(GroupEvent::Group(press.message))
                 .into();
         }
-        Some(element)
+        element
     }
 }

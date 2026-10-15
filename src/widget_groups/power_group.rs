@@ -57,7 +57,6 @@ impl From<PowerTarget> for HoverTarget {
 #[derive(Default)]
 pub struct PowerGroup {
     battery: ContinuousReading<Battery>,
-    draw: Option<PowerDraw>,
     time: Option<BatteryTime>,
     time_reading: BatteryTimeReading,
     power_profile: PowerProfileControl,
@@ -139,9 +138,13 @@ impl PowerGroup {
             self.time_reading
                 .time_for(battery, self.power_profile.active_estimate())
         });
-        self.draw =
-            battery.map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw()));
         task
+    }
+
+    fn draw(&self) -> Option<PowerDraw> {
+        self.battery
+            .get()
+            .map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw()))
     }
 
     fn observe_battery(&mut self) -> Task<PowerMessage> {
@@ -165,7 +168,7 @@ impl PowerGroup {
                     .sections(|battery| vec![battery.identity.hardware_section()]),
             ),
             PowerTarget::Draw => {
-                let draw = self.draw.as_ref()?;
+                let draw = self.draw()?;
                 let charger = if draw.on_battery() {
                     Vec::new()
                 } else {
@@ -200,8 +203,7 @@ impl PowerGroup {
             PowerMessage::Expansion,
             [
                 self.battery.group_item(PowerTarget::Battery),
-                self.draw
-                    .as_ref()
+                self.draw()
                     .map(|draw| GroupItem::reading(draw, PowerTarget::Draw)),
                 self.time.as_ref().map(|time| {
                     GroupItem::reading(time, PowerTarget::BatteryTime)
