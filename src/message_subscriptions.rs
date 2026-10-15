@@ -129,7 +129,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(Message::Ai),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
-        SessionFocusGroup::subscription(&state.outputs).map(Message::SessionFocus),
+        SessionFocusGroup::subscription().map(Message::SessionFocus),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),

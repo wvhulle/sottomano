@@ -67,90 +67,35 @@ impl PresenceSpan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpanWrite {
-    OpenFocus(FocusSpan),
-    ExtendFocus { id: i64, ended_at: DateTime<Utc> },
-    OpenPresence(PresenceSpan),
-    ExtendPresence { id: i64, ended_at: DateTime<Utc> },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OpenedSpan {
-    pub id: i64,
-    pub started_at: DateTime<Utc>,
+    RecordWindowFocusSpan(FocusSpan),
+    RecordPresenceSpan(PresenceSpan),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LoadedSpans {
-    pub focus: Vec<FocusSpan>,
-    pub presence: Vec<PresenceSpan>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RowId {
-    Pending,
-    Stored(i64),
+    pub window_focus_spans: Vec<FocusSpan>,
+    pub presence_spans: Vec<PresenceSpan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpenSpan<S> {
-    pub span: S,
-    pub row: RowId,
+pub struct TimelineUpdate<Timeline> {
+    pub timeline: Timeline,
+    pub span_writes: Vec<SpanWrite>,
 }
 
-impl<S> OpenSpan<S> {
-    pub(super) fn pending(span: S) -> Self {
+impl<Timeline> TimelineUpdate<Timeline> {
+    pub(super) fn without_writes(timeline: Timeline) -> Self {
         Self {
-            span,
-            row: RowId::Pending,
+            timeline,
+            span_writes: Vec::new(),
         }
     }
 
-    fn stored_id(&self) -> Option<i64> {
-        match self.row {
-            RowId::Pending => None,
-            RowId::Stored(id) => Some(id),
-        }
-    }
-
-    pub(super) fn stored_as(self, opened: OpenedSpan, started_at: DateTime<Utc>) -> Self {
-        match self.row {
-            RowId::Pending if started_at == opened.started_at => Self {
-                row: RowId::Stored(opened.id),
-                ..self
-            },
-            _ => self,
-        }
-    }
-}
-
-impl OpenSpan<FocusSpan> {
-    pub(super) fn ending_at(self, ended_at: DateTime<Utc>) -> Self {
+    pub(super) fn then(self, step: impl FnOnce(Timeline) -> TimelineUpdate<Timeline>) -> Self {
+        let next = step(self.timeline);
         Self {
-            span: self.span.ending_at(ended_at),
-            ..self
+            timeline: next.timeline,
+            span_writes: self.span_writes.into_iter().chain(next.span_writes).collect(),
         }
-    }
-
-    pub(super) fn extension(&self) -> Option<SpanWrite> {
-        self.stored_id().map(|id| SpanWrite::ExtendFocus {
-            id,
-            ended_at: self.span.ended_at,
-        })
-    }
-}
-
-impl OpenSpan<PresenceSpan> {
-    pub(super) fn ending_at(self, ended_at: DateTime<Utc>) -> Self {
-        Self {
-            span: self.span.ending_at(ended_at),
-            ..self
-        }
-    }
-
-    pub(super) fn extension(&self) -> Option<SpanWrite> {
-        self.stored_id().map(|id| SpanWrite::ExtendPresence {
-            id,
-            ended_at: self.span.ended_at,
-        })
     }
 }

@@ -1,60 +1,53 @@
+mod away_reasons;
 mod focus_identity;
 mod focus_units;
 mod presence_accounting;
+mod presence_timeline;
 mod recorded_spans;
 #[cfg(test)]
 mod test_steps;
 mod time_intervals;
 mod unit_accounting;
+mod window_focus_timeline;
 
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
 
-use self::recorded_spans::OpenSpan;
+use self::{
+    presence_timeline::PresenceTimeline, recorded_spans::TimelineUpdate,
+    window_focus_timeline::WindowFocusTimeline,
+};
+#[cfg(test)]
+pub use self::{focus_identity::Focused, focus_units::Presence};
 pub use self::{
-    focus_identity::{FocusIdentity, Focused},
-    focus_units::{FocusUnit, Presence, StoredFacet},
+    away_reasons::{AwayReasonEdge, ScreenEdge},
+    focus_identity::FocusIdentity,
+    focus_units::{FocusUnit, StoredFacet},
     presence_accounting::{FocusRun, ScreenRun},
-    recorded_spans::{FocusScope, FocusSpan, LoadedSpans, OpenedSpan, PresenceSpan, SpanWrite},
+    recorded_spans::{FocusScope, FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
     time_intervals::{Interval, WakingWindow},
     unit_accounting::UnitTotal,
+    window_focus_timeline::WindowFocusChange,
 };
-use crate::{
-    config::widget_groups::focus_time::FocusTimeConfig,
-    data::source::{drm_connectors::ScreenEdge, idle_notify::IdleEdge, logind::SleepEdge},
-};
+use crate::config::widget_groups::focus_time::FocusTimeConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FocusSignal {
-    Focused(Option<Focused>),
-    Idle(IdleEdge),
-    Sleep(SleepEdge),
-    Screen(ScreenEdge),
+    WindowFocusChanged(WindowFocusChange),
+    AwayReasonChanged(AwayReasonEdge),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FocusLedger {
-    focus: Vec<FocusSpan>,
-    open_focus: Option<OpenSpan<FocusSpan>>,
-    presence: Vec<PresenceSpan>,
-    open_presence: Option<OpenSpan<PresenceSpan>>,
+    window_focus_timeline: WindowFocusTimeline,
+    presence_timeline: PresenceTimeline,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Folded {
     pub ledger: FocusLedger,
-    pub writes: Vec<SpanWrite>,
-}
-
-impl Folded {
-    fn then(self, step: impl FnOnce(FocusLedger) -> Folded) -> Folded {
-        let next = step(self.ledger);
-        Folded {
-            ledger: next.ledger,
-            writes: self.writes.into_iter().chain(next.writes).collect(),
-        }
-    }
+    pub span_writes: Vec<SpanWrite>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,12 +57,22 @@ pub struct Accounting<'a> {
 }
 
 impl FocusLedger {
+    pub fn started_at(now: DateTime<Utc>) -> Self {
+        Self {
+            window_focus_timeline: WindowFocusTimeline::no_window_focused_since(now),
+            presence_timeline: PresenceTimeline::active_since(now),
+        }
+    }
+
     #[must_use]
     pub fn with_history(self, loaded: LoadedSpans) -> Self {
         Self {
-            focus: loaded.focus.into_iter().chain(self.focus).collect(),
-            presence: loaded.presence.into_iter().chain(self.presence).collect(),
-            ..self
+            window_focus_timeline: self
+                .window_focus_timeline
+                .with_loaded_history(loaded.window_focus_spans),
+            presence_timeline: self
+                .presence_timeline
+                .with_loaded_history(loaded.presence_spans),
         }
     }
 
@@ -81,16 +84,13 @@ impl FocusLedger {
     }
 
     pub fn focused_units(&self) -> &[FocusUnit] {
-        self.open_focus
-            .as_ref()
-            .map_or(&[], |open| open.span.units.as_slice())
+        self.window_focus_timeline.focused_units()
     }
 
     pub fn project_shown_in(&self, window: u64) -> Option<&Path> {
-        self.open_focus
-            .as_ref()
-            .filter(|open| open.span.window == window)?
-            .span
+        self.window_focus_timeline
+            .focused_window_span()
+            .filter(|span| span.window == window)?
             .units
             .iter()
             .find_map(|unit| match unit {
@@ -100,193 +100,100 @@ impl FocusLedger {
     }
 
     pub fn screen_off_since(&self) -> Option<DateTime<Utc>> {
-        self.open_presence
-            .as_ref()
-            .filter(|open| open.span.state == Presence::ScreenOff)
-            .map(|open| open.span.started_at)
+        self.presence_timeline.screen_off_since()
     }
 
     pub fn fold(self, signal: FocusSignal, now: DateTime<Utc>) -> Folded {
         match signal {
-            FocusSignal::Focused(focused) => self
-                .present_as(Presence::Active, now)
-                .then(|ledger| ledger.refocused(focused, now)),
-            FocusSignal::Idle(IdleEdge::Idled) => self
-                .focus_extended(now)
-                .then(|ledger| ledger.present_as(Presence::Idle, now)),
-            FocusSignal::Sleep(SleepEdge::Suspending) => self
-                .focus_extended(now)
-                .then(|ledger| ledger.present_as(Presence::Asleep, now)),
-            FocusSignal::Screen(ScreenEdge::Off) => self
-                .focus_extended(now)
-                .then(|ledger| ledger.present_as(Presence::ScreenOff, now)),
-            FocusSignal::Idle(IdleEdge::Resumed) if self.screen_off_since().is_some() => {
-                self.focus_extended(now)
+            FocusSignal::WindowFocusChanged(change) => {
+                let presence = self.presence_timeline.ongoing_presence_extended_to(now);
+                let window_focus = self
+                    .window_focus_timeline
+                    .following_window_focus_change(change, now);
+                Self::folded_from(window_focus, presence)
             }
-            FocusSignal::Idle(IdleEdge::Resumed)
-            | FocusSignal::Sleep(SleepEdge::Resumed)
-            | FocusSignal::Screen(ScreenEdge::On) => self
-                .focus_extended(now)
-                .then(|ledger| ledger.present_as(Presence::Active, now)),
+            FocusSignal::AwayReasonChanged(edge) => {
+                let window_focus = self.window_focus_timeline.ongoing_window_focus_extended_to(now);
+                let presence = self
+                    .presence_timeline
+                    .reacting_to_away_reason_edge(edge, now);
+                Self::folded_from(window_focus, presence)
+            }
         }
     }
 
-    #[must_use]
-    pub fn with_focus_opened(self, opened: OpenedSpan) -> Self {
-        Self {
-            open_focus: self
-                .open_focus
-                .map(|open| open.clone().stored_as(opened, open.span.started_at)),
-            ..self
-        }
-    }
-
-    #[must_use]
-    pub fn with_presence_opened(self, opened: OpenedSpan) -> Self {
-        Self {
-            open_presence: self
-                .open_presence
-                .map(|open| open.clone().stored_as(opened, open.span.started_at)),
-            ..self
-        }
-    }
-
-    fn focus_extended(self, now: DateTime<Utc>) -> Folded {
-        let open_focus = self.open_focus.map(|open| open.ending_at(now));
+    fn folded_from(
+        window_focus: TimelineUpdate<WindowFocusTimeline>,
+        presence: TimelineUpdate<PresenceTimeline>,
+    ) -> Folded {
         Folded {
-            writes: open_focus
-                .iter()
-                .filter_map(OpenSpan::<FocusSpan>::extension)
-                .collect(),
-            ledger: Self { open_focus, ..self },
-        }
-    }
-
-    fn refocused(self, focused: Option<Focused>, now: DateTime<Utc>) -> Folded {
-        let opened = focused.map(|focused| FocusSpan {
-            window: focused.window,
-            units: focused.units(),
-            started_at: now,
-            ended_at: now,
-        });
-        let extended = self.focus_extended(now);
-        let continued = extended
-            .ledger
-            .open_focus
-            .as_ref()
-            .zip(opened.as_ref())
-            .is_some_and(|(open, opened)| open.span.continues(opened));
-        if continued {
-            return extended;
-        }
-        extended.then(|ledger| Folded {
-            writes: opened
-                .clone()
-                .map(SpanWrite::OpenFocus)
+            span_writes: window_focus
+                .span_writes
                 .into_iter()
+                .chain(presence.span_writes)
                 .collect(),
             ledger: Self {
-                focus: ledger
-                    .focus
-                    .into_iter()
-                    .chain(ledger.open_focus.map(|open| open.span))
-                    .collect(),
-                open_focus: opened.map(OpenSpan::pending),
-                ..ledger
-            },
-        })
-    }
-
-    fn present_as(self, state: Presence, now: DateTime<Utc>) -> Folded {
-        let open_presence = self.open_presence.map(|open| open.ending_at(now));
-        let extension = open_presence
-            .iter()
-            .filter_map(OpenSpan::<PresenceSpan>::extension);
-        if open_presence
-            .as_ref()
-            .is_some_and(|open| open.span.state == state)
-        {
-            return Folded {
-                writes: extension.collect(),
-                ledger: Self {
-                    open_presence,
-                    ..self
-                },
-            };
-        }
-        let opened = PresenceSpan {
-            state,
-            started_at: now,
-            ended_at: now,
-        };
-        Folded {
-            writes: extension
-                .chain([SpanWrite::OpenPresence(opened.clone())])
-                .collect(),
-            ledger: Self {
-                presence: self
-                    .presence
-                    .into_iter()
-                    .chain(open_presence.map(|open| open.span))
-                    .collect(),
-                open_presence: Some(OpenSpan::pending(opened)),
-                ..self
+                window_focus_timeline: window_focus.timeline,
+                presence_timeline: presence.timeline,
             },
         }
     }
 
-    fn presence_until(&self, now: DateTime<Utc>) -> impl Iterator<Item = PresenceSpan> + '_ {
-        self.presence.iter().cloned().chain(
-            self.open_presence
-                .iter()
-                .map(move |open| open.span.clone().ending_at(now)),
-        )
+    fn presence_spans_ended_by(
+        &self,
+        now: DateTime<Utc>,
+    ) -> impl Iterator<Item = PresenceSpan> + '_ {
+        self.presence_timeline.presence_spans_ended_by(now)
     }
 
-    fn focus_until(&self, now: DateTime<Utc>) -> impl Iterator<Item = FocusSpan> + '_ {
-        self.focus.iter().cloned().chain(
-            self.open_focus
-                .iter()
-                .map(move |open| open.span.clone().ending_at(now)),
-        )
+    fn window_focus_spans_ended_by(
+        &self,
+        now: DateTime<Utc>,
+    ) -> impl Iterator<Item = FocusSpan> + '_ {
+        self.window_focus_timeline.window_focus_spans_ended_by(now)
     }
 
-    fn first_presence(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
-        self.presence_until(now).map(|span| span.started_at).min()
+    fn first_presence_started_at(&self) -> DateTime<Utc> {
+        self.presence_timeline.first_presence_started_at()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        recorded_spans::RowId,
         test_steps::{at, config, focused, focused_in, folded, step},
         *,
     };
 
-    #[test]
-    fn switching_focus_closes_a_span_and_opens_the_next() {
-        let Folded { ledger, writes } =
-            FocusLedger::default().fold(focused("kitty", Some("/code/vetrata")), at(0));
-        assert!(matches!(writes[0], SpanWrite::OpenPresence(_)));
-        assert!(matches!(writes[1], SpanWrite::OpenFocus(_)));
-        let ledger = ledger
-            .with_focus_opened(OpenedSpan {
-                id: 7,
-                started_at: at(0),
+    fn recorded_window_focus_spans(span_writes: &[SpanWrite]) -> Vec<&FocusSpan> {
+        span_writes
+            .iter()
+            .filter_map(|write| match write {
+                SpanWrite::RecordWindowFocusSpan(span) => Some(span),
+                SpanWrite::RecordPresenceSpan(_) => None,
             })
-            .with_presence_opened(OpenedSpan {
-                id: 1,
-                started_at: at(0),
-            });
+            .collect()
+    }
 
-        let Folded { ledger, writes } = ledger.fold(focused("firefox", None), at(10));
-        assert!(writes.contains(&SpanWrite::ExtendFocus {
-            id: 7,
-            ended_at: at(10)
-        }));
-        assert_eq!(ledger.focus.len(), 1);
-        assert_eq!(ledger.focus[0].ended_at, at(10));
+    #[test]
+    fn switching_focus_finishes_a_span_and_records_the_next() {
+        let Folded {
+            ledger,
+            span_writes,
+        } = FocusLedger::started_at(at(0)).fold(focused("kitty", Some("/code/vetrata")), at(0));
+        assert_eq!(recorded_window_focus_spans(&span_writes).len(), 1);
+
+        let Folded {
+            ledger,
+            span_writes,
+        } = ledger.fold(focused("firefox", None), at(10));
+        let recorded = recorded_window_focus_spans(&span_writes);
+        assert_eq!(recorded[0].started_at, at(0));
+        assert_eq!(recorded[0].ended_at, at(10));
+        assert_eq!(recorded[1].started_at, at(10));
+        let finished = ledger.window_focus_timeline.finished_window_focus_spans();
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].ended_at, at(10));
         assert_eq!(
             ledger.focused_units(),
             [FocusUnit::App("firefox".to_owned())]
@@ -296,16 +203,24 @@ mod tests {
     }
 
     #[test]
-    fn a_late_id_only_attaches_to_the_span_it_was_opened_for() {
+    fn losing_window_focus_finishes_the_span_without_presence_changing() {
         let ledger = folded([
             step(focused("kitty", None), 0),
-            step(focused("firefox", None), 1),
-        ])
-        .with_focus_opened(OpenedSpan {
-            id: 7,
-            started_at: at(0),
-        });
-        assert_eq!(ledger.open_focus.as_ref().unwrap().row, RowId::Pending);
+            step(
+                FocusSignal::WindowFocusChanged(WindowFocusChange::NoWindowFocused),
+                10,
+            ),
+        ]);
+        assert!(ledger.focused_units().is_empty());
+        assert_eq!(
+            ledger.window_focus_timeline.finished_window_focus_spans()[0].ended_at,
+            at(10)
+        );
+        let config = config();
+        assert_eq!(
+            ledger.accounted(&config).screen_run(at(20)),
+            Some(ScreenRun { since: at(0) })
+        );
     }
 
     #[test]
@@ -315,8 +230,12 @@ mod tests {
             step(focused_in(1, "kitty", Some("/code/vetrata")), 5),
             step(focused_in(2, "kitty", Some("/code/vetrata")), 10),
         ]);
-        assert_eq!(ledger.focus.len(), 1);
-        assert_eq!(ledger.focus[0].window, 1);
-        assert_eq!(ledger.open_focus.unwrap().span.window, 2);
+        let finished = ledger.window_focus_timeline.finished_window_focus_spans();
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].window, 1);
+        assert_eq!(
+            ledger.window_focus_timeline.focused_window_span().unwrap().window,
+            2
+        );
     }
 }

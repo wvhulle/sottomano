@@ -227,7 +227,7 @@ mod tests {
     use crate::{
         config::widget_groups::focus_time::FocusTimeConfig,
         data::source::{
-            focus_ledger::{FocusLedger, FocusSignal, Focused},
+            focus_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
             idle_notify::IdleEdge,
         },
     };
@@ -244,11 +244,15 @@ mod tests {
     }
 
     fn focused() -> FocusSignal {
-        FocusSignal::Focused(Some(Focused {
+        FocusSignal::WindowFocusChanged(WindowFocusChange::WindowGainedFocus(Focused {
             window: 1,
             app_id: "kitty".to_owned(),
             project: None,
         }))
+    }
+
+    fn idle_edge(edge: IdleEdge) -> FocusSignal {
+        FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifierEdge(edge))
     }
 
     fn config() -> FocusTimeConfig {
@@ -262,7 +266,7 @@ mod tests {
     #[test]
     fn a_pledge_without_a_break_turns_critical_after_the_grace() {
         let config = config();
-        let ledger = FocusLedger::default().fold(focused(), at(0)).ledger;
+        let ledger = FocusLedger::started_at(at(0)).fold(focused(), at(0)).ledger;
         let face = SessionFace {
             accounting: ledger.accounted(&config),
             waking: all_day(),
@@ -277,11 +281,11 @@ mod tests {
         let config = config();
         let ledger = [
             (focused(), 0),
-            (FocusSignal::Idle(IdleEdge::Idled), 11),
-            (FocusSignal::Idle(IdleEdge::Resumed), 15),
+            (idle_edge(IdleEdge::Idled), 11),
+            (idle_edge(IdleEdge::Resumed), 15),
         ]
         .into_iter()
-        .fold(FocusLedger::default(), |ledger, (signal, minute)| {
+        .fold(FocusLedger::started_at(at(0)), |ledger, (signal, minute)| {
             ledger.fold(signal, at(minute)).ledger
         });
         let face = SessionFace {

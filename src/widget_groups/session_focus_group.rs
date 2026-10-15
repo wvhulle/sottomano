@@ -3,8 +3,6 @@ mod daily_totals_gauge;
 mod session_face;
 mod window_usage;
 
-use std::collections::HashMap;
-
 use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
@@ -13,7 +11,10 @@ use crate::{
     config::Config,
     data::{
         notifications::model::ActionTint,
-        source::{focus_ledger::WakingWindow, niri::OutputInfo, window_agents::WindowProcesses},
+        source::{
+            focus_ledger::{ScreenEdge, WakingWindow},
+            window_agents::WindowProcesses,
+        },
     },
     desktop_shell::hover_tooltips::HoverTarget,
     state::focus_tracker::{FocusTracker, TrackerMessage},
@@ -48,7 +49,6 @@ pub struct BreakPledge {
     pub at: DateTime<Utc>,
 }
 
-#[derive(Default)]
 pub struct SessionFocusGroup {
     tracker: FocusTracker,
     pledge: Option<BreakPledge>,
@@ -63,6 +63,14 @@ pub enum SessionFocusMessage {
 }
 
 impl SessionFocusGroup {
+    pub fn started_at(now: DateTime<Utc>) -> Self {
+        Self {
+            tracker: FocusTracker::started_at(now),
+            pledge: None,
+            expansion: GroupExpansion::default(),
+        }
+    }
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -71,10 +79,14 @@ impl SessionFocusGroup {
         FocusTracker::load().map(SessionFocusMessage::Tracker)
     }
 
-    pub fn subscription(
-        outputs: &HashMap<String, OutputInfo>,
-    ) -> Subscription<SessionFocusMessage> {
-        FocusTracker::subscription(outputs).map(SessionFocusMessage::Tracker)
+    pub fn subscription() -> Subscription<SessionFocusMessage> {
+        FocusTracker::subscription().map(SessionFocusMessage::Tracker)
+    }
+
+    pub fn screen_power_changed(&mut self, edge: ScreenEdge) -> Task<SessionFocusMessage> {
+        self.update(SessionFocusMessage::Tracker(
+            TrackerMessage::ScreenPowerChanged(edge),
+        ))
     }
 
     pub fn refocus(

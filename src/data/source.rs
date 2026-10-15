@@ -26,7 +26,6 @@ pub mod command;
 pub mod coredumps;
 pub mod desktop_entries;
 pub mod disk;
-pub mod drm_connectors;
 pub mod favicons;
 pub mod file_presence;
 pub mod focus_ledger;

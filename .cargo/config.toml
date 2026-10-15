@@ -3,3 +3,6 @@ codegen-backend = true
 
 [profile.dev]
 codegen-backend = "cranelift"
+
+[profile.dev.package."*"]
+codegen-backend = "llvm"

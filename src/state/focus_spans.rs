@@ -1,38 +1,41 @@
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 
 use crate::{
     data::source::focus_ledger::{
-        FocusSpan, FocusUnit, LoadedSpans, OpenedSpan, PresenceSpan, SpanWrite, StoredFacet,
+        FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet,
     },
     state::{Columns, StoreError, with_table},
 };
 
 const RETENTION: TimeDelta = TimeDelta::days(400);
 
-pub const SCHEMA: [&str; 7] = [
+pub const SCHEMA: [&str; 8] = [
     "DROP TABLE IF EXISTS focus_span_facets",
     "DROP TABLE IF EXISTS focus_spans",
-    "CREATE TABLE IF NOT EXISTS window_focus_spans (
-        id INTEGER PRIMARY KEY,
+    "DROP TABLE IF EXISTS window_focus_span_facets",
+    "DROP TABLE IF EXISTS window_focus_spans",
+    "DROP TABLE IF EXISTS presence_spans",
+    "CREATE TABLE IF NOT EXISTS window_focus_spans_by_start_instant (
+        started_at TEXT PRIMARY KEY,
         window_id INTEGER NOT NULL,
-        started_at INTEGER NOT NULL,
-        ended_at INTEGER NOT NULL
+        ended_at TEXT NOT NULL
     )",
-    "CREATE INDEX IF NOT EXISTS window_focus_spans_by_start ON window_focus_spans (started_at)",
-    "CREATE TABLE IF NOT EXISTS window_focus_span_facets (
-        span_id INTEGER NOT NULL REFERENCES window_focus_spans (id),
+    "CREATE TABLE IF NOT EXISTS window_focus_span_facets_by_start_instant (
+        span_started_at TEXT NOT NULL
+            REFERENCES window_focus_spans_by_start_instant (started_at),
         facet TEXT NOT NULL,
         value TEXT NOT NULL,
-        PRIMARY KEY (span_id, facet)
+        PRIMARY KEY (span_started_at, facet)
     )",
-    "CREATE TABLE IF NOT EXISTS presence_spans (
-        id INTEGER PRIMARY KEY,
-        started_at INTEGER NOT NULL,
-        ended_at INTEGER NOT NULL,
+    "CREATE TABLE IF NOT EXISTS presence_spans_by_start_instant (
+        started_at TEXT PRIMARY KEY,
+        ended_at TEXT NOT NULL,
         state TEXT NOT NULL
     )",
-    "CREATE INDEX IF NOT EXISTS presence_spans_by_start ON presence_spans (started_at)",
 ];
+
+const SORTABLE_INSTANT: SecondsFormat = SecondsFormat::Nanos;
+const UTC_AS_Z: bool = true;
 
 pub async fn load_since(since: DateTime<Utc>) -> LoadedSpans {
     with_table("focus spans: load failed", &SCHEMA, async |conn| {
@@ -43,52 +46,34 @@ pub async fn load_since(since: DateTime<Utc>) -> LoadedSpans {
     .unwrap_or_default()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Written {
-    OpenedFocus(OpenedSpan),
-    OpenedPresence(OpenedSpan),
-    Extended,
-    Failed,
-}
-
-pub async fn apply(write: SpanWrite) -> Written {
+pub async fn record(write: SpanWrite) {
     with_table("focus spans: write failed", &SCHEMA, async |conn| {
-        write_span(conn, &write).await
+        record_span(conn, &write).await
     })
-    .await
-    .unwrap_or(Written::Failed)
-}
-
-fn seconds(at: DateTime<Utc>) -> i64 {
-    at.timestamp()
-}
-
-fn at_seconds(seconds: i64) -> Option<DateTime<Utc>> {
-    DateTime::from_timestamp(seconds, 0)
+    .await;
 }
 
 async fn forget_before(conn: &turso::Connection, cutoff: DateTime<Utc>) -> Result<(), StoreError> {
+    let cutoff = cutoff.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z);
     conn.execute(
-        "DELETE FROM window_focus_span_facets WHERE span_id IN (SELECT id FROM window_focus_spans \
-         WHERE started_at < ?1)",
-        (seconds(cutoff),),
+        "DELETE FROM window_focus_span_facets_by_start_instant WHERE span_started_at < ?1",
+        (cutoff.as_str(),),
     )
     .await?;
     conn.execute(
-        "DELETE FROM window_focus_spans WHERE started_at < ?1",
-        (seconds(cutoff),),
+        "DELETE FROM window_focus_spans_by_start_instant WHERE started_at < ?1",
+        (cutoff.as_str(),),
     )
     .await?;
     conn.execute(
-        "DELETE FROM presence_spans WHERE started_at < ?1",
-        (seconds(cutoff),),
+        "DELETE FROM presence_spans_by_start_instant WHERE started_at < ?1",
+        (cutoff.as_str(),),
     )
     .await?;
     Ok(())
 }
 
 struct FacetRow {
-    id: i64,
     window: u64,
     started_at: DateTime<Utc>,
     ended_at: DateTime<Utc>,
@@ -101,10 +86,12 @@ async fn read_spans(
 ) -> Result<LoadedSpans, StoreError> {
     let mut rows = conn
         .query(
-            "SELECT s.id, s.window_id, s.started_at, s.ended_at, f.facet, f.value
-             FROM window_focus_spans s LEFT JOIN window_focus_span_facets f ON f.span_id = s.id
-             WHERE s.ended_at >= ?1 ORDER BY s.started_at, s.id",
-            (seconds(since),),
+            "SELECT s.window_id, s.started_at, s.ended_at, f.facet, f.value
+             FROM window_focus_spans_by_start_instant s
+             LEFT JOIN window_focus_span_facets_by_start_instant f
+                 ON f.span_started_at = s.started_at
+             WHERE s.ended_at >= ?1 ORDER BY s.started_at",
+            (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
         )
         .await?;
     let columns = Columns::of(&rows);
@@ -114,22 +101,21 @@ async fn read_spans(
             .optional_text(&row, "facet")
             .zip(columns.optional_text(&row, "value"))
             .map(|(facet, value)| StoredFacet { facet, value });
-        let (Some(started_at), Some(ended_at)) = (
-            at_seconds(columns.integer(&row, "started_at")?),
-            at_seconds(columns.integer(&row, "ended_at")?),
+        let (Ok(started_at), Ok(ended_at)) = (
+            columns.text(&row, "started_at")?.parse(),
+            columns.text(&row, "ended_at")?.parse(),
         ) else {
             continue;
         };
         facet_rows.push(FacetRow {
-            id: columns.integer(&row, "id")?,
             window: columns.integer(&row, "window_id")?.cast_unsigned(),
             started_at,
             ended_at,
             unit: stored.and_then(|stored| FocusUnit::try_from(stored).ok()),
         });
     }
-    let focus = facet_rows
-        .chunk_by(|previous, next| previous.id == next.id)
+    let window_focus_spans = facet_rows
+        .chunk_by(|previous, next| previous.started_at == next.started_at)
         .filter_map(|rows| {
             let first = rows.first()?;
             Some(FocusSpan {
@@ -143,102 +129,72 @@ async fn read_spans(
 
     let mut rows = conn
         .query(
-            "SELECT id, started_at, ended_at, state FROM presence_spans WHERE ended_at >= ?1 \
-             ORDER BY started_at, id",
-            (seconds(since),),
+            "SELECT started_at, ended_at, state FROM presence_spans_by_start_instant \
+             WHERE ended_at >= ?1 ORDER BY started_at",
+            (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
         )
         .await?;
     let columns = Columns::of(&rows);
-    let mut presence = Vec::new();
+    let mut presence_spans = Vec::new();
     while let Some(row) = rows.next().await? {
-        let (Some(started_at), Some(ended_at), Ok(state)) = (
-            at_seconds(columns.integer(&row, "started_at")?),
-            at_seconds(columns.integer(&row, "ended_at")?),
+        let (Ok(started_at), Ok(ended_at), Ok(state)) = (
+            columns.text(&row, "started_at")?.parse(),
+            columns.text(&row, "ended_at")?.parse(),
             columns.text(&row, "state")?.parse(),
         ) else {
             continue;
         };
-        presence.push(PresenceSpan {
+        presence_spans.push(PresenceSpan {
             state,
             started_at,
             ended_at,
         });
     }
-    Ok(LoadedSpans { focus, presence })
+    Ok(LoadedSpans {
+        window_focus_spans,
+        presence_spans,
+    })
 }
 
-async fn inserted_id(
-    conn: &turso::Connection,
-    statement: &str,
-    params: impl turso::IntoParams,
-) -> Result<i64, StoreError> {
-    let mut rows = conn.query(statement, params).await?;
-    let columns = Columns::of(&rows);
-    let row = rows.next().await?.ok_or(StoreError::NoRow)?;
-    columns.integer(&row, "id")
-}
-
-async fn write_span(conn: &turso::Connection, write: &SpanWrite) -> Result<Written, StoreError> {
+async fn record_span(conn: &turso::Connection, write: &SpanWrite) -> Result<(), StoreError> {
     match write {
-        SpanWrite::OpenFocus(span) => {
-            let id = inserted_id(
-                conn,
-                "INSERT INTO window_focus_spans (window_id, started_at, ended_at) VALUES (?1, ?2, \
-                 ?3) RETURNING id",
+        SpanWrite::RecordWindowFocusSpan(span) => {
+            let started_at = span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z);
+            conn.execute(
+                "INSERT INTO window_focus_spans_by_start_instant (started_at, window_id, \
+                 ended_at) VALUES (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = \
+                 max(ended_at, excluded.ended_at)",
                 (
+                    started_at.as_str(),
                     span.window.cast_signed(),
-                    seconds(span.started_at),
-                    seconds(span.ended_at),
+                    span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
                 ),
             )
             .await?;
             for stored in span.units.iter().map(StoredFacet::from) {
                 conn.execute(
-                    "INSERT INTO window_focus_span_facets (span_id, facet, value) VALUES (?1, ?2, \
-                     ?3)",
-                    (id, stored.facet, stored.value),
+                    "INSERT OR IGNORE INTO window_focus_span_facets_by_start_instant \
+                     (span_started_at, facet, value) VALUES (?1, ?2, ?3)",
+                    (started_at.as_str(), stored.facet, stored.value),
                 )
                 .await?;
             }
-            Ok(Written::OpenedFocus(OpenedSpan {
-                id,
-                started_at: span.started_at,
-            }))
         }
-        SpanWrite::OpenPresence(span) => {
-            let id = inserted_id(
-                conn,
-                "INSERT INTO presence_spans (started_at, ended_at, state) VALUES (?1, ?2, ?3) \
-                 RETURNING id",
+        SpanWrite::RecordPresenceSpan(span) => {
+            conn.execute(
+                "INSERT INTO presence_spans_by_start_instant (started_at, ended_at, state) VALUES \
+                 (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = max(ended_at, \
+                 excluded.ended_at)",
                 (
-                    seconds(span.started_at),
-                    seconds(span.ended_at),
+                    span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
+                    span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
                     span.state.stored_name(),
                 ),
             )
             .await?;
-            Ok(Written::OpenedPresence(OpenedSpan {
-                id,
-                started_at: span.started_at,
-            }))
-        }
-        SpanWrite::ExtendFocus { id, ended_at } => {
-            conn.execute(
-                "UPDATE window_focus_spans SET ended_at = ?1 WHERE id = ?2",
-                (seconds(*ended_at), *id),
-            )
-            .await?;
-            Ok(Written::Extended)
-        }
-        SpanWrite::ExtendPresence { id, ended_at } => {
-            conn.execute(
-                "UPDATE presence_spans SET ended_at = ?1 WHERE id = ?2",
-                (seconds(*ended_at), *id),
-            )
-            .await?;
-            Ok(Written::Extended)
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -275,56 +231,47 @@ mod tests {
         }
     }
 
+    async fn recorded(conn: &turso::Connection, writes: &[SpanWrite]) {
+        for write in writes {
+            record_span(conn, write).await.unwrap();
+        }
+    }
+
     #[tokio::test]
-    async fn spans_with_facets_round_trip_and_extend_in_place() {
+    async fn recording_a_span_again_keeps_its_latest_end_in_any_order() {
         let conn = connection().await;
-        let Written::OpenedFocus(focus) = write_span(&conn, &SpanWrite::OpenFocus(focus_span(0)))
-            .await
-            .unwrap()
-        else {
-            panic!("focus span not opened");
-        };
         let presence = PresenceSpan {
             state: Presence::ScreenOff,
             started_at: at(0),
             ended_at: at(0),
         };
-        let Written::OpenedPresence(opened_presence) =
-            write_span(&conn, &SpanWrite::OpenPresence(presence.clone()))
-                .await
-                .unwrap()
-        else {
-            panic!("presence span not opened");
-        };
-        write_span(
+        recorded(
             &conn,
-            &SpanWrite::ExtendFocus {
-                id: focus.id,
-                ended_at: at(5),
-            },
+            &[
+                SpanWrite::RecordWindowFocusSpan(focus_span(0)),
+                SpanWrite::RecordWindowFocusSpan(FocusSpan {
+                    ended_at: at(5),
+                    ..focus_span(0)
+                }),
+                SpanWrite::RecordPresenceSpan(PresenceSpan {
+                    ended_at: at(3),
+                    ..presence.clone()
+                }),
+                SpanWrite::RecordPresenceSpan(presence.clone()),
+            ],
         )
-        .await
-        .unwrap();
-        write_span(
-            &conn,
-            &SpanWrite::ExtendPresence {
-                id: opened_presence.id,
-                ended_at: at(3),
-            },
-        )
-        .await
-        .unwrap();
+        .await;
 
         let loaded = read_spans(&conn, at(-1)).await.unwrap();
         assert_eq!(
-            loaded.focus,
+            loaded.window_focus_spans,
             vec![FocusSpan {
                 ended_at: at(5),
                 ..focus_span(0)
             }]
         );
         assert_eq!(
-            loaded.presence,
+            loaded.presence_spans,
             vec![PresenceSpan {
                 ended_at: at(3),
                 ..presence
@@ -333,29 +280,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn spans_starting_within_the_same_second_stay_distinct() {
+        let conn = connection().await;
+        let first = focus_span(0);
+        let second = FocusSpan {
+            window: 43,
+            started_at: at(0) + TimeDelta::milliseconds(300),
+            ended_at: at(0) + TimeDelta::milliseconds(300),
+            ..focus_span(0)
+        };
+        recorded(
+            &conn,
+            &[
+                SpanWrite::RecordWindowFocusSpan(first.clone()),
+                SpanWrite::RecordWindowFocusSpan(second.clone()),
+            ],
+        )
+        .await;
+        let loaded = read_spans(&conn, at(-1)).await.unwrap();
+        assert_eq!(loaded.window_focus_spans, vec![first, second]);
+    }
+
+    #[tokio::test]
     async fn loading_skips_spans_that_ended_before_the_window() {
         let conn = connection().await;
-        write_span(&conn, &SpanWrite::OpenFocus(focus_span(-30)))
-            .await
-            .unwrap();
-        write_span(&conn, &SpanWrite::OpenFocus(focus_span(10)))
-            .await
-            .unwrap();
+        recorded(
+            &conn,
+            &[
+                SpanWrite::RecordWindowFocusSpan(focus_span(-30)),
+                SpanWrite::RecordWindowFocusSpan(focus_span(10)),
+            ],
+        )
+        .await;
         let loaded = read_spans(&conn, at(0)).await.unwrap();
-        assert_eq!(loaded.focus.len(), 1);
-        assert_eq!(loaded.focus[0].started_at, at(10));
+        assert_eq!(loaded.window_focus_spans.len(), 1);
+        assert_eq!(loaded.window_focus_spans[0].started_at, at(10));
     }
 
     #[tokio::test]
     async fn forgetting_old_spans_takes_their_facets_along() {
         let conn = connection().await;
-        write_span(&conn, &SpanWrite::OpenFocus(focus_span(-30)))
-            .await
-            .unwrap();
+        recorded(&conn, &[SpanWrite::RecordWindowFocusSpan(focus_span(-30))]).await;
         forget_before(&conn, at(0)).await.unwrap();
         let mut rows = conn
             .query(
-                "SELECT COUNT(*) AS facets FROM window_focus_span_facets",
+                "SELECT COUNT(*) AS facets FROM window_focus_span_facets_by_start_instant",
                 (),
             )
             .await
