@@ -32,6 +32,9 @@ Import `homeModules.default` from the flake. It installs the package, writes
 
 Several widgets read system daemons a home-manager module cannot start. On
 NixOS, import `nixosModules.default` and set `programs.vetrata.enable = true`.
+It also unlocks root-only CPU readings and the X3D preference switch; turn
+`programs.vetrata.cpuPowerReading.enable` off on machines shared with untrusted
+users.
 
 ## Configure
 
