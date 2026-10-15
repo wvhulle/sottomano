@@ -389,13 +389,12 @@ async fn describe_photo(file_name: String, id: &str, secret: &str) -> Result<Wal
             .and_then(|links| links.html)
             .unwrap_or_else(|| format!("{UNSPLASH_PHOTO_PAGE}{id}")),
         place: location.as_ref().and_then(|location| location.name.clone()),
-        position: location.and_then(|location| fix(location.position.as_ref())),
+        position: location.and_then(|location| location.position.as_ref().and_then(fix)),
         article: None,
     })
 }
 
-fn fix(reported: Option<&ReportedPosition>) -> Option<Position> {
-    let reported = reported?;
+fn fix(reported: &ReportedPosition) -> Option<Position> {
     let position = Position {
         latitude: Angle::new::<degree>(reported.latitude?),
         longitude: Angle::new::<degree>(reported.longitude?),

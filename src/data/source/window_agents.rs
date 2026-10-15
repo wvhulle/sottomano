@@ -107,12 +107,17 @@ impl Pairing {
                     self.probe(&socket, key, agent_window, niri)?;
                 }
             }
-            let paired_here = self.paired.iter().filter(|(_, key)| key.process == process);
-            for (&niri_window, key) in paired_here {
-                if let Some(agent_window) = agent_windows
+            for agent_window in &agent_windows {
+                let key = AgentWindowKey {
+                    process,
+                    window: agent_window.id,
+                };
+                let paired_niri_windows = self
+                    .paired
                     .iter()
-                    .find(|agent_window| agent_window.id == key.window)
-                {
+                    .filter(|(_, paired)| **paired == key)
+                    .map(|(&niri_window, _)| niri_window);
+                for niri_window in paired_niri_windows {
                     processes.by_window.insert(
                         niri_window,
                         PairedWindow {

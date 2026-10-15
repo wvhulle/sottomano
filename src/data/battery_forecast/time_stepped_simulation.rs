@@ -1,4 +1,4 @@
-use std::{iter::once, ops::ControlFlow, time::Duration};
+use std::{ops::ControlFlow, time::Duration};
 
 use uom::si::{
     f64::{Energy, Power, Time},
@@ -57,14 +57,14 @@ pub(super) fn time_to_move(
 pub(super) fn estimate(time_in: impl Fn(Scenario) -> Option<Duration>) -> Option<Estimate> {
     let fading = time_in(Scenario::Fading)?;
     let bounds = [Scenario::Typical, Scenario::Persisting].map(time_in);
-    let finished = bounds.into_iter().flatten().chain(once(fading));
+    let earliest = bounds.into_iter().flatten().fold(fading, Duration::min);
     let slowest = bounds
         .into_iter()
         .collect::<Option<Vec<_>>>()
         .map(|bounds| bounds.into_iter().fold(fading, Duration::max));
     Some(Estimate {
         time: whole_minutes(fading),
-        earliest: whole_minutes(finished.min()?),
+        earliest: whole_minutes(earliest),
         latest: slowest.map(whole_minutes),
     })
 }
