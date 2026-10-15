@@ -150,36 +150,55 @@ impl Accounting<'_> {
             .map(|minutes| TimeDelta::minutes(i64::from(minutes)))
     }
 
-    pub fn quotas_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Quota> {
-        let quota = |label: Cow<'static, str>, spent: TimeDelta, budget: TimeDelta| {
-            let used = spent.as_seconds_f64() / budget.as_seconds_f64().max(1.0);
-            Quota::within_window(
-                label,
-                Ratio::new::<ratio>(used),
-                window.until,
-                window.length(),
-                now,
-            )
-        };
-        let screen = self.screen_budget().map(|budget| {
-            quota(
+    fn budget_quota(
+        label: Cow<'static, str>,
+        spent: TimeDelta,
+        budget: TimeDelta,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> Quota {
+        let used = spent.as_seconds_f64() / budget.as_seconds_f64().max(1.0);
+        Quota::within_window(
+            label,
+            Ratio::new::<ratio>(used),
+            window.until,
+            window.length(),
+            now,
+        )
+    }
+
+    pub fn screen_quota(&self, window: Interval, now: DateTime<Utc>) -> Option<Quota> {
+        self.screen_budget().map(|budget| {
+            Self::budget_quota(
                 Cow::Borrowed("Screen"),
                 self.screen_spent(window, now),
                 budget,
+                window,
+                now,
             )
-        });
+        })
+    }
+
+    pub fn quotas_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Quota> {
         self.unit_totals(window, now)
-            .into_iter()
-            .filter_map(|total| {
-                let budget = total.budget?;
-                Some(quota(
-                    Cow::Owned(total.unit.label().into_owned()),
-                    total.spent,
-                    budget,
-                ))
-            })
-            .chain(screen)
+            .iter()
+            .filter_map(|total| total.quota(window, now))
+            .chain(self.screen_quota(window, now))
             .collect()
+    }
+}
+
+impl UnitTotal {
+    pub fn quota(&self, window: Interval, now: DateTime<Utc>) -> Option<Quota> {
+        self.budget.map(|budget| {
+            Accounting::budget_quota(
+                Cow::Owned(self.unit.label().into_owned()),
+                self.spent,
+                budget,
+                window,
+                now,
+            )
+        })
     }
 }
 
