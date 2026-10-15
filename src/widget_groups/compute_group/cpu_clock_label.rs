@@ -3,14 +3,11 @@ use uom::{
     si::{f64::Frequency, frequency::gigahertz},
 };
 
-use super::core_kind_sections::{PerCore, sections_by_core_kind};
+use super::core_group_sections::{PerCore, sections_by_core_group};
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::{
-            cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
-            cpu_topology::CpuTopology,
-        },
+        source::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -85,10 +82,10 @@ impl BarWidget for CpuClock {
 }
 
 impl CpuClock {
-    pub fn core_sections(&self, topology: &CpuTopology) -> Vec<Section> {
-        sections_by_core_kind(
-            topology,
-            self.cores.clone(),
+    pub fn core_sections(&self) -> Vec<Section> {
+        sections_by_core_group(
+            &self.topology,
+            &self.cores,
             [ColumnHeading::new("Clock"), ColumnHeading::new("Cap")],
             "Clock is the current speed; Cap is the ceiling the governor allows. A cap below the \
              hardware maximum is marked.",

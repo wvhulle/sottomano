@@ -1,4 +1,4 @@
-mod core_kind_sections;
+mod core_group_sections;
 mod cpu_clock_label;
 mod cpu_load_gauge;
 mod cpu_temperature_label;
@@ -13,7 +13,6 @@ use crate::{
         hardware::HostHardware,
         sysfs_sensors::{
             cpu_clock::CpuClock,
-            cpu_topology::CpuTopology,
             cpu_usage::{CpuCoreLoads, CpuUsage},
             memory::{Memory, MemoryProcesses},
             temperature::{CpuCoreTemperatures, Temperature},
@@ -165,15 +164,10 @@ impl ComputeGroup {
     }
 
     pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
-        let uniform = CpuTopology::default();
-        let topology = self
-            .hardware
-            .get()
-            .map_or(&uniform, |hardware| &hardware.topology);
         match target {
             ComputeTarget::Cpu => self
                 .cpu
-                .tooltip_with_sections(self.core_loads.sections(|loads| loads.sections(topology))),
+                .tooltip_with_sections(self.core_loads.sections(CpuCoreLoads::sections)),
             ComputeTarget::Memory => self.memory.tooltip_with_sections(
                 [
                     self.memory_processes.sections(MemoryProcesses::sections),
@@ -184,7 +178,7 @@ impl ComputeGroup {
             ),
             ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
                 [
-                    self.clock.sections(|clock| clock.core_sections(topology)),
+                    self.clock.sections(CpuClock::core_sections),
                     self.hardware
                         .sections(|hardware| hardware.cpu.hardware_sections().to_vec()),
                 ]
@@ -192,7 +186,7 @@ impl ComputeGroup {
             ),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
-                    .sections(|cores| cores.sections(topology)),
+                    .sections(CpuCoreTemperatures::sections),
             ),
             ComputeTarget::Machine => self
                 .hardware

@@ -11,7 +11,6 @@ use serde_json::Value;
 
 use crate::data::source::{
     Panicked, PolledSource, Source, blocking_poll, command, hostname::MachineInfo,
-    sysfs_sensors::cpu_topology::CpuTopology,
 };
 
 const UDEV_DATA: &str = "/run/udev/data";
@@ -243,7 +242,6 @@ impl PowerSupplyIdentity {
 pub struct HostHardware {
     pub cpu: CpuModel,
     pub memory: MemoryModules,
-    pub topology: CpuTopology,
     pub machine: MachineInfo,
 }
 
@@ -263,7 +261,6 @@ impl PolledSource for HostHardware {
             Ok(HostHardware {
                 cpu: CpuModel::current(),
                 memory: MemoryModules::current(),
-                topology: CpuTopology::detect(),
                 machine,
             })
         })

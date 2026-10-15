@@ -1,13 +1,10 @@
 use uom::si::{f64::Ratio, ratio::percent};
 
-use super::core_kind_sections::{PerCore, sections_by_core_kind};
+use super::core_group_sections::{PerCore, sections_by_core_group};
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::{
-            cpu_topology::CpuTopology,
-            cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
-        },
+        source::sysfs_sensors::cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -36,10 +33,10 @@ struct CoreReading {
 }
 
 impl CpuCoreLoads {
-    pub fn sections(&self, topology: &CpuTopology) -> Vec<Section> {
-        sections_by_core_kind(
-            topology,
-            self.core_readings(),
+    pub fn sections(&self) -> Vec<Section> {
+        sections_by_core_group(
+            &self.topology,
+            &self.core_readings(),
             [
                 ColumnHeading::new("Load"),
                 ColumnHeading::new("User"),
