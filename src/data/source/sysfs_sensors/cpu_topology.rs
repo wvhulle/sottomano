@@ -90,7 +90,19 @@ pub struct CpuTopology {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CoreGroup {
     role: CoreRole,
-    logical_cpus: Vec<u32>,
+    physical_cores: Vec<PhysicalCore>,
+    chiplets: Vec<Chiplet>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhysicalCore {
+    pub threads: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Chiplet {
+    pub position: usize,
+    pub shared_cache: Information,
 }
 
 impl CoreGroup {
@@ -99,7 +111,21 @@ impl CoreGroup {
     }
 
     pub fn contains(&self, logical_cpu: u32) -> bool {
-        self.logical_cpus.contains(&logical_cpu)
+        self.logical_cpus().any(|cpu| cpu == logical_cpu)
+    }
+
+    pub fn logical_cpus(&self) -> impl Iterator<Item = u32> + '_ {
+        self.physical_cores
+            .iter()
+            .flat_map(|core| core.threads.iter().copied())
+    }
+
+    pub fn physical_cores(&self) -> &[PhysicalCore] {
+        &self.physical_cores
+    }
+
+    pub fn chiplets(&self) -> &[Chiplet] {
+        &self.chiplets
     }
 
     pub fn caption(&self) -> &'static str {
@@ -127,25 +153,57 @@ impl CpuTopology {
         } else {
             roles_by_cache_domain(cpus)
         };
-        let members_by_role = assigned.into_iter().fold(
-            BTreeMap::<CoreRole, Vec<u32>>::new(),
-            |mut members_by_role, assigned| {
-                members_by_role
+        let groups_by_role = assigned.into_iter().fold(
+            BTreeMap::<CoreRole, CoreGroup>::new(),
+            |mut groups_by_role, assigned| {
+                groups_by_role
                     .entry(assigned.role)
-                    .or_default()
-                    .push(assigned.index);
-                members_by_role
+                    .or_insert_with(|| CoreGroup {
+                        role: assigned.role,
+                        physical_cores: Vec::new(),
+                        chiplets: Vec::new(),
+                    })
+                    .admit(&assigned);
+                groups_by_role
             },
         );
         CpuTopology {
-            core_groups: members_by_role
-                .into_iter()
-                .map(|(role, mut logical_cpus)| {
-                    logical_cpus.sort_unstable();
-                    CoreGroup { role, logical_cpus }
-                })
+            core_groups: groups_by_role
+                .into_values()
+                .map(CoreGroup::ordered)
                 .collect(),
         }
+    }
+}
+
+impl CoreGroup {
+    fn admit(&mut self, assigned: &AssignedCpu) {
+        let cpu = assigned.cpu;
+        match self.physical_cores.iter_mut().find(|core| {
+            core.threads
+                .iter()
+                .any(|thread| cpu.thread_siblings.contains(thread))
+        }) {
+            Some(core) => core.threads.push(cpu.index),
+            None => self.physical_cores.push(PhysicalCore {
+                threads: vec![cpu.index],
+            }),
+        }
+        if let Some(chiplet) = assigned.chiplet
+            && !self.chiplets.contains(&chiplet)
+        {
+            self.chiplets.push(chiplet);
+        }
+    }
+
+    fn ordered(mut self) -> Self {
+        for core in &mut self.physical_cores {
+            core.threads.sort_unstable();
+        }
+        self.physical_cores
+            .sort_by(|first, second| first.threads.cmp(&second.threads));
+        self.chiplets.sort_by_key(|chiplet| chiplet.position);
+        self
     }
 }
 
@@ -155,6 +213,7 @@ struct LogicalCpu {
     design: CoreDesign,
     last_level_cache: Option<SharedCache>,
     peak_clock: Option<Frequency>,
+    thread_siblings: Vec<u32>,
 }
 
 impl LogicalCpu {
@@ -168,6 +227,8 @@ impl LogicalCpu {
                 .unwrap_or(CoreDesign::NotExposed),
             last_level_cache: SharedCache::read_last_level(Path::new(&directory)),
             peak_clock: read_kilohertz(format!("{directory}/cpufreq/cpuinfo_max_freq")),
+            thread_siblings: read_trimmed(format!("{directory}/topology/thread_siblings_list"))
+                .map_or_else(|| vec![index], |list| cpulist(&list).collect()),
         }
     }
 
@@ -237,9 +298,10 @@ impl CoreDesign {
     }
 }
 
-struct AssignedCpu {
+struct AssignedCpu<'a> {
     role: CoreRole,
-    index: u32,
+    cpu: &'a LogicalCpu,
+    chiplet: Option<Chiplet>,
 }
 
 fn designs_tell_cores_apart(cpus: &[LogicalCpu]) -> bool {
@@ -250,7 +312,7 @@ fn designs_tell_cores_apart(cpus: &[LogicalCpu]) -> bool {
     all_exposed && mixed
 }
 
-fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
+fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu<'_>> {
     let intel_performance_cpus: Vec<u32> = cpus
         .iter()
         .filter(|cpu| cpu.design == CoreDesign::IntelPerformanceCore)
@@ -271,7 +333,8 @@ fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
         };
         Some(AssignedCpu {
             role,
-            index: cpu.index,
+            cpu,
+            chiplet: None,
         })
     });
     let arm_tiers = ArmPartTier::ranked_by_capacity(cpus);
@@ -282,9 +345,11 @@ fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
             rank if rank == slowest_rank => CoreRole::EfficientCores,
             _ => CoreRole::MidCapacityCores,
         };
-        tier.members
-            .into_iter()
-            .map(move |index| AssignedCpu { role, index })
+        tier.members.into_iter().map(move |cpu| AssignedCpu {
+            role,
+            cpu,
+            chiplet: None,
+        })
     });
     unranked.chain(ranked).collect()
 }
@@ -292,7 +357,7 @@ fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
 struct ArmPartTier<'a> {
     part: &'a str,
     highest_capacity: u32,
-    members: Vec<u32>,
+    members: Vec<&'a LogicalCpu>,
 }
 
 impl<'a> ArmPartTier<'a> {
@@ -302,12 +367,12 @@ impl<'a> ArmPartTier<'a> {
                 match tiers.iter_mut().find(|tier| tier.part == part) {
                     Some(tier) => {
                         tier.highest_capacity = tier.highest_capacity.max(*capacity);
-                        tier.members.push(cpu.index);
+                        tier.members.push(cpu);
                     }
                     None => tiers.push(ArmPartTier {
                         part,
                         highest_capacity: *capacity,
-                        members: vec![cpu.index],
+                        members: vec![cpu],
                     }),
                 }
             }
@@ -318,23 +383,22 @@ impl<'a> ArmPartTier<'a> {
     }
 }
 
-fn roles_by_cache_domain(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
-    let all_cores = || -> Vec<AssignedCpu> {
-        cpus.iter()
+fn roles_by_cache_domain(cpus: &[LogicalCpu]) -> Vec<AssignedCpu<'_>> {
+    let Some(domains) = CacheDomain::group_every_cpu(cpus) else {
+        return cpus
+            .iter()
             .map(|cpu| AssignedCpu {
                 role: CoreRole::AllCores,
-                index: cpu.index,
+                cpu,
+                chiplet: None,
             })
-            .collect()
-    };
-    let Some(domains) = CacheDomain::group_every_cpu(cpus) else {
-        return all_cores();
+            .collect();
     };
     let [first, rest @ ..] = domains.as_slice() else {
-        return all_cores();
+        return Vec::new();
     };
     if rest.is_empty() {
-        return all_cores();
+        return first.assigned(CoreRole::AllCores, 0);
     }
     let largest_size = rest
         .iter()
@@ -354,25 +418,19 @@ fn roles_by_cache_domain(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
                     .flat_map(|domain| domain.members.iter().copied()),
             )
         };
-        let largest_cache_clocks_lower = peak_where_largest_is(true).is_some_and(|largest| {
-            peak_where_largest_is(false).is_some_and(|smaller| smaller > largest)
+        let largest_cache_clocks_higher = peak_where_largest_is(true).is_some_and(|largest| {
+            peak_where_largest_is(false).is_some_and(|smaller| largest > smaller)
         });
-        if largest_cache_clocks_lower {
-            CacheDomainLayout::StackedCacheBesideHighClock { largest_size }
-        } else {
+        if largest_cache_clocks_higher {
             CacheDomainLayout::FullCoresBesideCompact { largest_size }
+        } else {
+            CacheDomainLayout::StackedCacheBesideHighClock { largest_size }
         }
     };
     domains
         .iter()
         .enumerate()
-        .flat_map(|(position, domain)| {
-            let role = layout.role(position, domain);
-            domain.members.iter().map(move |cpu| AssignedCpu {
-                role,
-                index: cpu.index,
-            })
-        })
+        .flat_map(|(position, domain)| domain.assigned(layout.role(position, domain), position))
         .collect()
 }
 
@@ -395,6 +453,21 @@ impl<'a> CacheDomain<'a> {
                 }
                 Some(domains)
             })
+    }
+
+    fn assigned(&self, role: CoreRole, position: usize) -> Vec<AssignedCpu<'a>> {
+        let chiplet = Chiplet {
+            position,
+            shared_cache: self.cache.size,
+        };
+        self.members
+            .iter()
+            .map(|cpu| AssignedCpu {
+                role,
+                cpu,
+                chiplet: Some(chiplet),
+            })
+            .collect()
     }
 }
 
@@ -535,6 +608,7 @@ mod tests {
                 design: design.clone(),
                 last_level_cache: Some(last_level_cache.clone()),
                 peak_clock: Some(Frequency::new::<megahertz>(peak_megahertz)),
+                thread_siblings: vec![index],
             })
             .collect()
     }
@@ -550,7 +624,7 @@ mod tests {
         topology
             .core_groups()
             .iter()
-            .map(|group| (group.role, group.logical_cpus.clone()))
+            .map(|group| (group.role, group.logical_cpus().collect()))
             .collect()
     }
 
@@ -662,6 +736,34 @@ mod tests {
                     &CoreDesign::NotExposed,
                     &cache(3, 32.0, 4..=7),
                     5750.0,
+                ),
+            ]
+            .concat(),
+        );
+        assert_eq!(
+            roles(&topology),
+            [
+                (CoreRole::StackedCacheCores, vec![0, 1, 2, 3]),
+                (CoreRole::HighClockCores, vec![4, 5, 6, 7]),
+            ]
+        );
+    }
+
+    #[test]
+    fn ryzen_x3d_reporting_equal_peak_clocks_still_has_a_stacked_cache_chiplet() {
+        let topology = CpuTopology::from_logical_cpus(
+            &[
+                cpus(
+                    0..=3,
+                    &CoreDesign::NotExposed,
+                    &cache(3, 96.0, 0..=3),
+                    5760.0,
+                ),
+                cpus(
+                    4..=7,
+                    &CoreDesign::NotExposed,
+                    &cache(3, 32.0, 4..=7),
+                    5760.0,
                 ),
             ]
             .concat(),
