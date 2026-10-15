@@ -1,6 +1,6 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, iter::once};
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
         severity::Severity,
         source::{
             ai::quota::{Pace, Quota, QuotaLimited},
-            focus_ledger::{Accounting, UnitTotal, WakingWindow},
+            focus_ledger::{Accounting, FocusUnit, Interval, UnitTotal, WakingWindow},
         },
     },
     widget_groups::ai_group::amount_text::{coarse_duration_text, duration_text},
@@ -33,8 +33,8 @@ impl DailyTotalsGauge<'_> {
             .max_by(|a, b| a.used.partial_cmp(&b.used).unwrap_or(Ordering::Equal))
     }
 
-    fn runs_out_cell(quota: Option<&Quota>) -> Option<Cell> {
-        match quota?.pace()? {
+    fn runs_out_cell(quota: &Quota) -> Option<Cell> {
+        match quota.pace()? {
             Pace::RunsOut { at } => Some(Cell::Time {
                 at,
                 part: TimePart::TimeOfDay,
@@ -43,91 +43,93 @@ impl DailyTotalsGauge<'_> {
         }
     }
 
-    fn thresholds(&self) -> Option<Section> {
-        self.accounting.screen_budget().map(|budget| {
-            Section::dictionary([KeyValue::new("Screen budget", duration_text(budget))])
-                .titled("Thresholds")
-        })
-    }
-
     pub fn sections(&self) -> Vec<Section> {
-        [Some(self.today()), self.thresholds()]
+        let now = Utc::now();
+        let window = self.waking.around(now);
+        let (apps, projects): (Vec<UnitSpendRecord>, Vec<UnitSpendRecord>) = self
+            .accounting
+            .unit_totals(window, now)
             .into_iter()
-            .flatten()
+            .map(|total| UnitSpendRecord {
+                quota: total.quota(window, now),
+                total,
+            })
+            .partition(|record| matches!(record.total.unit, FocusUnit::App(_)));
+        once(self.screen(window, now))
+            .chain(UnitSpendRecord::section(apps, "Applications"))
+            .chain(UnitSpendRecord::section(projects, "Projects"))
             .collect()
     }
 
-    fn rows(&self, now: DateTime<Utc>) -> Vec<TotalRow> {
-        let window = self.waking.around(now);
-        let quotas = self.quotas(now);
-        let quota_of = |label: &str| quotas.iter().find(|quota| quota.label == label).cloned();
-        let units = self.accounting.unit_totals(window, now).into_iter().map(
-            |UnitTotal {
-                 unit,
-                 spent,
-                 budget,
-             }| TotalRow {
-                quota: quota_of(&unit.label()),
-                label: unit.label().into_owned(),
-                spent,
-                budget,
-            },
-        );
-        let screen = TotalRow {
-            quota: quota_of("Screen"),
-            label: "Screen".to_owned(),
-            spent: self.accounting.screen_spent(window, now),
-            budget: self.accounting.screen_budget(),
-        };
-        units.chain([screen]).collect()
+    fn screen(&self, window: Interval, now: DateTime<Utc>) -> Section {
+        let quota = self.accounting.screen_quota(window, now);
+        let today = KeyValue::new(
+            "Today",
+            duration_text(self.accounting.screen_spent(window, now)),
+        )
+        .level(quota.as_ref().map(Quota::severity).unwrap_or_default());
+        let budget = self
+            .accounting
+            .screen_budget()
+            .map(|budget| KeyValue::new("Budget", duration_text(budget)));
+        let runs_out = quota
+            .as_ref()
+            .and_then(Self::runs_out_cell)
+            .map(|cell| KeyValue::new("Runs out", cell));
+        Section::dictionary(once(today).chain(budget).chain(runs_out)).titled("Screen")
     }
+}
 
-    fn today(&self) -> Section {
-        let rows = self.rows(Utc::now());
-        if rows.iter().any(|row| row.budget.is_some()) {
-            Section::column_table(
+struct UnitSpendRecord {
+    total: UnitTotal,
+    quota: Option<Quota>,
+}
+
+impl UnitSpendRecord {
+    fn section(records: Vec<Self>, title: &str) -> Option<Section> {
+        if records.is_empty() {
+            None
+        } else if records.iter().any(|record| record.total.budget.is_some()) {
+            Some(Section::column_table(
                 [
                     ColumnHeading::new("Today"),
                     ColumnHeading::new("Budget"),
                     ColumnHeading::new("Runs out"),
                 ],
-                rows.into_iter().map(TotalRow::budgeted_record),
-            )
+                records.into_iter().map(Self::budgeted_record),
+            ))
         } else {
-            Section::column_table(
+            Some(Section::column_table(
                 [ColumnHeading::new("Today")],
-                rows.into_iter().map(TotalRow::plain_record),
-            )
+                records.into_iter().map(Self::plain_record),
+            ))
         }
-        .titled("Today")
+        .map(|section| section.titled(title))
     }
-}
 
-struct TotalRow {
-    label: String,
-    spent: TimeDelta,
-    budget: Option<TimeDelta>,
-    quota: Option<Quota>,
-}
-
-impl TotalRow {
     fn severity(&self) -> Severity {
         self.quota.as_ref().map(Quota::severity).unwrap_or_default()
     }
 
     fn plain_record(self) -> TableRecord<1> {
         let level = self.severity();
-        TableRecord::new(self.label, [Some(duration_text(self.spent).into())]).level(level)
+        TableRecord::new(
+            self.total.unit.label().into_owned(),
+            [Some(duration_text(self.total.spent).into())],
+        )
+        .level(level)
     }
 
     fn budgeted_record(self) -> TableRecord<3> {
         let level = self.severity();
         TableRecord::new(
-            self.label,
+            self.total.unit.label().into_owned(),
             [
-                Some(duration_text(self.spent).into()),
-                self.budget.map(|budget| duration_text(budget).into()),
-                DailyTotalsGauge::runs_out_cell(self.quota.as_ref()),
+                Some(duration_text(self.total.spent).into()),
+                self.total.budget.map(|budget| duration_text(budget).into()),
+                self.quota
+                    .as_ref()
+                    .and_then(DailyTotalsGauge::runs_out_cell),
             ],
         )
         .level(level)
