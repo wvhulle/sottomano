@@ -1,8 +1,16 @@
 use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, Local, Locale};
+use uom::si::{
+    f64::{Ratio, ThermodynamicTemperature},
+    ratio::ratio,
+    thermodynamic_temperature::degree_celsius,
+};
 
-use super::core_group_sections::{PerCore, sections_by_core_group};
+use super::{
+    chiplet_live_state::ChipletLiveState,
+    core_grid_sections::{CoreGridSection, PerCore},
+};
 use crate::{
     data::{
         severity::Severity,
@@ -16,7 +24,7 @@ use crate::{
         ongoing_toast::OngoingBody,
         phosphor::Phosphor,
         temperature_thresholds::celsius_text,
-        tooltip_body::{ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -27,18 +35,16 @@ impl PerCore for CoreTemperature {
     fn core(&self) -> u32 {
         self.core
     }
-}
 
-impl CoreTemperature {
-    fn table_record(&self) -> TableRecord<2> {
-        TableRecord::new(
-            format!("Core {}", self.core),
-            [
-                Some(celsius_text(self.temperature).into()),
-                self.limit.map(|limit| celsius_text(limit).into()),
-            ],
-        )
-        .level(cpu_thresholds(self.limit, self.overrides).level(self.temperature))
+    fn thread_cell(&self) -> ThreadCell {
+        let thresholds = cpu_thresholds(self.limit, self.overrides);
+        ThreadCell {
+            fill: Ratio::new::<ratio>(
+                self.temperature.get::<degree_celsius>()
+                    / thresholds.critical.get::<degree_celsius>(),
+            ),
+            level: thresholds.level(self.temperature),
+        }
     }
 }
 
@@ -148,15 +154,32 @@ impl BarWidget for Temperature {
 }
 
 impl CpuCoreTemperatures {
-    pub fn sections(&self) -> Vec<Section> {
-        sections_by_core_group(
-            &self.topology,
-            &self.cores,
-            [ColumnHeading::new("Temp"), ColumnHeading::new("Limit")],
-            "Temp is each core's own sensor; Limit is the temperature its driver reports as the \
-             threshold.",
-            CoreTemperature::table_record,
-        )
+    pub fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+        vec![
+            CoreGridSection {
+                topology: &self.topology,
+                readings: &self.cores,
+            }
+            .section(
+                |group| live.title(group),
+                |group, members| {
+                    members
+                        .iter()
+                        .map(|reading| reading.temperature)
+                        .reduce(ThermodynamicTemperature::max)
+                        .map(|hottest| KeyValue::new("Hottest", celsius_text(hottest)))
+                        .into_iter()
+                        .chain(live.facts(group))
+                        .collect()
+                },
+            )
+            .titled((
+                "Chiplets".to_owned(),
+                "Each square is one hardware thread, stacked per physical core; fill shows its \
+                 core's sensor against the critical threshold."
+                    .to_owned(),
+            )),
+        ]
     }
 }
 

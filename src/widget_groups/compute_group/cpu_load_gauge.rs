@@ -1,16 +1,25 @@
-use uom::si::{f64::Ratio, ratio::percent};
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{f64::Ratio, power::watt, ratio::percent},
+};
 
-use super::core_group_sections::{PerCore, sections_by_core_group};
+use super::{
+    chiplet_live_state::ChipletLiveState,
+    core_grid_sections::{CoreGridSection, PerCore},
+};
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
+        source::sysfs_sensors::{
+            cpu_power::CpuPower,
+            cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_text,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -32,25 +41,51 @@ struct CoreReading {
     deep_idle: Option<Ratio>,
 }
 
+fn mean_share<'a>(shares: impl Iterator<Item = Ratio> + 'a) -> Option<Ratio> {
+    let collected: Vec<Ratio> = shares.collect();
+    let count = collected.len();
+    (count > 0).then(|| collected.into_iter().sum::<Ratio>() / count as f64)
+}
+
 impl CpuCoreLoads {
-    pub fn sections(&self) -> Vec<Section> {
-        sections_by_core_group(
-            &self.topology,
-            &self.core_readings(),
-            [
-                ColumnHeading::new("Load"),
-                ColumnHeading::new("User"),
-                ColumnHeading::new("Sys"),
-                ColumnHeading::new("IO"),
-                ColumnHeading::new("IRQ"),
-                ColumnHeading::new("Idle"),
-            ],
-            "Load is the share of the last sample each thread spent busy, split into user \
-             programs, the kernel (Sys), waiting on disks or the network (IO) and interrupt \
-             handling (IRQ). Idle is the share spent in the deepest sleep state, counted when the \
-             thread wakes, so a row need not add up to 100 %.",
-            CoreReading::table_record,
-        )
+    pub fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+        let readings = self.core_readings();
+        let grid = CoreGridSection {
+            topology: &self.topology,
+            readings: &readings,
+        };
+        vec![
+            grid.section(
+                |group| live.title(group),
+                |group, members| {
+                    let mean = |share: fn(&CoreReading) -> Ratio| {
+                        mean_share(members.iter().map(|reading| share(reading)))
+                    };
+                    let load = mean(|reading| reading.busy).map(|busy| {
+                        KeyValue::new("Load", percent_text(busy)).level(busy_level(busy))
+                    });
+                    let user = mean(|reading| reading.split.user)
+                        .map(|user| KeyValue::new("User", percent_text(user)));
+                    let kernel = mean(|reading| reading.split.system)
+                        .map(|system| KeyValue::new("Kernel", percent_text(system)));
+                    let deep_idle =
+                        mean_share(members.iter().filter_map(|reading| reading.deep_idle))
+                            .map(|idle| KeyValue::new("Deep sleep", percent_text(idle)));
+                    load.into_iter()
+                        .chain(user)
+                        .chain(kernel)
+                        .chain(deep_idle)
+                        .chain(live.facts(group))
+                        .collect()
+                },
+            )
+            .titled((
+                "Chiplets".to_owned(),
+                "Each square is one hardware thread, stacked per physical core; fill shows how \
+                 busy it was over the last sample."
+                    .to_owned(),
+            )),
+        ]
     }
 
     fn core_readings(&self) -> Vec<CoreReading> {
@@ -74,23 +109,12 @@ impl PerCore for CoreReading {
     fn core(&self) -> u32 {
         self.core
     }
-}
 
-impl CoreReading {
-    fn table_record(&self) -> TableRecord<6> {
-        let share = |share: Ratio| Some(Cell::from(percent_text(share)));
-        TableRecord::new(
-            format!("Core {}", self.core),
-            [
-                share(self.busy),
-                share(self.split.user),
-                share(self.split.system),
-                share(self.split.iowait),
-                share(self.split.irq),
-                self.deep_idle.and_then(share),
-            ],
-        )
-        .level(busy_level(self.busy))
+    fn thread_cell(&self) -> ThreadCell {
+        ThreadCell {
+            fill: self.busy,
+            level: busy_level(self.busy),
+        }
     }
 }
 
@@ -113,5 +137,19 @@ impl BarWidget for CpuUsage {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new("CPU", percent_text(self.busy))])
+    }
+}
+
+impl CpuPower {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![
+            Section::dictionary(self.zones.iter().map(|zone| {
+                KeyValue::new(
+                    zone.name.clone(),
+                    format!("{:.1}", zone.draw.into_format_args(watt, Abbreviation)),
+                )
+            }))
+            .titled("Power"),
+        ]
     }
 }

@@ -27,49 +27,51 @@ impl<H: HardwareEntries> HardwareEntries for Option<H> {
 }
 
 impl CpuModel {
-    pub fn hardware_sections(&self) -> [Section; 3] {
-        let topology = &self.topology;
-        [
-            Section::dictionary(
-                [
-                    ("Model", &self.identity.name),
-                    ("Microarchitecture", &self.architecture.microarchitecture),
-                    ("Process", &self.architecture.process),
-                    ("Released", &self.architecture.released),
-                    ("x86-64 level", &self.architecture.x86_64_level),
-                    ("Microcode", &self.identity.microcode),
-                ]
-                .into_iter()
-                .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
-            )
-            .titled("Processor"),
-            Section::dictionary(
-                [
-                    topology
-                        .cores
-                        .map(|count| KeyValue::new("Cores", count.to_string())),
-                    topology
-                        .threads
-                        .map(|count| KeyValue::new("Threads", count.to_string())),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-            .titled("Topology"),
-            Section::dictionary(self.caches.iter().map(CacheLevel::key_value)).titled("Cache"),
+    pub fn processor_section(&self) -> Section {
+        let identity = [
+            ("Model", &self.identity.name),
+            ("Microarchitecture", &self.architecture.microarchitecture),
+            ("Process", &self.architecture.process),
+            ("Released", &self.architecture.released),
+            ("x86-64 level", &self.architecture.x86_64_level),
+            ("Microcode", &self.identity.microcode),
         ]
+        .into_iter()
+        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)));
+        let counts = [
+            self.topology
+                .cores
+                .map(|count| KeyValue::new("Cores", count.to_string())),
+            self.topology
+                .threads
+                .map(|count| KeyValue::new("Threads", count.to_string())),
+        ]
+        .into_iter()
+        .flatten();
+        let caches = self.caches.iter().map(CacheLevel::key_value);
+        Section::dictionary(identity.chain(counts).chain(caches)).titled("Processor")
     }
 }
 
 impl CacheLevel {
     fn key_value(&self) -> KeyValue {
-        let instances = self
+        let sizes = self
             .instances
             .iter()
-            .map(|same_size| format!("{} × {}", same_size.count, same_size.size.display().iec()))
+            .map(|same_size| {
+                if same_size.count == 1 {
+                    same_size.size.display().iec().to_string()
+                } else {
+                    format!(
+                        "{} each ×{}",
+                        same_size.size.display().iec(),
+                        same_size.count
+                    )
+                }
+            })
             .collect::<Vec<_>>()
             .join(" + ");
-        KeyValue::new(self.position.to_string(), instances)
+        KeyValue::new(self.position.to_string(), sizes)
     }
 }
 

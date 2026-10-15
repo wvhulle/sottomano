@@ -1,9 +1,12 @@
-mod core_group_sections;
+mod chiplet_live_state;
+mod core_grid_sections;
 mod cpu_clock_label;
 mod cpu_load_gauge;
 mod cpu_temperature_label;
 mod memory_usage_gauge;
+mod x3d_cache_preference_toggle;
 
+use chiplet_live_state::ChipletLiveState;
 use iced::{Subscription, Task, futures::Stream};
 
 use crate::{
@@ -11,11 +14,16 @@ use crate::{
     data::source::{
         Delivery, PolledSource,
         hardware::HostHardware,
+        hostname::SystemIdentity,
         sysfs_sensors::{
             cpu_clock::CpuClock,
+            cpu_power::CpuPower,
             cpu_usage::{CpuCoreLoads, CpuUsage},
+            l3_cache_traffic::L3CacheTraffic,
             memory::{Memory, MemoryProcesses},
+            memory_module_temperatures::MemoryModuleTemperatures,
             temperature::{CpuCoreTemperatures, Temperature},
+            x3d_vcache::X3dCachePreference,
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
@@ -26,6 +34,7 @@ use crate::{
         group_item::GroupItem,
         hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
+        toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -37,7 +46,9 @@ pub enum ComputeTarget {
     CpuClock,
     Memory,
     Temperature,
-    Machine,
+    CachePreference,
+    System,
+    Board,
 }
 
 impl From<ComputeTarget> for HoverTarget {
@@ -53,9 +64,13 @@ pub struct ComputeGroup {
     clock: ContinuousReading<CpuClock>,
     temperature: ContinuousReading<Temperature>,
     hardware: ContinuousReading<HostHardware>,
+    cache_preference: ToggleControl<X3dCachePreference>,
     core_loads: OnHoverReading<CpuCoreLoads>,
     core_temperatures: OnHoverReading<CpuCoreTemperatures>,
+    cpu_power: OnHoverReading<CpuPower>,
+    cache_traffic: OnHoverReading<L3CacheTraffic>,
     memory_processes: OnHoverReading<MemoryProcesses>,
+    module_temperatures: OnHoverReading<MemoryModuleTemperatures>,
     expansion: GroupExpansion,
 }
 
@@ -66,9 +81,13 @@ pub enum ComputeMessage {
     Memory(Delivery<Memory>),
     Clock(Delivery<CpuClock>),
     Temperature(Delivery<Temperature>),
+    CachePreference(ToggleMessage<X3dCachePreference>),
     CoreLoadsFetched(Delivery<CpuCoreLoads>),
     CoreTemperaturesFetched(Delivery<CpuCoreTemperatures>),
+    CpuPowerFetched(Delivery<CpuPower>),
+    CacheTrafficFetched(Delivery<L3CacheTraffic>),
     MemoryProcessesFetched(Delivery<MemoryProcesses>),
+    ModuleTemperaturesFetched(Delivery<MemoryModuleTemperatures>),
     Expansion(ExpansionMessage),
 }
 
@@ -90,22 +109,42 @@ impl ComputeGroup {
     ) -> Task<ComputeMessage> {
         self.core_loads.stop();
         self.core_temperatures.stop();
+        self.cpu_power.stop();
+        self.cache_traffic.stop();
         self.memory_processes.stop();
+        self.module_temperatures.stop();
         match hovered {
-            Some(HoverTarget::Compute(ComputeTarget::Cpu)) => {
+            Some(HoverTarget::Compute(ComputeTarget::Cpu)) => Task::batch([
                 self.core_loads
-                    .poll((), ComputeMessage::CoreLoadsFetched, config)
-            }
+                    .poll((), ComputeMessage::CoreLoadsFetched, config),
+                self.cpu_power
+                    .poll((), ComputeMessage::CpuPowerFetched, config),
+                self.cache_traffic
+                    .poll((), ComputeMessage::CacheTrafficFetched, config),
+            ]),
             Some(HoverTarget::Compute(ComputeTarget::Temperature)) => self.core_temperatures.poll(
                 config.widget_groups.temperature_sensors.cpu.overrides(),
                 ComputeMessage::CoreTemperaturesFetched,
                 config,
             ),
-            Some(HoverTarget::Compute(ComputeTarget::Memory)) => {
+            Some(HoverTarget::Compute(ComputeTarget::Memory)) => Task::batch([
                 self.memory_processes
-                    .poll((), ComputeMessage::MemoryProcessesFetched, config)
-            }
+                    .poll((), ComputeMessage::MemoryProcessesFetched, config),
+                self.module_temperatures.poll(
+                    (),
+                    ComputeMessage::ModuleTemperaturesFetched,
+                    config,
+                ),
+            ]),
             _ => Task::none(),
+        }
+    }
+
+    fn live(&self) -> ChipletLiveState<'_> {
+        ChipletLiveState {
+            clock: self.clock.get(),
+            temperature: self.temperature.get(),
+            cache_traffic: self.cache_traffic.reading(),
         }
     }
 
@@ -121,18 +160,31 @@ impl ComputeGroup {
             polling::<CpuClock>((), forced).map(ComputeMessage::Clock),
             polling_through::<Temperature, _>(sensor.clone(), forced, confirmed_heat)
                 .map(ComputeMessage::Temperature),
+            ToggleControl::<X3dCachePreference>::subscription((), forced)
+                .map(ComputeMessage::CachePreference),
         ])
     }
 
     pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
         match msg {
             ComputeMessage::Hardware(delivery) => self.hardware.receive_or_keep(*delivery),
+            ComputeMessage::CachePreference(m) => {
+                return self
+                    .cache_preference
+                    .update(m)
+                    .map(ComputeMessage::CachePreference);
+            }
             ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive(fetched),
             ComputeMessage::CoreTemperaturesFetched(fetched) => {
                 self.core_temperatures.receive(fetched);
             }
+            ComputeMessage::CpuPowerFetched(fetched) => self.cpu_power.receive(fetched),
+            ComputeMessage::CacheTrafficFetched(fetched) => self.cache_traffic.receive(fetched),
             ComputeMessage::MemoryProcessesFetched(fetched) => {
                 self.memory_processes.receive(fetched);
+            }
+            ComputeMessage::ModuleTemperaturesFetched(fetched) => {
+                self.module_temperatures.receive(fetched);
             }
             ComputeMessage::Cpu(reading) => self.cpu.receive(reading),
             ComputeMessage::Memory(reading) => self.memory.receive(reading),
@@ -154,9 +206,17 @@ impl ComputeGroup {
                 self.memory.group_item(ComputeTarget::Memory),
                 self.clock.group_item(ComputeTarget::CpuClock),
                 self.temperature.group_item(ComputeTarget::Temperature),
+                self.cache_preference.group_item(
+                    ComputeTarget::CachePreference,
+                    ComputeMessage::CachePreference,
+                ),
+                self.hardware.get().map(|hardware| {
+                    GroupItem::reading(SystemIdentity(&hardware.machine), ComputeTarget::System)
+                }),
                 self.hardware
                     .get()
-                    .map(|hardware| GroupItem::reading(&hardware.machine, ComputeTarget::Machine)),
+                    .and_then(|hardware| hardware.machine.board_firmware())
+                    .map(|board| GroupItem::reading(board, ComputeTarget::Board)),
             ]
             .into_iter()
             .flatten(),
@@ -164,33 +224,41 @@ impl ComputeGroup {
     }
 
     pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
+        let live = self.live();
         match target {
-            ComputeTarget::Cpu => self
-                .cpu
-                .tooltip_with_sections(self.core_loads.sections(CpuCoreLoads::sections)),
+            ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
+                [
+                    self.core_loads.sections(|loads| loads.sections(&live)),
+                    self.cpu_power.sections(CpuPower::sections),
+                    self.hardware
+                        .sections(|hardware| vec![hardware.cpu.processor_section()]),
+                ]
+                .concat(),
+            ),
             ComputeTarget::Memory => self.memory.tooltip_with_sections(
                 [
                     self.memory_processes.sections(MemoryProcesses::sections),
+                    self.module_temperatures
+                        .sections(MemoryModuleTemperatures::sections),
                     self.hardware
                         .sections(|hardware| vec![hardware.memory.hardware_section()]),
                 ]
                 .concat(),
             ),
-            ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
-                [
-                    self.clock.sections(CpuClock::core_sections),
-                    self.hardware
-                        .sections(|hardware| hardware.cpu.hardware_sections().to_vec()),
-                ]
-                .concat(),
-            ),
+            ComputeTarget::CpuClock => self
+                .clock
+                .tooltip_with_sections(self.clock.sections(|clock| clock.core_sections(&live))),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
-                    .sections(CpuCoreTemperatures::sections),
+                    .sections(|temperatures| temperatures.sections(&live)),
             ),
-            ComputeTarget::Machine => self
+            ComputeTarget::CachePreference => self.cache_preference.tooltip(),
+            ComputeTarget::System => self
                 .hardware
-                .tooltip_with(self.hardware.get()?.machine.tooltip()),
+                .tooltip_with(SystemIdentity(&self.hardware.get()?.machine).tooltip()),
+            ComputeTarget::Board => self
+                .hardware
+                .tooltip_with(self.hardware.get()?.machine.board_firmware()?.tooltip()),
         }
     }
 }
