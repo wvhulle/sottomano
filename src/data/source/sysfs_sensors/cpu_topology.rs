@@ -94,13 +94,6 @@ pub struct CoreGroup {
 }
 
 impl CoreGroup {
-    fn from_role_members(role: CoreRole, members: &[LogicalCpu]) -> Self {
-        CoreGroup {
-            role,
-            logical_cpus: members.iter().map(|cpu| cpu.index).collect(),
-        }
-    }
-
     pub fn title(&self) -> String {
         self.role.title()
     }
@@ -122,26 +115,35 @@ impl CpuTopology {
     pub fn detect() -> Self {
         let designs = CoreDesign::read_all();
         let online = read_trimmed(format!("{CPU_FREQ}/online")).unwrap_or_default();
-        Self::from_logical_cpus(
-            cpulist(&online)
-                .map(|index| LogicalCpu::read(index, &designs))
-                .collect(),
-        )
+        let cpus: Vec<LogicalCpu> = cpulist(&online)
+            .map(|index| LogicalCpu::read(index, &designs))
+            .collect();
+        Self::from_logical_cpus(&cpus)
     }
 
-    fn from_logical_cpus(cpus: Vec<LogicalCpu>) -> Self {
-        let role_of = RoleAssignment::for_cpus(&cpus);
-        let mut members_by_role: BTreeMap<CoreRole, Vec<LogicalCpu>> = BTreeMap::new();
-        for cpu in cpus {
-            members_by_role
-                .entry(role_of.role(&cpu))
-                .or_default()
-                .push(cpu);
-        }
+    fn from_logical_cpus(cpus: &[LogicalCpu]) -> Self {
+        let assigned = if designs_tell_cores_apart(cpus) {
+            roles_by_exposed_design(cpus)
+        } else {
+            roles_by_cache_domain(cpus)
+        };
+        let members_by_role = assigned.into_iter().fold(
+            BTreeMap::<CoreRole, Vec<u32>>::new(),
+            |mut members_by_role, assigned| {
+                members_by_role
+                    .entry(assigned.role)
+                    .or_default()
+                    .push(assigned.index);
+                members_by_role
+            },
+        );
         CpuTopology {
             core_groups: members_by_role
-                .iter()
-                .map(|(role, members)| CoreGroup::from_role_members(*role, members))
+                .into_iter()
+                .map(|(role, mut logical_cpus)| {
+                    logical_cpus.sort_unstable();
+                    CoreGroup { role, logical_cpus }
+                })
                 .collect(),
         }
     }
@@ -235,158 +237,188 @@ impl CoreDesign {
     }
 }
 
-enum RoleAssignment {
-    ByExposedDesign {
-        intel_performance_cpus: Vec<u32>,
-        arm_parts_by_capacity: Vec<String>,
-    },
-    ByCacheDomain(CacheDomainRoles),
+struct AssignedCpu {
+    role: CoreRole,
+    index: u32,
 }
 
-impl RoleAssignment {
-    fn for_cpus(cpus: &[LogicalCpu]) -> Self {
-        if Self::designs_tell_cores_apart(cpus) {
-            RoleAssignment::ByExposedDesign {
-                intel_performance_cpus: cpus
+fn designs_tell_cores_apart(cpus: &[LogicalCpu]) -> bool {
+    let all_exposed = cpus.iter().all(|cpu| cpu.design.is_exposed());
+    let first_design = cpus.first().map(|cpu| &cpu.design);
+    let mixed =
+        first_design.is_some_and(|first| cpus.iter().any(|cpu| !cpu.design.same_design_as(first)));
+    all_exposed && mixed
+}
+
+fn roles_by_exposed_design(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
+    let intel_performance_cpus: Vec<u32> = cpus
+        .iter()
+        .filter(|cpu| cpu.design == CoreDesign::IntelPerformanceCore)
+        .map(|cpu| cpu.index)
+        .collect();
+    let unranked = cpus.iter().filter_map(|cpu| {
+        let role = match &cpu.design {
+            CoreDesign::IntelPerformanceCore => CoreRole::PerformanceCores,
+            CoreDesign::IntelEfficientCore
+                if cpu.last_level_cache.is_some()
+                    && !cpu.shares_cache_with_any(&intel_performance_cpus) =>
+            {
+                CoreRole::LowPowerIslandCores
+            }
+            CoreDesign::IntelEfficientCore => CoreRole::EfficientCores,
+            CoreDesign::NotExposed => CoreRole::AllCores,
+            CoreDesign::ArmCorePart { .. } => return None,
+        };
+        Some(AssignedCpu {
+            role,
+            index: cpu.index,
+        })
+    });
+    let arm_tiers = ArmPartTier::ranked_by_capacity(cpus);
+    let slowest_rank = arm_tiers.len().saturating_sub(1);
+    let ranked = arm_tiers.into_iter().enumerate().flat_map(|(rank, tier)| {
+        let role = match rank {
+            0 => CoreRole::PerformanceCores,
+            rank if rank == slowest_rank => CoreRole::EfficientCores,
+            _ => CoreRole::MidCapacityCores,
+        };
+        tier.members
+            .into_iter()
+            .map(move |index| AssignedCpu { role, index })
+    });
+    unranked.chain(ranked).collect()
+}
+
+struct ArmPartTier<'a> {
+    part: &'a str,
+    highest_capacity: u32,
+    members: Vec<u32>,
+}
+
+impl<'a> ArmPartTier<'a> {
+    fn ranked_by_capacity(cpus: &'a [LogicalCpu]) -> Vec<Self> {
+        let mut tiers = cpus.iter().fold(Vec::<Self>::new(), |mut tiers, cpu| {
+            if let CoreDesign::ArmCorePart { part, capacity } = &cpu.design {
+                match tiers.iter_mut().find(|tier| tier.part == part) {
+                    Some(tier) => {
+                        tier.highest_capacity = tier.highest_capacity.max(*capacity);
+                        tier.members.push(cpu.index);
+                    }
+                    None => tiers.push(ArmPartTier {
+                        part,
+                        highest_capacity: *capacity,
+                        members: vec![cpu.index],
+                    }),
+                }
+            }
+            tiers
+        });
+        tiers.sort_by_key(|tier| Reverse(tier.highest_capacity));
+        tiers
+    }
+}
+
+fn roles_by_cache_domain(cpus: &[LogicalCpu]) -> Vec<AssignedCpu> {
+    let all_cores = || -> Vec<AssignedCpu> {
+        cpus.iter()
+            .map(|cpu| AssignedCpu {
+                role: CoreRole::AllCores,
+                index: cpu.index,
+            })
+            .collect()
+    };
+    let Some(domains) = CacheDomain::group_every_cpu(cpus) else {
+        return all_cores();
+    };
+    let [first, rest @ ..] = domains.as_slice() else {
+        return all_cores();
+    };
+    if rest.is_empty() {
+        return all_cores();
+    }
+    let largest_size = rest
+        .iter()
+        .map(|domain| domain.cache.size)
+        .fold(first.cache.size, Information::max);
+    let layout = if domains
+        .iter()
+        .all(|domain| domain.cache.size == largest_size)
+    {
+        CacheDomainLayout::EqualComplexes
+    } else {
+        let peak_where_largest_is = |has_largest: bool| {
+            highest_peak_clock(
+                domains
                     .iter()
-                    .filter(|cpu| cpu.design == CoreDesign::IntelPerformanceCore)
-                    .map(|cpu| cpu.index)
-                    .collect(),
-                arm_parts_by_capacity: arm_parts_by_capacity(cpus),
-            }
+                    .filter(|domain| (domain.cache.size == largest_size) == has_largest)
+                    .flat_map(|domain| domain.members.iter().copied()),
+            )
+        };
+        let largest_cache_clocks_lower = peak_where_largest_is(true).is_some_and(|largest| {
+            peak_where_largest_is(false).is_some_and(|smaller| smaller > largest)
+        });
+        if largest_cache_clocks_lower {
+            CacheDomainLayout::StackedCacheBesideHighClock { largest_size }
         } else {
-            RoleAssignment::ByCacheDomain(CacheDomainRoles::for_cpus(cpus))
+            CacheDomainLayout::FullCoresBesideCompact { largest_size }
         }
-    }
+    };
+    domains
+        .iter()
+        .enumerate()
+        .flat_map(|(position, domain)| {
+            let role = layout.role(position, domain);
+            domain.members.iter().map(move |cpu| AssignedCpu {
+                role,
+                index: cpu.index,
+            })
+        })
+        .collect()
+}
 
-    fn designs_tell_cores_apart(cpus: &[LogicalCpu]) -> bool {
-        let all_exposed = cpus.iter().all(|cpu| cpu.design.is_exposed());
-        let first_design = cpus.first().map(|cpu| &cpu.design);
-        let mixed = first_design
-            .is_some_and(|first| cpus.iter().any(|cpu| !cpu.design.same_design_as(first)));
-        all_exposed && mixed
-    }
+struct CacheDomain<'a> {
+    cache: &'a SharedCache,
+    members: Vec<&'a LogicalCpu>,
+}
 
-    fn role(&self, cpu: &LogicalCpu) -> CoreRole {
+impl<'a> CacheDomain<'a> {
+    fn group_every_cpu(cpus: &'a [LogicalCpu]) -> Option<Vec<Self>> {
+        cpus.iter()
+            .try_fold(Vec::<Self>::new(), |mut domains, cpu| {
+                let cache = cpu.last_level_cache.as_ref()?;
+                match domains.iter_mut().find(|domain| domain.cache == cache) {
+                    Some(domain) => domain.members.push(cpu),
+                    None => domains.push(CacheDomain {
+                        cache,
+                        members: vec![cpu],
+                    }),
+                }
+                Some(domains)
+            })
+    }
+}
+
+enum CacheDomainLayout {
+    EqualComplexes,
+    StackedCacheBesideHighClock { largest_size: Information },
+    FullCoresBesideCompact { largest_size: Information },
+}
+
+impl CacheDomainLayout {
+    fn role(&self, position: usize, domain: &CacheDomain) -> CoreRole {
         match self {
-            RoleAssignment::ByExposedDesign {
-                intel_performance_cpus,
-                arm_parts_by_capacity,
-            } => match &cpu.design {
-                CoreDesign::IntelPerformanceCore => CoreRole::PerformanceCores,
-                CoreDesign::IntelEfficientCore
-                    if cpu.last_level_cache.is_some()
-                        && !cpu.shares_cache_with_any(intel_performance_cpus) =>
-                {
-                    CoreRole::LowPowerIslandCores
-                }
-                CoreDesign::IntelEfficientCore => CoreRole::EfficientCores,
-                CoreDesign::ArmCorePart { part, .. } => {
-                    arm_role_by_rank(arm_parts_by_capacity, part)
-                }
-                CoreDesign::NotExposed => CoreRole::AllCores,
+            CacheDomainLayout::EqualComplexes => CoreRole::CoreComplex {
+                ordinal: position + 1,
             },
-            RoleAssignment::ByCacheDomain(roles) => roles.role(cpu),
-        }
-    }
-}
-
-fn arm_parts_by_capacity(cpus: &[LogicalCpu]) -> Vec<String> {
-    let mut highest_capacity_by_part: HashMap<&str, u32> = HashMap::new();
-    for cpu in cpus {
-        if let CoreDesign::ArmCorePart { part, capacity } = &cpu.design {
-            let highest = highest_capacity_by_part.entry(part).or_default();
-            *highest = (*highest).max(*capacity);
-        }
-    }
-    let mut parts: Vec<&str> = highest_capacity_by_part.keys().copied().collect();
-    parts.sort_by_key(|part| Reverse(highest_capacity_by_part[part]));
-    parts.into_iter().map(str::to_owned).collect()
-}
-
-fn arm_role_by_rank(parts_by_capacity: &[String], part: &str) -> CoreRole {
-    let rank = parts_by_capacity.iter().position(|ranked| ranked == part);
-    let slowest = parts_by_capacity.len().saturating_sub(1);
-    match rank {
-        Some(0) => CoreRole::PerformanceCores,
-        Some(rank) if rank == slowest => CoreRole::EfficientCores,
-        _ => CoreRole::MidCapacityCores,
-    }
-}
-
-enum CacheDomainRoles {
-    OneDomain,
-    EqualComplexes {
-        domains: Vec<SharedCache>,
-    },
-    UnequalCaches {
-        largest_size: Information,
-        largest_cache_clocks_lower: bool,
-    },
-}
-
-impl CacheDomainRoles {
-    fn for_cpus(cpus: &[LogicalCpu]) -> Self {
-        let mut domains: Vec<SharedCache> = Vec::new();
-        for cache in cpus.iter().filter_map(|cpu| cpu.last_level_cache.as_ref()) {
-            if !domains.contains(cache) {
-                domains.push(cache.clone());
-            }
-        }
-        let every_cpu_reports_its_cache = cpus.iter().all(|cpu| cpu.last_level_cache.is_some());
-        let [first, rest @ ..] = domains.as_slice() else {
-            return CacheDomainRoles::OneDomain;
-        };
-        if !every_cpu_reports_its_cache || rest.is_empty() {
-            return CacheDomainRoles::OneDomain;
-        }
-        let largest_size = rest
-            .iter()
-            .map(|domain| domain.size)
-            .fold(first.size, Information::max);
-        if domains.iter().all(|domain| domain.size == largest_size) {
-            return CacheDomainRoles::EqualComplexes { domains };
-        }
-        let has_largest_cache = |cpu: &&LogicalCpu| {
-            cpu.last_level_cache
-                .as_ref()
-                .is_some_and(|cache| cache.size == largest_size)
-        };
-        let largest_cache_peak = highest_peak_clock(cpus.iter().filter(has_largest_cache));
-        let smaller_cache_peak =
-            highest_peak_clock(cpus.iter().filter(|cpu| !has_largest_cache(cpu)));
-        CacheDomainRoles::UnequalCaches {
-            largest_size,
-            largest_cache_clocks_lower: largest_cache_peak
-                .is_some_and(|largest| smaller_cache_peak.is_some_and(|smaller| smaller > largest)),
-        }
-    }
-
-    fn role(&self, cpu: &LogicalCpu) -> CoreRole {
-        let cache = cpu.last_level_cache.as_ref();
-        match self {
-            CacheDomainRoles::OneDomain => CoreRole::AllCores,
-            CacheDomainRoles::EqualComplexes { domains } => domains
-                .iter()
-                .position(|domain| Some(domain) == cache)
-                .map_or(CoreRole::AllCores, |position| CoreRole::CoreComplex {
-                    ordinal: position + 1,
-                }),
-            CacheDomainRoles::UnequalCaches {
-                largest_size,
-                largest_cache_clocks_lower: true,
-            } => {
-                if cache.is_some_and(|cache| cache.size == *largest_size) {
+            CacheDomainLayout::StackedCacheBesideHighClock { largest_size } => {
+                if domain.cache.size == *largest_size {
                     CoreRole::StackedCacheCores
                 } else {
                     CoreRole::HighClockCores
                 }
             }
-            CacheDomainRoles::UnequalCaches {
-                largest_size,
-                largest_cache_clocks_lower: false,
-            } => {
-                if cache.is_some_and(|cache| cache.size == *largest_size) {
+            CacheDomainLayout::FullCoresBesideCompact { largest_size } => {
+                if domain.cache.size == *largest_size {
                     CoreRole::PerformanceCores
                 } else {
                     CoreRole::CompactCores
@@ -541,7 +573,7 @@ mod tests {
     fn intel_efficient_cores_sharing_the_l3_stay_efficient() {
         let l3 = cache(3, 30.0, 0..=7);
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(0..=3, &CoreDesign::IntelPerformanceCore, &l3, 5200.0),
                 cpus(4..=7, &CoreDesign::IntelEfficientCore, &l3, 3900.0),
             ]
@@ -559,7 +591,7 @@ mod tests {
     #[test]
     fn intel_efficient_cores_outside_the_l3_form_a_low_power_island() {
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(
                     0..=3,
                     &CoreDesign::IntelPerformanceCore,
@@ -586,7 +618,7 @@ mod tests {
 
     #[test]
     fn ryzen_with_one_complex_is_all_cores() {
-        let topology = CpuTopology::from_logical_cpus(cpus(
+        let topology = CpuTopology::from_logical_cpus(&cpus(
             0..=15,
             &CoreDesign::NotExposed,
             &cache(3, 32.0, 0..=15),
@@ -600,7 +632,7 @@ mod tests {
         let first_chiplet = cache(3, 32.0, 0..=3);
         let second_chiplet = cache(3, 32.0, 4..=7);
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(0..=3, &CoreDesign::NotExposed, &first_chiplet, 5700.0),
                 cpus(4..=7, &CoreDesign::NotExposed, &second_chiplet, 5600.0),
             ]
@@ -618,7 +650,7 @@ mod tests {
     #[test]
     fn ryzen_x3d_separates_the_stacked_cache_chiplet_from_the_high_clock_one() {
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(
                     0..=3,
                     &CoreDesign::NotExposed,
@@ -646,7 +678,7 @@ mod tests {
     #[test]
     fn ryzen_ai_separates_full_cores_from_compact_ones() {
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(
                     0..=3,
                     &CoreDesign::NotExposed,
@@ -675,7 +707,7 @@ mod tests {
     fn favored_cores_of_one_arm_part_stay_one_tier() {
         let l3 = cache(3, 2.0, 0..=3);
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(0..=0, &arm_part("0xd81", 1005), &l3, 3000.0),
                 cpus(1..=1, &arm_part("0xd81", 1024), &l3, 3100.0),
                 cpus(2..=3, &arm_part("0xd80", 676), &l3, 2000.0),
@@ -695,7 +727,7 @@ mod tests {
     fn three_arm_parts_put_the_middle_one_in_mid_capacity() {
         let l3 = cache(3, 2.0, 0..=2);
         let topology = CpuTopology::from_logical_cpus(
-            [
+            &[
                 cpus(0..=0, &arm_part("0xd46", 400), &l3, 1800.0),
                 cpus(1..=1, &arm_part("0xd47", 800), &l3, 2400.0),
                 cpus(2..=2, &arm_part("0xd48", 1024), &l3, 3000.0),
@@ -716,7 +748,7 @@ mod tests {
     fn one_arm_part_is_all_cores() {
         let l3 = cache(2, 1.0, 0..=1);
         let topology =
-            CpuTopology::from_logical_cpus(cpus(0..=1, &arm_part("0xd05", 1024), &l3, 1800.0));
+            CpuTopology::from_logical_cpus(&cpus(0..=1, &arm_part("0xd05", 1024), &l3, 1800.0));
         assert_eq!(roles(&topology), [(CoreRole::AllCores, vec![0, 1])]);
     }
 
