@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     data::source::oom_kills::{OomKillEntry, OomKiller},
     widget_groups::{
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
+        journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -42,15 +42,15 @@ impl OomKillEntry {
     }
 }
 
-impl SystemdManagerGroup {
+impl JournalEventsGroup {
     pub(super) fn oom_kill_log_item(
         &self,
         config: &Config,
-    ) -> Option<GroupItem<'_, SystemdManagerMessage>> {
+    ) -> Option<GroupItem<'_, JournalEventsMessage>> {
         let kills = self.oom_kills.present_reading()?;
-        Some(GroupItem::reading(kills, SystemdTarget::OomKills).on_press(
+        Some(GroupItem::reading(kills, JournalTarget::OomKills).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
-            SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+            JournalEventsMessage::OpenLog(TerminalCommand::journal(
                 config,
                 OomKillEntry::follow_log_args(),
             )),

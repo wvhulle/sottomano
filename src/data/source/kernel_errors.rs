@@ -1,13 +1,14 @@
 use std::{collections::HashMap, convert::Infallible, io, time::SystemTime};
 
 use iced::futures::{Stream, StreamExt};
-use systemd::journal::{Journal, JournalRecord};
+use serde::Deserialize;
+use systemd::journal::Journal;
 
 use crate::data::{
     severity::Severity,
     source::{
         Delivery, LiveSource, Source, delivered,
-        journal::{JournalEvent, JournalPriority, field, journal_windows},
+        journal::{JournalEvent, JournalPriority, JournalTransport, journal_windows},
     },
 };
 
@@ -34,20 +35,30 @@ pub struct KernelEntry {
     pub severity: Severity,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct KernelRecord {
+    #[serde(rename = "MESSAGE")]
+    message: String,
+    #[serde(rename = "PRIORITY")]
+    priority: JournalPriority,
+}
+
 impl JournalEvent for KernelEntry {
+    type Record = KernelRecord;
+
     const NAME: &'static str = "kernel";
     const OPENS_USER_JOURNALS: bool = false;
 
     fn add_matches(journal: &mut Journal) -> io::Result<()> {
-        journal.match_add("_TRANSPORT", "kernel")?;
+        JournalTransport::Kernel.add_match(journal)?;
         JournalPriority::Warning.match_this_urgent_or_more(journal)
     }
 
-    fn from_record(record: &JournalRecord, at: SystemTime) -> Option<Self> {
+    fn admit(record: KernelRecord, at: SystemTime) -> Option<Self> {
         Some(KernelEntry {
             at,
-            message: field(record, "MESSAGE")?.to_owned(),
-            severity: JournalPriority::of_record(record)?.severity(),
+            message: record.message,
+            severity: record.priority.severity(),
         })
     }
 

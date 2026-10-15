@@ -14,12 +14,6 @@ use std::path::Path;
 
 use chrono::{DateTime, Utc};
 
-use self::{
-    presence_timeline::PresenceTimeline, recorded_spans::TimelineUpdate,
-    window_focus_timeline::WindowFocusTimeline,
-};
-#[cfg(test)]
-pub use self::{focus_identity::Focused, focus_units::Presence};
 pub use self::{
     away_reasons::{AwayReasonEdge, ScreenEdge},
     focus_identity::FocusIdentity,
@@ -29,6 +23,12 @@ pub use self::{
     time_intervals::{Interval, WakingWindow},
     unit_accounting::UnitTotal,
     window_focus_timeline::WindowFocusChange,
+};
+#[cfg(test)]
+pub use self::{focus_identity::Focused, focus_units::Presence};
+use self::{
+    presence_timeline::PresenceTimeline, recorded_spans::TimelineUpdate,
+    window_focus_timeline::WindowFocusTimeline,
 };
 use crate::config::widget_groups::focus_time::FocusTimeConfig;
 
@@ -113,7 +113,9 @@ impl FocusLedger {
                 Self::folded_from(window_focus, presence)
             }
             FocusSignal::AwayReasonChanged(edge) => {
-                let window_focus = self.window_focus_timeline.ongoing_window_focus_extended_to(now);
+                let window_focus = self
+                    .window_focus_timeline
+                    .ongoing_window_focus_extended_to(now);
                 let presence = self
                     .presence_timeline
                     .reacting_to_away_reason_edge(edge, now);
@@ -234,7 +236,11 @@ mod tests {
         assert_eq!(finished.len(), 1);
         assert_eq!(finished[0].window, 1);
         assert_eq!(
-            ledger.window_focus_timeline.focused_window_span().unwrap().window,
+            ledger
+                .window_focus_timeline
+                .focused_window_span()
+                .unwrap()
+                .window,
             2
         );
     }

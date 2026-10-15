@@ -3,18 +3,15 @@ use std::time::Duration;
 use iced::{Subscription, Task};
 
 mod boot_timeline_reading;
-mod coredump_log;
+mod crashed_unit_actions;
 mod failed_unit_log;
 mod last_shutdown_reading;
-mod oom_kill_log;
 mod running_job_reading;
 
 use crate::{
     config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
     data::source::{
         Delivery,
-        coredumps::CoredumpEntry,
-        oom_kills::OomKillEntry,
         previous_shutdown::LastShutdown,
         systemd_manager::{
             System, UnitScope, User,
@@ -109,8 +106,6 @@ pub enum SystemdTarget {
     SlowSystemJob(String),
     SlowUserJob(String),
     LastShutdown,
-    Coredumps,
-    OomKills,
 }
 
 impl From<SystemdTarget> for HoverTarget {
@@ -127,8 +122,6 @@ pub struct SystemdManagerGroup {
     slow_system_jobs: ContinuousReading<SlowJobs<System>>,
     slow_user_jobs: ContinuousReading<SlowJobs<User>>,
     last_shutdown: ContinuousReading<LastShutdown>,
-    coredumps: ContinuousReading<Vec<CoredumpEntry>>,
-    oom_kills: ContinuousReading<Vec<OomKillEntry>>,
     expansion: GroupExpansion,
 }
 
@@ -140,8 +133,6 @@ pub enum SystemdManagerMessage {
     SlowSystemJobs(Delivery<SlowJobs<System>>),
     SlowUserJobs(Delivery<SlowJobs<User>>),
     LastShutdown(Delivery<LastShutdown>),
-    Coredumps(Delivery<Vec<CoredumpEntry>>),
-    OomKills(Delivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
@@ -164,8 +155,6 @@ impl SystemdManagerGroup {
             listening::<SlowJobs<User>>(config.slow_job).map(SystemdManagerMessage::SlowUserJobs),
             listening::<LastShutdown>(config.slow_shutdown_stop)
                 .map(SystemdManagerMessage::LastShutdown),
-            listening::<Vec<CoredumpEntry>>(()).map(SystemdManagerMessage::Coredumps),
-            listening::<Vec<OomKillEntry>>(()).map(SystemdManagerMessage::OomKills),
         ])
     }
 
@@ -185,8 +174,6 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::LastShutdown(delivery) => {
                 self.last_shutdown.push_or_keep(delivery);
             }
-            SystemdManagerMessage::Coredumps(delivery) => self.coredumps.push_or_keep(delivery),
-            SystemdManagerMessage::OomKills(delivery) => self.oom_kills.push_or_keep(delivery),
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::RestartFailedUnit(restart) => {
                 return Task::future(restart.apply()).discard();
@@ -211,8 +198,6 @@ impl SystemdManagerGroup {
             SystemdTarget::SlowSystemJobs => self.slow_system_jobs.present_tooltip(),
             SystemdTarget::SlowUserJobs => self.slow_user_jobs.present_tooltip(),
             SystemdTarget::LastShutdown => self.last_shutdown.tooltip(),
-            SystemdTarget::Coredumps => self.coredumps.present_tooltip(),
-            SystemdTarget::OomKills => self.oom_kills.present_tooltip(),
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
@@ -243,8 +228,6 @@ impl SystemdManagerGroup {
                 self.failed_user
                     .present_reading()
                     .map(|failed| failed.group_item(config)),
-                self.oom_kill_log_item(config),
-                self.coredump_log_item(config),
                 self.last_shutdown.get().map(|last| last.group_item(config)),
             ]
             .into_iter()
@@ -260,7 +243,7 @@ impl SystemdManagerGroup {
         }))
     }
 
-    fn current_health(&self) -> [Option<&dyn BarWidget>; 6] {
+    fn current_health(&self) -> [Option<&dyn BarWidget>; 4] {
         [
             self.slow_system_jobs
                 .present_reading()
@@ -272,12 +255,6 @@ impl SystemdManagerGroup {
                 .present_reading()
                 .map(|w| w as &dyn BarWidget),
             self.failed_user
-                .present_reading()
-                .map(|w| w as &dyn BarWidget),
-            self.oom_kills
-                .present_reading()
-                .map(|w| w as &dyn BarWidget),
-            self.coredumps
                 .present_reading()
                 .map(|w| w as &dyn BarWidget),
         ]
@@ -335,8 +312,6 @@ impl BarWidget for SystemdManagerGroup {
                         .present_reading()
                         .map(|failed| failed.units.len()),
                 ),
-                count("OOM kills", self.oom_kills.present_reading().map(Vec::len)),
-                count("Coredumps", self.coredumps.present_reading().map(Vec::len)),
             ]
             .into_iter()
             .flatten(),

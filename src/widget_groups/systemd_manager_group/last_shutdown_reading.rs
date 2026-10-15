@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     data::{
         severity::Severity,
-        source::previous_shutdown::{LastShutdown, StopOutcome, UnitStop},
+        source::previous_shutdown::{JobResult, LastShutdown, StopOutcome, UnitStop},
     },
     widget_groups::{
         systemd_manager_group::{SystemdManagerMessage, SystemdTarget, elapsed_text},
@@ -18,8 +18,6 @@ use crate::{
         widget_state::WidgetState,
     },
 };
-
-const COMPLETED_JOB_RESULT: &str = "done";
 
 impl StopOutcome {
     fn severity(&self) -> Severity {
@@ -40,7 +38,7 @@ impl UnitStop {
                 ..
             } => [
                 Some(elapsed_text(*duration).into()),
-                (job_result != COMPLETED_JOB_RESULT).then(|| job_result.clone().into()),
+                (*job_result != JobResult::Done).then(|| job_result.to_string().into()),
             ],
         };
         TableRecord::new(self.unit.name(), cells).level(self.outcome.severity())

@@ -9,30 +9,25 @@ use std::{
 };
 
 use iced::futures::{Stream, StreamExt, stream};
-use systemd::{
-    id128::Id128,
-    journal::{JournalRecord, OpenOptions},
-};
+use serde::Deserialize;
+use systemd::{id128::Id128, journal::OpenOptions};
 use tokio::task::spawn_blocking;
 
 use crate::data::{
     severity::Severity,
     source::{
         Delivery, LiveSource, Source, delivered,
-        journal::{OwningUnit, either_of, field},
+        journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
     },
 };
 
-const SHUTDOWN_MESSAGE_ID: &str = "98268866d1d54a499c4e98921d93bc40";
-const UNIT_STOPPING_MESSAGE_ID: &str = "de5b426a63be47a7b6ac3eaac82e2f6f";
-const UNIT_STOPPED_MESSAGE_ID: &str = "9d1aaa27d60140bd96365438aad20286";
 const SLOWEST_STOP_COUNT: usize = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StopOutcome {
     Finished {
         duration: Duration,
-        job_result: String,
+        job_result: JobResult,
         severity: Severity,
     },
     Unfinished,
@@ -131,19 +126,72 @@ impl LastShutdown {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum JobResult {
+    Done,
+    Canceled,
+    Timeout,
+    Failed,
+    Dependency,
+    Skipped,
+    Invalid,
+    Assert,
+    Unsupported,
+    Collected,
+    Once,
+    Frozen,
+    Concurrency,
+}
+
+impl JobResult {
+    fn label(self) -> &'static str {
+        match self {
+            JobResult::Done => "done",
+            JobResult::Canceled => "canceled",
+            JobResult::Timeout => "timeout",
+            JobResult::Failed => "failed",
+            JobResult::Dependency => "dependency",
+            JobResult::Skipped => "skipped",
+            JobResult::Invalid => "invalid",
+            JobResult::Assert => "assert",
+            JobResult::Unsupported => "unsupported",
+            JobResult::Collected => "collected",
+            JobResult::Once => "once",
+            JobResult::Frozen => "frozen",
+            JobResult::Concurrency => "concurrency",
+        }
+    }
+}
+
+impl Display for JobResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(self.label())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct StopJob {
     unit: OwningUnit,
-    job_id: String,
+    job_id: u32,
 }
 
-impl StopJob {
-    fn of_record(record: &JournalRecord) -> Option<Self> {
-        Some(Self {
-            unit: OwningUnit::from_fields(record, "UNIT", "USER_UNIT")?,
-            job_id: field(record, "JOB_ID")?.to_owned(),
-        })
-    }
+#[derive(Debug, Deserialize)]
+struct ShutdownRecord {
+    #[serde(rename = "MESSAGE_ID")]
+    message_id: MessageId,
+    #[serde(flatten)]
+    unit: SubjectUnit,
+    #[serde(rename = "JOB_ID")]
+    job_id: Option<u32>,
+    #[serde(rename = "JOB_RESULT")]
+    job_result: Option<JobResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BootRecord {
+    #[serde(rename = "_BOOT_ID")]
+    boot_id: String,
 }
 
 enum ShutdownEvent {
@@ -157,22 +205,37 @@ enum ShutdownEvent {
     Stopped {
         job: StopJob,
         at: SystemTime,
-        job_result: String,
+        job_result: JobResult,
     },
 }
 
 impl ShutdownEvent {
-    fn of_record(record: &JournalRecord, at: SystemTime) -> Option<Self> {
-        match field(record, "MESSAGE_ID")? {
-            SHUTDOWN_MESSAGE_ID => Some(ShutdownEvent::Began { at }),
-            UNIT_STOPPING_MESSAGE_ID => Some(ShutdownEvent::Stopping {
-                job: StopJob::of_record(record)?,
+    const MESSAGE_IDS: [MessageId; 3] = [
+        MessageId::SHUTDOWN,
+        MessageId::UNIT_STOPPING,
+        MessageId::UNIT_STOPPED,
+    ];
+
+    fn of_record(record: ShutdownRecord, at: SystemTime) -> Option<Self> {
+        let ShutdownRecord {
+            message_id,
+            unit,
+            job_id,
+            job_result,
+        } = record;
+        let job = || {
+            Some(StopJob {
+                unit: unit.owning_unit()?,
+                job_id: job_id?,
+            })
+        };
+        match message_id {
+            MessageId::SHUTDOWN => Some(ShutdownEvent::Began { at }),
+            MessageId::UNIT_STOPPING => Some(ShutdownEvent::Stopping { job: job()?, at }),
+            MessageId::UNIT_STOPPED => Some(ShutdownEvent::Stopped {
+                job: job()?,
                 at,
-            }),
-            UNIT_STOPPED_MESSAGE_ID => Some(ShutdownEvent::Stopped {
-                job: StopJob::of_record(record)?,
-                at,
-                job_result: field(record, "JOB_RESULT")?.to_owned(),
+                job_result: job_result?,
             }),
             _ => None,
         }
@@ -265,20 +328,20 @@ fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadE
         .previous_entry()?
         .ok_or(ShutdownReadError::NoPreviousBoot)?;
     let ended_at = journal.timestamp()?;
-    let previous_boot =
-        field(&last_of_previous_boot, "_BOOT_ID").ok_or(ShutdownReadError::NoPreviousBoot)?;
-    journal.match_add("_BOOT_ID", previous_boot.to_owned())?;
-    for message_id in [
-        SHUTDOWN_MESSAGE_ID,
-        UNIT_STOPPING_MESSAGE_ID,
-        UNIT_STOPPED_MESSAGE_ID,
-    ] {
-        journal.match_add("MESSAGE_ID", message_id)?;
+    let previous_boot: BootRecord =
+        decode_record(last_of_previous_boot).map_err(|_| ShutdownReadError::NoPreviousBoot)?;
+    journal.match_add("_BOOT_ID", previous_boot.boot_id)?;
+    for message_id in ShutdownEvent::MESSAGE_IDS {
+        message_id.add_match(&mut journal)?;
     }
     journal.seek_head()?;
     let mut events = Vec::new();
     while let Some(record) = journal.next_entry()? {
-        events.extend(ShutdownEvent::of_record(&record, journal.timestamp()?));
+        let at = journal.timestamp()?;
+        let decoded = decode_record(record)
+            .inspect_err(|e| tracing::debug!("systemd last shutdown: malformed record: {e}"))
+            .ok();
+        events.extend(decoded.and_then(|record| ShutdownEvent::of_record(record, at)));
     }
     LastShutdown::assemble(events, ended_at, slow_stop).ok_or(ShutdownReadError::NoShutdownRecorded)
 }
@@ -290,33 +353,33 @@ mod tests {
     #[test]
     fn stops_pair_by_job_and_a_stop_that_never_ended_ranks_first() {
         let at = |secs: u64| SystemTime::UNIX_EPOCH + Duration::from_secs(secs);
-        let job = |unit: &str, job_id: &str| StopJob {
+        let job = |unit: &str, job_id: u32| StopJob {
             unit: OwningUnit::System(unit.to_owned()),
-            job_id: job_id.to_owned(),
+            job_id,
         };
         let events = [
             ShutdownEvent::Stopping {
-                job: job("restarted.service", "1"),
+                job: job("restarted.service", 1),
                 at: at(5),
             },
             ShutdownEvent::Stopped {
-                job: job("restarted.service", "1"),
+                job: job("restarted.service", 1),
                 at: at(6),
-                job_result: "done".to_owned(),
+                job_result: JobResult::Done,
             },
             ShutdownEvent::Began { at: at(100) },
             ShutdownEvent::Stopping {
-                job: job("nfs.mount", "7"),
+                job: job("nfs.mount", 7),
                 at: at(101),
             },
             ShutdownEvent::Stopping {
-                job: job("docker.service", "8"),
+                job: job("docker.service", 8),
                 at: at(101),
             },
             ShutdownEvent::Stopped {
-                job: job("docker.service", "8"),
+                job: job("docker.service", 8),
                 at: at(109),
-                job_result: "done".to_owned(),
+                job_result: JobResult::Done,
             },
         ];
         let shutdown =
@@ -333,11 +396,36 @@ mod tests {
                     unit: OwningUnit::System("docker.service".to_owned()),
                     outcome: StopOutcome::Finished {
                         duration: Duration::from_secs(8),
-                        job_result: "done".to_owned(),
+                        job_result: JobResult::Done,
                         severity: Severity::Warning,
                     },
                 },
             ]
         );
+    }
+
+    #[test]
+    fn a_stopped_unit_record_decodes_its_job_and_result() {
+        let record = decode_record(crate::data::source::journal::journal_record([
+            ("MESSAGE_ID", "9d1aaa27d60140bd96365438aad20286"),
+            ("UNIT", "docker.service"),
+            ("JOB_ID", "8"),
+            ("JOB_RESULT", "timeout"),
+        ]))
+        .expect("a well-formed stop record");
+        let Some(ShutdownEvent::Stopped {
+            job, job_result, ..
+        }) = ShutdownEvent::of_record(record, SystemTime::UNIX_EPOCH)
+        else {
+            panic!("a stopped unit event");
+        };
+        assert_eq!(
+            job,
+            StopJob {
+                unit: OwningUnit::System("docker.service".to_owned()),
+                job_id: 8,
+            }
+        );
+        assert_eq!(job_result, JobResult::Timeout);
     }
 }

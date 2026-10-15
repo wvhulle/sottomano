@@ -95,7 +95,11 @@ impl<Timeline> TimelineUpdate<Timeline> {
         let next = step(self.timeline);
         Self {
             timeline: next.timeline,
-            span_writes: self.span_writes.into_iter().chain(next.span_writes).collect(),
+            span_writes: self
+                .span_writes
+                .into_iter()
+                .chain(next.span_writes)
+                .collect(),
         }
     }
 }

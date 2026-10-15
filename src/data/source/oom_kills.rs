@@ -1,13 +1,22 @@
-use std::{collections::HashSet, convert::Infallible, io, time::SystemTime};
+use std::{
+    collections::HashSet,
+    convert::Infallible,
+    fmt::{Display, Formatter, Result as FmtResult},
+    io,
+    time::SystemTime,
+};
 
 use iced::futures::{Stream, StreamExt};
-use systemd::journal::{Journal, JournalRecord};
+use serde::Deserialize;
+use systemd::journal::Journal;
 
 use crate::data::{
     severity::Severity,
     source::{
         Delivery, LiveSource, Source, delivered,
-        journal::{JournalEvent, JournalPriority, OwningUnit, field, journal_windows},
+        journal::{
+            JournalEvent, JournalPriority, MessageId, OwningUnit, SubjectUnit, journal_windows,
+        },
     },
 };
 
@@ -26,23 +35,54 @@ impl LiveSource for Vec<OomKillEntry> {
     }
 }
 
-const KERNEL_OOM_KILL_MESSAGE_ID: &str = "fe6faa94e7774663a0da52717891d8ef";
-const OOMD_KILL_MESSAGE_ID: &str = "d989611b15e44c9dbf31e3c81256e4ed";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(try_from = "MessageId")]
 pub enum OomKiller {
     Kernel,
     Oomd,
 }
 
 impl OomKiller {
-    fn of_message_id(message_id: &str) -> Option<Self> {
-        match message_id {
-            KERNEL_OOM_KILL_MESSAGE_ID => Some(OomKiller::Kernel),
-            OOMD_KILL_MESSAGE_ID => Some(OomKiller::Oomd),
-            _ => None,
+    const ALL: [Self; 2] = [OomKiller::Kernel, OomKiller::Oomd];
+
+    fn message_id(self) -> MessageId {
+        match self {
+            OomKiller::Kernel => MessageId::KERNEL_OOM_KILL,
+            OomKiller::Oomd => MessageId::OOMD_KILL,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NotAnOomKill(MessageId);
+
+impl Display for NotAnOomKill {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "message id {} reports no oom kill", self.0)
+    }
+}
+
+impl TryFrom<MessageId> for OomKiller {
+    type Error = NotAnOomKill;
+
+    fn try_from(message_id: MessageId) -> Result<Self, Self::Error> {
+        Self::ALL
+            .into_iter()
+            .find(|killer| killer.message_id() == message_id)
+            .ok_or(NotAnOomKill(message_id))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OomKillRecord {
+    #[serde(rename = "MESSAGE_ID")]
+    killer: OomKiller,
+    #[serde(flatten)]
+    unit: SubjectUnit,
+    #[serde(rename = "_SYSTEMD_UNIT")]
+    reporting_manager_unit: String,
+    #[serde(rename = "PRIORITY")]
+    priority: JournalPriority,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,22 +95,24 @@ pub struct OomKillEntry {
 }
 
 impl JournalEvent for OomKillEntry {
+    type Record = OomKillRecord;
+
     const NAME: &'static str = "oom kill";
     const OPENS_USER_JOURNALS: bool = true;
 
     fn add_matches(journal: &mut Journal) -> io::Result<()> {
-        journal.match_add("MESSAGE_ID", KERNEL_OOM_KILL_MESSAGE_ID)?;
-        journal.match_add("MESSAGE_ID", OOMD_KILL_MESSAGE_ID)?;
-        Ok(())
+        OomKiller::ALL
+            .into_iter()
+            .try_for_each(|killer| killer.message_id().add_match(journal))
     }
 
-    fn from_record(record: &JournalRecord, at: SystemTime) -> Option<Self> {
+    fn admit(record: OomKillRecord, at: SystemTime) -> Option<Self> {
         Some(OomKillEntry {
             at,
-            unit: OwningUnit::from_fields(record, "UNIT", "USER_UNIT")?,
-            killer: OomKiller::of_message_id(field(record, "MESSAGE_ID")?)?,
-            reporting_manager_unit: field(record, "_SYSTEMD_UNIT")?.to_owned(),
-            severity: JournalPriority::of_record(record)?.severity(),
+            unit: record.unit.owning_unit()?,
+            killer: record.killer,
+            reporting_manager_unit: record.reporting_manager_unit,
+            severity: record.priority.severity(),
         })
     }
 
@@ -99,10 +141,7 @@ impl OomKillEntry {
         ["-b", "-f", "-n", "all"]
             .map(String::from)
             .into_iter()
-            .chain(
-                [KERNEL_OOM_KILL_MESSAGE_ID, OOMD_KILL_MESSAGE_ID]
-                    .map(|message_id| format!("MESSAGE_ID={message_id}")),
-            )
+            .chain(OomKiller::ALL.map(|killer| killer.message_id().follow_match()))
             .collect()
     }
 }
@@ -110,25 +149,27 @@ impl OomKillEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::source::journal::{decode_record, journal_record};
+
+    const KERNEL_OOM_KILL: &str = "fe6faa94e7774663a0da52717891d8ef";
 
     fn kill_record(fields: [(&str, &str); 3]) -> OomKillEntry {
-        let record: JournalRecord = fields
-            .into_iter()
-            .chain([("PRIORITY", "5")])
-            .map(|(key, value)| (key.to_owned(), value.to_owned()))
-            .collect();
-        OomKillEntry::from_record(&record, SystemTime::UNIX_EPOCH).expect("an oom kill record")
+        let record = decode_record(journal_record(
+            fields.into_iter().chain([("PRIORITY", "5")]),
+        ))
+        .expect("a well-formed oom kill record");
+        OomKillEntry::admit(record, SystemTime::UNIX_EPOCH).expect("an oom kill of a unit")
     }
 
     #[test]
     fn a_user_unit_oom_kill_hides_its_user_manager_echo_from_pid1() {
         let from_pid1 = kill_record([
-            ("MESSAGE_ID", KERNEL_OOM_KILL_MESSAGE_ID),
+            ("MESSAGE_ID", KERNEL_OOM_KILL),
             ("UNIT", "user@1000.service"),
             ("_SYSTEMD_UNIT", "init.scope"),
         ]);
         let from_user_manager = kill_record([
-            ("MESSAGE_ID", KERNEL_OOM_KILL_MESSAGE_ID),
+            ("MESSAGE_ID", KERNEL_OOM_KILL),
             ("USER_UNIT", "run-p42.service"),
             ("_SYSTEMD_UNIT", "user@1000.service"),
         ]);

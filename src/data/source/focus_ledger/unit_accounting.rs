@@ -20,13 +20,15 @@ pub struct UnitTotal {
 
 impl Accounting<'_> {
     pub fn switches_within(&self, window: Interval, now: DateTime<Utc>) -> usize {
-        self.ledger.window_focus_spans_ended_by(now)
+        self.ledger
+            .window_focus_spans_ended_by(now)
             .filter(|span| window.from <= span.started_at && span.started_at < window.until)
             .count()
     }
 
     pub fn switches_to(&self, scope: &FocusScope, window: Interval, now: DateTime<Utc>) -> usize {
-        self.ledger.window_focus_spans_ended_by(now)
+        self.ledger
+            .window_focus_spans_ended_by(now)
             .scan(None::<FocusSpan>, |previous, span| {
                 let entered = scope.covers(&span)
                     && !previous.as_ref().is_some_and(|previous| {
@@ -59,7 +61,8 @@ impl Accounting<'_> {
 
     pub fn spent(&self, scope: &FocusScope, window: Interval, now: DateTime<Utc>) -> TimeDelta {
         let covered = self
-            .ledger.window_focus_spans_ended_by(now)
+            .ledger
+            .window_focus_spans_ended_by(now)
             .filter(|span| scope.covers(span));
         self.active_parts(covered, window, now)
             .into_iter()
@@ -74,7 +77,8 @@ impl Accounting<'_> {
         now: DateTime<Utc>,
     ) -> Option<Interval> {
         let covered = self
-            .ledger.window_focus_spans_ended_by(now)
+            .ledger
+            .window_focus_spans_ended_by(now)
             .filter(|span| scope.covers(span));
         merged(self.active_parts(covered, window, now))
             .into_iter()
@@ -83,7 +87,8 @@ impl Accounting<'_> {
 
     pub fn unit_totals(&self, window: Interval, now: DateTime<Utc>) -> Vec<UnitTotal> {
         let mut units: Vec<FocusUnit> = self
-            .ledger.window_focus_spans_ended_by(now)
+            .ledger
+            .window_focus_spans_ended_by(now)
             .filter(|span| span.interval().intersect(window).is_some())
             .flat_map(|span| span.units)
             .collect();
@@ -108,7 +113,8 @@ impl Accounting<'_> {
         now: DateTime<Utc>,
     ) -> Vec<UnitTotal> {
         let mut companions: Vec<FocusUnit> = self
-            .ledger.window_focus_spans_ended_by(now)
+            .ledger
+            .window_focus_spans_ended_by(now)
             .filter(|span| scope.covers(span))
             .filter(|span| span.interval().intersect(window).is_some())
             .flat_map(|span| span.units)
@@ -120,7 +126,8 @@ impl Accounting<'_> {
             .into_iter()
             .map(|companion| {
                 let together = self
-                    .ledger.window_focus_spans_ended_by(now)
+                    .ledger
+                    .window_focus_spans_ended_by(now)
                     .filter(|span| scope.covers(span) && span.units.contains(&companion));
                 UnitTotal {
                     spent: self

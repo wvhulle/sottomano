@@ -2,19 +2,15 @@ use iced::alignment::Horizontal;
 
 use crate::{
     config::Config,
-    data::{
-        notifications::model::ActionTint,
-        source::coredumps::{CoredumpEntry, CoredumpInspection},
-    },
+    data::source::coredumps::CoredumpEntry,
     widget_groups::{
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
+        journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         localized_time::TimePart,
-        ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -30,8 +26,8 @@ impl CoredumpEntry {
             },
             [
                 Some(self.command.clone().into()),
-                Some(self.signal.clone().into()),
-                Some(self.pid.clone().into()),
+                Some(self.signal.to_string().into()),
+                Some(self.pid.to_string().into()),
                 self.unit.as_ref().map(|unit| unit.name().into()),
             ],
         )
@@ -39,67 +35,16 @@ impl CoredumpEntry {
     }
 }
 
-impl CoredumpEntry {
-    pub fn labelled_fields(&self) -> impl Iterator<Item = String> {
-        let stored_file = self
-            .stored_file
-            .as_ref()
-            .map(|file| format!("<b>Core</b> <tt>{}</tt>", file.display()));
-        [
-            format!("<b>Signal</b> {}", self.signal),
-            format!("<b>Process</b> {} · PID {}", self.executable, self.pid),
-        ]
-        .into_iter()
-        .chain(stored_file)
-    }
-
-    pub fn action_buttons(
-        &self,
-        config: &Config,
-    ) -> impl Iterator<Item = OngoingToastActionButton<SystemdManagerMessage>> {
-        let inspect = |inspection| {
-            SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
-                config,
-                self.coredumpctl_args(inspection),
-            ))
-        };
-        let copy_path = self
-            .stored_file
-            .clone()
-            .map(|file| OngoingToastActionButton {
-                button_label: "Copy path".to_owned(),
-                tint: ActionTint::Inspect,
-                on_button_pressed: SystemdManagerMessage::CopyToClipboard(
-                    file.display().to_string(),
-                ),
-            });
-        [
-            OngoingToastActionButton {
-                button_label: "Info".to_owned(),
-                tint: ActionTint::Inspect,
-                on_button_pressed: inspect(CoredumpInspection::Info),
-            },
-            OngoingToastActionButton {
-                button_label: "Debug".to_owned(),
-                tint: ActionTint::Inspect,
-                on_button_pressed: inspect(CoredumpInspection::Debug),
-            },
-        ]
-        .into_iter()
-        .chain(copy_path)
-    }
-}
-
-impl SystemdManagerGroup {
+impl JournalEventsGroup {
     pub(super) fn coredump_log_item(
         &self,
         config: &Config,
-    ) -> Option<GroupItem<'_, SystemdManagerMessage>> {
+    ) -> Option<GroupItem<'_, JournalEventsMessage>> {
         let coredumps = self.coredumps.present_reading()?;
         Some(
-            GroupItem::reading(coredumps, SystemdTarget::Coredumps).on_press(
+            GroupItem::reading(coredumps, JournalTarget::Coredumps).on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
-                SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+                JournalEventsMessage::OpenLog(TerminalCommand::journal(
                     config,
                     CoredumpEntry::follow_log_args(),
                 )),

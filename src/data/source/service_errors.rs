@@ -1,13 +1,17 @@
 use std::{collections::HashMap, convert::Infallible, io, time::SystemTime};
 
 use iced::futures::{Stream, StreamExt};
-use systemd::journal::{Journal, JournalRecord};
+use serde::Deserialize;
+use systemd::journal::Journal;
 
 use crate::data::{
     severity::Severity,
     source::{
         Delivery, LiveSource, Source, delivered,
-        journal::{JournalEvent, JournalPriority, OwningUnit, either_of, field, journal_windows},
+        journal::{
+            JournalEvent, JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit,
+            either_of, journal_windows,
+        },
     },
 };
 
@@ -28,6 +32,26 @@ impl LiveSource for ServiceErrors {
 
 const SERVICE_UNIT_SUFFIX: &str = ".service";
 
+#[derive(Debug, Deserialize)]
+pub struct ServiceErrorRecord {
+    #[serde(rename = "MESSAGE")]
+    message: String,
+    #[serde(rename = "PRIORITY")]
+    priority: JournalPriority,
+    #[serde(rename = "_TRANSPORT")]
+    transport: JournalTransport,
+    #[serde(rename = "MESSAGE_ID")]
+    message_id: Option<MessageId>,
+    #[serde(flatten)]
+    unit: LoggingUnit,
+}
+
+impl ServiceErrorRecord {
+    fn reported_elsewhere(&self) -> bool {
+        self.transport == JournalTransport::Kernel || self.message_id == Some(MessageId::COREDUMP)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorEntry {
     pub at: SystemTime,
@@ -37,6 +61,8 @@ pub struct ServiceErrorEntry {
 }
 
 impl JournalEvent for ServiceErrorEntry {
+    type Record = ServiceErrorRecord;
+
     const NAME: &'static str = "service error";
     const OPENS_USER_JOURNALS: bool = true;
 
@@ -44,17 +70,19 @@ impl JournalEvent for ServiceErrorEntry {
         JournalPriority::Error.match_this_urgent_or_more(journal)
     }
 
-    fn from_record(record: &JournalRecord, at: SystemTime) -> Option<Self> {
-        if field(record, "_TRANSPORT") == Some("kernel") {
+    fn admit(record: ServiceErrorRecord, at: SystemTime) -> Option<Self> {
+        if record.reported_elsewhere() {
             return None;
         }
-        let unit = OwningUnit::from_fields(record, "_SYSTEMD_UNIT", "_SYSTEMD_USER_UNIT")
+        let unit = record
+            .unit
+            .owning_unit()
             .filter(|unit| unit.name().ends_with(SERVICE_UNIT_SUFFIX))?;
         Some(ServiceErrorEntry {
             at,
             unit,
-            message: field(record, "MESSAGE")?.to_owned(),
-            severity: JournalPriority::of_record(record)?.severity(),
+            message: record.message,
+            severity: record.priority.severity(),
         })
     }
 
@@ -136,26 +164,49 @@ fn errors_by_unit(entries: Vec<ServiceErrorEntry>) -> Vec<UnitErrors> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::source::journal::{decode_record, journal_record};
 
-    fn user_unit_error(user_unit: &str) -> JournalRecord {
-        [
+    fn admitted<'a>(
+        fields: impl IntoIterator<Item = (&'a str, &'a str)>,
+    ) -> Option<ServiceErrorEntry> {
+        let record = decode_record(journal_record(fields)).expect("a well-formed record");
+        ServiceErrorEntry::admit(record, SystemTime::UNIX_EPOCH)
+    }
+
+    fn user_unit_error(user_unit: &str) -> Option<ServiceErrorEntry> {
+        admitted([
             ("PRIORITY", "3"),
             ("MESSAGE", "dial tcp: connection refused"),
             ("_TRANSPORT", "stdout"),
             ("_SYSTEMD_UNIT", "user@1000.service"),
             ("_SYSTEMD_USER_UNIT", user_unit),
-        ]
-        .map(|(key, value)| (key.to_owned(), value.to_owned()))
-        .into()
+        ])
+    }
+
+    #[test]
+    fn a_coredump_report_is_left_to_the_coredump_log() {
+        assert_eq!(
+            admitted([
+                ("PRIORITY", "2"),
+                (
+                    "MESSAGE",
+                    "Process 17041 (vetrata) of user 1000 dumped core.\n\nModule …"
+                ),
+                ("MESSAGE_ID", "fc2e22bc6ee647b6b90729ab34a250b1"),
+                ("_TRANSPORT", "journal"),
+                (
+                    "_SYSTEMD_UNIT",
+                    "systemd-coredump@0-25343-38256_38125-0.service"
+                ),
+            ]),
+            None
+        );
     }
 
     #[test]
     fn an_error_logged_by_a_user_service_belongs_to_that_service_but_a_scope_is_no_service() {
         assert_eq!(
-            ServiceErrorEntry::from_record(
-                &user_unit_error("syncthing.service"),
-                SystemTime::UNIX_EPOCH
-            ),
+            user_unit_error("syncthing.service"),
             Some(ServiceErrorEntry {
                 at: SystemTime::UNIX_EPOCH,
                 unit: OwningUnit::User("syncthing.service".to_owned()),
@@ -163,12 +214,6 @@ mod tests {
                 severity: Severity::Warning,
             })
         );
-        assert_eq!(
-            ServiceErrorEntry::from_record(
-                &user_unit_error("kitty-1.scope"),
-                SystemTime::UNIX_EPOCH
-            ),
-            None
-        );
+        assert_eq!(user_unit_error("kitty-1.scope"), None);
     }
 }
