@@ -109,6 +109,14 @@ impl<S: Source> OnHoverReading<S> {
         }
     }
 
+    pub fn reading(&self) -> Option<&S> {
+        match &self.latest {
+            Some(Ok(reading)) => Some(reading),
+            Some(Err(_)) => None,
+            None => self.shape.as_ref(),
+        }
+    }
+
     pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<SourcedSection> {
         let Some(freshness) = self.freshness else {
             return Vec::new();

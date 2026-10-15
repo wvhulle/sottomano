@@ -3,16 +3,31 @@ use uom::si::f64::Ratio;
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::memory::{Memory, MemoryProcesses},
+        source::sysfs_sensors::{
+            memory::{Memory, MemoryProcesses},
+            memory_module_temperatures::MemoryModuleTemperatures,
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
         phosphor::Phosphor,
+        temperature_thresholds::celsius_text,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
+
+impl MemoryModuleTemperatures {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![
+            Section::dictionary(self.modules.iter().map(|module| {
+                KeyValue::new(module.bus_address.clone(), celsius_text(module.temperature))
+            }))
+            .titled("Module temperatures"),
+        ]
+    }
+}
 
 impl MemoryProcesses {
     pub fn sections(&self) -> Vec<Section> {
