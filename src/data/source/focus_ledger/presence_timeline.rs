@@ -41,9 +41,7 @@ impl PresenceTimeline {
     pub(super) fn ongoing_presence_extended_to(self, now: DateTime<Utc>) -> TimelineUpdate<Self> {
         let ongoing_presence_span = self.ongoing_presence_span.ending_at(now);
         TimelineUpdate {
-            span_writes: vec![SpanWrite::RecordPresenceSpan(
-                ongoing_presence_span.clone(),
-            )],
+            span_writes: vec![SpanWrite::RecordPresenceSpan(ongoing_presence_span.clone())],
             timeline: Self {
                 ongoing_presence_span,
                 ..self

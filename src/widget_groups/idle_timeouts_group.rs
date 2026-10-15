@@ -205,16 +205,15 @@ impl IdleTimeoutsGroup {
     }
 
     fn rearm(&mut self) -> Task<IdleTimeoutsMessage> {
-        let screen_power_edges = performed_idle_action_edges(self.triggers()).filter_map(
-            |tagged| {
+        let screen_power_edges =
+            performed_idle_action_edges(self.triggers()).filter_map(|tagged| {
                 ready((tagged.tag == SessionAction::ScreenOff).then_some(
                     IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
                         IdleEdge::Idled => ScreenEdge::Off,
                         IdleEdge::Resumed => ScreenEdge::On,
                     }),
                 ))
-            },
-        );
+            });
         let (watcher, handle) = Task::run(screen_power_edges, identity).abortable();
         self.idle_watcher = Some(handle.abort_on_drop());
         watcher

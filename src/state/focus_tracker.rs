@@ -72,8 +72,10 @@ impl FocusTracker {
         niri: &EventStreamState,
         processes: &WindowProcesses,
     ) -> Task<TrackerMessage> {
-        let probed = FocusIdentity::of(niri, processes)
-            .map_or(ProbedWindowFocus::NoWindowFocused, ProbedWindowFocus::FocusedWindowIdentity);
+        let probed = FocusIdentity::of(niri, processes).map_or(
+            ProbedWindowFocus::NoWindowFocused,
+            ProbedWindowFocus::FocusedWindowIdentity,
+        );
         if probed == self.last_probed_window_focus {
             return Task::none();
         }

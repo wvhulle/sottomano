@@ -1,10 +1,21 @@
 use std::{
     collections::VecDeque,
-    io, thread,
+    fmt::{Display, Formatter, Result as FmtResult},
+    io,
+    str::FromStr,
+    thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use iced::futures::Stream;
+use serde::{
+    Deserialize, Deserializer,
+    de::{
+        DeserializeOwned, Error as _, IntoDeserializer, Unexpected, Visitor,
+        value::{Error as RecordDecodeError, MapDeserializer},
+    },
+    forward_to_deserialize_any,
+};
 use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -14,12 +25,14 @@ use crate::data::severity::Severity;
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
 pub trait JournalEvent: Clone + Send + 'static {
+    type Record: DeserializeOwned;
+
     const NAME: &'static str;
     const OPENS_USER_JOURNALS: bool;
 
     fn add_matches(journal: &mut Journal) -> io::Result<()>;
 
-    fn from_record(record: &JournalRecord, at: SystemTime) -> Option<Self>;
+    fn admit(record: Self::Record, at: SystemTime) -> Option<Self>;
 
     fn at(&self) -> SystemTime;
 }
@@ -106,17 +119,22 @@ impl<E: JournalEvent> WindowedJournal<E> {
     fn read_appended(&mut self) -> bool {
         let mut appended = false;
         while let Ok(Some(record)) = self.journal.next_entry() {
-            let event = self
-                .journal
-                .timestamp()
-                .ok()
-                .and_then(|at| E::from_record(&record, at));
-            if let Some(event) = event {
+            let Ok(at) = self.journal.timestamp() else {
+                continue;
+            };
+            if let Some(event) = Self::admitted_event(record, at) {
                 self.window.events.push_back(event);
                 appended = true;
             }
         }
         appended
+    }
+
+    fn admitted_event(record: JournalRecord, at: SystemTime) -> Option<E> {
+        decode_record(record)
+            .inspect_err(|e| tracing::debug!("journal: malformed {} record: {e}", E::NAME))
+            .ok()
+            .and_then(|record| E::admit(record, at))
     }
 }
 
@@ -164,8 +182,174 @@ fn horizon_cutoff_usec() -> Option<u64> {
     u64::try_from(cutoff.duration_since(UNIX_EPOCH).ok()?.as_micros()).ok()
 }
 
-pub fn field<'a>(record: &'a JournalRecord, name: &str) -> Option<&'a str> {
-    record.get(name).map(String::as_str)
+pub fn decode_record<Record: DeserializeOwned>(
+    record: JournalRecord,
+) -> Result<Record, RecordDecodeError> {
+    Record::deserialize(MapDeserializer::<_, RecordDecodeError>::new(
+        record
+            .into_iter()
+            .map(|(name, value)| (name, JournalFieldValue(value))),
+    ))
+}
+
+struct JournalFieldValue(String);
+
+impl JournalFieldValue {
+    fn parsed<Number: FromStr>(self) -> Result<Number, RecordDecodeError> {
+        self.0
+            .parse()
+            .map_err(|_| RecordDecodeError::invalid_value(Unexpected::Str(&self.0), &"a number"))
+    }
+}
+
+impl IntoDeserializer<'_, RecordDecodeError> for JournalFieldValue {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self {
+        self
+    }
+}
+
+macro_rules! deserialize_parsed_numbers {
+    ($($deserialize:ident => $visit:ident),* $(,)?) => {
+        $(
+            fn $deserialize<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+                visitor.$visit(self.parsed()?)
+            }
+        )*
+    };
+}
+
+impl<'de> Deserializer<'de> for JournalFieldValue {
+    type Error = RecordDecodeError;
+
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_string(self.0)
+    }
+
+    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        visitor.visit_some(self)
+    }
+
+    fn deserialize_enum<V: Visitor<'de>>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        visitor.visit_enum(self.0.into_deserializer())
+    }
+
+    deserialize_parsed_numbers! {
+        deserialize_u8 => visit_u8,
+        deserialize_u16 => visit_u16,
+        deserialize_u32 => visit_u32,
+        deserialize_u64 => visit_u64,
+        deserialize_i8 => visit_i8,
+        deserialize_i16 => visit_i16,
+        deserialize_i32 => visit_i32,
+        deserialize_i64 => visit_i64,
+    }
+
+    forward_to_deserialize_any! {
+        bool i128 u128 f32 f64 char str string bytes byte_buf unit unit_struct
+        newtype_struct seq tuple tuple_struct map struct identifier ignored_any
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[serde(try_from = "String")]
+pub struct MessageId(u128);
+
+impl MessageId {
+    pub const COREDUMP: Self = Self(0xfc2e_22bc_6ee6_47b6_b907_29ab_34a2_50b1);
+    pub const KERNEL_OOM_KILL: Self = Self(0xfe6f_aa94_e777_4663_a0da_5271_7891_d8ef);
+    pub const OOMD_KILL: Self = Self(0xd989_611b_15e4_4c9d_bf31_e3c8_1256_e4ed);
+    pub const SHUTDOWN: Self = Self(0x9826_8866_d1d5_4a49_9c4e_9892_1d93_bc40);
+    pub const UNIT_STOPPING: Self = Self(0xde5b_426a_63be_47a7_b6ac_3eaa_c82e_2f6f);
+    pub const UNIT_STOPPED: Self = Self(0x9d1a_aa27_d601_40bd_9636_5438_aad2_0286);
+
+    const HEX_DIGITS: usize = 32;
+
+    pub fn add_match(self, journal: &mut Journal) -> io::Result<()> {
+        journal.match_add("MESSAGE_ID", self.to_string())?;
+        Ok(())
+    }
+
+    pub fn follow_match(self) -> String {
+        format!("MESSAGE_ID={self}")
+    }
+}
+
+impl Display for MessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{:0width$x}", self.0, width = Self::HEX_DIGITS)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MalformedMessageId(String);
+
+impl Display for MalformedMessageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
+            "message id {:?} is not {} hex digits",
+            self.0,
+            MessageId::HEX_DIGITS
+        )
+    }
+}
+
+impl FromStr for MessageId {
+    type Err = MalformedMessageId;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let malformed = || MalformedMessageId(text.to_owned());
+        if text.len() != Self::HEX_DIGITS || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(malformed());
+        }
+        u128::from_str_radix(text, 16)
+            .map(Self)
+            .map_err(|_| malformed())
+    }
+}
+
+impl TryFrom<String> for MessageId {
+    type Error = MalformedMessageId;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        text.parse()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum JournalTransport {
+    Audit,
+    Driver,
+    Syslog,
+    Journal,
+    Stdout,
+    Kernel,
+}
+
+impl JournalTransport {
+    fn field_value(self) -> &'static str {
+        match self {
+            JournalTransport::Audit => "audit",
+            JournalTransport::Driver => "driver",
+            JournalTransport::Syslog => "syslog",
+            JournalTransport::Journal => "journal",
+            JournalTransport::Stdout => "stdout",
+            JournalTransport::Kernel => "kernel",
+        }
+    }
+
+    pub fn add_match(self, journal: &mut Journal) -> io::Result<()> {
+        journal.match_add("_TRANSPORT", self.field_value())?;
+        Ok(())
+    }
 }
 
 pub fn either_of(matches: impl IntoIterator<Item = String>) -> impl Iterator<Item = String> {
@@ -180,7 +364,8 @@ pub fn either_of(matches: impl IntoIterator<Item = String>) -> impl Iterator<Ite
         })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(try_from = "u8")]
 pub enum JournalPriority {
     Emergency,
     Alert,
@@ -204,11 +389,6 @@ impl JournalPriority {
         JournalPriority::Debug,
     ];
 
-    pub fn of_record(record: &JournalRecord) -> Option<Self> {
-        let number: usize = field(record, "PRIORITY")?.parse().ok()?;
-        Self::MOST_URGENT_FIRST.get(number).copied()
-    }
-
     pub fn severity(self) -> Severity {
         match self {
             JournalPriority::Emergency | JournalPriority::Alert | JournalPriority::Critical => {
@@ -231,21 +411,78 @@ impl JournalPriority {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnknownSyslogLevel(u8);
+
+impl Display for UnknownSyslogLevel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "syslog level {} is beyond debug", self.0)
+    }
+}
+
+impl TryFrom<u8> for JournalPriority {
+    type Error = UnknownSyslogLevel;
+
+    fn try_from(level: u8) -> Result<Self, UnknownSyslogLevel> {
+        Self::MOST_URGENT_FIRST
+            .get(usize::from(level))
+            .copied()
+            .ok_or(UnknownSyslogLevel(level))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OwningUnit {
     System(String),
     User(String),
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct LoggingUnit {
+    #[serde(rename = "_SYSTEMD_UNIT")]
+    system: Option<String>,
+    #[serde(rename = "_SYSTEMD_USER_UNIT")]
+    user: Option<String>,
+}
+
+impl LoggingUnit {
+    pub fn owning_unit(self) -> Option<OwningUnit> {
+        OwningUnit::innermost_of(self.system, self.user)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SubjectUnit {
+    #[serde(rename = "UNIT")]
+    system: Option<String>,
+    #[serde(rename = "USER_UNIT")]
+    user: Option<String>,
+}
+
+impl SubjectUnit {
+    pub fn owning_unit(self) -> Option<OwningUnit> {
+        OwningUnit::innermost_of(self.system, self.user)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CoredumpUnit {
+    #[serde(rename = "COREDUMP_UNIT")]
+    system: Option<String>,
+    #[serde(rename = "COREDUMP_USER_UNIT")]
+    user: Option<String>,
+}
+
+impl CoredumpUnit {
+    pub fn owning_unit(self) -> Option<OwningUnit> {
+        OwningUnit::innermost_of(self.system, self.user)
+    }
+}
+
 impl OwningUnit {
-    pub fn from_fields(
-        record: &JournalRecord,
-        system_field: &str,
-        user_field: &str,
-    ) -> Option<Self> {
-        field(record, user_field)
-            .map(|name| OwningUnit::User(name.to_owned()))
-            .or_else(|| field(record, system_field).map(|name| OwningUnit::System(name.to_owned())))
+    fn innermost_of(system: Option<String>, user: Option<String>) -> Option<Self> {
+        user.map(OwningUnit::User)
+            .or_else(|| system.map(OwningUnit::System))
     }
 
     pub fn name(&self) -> &str {
@@ -270,6 +507,8 @@ mod tests {
     struct Stamped(SystemTime);
 
     impl JournalEvent for Stamped {
+        type Record = ();
+
         const NAME: &'static str = "stamped";
         const OPENS_USER_JOURNALS: bool = false;
 
@@ -277,7 +516,7 @@ mod tests {
             Ok(())
         }
 
-        fn from_record(_record: &JournalRecord, at: SystemTime) -> Option<Self> {
+        fn admit((): (), at: SystemTime) -> Option<Self> {
             Some(Self(at))
         }
 
@@ -303,22 +542,85 @@ mod tests {
         assert!(!window.drop_expired(now));
     }
 
+    #[derive(Debug, Deserialize)]
+    struct PriorityRecord {
+        #[serde(rename = "PRIORITY")]
+        priority: JournalPriority,
+    }
+
     #[test]
-    fn severity_follows_the_syslog_level_names() {
+    fn severity_follows_the_syslog_level_names_and_other_levels_are_malformed() {
         let severity_of = |priority: &str| {
-            let record: JournalRecord = [("PRIORITY".to_owned(), priority.to_owned())].into();
-            JournalPriority::of_record(&record).map(JournalPriority::severity)
+            decode_record::<PriorityRecord>(journal_record([("PRIORITY", priority)]))
+                .ok()
+                .map(|record| record.priority.severity())
         };
         assert_eq!(
-            ["2", "3", "4", "5", "6", "8"].map(severity_of),
+            ["2", "3", "4", "5", "6", "8", "err"].map(severity_of),
             [
                 Some(Severity::Critical),
                 Some(Severity::Warning),
                 Some(Severity::Warning),
                 Some(Severity::Normal),
                 Some(Severity::Low),
+                None,
                 None
             ]
         );
     }
+
+    #[derive(Debug, Deserialize)]
+    struct CatalogedRecord {
+        #[serde(rename = "MESSAGE_ID")]
+        message_id: Option<MessageId>,
+        #[serde(rename = "_TRANSPORT")]
+        transport: JournalTransport,
+        #[serde(flatten)]
+        unit: LoggingUnit,
+    }
+
+    #[test]
+    fn optional_and_flattened_fields_decode_from_the_record_text() {
+        let record: CatalogedRecord = decode_record(journal_record([
+            ("MESSAGE_ID", "fc2e22bc6ee647b6b90729ab34a250b1"),
+            ("_TRANSPORT", "journal"),
+            ("_SYSTEMD_UNIT", "user@1000.service"),
+            ("_SYSTEMD_USER_UNIT", "syncthing.service"),
+        ]))
+        .expect("a well-formed record");
+        assert_eq!(record.message_id, Some(MessageId::COREDUMP));
+        assert_eq!(record.transport, JournalTransport::Journal);
+        assert_eq!(
+            record.unit.owning_unit(),
+            Some(OwningUnit::User("syncthing.service".to_owned()))
+        );
+
+        let uncataloged: CatalogedRecord =
+            decode_record(journal_record([("_TRANSPORT", "kernel")]))
+                .expect("a record without catalog id or unit");
+        assert_eq!(uncataloged.message_id, None);
+        assert_eq!(uncataloged.unit.owning_unit(), None);
+    }
+
+    #[test]
+    fn message_ids_print_as_journalctl_matches_and_reject_other_lengths() {
+        assert_eq!(
+            MessageId::KERNEL_OOM_KILL.follow_match(),
+            "MESSAGE_ID=fe6faa94e7774663a0da52717891d8ef"
+        );
+        assert!("fe6faa94".parse::<MessageId>().is_err());
+        assert!(
+            "+e6faa94e7774663a0da52717891d8ef"
+                .parse::<MessageId>()
+                .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+pub fn journal_record<'a>(fields: impl IntoIterator<Item = (&'a str, &'a str)>) -> JournalRecord {
+    fields
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value.to_owned()))
+        .collect()
 }

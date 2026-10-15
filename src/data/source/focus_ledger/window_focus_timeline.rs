@@ -72,9 +72,7 @@ impl WindowFocusTimeline {
                 TimelineUpdate {
                     span_writes: vec![SpanWrite::RecordWindowFocusSpan(extended_span.clone())],
                     timeline: Self {
-                        ongoing_window_focus: OngoingWindowFocus::FocusedWindowSpan(
-                            extended_span,
-                        ),
+                        ongoing_window_focus: OngoingWindowFocus::FocusedWindowSpan(extended_span),
                         ..self
                     },
                 }
@@ -113,9 +111,8 @@ impl WindowFocusTimeline {
         }
         TimelineUpdate {
             span_writes: vec![SpanWrite::RecordWindowFocusSpan(next_span.clone())],
-            timeline: self.replacing_ongoing_window_focus(OngoingWindowFocus::FocusedWindowSpan(
-                next_span,
-            )),
+            timeline: self
+                .replacing_ongoing_window_focus(OngoingWindowFocus::FocusedWindowSpan(next_span)),
         }
     }
 

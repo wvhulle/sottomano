@@ -421,10 +421,11 @@ impl DesktopShell {
             Message::DarkMode(msg) => self.dark_mode_group.update(msg).map(Message::DarkMode),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
-            Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => self
-                .session_focus_group
-                .screen_power_changed(edge)
-                .map(Message::SessionFocus),
+            Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
+                self.session_focus_group
+                    .screen_power_changed(edge)
+                    .map(Message::SessionFocus)
+            }
             Message::IdleTimeouts(msg) => self
                 .idle_timeouts_group
                 .update(msg)

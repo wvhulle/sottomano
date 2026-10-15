@@ -54,10 +54,10 @@ impl Accounting<'_> {
             now,
         )
         .into_iter()
-            .filter(|gap| {
-                gap.length() >= idle_after || away.iter().any(|span| span.intersect(*gap).is_some())
-            })
-            .collect()
+        .filter(|gap| {
+            gap.length() >= idle_after || away.iter().any(|span| span.intersect(*gap).is_some())
+        })
+        .collect()
     }
 
     pub fn last_break(&self, now: DateTime<Utc>) -> Option<Interval> {
@@ -199,9 +199,7 @@ mod tests {
             step(sleep_edge(SleepEdge::Suspending), 5),
         ]);
         assert_eq!(asleep.accounted(&config).screen_run(at(30)), None);
-        let woken = asleep
-            .fold(sleep_edge(SleepEdge::Resumed), at(60))
-            .ledger;
+        let woken = asleep.fold(sleep_edge(SleepEdge::Resumed), at(60)).ledger;
         assert_eq!(
             woken.accounted(&config).screen_run(at(61)),
             Some(ScreenRun { since: at(60) })
@@ -232,9 +230,7 @@ mod tests {
         );
         assert_eq!(dark.screen_off_since(), Some(at(10)));
 
-        let lit = dark
-            .fold(screen_power_edge(ScreenEdge::On), at(40))
-            .ledger;
+        let lit = dark.fold(screen_power_edge(ScreenEdge::On), at(40)).ledger;
         assert_eq!(
             lit.accounted(&config).screen_run(at(41)),
             Some(ScreenRun { since: at(40) })

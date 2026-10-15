@@ -129,8 +129,8 @@ async fn read_spans(
 
     let mut rows = conn
         .query(
-            "SELECT started_at, ended_at, state FROM presence_spans_by_start_instant \
-             WHERE ended_at >= ?1 ORDER BY started_at",
+            "SELECT started_at, ended_at, state FROM presence_spans_by_start_instant WHERE \
+             ended_at >= ?1 ORDER BY started_at",
             (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
         )
         .await?;

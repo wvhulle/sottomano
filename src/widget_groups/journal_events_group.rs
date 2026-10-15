@@ -1,11 +1,16 @@
 use iced::{Subscription, Task};
 
+mod coredump_log;
 mod kernel_error_log;
+mod oom_kill_log;
 mod service_error_log;
 
 use crate::{
     config::Config,
-    data::source::{Delivery, kernel_errors::KernelOccurrence, service_errors::ServiceErrors},
+    data::source::{
+        Delivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
+        oom_kills::OomKillEntry, service_errors::ServiceErrors,
+    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::listening,
     widget_groups::terminal_command::TerminalCommand,
@@ -27,6 +32,8 @@ pub enum JournalTarget {
     Events,
     Kernel,
     ServiceErrors,
+    Coredumps,
+    OomKills,
 }
 
 impl From<JournalTarget> for HoverTarget {
@@ -39,6 +46,8 @@ impl From<JournalTarget> for HoverTarget {
 pub struct JournalEventsGroup {
     kernel: ContinuousReading<Vec<KernelOccurrence>>,
     service_errors: ContinuousReading<ServiceErrors>,
+    coredumps: ContinuousReading<Vec<CoredumpEntry>>,
+    oom_kills: ContinuousReading<Vec<OomKillEntry>>,
     expansion: GroupExpansion,
 }
 
@@ -46,6 +55,8 @@ pub struct JournalEventsGroup {
 pub enum JournalEventsMessage {
     Kernel(Delivery<Vec<KernelOccurrence>>),
     ServiceErrors(Delivery<ServiceErrors>),
+    Coredumps(Delivery<Vec<CoredumpEntry>>),
+    OomKills(Delivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -59,6 +70,8 @@ impl JournalEventsGroup {
         Subscription::batch([
             listening::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
             listening::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
+            listening::<Vec<CoredumpEntry>>(()).map(JournalEventsMessage::Coredumps),
+            listening::<Vec<OomKillEntry>>(()).map(JournalEventsMessage::OomKills),
         ])
     }
 
@@ -68,6 +81,8 @@ impl JournalEventsGroup {
             JournalEventsMessage::ServiceErrors(delivery) => {
                 self.service_errors.push_or_keep(delivery);
             }
+            JournalEventsMessage::Coredumps(delivery) => self.coredumps.push_or_keep(delivery),
+            JournalEventsMessage::OomKills(delivery) => self.oom_kills.push_or_keep(delivery),
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -80,10 +95,14 @@ impl JournalEventsGroup {
         match target {
             JournalTarget::Kernel => self.kernel.present_tooltip(),
             JournalTarget::ServiceErrors => self.service_errors.present_tooltip(),
+            JournalTarget::Coredumps => self.coredumps.present_tooltip(),
+            JournalTarget::OomKills => self.oom_kills.present_tooltip(),
             JournalTarget::Events => self
                 .kernel
                 .tooltip_with(self.tooltip())
-                .or_else(|| self.service_errors.tooltip_with(self.tooltip())),
+                .or_else(|| self.service_errors.tooltip_with(self.tooltip()))
+                .or_else(|| self.coredumps.tooltip_with(self.tooltip()))
+                .or_else(|| self.oom_kills.tooltip_with(self.tooltip())),
         }
     }
 
@@ -101,16 +120,24 @@ impl JournalEventsGroup {
                 self.service_errors
                     .present_reading()
                     .map(|service_errors| service_errors.group_item(config)),
+                self.coredump_log_item(config),
+                self.oom_kill_log_item(config),
             ]
             .into_iter()
             .flatten(),
         )
     }
 
-    fn kinds(&self) -> [Option<&dyn BarWidget>; 2] {
+    fn kinds(&self) -> [Option<&dyn BarWidget>; 4] {
         [
             self.kernel.present_reading().map(|w| w as &dyn BarWidget),
             self.service_errors
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.coredumps
+                .present_reading()
+                .map(|w| w as &dyn BarWidget),
+            self.oom_kills
                 .present_reading()
                 .map(|w| w as &dyn BarWidget),
         ]
@@ -155,8 +182,21 @@ impl BarWidget for JournalEventsGroup {
             .service_errors
             .present_reading()
             .map(|errors| KeyValue::new("Service errors", errors.entry_count.to_string()));
-        TooltipBody::sections([
-            Section::dictionary(kernel.into_iter().chain(service)).titled("Last hour")
-        ])
+        let coredumps = self
+            .coredumps
+            .present_reading()
+            .map(|coredumps| KeyValue::new("Coredumps", coredumps.len().to_string()));
+        let oom_kills = self
+            .oom_kills
+            .present_reading()
+            .map(|kills| KeyValue::new("OOM kills", kills.len().to_string()));
+        TooltipBody::sections([Section::dictionary(
+            kernel
+                .into_iter()
+                .chain(service)
+                .chain(coredumps)
+                .chain(oom_kills),
+        )
+        .titled("Last hour")])
     }
 }

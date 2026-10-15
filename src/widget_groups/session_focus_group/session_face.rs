@@ -285,9 +285,10 @@ mod tests {
             (idle_edge(IdleEdge::Resumed), 15),
         ]
         .into_iter()
-        .fold(FocusLedger::started_at(at(0)), |ledger, (signal, minute)| {
-            ledger.fold(signal, at(minute)).ledger
-        });
+        .fold(
+            FocusLedger::started_at(at(0)),
+            |ledger, (signal, minute)| ledger.fold(signal, at(minute)).ledger,
+        );
         let face = SessionFace {
             accounting: ledger.accounted(&config),
             waking: all_day(),
