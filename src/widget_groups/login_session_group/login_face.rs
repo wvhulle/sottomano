@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
     },
 };
 
@@ -13,7 +13,7 @@ pub struct LoginFace<'a> {
 
 impl BarWidget for LoginFace<'_> {
     fn name(&self) -> &'static str {
-        "Login session"
+        "Login"
     }
 
     fn icon(&self) -> Glyph {
@@ -28,18 +28,25 @@ impl BarWidget for LoginFace<'_> {
         TooltipBody::sections([Section::dictionary(
             [
                 Some(KeyValue::new(
-                    "Login manager",
+                    "Logged in through",
                     self.identity.login_manager.clone(),
                 )),
-                entry("Seat", self.identity.seat.clone()),
+                entry("Remote user", self.identity.remote_user.clone()),
+                entry("Remote host", self.identity.remote_host.clone()),
                 Some(KeyValue::new(
-                    "Session type",
-                    self.identity.session_type.clone(),
+                    "Wiki",
+                    Cell::Link {
+                        label: "Display manager".to_owned(),
+                        url: "https://wiki.archlinux.org/title/Display_manager".to_owned(),
+                    },
                 )),
             ]
             .into_iter()
             .flatten(),
         )
-        .titled("Logged in through")])
+        .titled((
+            "Login",
+            "The login manager that checked your password and started this session.",
+        ))])
     }
 }

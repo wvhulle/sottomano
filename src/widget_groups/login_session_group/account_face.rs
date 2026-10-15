@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
+        tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
 
@@ -25,6 +25,14 @@ impl BarWidget for AccountFace<'_> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([self.identity.section()])
+        TooltipBody::sections([Section::dictionary([
+            KeyValue::new("User", self.identity.user.clone()),
+            KeyValue::new("User id", self.identity.uid.to_string()),
+            KeyValue::new("Host", self.identity.host.clone()),
+        ])
+        .titled((
+            "Account",
+            "The user this session runs as; everything above runs with its permissions.",
+        ))])
     }
 }
