@@ -82,6 +82,18 @@ impl HwmonChip {
             .collect()
     }
 
+    pub fn device_name(&self) -> Option<String> {
+        Some(
+            self.dir
+                .join("device")
+                .canonicalize()
+                .ok()?
+                .file_name()?
+                .to_str()?
+                .to_owned(),
+        )
+    }
+
     pub fn temperature_sensors(&self) -> Vec<TemperatureSensor> {
         let mut sensors: Vec<TemperatureSensor> = list_dir(&self.dir)
             .iter()

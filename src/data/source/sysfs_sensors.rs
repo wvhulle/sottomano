@@ -50,12 +50,16 @@ pub(super) fn parse_field<T: FromStr>(path: &Path) -> Result<T, Error> {
 pub mod battery;
 pub mod cpu_clock;
 pub mod cpu_idle;
+pub mod cpu_power;
 pub mod cpu_topology;
 pub mod cpu_tuning;
 pub mod cpu_usage;
 pub mod hwmon;
+pub mod l3_cache_traffic;
 pub mod memory;
+pub mod memory_module_temperatures;
 pub mod temperature;
+pub mod x3d_vcache;
 
 pub(super) const CPU_FREQ: &str = "/sys/devices/system/cpu";
 
@@ -67,8 +71,11 @@ pub(super) fn core_freqs() -> Vec<cpu_clock::CoreFreq> {
             let core: u32 = cpu_core_index(name)?;
             Some(cpu_clock::CoreFreq {
                 core,
-                frequency: read_kilohertz(dir.join("cpufreq/scaling_cur_freq"))?,
+                frequency: read_kilohertz(dir.join("cpufreq/cpuinfo_avg_freq"))
+                    .or_else(|| read_kilohertz(dir.join("cpufreq/scaling_cur_freq")))?,
                 limit: core_frequency_limit(dir)?,
+                preference_rank: read_trimmed(dir.join("cpufreq/amd_pstate_prefcore_ranking"))
+                    .and_then(|rank| rank.parse().ok()),
             })
         })
         .collect();
