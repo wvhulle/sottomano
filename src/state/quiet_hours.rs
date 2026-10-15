@@ -1,6 +1,6 @@
 use std::{convert::Infallible, time::Duration};
 
-use chrono::{NaiveTime, Timelike};
+use chrono::{NaiveTime, TimeDelta, Timelike};
 use iced::futures::{Stream, StreamExt, stream};
 
 use crate::{
@@ -28,8 +28,8 @@ impl Default for QuietHoursSchedule {
     fn default() -> Self {
         Self {
             follows_schedule: true,
-            start: NaiveTime::from_hms_opt(23, 0, 0).unwrap_or_default(),
-            end: NaiveTime::from_hms_opt(7, 0, 0).unwrap_or_default(),
+            start: NaiveTime::MIN + TimeDelta::hours(23),
+            end: NaiveTime::MIN + TimeDelta::hours(7),
             screen_off: Some(Duration::from_mins(1)),
         }
     }
@@ -73,8 +73,7 @@ fn minutes_since_midnight(time: NaiveTime) -> i64 {
 }
 
 fn time_of_minutes(minutes: i64) -> NaiveTime {
-    let minutes = u32::try_from(minutes.rem_euclid(24 * 60)).unwrap_or_default();
-    NaiveTime::from_hms_opt(minutes / 60, minutes % 60, 0).unwrap_or_default()
+    NaiveTime::MIN + TimeDelta::minutes(minutes)
 }
 
 async fn read_schedule(conn: &turso::Connection) -> Result<QuietHoursSchedule, StoreError> {

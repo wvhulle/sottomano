@@ -2,7 +2,7 @@ pub mod quiet_window;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, Local, NaiveTime, Timelike, Utc};
+use chrono::{DateTime, Local, NaiveTime, TimeDelta, Timelike, Utc};
 use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
@@ -473,10 +473,9 @@ fn clock_minutes(time: NaiveTime) -> f32 {
     (time.hour() * 60 + time.minute()) as f32
 }
 
-#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+#[allow(clippy::cast_possible_truncation)]
 fn clock_at(minutes: f32) -> NaiveTime {
-    let minutes = (minutes.round().max(0.0) as u32) % (24 * 60);
-    NaiveTime::from_hms_opt(minutes / 60, minutes % 60, 0).unwrap_or_default()
+    NaiveTime::MIN + TimeDelta::minutes(minutes.round().max(0.0) as i64)
 }
 
 fn clock_text(time: NaiveTime) -> String {

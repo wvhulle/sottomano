@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Datelike, Local, NaiveDate, TimeDelta, TimeZone, Utc, Weekday};
+use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, Weekday};
 use serde::Deserialize;
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -136,7 +136,7 @@ impl Period {
 
 fn local_midnight(day: NaiveDate) -> Option<DateTime<Utc>> {
     Local
-        .from_local_datetime(&day.and_hms_opt(0, 0, 0)?)
+        .from_local_datetime(&day.and_time(NaiveTime::MIN))
         .earliest()
         .map(|midnight| midnight.with_timezone(&Utc))
 }
