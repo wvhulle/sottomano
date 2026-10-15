@@ -14,6 +14,7 @@ use uom::si::{
 
 use super::{
     CPU_FREQ, Error, cpu_core_index,
+    cpu_topology::CpuTopology,
     hwmon::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
     list_dir, read_trimmed,
 };
@@ -61,6 +62,7 @@ pub struct Temperature {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuCoreTemperatures {
     pub cores: Vec<CoreTemperature>,
+    pub topology: CpuTopology,
 }
 
 impl Source for CpuCoreTemperatures {
@@ -77,6 +79,7 @@ impl PolledSource for CpuCoreTemperatures {
         blocking_poll(move || {
             Ok(CpuCoreTemperatures {
                 cores: core_temperatures(overrides),
+                topology: CpuTopology::detect(),
             })
         })
         .await

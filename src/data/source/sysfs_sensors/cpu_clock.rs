@@ -4,7 +4,7 @@ use iced::futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 
-use super::{CPU_FREQ, Error, core_freqs};
+use super::{CPU_FREQ, Error, core_freqs, cpu_topology::CpuTopology};
 use crate::data::source::{
     Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls,
 };
@@ -45,6 +45,7 @@ pub struct CoreFreq {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuClock {
     pub cores: Vec<CoreFreq>,
+    pub topology: CpuTopology,
 }
 
 impl CpuClock {
@@ -104,7 +105,10 @@ fn read_cpu_clock() -> Result<CpuClock, Error> {
     if cores.is_empty() {
         return Err(Error::Unreadable(CPU_FREQ.to_owned()));
     }
-    Ok(CpuClock { cores })
+    Ok(CpuClock {
+        cores,
+        topology: CpuTopology::detect(),
+    })
 }
 
 #[cfg(test)]

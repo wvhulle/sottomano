@@ -2,13 +2,12 @@ use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, Local, Locale};
 
-use super::core_kind_sections::{PerCore, sections_by_core_kind};
+use super::core_group_sections::{PerCore, sections_by_core_group};
 use crate::{
     data::{
         severity::Severity,
-        source::sysfs_sensors::{
-            cpu_topology::CpuTopology,
-            temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
+        source::sysfs_sensors::temperature::{
+            CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds,
         },
     },
     widgets::{
@@ -149,10 +148,10 @@ impl BarWidget for Temperature {
 }
 
 impl CpuCoreTemperatures {
-    pub fn sections(&self, topology: &CpuTopology) -> Vec<Section> {
-        sections_by_core_kind(
-            topology,
-            self.cores.clone(),
+    pub fn sections(&self) -> Vec<Section> {
+        sections_by_core_group(
+            &self.topology,
+            &self.cores,
             [ColumnHeading::new("Temp"), ColumnHeading::new("Limit")],
             "Temp is each core's own sensor; Limit is the temperature its driver reports as the \
              threshold.",

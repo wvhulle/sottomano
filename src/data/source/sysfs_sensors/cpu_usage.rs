@@ -5,6 +5,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use super::{
     Error, cpu_core_index,
     cpu_idle::{CoreDeepIdle, IdleSnapshot},
+    cpu_topology::CpuTopology,
 };
 use crate::data::source::{PolledSource, Source, blocking_poll};
 
@@ -27,6 +28,7 @@ pub struct CpuUsage {
 pub struct CpuCoreLoads {
     pub cores: Vec<CoreLoad>,
     pub deep_idle: Vec<CoreDeepIdle>,
+    pub topology: CpuTopology,
 }
 
 impl Source for CpuUsage {
@@ -77,6 +79,7 @@ fn read_core_loads() -> Result<CpuCoreLoads, Error> {
     Ok(CpuCoreLoads {
         cores: sample.core_loads(),
         deep_idle: later_idle.deep_idle_since(&earlier_idle),
+        topology: CpuTopology::detect(),
     })
 }
 
