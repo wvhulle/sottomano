@@ -1,16 +1,22 @@
-use std::time::Duration;
+use std::{convert::identity, time::Duration};
 
-use iced::{Task, task};
+use iced::{
+    Task,
+    futures::{StreamExt, future::ready},
+    task,
+};
 
 use crate::{
     config::Config,
-    data::source::session_action::SessionAction,
+    data::source::{
+        focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
+    },
     desktop_shell::hover_tooltips::HoverTarget,
     state::{self, idle::Timeouts},
     widgets::{
         group_item::GroupItem,
         idle::{
-            ActionTrigger, perform_when_idle,
+            ActionTrigger, performed_idle_action_edges,
             timer::{IdleTimer, TimerChange},
         },
         phosphor::{Phosphor, Weight},
@@ -60,6 +66,7 @@ pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
     Expansion(ExpansionMessage),
     Timer(TimerKind, ControlMessage),
+    ScreenPowerChangedByIdleAction(ScreenEdge),
 }
 
 impl Default for IdleTimeoutsGroup {
@@ -163,6 +170,7 @@ impl IdleTimeoutsGroup {
                     Task::batch([persist, self.rearm()])
                 }
             },
+            IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(_) => Task::none(),
         }
     }
 
@@ -197,9 +205,17 @@ impl IdleTimeoutsGroup {
     }
 
     fn rearm(&mut self) -> Task<IdleTimeoutsMessage> {
-        let (watcher, handle) = Task::future(perform_when_idle(self.triggers()))
-            .discard()
-            .abortable();
+        let screen_power_edges = performed_idle_action_edges(self.triggers()).filter_map(
+            |tagged| {
+                ready((tagged.tag == SessionAction::ScreenOff).then_some(
+                    IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
+                        IdleEdge::Idled => ScreenEdge::Off,
+                        IdleEdge::Resumed => ScreenEdge::On,
+                    }),
+                ))
+            },
+        );
+        let (watcher, handle) = Task::run(screen_power_edges, identity).abortable();
         self.idle_watcher = Some(handle.abort_on_drop());
         watcher
     }

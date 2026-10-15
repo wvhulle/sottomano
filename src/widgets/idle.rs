@@ -1,11 +1,12 @@
 pub mod timer;
 
-use std::{convert::Infallible, time::Duration};
+use std::time::Duration;
 
+use iced::futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::data::source::{
-    idle_notify::{IdleNotifier, IdleTrigger, WaylandError},
+    idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, TaggedEdge, WaylandError},
     session_action::SessionAction,
 };
 
@@ -42,25 +43,95 @@ pub fn timeout_at(position: f32) -> Option<Duration> {
 
 pub type ActionTrigger = IdleTrigger<SessionAction>;
 
-pub async fn perform_when_idle(triggers: Vec<ActionTrigger>) {
-    if triggers.is_empty() {
-        return;
-    }
-    for _ in 0..RECONNECT_ATTEMPTS {
-        let Err(e) = perform_while_connected(&triggers).await;
-        tracing::warn!("idle daemon: {e}");
-        if !matches!(e, WaylandError::Io(_)) {
-            return;
+pub type IdleActionEdge = TaggedEdge<SessionAction>;
+
+enum IdleActionConnection {
+    Reconnecting {
+        attempts_left: usize,
+    },
+    Connected {
+        notifier: IdleNotifier<SessionAction>,
+        attempts_left: usize,
+    },
+}
+
+type NextIdleActionEdges = Option<(Vec<IdleActionEdge>, IdleActionConnection)>;
+
+impl IdleActionConnection {
+    async fn next_edges(self, triggers: &[ActionTrigger]) -> NextIdleActionEdges {
+        match self {
+            IdleActionConnection::Reconnecting { attempts_left: 0 } => None,
+            IdleActionConnection::Reconnecting { attempts_left } => {
+                match IdleNotifier::connect().await {
+                    Ok(mut notifier) => {
+                        notifier.arm(triggers);
+                        Some((
+                            Vec::new(),
+                            IdleActionConnection::Connected {
+                                notifier,
+                                attempts_left,
+                            },
+                        ))
+                    }
+                    Err(failure) => Self::after_failure(&failure, attempts_left),
+                }
+            }
+            IdleActionConnection::Connected {
+                mut notifier,
+                attempts_left,
+            } => match notifier.edges().await {
+                Ok(edges) => {
+                    perform_idled_actions(&edges);
+                    Some((
+                        edges,
+                        IdleActionConnection::Connected {
+                            notifier,
+                            attempts_left,
+                        },
+                    ))
+                }
+                Err(failure) => Self::after_failure(&failure, attempts_left),
+            },
         }
+    }
+
+    fn after_failure(failure: &WaylandError, attempts_left: usize) -> NextIdleActionEdges {
+        tracing::warn!("idle daemon: {failure}");
+        matches!(failure, WaylandError::Io(_)).then(|| {
+            (
+                Vec::new(),
+                IdleActionConnection::Reconnecting {
+                    attempts_left: attempts_left - 1,
+                },
+            )
+        })
     }
 }
 
-async fn perform_while_connected(triggers: &[ActionTrigger]) -> Result<Infallible, WaylandError> {
-    let mut notifier = IdleNotifier::connect().await?;
-    notifier.arm(triggers);
-    loop {
-        for action in notifier.elapsed().await? {
+fn perform_idled_actions(edges: &[IdleActionEdge]) {
+    edges
+        .iter()
+        .filter(|tagged| tagged.edge == IdleEdge::Idled)
+        .for_each(|tagged| {
+            let action = tagged.tag;
             spawn_blocking(move || action.perform());
-        }
-    }
+        });
+}
+
+pub fn performed_idle_action_edges(
+    triggers: Vec<ActionTrigger>,
+) -> impl Stream<Item = IdleActionEdge> + Send {
+    let attempts_left = if triggers.is_empty() {
+        0
+    } else {
+        RECONNECT_ATTEMPTS
+    };
+    stream::unfold(
+        IdleActionConnection::Reconnecting { attempts_left },
+        move |connection| {
+            let triggers = triggers.clone();
+            async move { connection.next_edges(&triggers).await }
+        },
+    )
+    .flat_map(stream::iter)
 }

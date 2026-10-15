@@ -122,15 +122,6 @@ impl<Tag: Copy + Send + 'static> IdleNotifier<Tag> {
         self.conn.dispatch_events(&mut self.state);
         Ok(take(&mut self.state.edges))
     }
-
-    pub async fn elapsed(&mut self) -> Result<Vec<Tag>, WaylandError> {
-        let edges = self.edges().await?;
-        Ok(edges
-            .into_iter()
-            .filter(|tagged| tagged.edge == IdleEdge::Idled)
-            .map(|tagged| tagged.tag)
-            .collect())
-    }
 }
 
 fn notification_cb<Tag: Copy>(
@@ -161,7 +152,8 @@ async fn connected_edges(
 ) -> Result<impl Stream<Item = IdleEdge> + Send, WaylandError> {
     let mut notifier = IdleNotifier::<()>::connect().await?;
     notifier.arm(&[IdleTrigger { after, tag: () }]);
-    Ok(stream::unfold(notifier, async |mut notifier| {
+    let freshly_armed_notification_is_not_idle = stream::iter([IdleEdge::Resumed]);
+    let reported_edges = stream::unfold(notifier, async |mut notifier| {
         let edges = notifier
             .edges()
             .await
@@ -170,5 +162,6 @@ async fn connected_edges(
         let edges = stream::iter(edges.into_iter().map(|tagged| tagged.edge));
         Some((edges, notifier))
     })
-    .flatten())
+    .flatten();
+    Ok(freshly_armed_notification_is_not_idle.chain(reported_edges))
 }

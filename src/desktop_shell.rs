@@ -267,7 +267,7 @@ impl DesktopShell {
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
             ai_group: AiGroup::new(secrets),
-            session_focus_group: SessionFocusGroup::default(),
+            session_focus_group: SessionFocusGroup::started_at(Utc::now()),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
@@ -421,6 +421,10 @@ impl DesktopShell {
             Message::DarkMode(msg) => self.dark_mode_group.update(msg).map(Message::DarkMode),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
+            Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => self
+                .session_focus_group
+                .screen_power_changed(edge)
+                .map(Message::SessionFocus),
             Message::IdleTimeouts(msg) => self
                 .idle_timeouts_group
                 .update(msg)

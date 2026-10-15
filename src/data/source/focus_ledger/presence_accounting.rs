@@ -3,7 +3,6 @@ use chrono::{DateTime, TimeDelta, Utc};
 use super::{
     Accounting,
     focus_units::{FocusUnit, Presence},
-    recorded_spans::OpenSpan,
     time_intervals::{Interval, gaps_between, merged},
 };
 
@@ -27,7 +26,7 @@ impl Accounting<'_> {
         let idle_after = self.idle_after();
         merged(
             self.ledger
-                .presence_until(now)
+                .presence_spans_ended_by(now)
                 .filter(|span| match span.state {
                     Presence::Active => true,
                     Presence::Idle => span.interval().length() < idle_after,
@@ -40,7 +39,7 @@ impl Accounting<'_> {
 
     fn unmistakably_away(&self, now: DateTime<Utc>) -> Vec<Interval> {
         self.ledger
-            .presence_until(now)
+            .presence_spans_ended_by(now)
             .filter(|span| matches!(span.state, Presence::Asleep | Presence::ScreenOff))
             .map(|span| span.interval())
             .collect()
@@ -49,11 +48,12 @@ impl Accounting<'_> {
     fn breaks(&self, now: DateTime<Utc>) -> Vec<Interval> {
         let idle_after = self.idle_after();
         let away = self.unmistakably_away(now);
-        self.ledger
-            .first_presence(now)
-            .map(|first| gaps_between(&self.active_intervals(now), first, now))
-            .unwrap_or_default()
-            .into_iter()
+        gaps_between(
+            &self.active_intervals(now),
+            self.ledger.first_presence_started_at(),
+            now,
+        )
+        .into_iter()
             .filter(|gap| {
                 gap.length() >= idle_after || away.iter().any(|span| span.intersect(*gap).is_some())
             })
@@ -65,11 +65,12 @@ impl Accounting<'_> {
     }
 
     pub fn screen_run(&self, now: DateTime<Utc>) -> Option<ScreenRun> {
-        let first = self.ledger.first_presence(now)?;
         match self.last_break(now) {
             Some(gap) if gap.until >= now => None,
             Some(gap) => Some(ScreenRun { since: gap.until }),
-            None => Some(ScreenRun { since: first }),
+            None => Some(ScreenRun {
+                since: self.ledger.first_presence_started_at(),
+            }),
         }
     }
 
@@ -77,25 +78,26 @@ impl Accounting<'_> {
         let floor = self
             .last_break(now)
             .map_or(DateTime::<Utc>::MIN_UTC, |gap| gap.until);
-        let Some(OpenSpan { span: open, .. }) = &self.ledger.open_focus else {
+        let window_focus_timeline = &self.ledger.window_focus_timeline;
+        let Some(focused_window_span) = window_focus_timeline.focused_window_span() else {
             return Vec::new();
         };
-        open.units
+        focused_window_span
+            .units
             .iter()
             .map(|unit| {
-                let chain_start = self
-                    .ledger
-                    .focus
+                let chain_start = window_focus_timeline
+                    .finished_window_focus_spans()
                     .iter()
                     .rev()
-                    .scan(open.started_at, |since, span| {
+                    .scan(focused_window_span.started_at, |since, span| {
                         (*since <= span.ended_at && span.units.contains(unit)).then(|| {
                             *since = span.started_at;
                             *since
                         })
                     })
                     .last()
-                    .unwrap_or(open.started_at);
+                    .unwrap_or(focused_window_span.started_at);
                 FocusRun {
                     unit: unit.clone(),
                     since: chain_start.max(floor),
@@ -142,10 +144,12 @@ mod tests {
 
     use super::*;
     use crate::data::source::{
-        drm_connectors::ScreenEdge,
         focus_ledger::{
-            FocusSignal,
-            test_steps::{at, config, focused, folded, kitty, step, whole_day},
+            ScreenEdge,
+            test_steps::{
+                at, config, focused, folded, idle_edge, kitty, no_window_focused,
+                screen_power_edge, sleep_edge, step, whole_day,
+            },
         },
         idle_notify::IdleEdge,
         logind::SleepEdge,
@@ -156,8 +160,8 @@ mod tests {
         let config = config();
         let paused = folded([
             step(focused("kitty", None), 0),
-            step(FocusSignal::Idle(IdleEdge::Idled), 10),
-            step(FocusSignal::Idle(IdleEdge::Resumed), 11),
+            step(idle_edge(IdleEdge::Idled), 10),
+            step(idle_edge(IdleEdge::Resumed), 11),
         ]);
         let paused = paused.accounted(&config);
         assert_eq!(
@@ -168,8 +172,8 @@ mod tests {
 
         let rested = folded([
             step(focused("kitty", None), 0),
-            step(FocusSignal::Idle(IdleEdge::Idled), 20),
-            step(FocusSignal::Idle(IdleEdge::Resumed), 30),
+            step(idle_edge(IdleEdge::Idled), 20),
+            step(idle_edge(IdleEdge::Resumed), 30),
         ]);
         let rested = rested.accounted(&config);
         assert_eq!(
@@ -192,11 +196,11 @@ mod tests {
         let config = config();
         let asleep = folded([
             step(focused("kitty", None), 0),
-            step(FocusSignal::Sleep(SleepEdge::Suspending), 5),
+            step(sleep_edge(SleepEdge::Suspending), 5),
         ]);
         assert_eq!(asleep.accounted(&config).screen_run(at(30)), None);
         let woken = asleep
-            .fold(FocusSignal::Sleep(SleepEdge::Resumed), at(60))
+            .fold(sleep_edge(SleepEdge::Resumed), at(60))
             .ledger;
         assert_eq!(
             woken.accounted(&config).screen_run(at(61)),
@@ -209,8 +213,8 @@ mod tests {
         let config = config();
         let dark = folded([
             step(focused("kitty", None), 0),
-            step(FocusSignal::Screen(ScreenEdge::Off), 10),
-            step(FocusSignal::Idle(IdleEdge::Resumed), 20),
+            step(screen_power_edge(ScreenEdge::Off), 10),
+            step(idle_edge(IdleEdge::Resumed), 20),
         ]);
         let accounted = dark.accounted(&config);
         assert_eq!(accounted.screen_run(at(11)), None);
@@ -229,13 +233,62 @@ mod tests {
         assert_eq!(dark.screen_off_since(), Some(at(10)));
 
         let lit = dark
-            .fold(FocusSignal::Screen(ScreenEdge::On), at(40))
+            .fold(screen_power_edge(ScreenEdge::On), at(40))
             .ledger;
         assert_eq!(
             lit.accounted(&config).screen_run(at(41)),
             Some(ScreenRun { since: at(40) })
         );
         assert_eq!(lit.screen_off_since(), None);
+    }
+
+    #[test]
+    fn a_lock_screen_taking_focus_during_suspend_does_not_end_the_sleep() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(screen_power_edge(ScreenEdge::Off), 10),
+            step(sleep_edge(SleepEdge::Suspending), 50),
+            step(no_window_focused(), 50),
+            step(screen_power_edge(ScreenEdge::On), 51),
+            step(sleep_edge(SleepEdge::Resumed), 800),
+        ]);
+        let accounted = ledger.accounted(&config);
+        assert_eq!(accounted.screen_run(at(400)), None);
+        assert_eq!(
+            accounted.screen_run(at(801)),
+            Some(ScreenRun { since: at(800) })
+        );
+    }
+
+    #[test]
+    fn focusing_a_window_while_the_screen_is_off_keeps_it_off() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(screen_power_edge(ScreenEdge::Off), 10),
+            step(focused("firefox", None), 20),
+        ]);
+        assert_eq!(ledger.screen_off_since(), Some(at(10)));
+        assert_eq!(ledger.accounted(&config).screen_run(at(30)), None);
+    }
+
+    #[test]
+    fn idling_while_the_screen_is_off_stays_screen_off_and_lighting_it_returns_to_idle() {
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(screen_power_edge(ScreenEdge::Off), 10),
+            step(idle_edge(IdleEdge::Idled), 11),
+        ]);
+        assert_eq!(ledger.screen_off_since(), Some(at(10)));
+        let lit = ledger
+            .fold(screen_power_edge(ScreenEdge::On), at(20))
+            .ledger;
+        assert_eq!(lit.screen_off_since(), None);
+        assert_eq!(
+            lit.presence_spans_ended_by(at(21)).last().unwrap().state,
+            Presence::Idle
+        );
     }
 
     #[test]
@@ -264,8 +317,8 @@ mod tests {
         let config = config();
         let ledger = folded([
             step(focused("kitty", None), 0),
-            step(FocusSignal::Idle(IdleEdge::Idled), 10),
-            step(FocusSignal::Idle(IdleEdge::Resumed), 30),
+            step(idle_edge(IdleEdge::Idled), 10),
+            step(idle_edge(IdleEdge::Resumed), 30),
         ]);
         let window = Interval {
             from: at(20),
@@ -285,10 +338,10 @@ mod tests {
         let config = config();
         let ledger = folded([
             step(focused("kitty", None), 0),
-            step(FocusSignal::Idle(IdleEdge::Idled), 10),
-            step(FocusSignal::Idle(IdleEdge::Resumed), 11),
-            step(FocusSignal::Idle(IdleEdge::Idled), 25),
-            step(FocusSignal::Idle(IdleEdge::Resumed), 35),
+            step(idle_edge(IdleEdge::Idled), 10),
+            step(idle_edge(IdleEdge::Resumed), 11),
+            step(idle_edge(IdleEdge::Idled), 25),
+            step(idle_edge(IdleEdge::Resumed), 35),
         ]);
         assert_eq!(
             ledger
