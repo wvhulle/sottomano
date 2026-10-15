@@ -32,12 +32,13 @@ impl ContextSwitchRate<'_> {
     }
 
     fn severity(&self, now: DateTime<Utc>) -> Severity {
-        let warning =
-            usize::try_from(self.accounting.config.switches_per_hour_warning).unwrap_or(usize::MAX);
-        if self.per_hour(now) >= warning {
-            Severity::Warning
-        } else {
-            Severity::Normal
+        let config = self.accounting.config;
+        let critical = usize::try_from(config.switches_per_hour_critical).unwrap_or(usize::MAX);
+        let warning = usize::try_from(config.switches_per_hour_warning).unwrap_or(usize::MAX);
+        match self.per_hour(now) {
+            rate if rate > critical => Severity::Critical,
+            rate if rate > warning => Severity::Warning,
+            _ => Severity::Normal,
         }
     }
 
@@ -66,10 +67,16 @@ impl ContextSwitchRate<'_> {
             .flatten(),
         )
         .titled("Switches");
-        let thresholds = Section::dictionary([KeyValue::new(
-            "Warns above",
-            format!("{}/h", self.accounting.config.switches_per_hour_warning),
-        )])
+        let thresholds = Section::dictionary([
+            KeyValue::new(
+                "Warns above",
+                format!("{}/h", self.accounting.config.switches_per_hour_warning),
+            ),
+            KeyValue::new(
+                "Critical above",
+                format!("{}/h", self.accounting.config.switches_per_hour_critical),
+            ),
+        ])
         .titled("Thresholds");
         [readings, thresholds]
     }
