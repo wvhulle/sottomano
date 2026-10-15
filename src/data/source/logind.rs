@@ -1,14 +1,30 @@
+pub mod greetd_greeter;
 pub mod permissions;
 pub mod session_facts;
 
 use std::env;
 
 use iced::futures::{Stream, StreamExt, future::ready};
-use zbus::{blocking, proxy, zvariant::OwnedObjectPath};
+use serde::Deserialize;
+use zbus::{
+    blocking, proxy,
+    zvariant::{OwnedObjectPath, Type},
+};
 
 use crate::message_subscriptions::restarting;
 
 const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
+
+#[derive(Debug, Deserialize, Type)]
+#[allow(dead_code)]
+pub struct InhibitorRow {
+    pub what: String,
+    pub who: String,
+    pub why: String,
+    pub mode: String,
+    uid: u32,
+    pid: u32,
+}
 
 #[proxy(
     interface = "org.freedesktop.login1.Manager",
@@ -51,12 +67,7 @@ trait Manager {
     fn on_external_power(&self) -> zbus::Result<bool>;
     #[zbus(property)]
     fn n_current_sessions(&self) -> zbus::Result<u64>;
-    #[zbus(property)]
-    fn n_current_inhibitors(&self) -> zbus::Result<u64>;
-    #[zbus(property)]
-    fn block_inhibited(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn delay_inhibited(&self) -> zbus::Result<String>;
+    fn list_inhibitors(&self) -> zbus::Result<Vec<InhibitorRow>>;
     #[zbus(property)]
     fn handle_power_key(&self) -> zbus::Result<String>;
     #[zbus(property)]

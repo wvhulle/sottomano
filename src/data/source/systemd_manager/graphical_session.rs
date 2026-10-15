@@ -23,18 +23,21 @@ use crate::{
 const GRAPHICAL_TARGET: &str = "graphical-session.target";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GraphicalTarget {
-    pub state: String,
-    pub reached_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GraphicalSession {
     pub current_desktop: Option<String>,
     pub session_desktop: Option<String>,
     pub compositor_version: String,
-    pub display: String,
-    pub target: Option<GraphicalTarget>,
+    pub wayland_display: String,
+    pub x11_display: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GraphicalSessionTarget {
+    NotLoaded,
+    Loaded {
+        state: String,
+        reached_at: Option<DateTime<Utc>>,
+    },
 }
 
 impl Source for GraphicalSession {
@@ -48,20 +51,6 @@ impl PolledSource for GraphicalSession {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let connection = zbus::Connection::session()
-            .await
-            .map_err(|e| bus::Error::Connect(e.to_string()))?;
-        let manager = call(ManagerProxy::new(&connection).await)?;
-        let target = match manager.get_unit(GRAPHICAL_TARGET).await {
-            Ok(path) => {
-                let unit = call(unit_proxy(&connection, path).await)?;
-                Some(GraphicalTarget {
-                    state: call(unit.active_state().await)?,
-                    reached_at: at_micros(call(unit.active_enter_timestamp().await)?),
-                })
-            }
-            Err(_) => None,
-        };
         let compositor_version = spawn_blocking(niri::version)
             .await
             .ok()
@@ -71,55 +60,93 @@ impl PolledSource for GraphicalSession {
             current_desktop: env::var("XDG_CURRENT_DESKTOP").ok().and_then(non_empty),
             session_desktop: env::var("XDG_SESSION_DESKTOP").ok().and_then(non_empty),
             compositor_version,
-            display: env::var("WAYLAND_DISPLAY")
+            wayland_display: env::var("WAYLAND_DISPLAY")
                 .ok()
                 .and_then(non_empty)
                 .ok_or(bus::Error::Absent)?,
-            target,
+            x11_display: env::var("DISPLAY").ok().and_then(non_empty),
+        })
+    }
+}
+
+impl Source for GraphicalSessionTarget {
+    type Error = bus::Error;
+    type Key = ();
+
+    const NAME: &'static str = "graphical session target";
+}
+
+impl PolledSource for GraphicalSessionTarget {
+    const INTERVAL: Duration = Duration::from_secs(5);
+
+    async fn poll(_key: ()) -> Result<Self, bus::Error> {
+        let connection = zbus::Connection::session()
+            .await
+            .map_err(|e| bus::Error::Connect(e.to_string()))?;
+        let manager = call(ManagerProxy::new(&connection).await)?;
+        let Ok(path) = manager.get_unit(GRAPHICAL_TARGET).await else {
+            return Ok(Self::NotLoaded);
+        };
+        let unit = call(unit_proxy(&connection, path).await)?;
+        Ok(Self::Loaded {
+            state: call(unit.active_state().await)?,
+            reached_at: at_micros(call(unit.active_enter_timestamp().await)?),
         })
     }
 }
 
 impl GraphicalSession {
     pub fn sections(&self) -> Vec<Section> {
-        let target = self.target.as_ref().map_or_else(
-            || vec![KeyValue::new(GRAPHICAL_TARGET, "not loaded")],
-            |target| {
-                [
-                    Some(KeyValue::new(GRAPHICAL_TARGET, target.state.clone())),
-                    target.reached_at.map(|at| {
-                        KeyValue::new(
-                            "Reached",
-                            Cell::Time {
-                                at,
-                                part: TimePart::DateAndTime,
-                            },
-                        )
-                    }),
-                ]
-                .into_iter()
-                .flatten()
-                .collect()
-            },
-        );
+        let distinct_session_desktop = self
+            .session_desktop
+            .clone()
+            .filter(|session| Some(session) != self.current_desktop.as_ref());
         vec![
             Section::dictionary(
                 [
-                    entry("Desktop", self.current_desktop.clone()),
-                    entry("Session desktop", self.session_desktop.clone()),
-                    Some(KeyValue::new("Compositor", self.compositor_version.clone())),
-                    Some(KeyValue::new("Display socket", self.display.clone())),
+                    Some(KeyValue::new("Runs", self.compositor_version.clone())),
+                    Some(KeyValue::new(
+                        "Wayland apps connect to",
+                        self.wayland_display.clone(),
+                    )),
+                    entry("X11 apps connect to", self.x11_display.clone()),
+                    entry("Desktop name", self.current_desktop.clone()),
+                    entry("Session desktop name", distinct_session_desktop),
                 ]
                 .into_iter()
                 .flatten(),
             )
-            .titled("Display server"),
-            Section::dictionary(
-                [KeyValue::new("Session manager", "systemd --user")]
-                    .into_iter()
-                    .chain(target),
-            )
-            .titled("Session manager"),
+            .titled((
+                "Compositor",
+                "Apps find the compositor through these sockets.",
+            )),
         ]
+    }
+}
+
+impl GraphicalSessionTarget {
+    pub fn sections(&self) -> Vec<Section> {
+        let entries = match self {
+            Self::NotLoaded => vec![KeyValue::new("Desktop services", "not loaded")],
+            Self::Loaded { state, reached_at } => [
+                Some(KeyValue::new("Desktop services", state.clone())),
+                reached_at.map(|at| {
+                    KeyValue::new(
+                        "Ready since",
+                        Cell::Time {
+                            at,
+                            part: TimePart::DateAndTime,
+                        },
+                    )
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+        };
+        vec![Section::dictionary(entries).titled((
+            "Startup",
+            "graphical-session.target is reached once the compositor is ready for services.",
+        ))]
     }
 }

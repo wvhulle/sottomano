@@ -1,7 +1,10 @@
 mod account_face;
-mod graphical_face;
+mod compositor_face;
+mod console_face;
 mod login_face;
 mod power_policy_face;
+mod seat_face;
+mod user_services_face;
 
 use iced::Task;
 
@@ -10,13 +13,14 @@ use crate::{
     data::source::{
         Delivery,
         logind::session_facts::{self, PowerPolicy, SessionIdentity, SessionInfo},
-        systemd_manager::graphical_session::GraphicalSession,
+        systemd_manager::graphical_session::{GraphicalSession, GraphicalSessionTarget},
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::blocking,
     widget_groups::login_session_group::{
-        account_face::AccountFace, graphical_face::GraphicalFace, login_face::LoginFace,
-        power_policy_face::PowerPolicyFace,
+        account_face::AccountFace, compositor_face::CompositorFace, console_face::ConsoleFace,
+        login_face::LoginFace, power_policy_face::PowerPolicyFace, seat_face::SeatFace,
+        user_services_face::UserServicesFace,
     },
     widgets::{
         bar_widget::BarWidget,
@@ -29,9 +33,12 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoginSessionTarget {
-    Account,
+    Seat,
+    Console,
     Login,
-    Graphical,
+    Account,
+    Compositor,
+    UserServices,
     PowerPolicy,
 }
 
@@ -46,6 +53,7 @@ pub struct LoginSessionGroup {
     identity: Option<SessionIdentity>,
     session: OnHoverReading<SessionInfo>,
     graphical: OnHoverReading<GraphicalSession>,
+    graphical_target: OnHoverReading<GraphicalSessionTarget>,
     power: OnHoverReading<PowerPolicy>,
     expansion: GroupExpansion,
 }
@@ -55,6 +63,7 @@ pub enum LoginSessionMessage {
     IdentityLoaded(Option<SessionIdentity>),
     SessionFetched(Box<Delivery<SessionInfo>>),
     GraphicalFetched(Delivery<GraphicalSession>),
+    GraphicalTargetFetched(Delivery<GraphicalSessionTarget>),
     PowerFetched(Box<Delivery<PowerPolicy>>),
     Expansion(ExpansionMessage),
 }
@@ -76,6 +85,7 @@ impl LoginSessionGroup {
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
         self.graphical.stop();
+        self.graphical_target.stop();
         self.power.stop();
         match hovered {
             Some(HoverTarget::LoginSession(LoginSessionTarget::Login)) => self.session.poll(
@@ -83,10 +93,13 @@ impl LoginSessionGroup {
                 |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
                 config,
             ),
-            Some(HoverTarget::LoginSession(LoginSessionTarget::Graphical)) => {
+            Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => {
                 self.graphical
                     .poll((), LoginSessionMessage::GraphicalFetched, config)
             }
+            Some(HoverTarget::LoginSession(LoginSessionTarget::UserServices)) => self
+                .graphical_target
+                .poll((), LoginSessionMessage::GraphicalTargetFetched, config),
             Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => self.power.poll(
                 (),
                 |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
@@ -101,6 +114,9 @@ impl LoginSessionGroup {
             LoginSessionMessage::IdentityLoaded(identity) => self.identity = identity,
             LoginSessionMessage::SessionFetched(delivery) => self.session.receive(*delivery),
             LoginSessionMessage::GraphicalFetched(delivery) => self.graphical.receive(delivery),
+            LoginSessionMessage::GraphicalTargetFetched(delivery) => {
+                self.graphical_target.receive(delivery);
+            }
             LoginSessionMessage::PowerFetched(delivery) => self.power.receive(*delivery),
             LoginSessionMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);
@@ -111,12 +127,26 @@ impl LoginSessionGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, LoginSessionMessage> {
         let items = self.identity.iter().flat_map(|identity| {
-            [
-                GroupItem::reading(AccountFace { identity }, LoginSessionTarget::Account),
+            let seat = identity
+                .seat
+                .as_deref()
+                .map(|seat| GroupItem::reading(SeatFace { seat }, LoginSessionTarget::Seat));
+            let console = identity.console.as_deref().map(|console| {
+                GroupItem::reading(
+                    ConsoleFace {
+                        console,
+                        virtual_terminal: identity.virtual_terminal,
+                    },
+                    LoginSessionTarget::Console,
+                )
+            });
+            seat.into_iter().chain(console).chain([
                 GroupItem::reading(LoginFace { identity }, LoginSessionTarget::Login),
-                GroupItem::reading(GraphicalFace { identity }, LoginSessionTarget::Graphical),
+                GroupItem::reading(AccountFace { identity }, LoginSessionTarget::Account),
+                GroupItem::reading(CompositorFace { identity }, LoginSessionTarget::Compositor),
+                GroupItem::reading(UserServicesFace, LoginSessionTarget::UserServices),
                 GroupItem::reading(PowerPolicyFace, LoginSessionTarget::PowerPolicy),
-            ]
+            ])
         });
         GroupContent::new(&self.expansion, LoginSessionMessage::Expansion, items)
     }
@@ -125,11 +155,22 @@ impl LoginSessionGroup {
         let identity = self.identity.as_ref()?;
         let sourced = |face: &dyn BarWidget| Tooltip::sourced(face.tooltip(), Freshness::Live);
         Some(match target {
-            LoginSessionTarget::Account => sourced(&AccountFace { identity }),
+            LoginSessionTarget::Seat => sourced(&SeatFace {
+                seat: identity.seat.as_deref()?,
+            }),
+            LoginSessionTarget::Console => sourced(&ConsoleFace {
+                console: identity.console.as_deref()?,
+                virtual_terminal: identity.virtual_terminal,
+            }),
             LoginSessionTarget::Login => sourced(&LoginFace { identity })
                 .with_sections(self.session.sections(SessionInfo::sections)),
-            LoginSessionTarget::Graphical => sourced(&GraphicalFace { identity })
+            LoginSessionTarget::Account => sourced(&AccountFace { identity }),
+            LoginSessionTarget::Compositor => sourced(&CompositorFace { identity })
                 .with_sections(self.graphical.sections(GraphicalSession::sections)),
+            LoginSessionTarget::UserServices => sourced(&UserServicesFace).with_sections(
+                self.graphical_target
+                    .sections(GraphicalSessionTarget::sections),
+            ),
             LoginSessionTarget::PowerPolicy => {
                 sourced(&PowerPolicyFace).with_sections(self.power.sections(PowerPolicy::sections))
             }

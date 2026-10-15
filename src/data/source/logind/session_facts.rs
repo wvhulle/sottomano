@@ -1,7 +1,9 @@
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use humantime::format_duration;
+use iced::alignment::Horizontal;
+use procfs::process::Process as Proc;
 use zbus::{blocking, proxy, zvariant::OwnedObjectPath};
 
 use crate::{
@@ -11,12 +13,15 @@ use crate::{
             PolledSource, Source,
             bus::{self, call},
             hostname::{at_micros, entry, hostname_blocking},
-            logind::{ManagerProxy, ManagerProxyBlocking, session_id},
+            logind::{
+                InhibitorRow, ManagerProxy, ManagerProxyBlocking, greetd_greeter::greeter_program,
+                session_id,
+            },
         },
     },
     widgets::{
         localized_time::TimePart,
-        tooltip_body::{Cell, KeyValue, Section},
+        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord},
     },
 };
 
@@ -71,19 +76,13 @@ pub struct SessionIdentity {
     pub uid: u32,
     pub host: String,
     pub seat: Option<String>,
+    pub console: Option<String>,
+    pub virtual_terminal: Option<u32>,
+    pub remote_user: Option<String>,
+    pub remote_host: Option<String>,
     pub login_manager: String,
     pub desktop: Option<String>,
     pub session_type: String,
-}
-
-impl SessionIdentity {
-    pub fn section(&self) -> Section {
-        Section::dictionary([
-            KeyValue::new("User", format!("{} ({})", self.user, self.uid)),
-            KeyValue::new("Host", self.host.clone()),
-        ])
-        .titled("Account")
-    }
 }
 
 pub fn identity() -> Option<SessionIdentity> {
@@ -95,11 +94,24 @@ pub fn identity() -> Option<SessionIdentity> {
         .ok()?
         .build()
         .ok()?;
+    let remote = session.remote().ok()?;
     Some(SessionIdentity {
         user: session.name().ok().and_then(non_empty)?,
         uid: session.user().ok()?.0,
         host: hostname_blocking()?,
         seat: session.seat().ok().and_then(|(seat, _)| non_empty(seat)),
+        console: session.tty().ok().and_then(non_empty),
+        virtual_terminal: session.vt_nr().ok().filter(|vt| *vt > 0),
+        remote_user: session
+            .remote_user()
+            .ok()
+            .and_then(non_empty)
+            .filter(|_| remote),
+        remote_host: session
+            .remote_host()
+            .ok()
+            .and_then(non_empty)
+            .filter(|_| remote),
         login_manager: session.service().ok()?,
         desktop: session.desktop().ok().and_then(non_empty),
         session_type: session.session_type().ok()?,
@@ -109,17 +121,11 @@ pub fn identity() -> Option<SessionIdentity> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionInfo {
     pub id: String,
-    pub seat: Option<String>,
-    pub virtual_terminal: Option<u32>,
-    pub tty: Option<String>,
-    pub session_type: String,
-    pub class: String,
-    pub login_manager: String,
     pub scope: String,
     pub leader: u32,
+    pub leader_name: Option<String>,
+    pub greeter: Option<String>,
     pub state: String,
-    pub remote_host: Option<String>,
-    pub remote_user: Option<String>,
     pub since: DateTime<Utc>,
     pub idle_since: Option<DateTime<Utc>>,
 }
@@ -135,12 +141,64 @@ pub struct PowerPolicy {
     pub idle_action: String,
     pub idle_action_after: Option<Duration>,
     pub sleep_order: Vec<String>,
-    pub inhibitors: u64,
-    pub block_inhibited: Option<String>,
-    pub delay_inhibited: Option<String>,
+    pub inhibitor_locks: Vec<InhibitorLock>,
     pub sessions: u64,
     pub scheduled_shutdown: Option<ScheduledShutdown>,
     pub preparing_for_shutdown: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InhibitMode {
+    Block,
+    Delay,
+}
+
+impl FromStr for InhibitMode {
+    type Err = String;
+
+    fn from_str(mode: &str) -> Result<Self, String> {
+        match mode {
+            "block" | "block-weak" => Ok(Self::Block),
+            "delay" => Ok(Self::Delay),
+            unknown => Err(format!("unknown inhibit mode {unknown}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InhibitorLock {
+    pub who: String,
+    pub operation: String,
+    pub why: Option<String>,
+    pub mode: InhibitMode,
+}
+
+impl InhibitorLock {
+    fn per_operation(row: InhibitorRow) -> Vec<Self> {
+        let Ok(mode) = row.mode.parse() else {
+            return Vec::new();
+        };
+        let why = non_empty(row.why);
+        row.what
+            .split(':')
+            .map(|operation| Self {
+                who: row.who.clone(),
+                operation: operation.to_owned(),
+                why: why.clone(),
+                mode,
+            })
+            .collect()
+    }
+
+    fn table_record(&self) -> TableRecord<2> {
+        TableRecord::new(
+            self.who.clone(),
+            [
+                Some(self.operation.clone().into()),
+                self.why.clone().map(Cell::from),
+            ],
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -199,27 +257,22 @@ async fn system_bus() -> Result<zbus::Connection, bus::Error> {
         .map_err(|e| bus::Error::Connect(e.to_string()))
 }
 
-fn optional_text(reply: zbus::Result<String>) -> Result<Option<String>, bus::Error> {
-    call(reply).map(non_empty)
+fn process_name(pid: u32) -> Option<String> {
+    let process = Proc::new(i32::try_from(pid).ok()?).ok()?;
+    non_empty(process.stat().ok()?.comm)
 }
 
 async fn read_session(session: &SessionProxy<'_>) -> Result<SessionInfo, bus::Error> {
-    let remote = call(session.remote().await)?;
     let idle = call(session.idle_hint().await)?;
     let since = call(session.timestamp().await)?;
+    let leader = call(session.leader().await)?;
     Ok(SessionInfo {
         id: call(session.id().await)?,
-        seat: non_empty(call(session.seat().await)?.0),
-        virtual_terminal: Some(call(session.vt_nr().await)?).filter(|vt| *vt > 0),
-        tty: optional_text(session.tty().await)?,
-        session_type: call(session.session_type().await)?,
-        class: call(session.class().await)?,
-        login_manager: call(session.service().await)?,
         scope: call(session.scope().await)?,
-        leader: call(session.leader().await)?,
+        leader,
+        leader_name: process_name(leader),
+        greeter: greeter_program(leader),
         state: call(session.state().await)?,
-        remote_host: optional_text(session.remote_host().await)?.filter(|_| remote),
-        remote_user: optional_text(session.remote_user().await)?.filter(|_| remote),
         since: at_micros(since).ok_or(bus::Error::Absent)?,
         idle_since: idle
             .then_some(call(session.idle_since_hint().await)?)
@@ -245,9 +298,10 @@ async fn read_power(manager: &ManagerProxy<'_>) -> Result<PowerPolicy, bus::Erro
             .filter(|usec| *usec > 0 && *usec < u64::MAX)
             .map(Duration::from_micros),
         sleep_order: call(manager.sleep_operation().await)?,
-        inhibitors: call(manager.n_current_inhibitors().await)?,
-        block_inhibited: optional_text(manager.block_inhibited().await)?,
-        delay_inhibited: optional_text(manager.delay_inhibited().await)?,
+        inhibitor_locks: call(manager.list_inhibitors().await)?
+            .into_iter()
+            .flat_map(InhibitorLock::per_operation)
+            .collect(),
         sessions: call(manager.n_current_sessions().await)?,
         scheduled_shutdown: non_empty(kind).map(|kind| ScheduledShutdown {
             kind,
@@ -263,19 +317,14 @@ fn yes_no(flag: bool) -> &'static str {
 
 impl SessionInfo {
     pub fn sections(&self) -> Vec<Section> {
-        let seat = self.seat.clone().map(|seat| match self.virtual_terminal {
-            Some(vt) => format!("{seat}, VT {vt}"),
-            None => seat,
-        });
         vec![
+            Section::dictionary(entry("Greeter", self.greeter.clone())).titled((
+                "Login screen",
+                "Drew the password prompt in its own short session, closed once you logged in.",
+            )),
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Login manager", self.login_manager.clone())),
-                    Some(KeyValue::new("Session id", self.id.clone())),
-                    Some(KeyValue::new(
-                        "Kind",
-                        format!("{} {}", self.session_type, self.class),
-                    )),
+                    Some(KeyValue::new("Session number", self.id.clone())),
                     Some(KeyValue::new("State", self.state.clone())),
                     Some(KeyValue::new(
                         "Logged in",
@@ -297,49 +346,53 @@ impl SessionInfo {
                 .into_iter()
                 .flatten(),
             )
-            .titled("Login session"),
+            .titled((
+                "Login session",
+                "logind tracks this login and every process started from it.",
+            )),
             Section::dictionary(
                 [
-                    entry("Seat", seat),
-                    entry("TTY", self.tty.clone()),
-                    Some(KeyValue::new("Scope", self.scope.clone())),
-                    Some(KeyValue::new("Leader", self.leader.to_string())),
-                    entry("Remote host", self.remote_host.clone()),
-                    entry("Remote user", self.remote_user.clone()),
+                    entry("Started by", self.leader_name.clone()),
+                    Some(KeyValue::new("Starter process id", self.leader.to_string())),
+                    Some(KeyValue::new("Processes kept in", self.scope.clone())),
                 ]
                 .into_iter()
                 .flatten(),
             )
-            .titled("Where"),
+            .titled((
+                "Processes",
+                "Everything launched in this login lives in one systemd scope.",
+            )),
         ]
+        .into_iter()
+        .filter(|section| !section.body().is_empty())
+        .collect()
     }
 }
 
 impl PowerPolicy {
     pub fn sections(&self) -> Vec<Section> {
-        let idle_action = match self.idle_action_after {
-            Some(after) if self.idle_action != "ignore" => {
-                format!("{} after {}", self.idle_action, format_duration(after))
-            }
-            _ => self.idle_action.clone(),
+        let idle_after = self
+            .idle_action_after
+            .filter(|_| self.idle_action != "ignore")
+            .map(|after| KeyValue::new("Idle after", format_duration(after).to_string()));
+        let sleep_tries = self
+            .sleep_order
+            .iter()
+            .enumerate()
+            .map(|(position, operation)| {
+                KeyValue::new(format!("Sleep try {}", position + 1), operation.clone())
+            });
+        let locks_in_mode = |mode: InhibitMode| {
+            self.inhibitor_locks
+                .iter()
+                .filter(move |lock| lock.mode == mode)
+                .map(InhibitorLock::table_record)
         };
-        let inhibitor_classes = [
-            self.block_inhibited
-                .as_deref()
-                .map(|blocked| format!("block {blocked}")),
-            self.delay_inhibited
-                .as_deref()
-                .map(|delayed| format!("delay {delayed}")),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>()
-        .join("; ");
-        let inhibitors = if inhibitor_classes.is_empty() {
-            self.inhibitors.to_string()
-        } else {
-            format!("{} ({inhibitor_classes})", self.inhibitors)
-        };
+        let lock_headings = [
+            ColumnHeading::new("Holds").align_x(Horizontal::Left),
+            ColumnHeading::new("Why").align_x(Horizontal::Left),
+        ];
         let scheduled = self.scheduled_shutdown.as_ref().map(|shutdown| {
             let key = match shutdown.kind.as_str() {
                 "poweroff" => "Power off scheduled",
@@ -366,13 +419,17 @@ impl PowerPolicy {
                     Some(KeyValue::new("Hibernate key", self.hibernate_key.clone())),
                     Some(KeyValue::new("Reboot key", self.reboot_key.clone())),
                     Some(KeyValue::new("Lid switch", self.lid_switch.clone())),
-                    Some(KeyValue::new("Idle action", idle_action)),
-                    entry("Sleep order", non_empty(self.sleep_order.join(", "))),
+                    Some(KeyValue::new("Idle action", self.idle_action.clone())),
+                    idle_after,
                 ]
                 .into_iter()
-                .flatten(),
+                .flatten()
+                .chain(sleep_tries),
             )
-            .titled("Keys and lid"),
+            .titled((
+                "Keys and lid",
+                "What logind does when these are pressed or closed.",
+            )),
             Section::dictionary(
                 [
                     Some(KeyValue::new("Docked", yes_no(self.chassis.docked))),
@@ -381,7 +438,6 @@ impl PowerPolicy {
                         "External power",
                         yes_no(self.chassis.on_external_power),
                     )),
-                    Some(KeyValue::new("Inhibitors", inhibitors)),
                     Some(KeyValue::new("Sessions", self.sessions.to_string())),
                     scheduled,
                     self.preparing_for_shutdown
@@ -390,7 +446,21 @@ impl PowerPolicy {
                 .into_iter()
                 .flatten(),
             )
-            .titled("Right now"),
+            .titled((
+                "Machine state",
+                "Conditions that change which of these actions applies.",
+            )),
+            Section::column_table(lock_headings, locks_in_mode(InhibitMode::Delay)).titled((
+                "Holding off briefly",
+                "Each gets a few seconds to clean up first; the action still happens.",
+            )),
+            Section::column_table(lock_headings, locks_in_mode(InhibitMode::Block)).titled((
+                "Taken over from logind",
+                "logind skips its own action; the app handles or prevents it.",
+            )),
         ]
+        .into_iter()
+        .filter(|section| !section.body().is_empty())
+        .collect()
     }
 }

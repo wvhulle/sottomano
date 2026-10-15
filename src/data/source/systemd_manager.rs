@@ -2,6 +2,7 @@ pub mod boot_timeline;
 pub mod failed_units;
 pub mod graphical_session;
 pub mod running_jobs;
+pub mod user_service_manager;
 
 use std::{
     fmt,
@@ -103,6 +104,12 @@ trait Manager {
     fn userspace_timestamp_monotonic(&self) -> zbus::Result<u64>;
     #[zbus(property)]
     fn finish_timestamp_monotonic(&self) -> zbus::Result<u64>;
+    #[zbus(property)]
+    fn version(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn system_state(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn userspace_timestamp(&self) -> zbus::Result<u64>;
 }
 
 #[proxy(
