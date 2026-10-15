@@ -1,6 +1,6 @@
 use std::env;
 
-use chrono::{Locale, NaiveTime, Weekday};
+use chrono::{Locale, NaiveTime, TimeDelta, Weekday};
 use chrono_tz::{Asia, Tz};
 use serde::{Deserialize, Serialize};
 
@@ -40,8 +40,8 @@ pub struct WorkingHours {
 impl Default for WorkingHours {
     fn default() -> Self {
         Self {
-            start: NaiveTime::from_hms_opt(9, 0, 0).unwrap_or_default(),
-            end: NaiveTime::from_hms_opt(17, 0, 0).unwrap_or_default(),
+            start: NaiveTime::MIN + TimeDelta::hours(9),
+            end: NaiveTime::MIN + TimeDelta::hours(17),
         }
     }
 }
@@ -75,7 +75,7 @@ pub fn locale_from_environment() -> Locale {
 
 fn without_codeset(locale: &str) -> String {
     let modifier = locale.find('@').map_or("", |at| &locale[at..]);
-    let name = locale.split(['.', '@']).next().unwrap_or(locale);
+    let name = locale.find(['.', '@']).map_or(locale, |end| &locale[..end]);
     format!("{name}{modifier}")
 }
 

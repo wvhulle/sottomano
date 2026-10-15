@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use chrono::{DateTime, Datelike, Months, NaiveDate, TimeDelta, Utc};
+use chrono::{DateTime, Datelike, Days, Months, NaiveTime, TimeDelta, Utc};
 use uom::si::{
     f64::Ratio,
     ratio::{percent, ratio},
@@ -75,10 +75,10 @@ impl Quota {
         used: Ratio,
         now: DateTime<Utc>,
     ) -> Option<Self> {
-        let first_of_month = NaiveDate::from_ymd_opt(now.year(), now.month(), 1)?;
+        let first_of_month = now.date_naive() - Days::new(u64::from(now.day0()));
         let resets_at = first_of_month
             .checked_add_months(Months::new(1))?
-            .and_hms_opt(0, 0, 0)?
+            .and_time(NaiveTime::MIN)
             .and_utc();
         Self::within_month_before(label, used, resets_at, now)
     }
