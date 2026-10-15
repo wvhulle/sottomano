@@ -569,7 +569,7 @@ fn cpuinfo_field<'a>(block: &'a str, name: &str) -> Option<&'a str> {
     })
 }
 
-fn cpulist(list: &str) -> impl Iterator<Item = u32> + '_ {
+pub(super) fn cpulist(list: &str) -> impl Iterator<Item = u32> + '_ {
     list.split(',').filter_map(cpu_range).flatten()
 }
 

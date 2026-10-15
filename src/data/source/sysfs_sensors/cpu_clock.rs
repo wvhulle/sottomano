@@ -40,6 +40,7 @@ pub struct CoreFreq {
     pub core: u32,
     pub frequency: Frequency,
     pub limit: FrequencyLimit,
+    pub preference_rank: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

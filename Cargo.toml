@@ -108,6 +108,7 @@ kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 nvml-wrapper = "0.13.0"
 humantime-serde = "1.1.1"
+perf-event2 = "0.7.4"
 
 [patch.crates-io]
 iced = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
