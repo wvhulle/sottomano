@@ -102,8 +102,9 @@ impl CpuClock {
         .section(|group| live.title(group), |group, _| live.facts(group))
         .titled((
             "Chiplets".to_owned(),
-            "Each square is one hardware thread, stacked per physical core; fill shows its clock \
-             against the ceiling the governor allows."
+            "Each square is one physical core in core-number order, not die position, split into \
+             its hardware threads; bar height shows each thread's clock against the ceiling the \
+             governor allows."
                 .to_owned(),
         ));
         let capped: Vec<TableRecord<2>> = self
