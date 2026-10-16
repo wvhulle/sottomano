@@ -1,5 +1,5 @@
 use crate::{
-    data::source::{hostname::entry, logind::session_facts::SessionIdentity},
+    data::source::logind::session_facts::SessionIdentity,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
@@ -25,25 +25,16 @@ impl BarWidget for LoginFace<'_> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary(
-            [
-                Some(KeyValue::new(
-                    "Logged in through",
-                    self.identity.login_manager.clone(),
-                )),
-                entry("Remote user", self.identity.remote_user.clone()),
-                entry("Remote host", self.identity.remote_host.clone()),
-                Some(KeyValue::new(
-                    "Wiki",
-                    Cell::Link {
-                        label: "Display manager".to_owned(),
-                        url: "https://wiki.archlinux.org/title/Display_manager".to_owned(),
-                    },
-                )),
-            ]
-            .into_iter()
-            .flatten(),
-        )
+        TooltipBody::sections([Section::dictionary([
+            KeyValue::new("Logged in through", self.identity.login_manager.clone()),
+            KeyValue::new(
+                "Wiki",
+                Cell::Link {
+                    label: "Display manager".to_owned(),
+                    url: "https://wiki.archlinux.org/title/Display_manager".to_owned(),
+                },
+            ),
+        ])
         .titled((
             "Login manager that let you in",
             "The login manager that checked your password and started this session.",
