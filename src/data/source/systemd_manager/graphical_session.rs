@@ -8,7 +8,7 @@ use crate::{
         empty_text::non_empty,
         source::{
             PolledSource, Source,
-            bus::{self, call},
+            bus,
             hostname::{at_micros, entry},
             niri,
             systemd_manager::{ManagerProxy, unit_proxy},
@@ -83,14 +83,14 @@ impl PolledSource for GraphicalSessionTarget {
         let connection = zbus::Connection::session()
             .await
             .map_err(|e| bus::Error::Connect(e.to_string()))?;
-        let manager = call(ManagerProxy::new(&connection).await)?;
+        let manager = ManagerProxy::new(&connection).await?;
         let Ok(path) = manager.get_unit(GRAPHICAL_TARGET).await else {
             return Ok(Self::NotLoaded);
         };
-        let unit = call(unit_proxy(&connection, path).await)?;
+        let unit = unit_proxy(&connection, path).await?;
         Ok(Self::Loaded {
-            state: call(unit.active_state().await)?,
-            reached_at: at_micros(call(unit.active_enter_timestamp().await)?),
+            state: unit.active_state().await?,
+            reached_at: at_micros(unit.active_enter_timestamp().await?),
         })
     }
 }

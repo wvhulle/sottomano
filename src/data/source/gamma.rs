@@ -54,8 +54,8 @@ impl PolledSource for Gamma {
 
     async fn poll((): ()) -> Result<Self, Self::Error> {
         let proxy: GammaRelayProxy = bus::session_proxy().await?;
-        let brightness = bus::call(proxy.brightness().await)?;
-        let temperature = bus::call(proxy.temperature().await)?;
+        let brightness = proxy.brightness().await?;
+        let temperature = proxy.temperature().await?;
         #[allow(clippy::cast_possible_truncation)]
         Ok(Gamma {
             brightness: (brightness * 100.0).round() as i64,

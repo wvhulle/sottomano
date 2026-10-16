@@ -11,7 +11,7 @@ use crate::{
         empty_text::non_empty,
         source::{
             PolledSource, Source,
-            bus::{self, call},
+            bus,
             hostname::{at_micros, entry},
             logind::{
                 InhibitorRow, ManagerProxy, greetd_greeter::greeter_program,
@@ -96,10 +96,10 @@ impl PolledSource for SessionIdentity {
 
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let session = own_session().await?;
-        let remote = call(session.remote().await)?;
+        let remote = session.remote().await?;
         Ok(SessionIdentity {
-            user: non_empty(call(session.name().await)?).ok_or(bus::Error::Absent)?,
-            uid: call(session.user().await)?.0,
+            user: non_empty(session.name().await?).ok_or(bus::Error::Absent)?,
+            uid: session.user().await?.0,
             seat: session.seat().await.ok().and_then(|(seat, _)| non_empty(seat)),
             console: session.tty().await.ok().and_then(non_empty),
             virtual_terminal: session.vt_nr().await.ok().filter(|vt| *vt > 0),
@@ -115,19 +115,19 @@ impl PolledSource for SessionIdentity {
                 .ok()
                 .and_then(non_empty)
                 .filter(|_| remote),
-            login_manager: call(session.service().await)?,
+            login_manager: session.service().await?,
             desktop: session.desktop().await.ok().and_then(non_empty),
-            session_type: call(session.session_type().await)?,
+            session_type: session.session_type().await?,
         })
     }
 }
 
 async fn own_session() -> Result<SessionProxy<'static>, bus::Error> {
     let connection = system_bus().await?;
-    let manager = call(ManagerProxy::new(&connection).await)?;
-    let path = call(manager.get_session(&session_id()).await)?;
-    let session_builder = call(SessionProxy::builder(&connection).path(path))?;
-    call(session_builder.build().await)
+    let manager = ManagerProxy::new(&connection).await?;
+    let path = manager.get_session(&session_id()).await?;
+    let session_builder = SessionProxy::builder(&connection).path(path)?;
+    Ok(session_builder.build().await?)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -253,7 +253,7 @@ impl PolledSource for PowerPolicy {
 
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let connection = system_bus().await?;
-        let manager = call(ManagerProxy::new(&connection).await)?;
+        let manager = ManagerProxy::new(&connection).await?;
         read_power(&manager).await
     }
 }
@@ -270,51 +270,51 @@ fn process_name(pid: u32) -> Option<String> {
 }
 
 async fn read_session(session: &SessionProxy<'_>) -> Result<SessionInfo, bus::Error> {
-    let idle = call(session.idle_hint().await)?;
-    let since = call(session.timestamp().await)?;
-    let leader = call(session.leader().await)?;
+    let idle = session.idle_hint().await?;
+    let since = session.timestamp().await?;
+    let leader = session.leader().await?;
     Ok(SessionInfo {
-        id: call(session.id().await)?,
-        scope: call(session.scope().await)?,
+        id: session.id().await?,
+        scope: session.scope().await?,
         leader,
         leader_name: process_name(leader),
         greeter: greeter_program(leader),
-        state: call(session.state().await)?,
+        state: session.state().await?,
         since: at_micros(since).ok_or(bus::Error::Absent)?,
         idle_since: idle
-            .then_some(call(session.idle_since_hint().await)?)
+            .then_some(session.idle_since_hint().await?)
             .and_then(at_micros),
     })
 }
 
 async fn read_power(manager: &ManagerProxy<'_>) -> Result<PowerPolicy, bus::Error> {
-    let (kind, usec) = call(manager.scheduled_shutdown().await)?;
+    let (kind, usec) = manager.scheduled_shutdown().await?;
     Ok(PowerPolicy {
-        power_key: call(manager.handle_power_key().await)?,
-        suspend_key: call(manager.handle_suspend_key().await)?,
-        hibernate_key: call(manager.handle_hibernate_key().await)?,
-        reboot_key: call(manager.handle_reboot_key().await)?,
-        lid_switch: call(manager.handle_lid_switch().await)?,
+        power_key: manager.handle_power_key().await?,
+        suspend_key: manager.handle_suspend_key().await?,
+        hibernate_key: manager.handle_hibernate_key().await?,
+        reboot_key: manager.handle_reboot_key().await?,
+        lid_switch: manager.handle_lid_switch().await?,
         chassis: Chassis {
-            docked: call(manager.docked().await)?,
-            lid_closed: call(manager.lid_closed().await)?,
-            on_external_power: call(manager.on_external_power().await)?,
+            docked: manager.docked().await?,
+            lid_closed: manager.lid_closed().await?,
+            on_external_power: manager.on_external_power().await?,
         },
-        idle_action: call(manager.idle_action().await)?,
-        idle_action_after: Some(call(manager.idle_action_usec().await)?)
+        idle_action: manager.idle_action().await?,
+        idle_action_after: Some(manager.idle_action_usec().await?)
             .filter(|usec| *usec > 0 && *usec < u64::MAX)
             .map(Duration::from_micros),
-        sleep_order: call(manager.sleep_operation().await)?,
-        inhibitor_locks: call(manager.list_inhibitors().await)?
+        sleep_order: manager.sleep_operation().await?,
+        inhibitor_locks: manager.list_inhibitors().await?
             .into_iter()
             .flat_map(InhibitorLock::per_operation)
             .collect(),
-        sessions: call(manager.n_current_sessions().await)?,
+        sessions: manager.n_current_sessions().await?,
         scheduled_shutdown: non_empty(kind).map(|kind| ScheduledShutdown {
             kind,
             at: at_micros(usec),
         }),
-        preparing_for_shutdown: call(manager.preparing_for_shutdown().await)?,
+        preparing_for_shutdown: manager.preparing_for_shutdown().await?,
     })
 }
 

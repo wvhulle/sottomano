@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::{
     data::source::{
         PolledSource, Source,
-        bus::{self, call},
+        bus,
         hostname::at_micros,
         systemd_manager::ManagerProxy,
     },
@@ -36,11 +36,11 @@ impl PolledSource for UserServiceManager {
         let connection = zbus::Connection::session()
             .await
             .map_err(|e| bus::Error::Connect(e.to_string()))?;
-        let manager = call(ManagerProxy::new(&connection).await)?;
+        let manager = ManagerProxy::new(&connection).await?;
         Ok(Self {
-            version: call(manager.version().await)?,
-            state: call(manager.system_state().await)?,
-            started_at: at_micros(call(manager.userspace_timestamp().await)?),
+            version: manager.version().await?,
+            state: manager.system_state().await?,
+            started_at: at_micros(manager.userspace_timestamp().await?),
         })
     }
 }

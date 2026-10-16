@@ -168,12 +168,12 @@ pub fn service_absent(error: &zbus::Error) -> bool {
     )
 }
 
-pub fn call<T>(result: zbus::Result<T>) -> Result<T, Error> {
-    result.map_err(|error| {
+impl From<zbus::Error> for Error {
+    fn from(error: zbus::Error) -> Self {
         if service_absent(&error) {
             Error::Absent
         } else {
             Error::Call(error.to_string())
         }
-    })
+    }
 }
