@@ -12,7 +12,7 @@ use crate::{
         source::{
             PolledSource, Source,
             bus::{self, call},
-            hostname::{at_micros, entry, hostname_blocking},
+            hostname::{at_micros, entry},
             logind::{
                 InhibitorRow, ManagerProxy, ManagerProxyBlocking, greetd_greeter::greeter_program,
                 session_id,
@@ -74,7 +74,6 @@ trait Session {
 pub struct SessionIdentity {
     pub user: String,
     pub uid: u32,
-    pub host: String,
     pub seat: Option<String>,
     pub console: Option<String>,
     pub virtual_terminal: Option<u32>,
@@ -98,7 +97,6 @@ pub fn identity() -> Option<SessionIdentity> {
     Some(SessionIdentity {
         user: session.name().ok().and_then(non_empty)?,
         uid: session.user().ok()?.0,
-        host: hostname_blocking()?,
         seat: session.seat().ok().and_then(|(seat, _)| non_empty(seat)),
         console: session.tty().ok().and_then(non_empty),
         virtual_terminal: session.vt_nr().ok().filter(|vt| *vt > 0),

@@ -2,6 +2,7 @@ mod account_face;
 mod compositor_face;
 mod console_face;
 mod desktop_services_face;
+mod kernel_face;
 mod login_face;
 mod power_policy_face;
 mod seat_face;
@@ -13,6 +14,7 @@ use crate::{
     config::Config,
     data::source::{
         Delivery,
+        hostname::OperatingSystemIdentity,
         logind::session_facts::{self, PowerPolicy, SessionIdentity, SessionInfo},
         systemd_manager::{
             graphical_session::{GraphicalSession, GraphicalSessionTarget},
@@ -23,7 +25,7 @@ use crate::{
     message_subscriptions::blocking,
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace, console_face::ConsoleFace,
-        desktop_services_face::DesktopServicesFace, login_face::LoginFace,
+        desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
         power_policy_face::PowerPolicyFace, seat_face::SeatFace,
         service_manager_face::ServiceManagerFace,
     },
@@ -39,6 +41,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoginSessionTarget {
+    Kernel,
     Seat,
     Console,
     Login,
@@ -57,6 +60,7 @@ impl From<LoginSessionTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct LoginSessionGroup {
+    system: Option<OperatingSystemIdentity>,
     identity: Option<SessionIdentity>,
     session: OnHoverReading<SessionInfo>,
     service_manager: OnHoverReading<UserServiceManager>,
@@ -68,6 +72,7 @@ pub struct LoginSessionGroup {
 
 #[derive(Debug, Clone)]
 pub enum LoginSessionMessage {
+    SystemLoaded(Option<OperatingSystemIdentity>),
     IdentityLoaded(Option<SessionIdentity>),
     SessionFetched(Box<Delivery<SessionInfo>>),
     ServiceManagerFetched(Delivery<UserServiceManager>),
@@ -83,8 +88,14 @@ impl LoginSessionGroup {
     }
 
     pub fn load() -> Task<LoginSessionMessage> {
-        blocking("session identity", session_facts::identity)
-            .map(LoginSessionMessage::IdentityLoaded)
+        Task::batch([
+            Task::perform(
+                OperatingSystemIdentity::read(),
+                LoginSessionMessage::SystemLoaded,
+            ),
+            blocking("session identity", session_facts::identity)
+                .map(LoginSessionMessage::IdentityLoaded),
+        ])
     }
 
     pub fn hover(
@@ -124,6 +135,7 @@ impl LoginSessionGroup {
 
     pub fn update(&mut self, message: LoginSessionMessage) -> Task<LoginSessionMessage> {
         match message {
+            LoginSessionMessage::SystemLoaded(system) => self.system = system,
             LoginSessionMessage::IdentityLoaded(identity) => self.identity = identity,
             LoginSessionMessage::SessionFetched(delivery) => self.session.receive(*delivery),
             LoginSessionMessage::ServiceManagerFetched(delivery) => {
@@ -165,27 +177,45 @@ impl LoginSessionGroup {
                 GroupItem::reading(PowerPolicyFace, LoginSessionTarget::PowerPolicy),
             ])
         });
-        GroupContent::new(&self.expansion, LoginSessionMessage::Expansion, items).face(
+        let kernel = self
+            .system
+            .as_ref()
+            .map(|system| GroupItem::reading(KernelFace { system }, LoginSessionTarget::Kernel));
+        GroupContent::new(
+            &self.expansion,
+            LoginSessionMessage::Expansion,
+            kernel.into_iter().chain(items),
+        )
+        .face(
             HandleFace::Icon(Phosphor::StackSimple(Weight::Regular).into()),
         )
     }
 
     pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {
-        let identity = self.identity.as_ref()?;
         let sourced = |face: &dyn BarWidget| Tooltip::sourced(face.tooltip(), Freshness::Live);
+        let identity = self.identity.as_ref();
         Some(match target {
+            LoginSessionTarget::Kernel => sourced(&KernelFace {
+                system: self.system.as_ref()?,
+            }),
             LoginSessionTarget::Seat => sourced(&SeatFace {
-                seat: identity.seat.as_deref()?,
+                seat: identity?.seat.as_deref()?,
             }),
             LoginSessionTarget::Console => sourced(&ConsoleFace {
-                console: identity.console.as_deref()?,
-                virtual_terminal: identity.virtual_terminal,
+                console: identity?.console.as_deref()?,
+                virtual_terminal: identity?.virtual_terminal,
             }),
-            LoginSessionTarget::Login => sourced(&LoginFace { identity })
-                .with_sections(self.session.sections(SessionInfo::sections)),
-            LoginSessionTarget::Account => sourced(&AccountFace { identity }),
-            LoginSessionTarget::Compositor => sourced(&CompositorFace { identity })
-                .with_sections(self.graphical.sections(GraphicalSession::sections)),
+            LoginSessionTarget::Login => sourced(&LoginFace {
+                identity: identity?,
+            })
+            .with_sections(self.session.sections(SessionInfo::sections)),
+            LoginSessionTarget::Account => sourced(&AccountFace {
+                identity: identity?,
+            }),
+            LoginSessionTarget::Compositor => sourced(&CompositorFace {
+                identity: identity?,
+            })
+            .with_sections(self.graphical.sections(GraphicalSession::sections)),
             LoginSessionTarget::ServiceManager => sourced(&ServiceManagerFace)
                 .with_sections(self.service_manager.sections(UserServiceManager::sections)),
             LoginSessionTarget::DesktopServices => sourced(&DesktopServicesFace).with_sections(
