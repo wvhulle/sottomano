@@ -21,7 +21,7 @@ use crate::{
         localized_time::TimePart,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        toggle_control::IconToggle,
+        toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
         weather_icons::WeatherIcon,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -359,6 +359,10 @@ impl QuietScheduleGroup {
             "Follow schedule",
             Phosphor::Repeat(Weight::Regular),
             self.schedule().follows_schedule,
+            SwitchPresses {
+                turning_on: "start and end do not disturb on the daily schedule",
+                turning_off: "stop following the daily quiet schedule",
+            },
         )
     }
 

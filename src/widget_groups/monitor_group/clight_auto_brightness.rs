@@ -42,4 +42,12 @@ impl Toggle for Clight {
     fn toggle(&self) -> bool {
         clight::flip()
     }
+
+    fn press_does(&self) -> &'static str {
+        if self.auto {
+            "stop setting brightness from webcam light; keep the current level"
+        } else {
+            "set brightness from the light the webcam sees"
+        }
+    }
 }

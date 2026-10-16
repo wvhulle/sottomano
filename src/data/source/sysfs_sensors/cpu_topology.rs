@@ -128,6 +128,10 @@ impl CoreGroup {
         &self.chiplets
     }
 
+    pub fn role(&self) -> CoreRole {
+        self.role
+    }
+
     pub fn caption(&self) -> &'static str {
         self.role.description()
     }

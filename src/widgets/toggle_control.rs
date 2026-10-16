@@ -14,21 +14,40 @@ use crate::{
     },
 };
 
-pub const TOGGLE_PRESS_HINT: &str = "switch on or off";
+#[derive(Clone, Copy)]
+pub struct SwitchPresses {
+    pub turning_on: &'static str,
+    pub turning_off: &'static str,
+}
 
 #[derive(Clone, Copy)]
 pub struct IconToggle {
     pub name: &'static str,
     pub icon: Phosphor,
     pub enabled: bool,
+    pub presses: SwitchPresses,
 }
 
 impl IconToggle {
-    pub fn new(name: &'static str, icon: Phosphor, enabled: bool) -> Self {
+    pub fn new(
+        name: &'static str,
+        icon: Phosphor,
+        enabled: bool,
+        presses: SwitchPresses,
+    ) -> Self {
         Self {
             name,
             icon,
             enabled,
+            presses,
+        }
+    }
+
+    pub fn press_does(&self) -> &'static str {
+        if self.enabled {
+            self.presses.turning_off
+        } else {
+            self.presses.turning_on
         }
     }
 
@@ -65,6 +84,7 @@ impl BarWidget for IconToggle {
 pub trait Toggle: PolledSource + BarWidget {
     fn toggled(&self) -> Self;
     fn toggle(&self) -> bool;
+    fn press_does(&self) -> &'static str;
 }
 
 pub struct ToggleControl<S> {
@@ -117,6 +137,10 @@ impl<S: Toggle> ToggleControl<S> {
         self.reading.tooltip()
     }
 
+    pub fn current(&self) -> Option<&S> {
+        self.reading.get()
+    }
+
     pub fn reading(&self) -> Option<&dyn BarWidget> {
         self.reading.get().map(|display| display as &dyn BarWidget)
     }
@@ -126,9 +150,9 @@ impl<S: Toggle> ToggleControl<S> {
         target: impl Into<HoverTarget>,
         on_toggle: fn(ToggleMessage<S>) -> M,
     ) -> Option<GroupItem<'a, M>> {
-        self.reading().map(|reading| {
-            GroupItem::reading(reading, target)
-                .on_press(TOGGLE_PRESS_HINT, on_toggle(ToggleMessage::Press))
+        self.reading.get().map(|current| {
+            GroupItem::reading(current, target)
+                .on_press(current.press_does(), on_toggle(ToggleMessage::Press))
         })
     }
 }

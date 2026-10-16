@@ -37,4 +37,12 @@ impl Toggle for Umbra {
     fn toggle(&self) -> bool {
         umbra::toggle_mode()
     }
+
+    fn press_does(&self) -> &'static str {
+        if self.dark {
+            "switch apps and the desktop to the light theme"
+        } else {
+            "switch apps and the desktop to the dark theme"
+        }
+    }
 }

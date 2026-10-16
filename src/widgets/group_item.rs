@@ -16,7 +16,7 @@ use crate::{
         ongoing_toast::{OngoingToast, OngoingToastActionButton},
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
-        toggle_control::{IconToggle, TOGGLE_PRESS_HINT},
+        toggle_control::IconToggle,
         widget_group::GroupEvent,
     },
 };
@@ -157,7 +157,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
-        Self::reading(toggle, target).on_press(TOGGLE_PRESS_HINT, message)
+        Self::reading(toggle, target).on_press(toggle.press_does(), message)
     }
 
     #[must_use]

@@ -43,6 +43,14 @@ impl Toggle for SunFollow {
         }
     }
 
+    fn press_does(&self) -> &'static str {
+        if self.auto {
+            "stop shifting screen colour with the sun; keep the current temperature"
+        } else {
+            "warm the screen at sunset and cool it at sunrise again"
+        }
+    }
+
     fn toggle(&self) -> bool {
         if self.auto {
             screen_temperature::stop(&self.unit)

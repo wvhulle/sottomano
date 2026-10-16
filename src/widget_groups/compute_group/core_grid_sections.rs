@@ -59,7 +59,7 @@ impl<Reading: PerCore> CoreGridSection<'_, Reading> {
     }
 }
 
-fn topology_facts(group: &CoreGroup) -> Vec<KeyValue> {
+pub fn topology_facts(group: &CoreGroup) -> Vec<KeyValue> {
     let shared_caches: Vec<String> = group
         .chiplets()
         .iter()
