@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, path::PathBuf, str::FromStr};
+use std::{borrow::Cow, ffi::OsStr, fmt, path::PathBuf, str::FromStr};
 
 use chrono::TimeDelta;
 
@@ -8,6 +8,12 @@ use crate::config::widget_groups::focus_time::FocusTimeConfig;
 pub enum FocusUnit {
     App(String),
     Project(PathBuf),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum UnitIdentity<'a> {
+    App(&'a str),
+    Project(&'a OsStr),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +59,13 @@ impl TryFrom<StoredFacet> for FocusUnit {
 }
 
 impl FocusUnit {
+    pub(super) fn identity(&self) -> UnitIdentity<'_> {
+        match self {
+            FocusUnit::App(app_id) => UnitIdentity::App(app_id),
+            FocusUnit::Project(root) => UnitIdentity::Project(root.as_os_str()),
+        }
+    }
+
     pub fn label(&self) -> Cow<'_, str> {
         match self {
             FocusUnit::App(app_id) => Cow::Borrowed(app_id),

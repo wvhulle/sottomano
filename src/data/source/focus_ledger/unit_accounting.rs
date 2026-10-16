@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Reverse, collections::BTreeMap};
+use std::{borrow::Cow, collections::HashMap};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -10,6 +10,11 @@ use super::{
     time_intervals::{Interval, merged, overlaps_with},
 };
 use crate::data::source::ai::quota::Quota;
+
+struct UnitTally<'a> {
+    unit: &'a FocusUnit,
+    spent: TimeDelta,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitTotal {
@@ -66,27 +71,38 @@ impl Accounting<'_> {
         let active = self.active_within(window, now);
         let spent_by_unit = pieces
             .filter(|piece| piece.interval.intersect(window).is_some())
-            .fold(BTreeMap::new(), |spent_by_unit, piece| {
+            .fold(HashMap::new(), |spent_by_unit, piece| {
                 let overlap: TimeDelta = overlaps_with(&active, piece.interval)
                     .map(Interval::length)
                     .sum();
                 piece.units.iter().filter(|unit| counted(unit)).fold(
                     spent_by_unit,
                     |mut spent_by_unit, unit| {
-                        *spent_by_unit.entry(unit).or_insert_with(TimeDelta::zero) += overlap;
+                        spent_by_unit
+                            .entry(unit.identity())
+                            .or_insert(UnitTally {
+                                unit,
+                                spent: TimeDelta::zero(),
+                            })
+                            .spent += overlap;
                         spent_by_unit
                     },
                 )
             });
         let mut totals: Vec<UnitTotal> = spent_by_unit
-            .into_iter()
-            .map(|(unit, spent)| UnitTotal {
-                spent,
-                budget: unit.budget(self.config),
-                unit: unit.clone(),
+            .into_values()
+            .map(|tally| UnitTotal {
+                spent: tally.spent,
+                budget: tally.unit.budget(self.config),
+                unit: tally.unit.clone(),
             })
             .collect();
-        totals.sort_by_key(|total| Reverse(total.spent));
+        totals.sort_by(|first, second| {
+            second
+                .spent
+                .cmp(&first.spent)
+                .then_with(|| first.unit.cmp(&second.unit))
+        });
         totals
     }
 
