@@ -8,7 +8,7 @@ use crate::{
     data::source::{
         focus_ledger::{
             AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans,
-            ScreenEdge, WindowFocusChange,
+            ScreenEdge, WakingWindow, WindowFocusChange,
         },
         idle_notify::{IdleEdge, idle_edges},
         logind::{self, SleepEdge},
@@ -71,6 +71,7 @@ impl FocusTracker {
         &mut self,
         niri: &EventStreamState,
         processes: &WindowProcesses,
+        waking: WakingWindow,
     ) -> Task<TrackerMessage> {
         let probed = FocusIdentity::of(niri, processes).map_or(
             ProbedWindowFocus::NoWindowFocused,
@@ -87,46 +88,55 @@ impl FocusTracker {
                 })
                 .map(TrackerMessage::WindowFocusChanged)
             }
-            ProbedWindowFocus::NoWindowFocused => self.fold(FocusSignal::WindowFocusChanged(
-                WindowFocusChange::NoWindowFocused,
-            )),
+            ProbedWindowFocus::NoWindowFocused => self.update(
+                TrackerMessage::WindowFocusChanged(WindowFocusChange::NoWindowFocused),
+                waking,
+            ),
         }
     }
 
-    pub fn update(&mut self, message: TrackerMessage) -> Task<TrackerMessage> {
-        match message {
+    pub fn update(
+        &mut self,
+        message: TrackerMessage,
+        waking: WakingWindow,
+    ) -> Task<TrackerMessage> {
+        let now = Utc::now();
+        let recorded = match message {
             TrackerMessage::Loaded(loaded) => {
                 self.ledger = self.taken_ledger().with_history(loaded);
                 Task::none()
             }
             TrackerMessage::WindowFocusChanged(change) => {
-                self.fold(FocusSignal::WindowFocusChanged(change))
+                self.fold(FocusSignal::WindowFocusChanged(change), now)
             }
-            TrackerMessage::Idle(edge) => {
-                self.fold_away_reason(AwayReasonEdge::IdleNotifierEdge(edge))
-            }
-            TrackerMessage::Sleep(edge) => {
-                self.fold_away_reason(AwayReasonEdge::LogindSleepEdge(edge))
-            }
-            TrackerMessage::ScreenPowerChanged(edge) => {
-                self.fold_away_reason(AwayReasonEdge::ScreenPowerEdge(edge))
-            }
-        }
-    }
-
-    fn fold_away_reason(&mut self, edge: AwayReasonEdge) -> Task<TrackerMessage> {
-        self.fold(FocusSignal::AwayReasonChanged(edge))
+            TrackerMessage::Idle(edge) => self.fold(
+                FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifierEdge(edge)),
+                now,
+            ),
+            TrackerMessage::Sleep(edge) => self.fold(
+                FocusSignal::AwayReasonChanged(AwayReasonEdge::LogindSleepEdge(edge)),
+                now,
+            ),
+            TrackerMessage::ScreenPowerChanged(edge) => self.fold(
+                FocusSignal::AwayReasonChanged(AwayReasonEdge::ScreenPowerEdge(edge)),
+                now,
+            ),
+        };
+        self.ledger = self
+            .taken_ledger()
+            .with_settled_unit_totals(waking.around(now), now);
+        recorded
     }
 
     fn taken_ledger(&mut self) -> FocusLedger {
         replace(&mut self.ledger, FocusLedger::started_at(Utc::now()))
     }
 
-    fn fold(&mut self, signal: FocusSignal) -> Task<TrackerMessage> {
+    fn fold(&mut self, signal: FocusSignal, now: DateTime<Utc>) -> Task<TrackerMessage> {
         let Folded {
             ledger,
             span_writes,
-        } = self.taken_ledger().fold(signal, Utc::now());
+        } = self.taken_ledger().fold(signal, now);
         self.ledger = ledger;
         Task::batch(
             span_writes

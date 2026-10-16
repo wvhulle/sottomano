@@ -4,6 +4,7 @@ use super::{
     away_reasons::{AwayReasonEdge, LatestAwayReasonEdges},
     focus_units::Presence,
     recorded_spans::{PresenceSpan, SpanWrite, TimelineUpdate},
+    time_intervals::{Interval, merged},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +101,15 @@ impl PresenceTimeline {
             .iter()
             .cloned()
             .chain([self.ongoing_presence_span.clone().ending_at(now)])
+    }
+
+    pub(super) fn active_intervals(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        merged(
+            self.presence_spans_ended_by(now)
+                .filter(|span| span.state == Presence::Active)
+                .map(|span| span.interval())
+                .collect(),
+        )
     }
 
     pub(super) fn first_presence_started_at(&self) -> DateTime<Utc> {

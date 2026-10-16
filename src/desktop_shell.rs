@@ -422,7 +422,7 @@ impl DesktopShell {
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
                 self.session_focus_group
-                    .screen_power_changed(edge)
+                    .screen_power_changed(edge, self.quiet_schedule_group.waking_window())
                     .map(Message::SessionFocus)
             }
             Message::IdleTimeouts(msg) => self
@@ -443,7 +443,7 @@ impl DesktopShell {
             Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
             Message::SessionFocus(msg) => self
                 .session_focus_group
-                .update(msg)
+                .update(msg, self.quiet_schedule_group.waking_window())
                 .map(Message::SessionFocus),
             Message::LoginSession(msg) => self
                 .login_session_group
@@ -551,7 +551,11 @@ impl DesktopShell {
 
     fn refocus_session(&mut self) -> Task<Message> {
         self.session_focus_group
-            .refocus(&self.niri, self.window_group.window_processes())
+            .refocus(
+                &self.niri,
+                self.window_group.window_processes(),
+                self.quiet_schedule_group.waking_window(),
+            )
             .map(Message::SessionFocus)
     }
 

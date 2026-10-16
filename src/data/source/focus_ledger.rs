@@ -4,6 +4,7 @@ mod focus_units;
 mod presence_accounting;
 mod presence_timeline;
 mod recorded_spans;
+mod settled_unit_totals;
 #[cfg(test)]
 mod test_steps;
 mod time_intervals;
@@ -29,6 +30,7 @@ pub use self::{focus_identity::Focused, focus_units::Presence};
 use self::{
     presence_timeline::PresenceTimeline,
     recorded_spans::{FocusPiece, TimelineUpdate},
+    settled_unit_totals::SettledUnitTotals,
     window_focus_timeline::WindowFocusTimeline,
 };
 use crate::config::widget_groups::focus_time::FocusTimeConfig;
@@ -43,6 +45,7 @@ pub enum FocusSignal {
 pub struct FocusLedger {
     window_focus_timeline: WindowFocusTimeline,
     presence_timeline: PresenceTimeline,
+    settled_unit_totals: Option<SettledUnitTotals>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +65,7 @@ impl FocusLedger {
         Self {
             window_focus_timeline: WindowFocusTimeline::no_window_focused_since(now),
             presence_timeline: PresenceTimeline::active_since(now),
+            settled_unit_totals: None,
         }
     }
 
@@ -74,6 +78,23 @@ impl FocusLedger {
             presence_timeline: self
                 .presence_timeline
                 .with_loaded_history(loaded.presence_spans),
+            settled_unit_totals: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_settled_unit_totals(mut self, window: Interval, now: DateTime<Utc>) -> Self {
+        let active = self.active_within(window, now);
+        let carried = match self.settled_unit_totals.take() {
+            Some(settled) if settled.window == window => settled,
+            Some(_) | None => SettledUnitTotals::within(window),
+        };
+        Self {
+            settled_unit_totals: Some(carried.settling(
+                self.window_focus_timeline.finished_window_focus_spans(),
+                &active,
+            )),
+            ..self
         }
     }
 
@@ -111,7 +132,7 @@ impl FocusLedger {
                 let window_focus = self
                     .window_focus_timeline
                     .following_window_focus_change(change, now);
-                Self::folded_from(window_focus, presence)
+                Self::folded_from(window_focus, presence, self.settled_unit_totals)
             }
             FocusSignal::AwayReasonChanged(edge) => {
                 let window_focus = self
@@ -120,7 +141,7 @@ impl FocusLedger {
                 let presence = self
                     .presence_timeline
                     .reacting_to_away_reason_edge(edge, now);
-                Self::folded_from(window_focus, presence)
+                Self::folded_from(window_focus, presence, self.settled_unit_totals)
             }
         }
     }
@@ -128,6 +149,7 @@ impl FocusLedger {
     fn folded_from(
         window_focus: TimelineUpdate<WindowFocusTimeline>,
         presence: TimelineUpdate<PresenceTimeline>,
+        settled_unit_totals: Option<SettledUnitTotals>,
     ) -> Folded {
         Folded {
             span_writes: window_focus
@@ -138,8 +160,26 @@ impl FocusLedger {
             ledger: Self {
                 window_focus_timeline: window_focus.timeline,
                 presence_timeline: presence.timeline,
+                settled_unit_totals,
             },
         }
+    }
+
+    fn settled_unit_totals_for(&self, window: Interval) -> Option<&SettledUnitTotals> {
+        self.settled_unit_totals
+            .as_ref()
+            .filter(|settled| settled.window == window)
+    }
+
+    fn active_intervals(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        self.presence_timeline.active_intervals(now)
+    }
+
+    fn active_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
+        self.active_intervals(now)
+            .into_iter()
+            .filter_map(|interval| interval.intersect(window))
+            .collect()
     }
 
     fn presence_spans_ended_by(
@@ -154,7 +194,17 @@ impl FocusLedger {
         window: Interval,
         now: DateTime<Utc>,
     ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
-        self.window_focus_timeline.pieces_within(window, now)
+        self.window_focus_timeline.pieces_within(window, now, 0)
+    }
+
+    fn unsettled_focus_pieces_within(
+        &self,
+        settled_spans: usize,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
+        self.window_focus_timeline
+            .pieces_within(window, now, settled_spans)
     }
 
     fn first_presence_started_at(&self) -> DateTime<Utc> {
