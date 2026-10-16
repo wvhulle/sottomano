@@ -295,7 +295,6 @@ impl DesktopShell {
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
             Task::perform(state::launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load().map(Message::SessionFocus),
-            LoginSessionGroup::load().map(Message::LoginSession),
             SessionMenu::load().map(Message::Session),
             Task::perform(state::idle::load(), |t| {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))

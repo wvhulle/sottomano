@@ -8,21 +8,21 @@ mod power_policy_face;
 mod seat_face;
 mod service_manager_face;
 
-use iced::Task;
+use iced::{Subscription, Task};
 
 use crate::{
     config::Config,
     data::source::{
         Delivery,
         hostname::OperatingSystemIdentity,
-        logind::session_facts::{self, PowerPolicy, SessionIdentity, SessionInfo},
+        logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
         systemd_manager::{
             graphical_session::{GraphicalSession, GraphicalSessionTarget},
             user_service_manager::UserServiceManager,
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::blocking,
+    message_subscriptions::{ForcedRefresh, polling},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace, console_face::ConsoleFace,
         desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
@@ -31,10 +31,11 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Freshness, Tooltip},
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -60,8 +61,8 @@ impl From<LoginSessionTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct LoginSessionGroup {
-    system: Option<OperatingSystemIdentity>,
-    identity: Option<SessionIdentity>,
+    system: ContinuousReading<OperatingSystemIdentity>,
+    identity: ContinuousReading<SessionIdentity>,
     session: OnHoverReading<SessionInfo>,
     service_manager: OnHoverReading<UserServiceManager>,
     graphical: OnHoverReading<GraphicalSession>,
@@ -72,8 +73,8 @@ pub struct LoginSessionGroup {
 
 #[derive(Debug, Clone)]
 pub enum LoginSessionMessage {
-    SystemLoaded(Option<OperatingSystemIdentity>),
-    IdentityLoaded(Option<SessionIdentity>),
+    SystemFetched(Delivery<OperatingSystemIdentity>),
+    IdentityFetched(Delivery<SessionIdentity>),
     SessionFetched(Box<Delivery<SessionInfo>>),
     ServiceManagerFetched(Delivery<UserServiceManager>),
     GraphicalFetched(Delivery<GraphicalSession>),
@@ -87,14 +88,10 @@ impl LoginSessionGroup {
         self.expansion.collapse();
     }
 
-    pub fn load() -> Task<LoginSessionMessage> {
-        Task::batch([
-            Task::perform(
-                OperatingSystemIdentity::read(),
-                LoginSessionMessage::SystemLoaded,
-            ),
-            blocking("session identity", session_facts::identity)
-                .map(LoginSessionMessage::IdentityLoaded),
+    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<LoginSessionMessage> {
+        Subscription::batch([
+            polling::<OperatingSystemIdentity>((), forced).map(LoginSessionMessage::SystemFetched),
+            polling::<SessionIdentity>((), forced).map(LoginSessionMessage::IdentityFetched),
         ])
     }
 
@@ -135,8 +132,10 @@ impl LoginSessionGroup {
 
     pub fn update(&mut self, message: LoginSessionMessage) -> Task<LoginSessionMessage> {
         match message {
-            LoginSessionMessage::SystemLoaded(system) => self.system = system,
-            LoginSessionMessage::IdentityLoaded(identity) => self.identity = identity,
+            LoginSessionMessage::SystemFetched(delivery) => self.system.receive_or_keep(delivery),
+            LoginSessionMessage::IdentityFetched(delivery) => {
+                self.identity.receive_or_keep(delivery);
+            }
             LoginSessionMessage::SessionFetched(delivery) => self.session.receive(*delivery),
             LoginSessionMessage::ServiceManagerFetched(delivery) => {
                 self.service_manager.receive(delivery);
@@ -154,7 +153,7 @@ impl LoginSessionGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, LoginSessionMessage> {
-        let items = self.identity.iter().flat_map(|identity| {
+        let items = self.identity.get().into_iter().flat_map(|identity| {
             let seat = identity
                 .seat
                 .as_deref()
@@ -179,7 +178,7 @@ impl LoginSessionGroup {
         });
         let kernel = self
             .system
-            .as_ref()
+            .get()
             .map(|system| GroupItem::reading(KernelFace { system }, LoginSessionTarget::Kernel));
         GroupContent::new(
             &self.expansion,
@@ -192,39 +191,52 @@ impl LoginSessionGroup {
     }
 
     pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {
-        let sourced = |face: &dyn BarWidget| Tooltip::sourced(face.tooltip(), Freshness::Live);
-        let identity = self.identity.as_ref();
-        Some(match target {
-            LoginSessionTarget::Kernel => sourced(&KernelFace {
-                system: self.system.as_ref()?,
-            }),
-            LoginSessionTarget::Seat => sourced(&SeatFace {
+        let session_face = |face: &dyn BarWidget| self.identity.tooltip_with(face.tooltip());
+        let identity = self.identity.get();
+        match target {
+            LoginSessionTarget::Kernel => self.system.tooltip_with(
+                KernelFace {
+                    system: self.system.get()?,
+                }
+                .tooltip(),
+            ),
+            LoginSessionTarget::Seat => session_face(&SeatFace {
                 seat: identity?.seat.as_deref()?,
             }),
-            LoginSessionTarget::Console => sourced(&ConsoleFace {
+            LoginSessionTarget::Console => session_face(&ConsoleFace {
                 console: identity?.console.as_deref()?,
                 virtual_terminal: identity?.virtual_terminal,
             }),
-            LoginSessionTarget::Login => sourced(&LoginFace {
+            LoginSessionTarget::Login => session_face(&LoginFace {
                 identity: identity?,
             })
-            .with_sections(self.session.sections(SessionInfo::sections)),
-            LoginSessionTarget::Account => sourced(&AccountFace {
+            .map(|tooltip| tooltip.with_sections(self.session.sections(SessionInfo::sections))),
+            LoginSessionTarget::Account => session_face(&AccountFace {
                 identity: identity?,
             }),
-            LoginSessionTarget::Compositor => sourced(&CompositorFace {
+            LoginSessionTarget::Compositor => session_face(&CompositorFace {
                 identity: identity?,
             })
-            .with_sections(self.graphical.sections(GraphicalSession::sections)),
-            LoginSessionTarget::ServiceManager => sourced(&ServiceManagerFace)
-                .with_sections(self.service_manager.sections(UserServiceManager::sections)),
-            LoginSessionTarget::DesktopServices => sourced(&DesktopServicesFace).with_sections(
-                self.graphical_target
-                    .sections(GraphicalSessionTarget::sections),
-            ),
-            LoginSessionTarget::PowerPolicy => {
-                sourced(&PowerPolicyFace).with_sections(self.power.sections(PowerPolicy::sections))
+            .map(|tooltip| {
+                tooltip.with_sections(self.graphical.sections(GraphicalSession::sections))
+            }),
+            LoginSessionTarget::ServiceManager => {
+                session_face(&ServiceManagerFace).map(|tooltip| {
+                    tooltip.with_sections(
+                        self.service_manager.sections(UserServiceManager::sections),
+                    )
+                })
             }
-        })
+            LoginSessionTarget::DesktopServices => {
+                session_face(&DesktopServicesFace).map(|tooltip| {
+                    tooltip.with_sections(
+                        self.graphical_target
+                            .sections(GraphicalSessionTarget::sections),
+                    )
+                })
+            }
+            LoginSessionTarget::PowerPolicy => session_face(&PowerPolicyFace)
+                .map(|tooltip| tooltip.with_sections(self.power.sections(PowerPolicy::sections))),
+        }
     }
 }
