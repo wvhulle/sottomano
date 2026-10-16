@@ -116,6 +116,43 @@
         }
       );
 
+      readmeShowcase = craneLib.mkCargoDerivation (
+        commonArgs
+        // {
+          inherit cargoArtifacts;
+          pname = "vetrata-readme-showcase";
+          nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.fontconfig ];
+          FONTCONFIG_FILE = pkgs.makeFontsConf {
+            fontDirectories = [
+              pkgs.ibm-plex
+              pkgs.nerd-fonts.lilex
+              pkgs.dejavu_fonts
+            ];
+            includes = [
+              "${pkgs.writeTextDir "conf.d/60-readme-showcase-families.conf" ''
+                <?xml version="1.0"?>
+                <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+                <fontconfig>
+                  <alias><family>sans-serif</family><prefer><family>IBM Plex Sans</family></prefer></alias>
+                  <alias><family>monospace</family><prefer><family>Lilex Nerd Font Mono</family></prefer></alias>
+                </fontconfig>
+              ''}/conf.d"
+            ];
+          };
+          LANG = "en_US.UTF-8";
+          ICED_BACKEND = "tiny-skia";
+          doInstallCargoArtifacts = false;
+          buildPhaseCargoCommand = ''
+            mkdir -p docs
+            cargoWithProfile test readme_showcase -- --ignored
+          '';
+          installPhaseCommand = ''
+            mkdir -p $out
+            cp docs/*.gif $out/
+          '';
+        }
+      );
+
       homeModule = import ./hm-module.nix { inherit self; };
     in
     {
@@ -123,6 +160,7 @@
         default = vetrata;
         vetrata = vetrata;
         deps = cargoArtifacts;
+        readme-showcase = readmeShowcase;
       };
 
       homeModules.default = {

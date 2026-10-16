@@ -1,60 +1,107 @@
 use std::{
     borrow::Cow,
     fs::File,
+    iter::{from_fn, once},
     path::Path,
+    thread::sleep,
     time::{Duration, Instant},
 };
 
 use gif::{Encoder, Frame, Repeat};
 use iced::{
-    Point,
-    futures::channel::mpsc::{self, Receiver},
+    Point, Size, Vector,
+    advanced::widget::operation::{Operation, Outcome, black_box},
+    futures::{
+        channel::mpsc::{self, Receiver},
+        executor::block_on,
+    },
     mouse::Button,
-    window::Screenshot,
 };
 use iced_test::{
-    Emulator, Instruction,
+    Emulator, Instruction, Selector,
+    core::renderer::Headless,
     emulator::{Event, Mode},
     instruction::{Interaction, Mouse, Target},
+    program::Program,
+    renderer::graphics::text::font_system,
+    runtime::{UserInterface, user_interface::Cache},
 };
 
 use crate::{
     config::Config,
+    desktop_shell::hover_tooltips::HoverTarget,
     readme_showcase::{
-        scene_script::{Scene, Step},
+        demo_script::{Demo, Step},
+        hovered_widget::{AnyHoveredWidget, HoveredWidget},
+        readme_embedding::RecordedGif,
         showcase_program::ShowcaseProgram,
     },
 };
 
+const CANVAS: Size = Size::new(720.0, 960.0);
 const SCALE_FACTOR: f32 = 2.0;
+const REST_POINTER: Point = Point::new(CANVAS.width - 1.0, CANVAS.height / 2.0);
+const REST_HOLD: Duration = Duration::from_millis(1000);
+const HOVER_HOLD: Duration = Duration::from_millis(2500);
+const PRESS_LEAD: Duration = Duration::from_millis(1000);
+const PRESS_HOLD: Duration = Duration::from_millis(1500);
+const LIVE_INTERVAL: Duration = Duration::from_millis(1500);
+const DRAG_MOVES: u16 = 16;
+const DRAG_MOVE_HOLD: Duration = Duration::from_millis(60);
+const FRAME_INTERVAL: Duration = Duration::from_millis(40);
+const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
 const QUANTIZATION_SPEED: i32 = 10;
 const EMULATOR_EVENT_CAPACITY: usize = 256;
-const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
-const FRAME_INTERVAL: Duration = Duration::from_millis(40);
 
 struct CapturedFrame {
-    screenshot: Screenshot,
+    rgba: Vec<u8>,
     captured_at: Instant,
 }
 
-struct SceneRecorder {
+struct DemoRecorder {
     program: ShowcaseProgram,
     emulator: Emulator<ShowcaseProgram>,
     events: Receiver<Event<ShowcaseProgram>>,
+    layout_renderer: iced::Renderer,
     pointer: Point,
+    live_tick: u32,
+    next_live_delivery: Instant,
 }
 
-impl SceneRecorder {
-    fn start(scene: &'static Scene, config: Config) -> Self {
-        let program = ShowcaseProgram { scene, config };
+impl DemoRecorder {
+    fn start(demo: &'static Demo, config: Config) -> Self {
+        let program = ShowcaseProgram { demo, config };
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
-        let emulator = Emulator::new(sender, &program, Mode::Immediate, scene.canvas);
-        SceneRecorder {
+        let emulator = Emulator::new(sender, &program, Mode::Immediate, CANVAS);
+        let settings = program.settings();
+        let layout_renderer = block_on(iced::Renderer::new(
+            settings.default_font,
+            settings.default_text_size,
+            None,
+        ))
+        .expect("a headless renderer is available");
+        let mut recorder = DemoRecorder {
             program,
             emulator,
             events,
-            pointer: Point::ORIGIN,
+            layout_renderer,
+            pointer: REST_POINTER,
+            live_tick: 1,
+            next_live_delivery: Instant::now() + LIVE_INTERVAL,
+        };
+        recorder.settle();
+        recorder
+    }
+
+    fn deliver_live_readings(&mut self) {
+        if Instant::now() < self.next_live_delivery {
+            return;
         }
+        (self.program.demo.live)(self.live_tick)
+            .into_iter()
+            .for_each(|reading| self.emulator.update(&self.program, reading));
+        self.live_tick += 1;
+        self.next_live_delivery += LIVE_INTERVAL;
     }
 
     fn settle(&mut self) {
@@ -73,26 +120,99 @@ impl SceneRecorder {
         self.settle();
     }
 
+    fn point_at(&mut self, pointer: Point) {
+        self.pointer = pointer;
+        self.interact(Mouse::Move(Target::Point(pointer)));
+    }
+
+    fn click(&mut self) {
+        self.interact(Mouse::Click {
+            button: Button::Left,
+            target: Some(Target::Point(self.pointer)),
+        });
+        self.interact(Mouse::Move(Target::Point(self.pointer)));
+    }
+
+    fn locate(&mut self, target: &HoverTarget) -> Point {
+        let mut interface = UserInterface::build(
+            self.emulator.view(&self.program),
+            CANVAS,
+            Cache::default(),
+            &mut self.layout_renderer,
+        );
+        let mut finder = HoveredWidget(target.clone()).find();
+        interface.operate(&self.layout_renderer, &mut black_box(&mut finder));
+        if let Outcome::Some(Some(bounds)) = finder.finish() {
+            return bounds.center();
+        }
+        let mut shown = AnyHoveredWidget.find_all();
+        interface.operate(&self.layout_renderer, &mut black_box(&mut shown));
+        let shown = match shown.finish() {
+            Outcome::Some(targets) => targets,
+            _ => Vec::new(),
+        };
+        panic!(
+            "demo {} hovers {target:?}, which no widget shows; shown now: {shown:?}",
+            self.program.demo.name
+        )
+    }
+
+    fn rest(&mut self) -> Vec<CapturedFrame> {
+        self.point_at(REST_POINTER);
+        self.capture_during(REST_HOLD)
+    }
+
     fn perform(&mut self, step: &Step) -> Vec<CapturedFrame> {
         match step {
-            Step::PointAt { at, .. } => {
-                self.pointer = *at;
-                self.interact(Mouse::Move(Target::Point(*at)));
+            Step::Hover(target) => {
+                let pointer = self.locate(target);
+                self.point_at(pointer);
+                self.capture_during(HOVER_HOLD)
             }
-            Step::Press { .. } => {
-                self.interact(Mouse::Click {
+            Step::Press(target) => {
+                let pointer = self.locate(target);
+                self.point_at(pointer);
+                let lead = self.capture_during(PRESS_LEAD);
+                self.click();
+                lead.into_iter()
+                    .chain(self.capture_during(PRESS_HOLD))
+                    .collect()
+            }
+            Step::Drag { target, by } => {
+                let grabbed = self.locate(target);
+                self.point_at(grabbed);
+                let lead = self.capture_during(PRESS_LEAD);
+                self.interact(Mouse::Press {
+                    button: Button::Left,
+                    target: Some(Target::Point(grabbed)),
+                });
+                let dragged: Vec<CapturedFrame> = (1..=DRAG_MOVES)
+                    .flat_map(|moved| {
+                        let progress = f32::from(moved) / f32::from(DRAG_MOVES);
+                        self.point_at(grabbed + Vector::new(by * progress, 0.0));
+                        self.capture_during(DRAG_MOVE_HOLD)
+                    })
+                    .collect();
+                self.interact(Mouse::Release {
                     button: Button::Left,
                     target: Some(Target::Point(self.pointer)),
                 });
-                self.interact(Mouse::Move(Target::Point(self.pointer)));
+                lead.into_iter()
+                    .chain(dragged)
+                    .chain(self.capture_during(HOVER_HOLD))
+                    .collect()
             }
         }
-        let deadline = Instant::now() + step.hold();
-        std::iter::from_fn(|| (Instant::now() < deadline).then(|| self.capture())).collect()
+    }
+
+    fn capture_during(&mut self, hold: Duration) -> Vec<CapturedFrame> {
+        let deadline = Instant::now() + hold;
+        from_fn(|| (Instant::now() < deadline).then(|| self.capture())).collect()
     }
 
     fn capture(&mut self) -> CapturedFrame {
         let frame_started = Instant::now();
+        self.deliver_live_readings();
         self.settle();
         let theme = self
             .emulator
@@ -102,25 +222,25 @@ impl SceneRecorder {
         let screenshot = self
             .emulator
             .screenshot(&self.program, &theme, SCALE_FACTOR);
-        std::thread::sleep(FRAME_INTERVAL.saturating_sub(frame_started.elapsed()));
+        sleep(FRAME_INTERVAL.saturating_sub(frame_started.elapsed()));
         CapturedFrame {
-            screenshot,
+            rgba: screenshot.rgba.to_vec(),
             captured_at,
         }
     }
 }
 
 #[derive(Clone, Copy)]
-struct ChangedRegion {
+struct PixelRegion {
     left: u16,
     top: u16,
     right: u16,
     bottom: u16,
 }
 
-impl ChangedRegion {
+impl PixelRegion {
     fn whole(width: u16, height: u16) -> Self {
-        ChangedRegion {
+        PixelRegion {
             left: 0,
             top: 0,
             right: width - 1,
@@ -129,7 +249,7 @@ impl ChangedRegion {
     }
 
     fn pixel(x: u16, y: u16) -> Self {
-        ChangedRegion {
+        PixelRegion {
             left: x,
             top: y,
             right: x,
@@ -137,27 +257,38 @@ impl ChangedRegion {
         }
     }
 
-    fn including(self, x: u16, y: u16) -> Self {
-        ChangedRegion {
-            left: self.left.min(x),
-            top: self.top.min(y),
-            right: self.right.max(x),
-            bottom: self.bottom.max(y),
+    fn union(self, other: Self) -> Self {
+        PixelRegion {
+            left: self.left.min(other.left),
+            top: self.top.min(other.top),
+            right: self.right.max(other.right),
+            bottom: self.bottom.max(other.bottom),
         }
     }
 
-    fn between(previous: &[u8], current: &[u8], width: u16) -> Option<Self> {
-        previous
-            .chunks_exact(4)
-            .zip(current.chunks_exact(4))
+    fn widened(self, margin: u16, within: Self) -> Self {
+        PixelRegion {
+            left: self.left.saturating_sub(margin).max(within.left),
+            top: self.top.saturating_sub(margin).max(within.top),
+            right: self.right.saturating_add(margin).min(within.right),
+            bottom: self.bottom.saturating_add(margin).min(within.bottom),
+        }
+    }
+
+    fn differing(reference: &[u8], current: &[u8], width: u16) -> Option<Self> {
+        reference
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(current.as_chunks::<4>().0)
             .enumerate()
             .filter(|(_, (before, after))| before != after)
             .map(|(index, _)| {
                 let x = u16::try_from(index % usize::from(width)).expect("column fits a GIF");
                 let y = u16::try_from(index / usize::from(width)).expect("row fits a GIF");
-                ChangedRegion::pixel(x, y)
+                PixelRegion::pixel(x, y)
             })
-            .reduce(|region, changed| region.including(changed.left, changed.top))
+            .reduce(PixelRegion::union)
     }
 
     fn width(self) -> u16 {
@@ -181,35 +312,91 @@ impl ChangedRegion {
     }
 }
 
+#[derive(Clone, Copy)]
+struct FrameSize {
+    width: u16,
+    height: u16,
+}
+
+impl FrameSize {
+    fn of_canvas() -> Self {
+        let physical = |logical: f32| {
+            let pixels = (logical * SCALE_FACTOR).round();
+            u16::try_from(pixels as u32).expect("canvas fits a GIF")
+        };
+        FrameSize {
+            width: physical(CANVAS.width),
+            height: physical(CANVAS.height),
+        }
+    }
+}
+
+struct CroppedRecording {
+    frames: Vec<CapturedFrame>,
+    size: FrameSize,
+}
+
+fn cropped_to_content(
+    frames: Vec<CapturedFrame>,
+    canvas: FrameSize,
+    margin: u16,
+) -> CroppedRecording {
+    let whole = PixelRegion::whole(canvas.width, canvas.height);
+    let background: Vec<u8> = frames
+        .first()
+        .map(|frame| {
+            let top_right = (usize::from(canvas.width) - 1) * 4;
+            frame.rgba[top_right..top_right + 4].repeat(frame.rgba.len() / 4)
+        })
+        .unwrap_or_default();
+    let content = frames
+        .iter()
+        .filter_map(|frame| PixelRegion::differing(&background, &frame.rgba, canvas.width))
+        .reduce(PixelRegion::union)
+        .map_or(whole, |content| content.widened(margin, whole));
+    CroppedRecording {
+        frames: frames
+            .into_iter()
+            .map(|frame| CapturedFrame {
+                rgba: content.crop(&frame.rgba, canvas.width),
+                captured_at: frame.captured_at,
+            })
+            .collect(),
+        size: FrameSize {
+            width: content.width(),
+            height: content.height(),
+        },
+    }
+}
+
 fn register_font(config: &Config) {
-    iced_test::renderer::graphics::text::font_system()
+    font_system()
         .write()
         .expect("font system lock is never poisoned")
         .load_font(Cow::Owned(config.theme.font.data.to_vec()));
 }
 
-fn encode_gif(frames: &[CapturedFrame], gif: &Path) {
-    let Some(first) = frames.first() else {
+fn encode_gif(frames: &[CapturedFrame], size: FrameSize, gif: &Path) {
+    let Some(last) = frames.last() else {
         return;
     };
-    let width = u16::try_from(first.screenshot.size.width).expect("frame width fits a GIF");
-    let height = u16::try_from(first.screenshot.size.height).expect("frame height fits a GIF");
     let file = File::create(gif).expect("docs directory is writable");
-    let mut encoder = Encoder::new(file, width, height, &[]).expect("GIF header is writable");
+    let mut encoder =
+        Encoder::new(file, size.width, size.height, &[]).expect("GIF header is writable");
     encoder
         .set_repeat(Repeat::Infinite)
         .expect("GIF repeat extension is writable");
     let distinct: Vec<&CapturedFrame> = frames
-        .chunk_by(|earlier, later| earlier.screenshot.rgba == later.screenshot.rgba)
+        .chunk_by(|earlier, later| earlier.rgba == later.rgba)
         .map(|repeats| &repeats[0])
         .collect();
     let shown_until: Vec<Instant> = distinct
         .iter()
         .skip(1)
         .map(|frame| frame.captured_at)
-        .chain([frames[frames.len() - 1].captured_at + LAST_FRAME_DURATION])
+        .chain([last.captured_at + LAST_FRAME_DURATION])
         .collect();
-    let previous_frames = std::iter::once(None).chain(distinct.iter().copied().map(Some));
+    let previous_frames = once(None).chain(distinct.iter().copied().map(Some));
     distinct
         .iter()
         .zip(previous_frames)
@@ -217,14 +404,10 @@ fn encode_gif(frames: &[CapturedFrame], gif: &Path) {
         .for_each(|((captured, previous), shown_until)| {
             let region = previous
                 .and_then(|previous| {
-                    ChangedRegion::between(
-                        &previous.screenshot.rgba,
-                        &captured.screenshot.rgba,
-                        width,
-                    )
+                    PixelRegion::differing(&previous.rgba, &captured.rgba, size.width)
                 })
-                .unwrap_or_else(|| ChangedRegion::whole(width, height));
-            let mut rgba = region.crop(&captured.screenshot.rgba, width);
+                .unwrap_or_else(|| PixelRegion::whole(size.width, size.height));
+            let mut rgba = region.crop(&captured.rgba, size.width);
             let mut frame = Frame::from_rgba_speed(
                 region.width(),
                 region.height(),
@@ -239,18 +422,26 @@ fn encode_gif(frames: &[CapturedFrame], gif: &Path) {
         });
 }
 
-pub fn record(scene: &'static Scene) {
+pub fn record(demo: &'static Demo) -> RecordedGif {
     let config = Config::fallback();
     register_font(&config);
-    let mut recorder = SceneRecorder::start(scene, config);
-    recorder.settle();
-    let frames: Vec<CapturedFrame> = scene
-        .steps
+    let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
+    let mut recorder = DemoRecorder::start(demo, config);
+    let opening = recorder.rest();
+    let scripted: Vec<CapturedFrame> = demo
+        .script
         .iter()
         .flat_map(|step| recorder.perform(step))
         .collect();
+    let closing = recorder.rest();
+    let frames: Vec<CapturedFrame> = opening.into_iter().chain(scripted).chain(closing).collect();
+    let cropped = cropped_to_content(frames, FrameSize::of_canvas(), margin_pixels);
     let gif = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("docs")
-        .join(format!("{}.gif", scene.name));
-    encode_gif(&frames, &gif);
+        .join(format!("{}.gif", demo.name));
+    encode_gif(&cropped.frames, cropped.size, &gif);
+    RecordedGif {
+        name: demo.name,
+        logical_width: (f32::from(cropped.size.width) / SCALE_FACTOR).round() as u32,
+    }
 }
