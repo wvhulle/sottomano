@@ -219,6 +219,11 @@ impl TooltipHost {
             .collect()
     }
 
+    #[cfg(test)]
+    pub fn surface_on(&self, output: &str) -> Option<Id> {
+        self.surfaces.get(output).copied()
+    }
+
     fn hosts(&self, surface: Id) -> bool {
         self.surfaces.values().any(|id| *id == surface)
     }
