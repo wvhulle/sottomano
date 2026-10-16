@@ -69,24 +69,27 @@ pub struct FavouredChiplets<'a> {
 impl FavouredChiplets<'_> {
     pub fn body(&self) -> TooltipBody {
         TooltipBody::sections([
-            self.chiplet_section("Favoured now", self.preference),
-            self.chiplet_section("Not favoured", self.preference.other()),
-            Section::dictionary([
-                KeyValue::new(
-                    "How",
-                    "the amd_x3d_vcache driver ranks the favoured cores highest, and the \
-                     scheduler places new work on the highest-ranked idle cores",
-                ),
-                KeyValue::new(
-                    "Matters",
-                    "only while the busy threads fit on one chiplet; with both full, both run",
-                ),
-                KeyValue::new("Resets", "at reboot"),
-            ]),
+            self.chiplet_section(
+                "Favoured now",
+                "The scheduler places new work on these cores first while they have idle \
+                 capacity.",
+                self.preference,
+            ),
+            self.chiplet_section(
+                "Not favoured",
+                "These cores take work once the favoured ones are busy. The choice resets at \
+                 reboot.",
+                self.preference.other(),
+            ),
         ])
     }
 
-    fn chiplet_section(&self, standing: &str, preference: X3dCachePreference) -> Section {
+    fn chiplet_section(
+        &self,
+        standing: &str,
+        caption: &str,
+        preference: X3dCachePreference,
+    ) -> Section {
         let role = favoured_role(preference);
         let facts = self
             .topology
@@ -103,7 +106,7 @@ impl FavouredChiplets<'_> {
                 .into_iter()
                 .chain([KeyValue::new("Suits", suited_work(preference))]),
         )
-        .titled(format!("{standing}: {}", role.title()))
+        .titled((format!("{standing}: {}", role.title()), caption))
     }
 }
 
