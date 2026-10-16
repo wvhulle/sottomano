@@ -6,18 +6,14 @@
 }:
 let
   cfg = config.programs.vetrata;
-  wireguardConfigured =
-    config.networking.wireguard.enable || config.networking.wg-quick.interfaces != { };
 in
 {
   options.programs.vetrata = {
     enable = lib.mkEnableOption ''
       the system-level pieces vetrata widgets depend on: fwupd for the firmware
       upgrade reading, UPower for the power group, power-profiles-daemon for
-      the power profile, the drivetemp kernel module for SATA drive
-      temperatures and, when WireGuard is configured, a wheel-only `wg`
-      wrapper with CAP_NET_ADMIN so the tunnel widget can run `wg show`.
-      Services are set with mkDefault, so a host running tlp or auto-cpufreq
+      the power profile and the drivetemp kernel module for SATA drive
+      temperatures. Services are set with mkDefault, so a host running tlp or auto-cpufreq
       can still disable power-profiles-daemon. The bar itself is installed per
       user through vetrata's home-manager module
     '';
@@ -109,16 +105,6 @@ in
         services.udev.extraRules = ''
           ACTION=="add|bind", SUBSYSTEM=="platform", DRIVER=="amd_x3d_vcache", RUN+="${pkgs.coreutils}/bin/chgrp wheel /sys%p/amd_x3d_mode", RUN+="${pkgs.coreutils}/bin/chmod 0664 /sys%p/amd_x3d_mode"
         '';
-      })
-
-      (lib.mkIf wireguardConfigured {
-        security.wrappers.wg = {
-          source = "${pkgs.wireguard-tools}/bin/wg";
-          capabilities = "cap_net_admin+ep";
-          owner = "root";
-          group = "wheel";
-          permissions = "u+rx,g+rx";
-        };
       })
 
       (lib.mkIf cfg.autoBrightness.enable {
