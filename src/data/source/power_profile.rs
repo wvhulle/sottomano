@@ -211,11 +211,11 @@ async fn status_changes() -> zbus::Result<impl Stream<Item = Result<ProfileStatu
 }
 
 async fn read_status(daemon: &PowerProfilesProxy<'_>) -> Result<ProfileStatus, bus::Error> {
-    let active = bus::call(daemon.active_profile().await)?;
+    let active = daemon.active_profile().await?;
     let active = Profile::from_name(&active)
         .ok_or_else(|| bus::Error::Call(format!("unknown power profile {active:?}")))?;
-    let holds = bus::call(daemon.active_profile_holds().await)?;
-    let degraded = bus::call(daemon.performance_degraded().await)?;
+    let holds = daemon.active_profile_holds().await?;
+    let degraded = daemon.performance_degraded().await?;
     Ok(ProfileStatus {
         active,
         holds: holds

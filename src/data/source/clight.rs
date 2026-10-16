@@ -56,7 +56,7 @@ impl PolledSource for Clight {
     async fn poll((): ()) -> Result<Self, Self::Error> {
         let proxy: ConfBacklightProxy = bus::session_proxy().await?;
         Ok(Clight {
-            auto: !bus::call(proxy.no_auto_calib().await)?,
+            auto: !proxy.no_auto_calib().await?,
         })
     }
 }

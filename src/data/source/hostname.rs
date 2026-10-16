@@ -8,7 +8,7 @@ use crate::{
         empty_text::non_empty,
         source::{
             PolledSource, Source,
-            bus::{self, call},
+            bus,
         },
     },
     widgets::{
@@ -67,18 +67,14 @@ impl PolledSource for OperatingSystemIdentity {
         let connection = zbus::Connection::system()
             .await
             .map_err(|error| bus::Error::Connect(error.to_string()))?;
-        let hostname = call(HostnameProxy::new(&connection).await)?;
+        let hostname = HostnameProxy::new(&connection).await?;
         Ok(Self {
-            hostname: required_text(hostname.hostname().await)?,
-            kernel: required_text(hostname.kernel_release().await)?,
-            operating_system: required_text(hostname.operating_system_pretty_name().await)?,
-            chassis: text(hostname.chassis().await).and_then(|chassis| chassis.parse().ok()),
+            hostname: hostname.hostname().await?,
+            kernel: hostname.kernel_release().await?,
+            operating_system: hostname.operating_system_pretty_name().await?,
+            chassis: hostname.chassis().await?.parse().ok(),
         })
     }
-}
-
-fn required_text(reply: zbus::Result<String>) -> Result<String, bus::Error> {
-    non_empty(call(reply)?).ok_or(bus::Error::Absent)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
