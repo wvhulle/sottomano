@@ -35,11 +35,7 @@ impl BarWidget for X3dCachePreference {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        FavouredChiplets {
-            preference: *self,
-            topology: None,
-        }
-        .body()
+        TooltipBody::sections(Self::facts())
     }
 }
 
@@ -61,35 +57,24 @@ const fn suited_work(preference: X3dCachePreference) -> &'static str {
     }
 }
 
-pub struct FavouredChiplets<'a> {
-    pub preference: X3dCachePreference,
+pub struct ChipletRoles<'a> {
     pub topology: Option<&'a CpuTopology>,
 }
 
-impl FavouredChiplets<'_> {
-    pub fn body(&self) -> TooltipBody {
-        TooltipBody::sections([
-            self.chiplet_section(
-                "Favoured now",
-                "The scheduler places new work on these cores first while they have idle \
-                 capacity.",
-                self.preference,
-            ),
-            self.chiplet_section(
-                "Not favoured",
-                "These cores take work once the favoured ones are busy. The choice resets at \
-                 reboot.",
-                self.preference.other(),
-            ),
-        ])
+impl ChipletRoles<'_> {
+    pub fn sections(&self) -> Vec<Section> {
+        vec![
+            self.chiplet_section(X3dCachePreference::Cache).titled((
+                CoreRole::StackedCacheCores.title(),
+                "New work goes first to the favoured cores while they have idle capacity; the \
+                 choice resets at reboot.",
+            )),
+            self.chiplet_section(X3dCachePreference::Frequency)
+                .titled(CoreRole::HighClockCores.title()),
+        ]
     }
 
-    fn chiplet_section(
-        &self,
-        standing: &str,
-        caption: &str,
-        preference: X3dCachePreference,
-    ) -> Section {
+    fn chiplet_section(&self, preference: X3dCachePreference) -> Section {
         let role = favoured_role(preference);
         let facts = self
             .topology
@@ -106,7 +91,6 @@ impl FavouredChiplets<'_> {
                 .into_iter()
                 .chain([KeyValue::new("Suits", suited_work(preference))]),
         )
-        .titled((format!("{standing}: {}", role.title()), caption))
     }
 }
 
@@ -124,5 +108,9 @@ impl Toggle for X3dCachePreference {
             X3dCachePreference::Cache => "favour the high-clock cores instead",
             X3dCachePreference::Frequency => "favour the stacked-cache cores instead",
         }
+    }
+
+    fn facts() -> Vec<Section> {
+        ChipletRoles { topology: None }.sections()
     }
 }

@@ -9,7 +9,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         source_reading::source_reading,
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
         widget_state::WidgetState,
     },
@@ -38,7 +38,32 @@ pub struct NotificationGroup {
     expansion: GroupExpansion,
 }
 
+fn sound_toggle(notification_settings: &NotificationSettings) -> IconToggle {
+    IconToggle::new(
+        "Notification sound",
+        if notification_settings.sound {
+            Phosphor::Bell(Weight::Regular)
+        } else {
+            Phosphor::BellSlash(Weight::Regular)
+        },
+        notification_settings.sound,
+        SwitchPresses {
+            turning_on: "play a sound with each notification",
+            turning_off: "show notifications silently",
+        },
+    )
+}
+
 impl NotificationGroup {
+    pub fn tooltip_for(
+        target: NotificationTarget,
+        notification_settings: &NotificationSettings,
+    ) -> Tooltip {
+        match target {
+            NotificationTarget::Sound => sound_toggle(notification_settings).switch_tooltip(),
+        }
+    }
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -56,11 +81,6 @@ impl NotificationGroup {
         quiet: bool,
     ) -> GroupContent<'a, NotificationGroupMessage> {
         let status = NotificationStatus { quiet, live, held };
-        let sound_icon = if notification_settings.sound {
-            Phosphor::Bell(Weight::Regular)
-        } else {
-            Phosphor::BellSlash(Weight::Regular)
-        };
         GroupContent::new(
             &self.expansion,
             NotificationGroupMessage::Expansion,
@@ -73,19 +93,15 @@ impl NotificationGroup {
                     QuietScheduleTarget::DoNotDisturb,
                 )
                 .on_press(
-                    "start or end do not disturb now",
+                    if quiet {
+                        "end do not disturb now"
+                    } else {
+                        "start do not disturb now"
+                    },
                     NotificationGroupMessage::ToggleDoNotDisturb,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Notification sound",
-                        sound_icon,
-                        notification_settings.sound,
-                        SwitchPresses {
-                            turning_on: "play a sound with each notification",
-                            turning_off: "show notifications silently",
-                        },
-                    ),
+                    sound_toggle(notification_settings),
                     NotificationTarget::Sound,
                     NotificationGroupMessage::ToggleSound,
                 ),

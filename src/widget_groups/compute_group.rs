@@ -8,7 +8,7 @@ mod x3d_cache_preference_toggle;
 
 use chiplet_live_state::ChipletLiveState;
 use iced::{Subscription, Task, futures::Stream};
-use x3d_cache_preference_toggle::FavouredChiplets;
+use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
     config::{Config, widget_groups::temperature_sensors::SensorConfig},
@@ -248,13 +248,12 @@ impl ComputeGroup {
                 self.core_temperatures
                     .sections(|temperatures| temperatures.sections(&live)),
             ),
-            ComputeTarget::CachePreference => {
-                let chiplets = FavouredChiplets {
-                    preference: *self.cache_preference.current()?,
+            ComputeTarget::CachePreference => self.cache_preference.tooltip_with_facts(
+                ChipletRoles {
                     topology: self.clock.get().map(|clock| &clock.topology),
-                };
-                self.cache_preference.tooltip_with(chiplets.body())
-            }
+                }
+                .sections(),
+            ),
             ComputeTarget::Board => self
                 .hardware
                 .tooltip_with(self.hardware.get()?.machine.board_firmware()?.tooltip()),

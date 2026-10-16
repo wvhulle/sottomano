@@ -9,7 +9,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{Freshness, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -51,15 +51,8 @@ impl IconToggle {
         }
     }
 
-    pub fn readout_tooltip(label: impl Into<Cell>, readout: impl Into<Cell>) -> Tooltip {
-        Tooltip::sourced(
-            TooltipBody::dictionary([KeyValue::new(label, readout)]),
-            Freshness::Live,
-        )
-    }
-
-    pub fn switch_tooltip(&self, label: impl Into<Cell>, described: &str) -> Tooltip {
-        Self::readout_tooltip(label, if self.enabled { described } else { "off" })
+    pub fn switch_tooltip(&self) -> Tooltip {
+        Tooltip::sourced(self.tooltip(), Freshness::Live)
     }
 }
 
@@ -85,6 +78,7 @@ pub trait Toggle: PolledSource + BarWidget {
     fn toggled(&self) -> Self;
     fn toggle(&self) -> bool;
     fn press_does(&self) -> &'static str;
+    fn facts() -> Vec<Section>;
 }
 
 pub struct ToggleControl<S> {
@@ -134,15 +128,14 @@ impl<S: Toggle> ToggleControl<S> {
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {
-        self.reading.tooltip()
+        self.tooltip_with_facts(S::facts())
     }
 
-    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        self.reading.tooltip_with(body)
-    }
-
-    pub fn current(&self) -> Option<&S> {
-        self.reading.get()
+    pub fn tooltip_with_facts(&self, facts: Vec<Section>) -> Option<Tooltip> {
+        match self.reading.get() {
+            Some(_) => self.reading.tooltip_with(TooltipBody::sections(facts)),
+            None => self.reading.tooltip(),
+        }
     }
 
     pub fn reading(&self) -> Option<&dyn BarWidget> {

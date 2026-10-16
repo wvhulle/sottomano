@@ -22,6 +22,22 @@ pub enum Action {
     ReflowToasts(Task<Message>),
 }
 
+fn toast_spatial_layout_toggle(overlays: OverlaySettings) -> IconToggle {
+    IconToggle::new(
+        "Toast spatial layout",
+        if overlays.toast_spatial_layout {
+            Phosphor::TextAlignCenter(Weight::Regular)
+        } else {
+            Phosphor::TextAlignRight(Weight::Regular)
+        },
+        overlays.toast_spatial_layout,
+        SwitchPresses {
+            turning_on: "show notifications beside the window that sent them",
+            turning_off: "show notifications in the screen corner",
+        },
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverlayTarget {
     ToastSpatialLayout,
@@ -94,14 +110,9 @@ impl OverlayGroup {
 
     pub fn tooltip_for(&self, target: OverlayTarget, overlays: OverlaySettings) -> Tooltip {
         match target {
-            OverlayTarget::ToastSpatialLayout => IconToggle::readout_tooltip(
-                "Notifications",
-                if overlays.toast_spatial_layout {
-                    "beside the window that sent them"
-                } else {
-                    "in the screen corner"
-                },
-            ),
+            OverlayTarget::ToastSpatialLayout => {
+                toast_spatial_layout_toggle(overlays).switch_tooltip()
+            }
             OverlayTarget::Opacity => self
                 .opacity
                 .readout_tooltip("Notification and tooltip opacity"),
@@ -169,25 +180,12 @@ impl OverlayGroup {
         config: &'a Config,
         overlays: OverlaySettings,
     ) -> GroupContent<'a, OverlayMessage> {
-        let spatial_layout_icon = if overlays.toast_spatial_layout {
-            Phosphor::TextAlignCenter(Weight::Regular)
-        } else {
-            Phosphor::TextAlignRight(Weight::Regular)
-        };
         GroupContent::new(
             &self.expansion,
             OverlayMessage::Expansion,
             [
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Toast spatial layout",
-                        spatial_layout_icon,
-                        overlays.toast_spatial_layout,
-                        SwitchPresses {
-                            turning_on: "show notifications beside the window that sent them",
-                            turning_off: "show notifications in the screen corner",
-                        },
-                    ),
+                    toast_spatial_layout_toggle(overlays),
                     OverlayTarget::ToastSpatialLayout,
                     OverlayMessage::ToggleToastSpatialLayout,
                 ),

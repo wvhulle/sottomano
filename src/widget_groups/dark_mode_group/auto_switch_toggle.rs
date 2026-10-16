@@ -157,20 +157,18 @@ impl BarWidget for AutoSwitchToggle {
 
     fn tooltip(&self) -> TooltipBody {
         let upcoming = match self.status_at(Utc::now()) {
-            ScheduleStatus::Disarmed => {
-                return TooltipBody::dictionary([KeyValue::new("Auto-switch", "off")]);
-            }
+            ScheduleStatus::Disarmed => return TooltipBody::sections([]),
             ScheduleStatus::AwaitingLocationFix => {
-                return TooltipBody::dictionary([
-                    KeyValue::new("Auto-switch", "on"),
-                    KeyValue::new("Next", "waiting for a location fix"),
-                ]);
+                return TooltipBody::dictionary([KeyValue::new(
+                    "Next",
+                    "waiting for a location fix",
+                )]);
             }
             ScheduleStatus::NoSunEvents => {
-                return TooltipBody::dictionary([
-                    KeyValue::new("Auto-switch", "on"),
-                    KeyValue::new("Next", "no sunrise or sunset soon"),
-                ]);
+                return TooltipBody::dictionary([KeyValue::new(
+                    "Next",
+                    "no sunrise or sunset soon",
+                )]);
             }
             ScheduleStatus::Following { upcoming, .. } => upcoming,
         };
@@ -182,7 +180,6 @@ impl BarWidget for AutoSwitchToggle {
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
         TooltipBody::dictionary([
-            KeyValue::new("Auto-switch".to_owned(), Cell::from("on")),
             KeyValue::new(
                 upcoming.target_mode.sun_event_label().to_owned(),
                 Cell::Time {
