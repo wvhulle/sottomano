@@ -21,6 +21,14 @@ impl FocusSpan {
         }
     }
 
+    pub(super) fn piece(&self) -> FocusPiece<'_> {
+        FocusPiece {
+            interval: self.interval(),
+            window: self.window,
+            units: &self.units,
+        }
+    }
+
     pub(super) fn ending_at(self, ended_at: DateTime<Utc>) -> Self {
         Self { ended_at, ..self }
     }
@@ -30,17 +38,25 @@ impl FocusSpan {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct FocusPiece<'a> {
+    pub interval: Interval,
+    pub window: u64,
+    pub units: &'a [FocusUnit],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FocusScope {
+    #[cfg_attr(not(test), expect(dead_code))]
     Unit(FocusUnit),
     Window(u64),
 }
 
 impl FocusScope {
-    pub(super) fn covers(&self, span: &FocusSpan) -> bool {
+    pub(super) fn covers(&self, piece: &FocusPiece) -> bool {
         match self {
-            FocusScope::Unit(unit) => span.units.contains(unit),
-            FocusScope::Window(window) => span.window == *window,
+            FocusScope::Unit(unit) => piece.units.contains(unit),
+            FocusScope::Window(window) => piece.window == *window,
         }
     }
 }

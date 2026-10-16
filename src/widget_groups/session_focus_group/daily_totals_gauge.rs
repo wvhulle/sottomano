@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, iter::once};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -8,9 +8,7 @@ use crate::{
         severity::Severity,
         source::{
             ai::quota::{Pace, Quota, QuotaLimited},
-            focus_ledger::{
-                Accounting, BudgetStatus, FocusUnit, Interval, UnitTotal, WakingWindow,
-            },
+            focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
         },
     },
     widget_groups::ai_group::amount_text::{coarse_duration_text, duration_text},
@@ -23,14 +21,32 @@ use crate::{
     },
 };
 
-pub struct DailyTotalsGauge<'a> {
-    pub accounting: Accounting<'a>,
-    pub waking: WakingWindow,
+pub struct DailyTotalsGauge {
+    screen_spent: TimeDelta,
+    screen_budget: Option<BudgetStatus>,
+    units: Vec<UnitSpendRecord>,
 }
 
-impl DailyTotalsGauge<'_> {
-    fn worst(&self, now: DateTime<Utc>) -> Option<Quota> {
-        self.quotas(now)
+impl DailyTotalsGauge {
+    pub fn new(accounting: &Accounting<'_>, waking: WakingWindow) -> Self {
+        let now = Utc::now();
+        let window = waking.around(now);
+        Self {
+            screen_spent: accounting.screen_spent(window, now),
+            screen_budget: accounting.screen_budget_status(window, now),
+            units: accounting
+                .unit_totals(window, now)
+                .into_iter()
+                .map(|total| UnitSpendRecord {
+                    budget_status: total.budget_status(window, now),
+                    total,
+                })
+                .collect(),
+        }
+    }
+
+    fn worst(&self) -> Option<Quota> {
+        self.quotas(Utc::now())
             .into_iter()
             .max_by(|a, b| a.used.partial_cmp(&b.used).unwrap_or(Ordering::Equal))
     }
@@ -46,36 +62,24 @@ impl DailyTotalsGauge<'_> {
     }
 
     pub fn sections(&self) -> Vec<Section> {
-        let now = Utc::now();
-        let window = self.waking.around(now);
-        let (apps, projects): (Vec<UnitSpendRecord>, Vec<UnitSpendRecord>) = self
-            .accounting
-            .unit_totals(window, now)
-            .into_iter()
-            .map(|total| UnitSpendRecord {
-                budget_status: total.budget_status(window, now),
-                total,
-            })
+        let (apps, projects): (Vec<&UnitSpendRecord>, Vec<&UnitSpendRecord>) = self
+            .units
+            .iter()
             .partition(|record| matches!(record.total.unit, FocusUnit::App(_)));
-        once(self.screen(window, now))
-            .chain(UnitSpendRecord::section(apps, "Applications"))
-            .chain(UnitSpendRecord::section(projects, "Projects"))
+        once(self.screen())
+            .chain(UnitSpendRecord::section(&apps, "Applications"))
+            .chain(UnitSpendRecord::section(&projects, "Projects"))
             .collect()
     }
 
-    fn screen(&self, window: Interval, now: DateTime<Utc>) -> Section {
-        let status = self.accounting.screen_budget_status(window, now);
-        let today = KeyValue::new(
-            "Today",
-            duration_text(self.accounting.screen_spent(window, now)),
-        )
-        .level(
+    fn screen(&self) -> Section {
+        let status = self.screen_budget.as_ref();
+        let today = KeyValue::new("Today", duration_text(self.screen_spent)).level(
             status
-                .as_ref()
                 .map(|status| status.quota.severity())
                 .unwrap_or_default(),
         );
-        let budget_entries = status.iter().flat_map(|status| {
+        let budget_entries = status.into_iter().flat_map(|status| {
             once(KeyValue::new("Budget", duration_text(status.budget))).chain(
                 Self::runs_out_cell(&status.quota).map(|cell| KeyValue::new("Runs out", cell)),
             )
@@ -90,7 +94,7 @@ struct UnitSpendRecord {
 }
 
 impl UnitSpendRecord {
-    fn section(records: Vec<Self>, title: &str) -> Option<Section> {
+    fn section(records: &[&Self], title: &str) -> Option<Section> {
         if records.is_empty() {
             None
         } else if records.iter().any(|record| record.budget_status.is_some()) {
@@ -100,12 +104,12 @@ impl UnitSpendRecord {
                     ColumnHeading::new("Budget"),
                     ColumnHeading::new("Runs out"),
                 ],
-                records.into_iter().map(Self::budgeted_record),
+                records.iter().map(|record| Self::budgeted_record(record)),
             ))
         } else {
             Some(Section::column_table(
                 [ColumnHeading::new("Today")],
-                records.into_iter().map(Self::plain_record),
+                records.iter().map(|record| Self::plain_record(record)),
             ))
         }
         .map(|section| section.titled(title))
@@ -118,7 +122,7 @@ impl UnitSpendRecord {
             .unwrap_or_default()
     }
 
-    fn plain_record(self) -> TableRecord<1> {
+    fn plain_record(&self) -> TableRecord<1> {
         let level = self.severity();
         TableRecord::new(
             self.total.unit.label().into_owned(),
@@ -127,7 +131,7 @@ impl UnitSpendRecord {
         .level(level)
     }
 
-    fn budgeted_record(self) -> TableRecord<3> {
+    fn budgeted_record(&self) -> TableRecord<3> {
         let level = self.severity();
         TableRecord::new(
             self.total.unit.label().into_owned(),
@@ -145,13 +149,18 @@ impl UnitSpendRecord {
     }
 }
 
-impl QuotaLimited for DailyTotalsGauge<'_> {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.accounting.quotas_within(self.waking.around(now), now)
+impl QuotaLimited for DailyTotalsGauge {
+    fn quotas(&self, _now: DateTime<Utc>) -> Vec<Quota> {
+        self.units
+            .iter()
+            .filter_map(|record| record.budget_status.as_ref())
+            .chain(&self.screen_budget)
+            .map(|status| status.quota.clone())
+            .collect()
     }
 }
 
-impl BarWidget for DailyTotalsGauge<'_> {
+impl BarWidget for DailyTotalsGauge {
     fn name(&self) -> &'static str {
         "Daily focus budget"
     }
@@ -161,16 +170,10 @@ impl BarWidget for DailyTotalsGauge<'_> {
     }
 
     fn label(&self) -> Option<String> {
-        let now = Utc::now();
-        let spent =
-            coarse_duration_text(self.accounting.screen_spent(self.waking.around(now), now));
-        Some(
-            self.accounting
-                .screen_budget()
-                .map_or(spent.clone(), |budget| {
-                    format!("{spent} / {}", coarse_duration_text(budget))
-                }),
-        )
+        let spent = coarse_duration_text(self.screen_spent);
+        Some(self.screen_budget.as_ref().map_or(spent.clone(), |status| {
+            format!("{spent} / {}", coarse_duration_text(status.budget))
+        }))
     }
 
     fn state(&self) -> WidgetState {
@@ -178,7 +181,7 @@ impl BarWidget for DailyTotalsGauge<'_> {
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        self.worst(Utc::now()).map(|quota| quota.used)
+        self.worst().map(|quota| quota.used)
     }
 
     fn tooltip(&self) -> TooltipBody {

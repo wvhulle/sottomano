@@ -20,6 +20,16 @@ impl Interval {
     }
 }
 
+pub(super) fn overlaps_with(
+    sorted: &[Interval],
+    interval: Interval,
+) -> impl Iterator<Item = Interval> + '_ {
+    sorted[sorted.partition_point(|candidate| candidate.until <= interval.from)..]
+        .iter()
+        .take_while(move |candidate| candidate.from < interval.until)
+        .filter_map(move |candidate| candidate.intersect(interval))
+}
+
 pub(super) fn merged(mut intervals: Vec<Interval>) -> Vec<Interval> {
     intervals.sort_by_key(|interval| interval.from);
     intervals.into_iter().fold(Vec::new(), |mut merged, next| {

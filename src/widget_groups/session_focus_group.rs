@@ -131,14 +131,14 @@ impl SessionFocusGroup {
         &'a self,
         config: &'a Config,
         waking: WakingWindow,
-    ) -> DailyTotalsGauge<'a> {
-        DailyTotalsGauge {
-            accounting: self
+    ) -> DailyTotalsGauge {
+        DailyTotalsGauge::new(
+            &self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
             waking,
-        }
+        )
     }
 
     fn context_switch_rate<'a>(

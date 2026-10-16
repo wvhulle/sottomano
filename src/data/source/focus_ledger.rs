@@ -27,7 +27,8 @@ pub use self::{
 #[cfg(test)]
 pub use self::{focus_identity::Focused, focus_units::Presence};
 use self::{
-    presence_timeline::PresenceTimeline, recorded_spans::TimelineUpdate,
+    presence_timeline::PresenceTimeline,
+    recorded_spans::{FocusPiece, TimelineUpdate},
     window_focus_timeline::WindowFocusTimeline,
 };
 use crate::config::widget_groups::focus_time::FocusTimeConfig;
@@ -148,11 +149,12 @@ impl FocusLedger {
         self.presence_timeline.presence_spans_ended_by(now)
     }
 
-    fn window_focus_spans_ended_by(
+    fn focus_pieces_within(
         &self,
+        window: Interval,
         now: DateTime<Utc>,
-    ) -> impl Iterator<Item = FocusSpan> + '_ {
-        self.window_focus_timeline.window_focus_spans_ended_by(now)
+    ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
+        self.window_focus_timeline.pieces_within(window, now)
     }
 
     fn first_presence_started_at(&self) -> DateTime<Utc> {
