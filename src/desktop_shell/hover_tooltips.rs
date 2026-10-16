@@ -132,6 +132,10 @@ pub enum TooltipMessage {
     Exit {
         target: HoverTarget,
     },
+    PressHintsChanged {
+        target: HoverTarget,
+        press_hints: PressHints,
+    },
     EnterTooltip,
     ExitTooltip,
     SwitchIntentElapsed {
