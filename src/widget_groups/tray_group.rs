@@ -16,7 +16,7 @@ use crate::{
     },
     desktop_shell::{
         AppWindowFocus,
-        hover_tooltips::{HoverTarget, PressHints, hoverable},
+        hover_tooltips::{GroupHandle, HoverTarget, PressHints, hoverable},
     },
     widgets::{
         activity_line::activity_line,
@@ -178,9 +178,10 @@ impl TrayGroup {
                 .into_iter()
                 .map(|item| GroupItem::element(move |reveal| item_view(config, item, reveal))),
         )
-        .face(HandleFace::Icon(
-            Phosphor::DotsThreeVertical(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
+            handle: GroupHandle::Tray,
+        })
     }
 }
 

@@ -26,7 +26,7 @@ use crate::{
             openrouter::OpenRouter,
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         continuous_reading::ContinuousReading,
@@ -241,7 +241,10 @@ impl AiGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon(Phosphor::Robot(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Robot(Weight::Regular).into(),
+            handle: GroupHandle::Ai,
+        })
         .preview(
             self.claude_usage_windows
                 .present()

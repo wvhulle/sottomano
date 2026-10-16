@@ -11,7 +11,7 @@ use crate::{
     data::source::{
         focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     state::{self, idle::Timeouts},
     widgets::{
         group_item::GroupItem,
@@ -253,7 +253,10 @@ impl IdleTimeoutsGroup {
                 })
             }),
         )
-        .face(HandleFace::Icon(Phosphor::Timer(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Timer(Weight::Regular).into(),
+            handle: GroupHandle::IdleTimeouts,
+        })
         .preview(Some(PreviewedValue::Plain(self.lock.reading())))
     }
 }

@@ -2,7 +2,10 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{
+        Message,
+        hover_tooltips::{GroupHandle, HoverTarget},
+    },
     state::{self, PanelAppearance},
     widgets::{
         group_item::GroupItem,
@@ -148,6 +151,9 @@ impl PanelAppearanceGroup {
                 ),
             ],
         )
-        .face(HandleFace::Icon(Phosphor::Rows(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Rows(Weight::Regular).into(),
+            handle: GroupHandle::PanelAppearance,
+        })
     }
 }

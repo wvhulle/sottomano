@@ -2,7 +2,10 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{
+        Message,
+        hover_tooltips::{GroupHandle, HoverTarget},
+    },
     state::{
         self, OutlineStyle, ShadowStyle,
         niri_rules::{NiriRulesFile, NiriStyling},
@@ -260,6 +263,9 @@ impl SurfaceEffectsGroup {
                 ),
             ],
         )
-        .face(HandleFace::Icon(Phosphor::Sparkle(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Sparkle(Weight::Regular).into(),
+            handle: GroupHandle::SurfaceEffects,
+        })
     }
 }

@@ -8,6 +8,7 @@ use iced::{
 use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
+    desktop_shell::hover_tooltips::GroupHandle,
     message_subscriptions::blocking,
     widgets::{
         flat_button,
@@ -90,7 +91,10 @@ impl QuickLaunch {
                     })
                 }),
         )
-        .face(HandleFace::Icon(Phosphor::Rocket(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Rocket(Weight::Regular).into(),
+            handle: GroupHandle::QuickLaunch,
+        })
     }
 }
 

@@ -17,7 +17,7 @@ use crate::{
             wifi::{Wifi, WifiDetails},
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::listening,
     widgets::{
         bar_widget::BarWidget,
@@ -150,7 +150,10 @@ impl NetInterfacesGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon(Phosphor::Link(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Link(Weight::Regular).into(),
+            handle: GroupHandle::NetInterfaces,
+        })
         .preview(self.preferred_uplink().map(PreviewedValue::Plain))
     }
 

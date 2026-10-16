@@ -10,7 +10,7 @@ use crate::{
             self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::blocking,
     widgets::{
         bar_widget::BarWidget,
@@ -283,9 +283,10 @@ impl AudioGroup {
         .face(HandleFace::IconColoredBy {
             glyph: Phosphor::Waveform(Weight::Regular).into(),
             reading: &self.sink_control,
+            handle: GroupHandle::Audio,
         })
         .preview(sink.map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)))
-        .forwards_scroll(sink.is_some())
+        .forwards_scroll(sink.map(|_| "change the output volume"))
     }
 
     pub fn collapse(&mut self) {

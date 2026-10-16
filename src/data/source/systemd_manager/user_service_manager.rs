@@ -3,12 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::{
-    data::source::{
-        PolledSource, Source,
-        bus,
-        hostname::at_micros,
-        systemd_manager::ManagerProxy,
-    },
+    data::source::{PolledSource, Source, bus, hostname::at_micros, systemd_manager::ManagerProxy},
     widgets::{
         localized_time::TimePart,
         tooltip_body::{Cell, KeyValue, Section},

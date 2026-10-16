@@ -18,7 +18,7 @@ use crate::{
         clight::Clight,
         niri::OutputInfo,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, blocking, polling},
     widgets::{
         bar_widget::BarWidget,
@@ -209,10 +209,11 @@ impl MonitorGroup {
                     .group_item(MonitorTarget::ClightAuto, MonitorMessage::Clight),
             ),
         )
-        .face(HandleFace::Icon(
-            Phosphor::Lightbulb(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Lightbulb(Weight::Regular).into(),
+            handle: GroupHandle::Monitor,
+        })
         .preview(previewed_value.map(PreviewedValue::Plain))
-        .forwards_scroll(!self.sliders.is_empty())
+        .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 }

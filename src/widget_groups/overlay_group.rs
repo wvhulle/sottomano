@@ -2,7 +2,10 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{
+        Message,
+        hover_tooltips::{GroupHandle, HoverTarget},
+    },
     state::{
         OverlaySettings,
         overlay_settings::{self, OverlaySetting},
@@ -193,6 +196,9 @@ impl OverlayGroup {
                 GroupItem::slider(&self.corner_radius, config, OverlayMessage::CornerRadius),
             ],
         )
-        .face(HandleFace::Icon(Phosphor::Stack(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Stack(Weight::Regular).into(),
+            handle: GroupHandle::Overlay,
+        })
     }
 }

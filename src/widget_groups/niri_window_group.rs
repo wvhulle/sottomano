@@ -2,7 +2,10 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{
+        Message,
+        hover_tooltips::{GroupHandle, HoverTarget},
+    },
     state::niri_rules::{NiriLayout, NiriRulesFile},
     widgets::{
         group_item::GroupItem,
@@ -134,8 +137,9 @@ impl NiriWindowGroup {
                 GroupItem::slider(&self.gaps, config, NiriWindowMessage::Gaps),
             ],
         )
-        .face(HandleFace::Icon(
-            Phosphor::AppWindow(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::AppWindow(Weight::Regular).into(),
+            handle: GroupHandle::NiriWindow,
+        })
     }
 }

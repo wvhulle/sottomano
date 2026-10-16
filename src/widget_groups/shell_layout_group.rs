@@ -2,7 +2,10 @@ use iced::Task;
 
 use crate::{
     config::Config,
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+    desktop_shell::{
+        Message,
+        hover_tooltips::{GroupHandle, HoverTarget},
+    },
     state::{self, ShellLayout, WorkspacesPlacement},
     widgets::{
         group_item::GroupItem,
@@ -204,6 +207,9 @@ impl ShellLayoutGroup {
                 GroupItem::slider(&self.float_offset, config, ShellLayoutMessage::FloatOffset),
             ],
         )
-        .face(HandleFace::Icon(Phosphor::Layout(Weight::Regular).into()))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Layout(Weight::Regular).into(),
+            handle: GroupHandle::ShellLayout,
+        })
     }
 }

@@ -20,7 +20,7 @@ use crate::{
             user_service_manager::UserServiceManager,
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace,
@@ -177,9 +177,10 @@ impl LoginSessionGroup {
             LoginSessionMessage::Expansion,
             kernel.into_iter().chain(items),
         )
-        .face(HandleFace::Icon(
-            Phosphor::StackSimple(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::StackSimple(Weight::Regular).into(),
+            handle: GroupHandle::LoginSession,
+        })
     }
 
     pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {
