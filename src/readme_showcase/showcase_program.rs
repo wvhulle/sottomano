@@ -1,8 +1,11 @@
+use std::iter::once;
+
 use iced::{
     Element, Length, Settings, Task, Theme,
     alignment::Vertical,
+    executor,
     theme::Style,
-    widget::{container, stack},
+    widget::{Column, Row, container, stack},
     window,
 };
 use iced_test::program::Program;
@@ -14,15 +17,16 @@ use crate::{
         hover_tooltips::{TooltipHost, TooltipMessage},
         monitor_surfaces::{PanelEdge, Position},
     },
-    readme_showcase::{scene_script::Scene, showcased_group::ShowcasedGroup},
+    readme_showcase::{
+        demo_script::Demo,
+        showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
+    },
     state::ShellSettings,
     widgets::{favicon::Favicons, panel_frame::panel_frame, tooltip_body::Tooltip},
 };
 
-const SHOWCASE_OUTPUT: &str = "readme-showcase";
-
 pub struct ShowcaseProgram {
-    pub scene: &'static Scene,
+    pub demo: &'static Demo,
     pub config: Config,
 }
 
@@ -39,36 +43,48 @@ impl ShowcaseState {
     fn shown_tooltip(&self) -> Option<Tooltip> {
         self.tooltip
             .target()
-            .and_then(|target| self.group.tooltip_for(target))
+            .and_then(|target| self.group.tooltip_for(target, &self.config))
     }
 
-    fn panel_edge() -> PanelEdge {
+    fn panel_edge(&self) -> PanelEdge {
         PanelEdge {
             output: SHOWCASE_OUTPUT.to_owned(),
-            position: Position::Top,
+            position: self.group.position(),
         }
     }
 
-    fn group_strip(&self) -> Option<Element<'_, Message>> {
+    fn group_strip(&self) -> Element<'_, Message> {
         let panel = &self.config.layout.panel;
         let frame_style = self.shell_settings.frame_style(&self.config);
-        let outlined_sides = self
-            .shell_settings
-            .outlined_sides(Position::Top.inward_sides());
-        self.group.view(&self.config).map(|group| {
-            panel_frame(
-                container(group)
-                    .height(Length::Fixed(panel.height))
-                    .align_y(Vertical::Center)
-                    .padding([
-                        0.0,
-                        self.shell_settings.panels.frame_corner_inset() + panel.group_padding,
-                    ]),
-                &frame_style,
-            )
-            .outlined_sides(outlined_sides)
-            .into()
-        })
+        let panels = &self.shell_settings.panels;
+        let position = self.group.position();
+        let outlined_sides = self.shell_settings.outlined_sides(position.inward_sides());
+        let framed = self
+            .group
+            .panel_groups(&self.config)
+            .into_iter()
+            .map(|group| {
+                let content = match position {
+                    Position::Left => {
+                        container(group).padding([panels.corner_radius.top_left, 0.0])
+                    }
+                    Position::Top | Position::Bottom => container(group)
+                        .height(Length::Fixed(panel.height))
+                        .align_y(Vertical::Center)
+                        .padding([0.0, panels.frame_corner_inset() + panel.group_padding]),
+                };
+                panel_frame(content, &frame_style)
+                    .outlined_sides(outlined_sides)
+                    .into()
+            });
+        match position {
+            Position::Left => Column::with_children(framed)
+                .spacing(panel.widget_spacing)
+                .into(),
+            Position::Top | Position::Bottom => Row::with_children(framed)
+                .spacing(panel.widget_spacing)
+                .into(),
+        }
     }
 
     fn tooltip_layer(&self) -> Option<Element<'_, Message>> {
@@ -80,7 +96,7 @@ impl ShowcaseState {
             &self.favicons,
             |target| {
                 self.group
-                    .tooltip_for(target)
+                    .tooltip_for(target, &self.config)
                     .unwrap_or_else(Tooltip::empty)
             },
         )
@@ -92,7 +108,7 @@ impl Program for ShowcaseProgram {
     type Message = Message;
     type Theme = Theme;
     type Renderer = iced::Renderer;
-    type Executor = iced::executor::Default;
+    type Executor = executor::Default;
 
     fn name() -> &'static str {
         "vetrata_readme_showcase"
@@ -118,7 +134,7 @@ impl Program for ShowcaseProgram {
             shell_settings: ShellSettings::default(),
             favicons: Favicons::default(),
             theme: Theme::from(&self.config.theme.palette),
-            group: (self.scene.boot_group)(),
+            group: (self.demo.group)(),
             tooltip,
         };
         (state, Task::none())
@@ -132,9 +148,8 @@ impl Program for ShowcaseProgram {
                 press_hints,
             }) => {
                 state.group.hover(&target, &state.config);
-                state
-                    .tooltip
-                    .open(&ShowcaseState::panel_edge(), target, anchor, press_hints);
+                let panel_edge = state.panel_edge();
+                state.tooltip.open(&panel_edge, target, anchor, press_hints);
                 Task::none()
             }
             Message::Tooltip(message) => state.tooltip.update(message),
@@ -154,19 +169,20 @@ impl Program for ShowcaseProgram {
 
     fn view<'a>(&self, state: &'a ShowcaseState, _window: window::Id) -> Element<'a, Message> {
         let gap = state.config.layout.panel.group_padding;
-        stack(
-            [
-                state
-                    .group_strip()
-                    .map(|strip| container(strip).padding(gap).into()),
-                state.tooltip_layer(),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        let panel_side = match state.group.position() {
+            Position::Top => Vertical::Top,
+            Position::Left => Vertical::Center,
+            Position::Bottom => Vertical::Bottom,
+        };
+        let strip = container(state.group_strip())
+            .padding(gap)
+            .height(Length::Fill)
+            .align_y(panel_side)
+            .into();
+        stack(once(strip).chain(state.tooltip_layer()))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn theme(&self, state: &ShowcaseState, _window: window::Id) -> Option<Theme> {

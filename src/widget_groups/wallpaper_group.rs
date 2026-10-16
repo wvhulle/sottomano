@@ -36,7 +36,7 @@ pub struct Lookup {
 }
 
 impl Lookup {
-    fn of(wallpaper: &Wallpaper) -> Self {
+    pub fn of(wallpaper: &Wallpaper) -> Self {
         Self {
             place: Place::of(wallpaper),
             article: Article::of(wallpaper),

@@ -242,6 +242,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
+        operation.custom(None, layout.bounds(), &mut self.target);
         self.content
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);
