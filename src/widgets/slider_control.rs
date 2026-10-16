@@ -422,7 +422,19 @@ impl SliderControl {
             reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
         ])
         .align_y(Alignment::Center);
-        let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
+        let press_hints = PressHints {
+            left: Some("close the slider"),
+            right: self.right_click,
+            scroll: Some("adjust"),
+            ..PressHints::default()
+        };
+        let hover = hoverable(
+            opened.into(),
+            self.target.clone(),
+            press_hints,
+            ControlMessage::Tooltip,
+        );
+        let mut area = mouse_area(hover).on_scroll(ControlMessage::Scroll);
         if self.right_click.is_some() {
             area = area.on_right_press(ControlMessage::Right);
         }

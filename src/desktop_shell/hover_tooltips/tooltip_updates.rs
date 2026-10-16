@@ -8,7 +8,7 @@ use crate::{
     },
     widget_groups::{
         notification_group::NotificationGroup,
-        window_group::{WindowGroup, WindowTarget},
+        window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_tooltip,
     },
     widgets::tooltip_body::{Freshness, Tooltip, TooltipBody},
@@ -119,7 +119,7 @@ impl DesktopShell {
             HoverTarget::Internet(target) => self.internet_group.tooltip_for(target),
             HoverTarget::Weather(target) => self.weather_group.tooltip_for(*target),
             HoverTarget::Wallpaper(target) => self.wallpaper_group.tooltip_for(*target),
-            HoverTarget::Media => self.media_group.tooltip(),
+            HoverTarget::Media(target) => self.media_group.tooltip_for(target),
             HoverTarget::Ai(target) => self.ai_group.tooltip_for(*target),
             HoverTarget::SessionFocus(target) => Some(self.session_focus_group.tooltip_for(
                 *target,
@@ -128,6 +128,7 @@ impl DesktopShell {
             )),
             HoverTarget::LoginSession(target) => self.login_session_group.tooltip_for(*target),
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
+            HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::tooltip_for(app_id)),
             HoverTarget::GroupHandle(_) => {
                 Some(Tooltip::sourced(TooltipBody::sections([]), Freshness::Live))
             }

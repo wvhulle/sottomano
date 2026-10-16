@@ -42,6 +42,10 @@ impl ConfirmButton {
         self.armed = false;
     }
 
+    pub fn is_armed(&self) -> bool {
+        self.armed
+    }
+
     pub fn view<'a, Message: 'a + Clone>(
         &self,
         config: &Config,

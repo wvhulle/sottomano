@@ -3,6 +3,8 @@ use iced::{Alignment, Color, Element, widget::Row};
 use crate::{
     config::Config,
     data::source::mpris::{Command, LoopMode, Media, Status},
+    desktop_shell::hover_tooltips::{PressHints, TooltipMessage, hoverable},
+    widget_groups::media_group::MediaTarget,
     widgets::{
         glyph_button,
         phosphor::{Phosphor, Weight},
@@ -16,6 +18,13 @@ pub struct TransportControls<'c, Message> {
     media: &'c Media,
     reveal: f32,
     on_command: fn(Command) -> Message,
+    on_tooltip: fn(TooltipMessage) -> Message,
+}
+
+struct TransportPress {
+    target: MediaTarget,
+    does: &'static str,
+    command: Command,
 }
 
 impl<'c, Message: Clone> TransportControls<'c, Message> {
@@ -24,12 +33,14 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         media: &'c Media,
         reveal: f32,
         on_command: fn(Command) -> Message,
+        on_tooltip: fn(TooltipMessage) -> Message,
     ) -> Self {
         Self {
             config,
             media,
             reveal,
             on_command,
+            on_tooltip,
         }
     }
 
@@ -43,32 +54,48 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
             .scale_alpha(self.reveal)
     }
 
-    fn toggle<'a>(&self, icon: Phosphor, active: bool, command: Command) -> Element<'a, Message>
+    fn toggle<'a>(
+        &self,
+        icon: Phosphor,
+        active: bool,
+        press: TransportPress,
+    ) -> Element<'a, Message>
     where
         Message: 'a,
     {
         let state = WidgetState::of_toggle(active);
         self.control(
             icon.with_weight(state.weight()),
-            self.primary_size(),
             state
                 .color(&self.config.theme.palette)
                 .scale_alpha(self.reveal),
-            command,
+            press,
         )
     }
 
     fn control<'a>(
         &self,
         glyph: Phosphor,
-        size: f32,
         color: Color,
-        command: Command,
+        press: TransportPress,
     ) -> Element<'a, Message>
     where
         Message: 'a,
     {
-        glyph_button(glyph, size, color, (self.on_command)(command))
+        hoverable(
+            glyph_button(
+                glyph,
+                self.primary_size(),
+                color,
+                (self.on_command)(press.command),
+            ),
+            press.target.into(),
+            PressHints {
+                left: Some(press.does),
+                ..PressHints::default()
+            },
+            self.on_tooltip,
+        )
     }
 
     fn shuffle<'a>(&self) -> Option<Element<'a, Message>>
@@ -79,7 +106,15 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         Some(self.toggle(
             Phosphor::Shuffle(Weight::Regular),
             shuffled,
-            Command::SetShuffle(!shuffled),
+            TransportPress {
+                target: MediaTarget::Shuffle,
+                does: if shuffled {
+                    "play in order"
+                } else {
+                    "shuffle the queue"
+                },
+                command: Command::SetShuffle(!shuffled),
+            },
         ))
     }
 
@@ -90,9 +125,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.media.capabilities.go_previous.then(|| {
             self.control(
                 Phosphor::SkipBack(Weight::Fill),
-                self.primary_size(),
                 self.foreground(),
-                Command::Previous,
+                TransportPress {
+                    target: MediaTarget::Previous,
+                    does: "go to the previous track",
+                    command: Command::Previous,
+                },
             )
         })
     }
@@ -114,9 +152,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.media.capabilities.play.then(|| {
             self.control(
                 Phosphor::PlayCircle(Weight::Fill),
-                self.primary_size(),
                 self.foreground(),
-                Command::Play,
+                TransportPress {
+                    target: MediaTarget::PlayPause,
+                    does: "play",
+                    command: Command::Play,
+                },
             )
         })
     }
@@ -128,9 +169,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.media.capabilities.pause.then(|| {
             self.control(
                 Phosphor::PauseCircle(Weight::Fill),
-                self.primary_size(),
                 self.foreground(),
-                Command::Pause,
+                TransportPress {
+                    target: MediaTarget::PlayPause,
+                    does: "pause",
+                    command: Command::Pause,
+                },
             )
         })
     }
@@ -142,9 +186,12 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.media.capabilities.go_next.then(|| {
             self.control(
                 Phosphor::SkipForward(Weight::Fill),
-                self.primary_size(),
                 self.foreground(),
-                Command::Next,
+                TransportPress {
+                    target: MediaTarget::Next,
+                    does: "skip to the next track",
+                    command: Command::Next,
+                },
             )
         })
     }
@@ -161,7 +208,15 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         Some(self.toggle(
             glyph,
             mode != LoopMode::Off,
-            Command::SetLoopMode(mode.cycled()),
+            TransportPress {
+                target: MediaTarget::Loop,
+                does: match mode.cycled() {
+                    LoopMode::Off => "stop looping",
+                    LoopMode::Playlist => "loop the playlist",
+                    LoopMode::Track => "loop this track",
+                },
+                command: Command::SetLoopMode(mode.cycled()),
+            },
         ))
     }
 }
