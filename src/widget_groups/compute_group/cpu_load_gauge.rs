@@ -81,8 +81,9 @@ impl CpuCoreLoads {
             )
             .titled((
                 "Chiplets".to_owned(),
-                "Each square is one hardware thread, stacked per physical core; fill shows how \
-                 busy it was over the last sample."
+                "Each square is one physical core in core-number order, not die position, split \
+                 into its hardware threads; bar height shows how busy each thread was over the \
+                 last sample."
                     .to_owned(),
             )),
         ]

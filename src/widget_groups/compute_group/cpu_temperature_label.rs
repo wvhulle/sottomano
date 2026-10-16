@@ -175,8 +175,9 @@ impl CpuCoreTemperatures {
             )
             .titled((
                 "Chiplets".to_owned(),
-                "Each square is one hardware thread, stacked per physical core; fill shows its \
-                 core's sensor against the critical threshold."
+                "Each square is one physical core in core-number order, not die position, split \
+                 into its hardware threads; bar height shows the core's sensor against the \
+                 critical threshold."
                     .to_owned(),
             )),
         ]
