@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::{num::NonZeroU32, str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use humantime::format_duration;
@@ -10,13 +10,9 @@ use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            PolledSource, Source,
-            bus,
+            PolledSource, Source, bus,
             hostname::{at_micros, entry},
-            logind::{
-                InhibitorRow, ManagerProxy, greetd_greeter::greeter_program,
-                session_id,
-            },
+            logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
         },
     },
     widgets::{
@@ -40,8 +36,6 @@ trait Session {
     fn seat(&self) -> zbus::Result<(String, OwnedObjectPath)>;
     #[zbus(property, name = "VTNr")]
     fn vt_nr(&self) -> zbus::Result<u32>;
-    #[zbus(property, name = "TTY")]
-    fn tty(&self) -> zbus::Result<String>;
     #[zbus(property, name = "Type")]
     fn session_type(&self) -> zbus::Result<String>;
     #[zbus(property)]
@@ -57,12 +51,6 @@ trait Session {
     #[zbus(property)]
     fn state(&self) -> zbus::Result<String>;
     #[zbus(property)]
-    fn remote(&self) -> zbus::Result<bool>;
-    #[zbus(property)]
-    fn remote_host(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn remote_user(&self) -> zbus::Result<String>;
-    #[zbus(property)]
     fn timestamp(&self) -> zbus::Result<u64>;
     #[zbus(property)]
     fn idle_hint(&self) -> zbus::Result<bool>;
@@ -74,11 +62,8 @@ trait Session {
 pub struct SessionIdentity {
     pub user: String,
     pub uid: u32,
-    pub seat: Option<String>,
-    pub console: Option<String>,
-    pub virtual_terminal: Option<u32>,
-    pub remote_user: Option<String>,
-    pub remote_host: Option<String>,
+    pub seat: String,
+    pub virtual_terminal: Option<NonZeroU32>,
     pub login_manager: String,
     pub desktop: Option<String>,
     pub session_type: String,
@@ -96,25 +81,11 @@ impl PolledSource for SessionIdentity {
 
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let session = own_session().await?;
-        let remote = session.remote().await?;
         Ok(SessionIdentity {
             user: non_empty(session.name().await?).ok_or(bus::Error::Absent)?,
             uid: session.user().await?.0,
-            seat: session.seat().await.ok().and_then(|(seat, _)| non_empty(seat)),
-            console: session.tty().await.ok().and_then(non_empty),
-            virtual_terminal: session.vt_nr().await.ok().filter(|vt| *vt > 0),
-            remote_user: session
-                .remote_user()
-                .await
-                .ok()
-                .and_then(non_empty)
-                .filter(|_| remote),
-            remote_host: session
-                .remote_host()
-                .await
-                .ok()
-                .and_then(non_empty)
-                .filter(|_| remote),
+            seat: non_empty(session.seat().await?.0).ok_or(bus::Error::Absent)?,
+            virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
             login_manager: session.service().await?,
             desktop: session.desktop().await.ok().and_then(non_empty),
             session_type: session.session_type().await?,
@@ -305,7 +276,9 @@ async fn read_power(manager: &ManagerProxy<'_>) -> Result<PowerPolicy, bus::Erro
             .filter(|usec| *usec > 0 && *usec < u64::MAX)
             .map(Duration::from_micros),
         sleep_order: manager.sleep_operation().await?,
-        inhibitor_locks: manager.list_inhibitors().await?
+        inhibitor_locks: manager
+            .list_inhibitors()
+            .await?
             .into_iter()
             .flat_map(InhibitorLock::per_operation)
             .collect(),

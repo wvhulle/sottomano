@@ -1,6 +1,5 @@
 mod account_face;
 mod compositor_face;
-mod console_face;
 mod desktop_services_face;
 mod kernel_face;
 mod login_face;
@@ -24,7 +23,7 @@ use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{ForcedRefresh, polling},
     widget_groups::login_session_group::{
-        account_face::AccountFace, compositor_face::CompositorFace, console_face::ConsoleFace,
+        account_face::AccountFace, compositor_face::CompositorFace,
         desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
         power_policy_face::PowerPolicyFace, seat_face::SeatFace,
         service_manager_face::ServiceManagerFace,
@@ -44,7 +43,6 @@ use crate::{
 pub enum LoginSessionTarget {
     Kernel,
     Seat,
-    Console,
     Login,
     Account,
     ServiceManager,
@@ -154,27 +152,21 @@ impl LoginSessionGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, LoginSessionMessage> {
         let items = self.identity.get().into_iter().flat_map(|identity| {
-            let seat = identity
-                .seat
-                .as_deref()
-                .map(|seat| GroupItem::reading(SeatFace { seat }, LoginSessionTarget::Seat));
-            let console = identity.console.as_deref().map(|console| {
+            [
                 GroupItem::reading(
-                    ConsoleFace {
-                        console,
+                    SeatFace {
+                        seat: &identity.seat,
                         virtual_terminal: identity.virtual_terminal,
                     },
-                    LoginSessionTarget::Console,
-                )
-            });
-            seat.into_iter().chain(console).chain([
+                    LoginSessionTarget::Seat,
+                ),
                 GroupItem::reading(LoginFace { identity }, LoginSessionTarget::Login),
                 GroupItem::reading(AccountFace { identity }, LoginSessionTarget::Account),
                 GroupItem::reading(ServiceManagerFace, LoginSessionTarget::ServiceManager),
                 GroupItem::reading(CompositorFace { identity }, LoginSessionTarget::Compositor),
                 GroupItem::reading(DesktopServicesFace, LoginSessionTarget::DesktopServices),
                 GroupItem::reading(PowerPolicyFace, LoginSessionTarget::PowerPolicy),
-            ])
+            ]
         });
         let kernel = self
             .system
@@ -185,9 +177,9 @@ impl LoginSessionGroup {
             LoginSessionMessage::Expansion,
             kernel.into_iter().chain(items),
         )
-        .face(
-            HandleFace::Icon(Phosphor::StackSimple(Weight::Regular).into()),
-        )
+        .face(HandleFace::Icon(
+            Phosphor::StackSimple(Weight::Regular).into(),
+        ))
     }
 
     pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {
@@ -200,13 +192,13 @@ impl LoginSessionGroup {
                 }
                 .tooltip(),
             ),
-            LoginSessionTarget::Seat => session_face(&SeatFace {
-                seat: identity?.seat.as_deref()?,
-            }),
-            LoginSessionTarget::Console => session_face(&ConsoleFace {
-                console: identity?.console.as_deref()?,
-                virtual_terminal: identity?.virtual_terminal,
-            }),
+            LoginSessionTarget::Seat => {
+                let identity = identity?;
+                session_face(&SeatFace {
+                    seat: &identity.seat,
+                    virtual_terminal: identity.virtual_terminal,
+                })
+            }
             LoginSessionTarget::Login => session_face(&LoginFace {
                 identity: identity?,
             })
@@ -222,9 +214,8 @@ impl LoginSessionGroup {
             }),
             LoginSessionTarget::ServiceManager => {
                 session_face(&ServiceManagerFace).map(|tooltip| {
-                    tooltip.with_sections(
-                        self.service_manager.sections(UserServiceManager::sections),
-                    )
+                    tooltip
+                        .with_sections(self.service_manager.sections(UserServiceManager::sections))
                 })
             }
             LoginSessionTarget::DesktopServices => {
