@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc};
 use super::{
     focus_identity::Focused,
     focus_units::FocusUnit,
-    recorded_spans::{FocusSpan, SpanWrite, TimelineUpdate},
+    recorded_spans::{FocusPiece, FocusSpan, SpanWrite, TimelineUpdate},
+    time_intervals::Interval,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -149,13 +150,24 @@ impl WindowFocusTimeline {
         &self.finished_window_focus_spans
     }
 
-    pub(super) fn window_focus_spans_ended_by(
+    pub(super) fn pieces_within(
         &self,
+        window: Interval,
         now: DateTime<Utc>,
-    ) -> impl Iterator<Item = FocusSpan> + '_ {
-        self.finished_window_focus_spans.iter().cloned().chain(
-            self.focused_window_span()
-                .map(|span| span.clone().ending_at(now)),
-        )
+    ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
+        let first_reaching_window = self
+            .finished_window_focus_spans
+            .partition_point(|span| span.ended_at < window.from);
+        self.finished_window_focus_spans[first_reaching_window..]
+            .iter()
+            .map(FocusSpan::piece)
+            .chain(self.focused_window_span().map(|span| FocusPiece {
+                interval: Interval {
+                    from: span.started_at,
+                    until: now,
+                },
+                ..span.piece()
+            }))
+            .take_while(move |piece| piece.interval.from < window.until)
     }
 }

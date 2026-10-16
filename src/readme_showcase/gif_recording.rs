@@ -66,8 +66,10 @@ impl SceneRecorder {
     }
 
     fn interact(&mut self, mouse: Mouse) {
-        self.emulator
-            .run(&self.program, Instruction::Interact(Interaction::Mouse(mouse)));
+        self.emulator.run(
+            &self.program,
+            Instruction::Interact(Interaction::Mouse(mouse)),
+        );
         self.settle();
     }
 
@@ -97,7 +99,9 @@ impl SceneRecorder {
             .theme(&self.program)
             .expect("the showcase program always sets a theme");
         let captured_at = Instant::now();
-        let screenshot = self.emulator.screenshot(&self.program, &theme, SCALE_FACTOR);
+        let screenshot = self
+            .emulator
+            .screenshot(&self.program, &theme, SCALE_FACTOR);
         std::thread::sleep(FRAME_INTERVAL.saturating_sub(frame_started.elapsed()));
         CapturedFrame {
             screenshot,
@@ -167,8 +171,11 @@ impl ChangedRegion {
     fn crop(self, rgba: &[u8], canvas_width: u16) -> Vec<u8> {
         (self.top..=self.bottom)
             .flat_map(|row| {
-                let start = (usize::from(row) * usize::from(canvas_width) + usize::from(self.left)) * 4;
-                rgba[start..start + usize::from(self.width()) * 4].iter().copied()
+                let start =
+                    (usize::from(row) * usize::from(canvas_width) + usize::from(self.left)) * 4;
+                rgba[start..start + usize::from(self.width()) * 4]
+                    .iter()
+                    .copied()
             })
             .collect()
     }
@@ -210,12 +217,20 @@ fn encode_gif(frames: &[CapturedFrame], gif: &Path) {
         .for_each(|((captured, previous), shown_until)| {
             let region = previous
                 .and_then(|previous| {
-                    ChangedRegion::between(&previous.screenshot.rgba, &captured.screenshot.rgba, width)
+                    ChangedRegion::between(
+                        &previous.screenshot.rgba,
+                        &captured.screenshot.rgba,
+                        width,
+                    )
                 })
                 .unwrap_or_else(|| ChangedRegion::whole(width, height));
             let mut rgba = region.crop(&captured.screenshot.rgba, width);
-            let mut frame =
-                Frame::from_rgba_speed(region.width(), region.height(), &mut rgba, QUANTIZATION_SPEED);
+            let mut frame = Frame::from_rgba_speed(
+                region.width(),
+                region.height(),
+                &mut rgba,
+                QUANTIZATION_SPEED,
+            );
             frame.left = region.left;
             frame.top = region.top;
             let centiseconds = (shown_until - captured.captured_at).as_millis() / 10;

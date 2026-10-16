@@ -19,7 +19,7 @@ use crate::{
 };
 
 const PRESENCE_RESOLUTION: Duration = Duration::from_secs(30);
-const LOADED_HISTORY: TimeDelta = TimeDelta::days(2);
+const LOADED_HISTORY: TimeDelta = TimeDelta::days(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ProbedWindowFocus {

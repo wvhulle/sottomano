@@ -3,7 +3,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use super::{
     Accounting,
     focus_units::{FocusUnit, Presence},
-    time_intervals::{Interval, gaps_between, merged},
+    time_intervals::{Interval, gaps_between, merged, overlaps_with},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,15 +23,10 @@ impl Accounting<'_> {
     }
 
     pub fn active_intervals(&self, now: DateTime<Utc>) -> Vec<Interval> {
-        let idle_after = self.idle_after();
         merged(
             self.ledger
                 .presence_spans_ended_by(now)
-                .filter(|span| match span.state {
-                    Presence::Active => true,
-                    Presence::Idle => span.interval().length() < idle_after,
-                    Presence::Asleep | Presence::ScreenOff => false,
-                })
+                .filter(|span| span.state == Presence::Active)
                 .map(|span| span.interval())
                 .collect(),
         )
@@ -54,9 +49,7 @@ impl Accounting<'_> {
             now,
         )
         .into_iter()
-        .filter(|gap| {
-            gap.length() >= idle_after || away.iter().any(|span| span.intersect(*gap).is_some())
-        })
+        .filter(|gap| gap.length() >= idle_after || overlaps_with(&away, *gap).next().is_some())
         .collect()
     }
 
@@ -156,7 +149,7 @@ mod tests {
     };
 
     #[test]
-    fn a_short_pause_counts_as_active_and_a_long_one_is_a_break() {
+    fn a_short_pause_is_not_spent_but_only_a_long_one_is_a_break() {
         let config = config();
         let paused = folded([
             step(focused("kitty", None), 0),
@@ -166,7 +159,7 @@ mod tests {
         let paused = paused.accounted(&config);
         assert_eq!(
             paused.spent(&kitty(), whole_day(), at(20)),
-            TimeDelta::minutes(20)
+            TimeDelta::minutes(19)
         );
         assert_eq!(paused.screen_run(at(20)), Some(ScreenRun { since: at(0) }));
 
@@ -330,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn the_longest_run_spans_a_short_pause_but_not_a_break() {
+    fn the_longest_run_ends_at_any_pause() {
         let config = config();
         let ledger = folded([
             step(focused("kitty", None), 0),
@@ -344,7 +337,7 @@ mod tests {
                 .accounted(&config)
                 .longest_run_within(whole_day(), at(40)),
             Some(Interval {
-                from: at(0),
+                from: at(11),
                 until: at(25)
             })
         );

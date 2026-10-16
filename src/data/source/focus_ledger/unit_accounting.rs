@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Reverse};
+use std::{borrow::Cow, cmp::Reverse, collections::BTreeMap};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -6,8 +6,8 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use super::{
     Accounting,
     focus_units::FocusUnit,
-    recorded_spans::{FocusScope, FocusSpan},
-    time_intervals::{Interval, merged},
+    recorded_spans::{FocusPiece, FocusScope},
+    time_intervals::{Interval, merged, overlaps_with},
 };
 use crate::data::source::ai::quota::Quota;
 
@@ -21,50 +21,77 @@ pub struct UnitTotal {
 impl Accounting<'_> {
     pub fn switches_within(&self, window: Interval, now: DateTime<Utc>) -> usize {
         self.ledger
-            .window_focus_spans_ended_by(now)
-            .filter(|span| window.from <= span.started_at && span.started_at < window.until)
+            .focus_pieces_within(window, now)
+            .filter(|piece| window.from <= piece.interval.from)
             .count()
     }
 
     pub fn switches_to(&self, scope: &FocusScope, window: Interval, now: DateTime<Utc>) -> usize {
         self.ledger
-            .window_focus_spans_ended_by(now)
-            .scan(None::<FocusSpan>, |previous, span| {
-                let entered = scope.covers(&span)
-                    && !previous.as_ref().is_some_and(|previous| {
-                        scope.covers(previous) && previous.ended_at >= span.started_at
+            .focus_pieces_within(window, now)
+            .scan(None::<FocusPiece>, |previous, piece| {
+                let entered = scope.covers(&piece)
+                    && !previous.is_some_and(|previous| {
+                        scope.covers(&previous) && previous.interval.until >= piece.interval.from
                     });
-                *previous = Some(span.clone());
-                Some(entered.then_some(span.started_at))
+                *previous = Some(piece);
+                Some(entered.then_some(piece.interval.from))
             })
             .flatten()
-            .filter(|started_at| window.from <= *started_at && *started_at < window.until)
+            .filter(|started_at| window.from <= *started_at)
             .count()
     }
 
     fn active_parts(
         &self,
-        spans: impl Iterator<Item = FocusSpan>,
+        scope: &FocusScope,
         window: Interval,
         now: DateTime<Utc>,
     ) -> Vec<Interval> {
         let active = self.active_within(window, now);
-        spans
-            .flat_map(|span| {
-                active
-                    .iter()
-                    .filter_map(move |interval| interval.intersect(span.interval()))
-                    .collect::<Vec<_>>()
-            })
+        self.ledger
+            .focus_pieces_within(window, now)
+            .filter(|piece| scope.covers(piece))
+            .flat_map(|piece| overlaps_with(&active, piece.interval))
             .collect()
     }
 
+    fn spent_per_unit<'p>(
+        &self,
+        pieces: impl Iterator<Item = FocusPiece<'p>>,
+        counted: impl Fn(&FocusUnit) -> bool,
+        window: Interval,
+        now: DateTime<Utc>,
+    ) -> Vec<UnitTotal> {
+        let active = self.active_within(window, now);
+        let spent_by_unit = pieces
+            .filter(|piece| piece.interval.intersect(window).is_some())
+            .fold(BTreeMap::new(), |spent_by_unit, piece| {
+                let overlap: TimeDelta = overlaps_with(&active, piece.interval)
+                    .map(Interval::length)
+                    .sum();
+                piece.units.iter().filter(|unit| counted(unit)).fold(
+                    spent_by_unit,
+                    |mut spent_by_unit, unit| {
+                        *spent_by_unit.entry(unit).or_insert_with(TimeDelta::zero) += overlap;
+                        spent_by_unit
+                    },
+                )
+            });
+        let mut totals: Vec<UnitTotal> = spent_by_unit
+            .into_iter()
+            .map(|(unit, spent)| UnitTotal {
+                spent,
+                budget: unit.budget(self.config),
+                unit: unit.clone(),
+            })
+            .collect();
+        totals.sort_by_key(|total| Reverse(total.spent));
+        totals
+    }
+
     pub fn spent(&self, scope: &FocusScope, window: Interval, now: DateTime<Utc>) -> TimeDelta {
-        let covered = self
-            .ledger
-            .window_focus_spans_ended_by(now)
-            .filter(|span| scope.covers(span));
-        self.active_parts(covered, window, now)
+        self.active_parts(scope, window, now)
             .into_iter()
             .map(Interval::length)
             .sum()
@@ -76,34 +103,18 @@ impl Accounting<'_> {
         window: Interval,
         now: DateTime<Utc>,
     ) -> Option<Interval> {
-        let covered = self
-            .ledger
-            .window_focus_spans_ended_by(now)
-            .filter(|span| scope.covers(span));
-        merged(self.active_parts(covered, window, now))
+        merged(self.active_parts(scope, window, now))
             .into_iter()
             .max_by_key(|stay| stay.length())
     }
 
     pub fn unit_totals(&self, window: Interval, now: DateTime<Utc>) -> Vec<UnitTotal> {
-        let mut units: Vec<FocusUnit> = self
-            .ledger
-            .window_focus_spans_ended_by(now)
-            .filter(|span| span.interval().intersect(window).is_some())
-            .flat_map(|span| span.units)
-            .collect();
-        units.sort();
-        units.dedup();
-        let mut totals: Vec<UnitTotal> = units
-            .into_iter()
-            .map(|unit| UnitTotal {
-                spent: self.spent(&FocusScope::Unit(unit.clone()), window, now),
-                budget: unit.budget(self.config),
-                unit,
-            })
-            .collect();
-        totals.sort_by_key(|total| Reverse(total.spent));
-        totals
+        self.spent_per_unit(
+            self.ledger.focus_pieces_within(window, now),
+            |_| true,
+            window,
+            now,
+        )
     }
 
     pub fn unit_totals_within(
@@ -112,36 +123,14 @@ impl Accounting<'_> {
         window: Interval,
         now: DateTime<Utc>,
     ) -> Vec<UnitTotal> {
-        let mut companions: Vec<FocusUnit> = self
-            .ledger
-            .window_focus_spans_ended_by(now)
-            .filter(|span| scope.covers(span))
-            .filter(|span| span.interval().intersect(window).is_some())
-            .flat_map(|span| span.units)
-            .filter(|companion| !matches!(scope, FocusScope::Unit(unit) if unit == companion))
-            .collect();
-        companions.sort();
-        companions.dedup();
-        let mut totals: Vec<UnitTotal> = companions
-            .into_iter()
-            .map(|companion| {
-                let together = self
-                    .ledger
-                    .window_focus_spans_ended_by(now)
-                    .filter(|span| scope.covers(span) && span.units.contains(&companion));
-                UnitTotal {
-                    spent: self
-                        .active_parts(together, window, now)
-                        .into_iter()
-                        .map(Interval::length)
-                        .sum(),
-                    budget: companion.budget(self.config),
-                    unit: companion,
-                }
-            })
-            .collect();
-        totals.sort_by_key(|total| Reverse(total.spent));
-        totals
+        self.spent_per_unit(
+            self.ledger
+                .focus_pieces_within(window, now)
+                .filter(|piece| scope.covers(piece)),
+            |companion| !matches!(scope, FocusScope::Unit(unit) if unit == companion),
+            window,
+            now,
+        )
     }
 
     pub fn screen_budget(&self) -> Option<TimeDelta> {
@@ -164,15 +153,6 @@ impl Accounting<'_> {
                 now,
             )
         })
-    }
-
-    pub fn quotas_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Quota> {
-        self.unit_totals(window, now)
-            .iter()
-            .filter_map(|total| total.budget_status(window, now))
-            .chain(self.screen_budget_status(window, now))
-            .map(|status| status.quota)
-            .collect()
     }
 }
 
@@ -279,10 +259,17 @@ mod tests {
             from: at(0),
             until: at(600),
         };
-        let quotas = accounted.quotas_within(window, at(120));
-        assert_eq!(quotas.len(), 1);
-        assert_eq!(quotas[0].severity(), Severity::Critical);
-        assert!(accounted.quotas_within(window, at(-30)).is_empty());
+        let budgeted = |now| {
+            accounted
+                .unit_totals(window, now)
+                .iter()
+                .filter_map(|total| total.budget_status(window, now))
+                .collect::<Vec<_>>()
+        };
+        let statuses = budgeted(at(120));
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].quota.severity(), Severity::Critical);
+        assert!(budgeted(at(-30)).is_empty());
     }
 
     #[test]
