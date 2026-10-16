@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use zbus::{blocking, proxy};
+use zbus::proxy;
 
 use crate::{
     data::empty_text::non_empty,
@@ -22,8 +22,6 @@ trait Hostname {
     #[zbus(property)]
     fn hostname(&self) -> zbus::Result<String>;
     #[zbus(property)]
-    fn pretty_hostname(&self) -> zbus::Result<String>;
-    #[zbus(property)]
     fn operating_system_pretty_name(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn kernel_release(&self) -> zbus::Result<String>;
@@ -41,19 +39,29 @@ trait Hostname {
     fn firmware_date(&self) -> zbus::Result<u64>;
 }
 
-pub fn hostname_blocking() -> Option<String> {
-    let connection = blocking::Connection::system().ok()?;
-    let hostname = HostnameProxyBlocking::new(&connection).ok()?;
-    hostname.hostname().ok().and_then(non_empty)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperatingSystemIdentity {
+    pub hostname: String,
+    pub kernel: String,
+    pub operating_system: Option<String>,
+    pub chassis: Option<Chassis>,
+}
+
+impl OperatingSystemIdentity {
+    pub async fn read() -> Option<Self> {
+        let connection = zbus::Connection::system().await.ok()?;
+        let hostname = HostnameProxy::new(&connection).await.ok()?;
+        Some(Self {
+            hostname: text(hostname.hostname().await)?,
+            kernel: text(hostname.kernel_release().await)?,
+            operating_system: text(hostname.operating_system_pretty_name().await),
+            chassis: text(hostname.chassis().await).and_then(|chassis| chassis.parse().ok()),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineInfo {
-    pub hostname: Option<String>,
-    pub pretty_hostname: Option<String>,
-    pub operating_system: Option<String>,
-    pub kernel: Option<String>,
-    pub chassis: Option<Chassis>,
     pub hardware_vendor: Option<String>,
     pub hardware_model: Option<String>,
     pub firmware_vendor: Option<String>,
@@ -81,39 +89,12 @@ impl MachineInfo {
             return Self::default();
         };
         Self {
-            hostname: text(hostname.hostname().await),
-            pretty_hostname: text(hostname.pretty_hostname().await),
-            operating_system: text(hostname.operating_system_pretty_name().await),
-            kernel: text(hostname.kernel_release().await),
-            chassis: text(hostname.chassis().await).and_then(|chassis| chassis.parse().ok()),
             hardware_vendor: text(hostname.hardware_vendor().await),
             hardware_model: text(hostname.hardware_model().await),
             firmware_vendor: text(hostname.firmware_vendor().await),
             firmware_version: text(hostname.firmware_version().await),
             firmware_date: hostname.firmware_date().await.ok().and_then(at_micros),
         }
-    }
-
-    pub fn system_section(&self) -> Section {
-        let hostname = self
-            .pretty_hostname
-            .clone()
-            .map(|pretty| match &self.hostname {
-                Some(host) => format!("{pretty} ({host})"),
-                None => pretty,
-            })
-            .or_else(|| self.hostname.clone());
-        Section::dictionary(
-            [
-                entry("Hostname", hostname),
-                entry("OS", self.operating_system.clone()),
-                entry("Kernel", self.kernel.clone()),
-                entry("Chassis", self.chassis.map(Chassis::stored_name)),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled("System")
     }
 
     pub fn board_section(&self) -> Section {
@@ -198,43 +179,6 @@ impl Chassis {
             Chassis::VirtualMachine => "vm",
             Chassis::Container => "container",
         }
-    }
-
-    pub const fn icon(self, weight: Weight) -> Phosphor {
-        match self {
-            Chassis::Desktop => Phosphor::DesktopTower(weight),
-            Chassis::Laptop | Chassis::Convertible => Phosphor::Laptop(weight),
-            Chassis::Server => Phosphor::HardDrives(weight),
-            Chassis::Tablet => Phosphor::DeviceTablet(weight),
-            Chassis::Handset | Chassis::Watch => Phosphor::DeviceMobile(weight),
-            Chassis::Embedded => Phosphor::Circuitry(weight),
-            Chassis::VirtualMachine | Chassis::Container => Phosphor::Cube(weight),
-        }
-    }
-}
-
-pub struct SystemIdentity<'a>(pub &'a MachineInfo);
-
-impl BarWidget for SystemIdentity<'_> {
-    fn name(&self) -> &'static str {
-        "System"
-    }
-
-    fn icon(&self) -> Glyph {
-        self.0
-            .chassis
-            .map_or(Phosphor::Desktop(Weight::Regular), |chassis| {
-                chassis.icon(Weight::Regular)
-            })
-            .into()
-    }
-
-    fn label(&self) -> Option<String> {
-        self.0.hostname.clone()
-    }
-
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([self.0.system_section()])
     }
 }
 

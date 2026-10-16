@@ -137,6 +137,10 @@ impl<S: Toggle> ToggleControl<S> {
         self.reading.tooltip()
     }
 
+    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
+        self.reading.tooltip_with(body)
+    }
+
     pub fn current(&self) -> Option<&S> {
         self.reading.get()
     }

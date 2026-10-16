@@ -15,7 +15,6 @@ use crate::{
     data::source::{
         Delivery, PolledSource,
         hardware::HostHardware,
-        hostname::SystemIdentity,
         sysfs_sensors::{
             cpu_clock::CpuClock,
             cpu_power::CpuPower,
@@ -48,7 +47,6 @@ pub enum ComputeTarget {
     Memory,
     Temperature,
     CachePreference,
-    System,
     Board,
 }
 
@@ -211,9 +209,6 @@ impl ComputeGroup {
                     ComputeTarget::CachePreference,
                     ComputeMessage::CachePreference,
                 ),
-                self.hardware.get().map(|hardware| {
-                    GroupItem::reading(SystemIdentity(&hardware.machine), ComputeTarget::System)
-                }),
                 self.hardware
                     .get()
                     .and_then(|hardware| hardware.machine.board_firmware())
@@ -254,22 +249,12 @@ impl ComputeGroup {
                     .sections(|temperatures| temperatures.sections(&live)),
             ),
             ComputeTarget::CachePreference => {
-                let preference = *self.cache_preference.current()?;
-                self.cache_preference
-                    .tooltip()
-                    .map(|tooltip| {
-                        tooltip.with_sections(self.clock.sections(|clock| {
-                            FavouredChiplets {
-                                preference,
-                                topology: &clock.topology,
-                            }
-                            .sections()
-                        }))
-                    })
+                let chiplets = FavouredChiplets {
+                    preference: *self.cache_preference.current()?,
+                    topology: self.clock.get().map(|clock| &clock.topology),
+                };
+                self.cache_preference.tooltip_with(chiplets.body())
             }
-            ComputeTarget::System => self
-                .hardware
-                .tooltip_with(SystemIdentity(&self.hardware.get()?.machine).tooltip()),
             ComputeTarget::Board => self
                 .hardware
                 .tooltip_with(self.hardware.get()?.machine.board_firmware()?.tooltip()),

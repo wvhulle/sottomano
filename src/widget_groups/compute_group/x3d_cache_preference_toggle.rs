@@ -35,42 +35,11 @@ impl BarWidget for X3dCachePreference {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([
-            Section::dictionary([
-                KeyValue::new("Now", favoured_chiplet(*self)),
-                KeyValue::new("Click", favoured_chiplet(self.other())),
-                KeyValue::new(
-                    "How",
-                    "the amd_x3d_vcache driver raises the favoured chiplet's preferred-core \
-                     ranking, and the scheduler places new work on the highest-ranked idle cores",
-                ),
-                KeyValue::new(
-                    "Matters",
-                    "only while the busy threads fit on one chiplet; with both full, both run",
-                ),
-                KeyValue::new("Resets", "at reboot"),
-            ])
-            .titled("Which chiplet gets new work first"),
-            Section::dictionary([
-                KeyValue::new(
-                    "Cache first",
-                    "games and simulations whose working data exceeds the smaller L3",
-                ),
-                KeyValue::new(
-                    "Clock first",
-                    "lightly threaded work that fits in cache: the desktop, editors, \
-                     single-threaded tools",
-                ),
-            ])
-            .titled("Which to choose"),
-        ])
-    }
-}
-
-const fn favoured_chiplet(preference: X3dCachePreference) -> &'static str {
-    match preference {
-        X3dCachePreference::Cache => "the stacked-cache chiplet",
-        X3dCachePreference::Frequency => "the high-clock chiplet",
+        FavouredChiplets {
+            preference: *self,
+            topology: None,
+        }
+        .body()
     }
 }
 
@@ -81,29 +50,60 @@ const fn favoured_role(preference: X3dCachePreference) -> CoreRole {
     }
 }
 
+const fn suited_work(preference: X3dCachePreference) -> &'static str {
+    match preference {
+        X3dCachePreference::Cache => {
+            "games and simulations whose working data exceeds the smaller L3"
+        }
+        X3dCachePreference::Frequency => {
+            "lightly threaded work that fits in cache: the desktop, editors, single-threaded tools"
+        }
+    }
+}
+
 pub struct FavouredChiplets<'a> {
     pub preference: X3dCachePreference,
-    pub topology: &'a CpuTopology,
+    pub topology: Option<&'a CpuTopology>,
 }
 
 impl FavouredChiplets<'_> {
-    pub fn sections(&self) -> Vec<Section> {
-        [
-            self.section("Favoured now", self.preference),
-            self.section("Favoured after a click", self.preference.other()),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+    pub fn body(&self) -> TooltipBody {
+        TooltipBody::sections([
+            self.chiplet_section("Favoured now", self.preference),
+            self.chiplet_section("Not favoured", self.preference.other()),
+            Section::dictionary([
+                KeyValue::new(
+                    "How",
+                    "the amd_x3d_vcache driver ranks the favoured cores highest, and the \
+                     scheduler places new work on the highest-ranked idle cores",
+                ),
+                KeyValue::new(
+                    "Matters",
+                    "only while the busy threads fit on one chiplet; with both full, both run",
+                ),
+                KeyValue::new("Resets", "at reboot"),
+            ]),
+        ])
     }
 
-    fn section(&self, moment: &str, preference: X3dCachePreference) -> Option<Section> {
-        let group = self
+    fn chiplet_section(&self, standing: &str, preference: X3dCachePreference) -> Section {
+        let role = favoured_role(preference);
+        let facts = self
             .topology
-            .core_groups()
-            .iter()
-            .find(|group| group.role() == favoured_role(preference))?;
-        Some(Section::dictionary(topology_facts(group)).titled(format!("{moment}: {}", group.title())))
+            .and_then(|topology| {
+                topology
+                    .core_groups()
+                    .iter()
+                    .find(|group| group.role() == role)
+            })
+            .map(topology_facts)
+            .unwrap_or_default();
+        Section::dictionary(
+            facts
+                .into_iter()
+                .chain([KeyValue::new("Suits", suited_work(preference))]),
+        )
+        .titled(format!("{standing}: {}", role.title()))
     }
 }
 
@@ -118,8 +118,8 @@ impl Toggle for X3dCachePreference {
 
     fn press_does(&self) -> &'static str {
         match self {
-            X3dCachePreference::Cache => "give new work to the high-clock chiplet first",
-            X3dCachePreference::Frequency => "give new work to the stacked-cache chiplet first",
+            X3dCachePreference::Cache => "favour the high-clock cores instead",
+            X3dCachePreference::Frequency => "favour the stacked-cache cores instead",
         }
     }
 }

@@ -31,7 +31,7 @@ pub enum CoreRole {
 }
 
 impl CoreRole {
-    fn title(self) -> String {
+    pub fn title(self) -> String {
         match self {
             CoreRole::PerformanceCores => "Performance cores".to_owned(),
             CoreRole::MidCapacityCores => "Mid-capacity cores".to_owned(),
