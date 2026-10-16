@@ -104,8 +104,7 @@ impl<S> ContinuousReading<S> {
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        let tooltip = Tooltip::sourced(body, self.stamped.as_ref()?.freshness);
-        (!tooltip.is_empty()).then_some(tooltip)
+        Some(Tooltip::sourced(body, self.stamped.as_ref()?.freshness))
     }
 
     pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<SourcedSection> {

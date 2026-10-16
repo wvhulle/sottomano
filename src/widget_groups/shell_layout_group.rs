@@ -19,34 +19,38 @@ pub enum Action {
     Reflow(Task<Message>),
 }
 
-fn disconnected_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    IconToggle::readout_tooltip(
-        "Groups",
-        if shell_layout.disconnected_groups {
-            "separate frames"
-        } else {
-            "one bar"
+fn disconnected_toggle(shell_layout: &ShellLayout) -> IconToggle {
+    IconToggle::new(
+        "Disconnected groups",
+        Phosphor::Pill(Weight::Regular),
+        shell_layout.disconnected_groups,
+        SwitchPresses {
+            turning_on: "draw each group in its own frame",
+            turning_off: "join the groups into one bar",
         },
     )
 }
 
-fn auto_collapse_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    IconToggle::readout_tooltip(
-        "Groups",
-        if shell_layout.auto_collapse_groups {
-            "collapse when another window takes focus"
-        } else {
-            "stay open until the handle is clicked"
+fn pinned_groups_toggle(shell_layout: &ShellLayout) -> IconToggle {
+    IconToggle::new(
+        "Pinned groups",
+        Phosphor::PushPin(Weight::Regular),
+        !shell_layout.auto_collapse_groups,
+        SwitchPresses {
+            turning_on: "keep groups open until their handle is clicked",
+            turning_off: "collapse groups when another window takes focus",
         },
     )
 }
 
-fn workspaces_placement_tooltip(shell_layout: &ShellLayout) -> Tooltip {
-    IconToggle::readout_tooltip(
-        "Workspaces",
-        match shell_layout.workspaces_placement {
-            WorkspacesPlacement::Sidebar => "in a sidebar on the left edge",
-            WorkspacesPlacement::BottomPanel => "inline in the bottom panel",
+fn workspaces_sidebar_toggle(shell_layout: &ShellLayout) -> IconToggle {
+    IconToggle::new(
+        "Workspaces sidebar",
+        Phosphor::SidebarSimple(Weight::Regular),
+        shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
+        SwitchPresses {
+            turning_on: "move workspaces to a sidebar on the left edge",
+            turning_off: "move workspaces inline into the bottom panel",
         },
     )
 }
@@ -98,9 +102,15 @@ impl Default for ShellLayoutGroup {
 impl ShellLayoutGroup {
     pub fn tooltip_for(&self, target: ShellLayoutTarget, shell_layout: &ShellLayout) -> Tooltip {
         match target {
-            ShellLayoutTarget::DisconnectedGroups => disconnected_tooltip(shell_layout),
-            ShellLayoutTarget::AutoCollapseGroups => auto_collapse_tooltip(shell_layout),
-            ShellLayoutTarget::WorkspacesPlacement => workspaces_placement_tooltip(shell_layout),
+            ShellLayoutTarget::DisconnectedGroups => {
+                disconnected_toggle(shell_layout).switch_tooltip()
+            }
+            ShellLayoutTarget::AutoCollapseGroups => {
+                pinned_groups_toggle(shell_layout).switch_tooltip()
+            }
+            ShellLayoutTarget::WorkspacesPlacement => {
+                workspaces_sidebar_toggle(shell_layout).switch_tooltip()
+            }
             ShellLayoutTarget::FloatOffset => self.float_offset.readout_tooltip("Offset"),
         }
     }
@@ -177,41 +187,17 @@ impl ShellLayoutGroup {
             ShellLayoutMessage::Expansion,
             [
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Disconnected groups",
-                        Phosphor::Pill(Weight::Regular),
-                        shell_layout.disconnected_groups,
-                        SwitchPresses {
-                            turning_on: "draw each group in its own frame",
-                            turning_off: "join the groups into one bar",
-                        },
-                    ),
+                    disconnected_toggle(shell_layout),
                     ShellLayoutTarget::DisconnectedGroups,
                     ShellLayoutMessage::ToggleDisconnectedGroups,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Pinned groups",
-                        Phosphor::PushPin(Weight::Regular),
-                        !shell_layout.auto_collapse_groups,
-                        SwitchPresses {
-                            turning_on: "keep groups open until their handle is clicked",
-                            turning_off: "collapse groups when another window takes focus",
-                        },
-                    ),
+                    pinned_groups_toggle(shell_layout),
                     ShellLayoutTarget::AutoCollapseGroups,
                     ShellLayoutMessage::ToggleAutoCollapseGroups,
                 ),
                 GroupItem::toggle(
-                    IconToggle::new(
-                        "Workspaces sidebar",
-                        Phosphor::SidebarSimple(Weight::Regular),
-                        shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
-                        SwitchPresses {
-                            turning_on: "move workspaces to a sidebar on the left edge",
-                            turning_off: "move workspaces inline into the bottom panel",
-                        },
-                    ),
+                    workspaces_sidebar_toggle(shell_layout),
                     ShellLayoutTarget::WorkspacesPlacement,
                     ShellLayoutMessage::ToggleWorkspacesPlacement,
                 ),

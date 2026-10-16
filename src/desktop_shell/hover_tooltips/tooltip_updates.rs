@@ -7,6 +7,7 @@ use crate::{
         monitor_surfaces::PanelEdge,
     },
     widget_groups::{
+        notification_group::NotificationGroup,
         window_group::{WindowGroup, WindowTarget},
         workspaces_group::workspace_tooltip,
     },
@@ -26,7 +27,11 @@ impl DesktopShell {
                 let Some(host) = self
                     .surfaces
                     .get(&surface)
-                    .filter(|_| self.tooltip_for(&target).is_some())
+                    .filter(|_| {
+                        self.tooltip_for(&target).is_some_and(|tooltip| {
+                            !tooltip.is_empty() || !press_hints.gestures().is_empty()
+                        })
+                    })
                 else {
                     return Task::none();
                 };
@@ -127,7 +132,10 @@ impl DesktopShell {
             )),
             HoverTarget::LoginSession(target) => self.login_session_group.tooltip_for(*target),
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
-            HoverTarget::Notification(_) => None,
+            HoverTarget::Notification(target) => Some(NotificationGroup::tooltip_for(
+                *target,
+                &self.shell_settings.notifications,
+            )),
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),
             HoverTarget::Session(target) => Some(
                 self.session_menu

@@ -149,25 +149,16 @@ impl SurfaceEffectsGroup {
         styling: NiriStyling,
     ) -> Tooltip {
         match target {
-            SurfaceEffectsTarget::BlurBackground => blur_toggle(styling)
-                .switch_tooltip("Blur", "on — frosted behind panels and tooltips"),
-            SurfaceEffectsTarget::Xray => {
-                xray_toggle(styling).switch_tooltip("Xray", "on — blur shows only the wallpaper")
-            }
-            SurfaceEffectsTarget::DropShadow => shadow_toggle(shadow).switch_tooltip(
-                "Shadow",
-                "on — panels, notifications and tooltips cast a drop shadow",
-            ),
+            SurfaceEffectsTarget::BlurBackground => blur_toggle(styling).switch_tooltip(),
+            SurfaceEffectsTarget::Xray => xray_toggle(styling).switch_tooltip(),
+            SurfaceEffectsTarget::DropShadow => shadow_toggle(shadow).switch_tooltip(),
             SurfaceEffectsTarget::ShadowSoftness => {
                 self.shadow_softness.readout_tooltip("Shadow softness")
             }
             SurfaceEffectsTarget::ShadowOpacity => {
                 self.shadow_opacity.readout_tooltip("Shadow opacity")
             }
-            SurfaceEffectsTarget::Outline => outline_toggle(outline).switch_tooltip(
-                "Outline",
-                "on — panels and tooltips trace their edges facing the screen interior",
-            ),
+            SurfaceEffectsTarget::Outline => outline_toggle(outline).switch_tooltip(),
         }
     }
 

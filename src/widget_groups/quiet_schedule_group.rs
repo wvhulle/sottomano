@@ -370,15 +370,7 @@ impl QuietScheduleGroup {
         match target {
             QuietScheduleTarget::DoNotDisturb => self.saved.tooltip_with(self.status_tooltip()),
             QuietScheduleTarget::FollowSchedule => {
-                let schedule = self.schedule();
-                Some(self.follow_schedule_toggle().switch_tooltip(
-                    "Schedule",
-                    &format!(
-                        "{} to {}",
-                        clock_text(schedule.start),
-                        clock_text(schedule.end)
-                    ),
-                ))
+                Some(self.follow_schedule_toggle().switch_tooltip())
             }
             QuietScheduleTarget::Start => Some(self.start_slider.readout_tooltip("Quiet from")),
             QuietScheduleTarget::End => Some(self.end_slider.readout_tooltip("Quiet until")),
@@ -391,12 +383,9 @@ impl QuietScheduleGroup {
 
     fn status_tooltip(&self) -> TooltipBody {
         let now = Local::now();
-        let switched = if self.is_quiet() { "on" } else { "off" };
-        let phase = if self.manual_at(now).is_some() {
-            format!("{switched} (manual)")
-        } else {
-            switched.to_owned()
-        };
+        let manual = self
+            .manual_at(now)
+            .map(|_| KeyValue::new("Set", "by hand, until the schedule next changes"));
         let upcoming = self.next_change(now).map(|at| {
             let label = if self.is_quiet() {
                 "Quiet until"
@@ -416,11 +405,7 @@ impl QuietScheduleGroup {
                 KeyValue::new("In", format_duration(whole_minutes).to_string()),
             ]
         });
-        TooltipBody::dictionary(
-            [KeyValue::new("Do not disturb", phase)]
-                .into_iter()
-                .chain(upcoming.into_iter().flatten()),
-        )
+        TooltipBody::dictionary(manual.into_iter().chain(upcoming.into_iter().flatten()))
     }
 
     pub fn group_content<'a>(
