@@ -5,7 +5,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
     Accounting,
-    focus_units::FocusUnit,
+    focus_units::{FocusUnit, UnitIdentity},
     recorded_spans::{FocusPiece, FocusScope},
     time_intervals::{Interval, merged, overlaps_with},
 };
@@ -53,7 +53,7 @@ impl Accounting<'_> {
         window: Interval,
         now: DateTime<Utc>,
     ) -> Vec<Interval> {
-        let active = self.active_within(window, now);
+        let active = self.ledger.active_within(window, now);
         self.ledger
             .focus_pieces_within(window, now)
             .filter(|piece| scope.covers(piece))
@@ -63,15 +63,16 @@ impl Accounting<'_> {
 
     fn spent_per_unit<'p>(
         &self,
+        settled: HashMap<UnitIdentity<'p>, UnitTally<'p>>,
         pieces: impl Iterator<Item = FocusPiece<'p>>,
         counted: impl Fn(&FocusUnit) -> bool,
         window: Interval,
         now: DateTime<Utc>,
     ) -> Vec<UnitTotal> {
-        let active = self.active_within(window, now);
+        let active = self.ledger.active_within(window, now);
         let spent_by_unit = pieces
             .filter(|piece| piece.interval.intersect(window).is_some())
-            .fold(HashMap::new(), |spent_by_unit, piece| {
+            .fold(settled, |spent_by_unit, piece| {
                 let overlap: TimeDelta = overlaps_with(&active, piece.interval)
                     .map(Interval::length)
                     .sum();
@@ -125,8 +126,26 @@ impl Accounting<'_> {
     }
 
     pub fn unit_totals(&self, window: Interval, now: DateTime<Utc>) -> Vec<UnitTotal> {
+        let settled = self.ledger.settled_unit_totals_for(window);
         self.spent_per_unit(
-            self.ledger.focus_pieces_within(window, now),
+            settled
+                .into_iter()
+                .flat_map(|settled| &settled.spent)
+                .map(|(unit, spent)| {
+                    (
+                        unit.identity(),
+                        UnitTally {
+                            unit,
+                            spent: *spent,
+                        },
+                    )
+                })
+                .collect(),
+            self.ledger.unsettled_focus_pieces_within(
+                settled.map_or(0, |settled| settled.settled_spans),
+                window,
+                now,
+            ),
             |_| true,
             window,
             now,
@@ -140,6 +159,7 @@ impl Accounting<'_> {
         now: DateTime<Utc>,
     ) -> Vec<UnitTotal> {
         self.spent_per_unit(
+            HashMap::new(),
             self.ledger
                 .focus_pieces_within(window, now)
                 .filter(|piece| scope.covers(piece)),
@@ -225,6 +245,30 @@ mod tests {
             at, config, focused, focused_in, folded, kitty, step, whole_day,
         },
     };
+
+    #[test]
+    fn settled_totals_plus_later_spans_match_a_full_walk() {
+        let config = config();
+        let walked = folded([
+            step(focused("kitty", Some("/code/vetrata")), 0),
+            step(focused("firefox", None), 10),
+            step(focused("kitty", Some("/code/vetrata")), 25),
+            step(focused("firefox", None), 40),
+        ]);
+        let settled = folded([
+            step(focused("kitty", Some("/code/vetrata")), 0),
+            step(focused("firefox", None), 10),
+        ])
+        .with_settled_unit_totals(whole_day(), at(10))
+        .fold(focused("kitty", Some("/code/vetrata")), at(25))
+        .ledger
+        .fold(focused("firefox", None), at(40))
+        .ledger;
+        assert_eq!(
+            settled.accounted(&config).unit_totals(whole_day(), at(50)),
+            walked.accounted(&config).unit_totals(whole_day(), at(50))
+        );
+    }
 
     #[test]
     fn switches_count_span_starts_inside_the_window() {

@@ -83,27 +83,37 @@ impl SessionFocusGroup {
         FocusTracker::subscription().map(SessionFocusMessage::Tracker)
     }
 
-    pub fn screen_power_changed(&mut self, edge: ScreenEdge) -> Task<SessionFocusMessage> {
-        self.update(SessionFocusMessage::Tracker(
-            TrackerMessage::ScreenPowerChanged(edge),
-        ))
+    pub fn screen_power_changed(
+        &mut self,
+        edge: ScreenEdge,
+        waking: WakingWindow,
+    ) -> Task<SessionFocusMessage> {
+        self.update(
+            SessionFocusMessage::Tracker(TrackerMessage::ScreenPowerChanged(edge)),
+            waking,
+        )
     }
 
     pub fn refocus(
         &mut self,
         niri: &EventStreamState,
         processes: &WindowProcesses,
+        waking: WakingWindow,
     ) -> Task<SessionFocusMessage> {
         self.tracker
-            .refocus(niri, processes)
+            .refocus(niri, processes, waking)
             .map(SessionFocusMessage::Tracker)
     }
 
-    pub fn update(&mut self, message: SessionFocusMessage) -> Task<SessionFocusMessage> {
+    pub fn update(
+        &mut self,
+        message: SessionFocusMessage,
+        waking: WakingWindow,
+    ) -> Task<SessionFocusMessage> {
         match message {
             SessionFocusMessage::Tracker(message) => self
                 .tracker
-                .update(message)
+                .update(message, waking)
                 .map(SessionFocusMessage::Tracker),
             SessionFocusMessage::BreakPledged => {
                 self.pledge = Some(BreakPledge { at: Utc::now() });

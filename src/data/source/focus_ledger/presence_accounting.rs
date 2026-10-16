@@ -3,7 +3,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use super::{
     Accounting,
     focus_units::{FocusUnit, Presence},
-    time_intervals::{Interval, gaps_between, merged, overlaps_with},
+    time_intervals::{Interval, gaps_between, overlaps_with},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,16 +22,6 @@ impl Accounting<'_> {
         TimeDelta::from_std(self.config.idle_after).unwrap_or(TimeDelta::MAX)
     }
 
-    pub fn active_intervals(&self, now: DateTime<Utc>) -> Vec<Interval> {
-        merged(
-            self.ledger
-                .presence_spans_ended_by(now)
-                .filter(|span| span.state == Presence::Active)
-                .map(|span| span.interval())
-                .collect(),
-        )
-    }
-
     fn unmistakably_away(&self, now: DateTime<Utc>) -> Vec<Interval> {
         self.ledger
             .presence_spans_ended_by(now)
@@ -44,7 +34,7 @@ impl Accounting<'_> {
         let idle_after = self.idle_after();
         let away = self.unmistakably_away(now);
         gaps_between(
-            &self.active_intervals(now),
+            &self.ledger.active_intervals(now),
             self.ledger.first_presence_started_at(),
             now,
         )
@@ -103,15 +93,9 @@ impl Accounting<'_> {
         self.runs(now).into_iter().min_by_key(|run| run.since)
     }
 
-    pub(super) fn active_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
-        self.active_intervals(now)
-            .into_iter()
-            .filter_map(|interval| interval.intersect(window))
-            .collect()
-    }
-
     pub fn longest_run_within(&self, window: Interval, now: DateTime<Utc>) -> Option<Interval> {
-        self.active_within(window, now)
+        self.ledger
+            .active_within(window, now)
             .into_iter()
             .max_by_key(|run| run.length())
     }
@@ -124,7 +108,8 @@ impl Accounting<'_> {
     }
 
     pub fn screen_spent(&self, window: Interval, now: DateTime<Utc>) -> TimeDelta {
-        self.active_within(window, now)
+        self.ledger
+            .active_within(window, now)
             .into_iter()
             .map(Interval::length)
             .sum()

@@ -154,10 +154,12 @@ impl WindowFocusTimeline {
         &self,
         window: Interval,
         now: DateTime<Utc>,
+        settled_spans: usize,
     ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
         let first_reaching_window = self
             .finished_window_focus_spans
-            .partition_point(|span| span.ended_at < window.from);
+            .partition_point(|span| span.ended_at < window.from)
+            .max(settled_spans);
         self.finished_window_focus_spans[first_reaching_window..]
             .iter()
             .map(FocusSpan::piece)
