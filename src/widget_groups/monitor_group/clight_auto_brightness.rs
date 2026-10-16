@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         toggle_control::Toggle,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::TooltipBody,
         widget_state::WidgetState,
     },
 };
@@ -27,7 +27,7 @@ impl BarWidget for Clight {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(Self::facts())
+        TooltipBody::sections([])
     }
 }
 
@@ -38,10 +38,6 @@ impl Toggle for Clight {
 
     fn toggle(&self) -> bool {
         clight::flip()
-    }
-
-    fn facts() -> Vec<Section> {
-        Vec::new()
     }
 
     fn press_does(&self) -> &'static str {

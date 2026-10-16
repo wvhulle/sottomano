@@ -606,6 +606,15 @@ checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
 
 [[package]]
 name = "block-buffer"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
+name = "block-buffer"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
@@ -1018,7 +1027,7 @@ checksum = "fe6d2e5af09e8c8ad56c969f2157a3d4238cebc7c55f0a517728c38f7b200f81"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.2.2",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]
@@ -1414,11 +1423,21 @@ dependencies = [
 
 [[package]]
 name = "digest"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
+dependencies = [
+ "block-buffer 0.10.4",
+ "crypto-common 0.1.7",
+]
+
+[[package]]
+name = "digest"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
- "block-buffer",
+ "block-buffer 0.12.1",
  "const-oid",
  "crypto-common 0.2.2",
 ]
@@ -2555,7 +2574,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_core",
  "iced_debug",
@@ -2571,7 +2590,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "bitflags 2.13.2",
  "bytes",
@@ -2588,7 +2607,7 @@ dependencies = [
 [[package]]
 name = "iced_debug"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -2598,7 +2617,7 @@ dependencies = [
 [[package]]
 name = "iced_devtools"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -2660,7 +2679,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "futures",
  "iced_core",
@@ -2674,7 +2693,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -2695,7 +2714,7 @@ dependencies = [
 [[package]]
 name = "iced_program"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -2704,7 +2723,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -2716,7 +2735,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "bytes",
  "iced_core",
@@ -2726,9 +2745,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_selector"
+version = "0.14.0"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+dependencies = [
+ "iced_core",
+]
+
+[[package]]
+name = "iced_test"
+version = "0.14.0"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+dependencies = [
+ "iced_futures",
+ "iced_program",
+ "iced_renderer",
+ "iced_runtime",
+ "iced_selector",
+ "nom 8.0.0",
+ "png 0.18.1",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "iced_tiny_skia"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -2759,7 +2802,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -2780,7 +2823,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_renderer",
  "log",
@@ -2793,7 +2836,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#6ff6acf44c30152ec8249b345e73f57c55125e0f"
+source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -5814,13 +5857,24 @@ checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
+ "digest 0.10.7",
+]
+
+[[package]]
+name = "sha2"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.1",
- "digest",
+ "digest 0.11.3",
 ]
 
 [[package]]
@@ -7472,10 +7526,12 @@ dependencies = [
  "freedesktop-desktop-entry",
  "freedesktop-icons",
  "freedesktop-sound",
+ "gif 0.14.2",
  "humantime",
  "humantime-serde",
  "iced",
  "iced_exwlshell",
+ "iced_test",
  "iced_wayland_subscriber",
  "icu_locale_core",
  "image",
@@ -7493,7 +7549,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "sha2",
+ "sha2 0.11.1",
  "simpleicons-rs",
  "situo-client",
  "sunrise",
@@ -8061,7 +8117,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

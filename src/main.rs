@@ -3,6 +3,8 @@ mod config;
 mod data;
 mod desktop_shell;
 mod message_subscriptions;
+#[cfg(test)]
+mod readme_showcase;
 mod state;
 mod widget_groups;
 mod widgets;

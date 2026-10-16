@@ -35,7 +35,7 @@ impl BarWidget for X3dCachePreference {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(Self::facts())
+        TooltipBody::sections([])
     }
 }
 
@@ -58,7 +58,7 @@ const fn suited_work(preference: X3dCachePreference) -> &'static str {
 }
 
 pub struct ChipletRoles<'a> {
-    pub topology: Option<&'a CpuTopology>,
+    pub topology: &'a CpuTopology,
 }
 
 impl ChipletRoles<'_> {
@@ -76,19 +76,14 @@ impl ChipletRoles<'_> {
 
     fn chiplet_section(&self, preference: X3dCachePreference) -> Section {
         let role = favoured_role(preference);
-        let facts = self
-            .topology
-            .and_then(|topology| {
-                topology
-                    .core_groups()
-                    .iter()
-                    .find(|group| group.role() == role)
-            })
-            .map(topology_facts)
-            .unwrap_or_default();
         Section::dictionary(
-            facts
+            self.topology
+                .core_groups()
+                .iter()
+                .find(|group| group.role() == role)
+                .map(topology_facts)
                 .into_iter()
+                .flatten()
                 .chain([KeyValue::new("Suits", suited_work(preference))]),
         )
     }
@@ -108,9 +103,5 @@ impl Toggle for X3dCachePreference {
             X3dCachePreference::Cache => "favour the high-clock cores instead",
             X3dCachePreference::Frequency => "favour the stacked-cache cores instead",
         }
-    }
-
-    fn facts() -> Vec<Section> {
-        ChipletRoles { topology: None }.sections()
     }
 }

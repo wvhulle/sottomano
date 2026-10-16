@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         toggle_control::Toggle,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::TooltipBody,
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
@@ -28,7 +28,7 @@ impl BarWidget for SunFollow {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(Self::facts())
+        TooltipBody::sections([])
     }
 }
 
@@ -46,10 +46,6 @@ impl Toggle for SunFollow {
         } else {
             "warm the screen at sunset and cool it at sunrise again"
         }
-    }
-
-    fn facts() -> Vec<Section> {
-        Vec::new()
     }
 
     fn toggle(&self) -> bool {

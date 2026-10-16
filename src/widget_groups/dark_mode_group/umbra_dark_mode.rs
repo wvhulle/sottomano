@@ -4,7 +4,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         toggle_control::Toggle,
-        tooltip_body::{Section, TooltipBody},
+        tooltip_body::TooltipBody,
     },
 };
 
@@ -22,7 +22,7 @@ impl BarWidget for Umbra {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(Self::facts())
+        TooltipBody::sections([])
     }
 }
 
@@ -33,10 +33,6 @@ impl Toggle for Umbra {
 
     fn toggle(&self) -> bool {
         umbra::toggle_mode()
-    }
-
-    fn facts() -> Vec<Section> {
-        Vec::new()
     }
 
     fn press_does(&self) -> &'static str {

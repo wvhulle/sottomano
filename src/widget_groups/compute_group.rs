@@ -248,12 +248,14 @@ impl ComputeGroup {
                 self.core_temperatures
                     .sections(|temperatures| temperatures.sections(&live)),
             ),
-            ComputeTarget::CachePreference => self.cache_preference.tooltip_with_facts(
-                ChipletRoles {
-                    topology: self.clock.get().map(|clock| &clock.topology),
-                }
-                .sections(),
-            ),
+            ComputeTarget::CachePreference => self.cache_preference.tooltip().map(|tooltip| {
+                tooltip.with_sections(self.clock.sections(|clock| {
+                    ChipletRoles {
+                        topology: &clock.topology,
+                    }
+                    .sections()
+                }))
+            }),
             ComputeTarget::Board => self
                 .hardware
                 .tooltip_with(self.hardware.get()?.machine.board_firmware()?.tooltip()),

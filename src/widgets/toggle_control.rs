@@ -9,7 +9,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{Freshness, Section, Tooltip, TooltipBody},
+        tooltip_body::{Freshness, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -73,7 +73,6 @@ pub trait Toggle: PolledSource + BarWidget {
     fn toggled(&self) -> Self;
     fn toggle(&self) -> bool;
     fn press_does(&self) -> &'static str;
-    fn facts() -> Vec<Section>;
 }
 
 pub struct ToggleControl<S> {
@@ -123,12 +122,8 @@ impl<S: Toggle> ToggleControl<S> {
     }
 
     pub fn tooltip(&self) -> Option<Tooltip> {
-        self.tooltip_with_facts(S::facts())
-    }
-
-    pub fn tooltip_with_facts(&self, facts: Vec<Section>) -> Option<Tooltip> {
         match self.reading.get() {
-            Some(_) => self.reading.tooltip_with(TooltipBody::sections(facts)),
+            Some(_) => self.reading.tooltip_with(TooltipBody::sections([])),
             None => self.reading.tooltip(),
         }
     }
