@@ -12,7 +12,7 @@ use crate::{
         throughput::{Download, Readings, Throughput, Total, Upload},
         wireguard::{TunnelAddress, Wireguard, disconnect},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
@@ -173,9 +173,10 @@ impl InternetGroup {
                     .on_press("open Tailscale", InternetMessage::OpenTailscale)
             })),
         )
-        .face(HandleFace::Icon(
-            Phosphor::ArrowsDownUp(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::ArrowsDownUp(Weight::Regular).into(),
+            handle: GroupHandle::Internet,
+        })
         .preview(
             self.total
                 .display()

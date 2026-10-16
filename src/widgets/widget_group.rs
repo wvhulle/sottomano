@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     data::severity::Severity,
     desktop_shell::{
-        hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
+        hover_tooltips::{GroupHandle, HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
     },
     widgets::{
@@ -91,10 +91,14 @@ impl<M> GroupEvent<M> {
 }
 
 pub enum HandleFace<'a> {
-    Icon(Glyph),
+    Icon {
+        glyph: Glyph,
+        handle: GroupHandle,
+    },
     IconColoredBy {
         glyph: Glyph,
         reading: &'a dyn BarWidget,
+        handle: GroupHandle,
     },
     FirstItem,
 }
@@ -115,21 +119,10 @@ impl<'a> PreviewedValue<'a> {
         }
     }
 
-    fn hoverable_face<M: 'a>(
-        &self,
-        face: Element<'a, GroupEvent<M>>,
-    ) -> Element<'a, GroupEvent<M>> {
+    fn hover_target(&self) -> Option<HoverTarget> {
         match self {
-            PreviewedValue::Plain(_) => face,
-            PreviewedValue::Hoverable { target, .. } => hoverable(
-                face,
-                target.clone(),
-                PressHints {
-                    left: Some("expand or collapse the group"),
-                    ..PressHints::default()
-                },
-                GroupEvent::Tooltip,
-            ),
+            PreviewedValue::Plain(_) => None,
+            PreviewedValue::Hoverable { target, .. } => Some(target.clone()),
         }
     }
 }
@@ -169,7 +162,7 @@ struct ExpandableHandle<'a, M> {
     on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
     face: HandleFace<'a>,
     preview: Option<PreviewedValue<'a>>,
-    forwards_scroll: bool,
+    scroll_does: Option<&'static str>,
 }
 
 impl<'a, M: 'a> ExpandableHandle<'a, M> {
@@ -180,7 +173,7 @@ impl<'a, M: 'a> ExpandableHandle<'a, M> {
             on_expansion: Rc::new(move |message| lift(on_expansion(message))),
             face: self.face,
             preview: self.preview,
-            forwards_scroll: self.forwards_scroll,
+            scroll_does: self.scroll_does,
         }
     }
 
@@ -211,7 +204,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 on_expansion: Rc::new(on_expansion),
                 face: HandleFace::FirstItem,
                 preview: None,
-                forwards_scroll: false,
+                scroll_does: None,
             }),
             items: items.into_iter().collect(),
         }
@@ -243,8 +236,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn forwards_scroll(self, forwards_scroll: bool) -> Self {
-        self.with_handle(|handle| handle.forwards_scroll = forwards_scroll)
+    pub fn forwards_scroll(self, scroll_does: Option<&'static str>) -> Self {
+        self.with_handle(|handle| handle.scroll_does = scroll_does)
     }
 
     pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupContent<'a, Outer> {
@@ -301,7 +294,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             on_expansion,
             face,
             preview,
-            forwards_scroll,
+            scroll_does,
         } = match handle {
             Handle::Expandable(handle) => handle,
             Handle::Fixed => {
@@ -313,20 +306,31 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 ));
             }
         };
+        let handle_hints = PressHints::group_handle(expansion.expanded, scroll_does);
+        let handle_target =
+            preview
+                .as_ref()
+                .and_then(PreviewedValue::hover_target)
+                .or(match &face {
+                    HandleFace::Icon { handle, .. } | HandleFace::IconColoredBy { handle, .. } => {
+                        Some(HoverTarget::GroupHandle(*handle))
+                    }
+                    HandleFace::FirstItem => None,
+                });
         let face = match face {
-            HandleFace::Icon(glyph) => GroupItem::element(move |_| {
+            HandleFace::Icon { glyph, .. } => GroupItem::element(move |_| {
                 glyph.view(
                     config.theme.font.icon_size_px,
                     config.theme.palette.bar_foreground,
                 )
             }),
-            HandleFace::IconColoredBy { glyph, reading } => GroupItem::element(move |_| {
+            HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
                 glyph.view(
                     config.theme.font.icon_size_px,
                     reading_color(config, reading),
                 )
             }),
-            HandleFace::FirstItem => items.remove(0),
+            HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_hints),
         };
         let draw_face = move || face.view(config, 1.0);
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
@@ -361,11 +365,13 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .style(flat_button(config.theme.palette.bar_foreground))
             .on_press(toggle.clone())
             .into();
-            let handle = match &preview {
-                Some(preview) => preview.hoverable_face(handle),
+            let handle = match &handle_target {
+                Some(target) => {
+                    hoverable(handle, target.clone(), handle_hints, GroupEvent::Tooltip)
+                }
                 None => handle,
             };
-            let handle = if forwards_scroll {
+            let handle = if scroll_does.is_some() {
                 let expansion_event = expansion_event.clone();
                 mouse_area(handle)
                     .on_scroll(move |delta| {

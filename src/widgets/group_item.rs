@@ -36,6 +36,10 @@ enum ItemKind<'a, M> {
     Element {
         draw: DrawItem<'a, M>,
     },
+    HoverableElement {
+        target: HoverTarget,
+        draw: DrawItem<'a, M>,
+    },
 }
 
 struct AnnouncingReading<'r> {
@@ -54,7 +58,7 @@ impl<'a, M: 'a> ItemKind<'a, M> {
                 widget: *widget,
                 target,
             }),
-            ItemKind::Element { .. } => None,
+            ItemKind::Element { .. } | ItemKind::HoverableElement { .. } => None,
         }
     }
 
@@ -74,6 +78,10 @@ impl<'a, M: 'a> ItemKind<'a, M> {
                 draw: lift_draw(draw),
             },
             ItemKind::Element { draw } => ItemKind::Element {
+                draw: lift_draw(draw),
+            },
+            ItemKind::HoverableElement { target, draw } => ItemKind::HoverableElement {
+                target,
                 draw: lift_draw(draw),
             },
         }
@@ -99,6 +107,7 @@ pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<Press<M>>,
     on_right_press: Option<Press<M>>,
+    handle_hints: PressHints,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
 }
@@ -109,6 +118,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind,
             on_press: None,
             on_right_press: None,
+            handle_hints: PressHints::default(),
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
         }
@@ -156,6 +166,24 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
+    pub fn hoverable_element(
+        target: impl Into<HoverTarget>,
+        draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a,
+    ) -> Self {
+        Self::of_kind(ItemKind::HoverableElement {
+            target: target.into(),
+            draw: Box::new(draw),
+        })
+    }
+
+    #[must_use]
+    pub(super) fn acting_as_handle(self, handle_hints: PressHints) -> Self {
+        Self {
+            handle_hints,
+            ..self
+        }
+    }
+
     pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
         Self::reading(toggle, target).on_press(toggle.press_does(), message)
     }
@@ -200,6 +228,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind: self.kind.map(lift),
             on_press: self.on_press.map(|press| press.map(lift)),
             on_right_press: self.on_right_press.map(|press| press.map(lift)),
+            handle_hints: self.handle_hints,
             ongoing_toast_action_buttons: self
                 .ongoing_toast_action_buttons
                 .into_iter()
@@ -215,9 +244,17 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     fn press_hints(&self) -> PressHints {
         PressHints {
-            left: self.on_press.as_ref().map(|press| press.does),
-            right: self.on_right_press.as_ref().map(|press| press.does),
-            ..PressHints::default()
+            left: self
+                .on_press
+                .as_ref()
+                .map(|press| press.does)
+                .or(self.handle_hints.left),
+            right: self
+                .on_right_press
+                .as_ref()
+                .map(|press| press.does)
+                .or(self.handle_hints.right),
+            ..self.handle_hints
         }
     }
 
@@ -263,6 +300,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         let mut element = match &self.kind {
             ItemKind::Reading { widget, target } => hoverable(
                 source_reading(config, widget.as_ref(), reveal),
+                target.clone(),
+                self.press_hints(),
+                GroupEvent::Tooltip,
+            ),
+            ItemKind::HoverableElement { target, draw } => hoverable(
+                draw(reveal),
                 target.clone(),
                 self.press_hints(),
                 GroupEvent::Tooltip,

@@ -13,7 +13,7 @@ use crate::{
         gamma::{self, Gamma},
         screen_temperature::{self, SunFollow},
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
@@ -217,11 +217,12 @@ impl ColorTemperatureGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon(
-            Phosphor::ThermometerHot(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::ThermometerHot(Weight::Regular).into(),
+            handle: GroupHandle::ColorTemperature,
+        })
         .preview(gamma_available.then_some(PreviewedValue::Plain(&self.warmth as &dyn BarWidget)))
-        .forwards_scroll(gamma_available)
+        .forwards_scroll(gamma_available.then_some("change the screen warmth"))
     }
 }
 

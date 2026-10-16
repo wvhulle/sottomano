@@ -6,10 +6,7 @@ use zbus::proxy;
 use crate::{
     data::{
         empty_text::non_empty,
-        source::{
-            PolledSource, Source,
-            bus,
-        },
+        source::{PolledSource, Source, bus},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},

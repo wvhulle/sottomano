@@ -66,6 +66,44 @@ pub enum HoverTarget {
     Tray(String),
     Window(WindowTarget),
     Workspace(u64),
+    GroupHandle(GroupHandle),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupHandle {
+    Ai,
+    Audio,
+    ColorTemperature,
+    DarkMode,
+    IdleTimeouts,
+    Internet,
+    LoginSession,
+    Monitor,
+    NetInterfaces,
+    NiriWindow,
+    Overlay,
+    PanelAppearance,
+    Power,
+    QuickLaunch,
+    QuietSchedule,
+    ShellLayout,
+    SurfaceEffects,
+    Systemd,
+    Tray,
+}
+
+impl PressHints {
+    pub fn group_handle(expanded: bool, scroll: Option<&'static str>) -> Self {
+        PressHints {
+            left: Some(if expanded {
+                "collapse the group"
+            } else {
+                "expand the group"
+            }),
+            scroll,
+            ..PressHints::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

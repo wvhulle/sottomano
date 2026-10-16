@@ -29,12 +29,7 @@ pub struct IconToggle {
 }
 
 impl IconToggle {
-    pub fn new(
-        name: &'static str,
-        icon: Phosphor,
-        enabled: bool,
-        presses: SwitchPresses,
-    ) -> Self {
+    pub fn new(name: &'static str, icon: Phosphor, enabled: bool, presses: SwitchPresses) -> Self {
         Self {
             name,
             icon,

@@ -7,8 +7,7 @@ use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            PolledSource, Source,
-            bus,
+            PolledSource, Source, bus,
             hostname::{at_micros, entry},
             niri,
             systemd_manager::{ManagerProxy, unit_proxy},

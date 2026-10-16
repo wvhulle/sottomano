@@ -319,14 +319,12 @@ impl MediaGroup {
             &self.expansion,
             MediaMessage::Expansion,
             [
-                Some(GroupItem::element(move |_| {
-                    hoverable(
-                        track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group),
-                        HoverTarget::Media,
-                        PressHints::default(),
-                        GroupEvent::Tooltip,
-                    )
-                })),
+                Some(GroupItem::hoverable_element(
+                    HoverTarget::Media,
+                    move |_| {
+                        track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group)
+                    },
+                )),
                 Some(track_label(config, media)),
                 seek,
                 Some(GroupItem::element(move |reveal| {
@@ -344,7 +342,7 @@ impl MediaGroup {
             .into_iter()
             .flatten(),
         )
-        .forwards_scroll(seekable)
+        .forwards_scroll(seekable.then_some("seek in the track"))
     }
 
     fn session_controls<'a>(

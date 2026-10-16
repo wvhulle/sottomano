@@ -2,6 +2,7 @@ use iced::Element;
 
 use crate::{
     desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
+    widget_groups::notification_group::NotificationStatus,
     widgets::widget_group::GroupContent,
 };
 
@@ -22,6 +23,14 @@ impl DesktopShell {
             center.map(view),
             end.map(view),
         )
+    }
+
+    pub(super) fn notification_status(&self) -> NotificationStatus {
+        NotificationStatus {
+            quiet: self.quiet_schedule_group.is_quiet(),
+            live: self.notifications.live_count(),
+            held: self.notifications.held_count(),
+        }
     }
 
     pub(super) fn top_bar_groups(&self) -> TopBarGroups<'_> {
@@ -51,11 +60,8 @@ impl DesktopShell {
                 self.clock_group.group_content().map(Message::Clock),
                 self.notification_group
                     .group_content(
-                        config,
                         &self.shell_settings.notifications,
-                        self.notifications.live_count(),
-                        self.notifications.held_count(),
-                        self.quiet_schedule_group.is_quiet(),
+                        self.notification_status(),
                     )
                     .map(Message::NotificationGroup),
                 self.quiet_schedule_group

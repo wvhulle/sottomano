@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use crate::{
     config::Config,
     data::source::{Delivery, focus_ledger::WakingWindow, logind},
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::listening,
     state::{self, quiet_hours::QuietHoursSchedule},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
@@ -433,7 +433,10 @@ impl QuietScheduleGroup {
                 slider(QuietSlider::ScreenOff),
             ],
         )
-        .face(HandleFace::Icon(self.face_icon().into()))
+        .face(HandleFace::Icon {
+            glyph: self.face_icon().into(),
+            handle: GroupHandle::QuietSchedule,
+        })
     }
 
     fn face_icon(&self) -> Phosphor {

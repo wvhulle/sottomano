@@ -23,7 +23,7 @@ use crate::{
             },
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
@@ -218,9 +218,10 @@ impl PowerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon(
-            Phosphor::Lightning(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::Lightning(Weight::Regular).into(),
+            handle: GroupHandle::Power,
+        })
         .preview(self.battery.get().map(|battery| PreviewedValue::Hoverable {
             widget: battery,
             target: PowerTarget::Battery.into(),

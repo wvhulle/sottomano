@@ -1,5 +1,4 @@
 use crate::{
-    config::Config,
     desktop_shell::hover_tooltips::HoverTarget,
     state::NotificationSettings,
     widget_groups::quiet_schedule_group::QuietScheduleTarget,
@@ -7,10 +6,9 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
-        source_reading::source_reading,
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
+        tooltip_body::{Freshness, KeyValue, Tooltip, TooltipBody},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
 };
@@ -24,6 +22,7 @@ pub enum NotificationGroupMessage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotificationTarget {
+    Status,
     Sound,
 }
 
@@ -58,8 +57,10 @@ impl NotificationGroup {
     pub fn tooltip_for(
         target: NotificationTarget,
         notification_settings: &NotificationSettings,
+        status: NotificationStatus,
     ) -> Tooltip {
         match target {
+            NotificationTarget::Status => Tooltip::sourced(status.tooltip(), Freshness::Live),
             NotificationTarget::Sound => sound_toggle(notification_settings).switch_tooltip(),
         }
     }
@@ -74,20 +75,15 @@ impl NotificationGroup {
 
     pub fn group_content<'a>(
         &'a self,
-        config: &'a Config,
         notification_settings: &NotificationSettings,
-        live: usize,
-        held: usize,
-        quiet: bool,
+        status: NotificationStatus,
     ) -> GroupContent<'a, NotificationGroupMessage> {
-        let status = NotificationStatus { quiet, live, held };
+        let quiet = status.quiet;
         GroupContent::new(
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
-                GroupItem::element(move |reveal| {
-                    source_reading(config, &status, reveal).map(GroupEvent::Group)
-                }),
+                GroupItem::reading(status, NotificationTarget::Status),
                 GroupItem::reading(
                     DoNotDisturbStatus { quiet },
                     QuietScheduleTarget::DoNotDisturb,
@@ -111,10 +107,10 @@ impl NotificationGroup {
 }
 
 #[derive(Clone, Copy)]
-struct NotificationStatus {
-    quiet: bool,
-    live: usize,
-    held: usize,
+pub struct NotificationStatus {
+    pub quiet: bool,
+    pub live: usize,
+    pub held: usize,
 }
 
 impl BarWidget for NotificationStatus {

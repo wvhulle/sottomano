@@ -17,7 +17,7 @@ use crate::{
         },
         sun_schedule::ColorMode,
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, blocking, listening},
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
@@ -316,9 +316,10 @@ impl DarkModeGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon(
-            Phosphor::MoonStars(Weight::Regular).into(),
-        ))
+        .face(HandleFace::Icon {
+            glyph: Phosphor::MoonStars(Weight::Regular).into(),
+            handle: GroupHandle::DarkMode,
+        })
         .preview(self.mode_toggle.reading().map(PreviewedValue::Plain))
     }
 }

@@ -20,7 +20,7 @@ use crate::{
             running_jobs::SlowJobs,
         },
     },
-    desktop_shell::hover_tooltips::HoverTarget,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{copy_to_clipboard, listening},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
@@ -236,6 +236,7 @@ impl SystemdManagerGroup {
         .face(HandleFace::IconColoredBy {
             glyph: Phosphor::Heartbeat(Weight::Regular).into(),
             reading: self,
+            handle: GroupHandle::Systemd,
         })
         .preview(boot.map(|boot| PreviewedValue::Hoverable {
             widget: boot,

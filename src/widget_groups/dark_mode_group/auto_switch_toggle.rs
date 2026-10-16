@@ -57,7 +57,13 @@ impl AutoSwitchToggle {
     }
 
     pub fn press_does(&self) -> &'static str {
-        if self.saved_schedule.get().copied().unwrap_or_default().auto_switch_armed {
+        if self
+            .saved_schedule
+            .get()
+            .copied()
+            .unwrap_or_default()
+            .auto_switch_armed
+        {
             "stop switching between light and dark at sunrise and sunset"
         } else {
             "switch to light at sunrise and to dark at sunset"

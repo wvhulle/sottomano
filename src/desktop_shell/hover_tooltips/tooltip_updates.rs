@@ -11,7 +11,7 @@ use crate::{
         window_group::{WindowGroup, WindowTarget},
         workspaces_group::workspace_tooltip,
     },
-    widgets::tooltip_body::Tooltip,
+    widgets::tooltip_body::{Freshness, Tooltip, TooltipBody},
 };
 
 impl DesktopShell {
@@ -24,15 +24,11 @@ impl DesktopShell {
                 anchor,
                 press_hints,
             } => {
-                let Some(host) = self
-                    .surfaces
-                    .get(&surface)
-                    .filter(|_| {
-                        self.tooltip_for(&target).is_some_and(|tooltip| {
-                            !tooltip.is_empty() || !press_hints.gestures().is_empty()
-                        })
+                let Some(host) = self.surfaces.get(&surface).filter(|_| {
+                    self.tooltip_for(&target).is_some_and(|tooltip| {
+                        !tooltip.is_empty() || !press_hints.gestures().is_empty()
                     })
-                else {
+                }) else {
                     return Task::none();
                 };
                 let parent = PanelEdge {
@@ -132,9 +128,13 @@ impl DesktopShell {
             )),
             HoverTarget::LoginSession(target) => self.login_session_group.tooltip_for(*target),
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target),
+            HoverTarget::GroupHandle(_) => {
+                Some(Tooltip::sourced(TooltipBody::sections([]), Freshness::Live))
+            }
             HoverTarget::Notification(target) => Some(NotificationGroup::tooltip_for(
                 *target,
                 &self.shell_settings.notifications,
+                self.notification_status(),
             )),
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),
             HoverTarget::Session(target) => Some(

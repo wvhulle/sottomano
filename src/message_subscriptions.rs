@@ -39,11 +39,10 @@ use crate::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
         dark_mode_group::DarkModeGroup, disk_group::DiskGroup,
         journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
-        monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
-        window_group::WindowGroup,
+        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
 
