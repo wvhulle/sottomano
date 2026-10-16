@@ -86,10 +86,12 @@ struct HoverArea<'a, M> {
 struct HoverState {
     hovered: bool,
     opened_by_press: bool,
+    announced: PressHints,
 }
 
 impl<M> HoverArea<'_, M> {
-    fn enter(&self, anchor: Rectangle) -> M {
+    fn enter(&self, state: &mut HoverState, anchor: Rectangle) -> M {
+        state.announced = self.press_hints;
         (self.wrap)(TooltipMessage::EnterAnchor {
             target: self.target.clone(),
             anchor,
@@ -103,6 +105,17 @@ impl<M> HoverArea<'_, M> {
         })
     }
 
+    fn revised_hints(&self, state: &mut HoverState) -> Option<M> {
+        if !state.hovered || state.announced == self.press_hints {
+            return None;
+        }
+        state.announced = self.press_hints;
+        Some((self.wrap)(TooltipMessage::PressHintsChanged {
+            target: self.target.clone(),
+            press_hints: self.press_hints,
+        }))
+    }
+
     fn on_hover_change(
         &self,
         state: &mut HoverState,
@@ -114,7 +127,7 @@ impl<M> HoverArea<'_, M> {
         }
         state.hovered = hovered;
         match self.opening {
-            Opening::Hover if hovered => Some(self.enter(anchor)),
+            Opening::Hover if hovered => Some(self.enter(state, anchor)),
             Opening::Hover => Some(self.exit()),
             Opening::Press if hovered => None,
             Opening::Press => state.opened_by_press.then(|| {
@@ -130,7 +143,7 @@ impl<M> HoverArea<'_, M> {
         }
         state.opened_by_press = !state.opened_by_press;
         Some(if state.opened_by_press {
-            self.enter(anchor)
+            self.enter(state, anchor)
         } else {
             self.exit()
         })
@@ -215,7 +228,8 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
                 self.on_press(state, anchor)
             }
             _ => self.on_hover_change(state, hovered, anchor),
-        };
+        }
+        .or_else(|| self.revised_hints(state));
         if let Some(message) = published {
             shell.publish(message);
         }

@@ -57,6 +57,13 @@ impl TooltipHost {
                 Task::none()
             }
             TooltipMessage::ExitTooltip => self.leave_after_grace(),
+            TooltipMessage::PressHintsChanged {
+                target,
+                press_hints,
+            } => {
+                self.transition.revise_press_hints(&target, press_hints);
+                Task::none()
+            }
             TooltipMessage::Enter { .. }
             | TooltipMessage::EnterAnchor { .. }
             | TooltipMessage::SwitchIntentElapsed { .. } => Task::none(),

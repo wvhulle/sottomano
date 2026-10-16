@@ -94,6 +94,14 @@ impl TooltipTransition {
         matches!(self.stage, Stage::Showing { leaving: true, .. })
     }
 
+    pub fn revise_press_hints(&mut self, target: &HoverTarget, press_hints: PressHints) {
+        if let Stage::Showing { current, .. } = &mut self.stage
+            && current.target == *target
+        {
+            current.press_hints = press_hints;
+        }
+    }
+
     pub fn current(&self) -> Option<&Occupant> {
         match &self.stage {
             Stage::Showing { current, .. } => Some(current),
