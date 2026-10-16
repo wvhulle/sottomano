@@ -3,6 +3,8 @@ use iced::{Alignment, Element, widget::Row};
 use crate::{
     config::Config,
     data::source::mpris::{Command, Media, Status},
+    desktop_shell::hover_tooltips::{PressHints, TooltipMessage, hoverable},
+    widget_groups::media_group::MediaTarget,
     widgets::{
         confirm_button::ConfirmButton,
         glyph_button,
@@ -12,6 +14,13 @@ use crate::{
     },
 };
 
+pub struct SessionMessages<Message> {
+    pub command: fn(Command) -> Message,
+    pub quit: Message,
+    pub cancel_quit: Message,
+    pub tooltip: fn(TooltipMessage) -> Message,
+}
+
 pub struct SessionControls<'c, Message> {
     config: &'c Config,
     media: &'c Media,
@@ -20,6 +29,7 @@ pub struct SessionControls<'c, Message> {
     on_command: fn(Command) -> Message,
     on_quit: Message,
     on_cancel_quit: Message,
+    on_tooltip: fn(TooltipMessage) -> Message,
 }
 
 impl<'c, Message: Clone> SessionControls<'c, Message> {
@@ -28,18 +38,17 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         media: &'c Media,
         quit_button: &'c ConfirmButton,
         reveal: f32,
-        on_command: fn(Command) -> Message,
-        on_quit: Message,
-        on_cancel_quit: Message,
+        messages: SessionMessages<Message>,
     ) -> Self {
         Self {
             config,
             media,
             quit_button,
             reveal,
-            on_command,
-            on_quit,
-            on_cancel_quit,
+            on_command: messages.command,
+            on_quit: messages.quit,
+            on_cancel_quit: messages.cancel_quit,
+            on_tooltip: messages.tooltip,
         }
     }
 
@@ -52,11 +61,19 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
             let color = state
                 .color(&self.config.theme.palette)
                 .scale_alpha(self.reveal);
-            glyph_button(
-                Phosphor::Stop(state.weight()),
-                self.config.theme.font.icon_size_px,
-                color,
-                (self.on_command)(Command::Stop),
+            hoverable(
+                glyph_button(
+                    Phosphor::Stop(state.weight()),
+                    self.config.theme.font.icon_size_px,
+                    color,
+                    (self.on_command)(Command::Stop),
+                ),
+                MediaTarget::Stop.into(),
+                PressHints {
+                    left: Some("stop playback"),
+                    ..PressHints::default()
+                },
+                self.on_tooltip,
             )
         })
     }
@@ -66,13 +83,25 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         Message: 'a,
     {
         self.media.capabilities.quit.then(|| {
-            self.quit_button.view(
-                self.config,
-                self.reveal,
-                false,
-                Phosphor::Power(Weight::Regular),
-                self.on_quit.clone(),
-                self.on_cancel_quit.clone(),
+            hoverable(
+                self.quit_button.view(
+                    self.config,
+                    self.reveal,
+                    false,
+                    Phosphor::Power(Weight::Regular),
+                    self.on_quit.clone(),
+                    self.on_cancel_quit.clone(),
+                ),
+                MediaTarget::Quit.into(),
+                PressHints {
+                    left: Some(if self.quit_button.is_armed() {
+                        "confirm quitting the player"
+                    } else {
+                        "quit the player"
+                    }),
+                    ..PressHints::default()
+                },
+                self.on_tooltip,
             )
         })
     }

@@ -2,18 +2,18 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use iced::{
     Element, Task,
-    widget::{Row, button, hover, image, svg},
+    widget::{Row, hover, image, svg},
 };
 
 use crate::{
     config::Config,
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
-    desktop_shell::hover_tooltips::GroupHandle,
+    desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::blocking,
     widgets::{
-        flat_button,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
+        tooltip_body::{Freshness, KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
@@ -41,6 +41,13 @@ impl QuickLaunch {
 
     pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) {
         self.ranked = ranked;
+    }
+
+    pub fn tooltip_for(app_id: &str) -> Tooltip {
+        Tooltip::sourced(
+            TooltipBody::dictionary([KeyValue::new("App", app_id.to_owned())]),
+            Freshness::Live,
+        )
     }
 
     pub fn icon_keys(&self) -> Vec<String> {
@@ -84,11 +91,15 @@ impl QuickLaunch {
                 .filter(|app_id| index.app_icon(app_id).is_some())
                 .take(MAX_ITEMS)
                 .map(move |app_id| {
-                    GroupItem::element(move |reveal| {
-                        icon_slot(config, index, app_id, reveal)
-                            .unwrap_or_else(|| Row::new().into())
-                            .map(GroupEvent::Group)
-                    })
+                    GroupItem::hoverable_element(
+                        HoverTarget::QuickLaunch(app_id.clone()),
+                        move |reveal| {
+                            icon_slot(config, index, app_id, reveal)
+                                .unwrap_or_else(|| Row::new().into())
+                                .map(GroupEvent::Group)
+                        },
+                    )
+                    .on_press("launch", QuickLaunchMessage::Launch(app_id.clone()))
                 }),
         )
         .face(HandleFace::Icon {
@@ -108,13 +119,7 @@ fn icon_slot<'a>(
     let side = config.theme.font.icon_size_px;
     let resting = icon_image(path, side, reveal * RESTING_OPACITY);
     let bright = icon_image(path, side, reveal);
-    Some(
-        button(hover(resting, bright))
-            .padding(0)
-            .style(flat_button(config.theme.palette.bar_foreground))
-            .on_press(QuickLaunchMessage::Launch(app_id.to_string()))
-            .into(),
-    )
+    Some(hover(resting, bright))
 }
 
 fn icon_image<'a>(path: &Path, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {

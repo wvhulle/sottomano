@@ -31,7 +31,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
-        tooltip_body::{Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
     },
 };
@@ -43,13 +43,33 @@ mod transport_controls;
 
 use self::{
     seek_bar::{SeekBar, SeekMessage},
-    session_controls::SessionControls,
+    session_controls::{SessionControls, SessionMessages},
     track_tooltip::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
 
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
 const RAISE_PLAYER_HINT: &str = "bring the player's window forward";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MediaTarget {
+    Track,
+    Source(String),
+    Seek,
+    Shuffle,
+    Previous,
+    PlayPause,
+    Next,
+    Loop,
+    Stop,
+    Quit,
+}
+
+impl From<MediaTarget> for HoverTarget {
+    fn from(target: MediaTarget) -> Self {
+        HoverTarget::Media(target)
+    }
+}
 
 pub struct MediaGroup {
     players: ContinuousReading<Vec<Media>>,
@@ -248,18 +268,27 @@ impl MediaGroup {
         players: &[&Media],
         current: &Media,
         reveal: f32,
-    ) -> Element<'a, MediaMessage> {
+    ) -> Element<'a, GroupEvent<MediaMessage>> {
         let side = config.theme.font.icon_size_px;
-        let icons: Vec<Element<'a, MediaMessage>> = players
+        let icons: Vec<Element<'a, GroupEvent<MediaMessage>>> = players
             .iter()
             .map(|m| {
-                let opacity = reveal * if m.bus == current.bus { 1.0 } else { 0.4 };
-                let icon = source_icon(config, index, m, side, opacity);
-                button(icon)
-                    .padding(0)
-                    .style(flat_button(config.theme.palette.bar_foreground))
-                    .on_press(MediaMessage::Source(m.bus.clone()))
-                    .into()
+                let selected = m.bus == current.bus;
+                let opacity = reveal * if selected { 1.0 } else { 0.4 };
+                let icon = source_icon(config, index, m, side, opacity).map(GroupEvent::Group);
+                hoverable(
+                    button(icon)
+                        .padding(0)
+                        .style(flat_button(config.theme.palette.bar_foreground))
+                        .on_press(GroupEvent::Group(MediaMessage::Source(m.bus.clone())))
+                        .into(),
+                    MediaTarget::Source(m.bus.clone()).into(),
+                    PressHints {
+                        left: (!selected).then_some("control this player"),
+                        ..PressHints::default()
+                    },
+                    GroupEvent::Tooltip,
+                )
             })
             .collect();
         Row::with_children(icons)
@@ -268,13 +297,31 @@ impl MediaGroup {
             .into()
     }
 
-    pub fn tooltip(&self) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &MediaTarget) -> Option<Tooltip> {
         let media = self.current()?;
-        self.players.tooltip_with(TooltipBody::sections([
-            track_section(media),
-            playback_section(media, self.now),
-            search_section(media),
-        ]))
+        match target {
+            MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections([
+                track_section(media),
+                playback_section(media, self.now),
+                search_section(media),
+            ])),
+            MediaTarget::Source(bus) => {
+                let player = self.titled_players().into_iter().find(|m| &m.bus == bus)?;
+                self.players
+                    .tooltip_with(TooltipBody::dictionary([KeyValue::new(
+                        "Player",
+                        player.identity.clone(),
+                    )]))
+            }
+            MediaTarget::Seek
+            | MediaTarget::Shuffle
+            | MediaTarget::Previous
+            | MediaTarget::PlayPause
+            | MediaTarget::Next
+            | MediaTarget::Loop
+            | MediaTarget::Stop
+            | MediaTarget::Quit => self.players.tooltip_with(TooltipBody::sections([])),
+        }
     }
 
     pub fn group_content<'a>(
@@ -292,17 +339,24 @@ impl MediaGroup {
         };
         let players = self.titled_players();
         let sources = (players.len() >= 2).then(|| {
-            GroupItem::element(move |reveal| {
-                Self::sources(config, index, &players, media, reveal).map(GroupEvent::Group)
-            })
+            GroupItem::element(move |reveal| Self::sources(config, index, &players, media, reveal))
         });
         let seekable = SeekBar::seekable(media, self.now);
         let seek = seekable.then(|| {
             GroupItem::element(move |_| {
-                self.seek_bar
-                    .view(config, media, self.now)
-                    .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
-                    .map(GroupEvent::Group)
+                hoverable(
+                    self.seek_bar
+                        .view(config, media, self.now)
+                        .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
+                        .map(GroupEvent::Group),
+                    MediaTarget::Seek.into(),
+                    PressHints {
+                        left: Some("jump to this point"),
+                        scroll: Some("seek"),
+                        ..PressHints::default()
+                    },
+                    GroupEvent::Tooltip,
+                )
             })
         });
         let gauge_fraction = media
@@ -310,17 +364,14 @@ impl MediaGroup {
             .fraction(media.status, self.now)
             .filter(|_| !(seekable && self.expansion.is_expanded()));
         let session = (!self.session_controls(config, media, 1.0).is_empty()).then(|| {
-            GroupItem::element(move |reveal| {
-                Element::<MediaMessage>::from(self.session_controls(config, media, reveal))
-                    .map(GroupEvent::Group)
-            })
+            GroupItem::element(move |reveal| self.session_controls(config, media, reveal).into())
         });
         GroupContent::new(
             &self.expansion,
             MediaMessage::Expansion,
             [
                 Some(GroupItem::hoverable_element(
-                    HoverTarget::Media,
+                    HoverTarget::Media(MediaTarget::Track),
                     move |_| {
                         track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group)
                     },
@@ -328,13 +379,14 @@ impl MediaGroup {
                 Some(track_label(config, media)),
                 seek,
                 Some(GroupItem::element(move |reveal| {
-                    Element::<MediaMessage>::from(TransportControls::new(
+                    TransportControls::new(
                         config,
                         media,
                         reveal,
-                        MediaMessage::Command,
-                    ))
-                    .map(GroupEvent::Group)
+                        |command| GroupEvent::Group(MediaMessage::Command(command)),
+                        GroupEvent::Tooltip,
+                    )
+                    .into()
                 })),
                 session,
                 sources,
@@ -350,15 +402,18 @@ impl MediaGroup {
         config: &'a Config,
         media: &'a Media,
         reveal: f32,
-    ) -> SessionControls<'a, MediaMessage> {
+    ) -> SessionControls<'a, GroupEvent<MediaMessage>> {
         SessionControls::new(
             config,
             media,
             &self.quit_button,
             reveal,
-            MediaMessage::Command,
-            MediaMessage::Quit,
-            MediaMessage::CancelQuit,
+            SessionMessages {
+                command: |command| GroupEvent::Group(MediaMessage::Command(command)),
+                quit: GroupEvent::Group(MediaMessage::Quit),
+                cancel_quit: GroupEvent::Group(MediaMessage::CancelQuit),
+                tooltip: GroupEvent::Tooltip,
+            },
         )
     }
 }
@@ -375,7 +430,7 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
                 .size(config.theme.font.text_size_px)
                 .line_height(LINE_HEIGHT)
                 .into(),
-            HoverTarget::Media,
+            HoverTarget::Media(MediaTarget::Track),
             press_hints,
             GroupEvent::Tooltip,
         )

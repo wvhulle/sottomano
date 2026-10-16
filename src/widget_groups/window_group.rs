@@ -1,5 +1,5 @@
 pub mod process_tree;
-mod quick_launch;
+pub mod quick_launch;
 pub mod window_list;
 mod window_tooltip;
 
