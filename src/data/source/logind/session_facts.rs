@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use humantime::format_duration;
 use iced::alignment::Horizontal;
 use procfs::process::Process as Proc;
-use zbus::{blocking, proxy, zvariant::OwnedObjectPath};
+use zbus::{proxy, zvariant::OwnedObjectPath};
 
 use crate::{
     data::{
@@ -14,7 +14,7 @@ use crate::{
             bus::{self, call},
             hostname::{at_micros, entry},
             logind::{
-                InhibitorRow, ManagerProxy, ManagerProxyBlocking, greetd_greeter::greeter_program,
+                InhibitorRow, ManagerProxy, greetd_greeter::greeter_program,
                 session_id,
             },
         },
@@ -84,36 +84,50 @@ pub struct SessionIdentity {
     pub session_type: String,
 }
 
-pub fn identity() -> Option<SessionIdentity> {
-    let connection = blocking::Connection::system().ok()?;
-    let manager = ManagerProxyBlocking::new(&connection).ok()?;
-    let path = manager.get_session(&session_id()).ok()?;
-    let session = SessionProxyBlocking::builder(&connection)
-        .path(path)
-        .ok()?
-        .build()
-        .ok()?;
-    let remote = session.remote().ok()?;
-    Some(SessionIdentity {
-        user: session.name().ok().and_then(non_empty)?,
-        uid: session.user().ok()?.0,
-        seat: session.seat().ok().and_then(|(seat, _)| non_empty(seat)),
-        console: session.tty().ok().and_then(non_empty),
-        virtual_terminal: session.vt_nr().ok().filter(|vt| *vt > 0),
-        remote_user: session
-            .remote_user()
-            .ok()
-            .and_then(non_empty)
-            .filter(|_| remote),
-        remote_host: session
-            .remote_host()
-            .ok()
-            .and_then(non_empty)
-            .filter(|_| remote),
-        login_manager: session.service().ok()?,
-        desktop: session.desktop().ok().and_then(non_empty),
-        session_type: session.session_type().ok()?,
-    })
+impl Source for SessionIdentity {
+    type Error = bus::Error;
+    type Key = ();
+
+    const NAME: &'static str = "logind session identity";
+}
+
+impl PolledSource for SessionIdentity {
+    const INTERVAL: Duration = Duration::from_hours(1);
+
+    async fn poll(_key: ()) -> Result<Self, bus::Error> {
+        let session = own_session().await?;
+        let remote = call(session.remote().await)?;
+        Ok(SessionIdentity {
+            user: non_empty(call(session.name().await)?).ok_or(bus::Error::Absent)?,
+            uid: call(session.user().await)?.0,
+            seat: session.seat().await.ok().and_then(|(seat, _)| non_empty(seat)),
+            console: session.tty().await.ok().and_then(non_empty),
+            virtual_terminal: session.vt_nr().await.ok().filter(|vt| *vt > 0),
+            remote_user: session
+                .remote_user()
+                .await
+                .ok()
+                .and_then(non_empty)
+                .filter(|_| remote),
+            remote_host: session
+                .remote_host()
+                .await
+                .ok()
+                .and_then(non_empty)
+                .filter(|_| remote),
+            login_manager: call(session.service().await)?,
+            desktop: session.desktop().await.ok().and_then(non_empty),
+            session_type: call(session.session_type().await)?,
+        })
+    }
+}
+
+async fn own_session() -> Result<SessionProxy<'static>, bus::Error> {
+    let connection = system_bus().await?;
+    let manager = call(ManagerProxy::new(&connection).await)?;
+    let path = call(manager.get_session(&session_id()).await)?;
+    let session_builder = call(SessionProxy::builder(&connection).path(path))?;
+    call(session_builder.build().await)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -223,12 +237,7 @@ impl PolledSource for SessionInfo {
     const INTERVAL: Duration = Duration::from_secs(5);
 
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let connection = system_bus().await?;
-        let manager = call(ManagerProxy::new(&connection).await)?;
-        let path = call(manager.get_session(&session_id()).await)?;
-        let session_builder = call(SessionProxy::builder(&connection).path(path))?;
-        let session = call(session_builder.build().await)?;
-        read_session(&session).await
+        read_session(&own_session().await?).await
     }
 }
 

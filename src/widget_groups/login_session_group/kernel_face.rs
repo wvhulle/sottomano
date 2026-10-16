@@ -29,7 +29,7 @@ impl BarWidget for KernelFace<'_> {
             [
                 Some(KeyValue::new("Host", self.system.hostname.clone())),
                 Some(KeyValue::new("Kernel", self.system.kernel.clone())),
-                entry("OS", self.system.operating_system.clone()),
+                Some(KeyValue::new("OS", self.system.operating_system.clone())),
                 entry("Chassis", self.system.chassis.map(Chassis::stored_name)),
                 Some(KeyValue::new(
                     "Wiki",

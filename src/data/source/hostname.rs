@@ -1,10 +1,16 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use zbus::proxy;
 
 use crate::{
-    data::empty_text::non_empty,
+    data::{
+        empty_text::non_empty,
+        source::{
+            PolledSource, Source,
+            bus::{self, call},
+        },
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::TimePart,
@@ -43,21 +49,36 @@ trait Hostname {
 pub struct OperatingSystemIdentity {
     pub hostname: String,
     pub kernel: String,
-    pub operating_system: Option<String>,
+    pub operating_system: String,
     pub chassis: Option<Chassis>,
 }
 
-impl OperatingSystemIdentity {
-    pub async fn read() -> Option<Self> {
-        let connection = zbus::Connection::system().await.ok()?;
-        let hostname = HostnameProxy::new(&connection).await.ok()?;
-        Some(Self {
-            hostname: text(hostname.hostname().await)?,
-            kernel: text(hostname.kernel_release().await)?,
-            operating_system: text(hostname.operating_system_pretty_name().await),
+impl Source for OperatingSystemIdentity {
+    type Error = bus::Error;
+    type Key = ();
+
+    const NAME: &'static str = "hostnamed";
+}
+
+impl PolledSource for OperatingSystemIdentity {
+    const INTERVAL: Duration = Duration::from_hours(1);
+
+    async fn poll(_key: ()) -> Result<Self, bus::Error> {
+        let connection = zbus::Connection::system()
+            .await
+            .map_err(|error| bus::Error::Connect(error.to_string()))?;
+        let hostname = call(HostnameProxy::new(&connection).await)?;
+        Ok(Self {
+            hostname: required_text(hostname.hostname().await)?,
+            kernel: required_text(hostname.kernel_release().await)?,
+            operating_system: required_text(hostname.operating_system_pretty_name().await)?,
             chassis: text(hostname.chassis().await).and_then(|chassis| chassis.parse().ok()),
         })
     }
+}
+
+fn required_text(reply: zbus::Result<String>) -> Result<String, bus::Error> {
+    non_empty(call(reply)?).ok_or(bus::Error::Absent)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
