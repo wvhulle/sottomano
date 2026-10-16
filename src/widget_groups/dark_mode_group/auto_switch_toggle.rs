@@ -56,6 +56,14 @@ impl AutoSwitchToggle {
         self.saved_schedule.tooltip_with(self.tooltip())
     }
 
+    pub fn press_does(&self) -> &'static str {
+        if self.saved_schedule.get().copied().unwrap_or_default().auto_switch_armed {
+            "stop switching between light and dark at sunrise and sunset"
+        } else {
+            "switch to light at sunrise and to dark at sunset"
+        }
+    }
+
     pub fn update_location(&mut self, observer_location: Position) {
         self.observer = Observer::Located(observer_location);
     }

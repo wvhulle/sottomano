@@ -11,7 +11,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::IconToggle,
+        toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
@@ -38,11 +38,23 @@ fn blur_toggle(styling: NiriStyling) -> IconToggle {
         "Blur background",
         Phosphor::Snowflake(Weight::Regular),
         styling.blurred,
+        SwitchPresses {
+            turning_on: "frost the background behind panels and tooltips",
+            turning_off: "stop blurring behind panels and tooltips",
+        },
     )
 }
 
 fn xray_toggle(styling: NiriStyling) -> IconToggle {
-    IconToggle::new("X-ray", Phosphor::Eye(Weight::Regular), styling.xray)
+    IconToggle::new(
+        "X-ray",
+        Phosphor::Eye(Weight::Regular),
+        styling.xray,
+        SwitchPresses {
+            turning_on: "blur only the wallpaper, hiding windows behind panels",
+            turning_off: "blur the windows behind panels too",
+        },
+    )
 }
 
 fn shadow_toggle(shadow: ShadowStyle) -> IconToggle {
@@ -50,6 +62,10 @@ fn shadow_toggle(shadow: ShadowStyle) -> IconToggle {
         "Drop shadow",
         Phosphor::SelectionBackground(Weight::Regular),
         shadow.cast,
+        SwitchPresses {
+            turning_on: "cast a drop shadow under panels, notifications and tooltips",
+            turning_off: "remove the drop shadow",
+        },
     )
 }
 
@@ -58,6 +74,10 @@ fn outline_toggle(outline: OutlineStyle) -> IconToggle {
         "Outline",
         Phosphor::Rectangle(Weight::Regular),
         outline.drawn,
+        SwitchPresses {
+            turning_on: "trace panel and tooltip edges facing the screen interior",
+            turning_off: "remove the edge outline",
+        },
     )
 }
 

@@ -306,7 +306,7 @@ impl DarkModeGroup {
                     .group_item(DarkModeTarget::Mode, DarkModeMessage::ModeToggle),
                 mode_known.then(|| {
                     GroupItem::reading(&self.auto_switch_toggle, DarkModeTarget::Schedule).on_press(
-                        "switch following sunrise and sunset on or off",
+                        self.auto_switch_toggle.press_does(),
                         DarkModeMessage::ToggleAutoSwitch,
                     )
                 }),
