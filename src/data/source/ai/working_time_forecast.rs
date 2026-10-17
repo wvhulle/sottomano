@@ -1,9 +1,10 @@
 use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, Weekday};
+use rust_decimal::{Decimal, prelude::FromPrimitive};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     config::{Config, calendar::WorkingHours},
-    data::source::ai::quota::Quota,
+    data::{money::Money, source::ai::quota::Quota},
 };
 
 const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
@@ -12,11 +13,11 @@ const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
 pub struct SpendBudget {
     pub working_days: Vec<Weekday>,
     pub working_hours: WorkingHours,
-    pub monthly_limit_usd: Option<u32>,
+    pub monthly_limit_usd: u32,
 }
 
 impl SpendBudget {
-    pub fn new(config: &Config, monthly_limit_usd: Option<u32>) -> Self {
+    pub fn new(config: &Config, monthly_limit_usd: u32) -> Self {
         Self {
             working_days: config.calendar.working_days.clone(),
             working_hours: config.calendar.working_hours.clone(),
@@ -69,11 +70,11 @@ impl CalendarSpan {
             count_working_days(self.since, today.min(self.until), &budget.working_days);
         let today_is_working =
             self.contains(today) && budget.working_days.contains(&today.weekday());
-        let today_share = budget
-            .working_hours
-            .elapsed_share(now.time())
-            .filter(|_| today_is_working)
-            .unwrap_or(0.0);
+        let today_share = if today_is_working {
+            budget.working_hours.elapsed_share(now.time())
+        } else {
+            0.0
+        };
         f64::from(whole_days_before_today) + today_share
     }
 
@@ -85,26 +86,26 @@ impl CalendarSpan {
 
     pub fn projected_cost(
         self,
-        cost: f64,
+        cost: &Money,
         now: DateTime<Local>,
         budget: &SpendBudget,
-    ) -> Option<f64> {
-        self.elapsed_working_share(now, budget)
-            .map(|share| cost / share)
+    ) -> Option<Money> {
+        let share = Decimal::from_f64(self.elapsed_working_share(now, budget)?)?;
+        let projected = cost.amount().checked_div(share)?;
+        Some(Money::from_decimal(projected, cost.currency()))
     }
 
     pub fn budget_quota(
         self,
         label: &'static str,
-        cost: f64,
+        cost: &Money,
         budget: &SpendBudget,
         now: DateTime<Local>,
     ) -> Option<Quota> {
-        let limit_usd = budget.monthly_limit_usd?;
         let elapsed = self.elapsed_working_share(now, budget)?;
         Some(Quota {
             label: label.into(),
-            used: Ratio::new::<ratio>(cost / f64::from(limit_usd)),
+            used: Ratio::new::<ratio>(cost.to_f64_lossy() / f64::from(budget.monthly_limit_usd)),
             elapsed: Ratio::new::<ratio>(elapsed),
             starts_at: local_midnight(self.since)?,
             resets_at: local_midnight(self.until)?,

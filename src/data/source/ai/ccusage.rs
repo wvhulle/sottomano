@@ -6,14 +6,18 @@ use std::{
 };
 
 use chrono::{DateTime, Local, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use serde::Deserialize;
 
-use crate::data::source::{
-    ai::{
-        quota::Quota,
-        working_time_forecast::{CalendarSpan, SpendBudget},
+use crate::data::{
+    money::{Money, usd},
+    source::{
+        ai::{
+            quota::Quota,
+            working_time_forecast::{CalendarSpan, SpendBudget},
+        },
+        command::{self, exists},
     },
-    command::{self, exists},
 };
 
 const PROGRAM: &str = "ccusage";
@@ -61,16 +65,16 @@ impl Agent {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Usage {
     pub tokens: u64,
-    pub cost: f64,
+    pub cost: Money,
     pub models: String,
 }
 
 impl Usage {
     pub fn active(&self) -> bool {
-        self.tokens > 0 || self.cost > 0.0
+        self.tokens > 0 || self.cost.is_positive()
     }
 }
 
@@ -81,8 +85,8 @@ pub struct Period {
 }
 
 impl Period {
-    pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
-        self.span.projected_cost(self.usage.cost, now, budget)
+    pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<Money> {
+        self.span.projected_cost(&self.usage.cost, now, budget)
     }
 
     pub fn budget_quota(
@@ -91,7 +95,7 @@ impl Period {
         budget: &SpendBudget,
         now: DateTime<Local>,
     ) -> Option<Quota> {
-        self.span.budget_quota(label, self.usage.cost, budget, now)
+        self.span.budget_quota(label, &self.usage.cost, budget, now)
     }
 }
 
@@ -104,10 +108,10 @@ pub struct RecentUsage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BillingBlock {
-    pub cost: f64,
+    pub cost: Money,
     pub ends_at: DateTime<Utc>,
-    pub cost_per_hour: Option<f64>,
-    pub projected_cost: Option<f64>,
+    pub cost_per_hour: Option<Money>,
+    pub projected_cost: Option<Money>,
 }
 
 #[derive(Deserialize)]
@@ -119,7 +123,7 @@ struct BlocksReport {
 #[serde(rename_all = "camelCase")]
 struct Block {
     #[serde(rename = "costUSD")]
-    cost_usd: f64,
+    cost_usd: Decimal,
     end_time: DateTime<Utc>,
     burn_rate: Option<BurnRate>,
     projection: Option<Projection>,
@@ -128,22 +132,24 @@ struct Block {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BurnRate {
-    cost_per_hour: f64,
+    cost_per_hour: Decimal,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Projection {
-    total_cost: f64,
+    total_cost: Decimal,
 }
 
 impl From<Block> for BillingBlock {
     fn from(block: Block) -> Self {
         BillingBlock {
-            cost: block.cost_usd,
+            cost: usd(block.cost_usd),
             ends_at: block.end_time,
-            cost_per_hour: block.burn_rate.map(|rate| rate.cost_per_hour),
-            projected_cost: block.projection.map(|projection| projection.total_cost),
+            cost_per_hour: block.burn_rate.map(|rate| usd(rate.cost_per_hour)),
+            projected_cost: block
+                .projection
+                .map(|projection| usd(projection.total_cost)),
         }
     }
 }
@@ -161,33 +167,11 @@ struct DayTotals {
 }
 
 #[derive(Deserialize)]
-struct MonthlyReport {
-    monthly: Vec<MonthTotals>,
-}
-
-#[derive(Deserialize)]
-struct MonthTotals {
-    month: String,
-    #[serde(flatten)]
-    totals: Totals,
-}
-
-#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Totals {
     total_tokens: u64,
-    total_cost: f64,
+    total_cost: Decimal,
     models_used: Vec<String>,
-}
-
-impl From<Totals> for Usage {
-    fn from(totals: Totals) -> Self {
-        Usage {
-            tokens: totals.total_tokens,
-            cost: totals.total_cost,
-            models: totals.models_used.join(", "),
-        }
-    }
 }
 
 impl DailyReport {
@@ -206,7 +190,7 @@ impl DailyReport {
             span,
             usage: Usage {
                 tokens: days.iter().map(|totals| totals.total_tokens).sum(),
-                cost: days.iter().map(|totals| totals.total_cost).sum(),
+                cost: usd(days.iter().map(|totals| totals.total_cost).sum()),
                 models: models.into_iter().collect::<Vec<_>>().join(", "),
             },
         }
@@ -219,21 +203,6 @@ impl DailyReport {
             month: self.period(CalendarSpan::month_containing(today)),
         }
     }
-}
-
-impl MonthlyReport {
-    fn month(self, month: &str) -> Usage {
-        self.monthly
-            .into_iter()
-            .find(|entry| entry.month == month)
-            .map(|entry| Usage::from(entry.totals))
-            .unwrap_or_default()
-    }
-}
-
-pub struct CurrentMonth {
-    pub name: String,
-    pub period: Period,
 }
 
 pub async fn installed() -> bool {
@@ -257,21 +226,6 @@ pub async fn active_blocks(agent: Agent) -> Result<Vec<BillingBlock>, Error> {
     Ok(report.blocks.into_iter().map(BillingBlock::from).collect())
 }
 
-pub async fn this_month(agent: Agent) -> Result<CurrentMonth, Error> {
-    let now = Local::now();
-    let first_of_month = now.format("%Y%m01").to_string();
-    let name = now.format("%Y-%m").to_string();
-    let raw = report(agent, "monthly", &first_of_month).await?;
-    let report: MonthlyReport = serde_json::from_str(&raw)?;
-    Ok(CurrentMonth {
-        period: Period {
-            span: CalendarSpan::month_containing(now.date_naive()),
-            usage: report.month(&name),
-        },
-        name,
-    })
-}
-
 async fn report(agent: Agent, period: &'static str, since: &str) -> Result<String, Error> {
     let mut args = agent.report_args(period);
     args.extend(["--since", since, "--json"]);
@@ -284,31 +238,6 @@ mod tests {
 
     use super::*;
     use crate::config::calendar::WorkingHours;
-
-    const OLD_MONTH_REPORT: &str = r#"{"monthly":[{
-        "month": "2026-06", "totalTokens": 5000, "totalCost": 1.25,
-        "modelsUsed": ["gpt-5"]
-    }]}"#;
-
-    #[test]
-    fn empty_monthly_report_yields_no_usage() {
-        let report: MonthlyReport = serde_json::from_str(r#"{"monthly":[]}"#).unwrap();
-        assert!(!report.month("2026-09").active());
-    }
-
-    #[test]
-    fn earlier_month_is_not_reported_as_current() {
-        let report: MonthlyReport = serde_json::from_str(OLD_MONTH_REPORT).unwrap();
-        assert!(!report.month("2026-09").active());
-    }
-
-    #[test]
-    fn matching_month_is_reported() {
-        let report: MonthlyReport = serde_json::from_str(OLD_MONTH_REPORT).unwrap();
-        let usage = report.month("2026-06");
-        assert_eq!(usage.tokens, 5000);
-        assert_eq!(usage.models, "gpt-5");
-    }
 
     const DAILY_REPORT: &str = r#"{"daily":[
         {"date":"2026-09-29","totalTokens":10,"totalCost":1.0,"modelsUsed":["claude-sonnet-5"]},
@@ -337,7 +266,7 @@ mod tests {
         assert_eq!(recent.week.span.since, date("2026-09-28"));
         assert_eq!(recent.week.span.until, date("2026-10-05"));
         assert_eq!(recent.week.usage.tokens, 70);
-        assert!((recent.week.usage.cost - 7.0).abs() < f64::EPSILON);
+        assert_eq!(*recent.week.usage.cost.amount(), Decimal::from(7));
         assert_eq!(recent.week.usage.models, "claude-opus-5-5, claude-sonnet-5");
         assert_eq!(recent.month.span.since, date("2026-10-01"));
         assert_eq!(recent.month.span.until, date("2026-11-01"));
@@ -354,7 +283,7 @@ mod tests {
         SpendBudget {
             working_days: MONDAY_TO_FRIDAY.to_vec(),
             working_hours: WorkingHours::default(),
-            monthly_limit_usd: None,
+            monthly_limit_usd: 100,
         }
     }
 
@@ -374,17 +303,20 @@ mod tests {
         let today = recent
             .today
             .projected_cost(thursday_midday, &budget)
-            .unwrap();
+            .unwrap()
+            .to_f64_lossy();
         assert!((today - 8.0).abs() < 1e-9);
         let week = recent
             .week
             .projected_cost(thursday_midday, &budget)
-            .unwrap();
+            .unwrap()
+            .to_f64_lossy();
         assert!((week - 7.0 * 5.0 / 3.5).abs() < 1e-9);
         let month = recent
             .month
             .projected_cost(thursday_midday, &budget)
-            .unwrap();
+            .unwrap()
+            .to_f64_lossy();
         assert!((month - 4.0 * 22.0 / 0.5).abs() < 1e-9);
     }
 
@@ -397,12 +329,14 @@ mod tests {
         let today = recent
             .today
             .projected_cost(thursday_evening, &budget)
-            .unwrap();
+            .unwrap()
+            .to_f64_lossy();
         assert!((today - 4.0).abs() < 1e-9);
         let week = recent
             .week
             .projected_cost(thursday_evening, &budget)
-            .unwrap();
+            .unwrap()
+            .to_f64_lossy();
         assert!((week - 7.0 * 5.0 / 4.0).abs() < 1e-9);
     }
 
@@ -445,7 +379,7 @@ mod tests {
         )
         .unwrap();
         let block = BillingBlock::from(report.blocks.into_iter().next().unwrap());
-        assert_eq!(block.cost_per_hour, Some(6.3));
-        assert_eq!(block.projected_cost, Some(26.5));
+        assert_eq!(block.cost_per_hour, Some(usd(Decimal::new(63, 1))));
+        assert_eq!(block.projected_cost, Some(usd(Decimal::new(265, 1))));
     }
 }

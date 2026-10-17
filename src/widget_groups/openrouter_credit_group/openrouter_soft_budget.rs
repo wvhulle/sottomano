@@ -1,7 +1,9 @@
 use chrono::{DateTime, Local, Utc};
+use rust_decimal::Decimal;
 
 use crate::{
     data::{
+        money::{Money, usd},
         severity::Severity,
         source::ai::{
             openrouter::{OpenRouterSpend, SpanSpend},
@@ -9,7 +11,7 @@ use crate::{
         },
     },
     widgets::{
-        amount_text::dollars,
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -32,7 +34,9 @@ impl BarWidget for OpenRouterSpend {
 
     fn label(&self) -> Option<String> {
         let today = self.today.cost();
-        (today > 0.0).then(|| format!("{} today", dollars(today)))
+        today
+            .is_positive()
+            .then(|| format!("{} today", spend_text(&today)))
     }
 
     fn state(&self) -> WidgetState {
@@ -45,11 +49,10 @@ impl BarWidget for OpenRouterSpend {
 
     fn tooltip(&self) -> TooltipBody {
         let now = Local::now();
-        let daily_warning =
-            KeyValue::new("Daily Warning", dollars(f64::from(self.daily_warning_usd)))
-                .level(self.daily_severity());
+        let daily_warning = KeyValue::new("Daily Warning", self.daily_warning().to_string())
+            .level(self.daily_severity());
         let monthly_budget = self.budget.monthly_budget_entry(
-            self.month.cost(),
+            &self.month.cost(),
             self.month.projected_cost(now, &self.budget),
         );
         TooltipBody::sections([
@@ -63,7 +66,7 @@ impl BarWidget for OpenRouterSpend {
             self.span_section(
                 self.month.span.month_heading(),
                 &self.month,
-                monthly_budget,
+                Some(monthly_budget),
                 now,
             ),
         ])
@@ -72,13 +75,17 @@ impl BarWidget for OpenRouterSpend {
 
 impl Occasional for OpenRouterSpend {
     fn present(&self) -> bool {
-        self.month.cost() > 0.0
+        self.month.cost().is_positive()
     }
 }
 
 impl OpenRouterSpend {
+    fn daily_warning(&self) -> Money {
+        usd(Decimal::from(self.daily_warning_usd))
+    }
+
     fn daily_severity(&self) -> Severity {
-        if self.today.cost() >= f64::from(self.daily_warning_usd) {
+        if self.today.cost().amount() >= self.daily_warning().amount() {
             Severity::Warning
         } else {
             Severity::Normal
@@ -94,10 +101,10 @@ impl OpenRouterSpend {
     ) -> Section {
         let projected = spent
             .projected_cost(now, &self.budget)
-            .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
+            .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
         Section::dictionary(
             [
-                Some(KeyValue::new("Cost", dollars(spent.cost()))),
+                Some(KeyValue::new("Cost", spent.cost().to_string())),
                 projected,
                 threshold,
             ]

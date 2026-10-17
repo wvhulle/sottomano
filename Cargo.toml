@@ -110,6 +110,8 @@ chrono-tz = { version = "0.10.4", features = ["serde"] }
 nvml-wrapper = "0.13.0"
 humantime-serde = "1.1.1"
 perf-event2 = "0.7.4"
+rusty-money = "0.5.1"
+rust_decimal = { version = "1.43.0", features = ["serde-float"] }
 
 [dev-dependencies]
 iced_test = "0.14.0"

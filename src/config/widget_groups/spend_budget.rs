@@ -1,9 +1,31 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct SpendBudgetConfig {
-    pub monthly_budget_usd: Option<u32>,
+pub struct ClaudeCodeBudgetConfig {
+    pub monthly_budget_usd: u32,
+}
+
+impl Default for ClaudeCodeBudgetConfig {
+    fn default() -> Self {
+        Self {
+            monthly_budget_usd: 200,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CopilotCliBudgetConfig {
+    pub monthly_budget_usd: u32,
+}
+
+impl Default for CopilotCliBudgetConfig {
+    fn default() -> Self {
+        Self {
+            monthly_budget_usd: 40,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
@@ -28,8 +50,8 @@ mod tests {
 
     #[test]
     fn budget_is_read_per_agent() {
-        let config: SpendBudgetConfig = toml::from_str("monthly_budget_usd = 100\n").unwrap();
-        assert_eq!(config.monthly_budget_usd, Some(100));
-        assert_eq!(SpendBudgetConfig::default().monthly_budget_usd, None);
+        let config: ClaudeCodeBudgetConfig = toml::from_str("monthly_budget_usd = 100\n").unwrap();
+        assert_eq!(config.monthly_budget_usd, 100);
+        assert_eq!(CopilotCliBudgetConfig::default().monthly_budget_usd, 40);
     }
 }

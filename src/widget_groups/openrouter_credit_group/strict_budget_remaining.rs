@@ -1,10 +1,11 @@
 use crate::{
     data::{
+        money::Money,
         severity::Severity,
         source::ai::openrouter::{KeyLimit, LimitReset, OpenRouterStrictBudget},
     },
     widgets::{
-        amount_text::{dollars, to_cents},
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -26,7 +27,7 @@ impl BarWidget for OpenRouterStrictBudget {
     }
 
     fn label(&self) -> Option<String> {
-        Some(format!("{} left", dollars(self.tightest_remaining())))
+        Some(format!("{} left", spend_text(&self.tightest_remaining())))
     }
 
     fn state(&self) -> WidgetState {
@@ -41,10 +42,7 @@ impl BarWidget for OpenRouterStrictBudget {
         TooltipBody::sections(
             [Section::dictionary([
                 remaining_entry(self.credits.remaining()),
-                KeyValue::new(
-                    "Lifetime Purchased",
-                    format!("${} USD", to_cents(self.credits.total)),
-                ),
+                KeyValue::new("Lifetime Purchased", self.credits.total.to_string()),
             ])
             .titled("Credits")]
             .into_iter()
@@ -55,7 +53,7 @@ impl BarWidget for OpenRouterStrictBudget {
 
 impl Occasional for OpenRouterStrictBudget {
     fn present(&self) -> bool {
-        self.credits.total > 0.0 || !self.key_limits.is_empty()
+        self.credits.total.is_positive() || !self.key_limits.is_empty()
     }
 }
 
@@ -63,10 +61,7 @@ impl KeyLimit {
     fn section(&self) -> Section {
         Section::dictionary(
             [
-                Some(KeyValue::new(
-                    "Limit",
-                    format!("${} USD", to_cents(self.limit)),
-                )),
+                Some(KeyValue::new("Limit", self.limit.to_string())),
                 Some(remaining_entry(self.remaining)),
                 self.reset
                     .map(|reset| KeyValue::new("Resets", reset.period_name())),
@@ -88,11 +83,11 @@ impl LimitReset {
     }
 }
 
-fn remaining_entry(remaining: f64) -> KeyValue {
-    let entry = KeyValue::new("Remaining", format!("${} USD", to_cents(remaining)));
-    if remaining <= 0.0 {
-        entry.level(Severity::Critical)
-    } else {
+fn remaining_entry(remaining: Money) -> KeyValue {
+    let entry = KeyValue::new("Remaining", remaining.to_string());
+    if remaining.is_positive() {
         entry
+    } else {
+        entry.level(Severity::Critical)
     }
 }

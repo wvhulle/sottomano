@@ -3,7 +3,7 @@ use chrono::Utc;
 use crate::{
     data::source::ai::claude::ClaudeCcusageBlock,
     widgets::{
-        amount_text::{countdown, dollars},
+        amount_text::{countdown, spend_text},
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
@@ -28,12 +28,12 @@ impl BarWidget for ClaudeCcusageBlock {
     fn label(&self) -> Option<String> {
         self.active
             .as_ref()
-            .map(|block| format!("{} block", dollars(block.cost)))
+            .map(|block| format!("{} block", spend_text(&block.cost)))
     }
 
     fn state(&self) -> WidgetState {
         self.active.as_ref().map_or(WidgetState::Idle, |block| {
-            level_from_cost(block.cost).into()
+            level_from_cost(&block.cost).into()
         })
     }
 
@@ -49,13 +49,13 @@ impl BarWidget for ClaudeCcusageBlock {
             source,
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Cost", dollars(block.cost))),
+                    Some(KeyValue::new("Cost", block.cost.to_string())),
                     block
                         .cost_per_hour
-                        .map(|rate| KeyValue::new("Burn Rate", format!("{}/h", dollars(rate)))),
+                        .map(|rate| KeyValue::new("Burn Rate", format!("{rate}/h"))),
                     block
                         .projected_cost
-                        .map(|cost| KeyValue::new("Projected Cost", dollars(cost))),
+                        .map(|cost| KeyValue::new("Projected Cost", cost.to_string())),
                     Some(KeyValue::new(
                         "Ends In",
                         countdown(block.ends_at, Utc::now()),

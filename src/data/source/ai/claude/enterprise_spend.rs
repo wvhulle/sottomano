@@ -2,17 +2,22 @@ use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Utc};
 use iced::futures::Stream;
+use rust_decimal::Decimal;
+use rusty_money::iso;
 use serde::Deserialize;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
-    Error, ExtraStatus, LoginKind, Money, login_polls,
+    Error, ExtraStatus, LoginKind, login_polls,
     oauth_api::{self, PlanReply},
     title_case,
 };
-use crate::data::source::{
-    Delivery, PolledSource, Source,
-    ai::quota::{Quota, QuotaLimited},
+use crate::data::{
+    money::{Money, from_minor_units},
+    source::{
+        Delivery, PolledSource, Source,
+        ai::quota::{Quota, QuotaLimited},
+    },
 };
 
 #[derive(Deserialize)]
@@ -31,7 +36,7 @@ struct Spend {
 
 #[derive(Deserialize)]
 struct MinorAmount {
-    amount_minor: f64,
+    amount_minor: Decimal,
     currency: String,
     exponent: u8,
 }
@@ -48,9 +53,18 @@ struct Organization {
     subscription_status: String,
 }
 
-impl From<MinorAmount> for Money {
-    fn from(amount: MinorAmount) -> Self {
-        Money::from_minor_units(amount.amount_minor, amount.currency, amount.exponent)
+impl TryFrom<MinorAmount> for Money {
+    type Error = Error;
+
+    fn try_from(amount: MinorAmount) -> Result<Self, Self::Error> {
+        let Some(currency) = iso::find(&amount.currency) else {
+            return Err(Error::UnknownCurrency(amount.currency));
+        };
+        Ok(from_minor_units(
+            amount.amount_minor,
+            currency,
+            u32::from(amount.exponent),
+        ))
     }
 }
 
@@ -117,7 +131,7 @@ impl PolledSource for ClaudeEnterpriseSpend {
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
         let PlanReply { reply: usage, .. } =
             oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
-        Ok(ClaudeEnterpriseSpend::of(usage.spend))
+        ClaudeEnterpriseSpend::try_from(usage.spend)
     }
 }
 
@@ -133,8 +147,10 @@ impl QuotaLimited for ClaudeEnterpriseSpend {
     }
 }
 
-impl ClaudeEnterpriseSpend {
-    fn of(spend: Spend) -> Self {
+impl TryFrom<Spend> for ClaudeEnterpriseSpend {
+    type Error = Error;
+
+    fn try_from(spend: Spend) -> Result<Self, Self::Error> {
         let status = if spend.enabled {
             ExtraStatus::Enabled
         } else {
@@ -145,12 +161,12 @@ impl ClaudeEnterpriseSpend {
                     .map(|reason| reason.replace('_', " ")),
             }
         };
-        ClaudeEnterpriseSpend {
+        Ok(ClaudeEnterpriseSpend {
             status,
-            used: spend.used.into(),
-            limit: spend.limit.map(Money::from),
+            used: Money::try_from(spend.used)?,
+            limit: spend.limit.map(Money::try_from).transpose()?,
             used_share: Ratio::new::<percent>(spend.percent),
-        }
+        })
     }
 }
 
@@ -183,15 +199,14 @@ mod tests {
 
     fn enterprise_spend() -> ClaudeEnterpriseSpend {
         let usage: Usage = serde_json::from_str(ENTERPRISE_USAGE).unwrap();
-        ClaudeEnterpriseSpend::of(usage.spend)
+        ClaudeEnterpriseSpend::try_from(usage.spend).unwrap()
     }
 
     #[test]
     fn enterprise_usage_without_windows_reports_spend() {
         let enterprise = enterprise_spend();
         assert_eq!(enterprise.status, ExtraStatus::Enabled);
-        assert_eq!(enterprise.used.to_string(), "1.79 USD");
-        assert_eq!(enterprise.used.short_text(), "$1.79");
+        assert_eq!(enterprise.used.to_string(), "$1.79");
         assert!(enterprise.limit.is_none());
     }
 

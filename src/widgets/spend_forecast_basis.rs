@@ -1,9 +1,12 @@
+use rust_decimal::Decimal;
+
 use crate::{
     data::{
+        money::{Money, usd},
         severity::Severity,
         source::ai::working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    widgets::{amount_text::dollars, tooltip_body::KeyValue},
+    widgets::tooltip_body::KeyValue,
 };
 
 const WEEK_START_FORMAT: &str = "%a %-d %b";
@@ -31,14 +34,15 @@ impl SpendBudget {
         .into_iter()
     }
 
-    pub fn monthly_budget_entry(&self, spent: f64, projected: Option<f64>) -> Option<KeyValue> {
-        let limit = f64::from(self.monthly_limit_usd?);
-        let entry = KeyValue::new("Monthly Budget", dollars(limit));
-        Some(if projected.unwrap_or(spent) > limit {
+    pub fn monthly_budget_entry(&self, spent: &Money, projected: Option<Money>) -> KeyValue {
+        let limit = usd(Decimal::from(self.monthly_limit_usd));
+        let entry = KeyValue::new("Monthly Budget", limit.to_string());
+        let exceeds_limit = |cost: &Money| cost.amount() > limit.amount();
+        if exceeds_limit(spent) || projected.as_ref().is_some_and(exceeds_limit) {
             entry.level(Severity::Warning)
         } else {
             entry
-        })
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::widget_groups::{
     focus_time::FocusTimeConfig,
-    spend_budget::{OpenRouterBudgetConfig, SpendBudgetConfig},
+    spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
     systemd_manager::SystemdManagerConfig,
     temperature_sensors::TemperatureSensorsConfig,
     tray::TrayConfig,
@@ -22,8 +22,8 @@ pub struct WidgetGroupsConfig {
     pub tray: TrayConfig,
     pub temperature_sensors: TemperatureSensorsConfig,
     pub systemd_manager: SystemdManagerConfig,
-    pub claude_usage: SpendBudgetConfig,
-    pub copilot_usage: SpendBudgetConfig,
+    pub claude_usage: ClaudeCodeBudgetConfig,
+    pub copilot_usage: CopilotCliBudgetConfig,
     pub openrouter_credit: OpenRouterBudgetConfig,
     pub focus_time: FocusTimeConfig,
 }

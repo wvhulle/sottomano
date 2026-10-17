@@ -7,7 +7,7 @@ use crate::{
         quota::QuotaLimited,
     },
     widgets::{
-        amount_text::{percent_text, to_cents},
+        amount_text::{percent_text, two_decimals},
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -51,9 +51,9 @@ impl BarWidget for CopilotMetered {
             ),
             Section::dictionary(
                 [
-                    KeyValue::new("Used", to_cents(self.used)),
+                    KeyValue::new("Used", two_decimals(self.used)),
                     KeyValue::new("Used Share", percent_text(self.used_share)),
-                    KeyValue::new("Remaining", to_cents(self.remaining)),
+                    KeyValue::new("Remaining", two_decimals(self.remaining)),
                     KeyValue::new("Limit", self.limit.to_string()),
                 ]
                 .into_iter()

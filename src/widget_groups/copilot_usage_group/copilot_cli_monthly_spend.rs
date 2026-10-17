@@ -1,9 +1,13 @@
 use chrono::Utc;
+use rust_decimal::Decimal;
 
 use crate::{
-    data::source::ai::{copilot::CopilotCcusage, quota::QuotaLimited},
+    data::{
+        money::usd,
+        source::ai::{copilot::CopilotCcusage, quota::QuotaLimited},
+    },
     widgets::{
-        amount_text::dollars,
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
@@ -26,8 +30,8 @@ impl BarWidget for CopilotCcusage {
     }
 
     fn label(&self) -> Option<String> {
-        Some(if self.period.usage.cost > 0.0 {
-            format!("{} cli", dollars(self.period.usage.cost))
+        Some(if self.period.usage.cost.is_positive() {
+            format!("{} cli", spend_text(&self.period.usage.cost))
         } else {
             "cli".to_owned()
         })
@@ -35,7 +39,7 @@ impl BarWidget for CopilotCcusage {
 
     fn state(&self) -> WidgetState {
         self.quota_severity(Utc::now())
-            .unwrap_or_else(|| level_from_cost(self.period.usage.cost))
+            .unwrap_or_else(|| level_from_cost(&self.period.usage.cost))
             .into()
     }
 
@@ -48,18 +52,17 @@ impl BarWidget for CopilotCcusage {
                     KeyValue::new("Source", "ccusage, local CLI session data"),
                 ]
                 .into_iter()
-                .chain(
-                    self.budget
-                        .monthly_limit_usd
-                        .map(|limit| KeyValue::new("Monthly Budget", dollars(f64::from(limit)))),
-                ),
+                .chain([KeyValue::new(
+                    "Monthly Budget",
+                    usd(Decimal::from(self.budget.monthly_limit_usd)).to_string(),
+                )]),
             ),
             Section::dictionary([
                 KeyValue::new("Tokens", usage.tokens.to_string()),
-                KeyValue::new("Cost", dollars(usage.cost)),
+                KeyValue::new("Cost", usage.cost.to_string()),
                 KeyValue::new("Models", usage.models.clone()),
             ])
-            .titled(self.month.clone()),
+            .titled(self.period.span.month_heading()),
         ])
     }
 }

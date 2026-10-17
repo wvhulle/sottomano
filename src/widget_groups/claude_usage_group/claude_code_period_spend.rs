@@ -3,7 +3,7 @@ use chrono::{DateTime, Local, Utc};
 use crate::{
     data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::QuotaLimited},
     widgets::{
-        amount_text::{dollars, token_count},
+        amount_text::{spend_text, token_count},
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
@@ -26,12 +26,15 @@ impl BarWidget for ClaudeCcusagePeriods {
     }
 
     fn label(&self) -> Option<String> {
-        Some(format!("{} today", dollars(self.recent.today.usage.cost)))
+        Some(format!(
+            "{} today",
+            spend_text(&self.recent.today.usage.cost)
+        ))
     }
 
     fn state(&self) -> WidgetState {
         self.quota_severity(Utc::now())
-            .unwrap_or_else(|| level_from_cost(self.recent.today.usage.cost))
+            .unwrap_or_else(|| level_from_cost(&self.recent.today.usage.cost))
             .into()
     }
 
@@ -52,10 +55,10 @@ impl BarWidget for ClaudeCcusagePeriods {
             self.period_section(
                 recent.month.span.month_heading(),
                 &recent.month,
-                self.budget.monthly_budget_entry(
-                    recent.month.usage.cost,
+                Some(self.budget.monthly_budget_entry(
+                    &recent.month.usage.cost,
                     recent.month.projected_cost(now, &self.budget),
-                ),
+                )),
                 now,
             ),
         ])
@@ -72,10 +75,10 @@ impl ClaudeCcusagePeriods {
     ) -> Section {
         let projected = period
             .projected_cost(now, &self.budget)
-            .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
+            .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
         Section::dictionary(
             [
-                Some(KeyValue::new("Cost", dollars(period.usage.cost))),
+                Some(KeyValue::new("Cost", period.usage.cost.to_string())),
                 projected,
                 threshold,
                 Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),

@@ -47,12 +47,12 @@ impl Default for WorkingHours {
 }
 
 impl WorkingHours {
-    pub fn elapsed_share(&self, clock: NaiveTime) -> Option<f64> {
+    pub fn elapsed_share(&self, clock: NaiveTime) -> f64 {
         let length = (self.end - self.start).as_seconds_f64();
-        if length <= 0.0 || clock < self.start {
-            return None;
+        if length <= 0.0 {
+            return 0.0;
         }
-        Some(((clock - self.start).as_seconds_f64() / length).min(1.0))
+        ((clock - self.start).as_seconds_f64() / length).clamp(0.0, 1.0)
     }
 }
 
@@ -97,10 +97,10 @@ mod tests {
     #[test]
     fn working_hours_elapse_from_start_to_end() {
         let hours = WorkingHours::default();
-        assert_eq!(hours.elapsed_share(clock(8, 59)), None);
-        assert!((hours.elapsed_share(clock(11, 0)).unwrap() - 0.25).abs() < 1e-9);
-        assert!((hours.elapsed_share(clock(17, 0)).unwrap() - 1.0).abs() < 1e-9);
-        assert!((hours.elapsed_share(clock(23, 0)).unwrap() - 1.0).abs() < 1e-9);
+        assert!(hours.elapsed_share(clock(8, 59)).abs() < 1e-9);
+        assert!((hours.elapsed_share(clock(11, 0)) - 0.25).abs() < 1e-9);
+        assert!((hours.elapsed_share(clock(17, 0)) - 1.0).abs() < 1e-9);
+        assert!((hours.elapsed_share(clock(23, 0)) - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -109,7 +109,7 @@ mod tests {
             start: clock(17, 0),
             end: clock(9, 0),
         };
-        assert_eq!(hours.elapsed_share(clock(12, 0)), None);
+        assert!(hours.elapsed_share(clock(12, 0)).abs() < 1e-9);
     }
 
     #[test]
