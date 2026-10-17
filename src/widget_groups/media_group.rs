@@ -297,13 +297,13 @@ impl MediaGroup {
             .into()
     }
 
-    pub fn tooltip_for(&self, target: &MediaTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &MediaTarget, index: &DesktopIndex) -> Option<Tooltip> {
         let media = self.current()?;
         match target {
             MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections([
-                track_section(media),
+                track_section(media, index),
                 playback_section(media, self.now),
-                search_section(media),
+                search_section(media, index),
             ])),
             MediaTarget::Source(bus) => {
                 let player = self.titled_players().into_iter().find(|m| &m.bus == bus)?;

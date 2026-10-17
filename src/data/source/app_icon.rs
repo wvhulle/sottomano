@@ -75,6 +75,18 @@ impl DesktopEntries {
             .is_some_and(|entry| !entry.no_display() && !entry.hidden())
     }
 
+    pub fn handles_scheme(&self, scheme: &str) -> bool {
+        let handler = format!("x-scheme-handler/{scheme}");
+        self.entries
+            .iter()
+            .filter(|entry| !entry.hidden())
+            .any(|entry| {
+                entry
+                    .mime_type()
+                    .is_some_and(|mime_types| mime_types.contains(&handler.as_str()))
+            })
+    }
+
     pub fn exec_command(&self, app_id: &str) -> Option<Vec<String>> {
         self.find(app_id)?
             .parse_exec()

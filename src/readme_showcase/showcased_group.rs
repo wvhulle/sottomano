@@ -293,7 +293,7 @@ impl ShowcasedGroup {
                 let HoverTarget::Media(target) = target else {
                     return None;
                 };
-                media.group.tooltip_for(target)
+                media.group.tooltip_for(target, &media.desktop_entries)
             }
             ShowcasedGroup::IdleTimeouts(group) => {
                 let HoverTarget::IdleTimeout(kind) = target else {

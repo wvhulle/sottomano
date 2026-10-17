@@ -47,6 +47,11 @@ impl DesktopIndex {
         self.app_icons.get(app_id).map(PathBuf::as_path)
     }
 
+    pub fn handles_scheme(&self, scheme: &str) -> bool {
+        self.get()
+            .is_some_and(|entries| entries.handles_scheme(scheme))
+    }
+
     pub fn theme_icon_path(&self, name: &str) -> Option<&Path> {
         self.theme_icons.get(name).map(PathBuf::as_path)
     }

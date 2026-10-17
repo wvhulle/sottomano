@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use reqwest::Url;
 
 use crate::{
-    data::source::mpris::Media,
+    data::source::{desktop_entries::DesktopIndex, mpris::Media},
     widgets::tooltip_body::{Cell, KeyValue, Section},
 };
 
@@ -40,13 +40,21 @@ impl SearchPlatform {
             .find(|platform| platform.host() == host)
     }
 
-    fn url(self, query: &str) -> String {
+    fn url(self, query: &str, index: &DesktopIndex) -> String {
         let host = self.host();
         match self {
             Self::YouTubeMusic | Self::Bandcamp => {
                 format!("https://{host}/search?{}", query_string("q", query))
             }
-            Self::Spotify => format!("https://{host}/search/{}", path_segment(query)),
+            Self::Spotify => Self::spotify_link(&format!("/search/{}", path_segment(query)), index),
+        }
+    }
+
+    fn spotify_link(path: &str, index: &DesktopIndex) -> String {
+        if index.handles_scheme("spotify") {
+            format!("spotify{}", path.replace('/', ":"))
+        } else {
+            format!("https://{}{path}", Self::Spotify.host())
         }
     }
 }
@@ -63,14 +71,21 @@ fn path_segment(value: &str) -> String {
         .replace('+', "%20")
 }
 
-pub fn track_section(media: &Media) -> Section {
+pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
     let source = media.url.as_ref().and_then(|url| {
         let label = url.host_str()?.to_owned();
         Some(KeyValue::new(
             "Source",
             Cell::Link {
                 label,
-                url: url.to_string(),
+                url: match SearchPlatform::hosting(url) {
+                    Some(SearchPlatform::Spotify) => {
+                        SearchPlatform::spotify_link(url.path(), index)
+                    }
+                    Some(SearchPlatform::YouTubeMusic | SearchPlatform::Bandcamp) | None => {
+                        url.to_string()
+                    }
+                },
             },
         ))
     });
@@ -112,7 +127,7 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
     .titled("Playback")
 }
 
-pub fn search_section(media: &Media) -> Section {
+pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
     let query = media.title.as_ref().map(|title| {
         media
             .artist
@@ -129,7 +144,7 @@ pub fn search_section(media: &Media) -> Section {
                     platform.name(),
                     Cell::Link {
                         label: query.clone(),
-                        url: platform.url(&query),
+                        url: platform.url(&query, index),
                     },
                 )
             })
@@ -148,12 +163,13 @@ mod tests {
     #[test]
     fn query_encodes_spaces_and_non_ascii_per_platform() {
         let query = "Felix Räuber Stay Here";
+        let index = DesktopIndex::default();
         assert_eq!(
-            SearchPlatform::YouTubeMusic.url(query),
+            SearchPlatform::YouTubeMusic.url(query, &index),
             "https://music.youtube.com/search?q=Felix+R%C3%A4uber+Stay+Here"
         );
         assert_eq!(
-            SearchPlatform::Spotify.url(query),
+            SearchPlatform::Spotify.url(query, &index),
             "https://open.spotify.com/search/Felix%20R%C3%A4uber%20Stay%20Here"
         );
     }
