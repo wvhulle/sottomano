@@ -2,11 +2,14 @@ pub mod boot_timeline;
 pub mod failed_units;
 pub mod graphical_session;
 pub mod running_jobs;
+pub mod service_commands;
+pub mod unit_activity;
 pub mod user_service_manager;
 
 use std::{
     fmt,
     future::pending,
+    hash::Hash,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -24,15 +27,16 @@ use zbus::{
     zvariant::{OwnedObjectPath, Type},
 };
 
-use crate::data::source::journal::either_of;
+use crate::data::source::{bus::Bus, journal::either_of};
 
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
 
-pub trait UnitScope: Clone + fmt::Debug + Send + 'static {
+pub trait UnitScope: Clone + fmt::Debug + PartialEq + Eq + Hash + Send + Sync + 'static {
     const FAILED_SOURCE: &'static str;
     const SLOW_JOBS_SOURCE: &'static str;
     const PER_USER: bool;
+    const BUS: Bus;
     const CLI_FLAG: Option<&'static str>;
     const LOGGED_BY: &'static str;
     const LOGGED_ABOUT: &'static str;
@@ -57,25 +61,27 @@ pub trait UnitScope: Clone + fmt::Debug + Send + 'static {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct User;
 
 impl UnitScope for User {
     const FAILED_SOURCE: &'static str = "failed user units";
     const SLOW_JOBS_SOURCE: &'static str = "slow user jobs";
     const PER_USER: bool = true;
+    const BUS: Bus = Bus::Session;
     const CLI_FLAG: Option<&'static str> = Some("--user");
     const LOGGED_BY: &'static str = "_SYSTEMD_USER_UNIT";
     const LOGGED_ABOUT: &'static str = "USER_UNIT";
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct System;
 
 impl UnitScope for System {
     const FAILED_SOURCE: &'static str = "failed system units";
     const SLOW_JOBS_SOURCE: &'static str = "slow system jobs";
     const PER_USER: bool = false;
+    const BUS: Bus = Bus::System;
     const CLI_FLAG: Option<&'static str> = None;
     const LOGGED_BY: &'static str = "_SYSTEMD_UNIT";
     const LOGGED_ABOUT: &'static str = "UNIT";
@@ -93,7 +99,10 @@ trait Manager {
     fn list_jobs(&self) -> zbus::Result<Vec<JobRow>>;
     fn subscribe(&self) -> zbus::Result<()>;
     fn restart_unit(&self, name: &str, mode: &str) -> zbus::Result<OwnedObjectPath>;
+    fn start_unit(&self, name: &str, mode: &str) -> zbus::Result<OwnedObjectPath>;
+    fn stop_unit(&self, name: &str, mode: &str) -> zbus::Result<OwnedObjectPath>;
     fn get_unit(&self, name: &str) -> zbus::Result<OwnedObjectPath>;
+    fn load_unit(&self, name: &str) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
     fn firmware_timestamp_monotonic(&self) -> zbus::Result<u64>;
     #[zbus(property)]

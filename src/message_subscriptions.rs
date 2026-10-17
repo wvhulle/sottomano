@@ -136,6 +136,10 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .openrouter_credit_group
             .subscription(&state.config, forced)
             .map(Message::OpenRouterCredit),
+        state
+            .llama_server_group
+            .subscription()
+            .map(Message::LlamaServer),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
         SessionFocusGroup::subscription().map(Message::SessionFocus),

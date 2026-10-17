@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use iced::futures::Stream;
+use iced::futures::{Stream, StreamExt, future::ready, stream};
 use serde::{
     Deserialize, Deserializer,
     de::{
@@ -17,10 +17,10 @@ use serde::{
     forward_to_deserialize_any,
 };
 use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::data::severity::Severity;
+use crate::data::{severity::Severity, source::systemd_manager::UnitScope};
 
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
@@ -59,6 +59,36 @@ fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Vec<E>> {
         }
     });
     rx
+}
+
+pub fn unit_log_appends<S: UnitScope>(unit: String) -> impl Stream<Item = ()> + Send {
+    let (tx, rx) = mpsc::channel(1);
+    thread::spawn(move || {
+        if let Err(e) = signal_unit_log_appends::<S>(&unit, &tx) {
+            tracing::warn!("journal: following {unit} ended: {e}");
+        }
+    });
+    stream::once(ready(())).chain(ReceiverStream::new(rx))
+}
+
+fn signal_unit_log_appends<S: UnitScope>(unit: &str, tx: &mpsc::Sender<()>) -> io::Result<()> {
+    let mut journal = OpenOptions::default()
+        .system(!S::PER_USER)
+        .current_user(S::PER_USER)
+        .open()?;
+    journal.match_add(S::LOGGED_BY, unit)?;
+    journal.seek_tail()?;
+    journal.previous()?;
+    while !tx.is_closed() {
+        if matches!(journal.wait(None)?, JournalWaitResult::Nop) {
+            continue;
+        }
+        while journal.next()? > 0 {}
+        if let Err(TrySendError::Closed(())) = tx.try_send(()) {
+            break;
+        }
+    }
+    Ok(())
 }
 
 struct WindowedJournal<E> {

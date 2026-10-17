@@ -131,6 +131,7 @@ impl DesktopShell {
             HoverTarget::OpenRouterCredit(target) => {
                 self.openrouter_credit_group.tooltip_for(*target)
             }
+            HoverTarget::LlamaServer(target) => self.llama_server_group.tooltip_for(target),
             HoverTarget::SessionFocus(target) => Some(self.session_focus_group.tooltip_for(
                 *target,
                 &self.config,
@@ -200,6 +201,9 @@ impl DesktopShell {
             self.login_session_group
                 .hover(hovered, &self.config)
                 .map(Message::LoginSession),
+            self.llama_server_group
+                .hover(hovered, &self.config)
+                .map(Message::LlamaServer),
         ])
     }
 

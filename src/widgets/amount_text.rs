@@ -3,8 +3,12 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
+fn rounded_to_cents_without_negative_zero(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0 + 0.0
+}
+
 pub fn to_cents(value: f64) -> String {
-    format!("{}", (value * 100.0).round() / 100.0)
+    format!("{}", rounded_to_cents_without_negative_zero(value))
 }
 
 pub fn percent_text(share: Ratio) -> String {
@@ -12,7 +16,7 @@ pub fn percent_text(share: Ratio) -> String {
 }
 
 pub fn dollars(value: f64) -> String {
-    format!("${value:.2}")
+    format!("${:.2}", rounded_to_cents_without_negative_zero(value))
 }
 
 pub fn token_count(tokens: u64) -> String {
@@ -68,6 +72,9 @@ mod tests {
         assert_eq!(to_cents(200.0), "200");
         assert_eq!(to_cents(1.0 / 3.0), "0.33");
         assert_eq!(percent_text(Ratio::new::<percent>(0.1)), "0.1%");
+        assert_eq!(dollars(-0.0), "$0.00");
+        assert_eq!(dollars(-0.000_4), "$0.00");
+        assert_eq!(to_cents(-0.000_4), "0");
     }
 
     #[test]
