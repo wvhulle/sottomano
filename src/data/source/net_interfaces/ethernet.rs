@@ -130,7 +130,9 @@ impl Source for Ethernet {
 
 impl LiveSource for Ethernet {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        device_or_absent(nm::SERVICE, || nm_readings(NAME, read).boxed())
+        device_or_absent(nm::SERVICE, || {
+            nm_readings(NAME, nm::UPLINK_PROPERTIES, read).boxed()
+        })
     }
 }
 
@@ -144,7 +146,18 @@ impl Source for EthernetDetails {
 impl LiveSource for EthernetDetails {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         device_or_absent(nm::SERVICE, || {
-            nm_readings(Self::NAME, read_details).boxed()
+            nm_readings(
+                Self::NAME,
+                &[
+                    nm::MANAGER_PROPERTIES,
+                    nm::DEVICE_PROPERTIES,
+                    nm::WIRED_PROPERTIES,
+                    nm::IP4_CONFIG_PROPERTIES,
+                    nm::IP6_CONFIG_PROPERTIES,
+                ],
+                read_details,
+            )
+            .boxed()
         })
     }
 }

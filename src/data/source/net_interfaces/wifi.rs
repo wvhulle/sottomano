@@ -1,19 +1,29 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, future::ready};
 
-use iced::futures::{Stream, StreamExt, try_join};
+use iced::futures::{
+    Stream, StreamExt,
+    stream::{self, select},
+    try_join,
+};
 use uom::si::f64::{Frequency, InformationRate};
-use zbus::Connection;
+use zbus::{Connection, zvariant::OwnedObjectPath};
 
-use crate::data::source::{
-    Delivery, LiveSource, Source,
-    hardware::Adapter,
-    net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
+use crate::{
+    data::source::{
+        Delivery, LiveSource, Source,
+        hardware::Adapter,
+        net_interfaces::{
+            ReadingError, device_or_absent, kept_readings, nm, nm_readings, per_burst,
+        },
+    },
+    message_subscriptions::restarting,
 };
 
 pub const NAME: &str = "wifi";
 
 #[derive(Debug, Clone)]
 pub struct Link {
+    access_point: OwnedObjectPath,
     pub ssid: Option<String>,
     pub signal: i64,
     pub frequency: Frequency,
@@ -59,8 +69,9 @@ async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
     };
     let link = match ap_path.filter(|path| !nm::is_unset(path)) {
         Some(path) => {
-            let ap = nm::access_point(&connection, path).await?;
+            let ap = nm::access_point(&connection, path.clone()).await?;
             Some(Link {
+                access_point: path,
                 ssid: ap.ssid,
                 signal: ap.signal,
                 frequency: ap.frequency,
@@ -110,7 +121,46 @@ impl Source for Wifi {
 
 impl LiveSource for Wifi {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        device_or_absent(nm::SERVICE, || nm_readings(NAME, read).boxed())
+        device_or_absent(nm::SERVICE, || {
+            restarting(NAME, readings_while_access_point_holds).boxed()
+        })
+    }
+}
+
+async fn readings_while_access_point_holds() -> zbus::Result<impl Stream<Item = Option<Wifi>>> {
+    let connection = Connection::system().await?;
+    let first = read(connection.clone()).await;
+    let watched_access_point = first.as_ref().ok().and_then(Wifi::access_point);
+    let device_changes = nm::changes(
+        &connection,
+        &[
+            nm::MANAGER_PROPERTIES,
+            nm::DEVICE_PROPERTIES,
+            nm::WIRELESS_PROPERTIES,
+        ],
+    )
+    .await?;
+    let strength_changes = match watched_access_point.clone() {
+        Some(path) => nm::access_point_changes(&connection, path).await?.boxed(),
+        None => stream::pending().boxed(),
+    };
+    let later = per_burst(select(device_changes, strength_changes))
+        .then(move |()| read(connection.clone()));
+    let readings = stream::once(ready(first))
+        .chain(later)
+        .take_while(move |reading| {
+            ready(
+                reading
+                    .as_ref()
+                    .map_or(true, |wifi| wifi.access_point() == watched_access_point),
+            )
+        });
+    Ok(kept_readings(NAME, readings))
+}
+
+impl Wifi {
+    fn access_point(&self) -> Option<OwnedObjectPath> {
+        self.link.as_ref().map(|link| link.access_point.clone())
     }
 }
 
@@ -124,7 +174,18 @@ impl Source for WifiDetails {
 impl LiveSource for WifiDetails {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         device_or_absent(nm::SERVICE, || {
-            nm_readings(Self::NAME, read_details).boxed()
+            nm_readings(
+                Self::NAME,
+                &[
+                    nm::MANAGER_PROPERTIES,
+                    nm::DEVICE_PROPERTIES,
+                    nm::WIRELESS_PROPERTIES,
+                    nm::IP4_CONFIG_PROPERTIES,
+                    nm::IP6_CONFIG_PROPERTIES,
+                ],
+                read_details,
+            )
+            .boxed()
         })
     }
 }

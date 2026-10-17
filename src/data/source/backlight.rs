@@ -3,7 +3,7 @@ use std::{collections::HashSet, convert::Infallible, fs, future::ready, time::Du
 use iced::futures::{Stream, StreamExt, stream::select};
 use serde::{Deserialize, Serialize};
 use tokio::task::spawn_blocking;
-use zbus::{blocking::Connection, proxy, zvariant::Type};
+use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
     data::source::{
@@ -70,30 +70,42 @@ impl PolledSource for Vec<Backlight> {
         Ok(spawn_blocking(poll_all).await.unwrap_or_default())
     }
 
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn polls(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, CLIGHTD_SERVICE), move || {
             emit_delivery_changes(
-                restarting("backlight", backlight_changes)
-                    .then(move |()| Self::poll(key))
-                    .map(Delivery::Reading),
+                restarting("backlight", backlight_readings).map(Delivery::Reading),
             )
             .boxed()
         })
     }
 }
 
-async fn backlight_changes() -> zbus::Result<impl Stream<Item = ()>> {
+async fn backlight_readings() -> zbus::Result<impl Stream<Item = Result<Vec<Backlight>, Infallible>>>
+{
     let connection = zbus::Connection::system().await?;
-    let proxy = ClightdBacklightProxy::new(&connection).await?;
+    let proxy: ClightdBacklightProxy<'static> = proxy::Builder::new(&connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
     let changes = proxy.receive_changed().await?.map(drop);
-    Ok(select(ticked(INTERVAL, || ready(())), changes))
+    Ok(
+        select(ticked(INTERVAL, || ready(())), changes).then(move |()| {
+            let proxy = proxy.clone();
+            async move { Ok(proxy.get_all("").await.map(backlights).unwrap_or_default()) }
+        }),
+    )
+}
+
+fn blocking_backlight_proxy() -> Option<ClightdBacklightProxyBlocking<'static>> {
+    let connection = Connection::system().ok()?;
+    zbus::blocking::proxy::Builder::new(&connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .ok()
 }
 
 pub fn poll_all() -> Vec<Backlight> {
-    let Ok(connection) = Connection::system() else {
-        return Vec::new();
-    };
-    let Ok(proxy) = ClightdBacklightProxyBlocking::new(&connection) else {
+    let Some(proxy) = blocking_backlight_proxy() else {
         return Vec::new();
     };
     proxy.get_all("").map(backlights).unwrap_or_default()
@@ -148,10 +160,7 @@ pub fn halt_ramp() {
 }
 
 fn clightd_set(serial: &str, frac: f64) -> bool {
-    let Ok(connection) = Connection::system() else {
-        return false;
-    };
-    let Ok(proxy) = ClightdBacklightProxyBlocking::new(&connection) else {
+    let Some(proxy) = blocking_backlight_proxy() else {
         return false;
     };
     proxy

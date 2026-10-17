@@ -10,7 +10,7 @@ use uom::si::{
     information_rate::{kilobit_per_second, megabit_per_second},
 };
 use zbus::{
-    Connection, MatchRule, MessageStream,
+    Connection, MatchRule, MessageStream, match_rule,
     message::Type,
     proxy,
     proxy::{Builder, CacheProperties, Defaults},
@@ -509,12 +509,45 @@ fn security(flags: u32, wpa: u32, rsn: u32) -> String {
     }
 }
 
-pub async fn changes(connection: &Connection) -> zbus::Result<impl Stream<Item = ()> + use<>> {
-    let rule = MatchRule::builder()
-        .msg_type(Type::Signal)
-        .sender(SERVICE)?
+pub const MANAGER_PROPERTIES: &str = "org.freedesktop.NetworkManager";
+pub const DEVICE_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device";
+pub const WIRED_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device.Wired";
+pub const WIRELESS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device.Wireless";
+const ACCESS_POINT_PROPERTIES: &str = "org.freedesktop.NetworkManager.AccessPoint";
+pub const IP4_CONFIG_PROPERTIES: &str = "org.freedesktop.NetworkManager.IP4Config";
+pub const IP6_CONFIG_PROPERTIES: &str = "org.freedesktop.NetworkManager.IP6Config";
+
+pub const UPLINK_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES, DEVICE_PROPERTIES];
+
+pub async fn changes(
+    connection: &Connection,
+    watched_properties: &'static [&'static str],
+) -> zbus::Result<impl Stream<Item = ()> + use<>> {
+    let streams = try_join_all(watched_properties.iter().map(|interface| async move {
+        let rule = properties_changed_rule(interface)?.build();
+        MessageStream::for_match_rule(rule, connection, Some(16)).await
+    }))
+    .await?;
+    Ok(stream::select_all(streams).map(|_| ()))
+}
+
+pub async fn access_point_changes(
+    connection: &Connection,
+    access_point: OwnedObjectPath,
+) -> zbus::Result<impl Stream<Item = ()> + use<>> {
+    let rule = properties_changed_rule(ACCESS_POINT_PROPERTIES)?
+        .path(access_point)?
         .build();
     Ok(MessageStream::for_match_rule(rule, connection, Some(16))
         .await?
         .map(|_| ()))
+}
+
+fn properties_changed_rule(interface: &str) -> zbus::Result<match_rule::Builder<'_>> {
+    MatchRule::builder()
+        .msg_type(Type::Signal)
+        .sender(SERVICE)?
+        .interface("org.freedesktop.DBus.Properties")?
+        .member("PropertiesChanged")?
+        .add_arg(interface)
 }

@@ -4,13 +4,14 @@ use std::{
     fs,
     future::ready,
     marker::PhantomData,
+    mem,
     ops::Add,
     path::Path,
     time::{Duration, Instant},
 };
 
 use bytesize::ByteSize;
-use iced::futures::{Stream, StreamExt};
+use iced::futures::{Stream, StreamExt, stream::select};
 use tokio::time::sleep;
 use uom::si::{
     f64::{Information, InformationRate, Time},
@@ -24,7 +25,10 @@ use zbus::Connection;
 use crate::{
     data::source::{
         Delivery, PolledSource, Source, emit_delivery_changes,
-        net_interfaces::nm::{self, Connectivity},
+        net_interfaces::{
+            nm::{self, Connectivity},
+            nm_readings,
+        },
     },
     message_subscriptions::ticked,
 };
@@ -109,12 +113,9 @@ impl PolledSource for Readings {
             Err(_) => None,
         };
         let connectivity = uplink.as_ref().and_then(|uplink| uplink.connectivity);
-        let interfaces: Vec<String> = uplink
-            .map(|uplink| uplink.activated_interfaces)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|interface| is_physical(interface))
-            .collect();
+        let interfaces = uplink
+            .map(|uplink| physical(&uplink.activated_interfaces))
+            .unwrap_or_default();
         let earlier = capture(&interfaces);
         sleep(SAMPLE_WINDOW).await;
         let current = capture(&interfaces);
@@ -122,18 +123,68 @@ impl PolledSource for Readings {
         Ok(readings(&current, rates, rates, connectivity))
     }
 
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn polls(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+        let uplink_changes = nm_readings("throughput uplink", nm::UPLINK_PROPERTIES, nm::uplink)
+            .map(ThroughputEvent::UplinkChanged);
+        let ticks = ticked(Self::INTERVAL, || ready(ThroughputEvent::Tick));
         emit_delivery_changes(
-            ticked(Self::INTERVAL, move || Self::poll(key))
-                .scan(Rates::default(), |peak, reading| {
-                    let reading = reading.map(|readings| {
-                        *peak = peak.raised_by(readings.rates());
-                        readings.with_peak(*peak)
-                    });
-                    ready(Some(reading))
+            select(uplink_changes, ticks)
+                .scan(ThroughputSampler::default(), |sampler, event| {
+                    let sampled = matches!(event, ThroughputEvent::Tick);
+                    *sampler = mem::take(sampler).observed(event);
+                    ready(Some(sampled.then(|| sampler.readings()).flatten()))
                 })
-                .map(Delivery::Reading),
+                .filter_map(ready)
+                .map(|readings| Delivery::Reading(Ok(readings))),
         )
+    }
+}
+
+enum ThroughputEvent {
+    UplinkChanged(Option<nm::Uplink>),
+    Tick,
+}
+
+#[derive(Default)]
+struct ThroughputSampler {
+    interfaces: Vec<String>,
+    connectivity: Option<Connectivity>,
+    latest: Option<Sample>,
+    rates: Rates,
+    peak: Rates,
+}
+
+impl ThroughputSampler {
+    fn observed(self, event: ThroughputEvent) -> Self {
+        match event {
+            ThroughputEvent::UplinkChanged(uplink) => Self {
+                interfaces: uplink
+                    .as_ref()
+                    .map(|uplink| physical(&uplink.activated_interfaces))
+                    .unwrap_or_default(),
+                connectivity: uplink.and_then(|uplink| uplink.connectivity),
+                ..self
+            },
+            ThroughputEvent::Tick => {
+                let current = capture(&self.interfaces);
+                let rates = self
+                    .latest
+                    .as_ref()
+                    .map_or_else(Rates::default, |previous| current.rates_since(previous));
+                Self {
+                    latest: Some(current),
+                    rates,
+                    peak: self.peak.raised_by(rates),
+                    ..self
+                }
+            }
+        }
+    }
+
+    fn readings(&self) -> Option<Readings> {
+        self.latest
+            .as_ref()
+            .map(|latest| readings(latest, self.rates, self.peak, self.connectivity))
     }
 }
 
@@ -179,22 +230,6 @@ impl PolledSource for Throughput<Total> {
 
     async fn poll(_key: ()) -> Result<Self, Infallible> {
         Readings::poll(()).await.map(|readings| readings.total)
-    }
-}
-
-impl Readings {
-    fn rates(&self) -> Rates {
-        Rates {
-            rx: self.down.rate,
-            tx: self.up.rate,
-        }
-    }
-
-    fn with_peak(mut self, peak: Rates) -> Self {
-        self.down.peak_rate = peak.rx;
-        self.up.peak_rate = peak.tx;
-        self.total.peak_rate = peak.both_directions();
-        self
     }
 }
 
@@ -321,9 +356,15 @@ fn read_counters(interface: &str) -> Counters {
     }
 }
 
-fn is_physical(interface: &str) -> bool {
-    Path::new("/sys/class/net")
-        .join(interface)
-        .join("device")
-        .exists()
+fn physical(interfaces: &[String]) -> Vec<String> {
+    interfaces
+        .iter()
+        .filter(|interface| {
+            Path::new("/sys/class/net")
+                .join(interface)
+                .join("device")
+                .exists()
+        })
+        .cloned()
+        .collect()
 }
