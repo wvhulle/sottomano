@@ -3,7 +3,9 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     config::Config,
-    data::source::{desktop_entries::DesktopIndex, niri::Snapshot},
+    data::source::{
+        desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
+    },
     desktop_shell::{
         Message, hover_tooltips::HoverTarget, monitor_surfaces::Position, pointer_drag::DragView,
     },
@@ -26,6 +28,14 @@ use crate::{
 };
 
 pub const SHOWCASE_OUTPUT: &str = "readme-showcase";
+
+fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
+    snapshot
+        .workspaces_for_output(SHOWCASE_OUTPUT)
+        .iter()
+        .filter_map(|p| p.name.clone())
+        .collect()
+}
 
 fn undragged() -> DragView {
     DragView {
@@ -65,7 +75,13 @@ impl ShowcasedNiriSession {
         self.snapshot
             .get()
             .and_then(|snapshot| {
-                workspaces_group::vertical_view(snapshot, SHOWCASE_OUTPUT, config, &undragged())
+                workspaces_group::vertical_view(
+                    snapshot,
+                    SHOWCASE_OUTPUT,
+                    config,
+                    &undragged(),
+                    Some(&configured_in_fixture_order(snapshot)),
+                )
             })
             .map(|workspaces| workspaces.map(Message::from))
             .into_iter()
@@ -82,6 +98,7 @@ impl ShowcasedNiriSession {
             config,
             Position::Bottom,
             &undragged(),
+            Some(&configured_in_fixture_order(snapshot)),
         )
         .map(|workspaces| workspaces.map(Message::from));
         let windows = self

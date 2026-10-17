@@ -14,6 +14,7 @@ use std::{error::Error, sync::Arc};
 use clap::Parser;
 use command_line::CommandLine;
 use config::{Config, ConfigFile, SecretPaths};
+use data::source::niri_config::NiriConfigFile;
 use desktop_shell::DesktopShell;
 use iced_exwlshell::{
     build_pattern::daemon,
@@ -40,6 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config_file = ConfigFile::in_config_home(&config_home);
     let secrets = SecretPaths::discover(&config_home);
     let niri_rules = NiriRulesFile::in_config_home(&config_home);
+    let niri_config = NiriConfigFile::in_config_home(&config_home);
     let loaded = tracing::debug_span!("load config").in_scope(|| config_file.load());
     let config = loaded
         .as_ref()
@@ -70,6 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 config_file.clone(),
                 secrets.clone(),
                 niri_rules.clone(),
+                niri_config.clone(),
                 loaded.clone(),
             )
         },

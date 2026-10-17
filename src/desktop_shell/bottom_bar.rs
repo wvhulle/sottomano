@@ -67,6 +67,7 @@ impl DesktopShell {
                 &self.config,
                 Position::Bottom,
                 &self.drag_view(),
+                self.configured_workspaces.as_ref(),
             )
             .map(|workspaces| workspaces.map(Message::from)),
         }
