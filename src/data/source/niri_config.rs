@@ -4,10 +4,14 @@ use std::{
 };
 
 use iced::Task;
-use kdl::KdlDocument;
+use kdl::{KdlDocument, KdlError};
 use tokio::fs;
 
 use crate::data::source::niri::WorkspaceIndicator;
+
+pub fn parse_niri_kdl(text: &str) -> Result<KdlDocument, KdlError> {
+    KdlDocument::parse(text).or_else(|_| KdlDocument::parse_v1(text))
+}
 
 #[derive(Debug, Clone)]
 pub struct NiriConfigFile {
@@ -53,8 +57,8 @@ pub struct WorkspaceMove {
 }
 
 impl ConfiguredWorkspaces {
-    fn declared_in(text: &str) -> Result<Self, kdl::KdlError> {
-        let document = KdlDocument::parse(text).or_else(|_| KdlDocument::parse_v1(text))?;
+    fn declared_in(text: &str) -> Result<Self, KdlError> {
+        let document = parse_niri_kdl(text)?;
         Ok(Self(
             document
                 .nodes()

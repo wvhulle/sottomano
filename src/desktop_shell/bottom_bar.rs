@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub(super) struct BottomBarGroups<'a> {
-    pub start: [GroupContent<'a, Message>; 5],
+    pub start: [GroupContent<'a, Message>; 4],
     pub end: [GroupContent<'a, Message>; 1],
 }
 
@@ -33,23 +33,24 @@ impl DesktopShell {
         let shell_settings = &self.shell_settings;
         BottomBarGroups {
             start: [
-                self.shell_layout_group
-                    .group_content(config, &shell_settings.layout)
-                    .map(Message::ShellLayout),
-                self.panel_appearance_group
-                    .group_content(config)
-                    .map(Message::PanelAppearance),
-                self.overlay_group
-                    .group_content(config, shell_settings.overlays)
-                    .map(Message::Overlay),
-                self.surface_effects_group
+                self.panel_settings_group
                     .group_content(
                         config,
-                        shell_settings.shadow,
-                        shell_settings.outline,
+                        &shell_settings.layout,
+                        &shell_settings.panels,
                         self.niri_rules.styling(),
                     )
-                    .map(Message::SurfaceEffects),
+                    .map(Message::PanelSettings),
+                self.sidebar_settings_group
+                    .group_content(config, &shell_settings.layout, &shell_settings.sidebar)
+                    .map(Message::SidebarSettings),
+                self.overlay_settings_group
+                    .group_content(
+                        config,
+                        shell_settings.notifications,
+                        &shell_settings.overlays,
+                    )
+                    .map(Message::OverlaySettings),
                 self.niri_window_group
                     .group_content(config)
                     .map(Message::NiriWindow),

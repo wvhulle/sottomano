@@ -88,24 +88,23 @@ impl DesktopShell {
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target),
             HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target),
             HoverTarget::Power(target) => self.power_group.tooltip_for(*target),
-            HoverTarget::PanelAppearance(target) => {
-                Some(self.panel_appearance_group.tooltip_for(*target))
-            }
-            HoverTarget::SurfaceEffects(target) => Some(self.surface_effects_group.tooltip_for(
+            HoverTarget::PanelSettings(target) => Some(self.panel_settings_group.tooltip_for(
                 *target,
-                self.shell_settings.shadow,
-                self.shell_settings.outline,
+                &self.shell_settings.layout,
+                &self.shell_settings.panels,
                 self.niri_rules.styling(),
             )),
+            HoverTarget::SidebarSettings(target) => Some(self.sidebar_settings_group.tooltip_for(
+                *target,
+                &self.shell_settings.layout,
+                &self.shell_settings.sidebar,
+            )),
+            HoverTarget::OverlaySettings(target) => Some(self.overlay_settings_group.tooltip_for(
+                *target,
+                self.shell_settings.notifications,
+                &self.shell_settings.overlays,
+            )),
             HoverTarget::NiriWindow(target) => Some(self.niri_window_group.tooltip_for(*target)),
-            HoverTarget::ShellLayout(target) => Some(
-                self.shell_layout_group
-                    .tooltip_for(*target, &self.shell_settings.layout),
-            ),
-            HoverTarget::Overlay(target) => Some(
-                self.overlay_group
-                    .tooltip_for(*target, self.shell_settings.overlays),
-            ),
             HoverTarget::Systemd(target) => self.systemd_manager_group.tooltip_for(target),
             HoverTarget::Journal(target) => self.journal_events_group.tooltip_for(*target),
             HoverTarget::PendingUpgrades(target) => {
@@ -137,7 +136,7 @@ impl DesktopShell {
             }
             HoverTarget::Notification(target) => Some(NotificationGroup::tooltip_for(
                 *target,
-                &self.shell_settings.notifications,
+                self.shell_settings.notifications,
                 self.notification_status(),
             )),
             HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(*target),

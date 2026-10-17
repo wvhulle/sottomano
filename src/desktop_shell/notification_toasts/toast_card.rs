@@ -224,7 +224,7 @@ impl ToastCard<'_> {
         } else {
             self.settings.overlays.opacity
         };
-        let shadow = self.settings.shadow.drop_shadow();
+        let shadow = self.settings.overlays.shadow.drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(

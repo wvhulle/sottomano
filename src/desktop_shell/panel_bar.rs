@@ -49,7 +49,7 @@ impl DesktopShell {
         .on_press(Message::DismissPressed);
         let groups_joined = !self.shell_settings.layout.disconnected_groups;
         let band_style = if groups_joined {
-            self.shell_settings.frame_style(&self.config)
+            panels.frame_style(&self.config)
         } else {
             container::Style::default().color(palette.bar_foreground)
         };
@@ -67,7 +67,7 @@ impl DesktopShell {
         .outlined_sides(outlined_sides);
         let roles = RegionRoles {
             takes_input: true,
-            blurred: groups_joined,
+            blurred: panels.blurred && groups_joined,
             corner_radius: panels.corner_radius.top_left,
         };
         region_reporter(column![strip], roles).into()
@@ -81,7 +81,7 @@ impl DesktopShell {
         let config = &self.config;
         let panels = &self.shell_settings.panels;
         let groups_disconnected = self.shell_settings.layout.disconnected_groups;
-        let frame_style = self.shell_settings.frame_style(config);
+        let frame_style = panels.frame_style(config);
         let outlined_sides = self.shell_settings.outlined_sides(position.inward_sides());
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
@@ -111,7 +111,7 @@ impl DesktopShell {
             .align_y(Alignment::Center);
         let roles = RegionRoles {
             takes_input: false,
-            blurred: groups_disconnected,
+            blurred: panels.blurred && groups_disconnected,
             corner_radius: panels.corner_radius.top_left,
         };
         region_reporter(cluster, roles).into()

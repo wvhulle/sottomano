@@ -7,7 +7,7 @@ use iced::Task;
 use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use tokio::fs;
 
-use crate::desktop_shell::monitor_surfaces::Position;
+use crate::{data::source::niri_config::parse_niri_kdl, desktop_shell::monitor_surfaces::Position};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NiriLayout {
@@ -26,7 +26,6 @@ impl Default for NiriLayout {
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct NiriStyling {
-    pub blurred: bool,
     pub xray: bool,
     pub layout: NiriLayout,
 }
@@ -133,7 +132,7 @@ impl NiriRulesFile {
 }
 
 fn apply(text: &str, styling: &mut NiriStyling) {
-    let document = match KdlDocument::parse_v1(text) {
+    let document = match parse_niri_kdl(text) {
         Ok(document) => document,
         Err(e) => {
             tracing::warn!("niri rules: unreadable, keeping defaults: {e}");
@@ -151,9 +150,10 @@ fn apply_background_effect(document: &KdlDocument, niri: &mut NiriStyling) {
     else {
         return;
     };
-    let switch = |name: &str| effect.get_arg(name).and_then(KdlValue::as_bool);
-    niri.blurred = switch("blur").unwrap_or(niri.blurred);
-    niri.xray = switch("xray").unwrap_or(niri.xray);
+    niri.xray = effect
+        .get_arg("xray")
+        .and_then(KdlValue::as_bool)
+        .unwrap_or(niri.xray);
 }
 
 fn apply_window_layout(document: &KdlDocument, windows: &mut NiriLayout) {
@@ -228,7 +228,7 @@ fn background_effect_rule(surface: StyledSurface, styling: &NiriStyling) -> KdlN
             ),
             block(
                 "background-effect",
-                [leaf("blur", styling.blurred), leaf("xray", styling.xray)],
+                [leaf("blur", true), leaf("xray", styling.xray)],
             ),
         ],
     )
@@ -305,7 +305,6 @@ mod tests {
 
     fn styled() -> NiriStyling {
         NiriStyling {
-            blurred: true,
             xray: true,
             layout: NiriLayout {
                 window_corner_radius_px: 7.5,

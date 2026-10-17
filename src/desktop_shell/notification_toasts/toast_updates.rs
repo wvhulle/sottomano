@@ -27,7 +27,7 @@ use crate::{
     },
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
-    state::{self, OverlaySettings},
+    state::{self, NotificationSettings},
     widget_groups::{
         notification_group::NotificationGroupMessage,
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
@@ -428,7 +428,7 @@ impl NotificationLayer {
         )
         .map(|remaining| Countdown::started(remaining, now));
         let window = ToastWindow::resolve(data, placement);
-        let place = placement_for(window, placement, shell_settings.overlays, config);
+        let place = placement_for(window, placement, shell_settings.notifications, config);
         let shown = self
             .live
             .iter_mut()
@@ -454,7 +454,7 @@ impl NotificationLayer {
         &mut self,
         placement: &Placement,
         config: &Config,
-        overlays: OverlaySettings,
+        notifications: NotificationSettings,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .showing()
@@ -462,7 +462,7 @@ impl NotificationLayer {
             .map(|n| n.data.id)
             .collect();
         let closed = self.close_all(stale, close_reason::UNDEFINED, config);
-        self.reposition(placement, config, overlays);
+        self.reposition(placement, config, notifications);
         Task::batch([closed, self.release_orphaned_keyboard()])
     }
 
@@ -657,9 +657,14 @@ impl NotificationLayer {
         }
     }
 
-    fn reposition(&mut self, placement: &Placement, config: &Config, overlays: OverlaySettings) {
+    fn reposition(
+        &mut self,
+        placement: &Placement,
+        config: &Config,
+        notifications: NotificationSettings,
+    ) {
         self.live.iter_mut().for_each(|notif| {
-            notif.place = placement_for(notif.place.window, placement, overlays, config);
+            notif.place = placement_for(notif.place.window, placement, notifications, config);
         });
     }
 }

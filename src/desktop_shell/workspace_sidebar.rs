@@ -21,8 +21,8 @@ impl DesktopShell {
         output: &str,
     ) -> Element<'a, Message> {
         let config = &self.config;
-        let panels = &self.shell_settings.panels;
-        let frame_style = self.shell_settings.frame_style(config);
+        let sidebar = &self.shell_settings.sidebar;
+        let frame_style = sidebar.frame_style(config);
         let outlined_sides = self
             .shell_settings
             .outlined_sides(Position::Left.inward_sides());
@@ -42,7 +42,7 @@ impl DesktopShell {
             .map(|workspaces| {
                 panel_frame(
                     container(workspaces.map(Message::from))
-                        .padding([panels.corner_radius.top_left, 0.0]),
+                        .padding([sidebar.corner_radius.top_left, 0.0]),
                     &frame_style,
                 )
                 .outlined_sides(outlined_sides)
@@ -52,8 +52,8 @@ impl DesktopShell {
             Column::with_children(framed_workspaces),
             RegionRoles {
                 takes_input: true,
-                blurred: true,
-                corner_radius: panels.corner_radius.top_left,
+                blurred: sidebar.blurred,
+                corner_radius: sidebar.corner_radius.top_left,
             },
         )
         .on_width_change(move |width| Message::SidebarWidthChanged { window, width })

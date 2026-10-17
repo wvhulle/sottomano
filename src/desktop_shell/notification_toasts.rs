@@ -131,12 +131,7 @@ impl NotificationLayer {
                 animating: notif.is_animating(now),
             })
             .collect();
-        WindowAnchoredToasts::new(
-            toasts,
-            bar_clearance,
-            settings.overlays.corner_radius.top_left,
-            config,
-        )
+        WindowAnchoredToasts::new(toasts, bar_clearance, &settings.overlays, config)
     }
 
     pub fn is_active(&self) -> bool {
