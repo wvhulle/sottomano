@@ -35,7 +35,6 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
-        favicon::Favicons,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
@@ -47,6 +46,7 @@ use crate::{
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
+        window_icon::WindowAssets,
     },
 };
 
@@ -71,7 +71,7 @@ pub struct TooltipContent<'a> {
     tooltip: &'a Tooltip,
     config: &'a Config,
     corner_radius: Radius,
-    favicons: &'a Favicons,
+    assets: WindowAssets<'a>,
     now: SystemTime,
     presence: TextPresence,
 }
@@ -81,13 +81,13 @@ impl<'a> TooltipContent<'a> {
         tooltip: &'a Tooltip,
         config: &'a Config,
         corner_radius: Radius,
-        favicons: &'a Favicons,
+        assets: WindowAssets<'a>,
     ) -> Self {
         Self {
             tooltip,
             config,
             corner_radius,
-            favicons,
+            assets,
             now: SystemTime::now(),
             presence: TextPresence::Shown,
         }
@@ -237,7 +237,7 @@ impl<'a> TooltipContent<'a> {
     fn whole(&self, body: &WholeBody) -> Element<'static, Message> {
         match body {
             WholeBody::Workspace(preview) => self.inset(
-                WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.favicons)
+                WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.assets)
                     .view(),
             ),
             WholeBody::Text { title, body } => self.inset(self.text(title, body.as_deref())),

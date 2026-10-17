@@ -1,63 +1,115 @@
-use iced::{Font, widget::text::Span};
+use iced::{
+    Color, Element, Font,
+    widget::{
+        rich_text,
+        text::{Span, Wrapping},
+    },
+};
 
 use crate::{
-    config::{Config, theme::font::ResolvedFont},
-    data::source::app_rules::TitleParts,
-    widgets::text::{FontFallbacks, colored_span},
+    config::Config,
+    data::source::app_rules::WindowLabel,
+    widgets::text::{FontFallbacks, LINE_HEIGHT, colored_span},
 };
 
 const SEPARATOR: &str = " · ";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TitleRole {
-    Lead,
-    Main,
+pub struct WindowTitle<'a> {
+    label: &'a WindowLabel,
+    config: &'a Config,
+    fallbacks: &'a FontFallbacks,
+    size: f32,
+    opacity: f32,
+    wrapping: Wrapping,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TitleRun {
-    pub text: String,
-    pub font: Font,
-    pub role: TitleRole,
-}
+impl<'a> WindowTitle<'a> {
+    pub fn new(label: &'a WindowLabel, config: &'a Config, fallbacks: &'a FontFallbacks) -> Self {
+        Self {
+            label,
+            config,
+            fallbacks,
+            size: config.theme.font.text_size_px,
+            opacity: 1.0,
+            wrapping: Wrapping::default(),
+        }
+    }
 
-pub fn title_runs(
-    font: &ResolvedFont,
-    fallbacks: &FontFallbacks,
-    parts: Option<&TitleParts>,
-    lead_first: bool,
-) -> Vec<TitleRun> {
-    let Some(parts) = parts else {
-        return Vec::new();
-    };
-    let runs = |content: &str, base: Font, role: TitleRole| {
-        fallbacks
-            .runs(font, content, base)
+    pub fn size(self, size: f32) -> Self {
+        Self { size, ..self }
+    }
+
+    pub fn opacity(self, opacity: f32) -> Self {
+        Self { opacity, ..self }
+    }
+
+    pub fn wrapping(self, wrapping: Wrapping) -> Self {
+        Self { wrapping, ..self }
+    }
+
+    fn main_spans(&self, content: &str) -> Vec<Span<'static>> {
+        let font = &self.config.theme.font;
+        self.styled(
+            content,
+            font.iced_font,
+            self.config.theme.palette.bar_foreground,
+        )
+    }
+
+    fn context_spans(&self, content: &str) -> Vec<Span<'static>> {
+        let font = &self.config.theme.font;
+        self.styled(content, font.italic(), self.config.theme.palette.inactive)
+    }
+
+    fn separator_spans(&self) -> Vec<Span<'static>> {
+        let font = &self.config.theme.font;
+        self.styled(
+            SEPARATOR,
+            font.iced_font,
+            self.config.theme.palette.inactive,
+        )
+    }
+
+    fn styled(&self, content: &str, base: Font, color: Color) -> Vec<Span<'static>> {
+        self.fallbacks
+            .runs(&self.config.theme.font, content, base)
             .into_iter()
-            .map(move |(text, font)| TitleRun { text, font, role })
-            .collect::<Vec<_>>()
-    };
-    let main = runs(&parts.main, font.iced_font, TitleRole::Main);
-    let Some(lead) = &parts.lead else {
-        return main;
-    };
-    let lead = runs(lead, font.italic(), TitleRole::Lead);
-    let separator = runs(SEPARATOR, font.iced_font, TitleRole::Lead);
-    if lead_first {
-        lead.into_iter().chain(separator).chain(main).collect()
-    } else {
-        main.into_iter().chain(separator).chain(lead).collect()
+            .map(|(text, font)| colored_span(text, font, color.scale_alpha(self.opacity)))
+            .collect()
+    }
+
+    fn spans(&self) -> Vec<Span<'static>> {
+        match self.label {
+            WindowLabel::KittyAgent(kitty) => self
+                .main_spans(kitty.working_location.display_text())
+                .into_iter()
+                .chain(kitty.foreground_activity.iter().flat_map(|activity| {
+                    self.separator_spans()
+                        .into_iter()
+                        .chain(self.context_spans(activity.display_text()))
+                }))
+                .collect(),
+            WindowLabel::Firefox { page, .. } | WindowLabel::BrandedBrowser(page) => page
+                .site
+                .iter()
+                .flat_map(|site| {
+                    self.context_spans(site)
+                        .into_iter()
+                        .chain(self.separator_spans())
+                })
+                .chain(self.main_spans(&page.page))
+                .collect(),
+            WindowLabel::Titled(title) => self.main_spans(title),
+        }
     }
 }
 
-pub fn title_spans<'a>(config: &Config, runs: &[TitleRun], opacity: f32) -> Vec<Span<'a>> {
-    runs.iter()
-        .map(|run| {
-            let color = match run.role {
-                TitleRole::Lead => config.theme.palette.inactive,
-                TitleRole::Main => config.theme.palette.bar_foreground,
-            };
-            colored_span(run.text.clone(), run.font, color.scale_alpha(opacity))
-        })
-        .collect()
+impl<'a, Message: 'a> From<WindowTitle<'_>> for Element<'a, Message> {
+    fn from(title: WindowTitle<'_>) -> Self {
+        rich_text(title.spans())
+            .size(title.size)
+            .line_height(LINE_HEIGHT)
+            .wrapping(title.wrapping)
+            .into()
+    }
 }

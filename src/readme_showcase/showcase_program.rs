@@ -12,6 +12,7 @@ use iced_test::program::Program;
 
 use crate::{
     config::Config,
+    data::source::desktop_entries::DesktopIndex,
     desktop_shell::{
         Message,
         hover_tooltips::{TooltipHost, TooltipMessage},
@@ -22,7 +23,10 @@ use crate::{
         showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
     },
     state::ShellSettings,
-    widgets::{favicon::Favicons, panel_frame::panel_frame, tooltip_body::Tooltip},
+    widgets::{
+        favicon::Favicons, panel_frame::panel_frame, text::FontFallbacks, tooltip_body::Tooltip,
+        window_icon::WindowAssets,
+    },
 };
 
 pub struct ShowcaseProgram {
@@ -33,7 +37,9 @@ pub struct ShowcaseProgram {
 pub struct ShowcaseState {
     config: Config,
     shell_settings: ShellSettings,
+    desktop_entries: DesktopIndex,
     favicons: Favicons,
+    font_fallbacks: FontFallbacks,
     theme: Theme,
     group: ShowcasedGroup,
     tooltip: TooltipHost,
@@ -43,7 +49,7 @@ impl ShowcaseState {
     fn shown_tooltip(&self) -> Option<Tooltip> {
         self.tooltip
             .target()
-            .and_then(|target| self.group.tooltip_for(target, &self.config))
+            .and_then(|target| self.group.tooltip_for(target))
     }
 
     fn panel_edge(&self) -> PanelEdge {
@@ -94,10 +100,14 @@ impl ShowcaseState {
             surface,
             &self.config,
             &self.shell_settings,
-            &self.favicons,
+            WindowAssets {
+                entries: &self.desktop_entries,
+                favicons: &self.favicons,
+                fallbacks: &self.font_fallbacks,
+            },
             |target| {
                 self.group
-                    .tooltip_for(target, &self.config)
+                    .tooltip_for(target)
                     .unwrap_or_else(Tooltip::empty)
             },
         )
@@ -133,7 +143,9 @@ impl Program for ShowcaseProgram {
         let state = ShowcaseState {
             config: self.config.clone(),
             shell_settings: ShellSettings::default(),
+            desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
+            font_fallbacks: FontFallbacks::default(),
             theme: Theme::from(&self.config.theme.palette),
             group: (self.demo.group)(),
             tooltip,

@@ -3,11 +3,7 @@ use std::path::{Path, PathBuf};
 use iced::Element;
 
 use crate::{
-    data::source::{
-        app_rules::{AppRule, IconCandidate},
-        desktop_entries::DesktopIndex,
-        niri,
-    },
+    data::source::{app_rules::IconCandidate, desktop_entries::DesktopIndex, niri},
     widgets::{favicon::Favicons, icon_handle::IconHandle, text::FontFallbacks},
 };
 
@@ -19,8 +15,8 @@ pub struct WindowAssets<'a> {
 }
 
 impl WindowAssets<'_> {
-    pub fn path_for(&self, rule: AppRule, win: &niri::WinEntry) -> Option<PathBuf> {
-        rule.icon_candidates(win)
+    pub fn path_for(&self, win: &niri::WinEntry) -> Option<PathBuf> {
+        win.icon_candidates()
             .into_iter()
             .find_map(|candidate| match candidate {
                 IconCandidate::Theme(name) => self.entries.theme_icon_path(&name),

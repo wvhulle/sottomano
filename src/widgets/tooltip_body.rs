@@ -11,12 +11,14 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     data::{
         severity::Severity,
-        source::{process::Process, session_action::SessionAction, tray::MenuNode},
+        source::{
+            app_rules::WindowLabel, process::Process, session_action::SessionAction, tray::MenuNode,
+        },
     },
     desktop_shell::hover_tooltips::PressHints,
     state::idle::ScheduledAfterIdle,
     widget_groups::window_group::process_tree::Folding,
-    widgets::{bar_widget::Glyph, localized_time::TimePart, window_title::TitleRun},
+    widgets::{bar_widget::Glyph, localized_time::TimePart},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -341,7 +343,7 @@ impl Section {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreviewTile {
     pub window: u64,
-    pub title: Vec<TitleRun>,
+    pub label: Option<WindowLabel>,
     pub favicon_key: Option<String>,
     pub icon: Option<PathBuf>,
     pub tile_size: Size,

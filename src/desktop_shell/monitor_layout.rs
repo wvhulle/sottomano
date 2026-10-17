@@ -10,10 +10,7 @@ use crate::{
         pointer_drag::DraggedItem,
     },
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
-    widgets::{
-        pointer_drag::drag_ghost::{GhostPlacement, drag_ghost},
-        window_icon::WindowAssets,
-    },
+    widgets::pointer_drag::drag_ghost::{GhostPlacement, drag_ghost},
 };
 
 impl DesktopShell {
@@ -66,11 +63,7 @@ impl DesktopShell {
                 .window_list
                 .drag_ghost(
                     snapshot,
-                    WindowAssets {
-                        entries: &self.desktop_entries,
-                        favicons: &self.favicons,
-                        fallbacks: &self.font_fallbacks,
-                    },
+                    self.window_assets(),
                     self.audio_group.window_audio(),
                     window,
                     &self.config,

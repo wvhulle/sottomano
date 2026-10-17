@@ -23,8 +23,8 @@ use crate::{
     state::{ShellSettings, niri_rules::StyledSurface},
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
-        favicon::Favicons,
         tooltip_body::Tooltip,
+        window_icon::WindowAssets,
     },
 };
 
@@ -244,7 +244,7 @@ impl TooltipHost {
         surface: Id,
         config: &'a Config,
         shell_settings: &ShellSettings,
-        favicons: &'a Favicons,
+        assets: WindowAssets<'a>,
         content: impl Fn(&HoverTarget) -> Tooltip,
     ) -> Option<Element<'a, Message>> {
         if !self.hosts(surface) {
@@ -269,7 +269,7 @@ impl TooltipHost {
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             renderings.push(Rendering::outgoing(
-                TooltipContent::new(&previous.content, config, corner_radius, favicons).view(),
+                TooltipContent::new(&previous.content, config, corner_radius, assets).view(),
             ));
         }
         if let Some(current) = self.transition.current() {
@@ -278,7 +278,7 @@ impl TooltipHost {
                     &content(&current.target).with_press_hints(current.press_hints),
                     config,
                     corner_radius,
-                    favicons,
+                    assets,
                 )
                 .view(),
             )));

@@ -33,6 +33,7 @@ use crate::{
         sink::sound::SoundTheme,
         source::{
             app_icon::{self, DesktopEntries},
+            app_rules::WindowLabel,
             command::blocking::run,
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
@@ -86,7 +87,7 @@ use crate::{
     },
     widgets::{
         continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks,
-        tooltip_body::Tooltip, widget_group::GroupEvent,
+        tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets,
     },
 };
 
@@ -598,6 +599,10 @@ impl DesktopShell {
                 self.resolve_icons(),
             ]),
             window_group::Action::WindowList(window_list::Action::None) => Task::none(),
+            window_group::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
+                self.derive_niri_snapshot();
+                self.resolve_icons()
+            }
             window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
                 self.update_pointer_drag(drag)
             }
@@ -740,9 +745,16 @@ impl DesktopShell {
         )
     }
 
+    fn derive_niri_snapshot(&mut self) {
+        self.niri_snapshot.load(niri::Snapshot::derive(
+            &self.niri,
+            self.window_group.window_processes(),
+        ));
+    }
+
     fn show_niri_failure(&mut self, failure: &niri::ActionFailure) -> Task<Message> {
         tracing::warn!("{failure}");
-        self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
+        self.derive_niri_snapshot();
         self.notifications.show_niri_failure(
             failure,
             &ToastContext::new(
@@ -820,7 +832,7 @@ impl DesktopShell {
             }
             let _ = self.niri.apply(event);
         }
-        self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
+        self.derive_niri_snapshot();
         tasks.push(self.refocus_session());
         if focus_change {
             self.collapse_groups();
@@ -866,28 +878,29 @@ impl DesktopShell {
     }
 
     fn refresh_window_assets(&mut self) -> Task<Message> {
-        let titles = niri::all_windows(&self.niri);
+        let shown_titles = self
+            .niri_snapshot
+            .get()
+            .into_iter()
+            .flat_map(niri::Snapshot::all_windows)
+            .filter_map(|win| win.label.as_ref())
+            .flat_map(WindowLabel::shown_texts);
         Task::batch([
             self.favicons
                 .track_titles(&self.niri)
                 .map(Message::FaviconsResolved),
             self.font_fallbacks
-                .resolve_missing(
-                    titles
-                        .iter()
-                        .filter_map(|win| win.title.as_deref())
-                        .flat_map(str::chars),
-                    &self.config.theme.font,
-                )
+                .resolve_missing(shown_titles.flat_map(str::chars), &self.config.theme.font)
                 .map(Message::FallbackFontsResolved),
         ])
     }
 
     fn resolve_icons(&mut self) -> Task<Message> {
-        let mut app_keys = app_icon::app_icon_keys(&self.niri);
+        let snapshot = self.niri_snapshot.get();
+        let mut app_keys = snapshot.map(app_icon::app_icon_keys).unwrap_or_default();
         app_keys.extend(self.window_group.icon_keys());
         app_keys.extend(self.media_group.icon_keys());
-        let theme_keys = app_icon::theme_icon_keys(&self.niri);
+        let theme_keys = snapshot.map(app_icon::theme_icon_keys).unwrap_or_default();
         self.desktop_entries
             .resolve_missing(app_keys, theme_keys)
             .map(Message::IconsResolved)
@@ -898,10 +911,17 @@ impl DesktopShell {
             msg,
             &mut self.shell_settings.layout,
             &mut self.shell_settings.panels,
-            &mut self.niri_rules,
         ) {
             panel_settings_group::Action::Run(task) => task,
             panel_settings_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
+        }
+    }
+
+    pub fn window_assets(&self) -> WindowAssets<'_> {
+        WindowAssets {
+            entries: &self.desktop_entries,
+            favicons: &self.favicons,
+            fallbacks: &self.font_fallbacks,
         }
     }
 
@@ -911,7 +931,7 @@ impl DesktopShell {
             window,
             &self.config,
             &self.shell_settings,
-            &self.favicons,
+            self.window_assets(),
             |target| self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
         ) {
             return tooltip;

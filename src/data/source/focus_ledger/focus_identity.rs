@@ -1,13 +1,10 @@
-use std::{
-    iter::successors,
-    path::{Path, PathBuf},
-};
+use std::{iter::successors, path::PathBuf};
 
 use niri_ipc::state::EventStreamState;
 use procfs::process::Process as Proc;
 
 use super::focus_units::FocusUnit;
-use crate::data::source::window_agents::WindowProcesses;
+use crate::data::source::{project_directory::repository_root, window_agents::WindowProcesses};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FocusIdentity {
@@ -75,10 +72,4 @@ fn only_child(process: &Proc) -> Option<i32> {
         [child] => i32::try_from(*child).ok(),
         _ => None,
     }
-}
-
-fn repository_root(path: &Path) -> Option<PathBuf> {
-    path.ancestors()
-        .find(|dir| dir.join(".git").exists() || dir.join(".jj").exists())
-        .map(Path::to_path_buf)
 }

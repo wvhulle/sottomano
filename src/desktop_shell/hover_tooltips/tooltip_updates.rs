@@ -92,7 +92,6 @@ impl DesktopShell {
                 *target,
                 &self.shell_settings.layout,
                 &self.shell_settings.panels,
-                self.niri_rules.styling(),
             )),
             HoverTarget::SidebarSettings(target) => Some(self.sidebar_settings_group.tooltip_for(
                 *target,
@@ -104,7 +103,10 @@ impl DesktopShell {
                 self.shell_settings.notifications,
                 &self.shell_settings.overlays,
             )),
-            HoverTarget::NiriWindow(target) => Some(self.niri_window_group.tooltip_for(*target)),
+            HoverTarget::NiriWindow(target) => Some(
+                self.niri_window_group
+                    .tooltip_for(*target, self.niri_rules.styling()),
+            ),
             HoverTarget::Systemd(target) => self.systemd_manager_group.tooltip_for(target),
             HoverTarget::Journal(target) => self.journal_events_group.tooltip_for(*target),
             HoverTarget::PendingUpgrades(target) => {
@@ -160,13 +162,9 @@ impl DesktopShell {
                     self.quiet_schedule_group.waking_window(),
                 ))
             }
-            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
-                &self.niri_snapshot,
-                &self.desktop_entries,
-                &self.config.theme.font,
-                &self.font_fallbacks,
-                *workspace,
-            ),
+            HoverTarget::Workspace(workspace) => {
+                workspace_tooltip::tooltip(&self.niri_snapshot, &self.desktop_entries, *workspace)
+            }
             HoverTarget::WorkspaceOrder => Some(Tooltip::empty()),
         }
     }

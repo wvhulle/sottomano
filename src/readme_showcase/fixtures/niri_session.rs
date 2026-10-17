@@ -14,6 +14,7 @@ use crate::{
         niri::Snapshot,
         nix_store::{Provenance, StorePackage},
         process::{Inspection, Launch, Process},
+        window_agents::WindowProcesses,
     },
     desktop_shell::hover_tooltips::HoverTarget,
     readme_showcase::showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedNiriSession},
@@ -46,7 +47,7 @@ fn session() -> ShowcasedNiriSession {
         },
     );
     let mut snapshot = ContinuousReading::default();
-    snapshot.load(Snapshot::derive(&niri));
+    snapshot.load(Snapshot::derive(&niri, &WindowProcesses::default()));
     ShowcasedNiriSession {
         window_group: WindowGroup::default(),
         niri,
