@@ -46,13 +46,34 @@ fn quota_pace_line(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String 
     let used = percent_text(quota.used);
     let elapsed = duration_text(now - quota.starts_at);
     let window = duration_text(quota.resets_at - quota.starts_at);
-    let reset_at = LocalizedTimeFormat::TimeOfDay.format(&quota.resets_at.with_timezone(&Local), locale);
+    let today = now.with_timezone(&Local).date_naive();
+    let local_reset = quota.resets_at.with_timezone(&Local);
+    let reset_at = if local_reset.date_naive() == today {
+        LocalizedTimeFormat::TimeOfDay.format(&local_reset, locale)
+    } else {
+        format!(
+            "{} {}",
+            LocalizedTimeFormat::Weekday.format(&local_reset, locale),
+            LocalizedTimeFormat::TimeOfDay.format(&local_reset, locale)
+        )
+    };
     match quota.pace() {
-        Some(Pace::RunsOut { at }) => format!(
-            "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets at \
-             {reset_at}.",
-            LocalizedTimeFormat::TimeOfDay.format(&at.with_timezone(&Local), locale)
-        ),
+        Some(Pace::RunsOut { at }) => {
+            let runs_out_at = at.with_timezone(&Local);
+            format!(
+                "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets \
+                 at {reset_at}.",
+                if runs_out_at.date_naive() == today {
+                    LocalizedTimeFormat::TimeOfDay.format(&runs_out_at, locale)
+                } else {
+                    format!(
+                        "{} {}",
+                        LocalizedTimeFormat::Weekday.format(&runs_out_at, locale),
+                        LocalizedTimeFormat::TimeOfDay.format(&runs_out_at, locale)
+                    )
+                }
+            )
+        }
         Some(Pace::Lasts { at_reset }) => format!(
             "{label}: {used} used after {elapsed} of {window}.\nReaches {} by the reset at \
              {reset_at}.",
@@ -322,6 +343,28 @@ mod tests {
         assert!(earlier.contains("used after 2h of 5h"));
         assert!(later.contains("used after 2h 1s of 5h"));
         assert!(later.contains("Runs out around "));
+    }
+
+    #[test]
+    fn quota_pace_moments_on_later_days_name_their_weekday() {
+        use chrono::TimeDelta;
+        use uom::si::ratio::percent;
+
+        let start: DateTime<Utc> = "2026-10-02T10:00:00Z".parse().unwrap();
+        let length = TimeDelta::days(7);
+        let now = start + TimeDelta::hours(30);
+        let quota = Quota::within_window(
+            "Weekly",
+            Ratio::new::<percent>(25.0),
+            start + length,
+            length,
+            now,
+        );
+        let locale = Locale::default();
+        let text = OngoingBody::QuotaPace(vec![quota.clone()])
+            .text(now, locale)
+            .unwrap();
+        assert!(text.contains(&LocalizedTimeFormat::Weekday.format(&quota.resets_at, locale)));
     }
 
     #[test]
