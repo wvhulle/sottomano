@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local, Utc};
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, stream};
 
 use super::Error;
 use crate::data::source::{
@@ -33,14 +33,14 @@ impl CopilotCcusage {
 
 impl ReadingSource for CopilotCcusage {
     type Error = Error;
-    type Key = SpendBudget;
+    type StreamInputs = SpendBudget;
 
     const NAME: &'static str = "copilot-usage-ccusage";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
 
     fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(ccusage::installed()), move || {
-            polled_delivery_stream(budget.clone(), Self::poll).boxed()
+            polled_delivery_stream(budget.clone(), Self::poll)
         })
     }
 }

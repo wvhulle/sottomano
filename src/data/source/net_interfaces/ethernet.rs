@@ -1,11 +1,10 @@
-use std::convert::Infallible;
-
-use iced::futures::{Stream, StreamExt, future::try_join_all, try_join};
+use iced::futures::{Stream, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
 use crate::data::source::{
     DeliveryCadence, ReadingSource, SourceDelivery,
+    bus::DesktopBuses,
     hardware::Adapter,
     net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
 };
@@ -122,30 +121,32 @@ async fn read_details(connection: Connection) -> Result<EthernetDetails, Reading
 }
 
 impl ReadingSource for Ethernet {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        device_or_absent(nm::SERVICE, || {
-            nm_readings(NAME, nm::UPLINK_PROPERTIES, read).boxed()
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        device_or_absent(system.clone(), nm::SERVICE, move || {
+            nm_readings(system.clone(), nm::UPLINK_PROPERTIES, read)
         })
     }
 }
 
 impl ReadingSource for EthernetDetails {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "ethernet details";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        device_or_absent(nm::SERVICE, || {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        device_or_absent(system.clone(), nm::SERVICE, move || {
             nm_readings(
-                Self::NAME,
+                system.clone(),
                 &[
                     nm::MANAGER_PROPERTIES,
                     nm::DEVICE_PROPERTIES,
@@ -155,7 +156,6 @@ impl ReadingSource for EthernetDetails {
                 ],
                 read_details,
             )
-            .boxed()
         })
     }
 }

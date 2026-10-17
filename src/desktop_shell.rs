@@ -33,6 +33,7 @@ use crate::{
         sink::sound::SoundTheme,
         source::{
             app_icon::{self, DesktopEntries},
+            bus::{DesktopBusEvent, DesktopBuses},
             command::blocking::run,
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
@@ -48,7 +49,7 @@ use crate::{
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
         pointer_drag::{DragMessage, ShellDrag},
     },
-    message_subscriptions::{ForcedRefresh, blocking, copy_to_clipboard, niri_action},
+    message_subscriptions::{blocking, copy_to_clipboard, niri_action},
     state::{
         self, ShellSettings,
         niri_rules::{NiriRulesFile, StoredRules},
@@ -102,6 +103,7 @@ pub struct AppWindowFocus<M> {
 
 pub struct DesktopShell {
     pub wayland: Option<wayland_client::Connection>,
+    pub desktop_buses: Option<DesktopBuses>,
     pub config_file: ConfigFile,
     pub config: Config,
     pub theme: iced::Theme,
@@ -148,7 +150,6 @@ pub struct DesktopShell {
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
     pub tooltip: TooltipHost,
-    pub forced_refresh: Option<ForcedRefresh>,
     pub notifications: NotificationLayer,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
@@ -211,7 +212,7 @@ pub enum Message {
     PointerLeft,
     CopyText(String),
     OpenUrl(String),
-    RefreshSource(&'static str),
+    RefreshHoveredReading,
     FocusWindow(u64),
     TooltipTick,
     TooltipHideElapsed,
@@ -225,6 +226,7 @@ pub enum Message {
     NiriActionFailed(niri::ActionFailure),
     NiriConfigRead(Result<ConfiguredWorkspaces, String>),
     RestoreWorkspaceOrder { output: String },
+    DesktopBus(Result<DesktopBusEvent, zbus::Error>),
 }
 
 impl From<TooltipMessage> for Message {
@@ -298,7 +300,6 @@ impl DesktopShell {
             backdrops: BTreeMap::new(),
             sidebar_widths: HashMap::new(),
             tooltip: TooltipHost::default(),
-            forced_refresh: None,
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
@@ -309,6 +310,7 @@ impl DesktopShell {
             shell_settings: ShellSettings::default(),
             theme: iced::Theme::from(&config.theme.palette),
             wayland,
+            desktop_buses: None,
             config,
             config_file,
         };
@@ -502,6 +504,28 @@ impl DesktopShell {
             }
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
             Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
+            Message::DesktopBus(Ok(DesktopBusEvent::Connected(buses))) => {
+                self.desktop_buses = Some(buses);
+                Task::none()
+            }
+            Message::DesktopBus(Ok(DesktopBusEvent::Disconnected)) => {
+                tracing::warn!("desktop buses: connection closed, reconnecting");
+                self.desktop_buses = None;
+                Task::none()
+            }
+            Message::DesktopBus(Err(failure)) => {
+                tracing::error!("desktop buses: {failure}");
+                self.notifications.show_bus_failure(
+                    &failure,
+                    &ToastContext::new(
+                        &self.niri,
+                        self.desktop_entries.get(),
+                        &self.config,
+                        &self.shell_settings,
+                        self.quiet_schedule_group.is_quiet(),
+                    ),
+                )
+            }
             Message::NiriConfigRead(Ok(configured)) => {
                 self.configured_workspaces = Some(configured);
                 Task::none()
@@ -513,10 +537,10 @@ impl DesktopShell {
             Message::RestoreWorkspaceOrder { output } => self.restore_workspace_order(&output),
             Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => self.open_url(url),
-            Message::RefreshSource(source) => {
-                self.forced_refresh = Some(ForcedRefresh::next(self.forced_refresh, source));
-                self.retarget_hover_readings()
-            }
+            Message::RefreshHoveredReading => Task::batch([
+                self.refresh_hovered_reading(),
+                self.retarget_hover_readings(),
+            ]),
             Message::FocusWindow(window) => Task::batch([
                 self.dismiss_tooltip(),
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),

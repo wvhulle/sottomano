@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::Infallible, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use iced::futures::{
     Stream, StreamExt,
@@ -7,10 +7,10 @@ use iced::futures::{
 };
 use zbus::{names::MemberName, proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, SystemdUnitScope, connect, manager_signal, signals_matching};
+use super::{ManagerProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
     data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 const SERVICE_SUFFIX: &str = ".service";
@@ -56,25 +56,22 @@ pub struct ServiceCommands {
 }
 
 impl ReadingSource for ServiceCommands {
-    type Error = Infallible;
-    type Key = SystemdUnitScope;
+    type Error = zbus::Error;
+    type StreamInputs = SystemdOnBus;
 
     const NAME: &'static str = "systemd service commands";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(scope: SystemdUnitScope) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        restarting("systemd service commands", move || {
-            watch_service_commands(scope.per_user())
-        })
-        .map(|services| Ok(Self { services }))
-        .map(SourceDelivery::Reading)
+    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        connected_until_failure(watch_service_commands(systemd.connection()))
+            .map(|listed| listed.map(|services| Self { services }))
+            .map(SourceDelivery::Reading)
     }
 }
 
 async fn watch_service_commands(
-    per_user: bool,
-) -> zbus::Result<impl Stream<Item = Vec<ServiceCommand>> + Send> {
-    let connection = connect(per_user).await?;
+    connection: zbus::Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<ServiceCommand>>> + Send> {
     let manager = ManagerProxy::builder(&connection)
         .cache_properties(CacheProperties::No)
         .build()
@@ -92,11 +89,11 @@ async fn watch_service_commands(
     .filter_map(|signal| ready(signal.ok()))
     .boxed();
     let watch = ServiceCommandWatch {
-        services: all_service_commands(&manager).await,
+        services: all_service_commands(&manager).await?,
         manager,
         signals,
     };
-    Ok(stream::once(ready(watch.listing()))
+    Ok(stream::once(ready(Ok(watch.listing())))
         .chain(stream::unfold(watch, ServiceCommandWatch::next_listing)))
 }
 
@@ -145,7 +142,7 @@ impl ServiceCommandWatch {
         self.services.values().cloned().collect()
     }
 
-    async fn next_listing(mut self) -> Option<(Vec<ServiceCommand>, Self)> {
+    async fn next_listing(mut self) -> Option<(zbus::Result<Vec<ServiceCommand>>, Self)> {
         loop {
             let signal = self.signals.next().await?;
             let changed = match ServiceChange::of(&signal) {
@@ -158,26 +155,28 @@ impl ServiceCommandWatch {
                     }
                 }
                 ServiceChange::Removed(unit) => self.services.remove(&unit).is_some(),
-                ServiceChange::Reloaded => {
-                    let services = all_service_commands(&self.manager).await;
-                    let changed = services != self.services;
-                    self.services = services;
-                    changed
-                }
+                ServiceChange::Reloaded => match all_service_commands(&self.manager).await {
+                    Ok(services) => {
+                        let changed = services != self.services;
+                        self.services = services;
+                        changed
+                    }
+                    Err(failure) => return Some((Err(failure), self)),
+                },
                 ServiceChange::Unrelated => false,
             };
             if changed {
-                return Some((self.listing(), self));
+                return Some((Ok(self.listing()), self));
             }
         }
     }
 }
 
-async fn all_service_commands(manager: &ManagerProxy<'static>) -> BTreeMap<String, ServiceCommand> {
-    let Ok(rows) = manager.list_units().await else {
-        return BTreeMap::new();
-    };
-    join_all(
+async fn all_service_commands(
+    manager: &ManagerProxy<'static>,
+) -> zbus::Result<BTreeMap<String, ServiceCommand>> {
+    let rows = manager.list_units().await?;
+    Ok(join_all(
         rows.into_iter()
             .filter(|row| row.name.ends_with(SERVICE_SUFFIX))
             .map(|row| service_command(manager, row.name, row.unit_path)),
@@ -186,7 +185,7 @@ async fn all_service_commands(manager: &ManagerProxy<'static>) -> BTreeMap<Strin
     .into_iter()
     .flatten()
     .map(|command| (command.unit.clone(), command))
-    .collect()
+    .collect())
 }
 
 async fn service_command(

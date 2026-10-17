@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     data::source::{
         SourceDelivery,
-        bus::OwnerProcess,
+        bus::{DesktopBuses, OwnerProcess},
         desktop_entries::DesktopIndex,
         mpris::{self, Command, Media, Progress, Status},
         niri::WindowOwner,
@@ -116,8 +116,8 @@ impl MediaGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self) -> Subscription<MediaMessage> {
-        let readings = source_subscription::<Vec<Media>>((), None).map(MediaMessage::Reading);
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<MediaMessage> {
+        let readings = source_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
         if self.is_progressing() {
             Subscription::batch([readings, every(PROGRESS_TICK).map(MediaMessage::Tick)])
         } else {

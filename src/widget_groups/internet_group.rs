@@ -8,12 +8,13 @@ use crate::{
     config::Config,
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         tailscale::{Tailscale, open_admin},
         throughput::Readings,
         wireguard::{TunnelAddress, Wireguard, disconnect},
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -67,23 +68,37 @@ impl InternetGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<InternetMessage> {
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<InternetMessage> {
         Subscription::batch([
-            source_subscription::<Readings>((), forced).map(InternetMessage::Throughput),
+            source_subscription::<Readings>(buses.clone()).map(InternetMessage::Throughput),
             self.expansion.while_expanded(
-                source_subscription::<Wireguard>((), forced).map(InternetMessage::Wireguard),
+                source_subscription::<Wireguard>(()).map(InternetMessage::Wireguard),
             ),
             self.expansion.while_expanded(
-                source_subscription::<Tailscale>((), forced).map(InternetMessage::Tailscale),
+                source_subscription::<Tailscale>(()).map(InternetMessage::Tailscale),
             ),
         ])
+    }
+
+    pub fn refresh(target: &InternetTarget, buses: &DesktopBuses) -> Task<InternetMessage> {
+        match target {
+            InternetTarget::Down | InternetTarget::Up | InternetTarget::Total => {
+                first_delivery::<Readings>(buses.clone()).map(InternetMessage::Throughput)
+            }
+            InternetTarget::Wireguard(_) => {
+                first_delivery::<Wireguard>(()).map(InternetMessage::Wireguard)
+            }
+            InternetTarget::Tailscale => {
+                first_delivery::<Tailscale>(()).map(InternetMessage::Tailscale)
+            }
+        }
     }
 
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
         use crate::message_subscriptions::blocking;
         match msg {
             InternetMessage::Throughput(delivery) => {
-                self.throughput.receive_keeping_last_reading(delivery);
+                self.throughput.receive_delivery(delivery);
             }
             InternetMessage::Wireguard(reading) => self.wireguard.receive_delivery(reading),
             InternetMessage::TunnelAddressFetched(fetched) => {
@@ -140,9 +155,10 @@ impl InternetGroup {
             InternetTarget::Up => self
                 .throughput
                 .tooltip_with(self.throughput.get()?.up.tooltip()),
-            InternetTarget::Total => self
-                .throughput
-                .tooltip_with(self.throughput.get()?.total.tooltip()),
+            InternetTarget::Total => match self.throughput.get() {
+                Some(readings) => self.throughput.tooltip_with(readings.total.tooltip()),
+                None => self.throughput.tooltip(),
+            },
             InternetTarget::Tailscale => self.tailscale.tooltip(),
         }
     }
@@ -156,14 +172,15 @@ impl InternetGroup {
         GroupContent::new(
             &self.expansion,
             InternetMessage::Expansion,
-            throughput
+            self.throughput
+                .group_item(InternetTarget::Total)
                 .into_iter()
-                .flat_map(|readings| {
+                .chain(throughput.into_iter().flat_map(|readings| {
                     [
                         GroupItem::reading(&readings.down, InternetTarget::Down),
                         GroupItem::reading(&readings.up, InternetTarget::Up),
                     ]
-                })
+                }))
                 .chain(tunnels.iter().map(|tunnel| {
                     GroupItem::reading(tunnel, InternetTarget::Wireguard(tunnel.name.clone()))
                         .on_right_press(

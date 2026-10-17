@@ -1,9 +1,7 @@
 use std::{
     cmp::Reverse,
     collections::HashMap,
-    convert::Infallible,
     fmt::{Display, Formatter, Result as FmtResult},
-    future::ready,
     io,
     time::{Duration, SystemTime},
 };
@@ -11,14 +9,16 @@ use std::{
 use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 use systemd::{id128::Id128, journal::OpenOptions};
-use tokio::task::spawn_blocking;
 
-use crate::data::{
-    severity::Severity,
-    source::{
-        DeliveryCadence, ReadingSource, SourceDelivery,
-        journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
+use crate::{
+    data::{
+        severity::Severity,
+        source::{
+            DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
+            journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
+        },
     },
+    widgets::tooltip_body::Section,
 };
 
 const SLOWEST_STOP_COUNT: usize = 10;
@@ -257,55 +257,57 @@ impl ShutdownEvent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ShutdownReadError {
-    Journal(io::Error),
+    Journal(io::ErrorKind),
     NoPreviousBoot,
     NoShutdownRecorded,
+    Panicked,
 }
 
 impl From<io::Error> for ShutdownReadError {
     fn from(error: io::Error) -> Self {
-        Self::Journal(error)
+        Self::Journal(error.kind())
+    }
+}
+
+impl From<Panicked> for ShutdownReadError {
+    fn from(Panicked: Panicked) -> Self {
+        Self::Panicked
+    }
+}
+
+impl From<ShutdownReadError> for Section {
+    fn from(error: ShutdownReadError) -> Self {
+        Section::error(error)
     }
 }
 
 impl Display for ShutdownReadError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::Journal(error) => write!(f, "{error}"),
+            Self::Journal(kind) => write!(f, "cannot read the journal: {kind}"),
             Self::NoPreviousBoot => write!(f, "no previous boot in the journal"),
             Self::NoShutdownRecorded => write!(f, "previous boot recorded no shutdown"),
+            Self::Panicked => write!(f, "shutdown read panicked"),
         }
     }
 }
 
 impl ReadingSource for LastShutdown {
-    type Error = Infallible;
-    type Key = Duration;
+    type Error = ShutdownReadError;
+    type StreamInputs = Duration;
 
     const NAME: &'static str = "last shutdown";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(slow_stop: Duration) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(spawn_blocking(move || read_last_shutdown(slow_stop)))
-            .filter_map(|read| {
-                ready(match read {
-                    Ok(Ok(last_shutdown)) => Some(Ok(last_shutdown)),
-                    Ok(Err(
-                        ShutdownReadError::NoPreviousBoot | ShutdownReadError::NoShutdownRecorded,
-                    )) => None,
-                    Ok(Err(e)) => {
-                        tracing::warn!("systemd last shutdown: {e}");
-                        None
-                    }
-                    Err(e) => {
-                        tracing::error!("systemd last shutdown: task panicked: {e}");
-                        None
-                    }
-                })
-            })
-            .map(SourceDelivery::Reading)
+        stream::once(blocking_poll(move || read_last_shutdown(slow_stop))).map(|read| match read {
+            Err(ShutdownReadError::NoPreviousBoot | ShutdownReadError::NoShutdownRecorded) => {
+                SourceDelivery::Absent
+            }
+            read => SourceDelivery::Reading(read),
+        })
     }
 }
 

@@ -8,11 +8,12 @@ use crate::{
         battery_forecast::{Estimate, RegressionState, time_until_empty},
         source::{
             SourceDelivery,
+            bus::DesktopBuses,
             power_profile::{self, Conditions, Profile, ProfileStatus},
             sysfs_sensors::battery::Battery,
         },
     },
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     state::power,
     widget_groups::power_group::{
         PowerTarget,
@@ -99,10 +100,17 @@ impl PowerProfileControl {
         self.control.close();
     }
 
-    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<PowerProfileMessage> {
+    pub fn subscription(buses: &DesktopBuses) -> Subscription<PowerProfileMessage> {
         Subscription::batch([
-            source_subscription::<ProfileStatus>((), None).map(PowerProfileMessage::Status),
-            source_subscription::<Conditions>((), forced).map(PowerProfileMessage::Conditions),
+            source_subscription::<ProfileStatus>(buses.clone()).map(PowerProfileMessage::Status),
+            source_subscription::<Conditions>(buses.clone()).map(PowerProfileMessage::Conditions),
+        ])
+    }
+
+    pub fn refresh(buses: &DesktopBuses) -> Task<PowerProfileMessage> {
+        Task::batch([
+            first_delivery::<ProfileStatus>(buses.clone()).map(PowerProfileMessage::Status),
+            first_delivery::<Conditions>(buses.clone()).map(PowerProfileMessage::Conditions),
         ])
     }
 

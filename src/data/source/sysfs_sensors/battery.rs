@@ -28,10 +28,10 @@ use super::{
 };
 use crate::{
     data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, bus::DesktopBuses,
         hardware::PowerSupplyIdentity, polled_delivery_stream, present_or_absent,
     },
-    message_subscriptions::restarting,
+    message_subscriptions::{connected_until_failure, restarting},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,13 +116,15 @@ pub struct ChargerSupply {
 
 impl ReadingSource for ChargerSupply {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "charger";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -202,31 +204,25 @@ impl Battery {
 
 impl ReadingSource for Battery {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "battery";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(BATTERY_POLL_INTERVAL);
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(present(), move || {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        present_or_absent(present(system.clone()), move || {
             let mut ticks = interval(BATTERY_POLL_INTERVAL);
             ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
             let ticks = IntervalStream::new(ticks).map(|_| ());
-            select(ticks, supply_state_changes())
-                .then(move |()| Self::poll(key))
+            select(ticks, supply_state_changes(system.clone()))
+                .then(|()| blocking_poll(read_battery))
                 .map(SourceDelivery::Reading)
-                .boxed()
         })
     }
 }
 
 pub const BATTERY_POLL_INTERVAL: Duration = Duration::from_secs(5);
-
-impl Battery {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_battery).await
-    }
-}
 
 #[proxy(
     interface = "org.freedesktop.UPower.Device",
@@ -250,34 +246,36 @@ trait UPower {
     fn device_removed(&self, device: OwnedObjectPath) -> zbus::Result<()>;
 }
 
-fn present() -> impl Stream<Item = bool> + Send {
-    stream::once(device_changes()).flat_map(|watched| match watched {
-        Ok(presence) => presence.boxed(),
-        Err(e) => {
+fn present(system: Connection) -> impl Stream<Item = bool> + Send {
+    connected_until_failure(device_changes(system)).map(|present| {
+        present.unwrap_or_else(|e| {
             tracing::warn!("upower device watch: {e}");
-            stream::iter([first_power_supply("BAT").is_some()]).boxed()
-        }
+            first_power_supply("BAT").is_some()
+        })
     })
 }
 
-async fn device_changes() -> zbus::Result<impl Stream<Item = bool> + Send> {
-    let connection = Connection::system().await?;
-    let upower = UPowerProxy::new(&connection).await?;
+async fn device_changes(
+    system: Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<bool>> + Send> {
+    let upower = UPowerProxy::new(&system).await?;
     let changes = select(
         upower.receive_device_added().await?.map(drop),
         upower.receive_device_removed().await?.map(drop),
-    )
-    .map(|()| first_power_supply("BAT").is_some());
-    Ok(stream::iter([first_power_supply("BAT").is_some()]).chain(changes))
+    );
+    Ok(stream::once(ready(()))
+        .chain(changes)
+        .map(|()| Ok(first_power_supply("BAT").is_some())))
 }
 
-fn supply_state_changes() -> impl Stream<Item = ()> + Send {
-    restarting("upower supply state", supply_state_signals)
+fn supply_state_changes(system: Connection) -> impl Stream<Item = ()> + Send {
+    restarting("upower supply state", move || {
+        supply_state_signals(system.clone())
+    })
 }
 
-async fn supply_state_signals() -> zbus::Result<impl Stream<Item = ()>> {
-    let connection = Connection::system().await?;
-    let device = DisplayDeviceProxy::new(&connection).await?;
+async fn supply_state_signals(system: Connection) -> zbus::Result<impl Stream<Item = ()>> {
+    let device = DisplayDeviceProxy::new(&system).await?;
     Ok(device.receive_state_changed().await.map(drop))
 }
 

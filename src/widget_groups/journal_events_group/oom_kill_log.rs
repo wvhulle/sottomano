@@ -47,7 +47,7 @@ impl JournalEventsGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
-        let kills = self.oom_kills.visible_reading()?;
+        let kills = self.oom_kills.display()?;
         Some(GroupItem::reading(kills, JournalTarget::OomKills).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalCommand::journal(

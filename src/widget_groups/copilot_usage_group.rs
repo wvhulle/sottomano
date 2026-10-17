@@ -11,12 +11,13 @@ use crate::{
     data::source::{
         SourceDelivery,
         ai::{
-            copilot::{CopilotCcusage, CopilotFree, CopilotMetered},
+            copilot::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
             working_time_forecast::SpendBudget,
         },
+        bus::DesktopBuses,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         continuous_reading::ContinuousReading,
         simple_icons::SimpleIcon,
@@ -71,25 +72,52 @@ impl CopilotUsageGroup {
         }
     }
 
-    pub fn subscription(
-        &self,
-        config: &Config,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<CopilotUsageMessage> {
-        let account = self.gh_auth_token.clone().into_iter().flat_map(|key| {
-            [
-                source_subscription::<CopilotMetered>(key.clone(), forced)
-                    .map(CopilotUsageMessage::Metered),
-                source_subscription::<CopilotFree>(key, forced).map(CopilotUsageMessage::Free),
-            ]
-        });
-        let budget = SpendBudget::new(
+    fn cli_budget(config: &Config) -> SpendBudget {
+        SpendBudget::new(
             config,
             config.widget_groups.copilot_usage.monthly_budget_usd,
-        );
-        Subscription::batch(account.chain([
-            source_subscription::<CopilotCcusage>(budget, forced).map(CopilotUsageMessage::Cli),
-        ]))
+        )
+    }
+
+    fn account(&self, buses: &DesktopBuses) -> Option<CopilotAccount> {
+        Some(CopilotAccount {
+            gh_auth_token: self.gh_auth_token.clone()?,
+            buses: buses.clone(),
+        })
+    }
+
+    pub fn refresh(
+        &self,
+        target: CopilotUsageTarget,
+        config: &Config,
+        buses: Option<&DesktopBuses>,
+    ) -> Task<CopilotUsageMessage> {
+        let account = buses.and_then(|buses| self.account(buses));
+        match target {
+            CopilotUsageTarget::Metered => account.map_or_else(Task::none, |key| {
+                first_delivery::<CopilotMetered>(key).map(CopilotUsageMessage::Metered)
+            }),
+            CopilotUsageTarget::Free => account.map_or_else(Task::none, |key| {
+                first_delivery::<CopilotFree>(key).map(CopilotUsageMessage::Free)
+            }),
+            CopilotUsageTarget::Cli => first_delivery::<CopilotCcusage>(Self::cli_budget(config))
+                .map(CopilotUsageMessage::Cli),
+        }
+    }
+
+    pub fn subscription(config: &Config) -> Subscription<CopilotUsageMessage> {
+        source_subscription::<CopilotCcusage>(Self::cli_budget(config))
+            .map(CopilotUsageMessage::Cli)
+    }
+
+    pub fn account_subscription(&self, buses: &DesktopBuses) -> Subscription<CopilotUsageMessage> {
+        Subscription::batch(self.account(buses).into_iter().flat_map(|account| {
+            [
+                source_subscription::<CopilotMetered>(account.clone())
+                    .map(CopilotUsageMessage::Metered),
+                source_subscription::<CopilotFree>(account).map(CopilotUsageMessage::Free),
+            ]
+        }))
     }
 
     pub fn update(&mut self, message: CopilotUsageMessage) -> Task<CopilotUsageMessage> {

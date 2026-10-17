@@ -11,7 +11,7 @@ use zbus::{
     zvariant::{OwnedObjectPath, Type},
 };
 
-use crate::message_subscriptions::restarting;
+use crate::{data::source::bus::DesktopBuses, message_subscriptions::connected_until_failure};
 
 const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
 
@@ -174,29 +174,30 @@ pub enum SleepEdge {
     Resumed,
 }
 
-pub fn sleep_edges() -> impl Stream<Item = SleepEdge> + Send {
-    restarting("sleep signal", sleep_signals)
+pub fn sleep_edges(buses: &DesktopBuses) -> impl Stream<Item = SleepEdge> + Send + use<> {
+    connected_until_failure(sleep_signals(buses.system.clone())).filter_map(|edge| {
+        ready(
+            edge.inspect_err(|e| tracing::warn!("logind sleep signal: {e}"))
+                .ok(),
+        )
+    })
 }
 
-pub fn resumes() -> impl Stream<Item = ()> {
-    sleep_edges().filter_map(|edge| ready((edge == SleepEdge::Resumed).then_some(())))
+pub fn resumes(buses: &DesktopBuses) -> impl Stream<Item = ()> + Send + use<> {
+    sleep_edges(buses).filter_map(|edge| ready((edge == SleepEdge::Resumed).then_some(())))
 }
 
-async fn sleep_signals() -> zbus::Result<impl Stream<Item = SleepEdge> + Send> {
-    let connection = zbus::Connection::system().await?;
-    let manager = ManagerProxy::new(&connection).await?;
-    let edges = manager
-        .receive_prepare_for_sleep()
-        .await?
-        .filter_map(|signal| {
-            let edge = signal.args().ok().map(|args| {
-                if *args.start() {
-                    SleepEdge::Suspending
-                } else {
-                    SleepEdge::Resumed
-                }
-            });
-            ready(edge)
-        });
+async fn sleep_signals(
+    system: zbus::Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<SleepEdge>> + Send> {
+    let manager = ManagerProxy::new(&system).await?;
+    let edges = manager.receive_prepare_for_sleep().await?.map(|signal| {
+        let args = signal.args()?;
+        Ok(if *args.start() {
+            SleepEdge::Suspending
+        } else {
+            SleepEdge::Resumed
+        })
+    });
     Ok(edges)
 }

@@ -1,9 +1,7 @@
-use std::path::PathBuf;
-
 use chrono::{DateTime, Utc};
 use iced::futures::Stream;
 
-use super::{Error, USER_POLL_INTERVAL, UserInfo, plan_polls, user_info};
+use super::{CopilotAccount, Error, USER_POLL_INTERVAL, UserInfo, plan_polls, user_info};
 use crate::data::source::{DeliveryCadence, ReadingSource, SourceDelivery};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -16,19 +14,19 @@ pub struct CopilotFree {
 
 impl ReadingSource for CopilotFree {
     type Error = Error;
-    type Key = PathBuf;
+    type StreamInputs = CopilotAccount;
 
     const NAME: &'static str = "copilot-usage-free";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(USER_POLL_INTERVAL);
 
-    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        plan_polls(key, UserInfo::free_plan, Self::poll)
+    fn delivery_stream(inputs: CopilotAccount) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        plan_polls(inputs, UserInfo::free_plan, Self::poll)
     }
 }
 
 impl CopilotFree {
-    async fn poll(key: PathBuf) -> Result<Self, Error> {
-        let info = user_info(&key).await?;
+    async fn poll(key: CopilotAccount) -> Result<Self, Error> {
+        let info = user_info(&key.gh_auth_token).await?;
         let quotas = info.limited_user_quotas.as_ref().ok_or(Error::NoQuota)?;
         Ok(CopilotFree {
             plan: info.plan(),

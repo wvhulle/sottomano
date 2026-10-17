@@ -1,4 +1,4 @@
-use std::{collections::HashSet, convert::Infallible, fs, future::ready, time::Duration};
+use std::{collections::HashSet, fs, future::ready, time::Duration};
 
 use iced::futures::{Stream, StreamExt, stream::select};
 use serde::{Deserialize, Serialize};
@@ -7,10 +7,10 @@ use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
-        bus::{Bus, name_owned},
+        bus::{DesktopBuses, name_owned},
         clight, drop_unchanged_deliveries, present_or_absent,
     },
-    message_subscriptions::{restarting, ticked},
+    message_subscriptions::{connected_until_failure, ticked},
 };
 
 const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
@@ -56,26 +56,27 @@ pub struct Backlight {
 const INTERVAL: Duration = Duration::from_secs(10);
 
 impl ReadingSource for Vec<Backlight> {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "backlight";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(INTERVAL);
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(name_owned(Bus::System, CLIGHTD_SERVICE), move || {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        present_or_absent(name_owned(system.clone(), CLIGHTD_SERVICE), move || {
             drop_unchanged_deliveries(
-                restarting("backlight", backlight_readings).map(SourceDelivery::Reading),
+                connected_until_failure(backlight_readings(system.clone()))
+                    .map(SourceDelivery::Reading),
             )
-            .boxed()
         })
     }
 }
 
-async fn backlight_readings() -> zbus::Result<impl Stream<Item = Result<Vec<Backlight>, Infallible>>>
-{
-    let connection = zbus::Connection::system().await?;
-    let proxy: ClightdBacklightProxy<'static> = proxy::Builder::new(&connection)
+async fn backlight_readings(
+    system: zbus::Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<Backlight>>>> {
+    let proxy: ClightdBacklightProxy<'static> = proxy::Builder::new(&system)
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
@@ -83,7 +84,7 @@ async fn backlight_readings() -> zbus::Result<impl Stream<Item = Result<Vec<Back
     Ok(
         select(ticked(INTERVAL, || ready(())), changes).then(move |()| {
             let proxy = proxy.clone();
-            async move { Ok(proxy.get_all("").await.map(backlights).unwrap_or_default()) }
+            async move { proxy.get_all("").await.map(backlights) }
         }),
     )
 }

@@ -12,7 +12,7 @@ use crate::{
         weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -63,23 +63,20 @@ impl WeatherGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<WeatherMessage> {
-        let location = source_subscription::<Location>((), None).map(WeatherMessage::Location);
+    pub fn subscription(&self) -> Subscription<WeatherMessage> {
+        let location = source_subscription::<Location>(()).map(WeatherMessage::Location);
         let Some(here) = self.location.get().map(Location::position) else {
             return location;
         };
         Subscription::batch([
             location,
-            source_subscription::<Temperature>(here, forced).map(WeatherMessage::Temp),
-            self.expansion.while_expanded(
-                source_subscription::<Wind>(here, forced).map(WeatherMessage::Wind),
-            ),
-            self.expansion.while_expanded(
-                source_subscription::<Rain>(here, forced).map(WeatherMessage::Rain),
-            ),
-            self.expansion.while_expanded(
-                source_subscription::<Pollen>(here, forced).map(WeatherMessage::Pollen),
-            ),
+            source_subscription::<Temperature>(here).map(WeatherMessage::Temp),
+            self.expansion
+                .while_expanded(source_subscription::<Wind>(here).map(WeatherMessage::Wind)),
+            self.expansion
+                .while_expanded(source_subscription::<Rain>(here).map(WeatherMessage::Rain)),
+            self.expansion
+                .while_expanded(source_subscription::<Pollen>(here).map(WeatherMessage::Pollen)),
         ])
     }
 
@@ -95,6 +92,23 @@ impl WeatherGroup {
             }
         }
         Task::none()
+    }
+
+    pub fn refresh(&self, target: WeatherTarget) -> Task<WeatherMessage> {
+        let Some(here) = self.location.get().map(Location::position) else {
+            return first_delivery::<Location>(()).map(WeatherMessage::Location);
+        };
+        match target {
+            WeatherTarget::Temperature => {
+                first_delivery::<Temperature>(here).map(WeatherMessage::Temp)
+            }
+            WeatherTarget::Wind => first_delivery::<Wind>(here).map(WeatherMessage::Wind),
+            WeatherTarget::Rain => first_delivery::<Rain>(here).map(WeatherMessage::Rain),
+            WeatherTarget::Pollen | WeatherTarget::Allergen(_) => {
+                first_delivery::<Pollen>(here).map(WeatherMessage::Pollen)
+            }
+            WeatherTarget::Location => first_delivery::<Location>(()).map(WeatherMessage::Location),
+        }
     }
 
     pub fn tooltip_for(&self, target: WeatherTarget) -> Option<Tooltip> {

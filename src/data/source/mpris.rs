@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    convert::Infallible,
     fmt::{self, Display, Formatter},
     str::FromStr,
     time::Instant,
@@ -31,9 +30,9 @@ use zbus::{
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
-        bus::{DbusPropertyLookup, OwnerProcess, Properties},
+        bus::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
     },
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
@@ -387,26 +386,30 @@ async fn read_media(
     })
 }
 
-async fn mpris_names(dbus: &DBusProxy<'_>) -> Vec<String> {
-    dbus.list_names()
-        .await
+async fn mpris_names(dbus: &DBusProxy<'_>) -> zbus::Result<Vec<String>> {
+    Ok(dbus
+        .list_names()
+        .await?
         .into_iter()
-        .flatten()
         .map(|name| name.to_string())
         .filter(|name| name.starts_with(PREFIX) && name != PLAYERCTLD)
-        .collect()
+        .collect())
 }
 
-async fn read_all(connection: &Connection, dbus: &DBusProxy<'_>, art: &mut ArtCache) -> Vec<Media> {
+async fn read_all(
+    connection: &Connection,
+    dbus: &DBusProxy<'_>,
+    art: &mut ArtCache,
+) -> zbus::Result<Vec<Media>> {
     let mut players = Vec::new();
-    for bus in mpris_names(dbus).await {
+    for bus in mpris_names(dbus).await? {
         match read_media(connection, dbus, &bus, art).await {
             Ok(media) => players.push(media),
             Err(e) => tracing::debug!("mpris {bus}: {e}"),
         }
     }
     art.retain(|bus, _| players.iter().any(|media| &media.bus == bus));
-    players
+    Ok(players)
 }
 
 struct CachedArt {
@@ -459,16 +462,14 @@ async fn load_art(url: &str) -> Option<image::Handle> {
 }
 
 impl ReadingSource for Vec<Media> {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "mpris";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        restarting("mpris", connect)
-            .map(Ok)
-            .map(SourceDelivery::Reading)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        connected_until_failure(connect(buses.session)).map(SourceDelivery::Reading)
     }
 }
 
@@ -479,8 +480,9 @@ struct Session<Changes> {
     art: ArtCache,
 }
 
-async fn connect() -> zbus::Result<impl Stream<Item = Vec<Media>>> {
-    let connection = Connection::session().await?;
+async fn connect(
+    connection: Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<Media>>>> {
     let dbus = DBusProxy::new(&connection).await?;
     let properties = signals(
         &connection,
@@ -507,14 +509,14 @@ async fn connect() -> zbus::Result<impl Stream<Item = Vec<Media>>> {
 }
 
 impl<Changes: Stream<Item = ()> + Unpin + Send> Session<Changes> {
-    fn readings(self) -> impl Stream<Item = Vec<Media>> {
+    fn readings(self) -> impl Stream<Item = zbus::Result<Vec<Media>>> {
         stream::unfold(self, |mut session| async move {
             let players = session.next_reading().await?;
             Some((players, session))
         })
     }
 
-    async fn next_reading(&mut self) -> Option<Vec<Media>> {
+    async fn next_reading(&mut self) -> Option<zbus::Result<Vec<Media>>> {
         self.changes.next().await?;
         Some(read_all(&self.connection, &self.dbus, &mut self.art).await)
     }

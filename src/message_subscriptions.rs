@@ -29,7 +29,11 @@ use crate::{
             server,
         },
         sink::clipboard,
-        source::{ReadingSource, SourceDelivery, desktop_entries, niri},
+        source::{
+            ReadingSource, SourceDelivery,
+            bus::{DesktopBuses, desktop_bus_events},
+            desktop_entries, niri,
+        },
     },
     desktop_shell::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
@@ -37,12 +41,13 @@ use crate::{
     },
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
-        dark_mode_group::DarkModeGroup, disk_group::DiskGroup,
-        journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
-        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
-        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
-        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup, window_group::WindowGroup,
+        copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
+        disk_group::DiskGroup, journal_events_group::JournalEventsGroup,
+        login_session_group::LoginSessionGroup, monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
+        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
+        window_group::WindowGroup,
     },
 };
 
@@ -79,67 +84,42 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    let forced = state.forced_refresh;
+
     Subscription::batch([
         outputs(state.wayland.as_ref()),
         state
             .config_file
             .changes()
             .map(|()| Message::ConfigFileChanged),
-        state
-            .weather_group
-            .subscription(forced)
-            .map(Message::Weather),
+        state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
-        PowerGroup::subscription(forced).map(Message::Power),
-        ComputeGroup::subscription(&state.config.widget_groups.temperature_sensors.cpu, forced)
+        Subscription::run(desktop_bus_events).map(Message::DesktopBus),
+        state
+            .desktop_buses
+            .as_ref()
+            .map_or_else(Subscription::none, |buses| {
+                desktop_bus_subscriptions(state, buses)
+            }),
+        ComputeGroup::subscription(&state.config.widget_groups.temperature_sensors.cpu)
             .map(Message::Compute),
-        LoginSessionGroup::subscription(forced).map(Message::LoginSession),
-        state.gpu_group.subscription(forced).map(Message::Gpu),
-        DiskGroup::subscription(
-            &state.config.widget_groups.temperature_sensors.drive,
-            forced,
-        )
-        .map(Message::Disk),
-        ClockGroup::subscription(&state.config, forced).map(Message::Clock),
-        SystemdManagerGroup::subscription(&state.config.widget_groups.systemd_manager)
-            .map(Message::SystemdManager),
+        state.gpu_group.subscription().map(Message::Gpu),
+        DiskGroup::subscription(&state.config.widget_groups.temperature_sensors.drive)
+            .map(Message::Disk),
+        ClockGroup::subscription(&state.config).map(Message::Clock),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
-        PendingUpgradesGroup::subscription().map(Message::PendingUpgrades),
-        state
-            .internet_group
-            .subscription(forced)
-            .map(Message::Internet),
-        state
-            .net_interfaces_group
-            .subscription()
-            .map(Message::NetInterfaces),
-        MonitorGroup::subscription(forced).map(Message::Monitor),
-        state
-            .color_temperature_group
-            .subscription(forced)
-            .map(Message::ColorTemperature),
-        DarkModeGroup::subscription(forced).map(Message::DarkMode),
+        DarkModeGroup::subscription().map(Message::DarkMode),
         QuietScheduleGroup::subscription().map(Message::QuietSchedule),
-        state.media_group.subscription().map(Message::Media),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
         state
             .claude_usage_group
-            .subscription(&state.config, forced)
+            .subscription(&state.config)
             .map(Message::ClaudeUsage),
-        state
-            .copilot_usage_group
-            .subscription(&state.config, forced)
-            .map(Message::CopilotUsage),
+        CopilotUsageGroup::subscription(&state.config).map(Message::CopilotUsage),
         state
             .openrouter_credit_group
-            .subscription(&state.config, forced)
+            .subscription(&state.config)
             .map(Message::OpenRouterCredit),
-        state
-            .llama_server_group
-            .subscription()
-            .map(Message::LlamaServer),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
         SessionFocusGroup::subscription().map(Message::SessionFocus),
@@ -155,6 +135,43 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         state.pointer_drag_subscription(),
         tooltip_tick,
         expiry_tick,
+    ])
+}
+
+fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subscription<Message> {
+    Subscription::batch([
+        PowerGroup::subscription(buses).map(Message::Power),
+        LoginSessionGroup::subscription(buses).map(Message::LoginSession),
+        SystemdManagerGroup::subscription(&state.config.widget_groups.systemd_manager, buses)
+            .map(Message::SystemdManager),
+        PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
+        state
+            .internet_group
+            .subscription(buses)
+            .map(Message::Internet),
+        state
+            .net_interfaces_group
+            .subscription(buses)
+            .map(Message::NetInterfaces),
+        MonitorGroup::subscription(buses).map(Message::Monitor),
+        state.media_group.subscription(buses).map(Message::Media),
+        DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),
+        QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
+        SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
+        WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
+        ComputeGroup::hardware_subscription(buses).map(Message::Compute),
+        state
+            .copilot_usage_group
+            .account_subscription(buses)
+            .map(Message::CopilotUsage),
+        state
+            .color_temperature_group
+            .subscription(buses)
+            .map(Message::ColorTemperature),
+        state
+            .llama_server_group
+            .subscription(buses)
+            .map(Message::LlamaServer),
     ])
 }
 
@@ -190,6 +207,40 @@ where
     IntervalStream::new(timer).then(move |_| work())
 }
 
+pub fn connected_until_failure<S, T, E>(
+    connecting: impl Future<Output = Result<S, E>>,
+) -> impl Stream<Item = Result<T, E>>
+where
+    S: Stream<Item = Result<T, E>>,
+{
+    use iced::futures::{TryStreamExt, stream};
+    until_first_failure(stream::once(connecting).try_flatten())
+}
+
+pub fn resubscribing_until_failure<F, S, T, E>(
+    subscribe: impl FnMut() -> F,
+) -> impl Stream<Item = Result<T, E>>
+where
+    F: Future<Output = Result<S, E>>,
+    S: Stream<Item = Result<T, E>>,
+{
+    use iced::futures::{StreamExt, TryStreamExt, stream};
+    until_first_failure(stream::repeat_with(subscribe).then(identity).try_flatten())
+}
+
+fn until_first_failure<T, E>(
+    items: impl Stream<Item = Result<T, E>>,
+) -> impl Stream<Item = Result<T, E>> {
+    use iced::futures::StreamExt;
+    items.scan(false, |failed, item| {
+        if *failed {
+            return ready(None);
+        }
+        *failed = item.is_err();
+        ready(Some(item))
+    })
+}
+
 pub fn restarting<F, S, E>(
     source: &'static str,
     connect: impl FnMut() -> F,
@@ -208,29 +259,27 @@ where
         .flatten()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ForcedRefresh {
-    pub source: &'static str,
-    pub seq: u64,
-}
-
-impl ForcedRefresh {
-    pub fn next(previous: Option<Self>, source: &'static str) -> Self {
-        Self {
-            source,
-            seq: previous.map_or(0, |forced| forced.seq) + 1,
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SubscribedSource<I> {
+    name: &'static str,
+    inputs: I,
 }
 
 pub fn source_subscription<S: ReadingSource>(
-    key: S::Key,
-    forced: Option<ForcedRefresh>,
+    inputs: S::StreamInputs,
 ) -> Subscription<SourceDelivery<S>> {
-    let restart = forced.filter(|forced| forced.source == S::NAME);
-    Subscription::run_with((S::NAME, key, restart), |(_, key, _)| {
-        S::delivery_stream(key.clone())
-    })
+    Subscription::run_with(
+        SubscribedSource {
+            name: S::NAME,
+            inputs,
+        },
+        |subscribed| S::delivery_stream(subscribed.inputs.clone()),
+    )
+}
+
+pub fn first_delivery<S: ReadingSource>(inputs: S::StreamInputs) -> Task<SourceDelivery<S>> {
+    use iced::futures::StreamExt;
+    Task::run(S::delivery_stream(inputs).take(1), identity)
 }
 
 pub fn restarting_subscription<F, S, E>(

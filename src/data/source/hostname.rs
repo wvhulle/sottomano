@@ -7,7 +7,11 @@ use zbus::proxy;
 use crate::{
     data::{
         empty_text::non_empty,
-        source::{DeliveryCadence, ReadingSource, SourceDelivery, bus, polled_delivery_stream},
+        source::{
+            DeliveryCadence, ReadingSource, SourceDelivery,
+            bus::{self, DesktopBuses},
+            polled_delivery_stream,
+        },
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -53,22 +57,21 @@ pub struct OperatingSystemIdentity {
 
 impl ReadingSource for OperatingSystemIdentity {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "hostnamed";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl OperatingSystemIdentity {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let connection = zbus::Connection::system()
-            .await
-            .map_err(|error| bus::Error::Connect(error.to_string()))?;
-        let hostname = HostnameProxy::new(&connection).await?;
+    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
+        let hostname = HostnameProxy::new(&buses.system).await?;
         Ok(Self {
             hostname: hostname.hostname().await?,
             kernel: hostname.kernel_release().await?,
@@ -99,20 +102,15 @@ pub fn at_micros(usec: u64) -> Option<DateTime<Utc>> {
 }
 
 impl MachineInfo {
-    pub async fn read() -> Self {
-        let Ok(connection) = zbus::Connection::system().await else {
-            return Self::default();
-        };
-        let Ok(hostname) = HostnameProxy::new(&connection).await else {
-            return Self::default();
-        };
-        Self {
+    pub async fn read(system: &zbus::Connection) -> zbus::Result<Self> {
+        let hostname = HostnameProxy::new(system).await?;
+        Ok(Self {
             hardware_vendor: text(hostname.hardware_vendor().await),
             hardware_model: text(hostname.hardware_model().await),
             firmware_vendor: text(hostname.firmware_vendor().await),
             firmware_version: text(hostname.firmware_version().await),
             firmware_date: hostname.firmware_date().await.ok().and_then(at_micros),
-        }
+        })
     }
 
     pub fn board_section(&self) -> Section {

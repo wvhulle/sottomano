@@ -11,14 +11,16 @@ use crate::{
     config::Config,
     data::{
         source::{
-            SourceDelivery, logind,
+            SourceDelivery,
+            bus::DesktopBuses,
+            logind,
             umbra::{self, Umbra},
             weather::Location,
         },
         sun_schedule::ColorMode,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, blocking, source_subscription},
+    message_subscriptions::{blocking, first_delivery, source_subscription},
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
@@ -101,13 +103,29 @@ impl Default for DarkModeGroup {
 }
 
 impl DarkModeGroup {
-    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<DarkModeMessage> {
+    pub fn subscription() -> Subscription<DarkModeMessage> {
         Subscription::batch([
-            ToggleControl::<Umbra>::subscription((), forced).map(DarkModeMessage::ModeToggle),
-            source_subscription::<DarkModeSchedule>((), None).map(DarkModeMessage::ScheduleLoaded),
-            source_subscription::<Location>((), None).map(DarkModeMessage::LocationFix),
-            Subscription::run(logind::resumes).map(|()| DarkModeMessage::SwitchDue),
+            ToggleControl::<Umbra>::subscription(()).map(DarkModeMessage::ModeToggle),
+            source_subscription::<DarkModeSchedule>(()).map(DarkModeMessage::ScheduleLoaded),
+            source_subscription::<Location>(()).map(DarkModeMessage::LocationFix),
         ])
+    }
+
+    pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<DarkModeMessage> {
+        Subscription::run_with(buses.clone(), logind::resumes).map(|()| DarkModeMessage::SwitchDue)
+    }
+
+    pub fn refresh(target: DarkModeTarget) -> Task<DarkModeMessage> {
+        match target {
+            DarkModeTarget::Mode => {
+                ToggleControl::<Umbra>::refresh(()).map(DarkModeMessage::ModeToggle)
+            }
+            DarkModeTarget::Schedule
+            | DarkModeTarget::SunriseOffset
+            | DarkModeTarget::SunsetOffset => {
+                first_delivery::<Location>(()).map(DarkModeMessage::LocationFix)
+            }
+        }
     }
 
     fn upcoming_switch(&self) -> Option<DateTime<Utc>> {

@@ -1,11 +1,9 @@
-use std::{convert::Infallible, future::ready};
-
 use iced::futures::{Stream, StreamExt, stream};
 
-use super::{ManagerProxy, ScopedSystemdUnit, UnitProxy, connect};
+use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect};
 use crate::{
     data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 const JOB_DONE: &str = "done";
@@ -63,33 +61,35 @@ pub struct UnitActiveState {
 }
 
 impl ReadingSource for UnitActiveState {
-    type Error = Infallible;
-    type Key = ScopedSystemdUnit;
+    type Error = zbus::Error;
+    type StreamInputs = SystemdUnitOnBus;
 
     const NAME: &'static str = "systemd unit activity";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(unit: ScopedSystemdUnit) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        unit_activity(unit)
-            .map(|activity| SourceDelivery::Reading(Ok(UnitActiveState { activity })))
+    fn delivery_stream(unit: SystemdUnitOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        unit_activity(unit).map(|activity| {
+            SourceDelivery::Reading(activity.map(|activity| UnitActiveState { activity }))
+        })
     }
 }
 
-pub fn unit_running(unit: ScopedSystemdUnit) -> impl Stream<Item = bool> + Send {
-    unit_activity(unit).map(UnitActivity::running)
-}
-
-fn unit_activity(unit: ScopedSystemdUnit) -> impl Stream<Item = UnitActivity> + Send {
-    restarting("systemd unit activity", move || {
-        activity_changes(unit.scope.per_user(), unit.unit_name.clone())
+pub fn unit_running(unit: SystemdUnitOnBus) -> impl Stream<Item = bool> + Send {
+    unit_activity(unit).map(|activity| {
+        activity
+            .inspect_err(|e| tracing::warn!("systemd unit activity: {e}"))
+            .is_ok_and(UnitActivity::running)
     })
 }
 
+fn unit_activity(unit: SystemdUnitOnBus) -> impl Stream<Item = zbus::Result<UnitActivity>> + Send {
+    connected_until_failure(activity_changes(unit.connection(), unit.unit.unit_name))
+}
+
 async fn activity_changes(
-    per_user: bool,
+    connection: zbus::Connection,
     unit: String,
-) -> zbus::Result<impl Stream<Item = UnitActivity> + Send> {
-    let connection = connect(per_user).await?;
+) -> zbus::Result<impl Stream<Item = zbus::Result<UnitActivity>> + Send> {
     let manager = ManagerProxy::new(&connection).await?;
     manager.subscribe().await?;
     let unit = UnitProxy::builder(&connection)
@@ -100,11 +100,10 @@ async fn activity_changes(
     let changes = unit
         .receive_active_state_changed()
         .await
-        .then(|change| async move { change.get().await.ok() })
-        .filter_map(ready);
-    Ok(stream::iter([current])
+        .then(|change| async move { change.get().await });
+    Ok(stream::iter([Ok(current)])
         .chain(changes)
-        .map(|state| UnitActivity::from(state.as_str())))
+        .map(|state| state.map(|state| UnitActivity::from(state.as_str()))))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

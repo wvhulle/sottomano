@@ -15,11 +15,12 @@ use crate::{
     data::source::{
         SourceDelivery,
         backlight::{self, Backlight},
+        bus::DesktopBuses,
         clight::Clight,
         niri::OutputInfo,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, blocking, source_subscription},
+    message_subscriptions::{blocking, first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -66,11 +67,22 @@ pub enum MonitorMessage {
 }
 
 impl MonitorGroup {
-    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<MonitorMessage> {
+    pub fn subscription(buses: &DesktopBuses) -> Subscription<MonitorMessage> {
         Subscription::batch([
-            source_subscription::<Vec<Backlight>>((), forced).map(MonitorMessage::Backlights),
-            ToggleControl::<Clight>::subscription((), forced).map(MonitorMessage::Clight),
+            source_subscription::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights),
+            ToggleControl::<Clight>::subscription(buses.clone()).map(MonitorMessage::Clight),
         ])
+    }
+
+    pub fn refresh(target: &MonitorTarget, buses: &DesktopBuses) -> Task<MonitorMessage> {
+        match target {
+            MonitorTarget::Backlight(_) => {
+                first_delivery::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights)
+            }
+            MonitorTarget::ClightAuto => {
+                ToggleControl::<Clight>::refresh(buses.clone()).map(MonitorMessage::Clight)
+            }
+        }
     }
 
     fn close_controls(&mut self) {

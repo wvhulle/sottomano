@@ -1,7 +1,7 @@
 use std::{
-    convert::Infallible,
     future::ready,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use iced::{
@@ -13,18 +13,21 @@ use iced::{
 pub use system_tray::item::Status;
 use system_tray::{
     client::{ActivateRequest, Client, Event, UpdateEvent},
+    error::Error as TrayHostError,
     item::{IconPixmap, StatusNotifierItem},
     menu::{MenuItem, MenuType, ToggleState, ToggleType, TrayMenu},
 };
 use tokio::{
     select,
     sync::{broadcast::error::RecvError, mpsc},
-    time::{Duration, sleep},
 };
 
-use crate::data::{
-    empty_text::non_empty,
-    source::{DeliveryCadence, ReadingSource, SourceDelivery, app_icon::DesktopEntries},
+use crate::{
+    data::{
+        empty_text::non_empty,
+        source::{DeliveryCadence, ReadingSource, SourceDelivery, app_icon::DesktopEntries},
+    },
+    widgets::tooltip_body::Section,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,6 +92,13 @@ impl TrayItem {
 pub enum TrayUpdate {
     Connected(mpsc::Sender<TrayCommand>),
     Items(Vec<TrayItem>),
+    HostFailed(Arc<TrayHostError>),
+}
+
+impl From<Arc<TrayHostError>> for Section {
+    fn from(error: Arc<TrayHostError>) -> Self {
+        Section::error(error)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -263,16 +273,13 @@ pub fn subscription() -> Subscription<TrayUpdate> {
 
 fn updates() -> impl Stream<Item = TrayUpdate> + Send {
     stream::channel(64, |mut output: Sender<TrayUpdate>| async move {
-        loop {
-            run(&mut output).await;
-            sleep(Duration::from_secs(2)).await;
-        }
+        run(&mut output).await;
     })
 }
 
 impl ReadingSource for Vec<TrayItem> {
-    type Error = Infallible;
-    type Key = ();
+    type Error = Arc<TrayHostError>;
+    type StreamInputs = ();
 
     const NAME: &'static str = "tray";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
@@ -282,6 +289,7 @@ impl ReadingSource for Vec<TrayItem> {
             .filter_map(|update| {
                 ready(match update {
                     TrayUpdate::Items(items) => Some(Ok(items)),
+                    TrayUpdate::HostFailed(failure) => Some(Err(failure)),
                     TrayUpdate::Connected(_) => None,
                 })
             })
@@ -293,7 +301,7 @@ async fn run(output: &mut Sender<TrayUpdate>) {
     let client = match Client::new().await {
         Ok(client) => client,
         Err(e) => {
-            tracing::warn!("tray: {e}");
+            let _ = output.send(TrayUpdate::HostFailed(Arc::new(e))).await;
             return;
         }
     };

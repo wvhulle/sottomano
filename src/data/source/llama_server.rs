@@ -5,11 +5,13 @@ use serde::Deserialize;
 use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, http,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    bus::DesktopBuses,
+    http,
     journal::unit_log_appends,
     present_or_absent,
     systemd_manager::{
-        ScopedSystemdUnit, SystemdUnitScope, service_commands::ServiceCommand,
+        ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
         unit_activity::unit_running,
     },
 };
@@ -23,6 +25,12 @@ const DEFAULT_PORT: &str = "8080";
 pub struct LlamaServerUnit {
     pub unit: ScopedSystemdUnit,
     pub endpoint: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LlamaServerOnBus {
+    pub buses: DesktopBuses,
+    pub server: LlamaServerUnit,
 }
 
 impl LlamaServerUnit {
@@ -256,13 +264,18 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http::Error> {
 
 impl ReadingSource for LlamaServer {
     type Error = http::Error;
-    type Key = LlamaServerUnit;
+    type StreamInputs = LlamaServerOnBus;
 
     const NAME: &'static str = PROGRAM_NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(server: LlamaServerUnit) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(unit_running(server.unit.clone()), move || {
+    fn delivery_stream(watch: LlamaServerOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let LlamaServerOnBus { buses, server } = watch;
+        let running = unit_running(SystemdUnitOnBus {
+            buses,
+            unit: server.unit.clone(),
+        });
+        present_or_absent(running, move || {
             let endpoint = server.endpoint.clone();
             unit_log_appends(server.unit.clone())
                 .then(move |()| {
@@ -276,7 +289,6 @@ impl ReadingSource for LlamaServer {
                     }
                     ready(Some(SourceDelivery::Reading(rated)))
                 })
-                .boxed()
         })
     }
 }
@@ -301,7 +313,7 @@ pub struct LlamaModelProps {
 
 impl ReadingSource for LlamaModelProps {
     type Error = http::Error;
-    type Key = ModelInstance;
+    type StreamInputs = ModelInstance;
 
     const NAME: &'static str = "llama-server model";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;

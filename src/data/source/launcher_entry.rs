@@ -12,8 +12,11 @@ use zbus::{
 };
 
 use crate::{
-    data::{empty_text::non_empty, source::bus::DbusPropertyLookup},
-    message_subscriptions::restarting_subscription,
+    data::{
+        empty_text::non_empty,
+        source::bus::{DbusPropertyLookup, DesktopBuses},
+    },
+    message_subscriptions::connected_until_failure,
 };
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";
@@ -125,12 +128,21 @@ enum Signal {
     OwnerLost(String),
 }
 
-pub fn subscription() -> Subscription<LauncherEntries> {
-    restarting_subscription("launcher entry", connect)
+pub fn subscription(buses: &DesktopBuses) -> Subscription<LauncherEntries> {
+    Subscription::run_with(buses.clone(), |buses| {
+        connected_until_failure(connect(buses.session.clone())).filter_map(|entries| {
+            ready(
+                entries
+                    .inspect_err(|e| tracing::warn!("launcher entry: {e}"))
+                    .ok(),
+            )
+        })
+    })
 }
 
-async fn connect() -> zbus::Result<impl Stream<Item = LauncherEntries>> {
-    let connection = Connection::session().await?;
+async fn connect(
+    connection: Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<LauncherEntries>>> {
     let dbus = DBusProxy::new(&connection).await?;
 
     let update_rule = MatchRule::builder()
@@ -157,7 +169,8 @@ async fn connect() -> zbus::Result<impl Stream<Item = LauncherEntries>> {
         .scan(Registry::default(), |registry, signal| {
             ready(Some(registry.apply(signal)))
         })
-        .filter_map(ready))
+        .filter_map(ready)
+        .map(Ok))
 }
 
 fn update_signal(message: &zbus::Message) -> Option<Signal> {

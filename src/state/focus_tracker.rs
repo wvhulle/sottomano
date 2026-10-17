@@ -6,6 +6,7 @@ use niri_ipc::state::EventStreamState;
 
 use crate::{
     data::source::{
+        bus::DesktopBuses,
         focus_ledger::{
             AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans,
             ScreenEdge, WakingWindow, WindowFocusChange,
@@ -61,10 +62,11 @@ impl FocusTracker {
     }
 
     pub fn subscription() -> Subscription<TrackerMessage> {
-        Subscription::batch([
-            Subscription::run(|| idle_edges(PRESENCE_RESOLUTION)).map(TrackerMessage::Idle),
-            Subscription::run(logind::sleep_edges).map(TrackerMessage::Sleep),
-        ])
+        Subscription::run(|| idle_edges(PRESENCE_RESOLUTION)).map(TrackerMessage::Idle)
+    }
+
+    pub fn sleep_subscription(buses: &DesktopBuses) -> Subscription<TrackerMessage> {
+        Subscription::run_with(buses.clone(), logind::sleep_edges).map(TrackerMessage::Sleep)
     }
 
     pub fn refocus(

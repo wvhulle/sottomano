@@ -9,7 +9,7 @@ use crate::{
         severity::Severity,
         source::{
             net_interfaces::nm::Connectivity,
-            throughput::{NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput},
+            throughput::{NetworkTrafficDirection, Readings, SCALE_END_MB_PER_S, Throughput},
         },
     },
     widgets::{
@@ -127,6 +127,24 @@ impl Throughput {
         } else {
             Severity::Normal
         }
+    }
+}
+
+impl BarWidget for Readings {
+    fn name(&self) -> &'static str {
+        self.total.name()
+    }
+
+    fn icon(&self) -> Glyph {
+        self.total.icon()
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        false
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        self.total.tooltip()
     }
 }
 

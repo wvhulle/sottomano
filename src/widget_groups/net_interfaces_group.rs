@@ -10,6 +10,7 @@ use crate::{
     config::Config,
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         net_interfaces::{
             bluetooth::Bluetooth,
             ethernet::{Ethernet, EthernetDetails},
@@ -73,16 +74,17 @@ impl NetInterfacesGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self) -> Subscription<NetInterfacesMessage> {
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
             self.expansion.while_expanded(
-                source_subscription::<Bluetooth>((), None).map(NetInterfacesMessage::Bluetooth),
+                source_subscription::<Bluetooth>(buses.clone())
+                    .map(NetInterfacesMessage::Bluetooth),
             ),
             self.expansion.while_expanded(
-                source_subscription::<Ethernet>((), None).map(NetInterfacesMessage::Ethernet),
+                source_subscription::<Ethernet>(buses.clone()).map(NetInterfacesMessage::Ethernet),
             ),
-            source_subscription::<Wifi>((), None).map(NetInterfacesMessage::Wifi),
-            source_subscription::<Mobile>((), None)
+            source_subscription::<Wifi>(buses.clone()).map(NetInterfacesMessage::Wifi),
+            source_subscription::<Mobile>(buses.clone())
                 .map(|delivery| NetInterfacesMessage::Mobile(Box::new(delivery))),
         ])
     }
@@ -110,20 +112,25 @@ impl NetInterfacesGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        buses: &DesktopBuses,
     ) -> Task<NetInterfacesMessage> {
         self.wifi_details.stop();
         self.ethernet_details.stop();
         match hovered {
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Wifi)) => {
                 self.wifi_details.start_hover_fetch(
-                    (),
+                    buses.clone(),
                     |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
                     config,
                 )
             }
-            Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => self
-                .ethernet_details
-                .start_hover_fetch((), NetInterfacesMessage::EthernetDetailsFetched, config),
+            Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {
+                self.ethernet_details.start_hover_fetch(
+                    buses.clone(),
+                    NetInterfacesMessage::EthernetDetailsFetched,
+                    config,
+                )
+            }
             _ => Task::none(),
         }
     }

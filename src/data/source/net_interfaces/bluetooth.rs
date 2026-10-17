@@ -1,11 +1,9 @@
-use std::convert::Infallible;
-
-use iced::futures::{Stream, StreamExt};
+use iced::futures::Stream;
 use zbus::fdo::ManagedObjects;
 
 use crate::data::source::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::prop,
+    bus::{DesktopBuses, prop},
     hardware::Adapter,
     net_interfaces::{device_or_absent, interface, managed_objects_readings},
 };
@@ -101,15 +99,16 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
 }
 
 impl ReadingSource for Bluetooth {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        device_or_absent(SERVICE, || {
-            managed_objects_readings(NAME, SERVICE, ROOT, reading).boxed()
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        device_or_absent(system.clone(), SERVICE, move || {
+            managed_objects_readings(system.clone(), SERVICE, ROOT, reading)
         })
     }
 }

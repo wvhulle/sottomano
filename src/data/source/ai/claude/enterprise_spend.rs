@@ -92,13 +92,13 @@ impl From<Organization> for ClaudeOrganization {
 
 impl ReadingSource for ClaudeOrganization {
     type Error = Error;
-    type Key = PathBuf;
+    type StreamInputs = PathBuf;
 
     const NAME: &'static str = "claude-organization";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
 
-    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        login_polls(key, LoginKind::Enterprise, Self::poll)
+    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        login_polls(inputs, LoginKind::Enterprise, Self::poll)
     }
 }
 
@@ -112,13 +112,13 @@ impl ClaudeOrganization {
 
 impl ReadingSource for ClaudeEnterpriseSpend {
     type Error = Error;
-    type Key = PathBuf;
+    type StreamInputs = PathBuf;
 
     const NAME: &'static str = "claude-enterprise-spend";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
 
-    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        login_polls(key, LoginKind::Enterprise, Self::poll)
+    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        login_polls(inputs, LoginKind::Enterprise, Self::poll)
     }
 }
 

@@ -7607,6 +7607,7 @@ dependencies = [
  "niri-ipc",
  "nvml-wrapper",
  "perf-event2",
+ "pin-project-lite",
  "pipewire",
  "procfs",
  "quick-xml 0.42.0",

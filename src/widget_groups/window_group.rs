@@ -13,8 +13,8 @@ use window_list::{WindowList, WindowListMessage};
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
-        app_icon::DesktopEntries, audio::WindowAudio, kitty_windows::WindowProcesses, niri,
-        process::Watched,
+        app_icon::DesktopEntries, audio::WindowAudio, bus::DesktopBuses,
+        kitty_windows::WindowProcesses, niri, process::Watched,
     },
     desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widgets::{
@@ -60,6 +60,10 @@ impl WindowGroup {
 
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowGroupMessage> {
         WindowList::subscription(agents).map(WindowGroupMessage::WindowList)
+    }
+
+    pub fn launcher_entry_subscription(buses: &DesktopBuses) -> Subscription<WindowGroupMessage> {
+        WindowList::launcher_entry_subscription(buses).map(WindowGroupMessage::WindowList)
     }
 
     pub fn hover(

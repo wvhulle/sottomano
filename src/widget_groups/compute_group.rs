@@ -14,6 +14,7 @@ use crate::{
     config::{Config, widget_groups::temperature_sensors::SensorConfig},
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         hardware::HostHardware,
         sysfs_sensors::{
             cpu_clock::CpuClock,
@@ -27,7 +28,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -148,21 +149,20 @@ impl ComputeGroup {
         }
     }
 
-    pub fn subscription(
-        sensor: &SensorConfig,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<ComputeMessage> {
+    pub fn subscription(sensor: &SensorConfig) -> Subscription<ComputeMessage> {
         Subscription::batch([
-            source_subscription::<HostHardware>((), forced)
-                .map(|delivery| ComputeMessage::Hardware(Box::new(delivery))),
-            source_subscription::<CpuUsage>((), forced).map(ComputeMessage::Cpu),
-            source_subscription::<Memory>((), forced).map(ComputeMessage::Memory),
-            source_subscription::<CpuClock>((), forced).map(ComputeMessage::Clock),
-            source_subscription::<Temperature>(sensor.clone(), forced)
-                .map(ComputeMessage::Temperature),
-            ToggleControl::<X3dCachePreference>::subscription((), forced)
+            source_subscription::<CpuUsage>(()).map(ComputeMessage::Cpu),
+            source_subscription::<Memory>(()).map(ComputeMessage::Memory),
+            source_subscription::<CpuClock>(()).map(ComputeMessage::Clock),
+            source_subscription::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature),
+            ToggleControl::<X3dCachePreference>::subscription(())
                 .map(ComputeMessage::CachePreference),
         ])
+    }
+
+    pub fn hardware_subscription(buses: &DesktopBuses) -> Subscription<ComputeMessage> {
+        source_subscription::<HostHardware>(buses.clone())
+            .map(|delivery| ComputeMessage::Hardware(Box::new(delivery)))
     }
 
     pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
@@ -222,6 +222,27 @@ impl ComputeGroup {
             .into_iter()
             .flatten(),
         )
+    }
+
+    pub fn refresh(
+        target: ComputeTarget,
+        sensor: &SensorConfig,
+        buses: Option<&DesktopBuses>,
+    ) -> Task<ComputeMessage> {
+        match target {
+            ComputeTarget::Cpu => first_delivery::<CpuUsage>(()).map(ComputeMessage::Cpu),
+            ComputeTarget::CpuClock => first_delivery::<CpuClock>(()).map(ComputeMessage::Clock),
+            ComputeTarget::Memory => first_delivery::<Memory>(()).map(ComputeMessage::Memory),
+            ComputeTarget::Temperature => {
+                first_delivery::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature)
+            }
+            ComputeTarget::CachePreference => ToggleControl::<X3dCachePreference>::refresh(())
+                .map(ComputeMessage::CachePreference),
+            ComputeTarget::Board => buses.map_or_else(Task::none, |buses| {
+                first_delivery::<HostHardware>(buses.clone())
+                    .map(|delivery| ComputeMessage::Hardware(Box::new(delivery)))
+            }),
+        }
     }
 
     pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {

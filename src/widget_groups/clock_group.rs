@@ -17,7 +17,7 @@ use crate::{
     config::Config,
     data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         continuous_reading::ContinuousReading,
         tooltip_body::Tooltip,
@@ -73,23 +73,29 @@ impl ClockGroup {
         Task::none()
     }
 
-    pub fn subscription(
-        config: &Config,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<ClockMessage> {
+    pub fn subscription(config: &Config) -> Subscription<ClockMessage> {
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
-            source_subscription::<ZoneTime>(*zone, forced)
+            source_subscription::<ZoneTime>(*zone)
                 .with(*zone)
                 .map(|(zone, reading)| ClockMessage::Zone(zone, reading))
         });
         Subscription::batch(
             [
-                source_subscription::<LocalTime>((), forced).map(ClockMessage::Time),
-                source_subscription::<LocalDate>((), forced).map(ClockMessage::Date),
+                source_subscription::<LocalTime>(()).map(ClockMessage::Time),
+                source_subscription::<LocalDate>(()).map(ClockMessage::Date),
             ]
             .into_iter()
             .chain(zones),
         )
+    }
+
+    pub fn refresh(target: &ClockTarget) -> Task<ClockMessage> {
+        match *target {
+            ClockTarget::LocalTime => first_delivery::<LocalTime>(()).map(ClockMessage::Time),
+            ClockTarget::LocalDate => first_delivery::<LocalDate>(()).map(ClockMessage::Date),
+            ClockTarget::ZoneTime(zone) => first_delivery::<ZoneTime>(zone)
+                .map(move |reading| ClockMessage::Zone(zone, reading)),
+        }
     }
 
     fn zone_time_mut(&mut self, zone: Tz) -> &mut ContinuousReading<ZoneTime> {
@@ -139,19 +145,19 @@ impl ClockGroup {
 }
 
 pub fn polled_at_second_boundaries<S, F>(
-    key: S::Key,
-    poll: impl Fn(S::Key) -> F + Send + Clone + 'static,
+    inputs: S::StreamInputs,
+    poll: impl Fn(S::StreamInputs) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
     S: ReadingSource,
     F: Future<Output = Result<S, S::Error>> + Send,
 {
     stream::repeat_with(move || {
-        let key = key.clone();
+        let inputs = inputs.clone();
         let poll = poll.clone();
         async move {
             sleep(until_next_boundary(Local::now(), TICK)).await;
-            poll(key).await
+            poll(inputs).await
         }
     })
     .then(identity)

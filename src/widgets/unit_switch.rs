@@ -3,8 +3,9 @@ use iced::{Subscription, Task};
 use crate::{
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         systemd_manager::{
-            ScopedSystemdUnit,
+            ScopedSystemdUnit, SystemdUnitOnBus,
             unit_activity::{UnitActiveState, UnitActivity, UnitChange, UnitControl},
         },
     },
@@ -106,9 +107,12 @@ impl UnitSwitch {
         self.activity().is_some_and(UnitActivity::running)
     }
 
-    pub fn subscription(&self) -> Subscription<UnitSwitchMessage> {
-        source_subscription::<UnitActiveState>(self.unit.clone(), None)
-            .map(UnitSwitchMessage::ActiveState)
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<UnitSwitchMessage> {
+        source_subscription::<UnitActiveState>(SystemdUnitOnBus {
+            buses: buses.clone(),
+            unit: self.unit.clone(),
+        })
+        .map(UnitSwitchMessage::ActiveState)
     }
 
     pub fn update(&mut self, message: UnitSwitchMessage) -> Task<UnitSwitchMessage> {

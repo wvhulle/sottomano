@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, io, time::SystemTime};
+use std::{collections::HashMap, io, time::SystemTime};
 
 use iced::futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -8,20 +8,22 @@ use crate::data::{
     severity::Severity,
     source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
-        journal::{JournalEvent, JournalPriority, JournalTransport, journal_windows},
+        journal::{
+            JournalEvent, JournalFollowError, JournalPriority, JournalTransport, journal_windows,
+        },
     },
 };
 
 impl ReadingSource for Vec<KernelOccurrence> {
-    type Error = Infallible;
-    type Key = ();
+    type Error = JournalFollowError;
+    type StreamInputs = ();
 
     const NAME: &'static str = KernelEntry::NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         journal_windows::<KernelEntry>()
-            .map(|entries| Ok(KernelOccurrence::merged_oldest_first(entries)))
+            .map(|entries| entries.map(KernelOccurrence::merged_oldest_first))
             .map(SourceDelivery::Reading)
     }
 }

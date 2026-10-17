@@ -10,9 +10,12 @@ use bytesize::ByteSize;
 use iced::futures::Stream;
 use serde_json::Value;
 
-use crate::data::source::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, command,
-    hostname::MachineInfo, polled_delivery_stream,
+use crate::{
+    data::source::{
+        DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, bus::DesktopBuses,
+        command, hostname::MachineInfo, polled_delivery_stream,
+    },
+    widgets::tooltip_body::Section,
 };
 
 const UDEV_DATA: &str = "/run/udev/data";
@@ -247,21 +250,56 @@ pub struct HostHardware {
     pub machine: MachineInfo,
 }
 
+#[derive(Debug, Clone)]
+pub enum HostHardwareError {
+    HostnamedUnreadable(zbus::Error),
+    Panicked,
+}
+
+impl From<zbus::Error> for HostHardwareError {
+    fn from(error: zbus::Error) -> Self {
+        Self::HostnamedUnreadable(error)
+    }
+}
+
+impl From<Panicked> for HostHardwareError {
+    fn from(Panicked: Panicked) -> Self {
+        Self::Panicked
+    }
+}
+
+impl Display for HostHardwareError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::HostnamedUnreadable(error) => write!(f, "cannot read hostnamed: {error}"),
+            Self::Panicked => write!(f, "hardware read panicked"),
+        }
+    }
+}
+
+impl From<HostHardwareError> for Section {
+    fn from(error: HostHardwareError) -> Self {
+        Section::error(error)
+    }
+}
+
 impl ReadingSource for HostHardware {
-    type Error = Panicked;
-    type Key = ();
+    type Error = HostHardwareError;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "host hardware";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl HostHardware {
-    async fn poll(_key: ()) -> Result<Self, Panicked> {
-        let machine = MachineInfo::read().await;
+    async fn poll(buses: DesktopBuses) -> Result<Self, HostHardwareError> {
+        let machine = MachineInfo::read(&buses.system).await?;
         blocking_poll(move || {
             Ok(HostHardware {
                 cpu: CpuModel::current(),

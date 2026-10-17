@@ -26,7 +26,10 @@ use zbus::{
     zvariant::{OwnedObjectPath, Type},
 };
 
-use crate::data::source::{bus::Bus, journal::either_of};
+use crate::data::source::{
+    bus::{Bus, DesktopBuses},
+    journal::either_of,
+};
 
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
@@ -35,6 +38,30 @@ const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
 pub struct ScopedSystemdUnit {
     pub scope: SystemdUnitScope,
     pub unit_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SystemdOnBus {
+    pub buses: DesktopBuses,
+    pub scope: SystemdUnitScope,
+}
+
+impl SystemdOnBus {
+    pub fn connection(&self) -> zbus::Connection {
+        self.buses.on(self.scope.bus()).clone()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SystemdUnitOnBus {
+    pub buses: DesktopBuses,
+    pub unit: ScopedSystemdUnit,
+}
+
+impl SystemdUnitOnBus {
+    pub fn connection(&self) -> zbus::Connection {
+        self.buses.on(self.unit.scope.bus()).clone()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

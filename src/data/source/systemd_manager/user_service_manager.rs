@@ -5,8 +5,11 @@ use iced::futures::Stream;
 
 use crate::{
     data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, bus, hostname::at_micros,
-        polled_delivery_stream, systemd_manager::ManagerProxy,
+        DeliveryCadence, ReadingSource, SourceDelivery,
+        bus::{self, DesktopBuses},
+        hostname::at_micros,
+        polled_delivery_stream,
+        systemd_manager::ManagerProxy,
     },
     widgets::{
         localized_time::LocalizedTimeFormat,
@@ -23,22 +26,21 @@ pub struct UserServiceManager {
 
 impl ReadingSource for UserServiceManager {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "user service manager";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl UserServiceManager {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let connection = zbus::Connection::session()
-            .await
-            .map_err(|e| bus::Error::Connect(e.to_string()))?;
-        let manager = ManagerProxy::new(&connection).await?;
+    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
+        let manager = ManagerProxy::new(&buses.session).await?;
         Ok(Self {
             version: manager.version().await?,
             state: manager.system_state().await?,

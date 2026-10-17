@@ -78,13 +78,15 @@ impl PartialEq for GpuDiscovery {
 
 impl ReadingSource for GpuDiscovery {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "gpu discovery";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -273,13 +275,15 @@ pub struct GpuProcesses {
 
 impl ReadingSource for GpuSnapshot {
     type Error = Error;
-    type Key = NvmlDevice;
+    type StreamInputs = NvmlDevice;
 
     const NAME: &'static str = "gpu";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -303,13 +307,15 @@ impl GpuSnapshot {
 
 impl ReadingSource for GpuClocks {
     type Error = Error;
-    type Key = NvmlDevice;
+    type StreamInputs = NvmlDevice;
 
     const NAME: &'static str = "gpu clocks";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -342,13 +348,15 @@ impl GpuClocks {
 
 impl ReadingSource for GpuProcesses {
     type Error = Error;
-    type Key = NvmlDevice;
+    type StreamInputs = NvmlDevice;
 
     const NAME: &'static str = "gpu processes";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 

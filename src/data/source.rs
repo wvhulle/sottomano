@@ -2,15 +2,14 @@ use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     future::{Future, ready},
     hash::Hash,
+    mem::take,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
 
-use iced::futures::{
-    Stream, StreamExt,
-    stream::{self, BoxStream},
-};
+use iced::futures::{Stream, StreamExt, stream};
+use pin_project_lite::pin_project;
 use tokio::task::spawn_blocking;
 
 use crate::{message_subscriptions::ticked, widgets::tooltip_body::Section};
@@ -103,12 +102,12 @@ pub enum DeliveryCadence {
 
 pub trait ReadingSource: Clone + Debug + Sized + Send + 'static {
     type Error: Clone + Debug + Display + Send + Into<Section> + 'static;
-    type Key: Clone + Hash + Send + Sync + 'static;
+    type StreamInputs: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
     const DELIVERY_CADENCE: DeliveryCadence;
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send;
+    fn delivery_stream(key: Self::StreamInputs) -> impl Stream<Item = SourceDelivery<Self>> + Send;
 }
 
 #[derive(Debug, Clone)]
@@ -118,81 +117,99 @@ pub enum SourceDelivery<S: ReadingSource> {
 }
 
 pub fn polled_delivery_stream<S, F>(
-    key: S::Key,
-    poll: impl Fn(S::Key) -> F + Send + Clone + 'static,
+    inputs: S::StreamInputs,
+    poll: impl Fn(S::StreamInputs) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
     S: ReadingSource + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send,
 {
     let DeliveryCadence::PolledEvery(every) = S::DELIVERY_CADENCE else {
-        return stream::once(poll(key))
+        return stream::once(poll(inputs))
             .map(SourceDelivery::Reading)
             .left_stream();
     };
-    drop_unchanged_deliveries(ticked(every, move || poll(key.clone())).map(SourceDelivery::Reading))
-        .right_stream()
+    drop_unchanged_deliveries(
+        ticked(every, move || poll(inputs.clone())).map(SourceDelivery::Reading),
+    )
+    .right_stream()
 }
 
-pub fn present_or_absent<S: ReadingSource>(
-    presence: impl Stream<Item = bool> + Send + 'static,
-    readings: impl FnMut() -> BoxStream<'static, SourceDelivery<S>> + Send + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send {
+pub fn present_or_absent<S, R>(
+    presence: impl Stream<Item = bool> + Send,
+    readings: impl FnMut() -> R + Send,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
+where
+    S: ReadingSource,
+    R: Stream<Item = SourceDelivery<S>> + Send,
+{
     while_present(presence, readings).map(|delivery| delivery.unwrap_or(SourceDelivery::Absent))
 }
 
-pub fn while_present<T: Send + 'static>(
-    presence: impl Stream<Item = bool> + Send + 'static,
-    readings: impl FnMut() -> BoxStream<'static, T> + Send + 'static,
-) -> impl Stream<Item = Option<T>> + Send {
+pub fn while_present<P, F, R>(presence: P, readings: F) -> WhilePresent<P, F, R>
+where
+    P: Stream<Item = bool>,
+    F: FnMut() -> R,
+    R: Stream,
+{
     WhilePresent {
-        presence: presence.boxed(),
+        presence,
         presence_ended: false,
-        start: Box::new(readings),
+        start: readings,
         inner: None,
     }
 }
 
-struct WhilePresent<T> {
-    presence: BoxStream<'static, bool>,
-    presence_ended: bool,
-    start: Box<dyn FnMut() -> BoxStream<'static, T> + Send>,
-    inner: Option<BoxStream<'static, T>>,
+pin_project! {
+    pub struct WhilePresent<P, F, R> {
+        #[pin]
+        presence: P,
+        presence_ended: bool,
+        start: F,
+        #[pin]
+        inner: Option<R>,
+    }
 }
 
-impl<T> Stream for WhilePresent<T> {
-    type Item = Option<T>;
+impl<P, F, R> Stream for WhilePresent<P, F, R>
+where
+    P: Stream<Item = bool>,
+    F: FnMut() -> R,
+    R: Stream,
+{
+    type Item = Option<R::Item>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = &mut *self;
-        while !this.presence_ended {
-            match this.presence.poll_next_unpin(cx) {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        while !*this.presence_ended {
+            match this.presence.as_mut().poll_next(cx) {
                 Poll::Ready(Some(true)) => {
                     if this.inner.is_none() {
-                        this.inner = Some((this.start)());
+                        this.inner.set(Some((this.start)()));
                     }
                 }
                 Poll::Ready(Some(false)) => {
-                    if this.inner.take().is_some() {
+                    if this.inner.is_some() {
+                        this.inner.set(None);
                         return Poll::Ready(Some(None));
                     }
                 }
-                Poll::Ready(None) => this.presence_ended = true,
+                Poll::Ready(None) => *this.presence_ended = true,
                 Poll::Pending => break,
             }
         }
-        let Some(inner) = this.inner.as_mut() else {
-            return if this.presence_ended {
+        let Some(inner) = this.inner.as_mut().as_pin_mut() else {
+            return if *this.presence_ended {
                 Poll::Ready(None)
             } else {
                 Poll::Pending
             };
         };
-        match inner.poll_next_unpin(cx) {
+        match inner.poll_next(cx) {
             Poll::Ready(Some(item)) => Poll::Ready(Some(Some(item))),
             Poll::Ready(None) => {
-                this.inner = None;
-                if this.presence_ended {
+                this.inner.set(None);
+                if *this.presence_ended {
                     Poll::Ready(None)
                 } else {
                     Poll::Pending
@@ -203,27 +220,50 @@ impl<T> Stream for WhilePresent<T> {
     }
 }
 
-pub fn all_of(
-    conditions: impl IntoIterator<Item = BoxStream<'static, bool>>,
+#[derive(Clone, Copy)]
+enum ChangedCondition {
+    First(bool),
+    Second(bool),
+}
+
+#[derive(Default)]
+struct LatestConditions {
+    first: Option<bool>,
+    second: Option<bool>,
+}
+
+impl LatestConditions {
+    fn with(self, changed: ChangedCondition) -> Self {
+        match changed {
+            ChangedCondition::First(held) => Self {
+                first: Some(held),
+                ..self
+            },
+            ChangedCondition::Second(held) => Self {
+                second: Some(held),
+                ..self
+            },
+        }
+    }
+
+    fn both_held(&self) -> Option<bool> {
+        Some(self.first? && self.second?)
+    }
+}
+
+pub fn both_held(
+    first: impl Stream<Item = bool> + Send,
+    second: impl Stream<Item = bool> + Send,
 ) -> impl Stream<Item = bool> + Send {
-    let tagged: Vec<BoxStream<'static, (usize, bool)>> = conditions
-        .into_iter()
-        .enumerate()
-        .map(|(index, condition)| condition.map(move |held| (index, held)).boxed())
-        .collect();
-    let latest: Vec<Option<bool>> = vec![None; tagged.len()];
-    stream::select_all(tagged)
-        .scan(latest, |latest, (index, held)| {
-            latest[index] = Some(held);
-            ready(Some(
-                latest
-                    .iter()
-                    .map(|known| known.map(|held| held.then_some(())))
-                    .collect::<Option<Option<()>>>()
-                    .map(|all| all.is_some()),
-            ))
-        })
-        .filter_map(ready)
+    stream::select(
+        first.map(ChangedCondition::First),
+        second.map(ChangedCondition::Second),
+    )
+    .scan(LatestConditions::default(), |latest, changed| {
+        *latest = take(latest).with(changed);
+        ready(Some(latest.both_held()))
+    })
+    .filter_map(ready)
 }
 
 pub fn emit_changes<T: Clone + PartialEq>(

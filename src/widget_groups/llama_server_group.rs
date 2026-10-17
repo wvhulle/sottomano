@@ -10,7 +10,10 @@ use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
 use crate::{
     config::Config,
     data::source::{
-        SourceDelivery, bus::Bus, llama_server::LlamaModelProps, systemd_manager::SystemdUnitScope,
+        SourceDelivery,
+        bus::{Bus, DesktopBuses},
+        llama_server::LlamaModelProps,
+        systemd_manager::SystemdUnitScope,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
@@ -87,10 +90,12 @@ impl LlamaServerGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self) -> Subscription<LlamaServerMessage> {
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<LlamaServerMessage> {
         Subscription::batch([
-            self.user.subscription().map(LlamaServerMessage::User),
-            self.system.subscription().map(LlamaServerMessage::System),
+            self.user.subscription(buses).map(LlamaServerMessage::User),
+            self.system
+                .subscription(buses)
+                .map(LlamaServerMessage::System),
         ])
     }
 

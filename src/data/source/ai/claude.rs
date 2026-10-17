@@ -21,7 +21,7 @@ pub use self::{
 };
 use crate::{
     data::source::{
-        ReadingSource, SourceDelivery, ai::ccusage, all_of, file_presence::path_present, http,
+        ReadingSource, SourceDelivery, ai::ccusage, both_held, file_presence::path_present, http,
         polled_delivery_stream, present_or_absent,
     },
     widgets::tooltip_body::{KeyValue, Section},
@@ -151,12 +151,12 @@ fn login_polls<S, F>(
     poll: impl Fn(PathBuf) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
-    S: ReadingSource<Key = PathBuf> + PartialEq,
+    S: ReadingSource<StreamInputs = PathBuf> + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
     present_or_absent(
         logins(credentials.clone()).map(move |kind| kind == Some(wanted)),
-        move || polled_delivery_stream(credentials.clone(), poll.clone()).boxed(),
+        move || polled_delivery_stream(credentials.clone(), poll.clone()),
     )
 }
 
@@ -166,18 +166,18 @@ fn local_log_polls<S, F>(
     poll: impl Fn(ClaudeLocalLogs) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
-    S: ReadingSource<Key = ClaudeLocalLogs> + PartialEq,
+    S: ReadingSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
     let login_matches = match logs.credentials.clone() {
         Some(credentials) => logins(credentials)
             .map(move |kind| (kind == Some(LoginKind::Subscription)) == metered_by_subscription)
-            .boxed(),
-        None => stream::iter([!metered_by_subscription]).boxed(),
+            .left_stream(),
+        None => stream::iter([!metered_by_subscription]).right_stream(),
     };
     present_or_absent(
-        all_of([stream::once(ccusage::installed()).boxed(), login_matches]),
-        move || polled_delivery_stream(logs.clone(), poll.clone()).boxed(),
+        both_held(stream::once(ccusage::installed()), login_matches),
+        move || polled_delivery_stream(logs.clone(), poll.clone()),
     )
 }
 

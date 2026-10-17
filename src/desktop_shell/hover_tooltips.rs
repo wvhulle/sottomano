@@ -15,7 +15,7 @@ pub use crate::desktop_shell::hover_tooltips::{
 use crate::{
     desktop_shell::monitor_surfaces::Position,
     widget_groups::{
-        audio_group::ControlKind, claude_usage_group::ClaudeUsageTarget, clock_group::ClockTarget,
+        audio_group::AudioTarget, claude_usage_group::ClaudeUsageTarget, clock_group::ClockTarget,
         color_temperature_group::ColorTemperatureTarget, compute_group::ComputeTarget,
         copilot_usage_group::CopilotUsageTarget, dark_mode_group::DarkModeTarget,
         disk_group::DiskTarget, gpu_group::GpuTarget, idle_timeouts_group::TimerKind,
@@ -48,7 +48,7 @@ pub enum HoverTarget {
     Journal(JournalTarget),
     PendingUpgrades(PendingUpgradesTarget),
     NetInterface(NetInterfaceTarget),
-    Audio(ControlKind),
+    Audio(AudioTarget),
     Monitor(MonitorTarget),
     ColorTemperature(ColorTemperatureTarget),
     DarkMode(DarkModeTarget),

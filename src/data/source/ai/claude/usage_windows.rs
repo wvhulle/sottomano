@@ -129,13 +129,13 @@ impl ClaudeUsageWindows {
 
 impl ReadingSource for ClaudeUsageWindows {
     type Error = Error;
-    type Key = PathBuf;
+    type StreamInputs = PathBuf;
 
     const NAME: &'static str = "claude-usage-windows";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(1));
 
-    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        login_polls(key, LoginKind::Subscription, Self::poll)
+    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        login_polls(inputs, LoginKind::Subscription, Self::poll)
     }
 }
 

@@ -1,16 +1,16 @@
-use std::{cmp::Reverse, convert::Infallible, time::Duration};
+use std::{cmp::Reverse, time::Duration};
 
 use iced::futures::{
-    Stream, StreamExt,
+    Stream, StreamExt, TryStreamExt,
     future::{join_all, ready},
     stream,
 };
 use zbus::proxy::CacheProperties;
 
-use super::{ManagerProxy, UnitRow, connect, manager_signal, signals_matching, unit_proxy};
+use super::{ManagerProxy, UnitRow, manager_signal, signals_matching, unit_proxy};
 use crate::data::{
     severity::Severity,
-    source::{DeliveryCadence, ReadingSource, SourceDelivery},
+    source::{DeliveryCadence, ReadingSource, SourceDelivery, bus::DesktopBuses},
 };
 
 const SLOWEST_UNIT_COUNT: usize = 10;
@@ -141,46 +141,51 @@ pub struct BootTimeline {
     pub user_startup: Option<UserStartup>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BootTimelineWatch {
+    pub buses: DesktopBuses,
+    pub slow_unit: Duration,
+}
+
 impl ReadingSource for BootTimeline {
-    type Error = Infallible;
-    type Key = Duration;
+    type Error = zbus::Error;
+    type StreamInputs = BootTimelineWatch;
 
     const NAME: &'static str = "boot timeline";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(slow_unit: Duration) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        boot_timeline_stream(slow_unit)
-            .map(Ok)
+    fn delivery_stream(
+        watch: BootTimelineWatch,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let BootTimelineWatch { buses, slow_unit } = watch;
+        stream::once(system_boot(buses.system.clone(), slow_unit))
+            .map_ok(move |boot| {
+                let with_user_startup =
+                    stream::once(finished_startup(buses.session.clone(), slow_unit))
+                        .filter_map(|startup| {
+                            ready(
+                                startup
+                                    .inspect_err(|e| tracing::warn!("systemd user startup: {e}"))
+                                    .ok()
+                                    .and_then(UserStartup::of),
+                            )
+                        })
+                        .map({
+                            let boot = boot.clone();
+                            move |user_startup| BootTimeline {
+                                user_startup: Some(user_startup),
+                                ..boot.clone()
+                            }
+                        });
+                stream::iter([boot]).chain(with_user_startup).map(Ok)
+            })
+            .try_flatten()
             .map(SourceDelivery::Reading)
     }
 }
 
-fn boot_timeline_stream(slow_unit: Duration) -> impl Stream<Item = BootTimeline> + Send {
-    stream::once(system_boot(slow_unit))
-        .filter_map(|boot| ready(logged("system boot", boot)))
-        .flat_map(move |boot| {
-            let with_user_startup = stream::once(finished_startup(true, slow_unit))
-                .filter_map(|startup| ready(logged("user startup", startup)))
-                .filter_map(|startup| ready(UserStartup::of(startup)))
-                .map({
-                    let boot = boot.clone();
-                    move |user_startup| BootTimeline {
-                        user_startup: Some(user_startup),
-                        ..boot.clone()
-                    }
-                });
-            stream::iter([boot]).chain(with_user_startup)
-        })
-}
-
-fn logged<T>(stage: &str, reading: zbus::Result<T>) -> Option<T> {
-    reading
-        .inspect_err(|e| tracing::warn!("systemd {stage}: {e}"))
-        .ok()
-}
-
-async fn system_boot(slow_unit: Duration) -> zbus::Result<BootTimeline> {
-    let startup = finished_startup(false, slow_unit).await?;
+async fn system_boot(system: zbus::Connection, slow_unit: Duration) -> zbus::Result<BootTimeline> {
+    let startup = finished_startup(system, slow_unit).await?;
     let phases = BootPhases::of_timestamps(&startup.timestamps, startup.finish)
         .ok_or_else(|| zbus::Error::Failure("systemd reports no userspace start".to_owned()))?;
     Ok(BootTimeline {
@@ -234,17 +239,17 @@ struct ManagerStartup {
     slowest_units: RankedActivations,
 }
 
-async fn finished_startup(user: bool, slow_unit: Duration) -> zbus::Result<ManagerStartup> {
-    let connection = connect(user).await?;
+async fn finished_startup(
+    connection: zbus::Connection,
+    slow_unit: Duration,
+) -> zbus::Result<ManagerStartup> {
     let manager = ManagerProxy::builder(&connection)
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
     let mut startup_finished =
         signals_matching(&connection, [manager_signal("StartupFinished")?]).await?;
-    if let Err(e) = manager.subscribe().await {
-        tracing::warn!("systemd startup: subscribe failed: {e}");
-    }
+    manager.subscribe().await?;
     let mut timestamps = ManagerTimestamps::read(&manager).await?;
     let finish = loop {
         if let Some(finish) = timestamps.finish {

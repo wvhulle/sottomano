@@ -71,13 +71,15 @@ pub struct CpuCoreTemperatures {
 
 impl ReadingSource for CpuCoreTemperatures {
     type Error = Error;
-    type Key = ThresholdOverrides;
+    type StreamInputs = ThresholdOverrides;
 
     const NAME: &'static str = "cpu core temperatures";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -157,7 +159,7 @@ impl Temperature {
 
 impl ReadingSource for Temperature {
     type Error = Error;
-    type Key = SensorConfig;
+    type StreamInputs = SensorConfig;
 
     const NAME: &'static str = "temperature";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
@@ -170,7 +172,7 @@ impl ReadingSource for Temperature {
                 .is_ok_and(|readings| !readings.is_empty())
         };
         holding_earliest_critical(present_or_absent(stream::once(exposed), move || {
-            polled_delivery_stream(config.clone(), Self::poll).boxed()
+            polled_delivery_stream(config.clone(), Self::poll)
         }))
     }
 }
