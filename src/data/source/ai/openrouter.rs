@@ -102,6 +102,13 @@ impl SpanSpend {
         self.span.projected_cost(self.cost(), now, budget)
     }
 
+    pub fn model_cost(&self, model: &str) -> Option<f64> {
+        self.models
+            .iter()
+            .find(|spend| spend.model == model)
+            .map(|spend| spend.cost)
+    }
+
     fn within(span: CalendarSpan, hourly: &[Usage]) -> Self {
         let mut models = hourly
             .iter()
