@@ -103,6 +103,14 @@ trait Manager {
     fn stop_unit(&self, name: &str, mode: &str) -> zbus::Result<OwnedObjectPath>;
     fn get_unit(&self, name: &str) -> zbus::Result<OwnedObjectPath>;
     fn load_unit(&self, name: &str) -> zbus::Result<OwnedObjectPath>;
+    #[zbus(signal)]
+    fn job_removed(
+        &self,
+        id: u32,
+        job: OwnedObjectPath,
+        unit: String,
+        result: String,
+    ) -> zbus::Result<()>;
     #[zbus(property)]
     fn firmware_timestamp_monotonic(&self) -> zbus::Result<u64>;
     #[zbus(property)]

@@ -8,6 +8,8 @@ use crate::{
     message_subscriptions::restarting,
 };
 
+const JOB_DONE: &str = "done";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitActivity {
     Running,
@@ -123,19 +125,37 @@ pub struct UnitControl {
 
 impl UnitControl {
     pub async fn accepts(self, change: UnitChange) -> bool {
-        self.request(change)
-            .await
-            .inspect_err(|e| tracing::warn!("systemd: {change:?} {} failed: {e}", self.unit))
-            .is_ok()
+        match self.job_result(change).await {
+            Ok(result) if result == JOB_DONE => true,
+            Ok(result) => {
+                tracing::warn!("systemd: {change:?} {} ended {result}", self.unit);
+                false
+            }
+            Err(e) => {
+                tracing::warn!("systemd: {change:?} {} failed: {e}", self.unit);
+                false
+            }
+        }
     }
 
-    async fn request(&self, change: UnitChange) -> zbus::Result<()> {
+    async fn job_result(&self, change: UnitChange) -> zbus::Result<String> {
         let connection = connect(self.per_user).await?;
         let manager = ManagerProxy::new(&connection).await?;
-        match change {
+        manager.subscribe().await?;
+        let mut removed_jobs = manager.receive_job_removed().await?;
+        let job = match change {
             UnitChange::Start => manager.start_unit(&self.unit, "replace").await?,
             UnitChange::Stop => manager.stop_unit(&self.unit, "replace").await?,
         };
-        Ok(())
+        while let Some(removed) = removed_jobs.next().await {
+            let removed = removed.args()?;
+            if *removed.job() == job {
+                return Ok(removed.result().clone());
+            }
+        }
+        Err(zbus::Error::Failure(format!(
+            "{} job watch ended",
+            self.unit
+        )))
     }
 }

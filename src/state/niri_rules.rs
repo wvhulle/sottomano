@@ -264,11 +264,16 @@ impl From<VetrataRules> for NiriStyling {
 }
 
 #[derive(Debug, Clone)]
-pub struct StoredRules(String);
+pub enum StoredRules {
+    Absent,
+    Text(String),
+    Unreadable,
+}
 
 #[derive(Clone)]
 enum Written {
     Unread,
+    Absent,
     Known(String),
 }
 
@@ -299,26 +304,37 @@ impl NiriRulesFile {
 
     pub fn read(&self) -> Task<StoredRules> {
         let path = self.path.clone();
-        Task::future(
-            async move { StoredRules(fs::read_to_string(&path).await.unwrap_or_default()) },
-        )
+        Task::future(async move {
+            match fs::read_to_string(&path).await {
+                Ok(text) => StoredRules::Text(text),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => StoredRules::Absent,
+                Err(e) => {
+                    tracing::warn!("niri rules: reading {} failed: {e}", path.display());
+                    StoredRules::Unreadable
+                }
+            }
+        })
     }
 
     pub fn adopt(&mut self, stored: StoredRules) -> Task<bool> {
-        if !stored.0.is_empty() {
-            match stored.0.parse::<VetrataRules>() {
-                Ok(rules) => self.styling = NiriStyling::from(rules),
-                Err(e) => tracing::warn!("niri rules: keeping the current look, file is {e}"),
+        self.written = match stored {
+            StoredRules::Unreadable => return Task::done(false),
+            StoredRules::Absent => Written::Absent,
+            StoredRules::Text(text) => {
+                match text.parse::<VetrataRules>() {
+                    Ok(rules) => self.styling = NiriStyling::from(rules),
+                    Err(e) => tracing::warn!("niri rules: keeping the current look, file is {e}"),
+                }
+                Written::Known(text)
             }
-        }
-        self.written = Written::Known(stored.0);
+        };
         self.write()
     }
 
     fn write(&mut self) -> Task<bool> {
-        let Written::Known(last) = &self.written else {
+        if matches!(self.written, Written::Unread) {
             return Task::done(false);
-        };
+        }
         let rules = match VetrataRules::from(self.styling).to_kdl_v1() {
             Ok(rules) => rules,
             Err(e) => {
@@ -326,7 +342,7 @@ impl NiriRulesFile {
                 return Task::done(false);
             }
         };
-        if rules == *last {
+        if matches!(&self.written, Written::Known(last) if *last == rules) {
             return Task::done(true);
         }
         self.written = Written::Known(rules.clone());
@@ -379,9 +395,9 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_file_keeps_the_defaults() {
+    fn an_absent_file_keeps_the_defaults() {
         let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
-        let _ = rules.adopt(StoredRules(String::new()));
+        let _ = rules.adopt(StoredRules::Absent);
         assert_eq!(rules.styling(), NiriStyling::default());
     }
 
