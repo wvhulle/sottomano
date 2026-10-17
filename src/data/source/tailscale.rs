@@ -7,9 +7,12 @@ use std::{
 use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
-use crate::data::source::{
-    Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
-    ticked_polls,
+use crate::{
+    data::source::{
+        Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
+        ticked_polls,
+    },
+    widgets::tooltip_body::TooltipBody,
 };
 
 const RUNNING_BACKEND_STATE: &str = "Running";
@@ -18,6 +21,12 @@ const RUNNING_BACKEND_STATE: &str = "Running";
 pub enum Error {
     Command(command::Error),
     Malformed,
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        TooltipBody::error(error)
+    }
 }
 
 impl Display for Error {

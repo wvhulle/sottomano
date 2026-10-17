@@ -24,7 +24,10 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 
-use crate::data::source::{Panicked, PolledSource, Source, blocking_poll};
+use crate::{
+    data::source::{Panicked, PolledSource, Source, blocking_poll},
+    widgets::tooltip_body::TooltipBody,
+};
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";
 const NVIDIA_MODULE_VERSION: &str = "/sys/module/nvidia/version";
@@ -185,6 +188,12 @@ pub enum Error {
 impl From<Panicked> for Error {
     fn from(Panicked: Panicked) -> Self {
         Error::Panicked
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        TooltipBody::error(error)
     }
 }
 

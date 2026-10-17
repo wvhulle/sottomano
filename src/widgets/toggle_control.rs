@@ -1,7 +1,7 @@
 use iced::{Subscription, Task};
 
 use crate::{
-    data::source::{Delivery, PolledSource},
+    data::source::{Delivery, PolledSource, Source},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{ForcedRefresh, blocking, polling},
     widgets::{
@@ -75,11 +75,11 @@ pub trait Toggle: PolledSource + BarWidget {
     fn press_does(&self) -> &'static str;
 }
 
-pub struct ToggleControl<S> {
+pub struct ToggleControl<S: Source> {
     reading: ContinuousReading<S>,
 }
 
-impl<S> Default for ToggleControl<S> {
+impl<S: Source> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
             reading: ContinuousReading::default(),

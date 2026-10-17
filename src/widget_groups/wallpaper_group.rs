@@ -60,6 +60,15 @@ impl Display for Failure {
     }
 }
 
+impl From<Failure> for TooltipBody {
+    fn from(failure: Failure) -> Self {
+        match failure {
+            Failure::Resolve(wallpaper::Error::Fetch(fetch)) => fetch.into(),
+            other => TooltipBody::error(other),
+        }
+    }
+}
+
 impl Source for Lookup {
     type Error = Failure;
     type Key = PathBuf;

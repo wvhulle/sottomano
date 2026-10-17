@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
-use super::{ApiFailure, Error};
+use super::Error;
 use crate::{
     data::source::http,
     state::rate_limit::{self, Backoff},
@@ -26,7 +26,7 @@ pub async fn still_waiting() -> Option<Error> {
     );
     Some(Error::Backoff {
         remaining,
-        cause: ApiFailure {
+        cause: http::Error::Status {
             status: stored.status,
             message: stored.message,
         },
@@ -34,7 +34,7 @@ pub async fn still_waiting() -> Option<Error> {
 }
 
 pub async fn schedule_retry(resp: &http::Response, body: Value) -> Error {
-    let failure = ApiFailure::from_body(body, 429);
+    let message = http::failure_message(Some(body));
     let attempts = rate_limit::load(SOURCE)
         .await
         .map_or(0, |stored| stored.attempts);
@@ -43,7 +43,7 @@ pub async fn schedule_retry(resp: &http::Response, body: Value) -> Error {
         .unwrap_or_else(|| with_jitter(escalating_delay(attempts)))
         .clamp(MIN_DELAY, MAX_DELAY);
     tracing::warn!(
-        "claude usage: HTTP 429 ({failure}); retry-after {:?}, attempt {}, waiting {}",
+        "claude usage: HTTP 429 ({message:?}); retry-after {:?}, attempt {}, waiting {}",
         server_delay,
         attempts + 1,
         humantime::format_duration(delay)
@@ -54,12 +54,15 @@ pub async fn schedule_retry(resp: &http::Response, body: Value) -> Error {
             retry_after_unix: rate_limit::now_unix()
                 + i64::try_from(delay.as_secs()).unwrap_or(i64::MAX),
             attempts: attempts.saturating_add(1),
-            status: failure.status,
-            message: failure.message.clone(),
+            status: 429,
+            message: message.clone(),
         },
     )
     .await;
-    Error::RateLimited(failure)
+    Error::RateLimited(http::Error::Status {
+        status: 429,
+        message,
+    })
 }
 
 pub async fn reset() {

@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::{ApiFailure, Error, backoff, plan, read_credentials};
+use super::{Error, backoff, plan, read_credentials};
 use crate::data::source::http;
 
 pub const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
@@ -43,9 +43,9 @@ pub async fn fetch<Reply: DeserializeOwned>(
         return Err(backoff::schedule_retry(&resp, body).await);
     }
     if resp.status != 200 {
-        let failure = ApiFailure::from_body(body, resp.status);
-        tracing::warn!("claude usage: HTTP {}: {failure}", resp.status);
-        return Err(Error::Api(failure));
+        let failure = http::Error::status(resp.status, Some(body));
+        tracing::warn!("claude usage: {failure}");
+        return Err(failure.into());
     }
     backoff::reset().await;
 

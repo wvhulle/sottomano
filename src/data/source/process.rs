@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::{Display, Formatter, Result as FmtResult},
     mem::zeroed,
     ops::Add,
     path::PathBuf,
@@ -15,13 +16,37 @@ use procfs::{
 use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::data::{
-    empty_text::non_empty,
-    source::{PolledSource, Source, nix_store::Provenance},
+use crate::{
+    data::{
+        empty_text::non_empty,
+        source::{Panicked, PolledSource, Source, nix_store::Provenance},
+    },
+    widgets::tooltip_body::TooltipBody,
 };
 
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);
 const SAMPLE_WINDOW: Duration = Duration::from_millis(500);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+    Panicked(Panicked),
+    Exited { pid: i32 },
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Error::Panicked(panicked) => write!(f, "{panicked}"),
+            Error::Exited { pid } => write!(f, "process {pid} exited"),
+        }
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        TooltipBody::error(error)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Process {
@@ -236,7 +261,7 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
 }
 
 impl Source for Process {
-    type Error = String;
+    type Error = Error;
     type Key = Watched;
 
     const NAME: &'static str = "process scan";
@@ -245,21 +270,18 @@ impl Source for Process {
 impl PolledSource for Process {
     const INTERVAL: Duration = SCAN_INTERVAL;
 
-    async fn poll(watched: Watched) -> Result<Self, String> {
+    async fn poll(watched: Watched) -> Result<Self, Error> {
         let pid = watched.pid;
         let capacity = CpuCapacity::current();
         let scan = |samples: CpuSamples| spawn_blocking(move || sample(&samples, capacity));
         let first = scan(CpuSamples::none_yet())
             .await
-            .map_err(|e| format!("process scan: {e}"))?;
+            .map_err(|_| Error::Panicked(Panicked))?;
         sleep(SAMPLE_WINDOW).await;
         let Sampled { forest, .. } = scan(first.samples)
             .await
-            .map_err(|e| format!("process scan: {e}"))?;
-        forest
-            .subtree(pid)
-            .cloned()
-            .ok_or_else(|| format!("process {pid} exited"))
+            .map_err(|_| Error::Panicked(Panicked))?;
+        forest.subtree(pid).cloned().ok_or(Error::Exited { pid })
     }
 }
 
@@ -329,7 +351,7 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
 }
 
 impl Source for Inspection {
-    type Error = String;
+    type Error = Error;
     type Key = Watched;
 
     const NAME: &'static str = "process inspection";
@@ -338,13 +360,12 @@ impl Source for Inspection {
 impl PolledSource for Inspection {
     const INTERVAL: Duration = Duration::from_secs(30);
 
-    async fn poll(watched: Watched) -> Result<Self, String> {
+    async fn poll(watched: Watched) -> Result<Self, Error> {
         let pid = watched.pid;
         spawn_blocking(move || inspect(&watched))
             .await
-            .ok()
-            .flatten()
-            .ok_or_else(|| format!("process {pid} exited"))
+            .map_err(|_| Error::Panicked(Panicked))?
+            .ok_or(Error::Exited { pid })
     }
 }
 

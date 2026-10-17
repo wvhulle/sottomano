@@ -7,18 +7,18 @@ use crate::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
         tooltip_body::{
-            Freshness, KeyValue, PollInfo, Readiness, Section, SourcedSection, Tooltip, TooltipBody,
+            Freshness, PollInfo, Readiness, Section, SourcedSection, Tooltip, TooltipBody,
         },
         widget_state::WidgetState,
     },
 };
 
-pub struct FailedReading {
+pub struct FailedReading<S: Source> {
     icon: Glyph,
-    message: String,
+    error: S::Error,
 }
 
-impl BarWidget for FailedReading {
+impl<S: Source> BarWidget for FailedReading<S> {
     fn name(&self) -> &'static str {
         "Failed reading"
     }
@@ -32,26 +32,26 @@ impl BarWidget for FailedReading {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("Error", self.message.clone())])
+        self.error.clone().into()
     }
 }
 
-pub struct ContinuousReading<S> {
+pub struct ContinuousReading<S: Source> {
     stamped: Option<StampedReading<S>>,
 }
 
-struct StampedReading<S> {
+struct StampedReading<S: Source> {
     freshness: Freshness,
     outcome: ReadingOutcome<S>,
 }
 
-enum ReadingOutcome<S> {
+enum ReadingOutcome<S: Source> {
     Awaiting,
     Read(S),
-    Failed(FailedReading),
+    Failed(FailedReading<S>),
 }
 
-impl<S> ReadingOutcome<S> {
+impl<S: Source> ReadingOutcome<S> {
     fn data(&self) -> Option<&S> {
         match self {
             ReadingOutcome::Read(data) => Some(data),
@@ -70,29 +70,29 @@ impl<S> ReadingOutcome<S> {
     }
 }
 
-impl<S: BarWidget> ReadingOutcome<S> {
-    fn accept<E: Display>(self, reading: Result<S, E>) -> Self {
+impl<S: Source + BarWidget> ReadingOutcome<S> {
+    fn accept(self, reading: Result<S, S::Error>) -> Self {
         match reading {
             Ok(data) => ReadingOutcome::Read(data),
-            Err(failure) => ReadingOutcome::Failed(FailedReading {
+            Err(error) => ReadingOutcome::Failed(FailedReading {
                 icon: match self {
                     ReadingOutcome::Read(data) => data.icon(),
                     ReadingOutcome::Failed(failed) => failed.icon,
                     ReadingOutcome::Awaiting => S::fallback_icon(),
                 },
-                message: failure.to_string(),
+                error,
             }),
         }
     }
 }
 
-impl<S> Default for ContinuousReading<S> {
+impl<S: Source> Default for ContinuousReading<S> {
     fn default() -> Self {
         Self { stamped: None }
     }
 }
 
-impl<S> ContinuousReading<S> {
+impl<S: Source> ContinuousReading<S> {
     pub fn get(&self) -> Option<&S> {
         self.stamped.as_ref()?.outcome.data()
     }
@@ -188,7 +188,7 @@ impl<S: PolledSource + BarWidget> ContinuousReading<S> {
     }
 }
 
-impl<S: BarWidget> ContinuousReading<S> {
+impl<S: Source + BarWidget> ContinuousReading<S> {
     pub fn display(&self) -> Option<&dyn BarWidget> {
         match &self.stamped.as_ref()?.outcome {
             ReadingOutcome::Read(data) => Some(data),
@@ -225,7 +225,7 @@ impl<S: BarWidget> ContinuousReading<S> {
     }
 }
 
-impl<S: Occasional> ContinuousReading<S> {
+impl<S: Source + Occasional> ContinuousReading<S> {
     pub fn present_reading(&self) -> Option<&S> {
         self.get().filter(|data| data.present())
     }

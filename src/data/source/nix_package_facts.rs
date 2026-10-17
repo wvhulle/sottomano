@@ -8,12 +8,15 @@ use bytesize::ByteSize;
 use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
-use crate::data::source::{
-    Delivery, Panicked, PolledSource, Source, blocking_poll, command,
-    nix_store::{Provenance, StorePackage, below_derivation},
-    present_or_absent,
-    process::{Watched, launch},
-    ticked_polls,
+use crate::{
+    data::source::{
+        Delivery, Panicked, PolledSource, Source, blocking_poll, command,
+        nix_store::{Provenance, StorePackage, below_derivation},
+        present_or_absent,
+        process::{Watched, launch},
+        ticked_polls,
+    },
+    widgets::tooltip_body::TooltipBody,
 };
 
 const NIXPKGS_META: &str = "p: {
@@ -39,6 +42,12 @@ pub enum Error {
     Command(command::Error),
     Malformed,
     Interrupted,
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        TooltipBody::error(error)
+    }
 }
 
 impl Display for Error {

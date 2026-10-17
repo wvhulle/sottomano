@@ -6,11 +6,19 @@ use std::{
 
 use tokio::process::Command;
 
+use crate::widgets::tooltip_body::TooltipBody;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     NotInstalled { program: String },
     Spawn { program: String, detail: String },
     Failed { program: String, stderr: String },
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        TooltipBody::error(error)
+    }
 }
 
 impl Display for Error {

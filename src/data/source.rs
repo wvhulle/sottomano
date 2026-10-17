@@ -13,7 +13,7 @@ use iced::futures::{
 };
 use tokio::task::spawn_blocking;
 
-use crate::message_subscriptions::ticked;
+use crate::{message_subscriptions::ticked, widgets::tooltip_body::TooltipBody};
 
 pub mod ai;
 pub mod app_icon;
@@ -77,6 +77,12 @@ impl Display for Panicked {
     }
 }
 
+impl From<Panicked> for TooltipBody {
+    fn from(panicked: Panicked) -> Self {
+        TooltipBody::error(panicked)
+    }
+}
+
 pub async fn blocking_poll<T, E>(
     read: impl FnOnce() -> Result<T, E> + Send + 'static,
 ) -> Result<T, E>
@@ -90,7 +96,7 @@ where
 }
 
 pub trait Source: Clone + Debug + Sized + Send + 'static {
-    type Error: Clone + Debug + Display + Send + 'static;
+    type Error: Clone + Debug + Display + Send + Into<TooltipBody> + 'static;
     type Key: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
