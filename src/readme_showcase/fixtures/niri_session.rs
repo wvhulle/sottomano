@@ -11,10 +11,10 @@ use crate::{
     data::source::{
         Delivery,
         desktop_entries::DesktopIndex,
+        kitty_windows::WindowProcesses,
         niri::Snapshot,
         nix_store::{Provenance, StorePackage},
         process::{Inspection, Launch, Process},
-        window_agents::WindowProcesses,
     },
     desktop_shell::hover_tooltips::HoverTarget,
     readme_showcase::showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedNiriSession},

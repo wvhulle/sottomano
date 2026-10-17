@@ -13,7 +13,7 @@ use crate::{
         notifications::model::ActionTint,
         source::{
             focus_ledger::{ScreenEdge, WakingWindow},
-            window_agents::WindowProcesses,
+            kitty_windows::WindowProcesses,
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,

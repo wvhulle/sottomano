@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    data::source::{app_rules::IconCandidate, desktop_entries::DesktopIndex, niri},
+    data::source::{desktop_entries::DesktopIndex, niri, window_label::IconCandidate},
     widgets::{
         continuous_reading::ContinuousReading,
         tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},

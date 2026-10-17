@@ -7,7 +7,7 @@ use std::{
 use niri_ipc::state::EventStreamState;
 use rusqlite::Connection;
 
-use crate::data::source::app_rules::{self, WindowLabel};
+use crate::data::source::window_label::{WindowLabel, browser_page::strip_unread_badge};
 
 #[derive(Debug, Clone)]
 pub struct RawFavicon {
@@ -148,7 +148,7 @@ fn candidate_urls(places: &Connection, title: &str) -> Vec<String> {
         return Vec::new();
     };
     rows.filter_map(Result::ok)
-        .filter(|(_, stored)| app_rules::strip_unread_badge(stored) == title)
+        .filter(|(_, stored)| strip_unread_badge(stored) == title)
         .map(|(url, _)| url)
         .collect()
 }

@@ -15,11 +15,11 @@ use crate::{
         Delivery,
         audio::WindowAudio,
         job_view::{self, Jobs},
+        kitty_windows::{self, WindowProcesses},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
         niri,
         nix_package_facts::{NixPackageFacts, PackageWatch},
         process::{Inspection, Process, Watched},
-        window_agents::{self, WindowProcesses},
     },
     desktop_shell::{
         hover_tooltips::{PressHints, TooltipMessage, hoverable},
@@ -97,7 +97,7 @@ impl WindowList {
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
             launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
             job_view::subscription().map(WindowListMessage::JobsChanged),
-            window_agents::subscription(agents).map(WindowListMessage::WindowProcessesPaired),
+            kitty_windows::subscription(agents).map(WindowListMessage::WindowProcessesPaired),
         ])
     }
 

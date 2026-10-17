@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use iced::Element;
 
 use crate::{
-    data::source::{app_rules::IconCandidate, desktop_entries::DesktopIndex, niri},
+    data::source::{desktop_entries::DesktopIndex, niri, window_label::IconCandidate},
     widgets::{favicon::Favicons, icon_handle::IconHandle, text::FontFallbacks},
 };
 
