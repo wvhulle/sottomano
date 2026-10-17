@@ -16,8 +16,8 @@ use uom::si::{
 };
 
 use crate::{
-    data::source::{Delivery, LiveSource, PolledSource, Source, delivered, http},
-    widgets::tooltip_body::TooltipBody,
+    data::source::{Delivery, LiveSource, PolledSource, Source, http},
+    widgets::tooltip_body::Section,
 };
 
 #[derive(Debug, Clone)]
@@ -53,11 +53,11 @@ impl From<http::Error> for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
         match error {
             Error::Fetch(fetch) => fetch.into(),
-            other => TooltipBody::error(other),
+            other => Section::error(other),
         }
     }
 }
@@ -644,7 +644,9 @@ impl Source for Location {
 
 impl LiveSource for Location {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(fix_updates().map(|update| update.map(|geo| Self { geo }).map_err(Error::from)))
+        fix_updates()
+            .map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
+            .map(Delivery::Reading)
     }
 }
 #[cfg(test)]

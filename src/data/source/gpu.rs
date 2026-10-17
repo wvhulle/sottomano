@@ -26,7 +26,7 @@ use uom::si::{
 
 use crate::{
     data::source::{Panicked, PolledSource, Source, blocking_poll},
-    widgets::tooltip_body::TooltipBody,
+    widgets::tooltip_body::Section,
 };
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";
@@ -191,9 +191,9 @@ impl From<Panicked> for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 

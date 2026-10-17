@@ -46,8 +46,7 @@ use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source, file_presence::path_present, present_or_absent, settled,
-        while_present,
+        Delivery, LiveSource, Source, file_presence::path_present, present_or_absent, while_present,
     },
     message_subscriptions::restarting,
 };
@@ -183,7 +182,7 @@ fn socket_present() -> BoxStream<'static, bool> {
         Ok(socket) => Box::pin(path_present(socket)),
         Err(e) => {
             tracing::warn!("audio: {e}");
-            Box::pin(settled(false))
+            Box::pin(stream::iter([false]))
         }
     }
 }

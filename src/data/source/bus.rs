@@ -12,7 +12,7 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::{data::empty_text::non_empty, widgets::tooltip_body::TooltipBody};
+use crate::{data::empty_text::non_empty, widgets::tooltip_body::Section};
 
 pub type Properties = HashMap<String, OwnedValue>;
 
@@ -70,9 +70,9 @@ pub enum Error {
     Absent,
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 

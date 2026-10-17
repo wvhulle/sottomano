@@ -157,34 +157,43 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
     }
 }
 
-struct ExpandableHandle<'a, M> {
-    expansion: &'a GroupExpansion,
-    on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
-    face: HandleFace<'a>,
-    preview: Option<PreviewedValue<'a>>,
-    scroll_does: Option<&'static str>,
+enum Handle<'a, M> {
+    Expandable {
+        expansion: &'a GroupExpansion,
+        on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
+        face: HandleFace<'a>,
+        preview: Option<PreviewedValue<'a>>,
+        scroll_does: Option<&'static str>,
+    },
+    Fixed,
 }
 
-impl<'a, M: 'a> ExpandableHandle<'a, M> {
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> ExpandableHandle<'a, Outer> {
-        let on_expansion = self.on_expansion;
-        ExpandableHandle {
-            expansion: self.expansion,
-            on_expansion: Rc::new(move |message| lift(on_expansion(message))),
-            face: self.face,
-            preview: self.preview,
-            scroll_does: self.scroll_does,
+impl<'a, M: 'a> Handle<'a, M> {
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> Handle<'a, Outer> {
+        match self {
+            Handle::Expandable {
+                expansion,
+                on_expansion,
+                face,
+                preview,
+                scroll_does,
+            } => Handle::Expandable {
+                expansion,
+                on_expansion: Rc::new(move |message| lift(on_expansion(message))),
+                face,
+                preview,
+                scroll_does,
+            },
+            Handle::Fixed => Handle::Fixed,
         }
     }
 
-    fn expand_message(&self) -> M {
-        (self.on_expansion)(ExpansionMessage::Expand)
+    fn expand_message(&self) -> Option<M> {
+        match self {
+            Handle::Expandable { on_expansion, .. } => Some(on_expansion(ExpansionMessage::Expand)),
+            Handle::Fixed => None,
+        }
     }
-}
-
-enum Handle<'a, M> {
-    Expandable(ExpandableHandle<'a, M>),
-    Fixed,
 }
 
 pub struct GroupContent<'a, M> {
@@ -199,13 +208,13 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> Self {
         Self {
-            handle: Handle::Expandable(ExpandableHandle {
+            handle: Handle::Expandable {
                 expansion,
                 on_expansion: Rc::new(on_expansion),
                 face: HandleFace::FirstItem,
                 preview: None,
                 scroll_does: None,
-            }),
+            },
             items: items.into_iter().collect(),
         }
     }
@@ -217,52 +226,59 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    fn with_handle(self, change: impl FnOnce(&mut ExpandableHandle<'a, M>)) -> Self {
-        let mut handle = self.handle;
-        if let Handle::Expandable(expandable) = &mut handle {
-            change(expandable);
+    #[must_use]
+    pub fn face(mut self, face: HandleFace<'a>) -> Self {
+        if let Handle::Expandable { face: current, .. } = &mut self.handle {
+            *current = face;
         }
-        Self { handle, ..self }
+        self
     }
 
     #[must_use]
-    pub fn face(self, face: HandleFace<'a>) -> Self {
-        self.with_handle(|handle| handle.face = face)
+    pub fn preview(mut self, preview: Option<PreviewedValue<'a>>) -> Self {
+        if let Handle::Expandable {
+            preview: current, ..
+        } = &mut self.handle
+        {
+            *current = preview;
+        }
+        self
     }
 
     #[must_use]
-    pub fn preview(self, preview: Option<PreviewedValue<'a>>) -> Self {
-        self.with_handle(|handle| handle.preview = preview)
-    }
-
-    #[must_use]
-    pub fn forwards_scroll(self, scroll_does: Option<&'static str>) -> Self {
-        self.with_handle(|handle| handle.scroll_does = scroll_does)
+    pub fn forwards_scroll(mut self, scroll_does: Option<&'static str>) -> Self {
+        if let Handle::Expandable {
+            scroll_does: current,
+            ..
+        } = &mut self.handle
+        {
+            *current = scroll_does;
+        }
+        self
     }
 
     pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupContent<'a, Outer> {
         GroupContent {
-            handle: match self.handle {
-                Handle::Expandable(handle) => Handle::Expandable(handle.map(lift)),
-                Handle::Fixed => Handle::Fixed,
-            },
+            handle: self.handle.map(lift),
             items: self.items.into_iter().map(|item| item.map(lift)).collect(),
         }
     }
 
     fn ongoing_toasts(&self, locale: Locale) -> impl Iterator<Item = OngoingToast<M>> {
-        let Handle::Expandable(handle) = &self.handle else {
-            return Vec::new().into_iter();
-        };
-        self.items
-            .iter()
-            .flat_map(|item| item.ongoing_toasts_with_reading(handle.expand_message(), locale))
+        self.handle
+            .expand_message()
+            .into_iter()
+            .flat_map(|expand| {
+                self.items
+                    .iter()
+                    .flat_map(move |item| item.ongoing_toasts_with_reading(expand.clone(), locale))
+            })
             .collect::<Vec<_>>()
             .into_iter()
     }
 
     pub fn toast_requests(&self, locale: Locale) -> GroupToastRequests<M> {
-        let Handle::Expandable(handle) = &self.handle else {
+        let Some(expand) = self.handle.expand_message() else {
             return GroupToastRequests::default();
         };
         GroupToastRequests {
@@ -270,7 +286,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             levels: self
                 .items
                 .iter()
-                .filter_map(|item| item.level_reading(handle.expand_message()))
+                .filter_map(|item| item.level_reading(expand.clone()))
                 .collect(),
         }
     }
@@ -289,22 +305,20 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .max()
             .unwrap_or_default();
         let GroupContent { handle, mut items } = self;
-        let ExpandableHandle {
+        let Handle::Expandable {
             expansion,
             on_expansion,
             face,
             preview,
             scroll_does,
-        } = match handle {
-            Handle::Expandable(handle) => handle,
-            Handle::Fixed => {
-                return Some(fixed_view(
-                    &items,
-                    highest_alert_severity,
-                    config,
-                    bar_position,
-                ));
-            }
+        } = handle
+        else {
+            return Some(fixed_view(
+                &items,
+                highest_alert_severity,
+                config,
+                bar_position,
+            ));
         };
         let handle_hints = PressHints::group_handle(expansion.expanded, scroll_does);
         let handle_target =

@@ -18,12 +18,13 @@ use iced::{
         text::Wrapping,
     },
 };
+use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     config::{Config, theme::font::ResolvedFont},
     desktop_shell::{
         Message,
-        hover_tooltips::{GestureHint, core_grid::CoreCellGrid},
+        hover_tooltips::{MouseGesture, PressHints, core_grid::CoreCellGrid},
     },
     state::idle::ScheduledAfterIdle,
     widget_groups::{
@@ -41,8 +42,8 @@ use crate::{
         text::{bar_text, column_heading},
         tooltip_body::{
             Cell, ChipletCells, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells,
-            Section, SectionBody, SessionMenuBody, SessionMenuEntry, SourcedBody, SourcedSection,
-            Tooltip, TrayMenuBody, WholeBody,
+            Section, SectionBody, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
+            TrayMenuBody, WholeBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -110,8 +111,8 @@ impl<'a> TooltipContent<'a> {
     }
 
     pub fn view(self) -> Element<'static, Message> {
-        let gestures = self.tooltip.press_hints.gestures();
-        let press_hint = (!gestures.is_empty()).then(|| self.gesture_hints(&gestures));
+        let press_hints = self.tooltip.press_hints;
+        let press_hint = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
         container(
             uniform_width_column(press_hint.into_iter().chain([self.grid()]))
                 .spacing(FOOTER_GAP_PX),
@@ -143,18 +144,21 @@ impl<'a> TooltipContent<'a> {
         container(content).padding(self.content_inset()).into()
     }
 
-    fn gesture_hints(&self, gestures: &[GestureHint]) -> Element<'static, Message> {
+    fn gesture_hints(&self, press_hints: PressHints) -> Element<'static, Message> {
         let icon_size = self.config.theme.font.small_text_size_px;
         let dim = self.dim();
         container(
-            row(gestures.iter().map(|hint| {
-                row([
-                    Glyph::from(hint.gesture.glyph()).view(icon_size, dim),
-                    self.annotation(hint.does.to_owned()).into(),
-                ])
-                .spacing(GESTURE_ICON_GAP_PX)
-                .align_y(Vertical::Center)
-                .into()
+            row(MouseGesture::ALL.into_iter().filter_map(|gesture| {
+                let does = press_hints.does(gesture)?;
+                Some(
+                    row([
+                        Glyph::from(gesture.glyph()).view(icon_size, dim),
+                        self.annotation(does.to_owned()).into(),
+                    ])
+                    .spacing(GESTURE_ICON_GAP_PX)
+                    .align_y(Vertical::Center)
+                    .into(),
+                )
             }))
             .spacing(COLUMN_GAP_PX),
         )
@@ -187,18 +191,29 @@ impl<'a> TooltipContent<'a> {
                 .into()
         };
         let shown = match freshness {
-            Freshness::Polled(info) => pressable_text(
+            Freshness::Polled {
+                source,
+                every,
+                last,
+            } => pressable_text(
                 labelled(
-                    self.small_dim_text(humantime::format_duration(info.every).to_string()),
+                    self.small_dim_text(humantime::format_duration(every).to_string()),
                     RefreshDial::new(
-                        info.elapsed_since_last_poll(self.now),
+                        Ratio::new::<ratio>(
+                            self.now
+                                .duration_since(last)
+                                .unwrap_or(Duration::ZERO)
+                                .as_secs_f64()
+                                % every.as_secs_f64()
+                                / every.as_secs_f64(),
+                        ),
                         glyph_size,
                         dim,
                         dim.scale_alpha(REFRESH_TRACK_ALPHA),
                     )
                     .view(),
                 ),
-                info.source,
+                source,
                 Message::RefreshSource,
                 self.flash(),
                 self.config.tooltips.copy_flash,
@@ -225,8 +240,8 @@ impl<'a> TooltipContent<'a> {
 
     fn grid(&self) -> Element<'static, Message> {
         match &self.tooltip.body {
-            SourcedBody::Sections(sections) => self.sections(sections),
-            SourcedBody::Whole { body, freshness } => {
+            TooltipBody::Sections(sections) => self.sections(sections),
+            TooltipBody::Whole { body, freshness } => {
                 Column::with_children([self.whole(body), self.inset(self.freshness(*freshness))])
                     .spacing(self.config.layout.overlay.row_spacing)
                     .into()
@@ -343,13 +358,13 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
-    fn sections(&self, sections: &[SourcedSection]) -> Element<'static, Message> {
+    fn sections(&self, sections: &[Section]) -> Element<'static, Message> {
         let filled = sections
             .iter()
-            .filter(|section| !section.section().body().is_empty())
-            .map(|sourced| {
-                self.in_readiness(sourced.readiness())
-                    .section(sourced.section(), self.freshness(sourced.freshness()))
+            .filter(|section| !section.body().is_empty())
+            .map(|section| {
+                self.in_readiness(section.readiness())
+                    .section(section, self.freshness(section.freshness()))
             });
 
         let dim = self.config.theme.palette.dim;

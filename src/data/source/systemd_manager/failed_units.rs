@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source, coredumps::CoredumpEntry, delivered, journal::JournalPriority,
+        Delivery, LiveSource, Source, coredumps::CoredumpEntry, journal::JournalPriority,
     },
     message_subscriptions::restarting,
 };
@@ -116,10 +116,9 @@ impl<S: UnitScope> Source for Failed<S> {
 
 impl<S: UnitScope> LiveSource for Failed<S> {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(
-            restarting("systemd failed units", || watch_failed(S::PER_USER))
-                .map(|units| Ok(Failed::from(units))),
-        )
+        restarting("systemd failed units", || watch_failed(S::PER_USER))
+            .map(|units| Ok(Failed::from(units)))
+            .map(Delivery::Reading)
     }
 }
 

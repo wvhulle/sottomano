@@ -25,7 +25,7 @@ use crate::{
         net_interfaces::nm,
         present_or_absent, ticked_polls,
     },
-    widgets::tooltip_body::TooltipBody,
+    widgets::tooltip_body::Section,
 };
 
 const API_BASE: &str = "https://api.github.com";
@@ -58,11 +58,11 @@ impl From<http::Error> for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
         match error {
             Error::Fetch(fetch) => fetch.into(),
-            other => TooltipBody::error(other),
+            other => Section::error(other),
         }
     }
 }

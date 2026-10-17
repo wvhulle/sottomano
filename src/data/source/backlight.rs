@@ -9,7 +9,7 @@ use crate::{
     data::source::{
         Delivery, PolledSource, Source,
         bus::{Bus, name_owned},
-        clight, delivered, emit_delivery_changes, present_or_absent,
+        clight, emit_delivery_changes, present_or_absent,
     },
     message_subscriptions::{restarting, ticked},
 };
@@ -72,9 +72,11 @@ impl PolledSource for Vec<Backlight> {
 
     fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, CLIGHTD_SERVICE), move || {
-            emit_delivery_changes(delivered(
-                restarting("backlight", backlight_changes).then(move |()| Self::poll(key)),
-            ))
+            emit_delivery_changes(
+                restarting("backlight", backlight_changes)
+                    .then(move |()| Self::poll(key))
+                    .map(Delivery::Reading),
+            )
             .boxed()
         })
     }

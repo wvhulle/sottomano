@@ -2,7 +2,7 @@ use std::{
     convert::identity,
     fmt::Display,
     future::{Future, ready},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 use iced::{
@@ -29,7 +29,7 @@ use crate::{
             server,
         },
         sink::clipboard,
-        source::{Delivery, LiveSource, PolledSource, Source, desktop_entries, niri},
+        source::{Delivery, LiveSource, PolledSource, desktop_entries, niri},
     },
     desktop_shell::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
@@ -227,63 +227,12 @@ pub fn polling<S: PolledSource>(
     key: S::Key,
     forced: Option<ForcedRefresh>,
 ) -> Subscription<Delivery<S>> {
-    polling_through::<S, _>(key, forced, S::polls)
+    let restart = forced.filter(|forced| forced.source == S::NAME);
+    Subscription::run_with((S::NAME, key, restart), |(_, key, _)| S::polls(key.clone()))
 }
 
 pub fn listening<S: LiveSource>(key: S::Key) -> Subscription<Delivery<S>> {
     Subscription::run_with((S::NAME, key), |(_, key)| S::events(key.clone()))
-}
-
-pub fn polling_through<S: PolledSource, St>(
-    key: S::Key,
-    forced: Option<ForcedRefresh>,
-    readings: fn(S::Key) -> St,
-) -> Subscription<Delivery<S>>
-where
-    St: Stream<Item = Delivery<S>> + Send + 'static,
-{
-    let restart = forced.filter(|forced| forced.source == S::NAME);
-    Subscription::run_with(
-        (S::NAME, key, restart, readings),
-        |(_, key, _, readings)| readings(key.clone()),
-    )
-}
-
-pub fn holding_earliest<S: Source>(
-    deliveries: impl Stream<Item = Delivery<S>>,
-    stamp: fn(&mut S) -> &mut Option<SystemTime>,
-) -> impl Stream<Item = Delivery<S>> {
-    use iced::futures::StreamExt;
-    deliveries.scan(None, move |held, delivery| {
-        let delivery = match delivery {
-            Delivery::Reading(Ok(mut reading)) => {
-                let current = stamp(&mut reading);
-                *held = current.map(|now| held.unwrap_or(now));
-                *current = *held;
-                Delivery::Reading(Ok(reading))
-            }
-            interrupted => {
-                *held = None;
-                interrupted
-            }
-        };
-        ready(Some(delivery))
-    })
-}
-
-pub fn emit_changes<T: Clone + PartialEq>(
-    readings: impl Stream<Item = T>,
-) -> impl Stream<Item = T> {
-    use iced::futures::StreamExt;
-    readings
-        .scan(None, |previous, reading| {
-            let changed = previous.as_ref() != Some(&reading);
-            if changed {
-                *previous = Some(reading.clone());
-            }
-            ready(Some(changed.then_some(reading)))
-        })
-        .filter_map(ready)
 }
 
 pub fn restarting_subscription<F, S, E>(
@@ -339,46 +288,4 @@ async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<
     Ok(stream::iter([connected])
         .chain(served)
         .map(|message| Ok(Message::Notification(message))))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{convert::Infallible, time::Duration};
-
-    use iced::futures::{StreamExt, executor::block_on, stream};
-
-    use super::*;
-
-    #[derive(Debug, Clone, PartialEq)]
-    struct Stamped {
-        since: Option<SystemTime>,
-    }
-
-    impl Source for Stamped {
-        type Error = Infallible;
-        type Key = ();
-
-        const NAME: &'static str = "stamped";
-    }
-
-    #[test]
-    fn holding_earliest_keeps_the_first_stamp_until_a_gap() {
-        let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
-        let second = first + Duration::from_secs(5);
-        let third = first + Duration::from_secs(15);
-        let deliveries = stream::iter(
-            [Some(first), Some(second), None, Some(third)]
-                .map(|since| Delivery::Reading(Ok(Stamped { since }))),
-        );
-        let held: Vec<Option<SystemTime>> = block_on(
-            holding_earliest(deliveries, |stamped| &mut stamped.since)
-                .map(|delivery| match delivery {
-                    Delivery::Reading(Ok(stamped)) => stamped.since,
-                    Delivery::Reading(Err(never)) => match never {},
-                    Delivery::Absent => None,
-                })
-                .collect(),
-        );
-        assert_eq!(held, [Some(first), Some(first), None, Some(third)]);
-    }
 }

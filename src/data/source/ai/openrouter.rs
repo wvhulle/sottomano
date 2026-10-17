@@ -22,7 +22,7 @@ use crate::{
             http,
         },
     },
-    widgets::tooltip_body::TooltipBody,
+    widgets::tooltip_body::Section,
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -53,11 +53,11 @@ impl From<http::Error> for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
         match error {
             Error::Fetch(fetch) => fetch.into(),
-            other => TooltipBody::error(other),
+            other => Section::error(other),
         }
     }
 }

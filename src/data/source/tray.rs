@@ -24,7 +24,7 @@ use tokio::{
 
 use crate::data::{
     empty_text::non_empty,
-    source::{Delivery, LiveSource, Source, app_icon::DesktopEntries, delivered},
+    source::{Delivery, LiveSource, Source, app_icon::DesktopEntries},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -279,12 +279,14 @@ impl Source for Vec<TrayItem> {
 
 impl LiveSource for Vec<TrayItem> {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(updates().filter_map(|update| {
-            ready(match update {
-                TrayUpdate::Items(items) => Some(Ok(items)),
-                TrayUpdate::Connected(_) => None,
+        updates()
+            .filter_map(|update| {
+                ready(match update {
+                    TrayUpdate::Items(items) => Some(Ok(items)),
+                    TrayUpdate::Connected(_) => None,
+                })
             })
-        }))
+            .map(Delivery::Reading)
     }
 }
 

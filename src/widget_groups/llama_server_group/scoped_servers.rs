@@ -18,7 +18,7 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        tooltip_body::{SourcedSection, Tooltip, TooltipBody},
+        tooltip_body::{Section, Tooltip, TooltipBody},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
 };
@@ -135,7 +135,7 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
     pub fn tooltip_for(
         &self,
         target: &LlamaServerTarget,
-        model_props: Vec<SourcedSection>,
+        model_props: Vec<Section>,
     ) -> Option<Tooltip> {
         let readings = self.servers.get(&target.unit)?;
         let reading = &readings.server;

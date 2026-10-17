@@ -142,7 +142,7 @@ impl TrayGroup {
             .as_ref()
             .filter(|_| !item.menu.is_empty())
             .cloned();
-        TooltipBody::Whole(match menu_path {
+        TooltipBody::from(match menu_path {
             Some(menu_path) => WholeBody::TrayMenu(TrayMenuBody {
                 address: item.address.clone(),
                 menu_path,

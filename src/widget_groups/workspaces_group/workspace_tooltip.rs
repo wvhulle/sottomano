@@ -18,7 +18,7 @@ pub fn tooltip(
         return None;
     }
     let tile = |window| preview_tile(icons, window);
-    snapshot.tooltip_with(TooltipBody::Whole(WholeBody::Workspace(WorkspacePreview {
+    snapshot.tooltip_with(TooltipBody::from(WholeBody::Workspace(WorkspacePreview {
         columns: scrolling_columns(windows)
             .into_iter()
             .map(|column| column.into_iter().map(&tile).collect())

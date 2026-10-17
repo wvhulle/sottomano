@@ -7,7 +7,7 @@ use systemd::journal::Journal;
 use crate::data::{
     severity::Severity,
     source::{
-        Delivery, LiveSource, Source, delivered,
+        Delivery, LiveSource, Source,
         journal::{JournalEvent, JournalPriority, JournalTransport, journal_windows},
     },
 };
@@ -21,10 +21,9 @@ impl Source for Vec<KernelOccurrence> {
 
 impl LiveSource for Vec<KernelOccurrence> {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(
-            journal_windows::<KernelEntry>()
-                .map(|entries| Ok(KernelOccurrence::merged_oldest_first(entries))),
-        )
+        journal_windows::<KernelEntry>()
+            .map(|entries| Ok(KernelOccurrence::merged_oldest_first(entries)))
+            .map(Delivery::Reading)
     }
 }
 

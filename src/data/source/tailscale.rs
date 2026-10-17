@@ -12,7 +12,7 @@ use crate::{
         Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
         ticked_polls,
     },
-    widgets::tooltip_body::TooltipBody,
+    widgets::tooltip_body::Section,
 };
 
 const RUNNING_BACKEND_STATE: &str = "Running";
@@ -23,9 +23,9 @@ pub enum Error {
     Malformed,
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 
