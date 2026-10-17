@@ -9,7 +9,7 @@ use crate::{
 pub(super) struct TopBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 10],
     pub center: [GroupContent<'a, Message>; 3],
-    pub end: [GroupContent<'a, Message>; 13],
+    pub end: [GroupContent<'a, Message>; 14],
 }
 
 impl DesktopShell {
@@ -78,6 +78,9 @@ impl DesktopShell {
                 self.openrouter_credit_group
                     .group_content()
                     .map(Message::OpenRouterCredit),
+                self.llama_server_group
+                    .group_content()
+                    .map(Message::LlamaServer),
                 self.monitor_group
                     .group_content(config)
                     .map(Message::Monitor),

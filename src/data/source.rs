@@ -42,6 +42,7 @@ pub mod kernel_errors;
 pub mod kitty_windows;
 pub mod launch_tracker;
 pub mod launcher_entry;
+pub mod llama_server;
 pub mod logind;
 pub mod mpris;
 pub mod net_interfaces;

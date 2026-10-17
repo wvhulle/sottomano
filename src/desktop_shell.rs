@@ -66,6 +66,7 @@ use crate::{
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::{InternetGroup, InternetMessage},
         journal_events_group::{JournalEventsGroup, JournalEventsMessage},
+        llama_server_group::{LlamaServerGroup, LlamaServerMessage},
         login_session_group::{LoginSessionGroup, LoginSessionMessage},
         media_group::{self, MediaGroup, MediaMessage},
         monitor_group::{MonitorGroup, MonitorMessage},
@@ -134,6 +135,7 @@ pub struct DesktopShell {
     pub claude_usage_group: ClaudeUsageGroup,
     pub copilot_usage_group: CopilotUsageGroup,
     pub openrouter_credit_group: OpenRouterCreditGroup,
+    pub llama_server_group: LlamaServerGroup,
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
@@ -193,6 +195,7 @@ pub enum Message {
     ClaudeUsage(ClaudeUsageMessage),
     CopilotUsage(CopilotUsageMessage),
     OpenRouterCredit(OpenRouterCreditMessage),
+    LlamaServer(LlamaServerMessage),
     SessionFocus(SessionFocusMessage),
     LoginSession(LoginSessionMessage),
     WindowGroup(WindowGroupMessage),
@@ -282,6 +285,7 @@ impl DesktopShell {
             claude_usage_group: ClaudeUsageGroup::new(secrets.claude_code_oauth),
             copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
             openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
+            llama_server_group: LlamaServerGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(Utc::now()),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
@@ -470,6 +474,10 @@ impl DesktopShell {
                 .openrouter_credit_group
                 .update(msg)
                 .map(Message::OpenRouterCredit),
+            Message::LlamaServer(msg) => self
+                .llama_server_group
+                .update(msg)
+                .map(Message::LlamaServer),
             Message::SessionFocus(msg) => self
                 .session_focus_group
                 .update(msg, self.quiet_schedule_group.waking_window())
@@ -814,6 +822,7 @@ impl DesktopShell {
         self.claude_usage_group.collapse();
         self.copilot_usage_group.collapse();
         self.openrouter_credit_group.collapse();
+        self.llama_server_group.collapse();
         self.session_focus_group.collapse();
         self.login_session_group.collapse();
         self.notification_group.collapse();
