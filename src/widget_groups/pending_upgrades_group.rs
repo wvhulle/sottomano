@@ -4,7 +4,7 @@ mod firmware_upgrade_list;
 
 use crate::{
     config::Config,
-    data::source::{SourceDelivery, fwupd::FirmwareUpgrade},
+    data::source::{SourceDelivery, bus::DesktopBuses, fwupd::FirmwareUpgrade},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::source_subscription,
     widget_groups::terminal_command::TerminalCommand,
@@ -49,8 +49,9 @@ impl PendingUpgradesGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription() -> Subscription<PendingUpgradesMessage> {
-        source_subscription::<Vec<FirmwareUpgrade>>((), None).map(PendingUpgradesMessage::Firmware)
+    pub fn subscription(buses: &DesktopBuses) -> Subscription<PendingUpgradesMessage> {
+        source_subscription::<Vec<FirmwareUpgrade>>(buses.clone())
+            .map(PendingUpgradesMessage::Firmware)
     }
 
     pub fn update(&mut self, msg: PendingUpgradesMessage) -> Task<PendingUpgradesMessage> {

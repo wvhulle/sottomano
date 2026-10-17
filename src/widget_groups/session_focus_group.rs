@@ -12,6 +12,7 @@ use crate::{
     data::{
         notifications::model::ActionTint,
         source::{
+            bus::DesktopBuses,
             focus_ledger::{ScreenEdge, WakingWindow},
             kitty_windows::WindowProcesses,
         },
@@ -81,6 +82,10 @@ impl SessionFocusGroup {
 
     pub fn subscription() -> Subscription<SessionFocusMessage> {
         FocusTracker::subscription().map(SessionFocusMessage::Tracker)
+    }
+
+    pub fn sleep_subscription(buses: &DesktopBuses) -> Subscription<SessionFocusMessage> {
+        FocusTracker::sleep_subscription(buses).map(SessionFocusMessage::Tracker)
     }
 
     pub fn screen_power_changed(

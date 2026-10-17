@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 use crate::{
     config::{Config, widget_groups::tray::ClickAction},
     data::source::{
+        SourceDelivery,
         niri::WindowOwner,
         tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
     },
@@ -79,6 +80,12 @@ impl TrayGroup {
             }
             TrayMessage::Update(TrayUpdate::Items(items)) => {
                 self.items.load(items);
+                Action::None
+            }
+            TrayMessage::Update(TrayUpdate::HostFailed(failure)) => {
+                self.commands = None;
+                self.items
+                    .receive_keeping_last_reading(SourceDelivery::Reading(Err(failure)));
                 Action::None
             }
             TrayMessage::Expansion(m) => {

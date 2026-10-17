@@ -20,7 +20,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
@@ -102,28 +102,50 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn subscription(
-        &self,
-        config: &Config,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<ClaudeUsageMessage> {
+    fn local_logs(&self, config: &Config) -> ClaudeLocalLogs {
+        ClaudeLocalLogs {
+            budget: SpendBudget::new(config, config.widget_groups.claude_usage.monthly_budget_usd),
+            credentials: self.oauth_credentials.clone(),
+        }
+    }
+
+    pub fn refresh(&self, target: ClaudeUsageTarget, config: &Config) -> Task<ClaudeUsageMessage> {
+        let account = self.oauth_credentials.clone();
+        match target {
+            ClaudeUsageTarget::UsageWindows => account.map_or_else(Task::none, |key| {
+                first_delivery::<ClaudeUsageWindows>(key)
+                    .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
+            }),
+            ClaudeUsageTarget::EnterpriseSpend => account.map_or_else(Task::none, |key| {
+                first_delivery::<ClaudeEnterpriseSpend>(key)
+                    .map(ClaudeUsageMessage::EnterpriseSpend)
+            }),
+            ClaudeUsageTarget::CcusagePeriods => {
+                first_delivery::<ClaudeCcusagePeriods>(self.local_logs(config))
+                    .map(ClaudeUsageMessage::CcusagePeriods)
+            }
+            ClaudeUsageTarget::CcusageBlock => {
+                first_delivery::<ClaudeCcusageBlock>(self.local_logs(config))
+                    .map(ClaudeUsageMessage::CcusageBlock)
+            }
+        }
+    }
+
+    pub fn subscription(&self, config: &Config) -> Subscription<ClaudeUsageMessage> {
         let account = self.oauth_credentials.clone().into_iter().flat_map(|key| {
             [
-                source_subscription::<ClaudeUsageWindows>(key.clone(), forced)
+                source_subscription::<ClaudeUsageWindows>(key.clone())
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading))),
-                source_subscription::<ClaudeEnterpriseSpend>(key, forced)
+                source_subscription::<ClaudeEnterpriseSpend>(key)
                     .map(ClaudeUsageMessage::EnterpriseSpend),
             ]
         });
-        let local_logs = ClaudeLocalLogs {
-            budget: SpendBudget::new(config, config.widget_groups.claude_usage.monthly_budget_usd),
-            credentials: self.oauth_credentials.clone(),
-        };
+        let local_logs = self.local_logs(config);
         Subscription::batch(
             account.chain([
-                source_subscription::<ClaudeCcusageBlock>(local_logs.clone(), forced)
+                source_subscription::<ClaudeCcusageBlock>(local_logs.clone())
                     .map(ClaudeUsageMessage::CcusageBlock),
-                source_subscription::<ClaudeCcusagePeriods>(local_logs, forced)
+                source_subscription::<ClaudeCcusagePeriods>(local_logs)
                     .map(ClaudeUsageMessage::CcusagePeriods),
             ]),
         )

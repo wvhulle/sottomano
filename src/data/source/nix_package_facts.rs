@@ -166,17 +166,15 @@ struct EvaluatedVersion {
 
 impl ReadingSource for NixPackageFacts {
     type Error = Error;
-    type Key = PackageWatch;
+    type StreamInputs = PackageWatch;
 
     const NAME: &'static str = "nix store";
     const DELIVERY_CADENCE: DeliveryCadence =
         DeliveryCadence::PolledEvery(Duration::from_secs(600));
 
-    fn delivery_stream(key: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("nix")), move || {
-            polled_delivery_stream(key.clone(), Self::poll)
-                .map(absent_outside_store)
-                .boxed()
+            polled_delivery_stream(inputs.clone(), Self::poll).map(absent_outside_store)
         })
     }
 }

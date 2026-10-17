@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, stream};
 use serde::Deserialize;
 
 use crate::{
@@ -100,14 +100,14 @@ impl From<&Node> for Peer {
 
 impl ReadingSource for Tailscale {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "tailscale";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("tailscale")), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
+            polled_delivery_stream(inputs, Self::poll)
         })
     }
 }

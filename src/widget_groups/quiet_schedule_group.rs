@@ -9,7 +9,7 @@ use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    data::source::{SourceDelivery, focus_ledger::WakingWindow, logind},
+    data::source::{SourceDelivery, bus::DesktopBuses, focus_ledger::WakingWindow, logind},
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::source_subscription,
     state::{self, quiet_hours::QuietHoursSchedule},
@@ -135,11 +135,12 @@ impl Default for QuietScheduleGroup {
 
 impl QuietScheduleGroup {
     pub fn subscription() -> Subscription<QuietScheduleMessage> {
-        Subscription::batch([
-            source_subscription::<QuietHoursSchedule>((), None)
-                .map(QuietScheduleMessage::ScheduleLoaded),
-            Subscription::run(logind::resumes).map(|()| QuietScheduleMessage::EdgeDue),
-        ])
+        source_subscription::<QuietHoursSchedule>(()).map(QuietScheduleMessage::ScheduleLoaded)
+    }
+
+    pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<QuietScheduleMessage> {
+        Subscription::run_with(buses.clone(), logind::resumes)
+            .map(|()| QuietScheduleMessage::EdgeDue)
     }
 
     pub fn is_quiet(&self) -> bool {

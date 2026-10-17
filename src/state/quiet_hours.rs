@@ -37,7 +37,7 @@ impl Default for QuietHoursSchedule {
 
 impl ReadingSource for QuietHoursSchedule {
     type Error = Infallible;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "quiet hours schedule";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;

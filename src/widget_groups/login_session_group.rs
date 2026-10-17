@@ -13,6 +13,7 @@ use crate::{
     config::Config,
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         hostname::OperatingSystemIdentity,
         logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
         systemd_manager::{
@@ -21,7 +22,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace,
         desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
@@ -86,11 +87,11 @@ impl LoginSessionGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<LoginSessionMessage> {
+    pub fn subscription(buses: &DesktopBuses) -> Subscription<LoginSessionMessage> {
         Subscription::batch([
-            source_subscription::<OperatingSystemIdentity>((), forced)
+            source_subscription::<OperatingSystemIdentity>(buses.clone())
                 .map(LoginSessionMessage::SystemFetched),
-            source_subscription::<SessionIdentity>((), forced)
+            source_subscription::<SessionIdentity>(buses.clone())
                 .map(LoginSessionMessage::IdentityFetched),
         ])
     }
@@ -99,6 +100,7 @@ impl LoginSessionGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        buses: &DesktopBuses,
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
         self.service_manager.stop();
@@ -108,23 +110,31 @@ impl LoginSessionGroup {
         match hovered {
             Some(HoverTarget::LoginSession(LoginSessionTarget::Login)) => {
                 self.session.start_hover_fetch(
-                    (),
+                    buses.clone(),
                     |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
                     config,
                 )
             }
-            Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => self
-                .service_manager
-                .start_hover_fetch((), LoginSessionMessage::ServiceManagerFetched, config),
+            Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => {
+                self.service_manager.start_hover_fetch(
+                    buses.clone(),
+                    LoginSessionMessage::ServiceManagerFetched,
+                    config,
+                )
+            }
             Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => self
                 .graphical
                 .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config),
-            Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => self
-                .graphical_target
-                .start_hover_fetch((), LoginSessionMessage::GraphicalTargetFetched, config),
+            Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => {
+                self.graphical_target.start_hover_fetch(
+                    buses.clone(),
+                    LoginSessionMessage::GraphicalTargetFetched,
+                    config,
+                )
+            }
             Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => {
                 self.power.start_hover_fetch(
-                    (),
+                    buses.clone(),
                     |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
                     config,
                 )
@@ -192,6 +202,21 @@ impl LoginSessionGroup {
             glyph: Phosphor::StackSimple(Weight::Regular).into(),
             handle: GroupHandle::LoginSession,
         })
+    }
+
+    pub fn refresh(target: LoginSessionTarget, buses: &DesktopBuses) -> Task<LoginSessionMessage> {
+        match target {
+            LoginSessionTarget::Kernel => first_delivery::<OperatingSystemIdentity>(buses.clone())
+                .map(LoginSessionMessage::SystemFetched),
+            LoginSessionTarget::Seat
+            | LoginSessionTarget::Login
+            | LoginSessionTarget::Account
+            | LoginSessionTarget::ServiceManager
+            | LoginSessionTarget::Compositor
+            | LoginSessionTarget::DesktopServices
+            | LoginSessionTarget::PowerPolicy => first_delivery::<SessionIdentity>(buses.clone())
+                .map(LoginSessionMessage::IdentityFetched),
+        }
     }
 
     pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {

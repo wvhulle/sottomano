@@ -10,7 +10,8 @@ use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            DeliveryCadence, ReadingSource, SourceDelivery, bus,
+            DeliveryCadence, ReadingSource, SourceDelivery,
+            bus::{self, DesktopBuses},
             hostname::{at_micros, entry},
             logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
             polled_delivery_stream,
@@ -72,19 +73,21 @@ pub struct SessionIdentity {
 
 impl ReadingSource for SessionIdentity {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session identity";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl SessionIdentity {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let session = own_session().await?;
+    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
+        let session = own_session(&buses.system).await?;
         Ok(SessionIdentity {
             user: non_empty(session.name().await?).ok_or(bus::Error::Absent)?,
             uid: session.user().await?.0,
@@ -97,11 +100,10 @@ impl SessionIdentity {
     }
 }
 
-async fn own_session() -> Result<SessionProxy<'static>, bus::Error> {
-    let connection = system_bus().await?;
-    let manager = ManagerProxy::new(&connection).await?;
+async fn own_session(system: &zbus::Connection) -> Result<SessionProxy<'static>, bus::Error> {
+    let manager = ManagerProxy::new(system).await?;
     let path = manager.get_session(&session_id()).await?;
-    let session_builder = SessionProxy::builder(&connection).path(path)?;
+    let session_builder = SessionProxy::builder(system).path(path)?;
     Ok(session_builder.build().await?)
 }
 
@@ -203,46 +205,43 @@ pub struct ScheduledShutdown {
 
 impl ReadingSource for SessionInfo {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl SessionInfo {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        read_session(&own_session().await?).await
+    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
+        read_session(&own_session(&buses.system).await?).await
     }
 }
 
 impl ReadingSource for PowerPolicy {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind power policy";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl PowerPolicy {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let connection = system_bus().await?;
-        let manager = ManagerProxy::new(&connection).await?;
+    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
+        let manager = ManagerProxy::new(&buses.system).await?;
         read_power(&manager).await
     }
-}
-
-async fn system_bus() -> Result<zbus::Connection, bus::Error> {
-    zbus::Connection::system()
-        .await
-        .map_err(|e| bus::Error::Connect(e.to_string()))
 }
 
 fn process_name(pid: u32) -> Option<String> {

@@ -17,7 +17,10 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::data::{empty_text::non_empty, source::net_interfaces::ReadingError};
+use crate::{
+    data::{empty_text::non_empty, source::net_interfaces::ReadingError},
+    message_subscriptions::connected_until_failure,
+};
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
@@ -229,26 +232,26 @@ pub struct Uplink {
     pub connectivity: Option<Connectivity>,
 }
 
-pub fn connected() -> impl Stream<Item = bool> + Send {
-    stream::once(connectivity_changes()).flat_map(|watched| match watched {
-        Ok(presence) => presence.boxed(),
-        Err(e) => {
+pub fn connected(system: Connection) -> impl Stream<Item = bool> + Send {
+    connected_until_failure(connectivity_changes(system)).map(|connected| {
+        connected.unwrap_or_else(|e| {
             tracing::warn!("network connectivity watch: {e}");
-            stream::iter([false]).boxed()
-        }
+            false
+        })
     })
 }
 
-async fn connectivity_changes() -> zbus::Result<impl Stream<Item = bool> + Send> {
-    let connection = Connection::system().await?;
-    let manager = ManagerProxy::new(&connection).await?;
+async fn connectivity_changes(
+    system: Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<bool>> + Send> {
+    let manager = ManagerProxy::new(&system).await?;
     let full = |code: u32| Connectivity::try_from(code) == Ok(Connectivity::Full);
     let now = full(manager.connectivity().await?);
     let changes = manager
         .receive_connectivity_changed()
         .await
-        .filter_map(move |change| async move { Some(full(change.get().await.ok()?)) });
-    Ok(stream::iter([now]).chain(changes))
+        .then(move |change| async move { change.get().await.map(full) });
+    Ok(stream::iter([Ok(now)]).chain(changes))
 }
 
 pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {

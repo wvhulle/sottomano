@@ -35,7 +35,7 @@ impl<S: ReadingSource> Default for OnHoverReading<S> {
 impl<S: ReadingSource> OnHoverReading<S> {
     pub fn start_hover_fetch<Message: Send + 'static>(
         &mut self,
-        key: S::Key,
+        inputs: S::StreamInputs,
         delivered: fn(SourceDelivery<S>) -> Message,
         config: &Config,
     ) -> Task<Message> {
@@ -44,7 +44,7 @@ impl<S: ReadingSource> OnHoverReading<S> {
         let debug_delay = config.tooltips.loading.debug_delay;
         let delayed = stream::once(async move {
             sleep(debug_delay).await;
-            S::delivery_stream(key)
+            S::delivery_stream(inputs)
         })
         .flatten();
         let (task, fetching) = Task::run(delayed, delivered).abortable();

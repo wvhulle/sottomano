@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytesize::ByteSize;
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, stream};
 use serde_json::Value as Json;
 
 use crate::data::source::{
@@ -42,13 +42,15 @@ pub struct TunnelAddress {
 
 impl ReadingSource for TunnelAddress {
     type Error = command::Error;
-    type Key = String;
+    type StreamInputs = String;
 
     const NAME: &'static str = "wireguard tunnel address";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -73,14 +75,14 @@ pub struct Wireguard {
 
 impl ReadingSource for Wireguard {
     type Error = command::Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "wireguard";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("wg")), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
+            polled_delivery_stream(inputs, Self::poll)
         })
     }
 }

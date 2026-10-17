@@ -8,7 +8,8 @@ use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            DeliveryCadence, ReadingSource, SourceDelivery, bus,
+            DeliveryCadence, ReadingSource, SourceDelivery,
+            bus::{self, DesktopBuses},
             hostname::{at_micros, entry},
             niri, polled_delivery_stream,
             systemd_manager::{ManagerProxy, unit_proxy},
@@ -21,6 +22,11 @@ use crate::{
 };
 
 const GRAPHICAL_TARGET: &str = "graphical-session.target";
+const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
+
+fn unit_not_loaded(failure: &zbus::Error) -> bool {
+    matches!(failure, zbus::Error::MethodError(name, _, _) if name.as_str() == NO_SUCH_UNIT)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GraphicalSession {
@@ -42,13 +48,15 @@ pub enum GraphicalSessionTarget {
 
 impl ReadingSource for GraphicalSession {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "graphical session";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -74,26 +82,27 @@ impl GraphicalSession {
 
 impl ReadingSource for GraphicalSessionTarget {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "graphical session target";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
 impl GraphicalSessionTarget {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
-        let connection = zbus::Connection::session()
-            .await
-            .map_err(|e| bus::Error::Connect(e.to_string()))?;
-        let manager = ManagerProxy::new(&connection).await?;
-        let Ok(path) = manager.get_unit(GRAPHICAL_TARGET).await else {
-            return Ok(Self::NotLoaded);
+    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
+        let manager = ManagerProxy::new(&buses.session).await?;
+        let path = match manager.get_unit(GRAPHICAL_TARGET).await {
+            Ok(path) => path,
+            Err(failure) if unit_not_loaded(&failure) => return Ok(Self::NotLoaded),
+            Err(failure) => return Err(failure.into()),
         };
-        let unit = unit_proxy(&connection, path).await?;
+        let unit = unit_proxy(&buses.session, path).await?;
         Ok(Self::Loaded {
             state: unit.active_state().await?,
             reached_at: at_micros(unit.active_enter_timestamp().await?),

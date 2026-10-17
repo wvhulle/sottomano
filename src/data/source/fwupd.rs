@@ -1,14 +1,16 @@
+use std::future::ready;
+
 use chrono::{DateTime, Utc};
 use iced::futures::{Stream, StreamExt, stream};
-use zbus::{Connection, proxy};
+use zbus::proxy;
 
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
-        bus::{self, Bus, Properties, name_owned, prop, service_absent},
+        bus::{self, DesktopBuses, Properties, name_owned, prop, service_absent},
         present_or_absent,
     },
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 const UPDATABLE_DEVICE_FLAG: u64 = 1 << 1;
@@ -76,35 +78,48 @@ pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, bus::Error>;
 
 impl ReadingSource for Vec<FirmwareUpgrade> {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "firmware upgrades";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(name_owned(Bus::System, FWUPD_SERVICE), || {
-            signalled_upgrades().map(SourceDelivery::Reading).boxed()
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        present_or_absent(name_owned(system.clone(), FWUPD_SERVICE), move || {
+            signalled_upgrades(system.clone()).map(SourceDelivery::Reading)
         })
     }
 }
 
-fn signalled_upgrades() -> impl Stream<Item = PendingUpgrades> + Send {
-    restarting("fwupd change signal", connected_then_daemon_changes).then(|()| pending_upgrades())
+fn signalled_upgrades(system: zbus::Connection) -> impl Stream<Item = PendingUpgrades> + Send {
+    connected_until_failure(connected_then_daemon_changes(system.clone())).then(move |changed| {
+        let system = system.clone();
+        async move {
+            changed?;
+            pending_upgrades(&system).await
+        }
+    })
 }
 
-async fn connected_then_daemon_changes() -> zbus::Result<impl Stream<Item = ()>> {
-    let connection = Connection::system().await?;
-    let fwupd = FwupdProxy::new(&connection).await?;
-    Ok(stream::once(async {}).chain(stream::select_all([
-        fwupd.receive_changed().await?.map(|_| ()).boxed(),
-        fwupd.receive_device_added().await?.map(|_| ()).boxed(),
-        fwupd.receive_device_removed().await?.map(|_| ()).boxed(),
-        fwupd.receive_device_changed().await?.map(|_| ()).boxed(),
-    ])))
+async fn connected_then_daemon_changes(
+    system: zbus::Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<()>>> {
+    let fwupd = FwupdProxy::new(&system).await?;
+    let changes = stream::select(
+        stream::select(
+            fwupd.receive_changed().await?.map(drop),
+            fwupd.receive_device_added().await?.map(drop),
+        ),
+        stream::select(
+            fwupd.receive_device_removed().await?.map(drop),
+            fwupd.receive_device_changed().await?.map(drop),
+        ),
+    );
+    Ok(stream::once(ready(())).chain(changes).map(Ok))
 }
 
-async fn pending_upgrades() -> PendingUpgrades {
-    let fwupd: FwupdProxy = bus::system_proxy().await?;
+async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {
+    let fwupd = FwupdProxy::new(system).await?;
     let devices = match fwupd.get_devices().await.map_err(bus::Error::from) {
         Ok(devices) => devices,
         Err(bus::Error::Absent) => return Ok(Vec::new()),

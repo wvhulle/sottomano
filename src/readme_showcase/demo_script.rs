@@ -11,9 +11,14 @@ use crate::{
         showcased_group::ShowcasedGroup,
     },
     widget_groups::{
-        audio_group::ControlKind, claude_usage_group::ClaudeUsageTarget,
-        compute_group::ComputeTarget, idle_timeouts_group::TimerKind, media_group::MediaTarget,
-        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget, window_group::WindowTarget,
+        audio_group::{AudioTarget, ControlKind},
+        claude_usage_group::ClaudeUsageTarget,
+        compute_group::ComputeTarget,
+        idle_timeouts_group::TimerKind,
+        media_group::MediaTarget,
+        wallpaper_group::WallpaperTarget,
+        weather_group::WeatherTarget,
+        window_group::WindowTarget,
     },
 };
 
@@ -81,12 +86,14 @@ pub const DEMOS: &[Demo] = &[
         live: audio::live,
         script: &[
             Step::Press(HoverTarget::GroupHandle(GroupHandle::Audio)),
-            Step::Press(HoverTarget::Audio(ControlKind::Sink)),
+            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
             Step::Drag {
-                target: HoverTarget::Audio(ControlKind::Sink),
+                target: HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink)),
                 by: -24.0,
             },
-            Step::Hover(HoverTarget::Audio(ControlKind::Source)),
+            Step::Hover(HoverTarget::Audio(AudioTarget::Control(
+                ControlKind::Source,
+            ))),
         ],
     },
     Demo {

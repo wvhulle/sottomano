@@ -24,7 +24,7 @@ pub struct ZoneTime(pub DateTime<Tz>);
 
 impl ReadingSource for ZoneTime {
     type Error = Infallible;
-    type Key = Tz;
+    type StreamInputs = Tz;
 
     const NAME: &'static str = "zone time";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);

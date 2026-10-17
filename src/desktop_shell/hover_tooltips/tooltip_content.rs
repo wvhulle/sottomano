@@ -191,11 +191,7 @@ impl<'a> TooltipContent<'a> {
                 .into()
         };
         let shown = match freshness {
-            Freshness::Polled {
-                source,
-                every,
-                last,
-            } => pressable_text(
+            Freshness::Polled { every, last } => pressable_text(
                 labelled(
                     self.small_dim_text(humantime::format_duration(every).to_string()),
                     RefreshDial::new(
@@ -213,8 +209,8 @@ impl<'a> TooltipContent<'a> {
                     )
                     .view(),
                 ),
-                source,
-                Message::RefreshSource,
+                (),
+                |()| Message::RefreshHoveredReading,
                 self.flash(),
                 self.config.tooltips.copy_flash,
                 Interaction::Pointer,

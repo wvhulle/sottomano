@@ -22,13 +22,13 @@ pub struct LocalTime(pub DateTime<Local>);
 
 impl ReadingSource for LocalTime {
     type Error = Infallible;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "local time";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_at_second_boundaries(key, Self::poll)
+    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_at_second_boundaries(inputs, Self::poll)
     }
 }
 

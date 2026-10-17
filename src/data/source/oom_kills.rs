@@ -1,6 +1,5 @@
 use std::{
     collections::HashSet,
-    convert::Infallible,
     fmt::{Display, Formatter, Result as FmtResult},
     io,
     time::SystemTime,
@@ -15,21 +14,22 @@ use crate::data::{
     source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         journal::{
-            JournalEvent, JournalPriority, MessageId, OwningUnit, SubjectUnit, journal_windows,
+            JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit, SubjectUnit,
+            journal_windows,
         },
     },
 };
 
 impl ReadingSource for Vec<OomKillEntry> {
-    type Error = Infallible;
-    type Key = ();
+    type Error = JournalFollowError;
+    type StreamInputs = ();
 
     const NAME: &'static str = OomKillEntry::NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         journal_windows::<OomKillEntry>()
-            .map(|entries| Ok(OomKillEntry::innermost(entries)))
+            .map(|entries| entries.map(OomKillEntry::innermost))
             .map(SourceDelivery::Reading)
     }
 }

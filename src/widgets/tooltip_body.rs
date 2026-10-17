@@ -496,11 +496,7 @@ impl From<Infallible> for Section {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Freshness {
-    Polled {
-        source: &'static str,
-        every: Duration,
-        last: SystemTime,
-    },
+    Polled { every: Duration, last: SystemTime },
     Live,
 }
 
@@ -508,7 +504,6 @@ impl Freshness {
     pub fn from_source_cadence<S: ReadingSource>() -> Self {
         match S::DELIVERY_CADENCE {
             DeliveryCadence::PolledEvery(every) => Freshness::Polled {
-                source: S::NAME,
                 every,
                 last: SystemTime::now(),
             },

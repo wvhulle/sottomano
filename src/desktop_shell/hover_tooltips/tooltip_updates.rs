@@ -1,13 +1,23 @@
 use iced::Task;
 
 use crate::{
+    data::source::bus::DesktopBuses,
     desktop_shell::{
         DesktopShell, Message,
         hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
         monitor_surfaces::PanelEdge,
     },
     widget_groups::{
+        clock_group::ClockGroup,
+        color_temperature_group::ColorTemperatureGroup,
+        compute_group::ComputeGroup,
+        dark_mode_group::DarkModeGroup,
+        disk_group::DiskGroup,
+        internet_group::InternetGroup,
+        login_session_group::LoginSessionGroup,
+        monitor_group::MonitorGroup,
         notification_group::NotificationGroup,
+        power_group::PowerGroup,
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_tooltip,
     },
@@ -173,6 +183,81 @@ impl DesktopShell {
         }
     }
 
+    pub fn refresh_hovered_reading(&self) -> Task<Message> {
+        let Some(target) = self.tooltip.target() else {
+            return Task::none();
+        };
+        let buses = self.desktop_buses.as_ref();
+        let on_buses = |refresh: &dyn Fn(&DesktopBuses) -> Task<Message>| {
+            buses.map_or_else(Task::none, refresh)
+        };
+        let sensors = &self.config.widget_groups.temperature_sensors;
+        match target {
+            HoverTarget::Weather(target) => {
+                self.weather_group.refresh(*target).map(Message::Weather)
+            }
+            HoverTarget::Compute(target) => {
+                ComputeGroup::refresh(*target, &sensors.cpu, buses).map(Message::Compute)
+            }
+            HoverTarget::Gpu(target) => self.gpu_group.refresh(target).map(Message::Gpu),
+            HoverTarget::Disk(target) => {
+                DiskGroup::refresh(*target, &sensors.drive).map(Message::Disk)
+            }
+            HoverTarget::Clock(target) => ClockGroup::refresh(target).map(Message::Clock),
+            HoverTarget::DarkMode(target) => DarkModeGroup::refresh(*target).map(Message::DarkMode),
+            HoverTarget::ClaudeUsage(target) => self
+                .claude_usage_group
+                .refresh(*target, &self.config)
+                .map(Message::ClaudeUsage),
+            HoverTarget::CopilotUsage(target) => self
+                .copilot_usage_group
+                .refresh(*target, &self.config, buses)
+                .map(Message::CopilotUsage),
+            HoverTarget::OpenRouterCredit(target) => self
+                .openrouter_credit_group
+                .refresh(*target, &self.config)
+                .map(Message::OpenRouterCredit),
+            HoverTarget::Power(target) => {
+                on_buses(&|buses| PowerGroup::refresh(*target, buses).map(Message::Power))
+            }
+            HoverTarget::LoginSession(target) => on_buses(&|buses| {
+                LoginSessionGroup::refresh(*target, buses).map(Message::LoginSession)
+            }),
+            HoverTarget::Internet(target) => {
+                on_buses(&|buses| InternetGroup::refresh(target, buses).map(Message::Internet))
+            }
+            HoverTarget::Monitor(target) => {
+                on_buses(&|buses| MonitorGroup::refresh(target, buses).map(Message::Monitor))
+            }
+            HoverTarget::ColorTemperature(target) => on_buses(&|buses| {
+                ColorTemperatureGroup::refresh(*target, buses).map(Message::ColorTemperature)
+            }),
+            HoverTarget::PanelSettings(_)
+            | HoverTarget::SidebarSettings(_)
+            | HoverTarget::OverlaySettings(_)
+            | HoverTarget::NiriWindow(_)
+            | HoverTarget::Systemd(_)
+            | HoverTarget::Journal(_)
+            | HoverTarget::PendingUpgrades(_)
+            | HoverTarget::NetInterface(_)
+            | HoverTarget::Audio(_)
+            | HoverTarget::IdleTimeout(_)
+            | HoverTarget::Wallpaper(_)
+            | HoverTarget::Media(_)
+            | HoverTarget::LlamaServer(_)
+            | HoverTarget::SessionFocus(_)
+            | HoverTarget::QuickLaunch(_)
+            | HoverTarget::GroupHandle(_)
+            | HoverTarget::Notification(_)
+            | HoverTarget::QuietSchedule(_)
+            | HoverTarget::Session(_)
+            | HoverTarget::Tray(_)
+            | HoverTarget::Window(_)
+            | HoverTarget::Workspace(_)
+            | HoverTarget::WorkspaceOrder => Task::none(),
+        }
+    }
+
     pub fn retarget_hover_readings(&mut self) -> Task<Message> {
         let hovered = self.tooltip.target();
         Task::batch([
@@ -182,9 +267,13 @@ impl DesktopShell {
             self.gpu_group
                 .hover(hovered, &self.config)
                 .map(Message::Gpu),
-            self.net_interfaces_group
-                .hover(hovered, &self.config)
-                .map(Message::NetInterfaces),
+            self.desktop_buses
+                .as_ref()
+                .map_or_else(Task::none, |buses| {
+                    self.net_interfaces_group
+                        .hover(hovered, &self.config, buses)
+                        .map(Message::NetInterfaces)
+                }),
             self.internet_group
                 .hover(hovered, &self.config)
                 .map(Message::Internet),
@@ -197,9 +286,13 @@ impl DesktopShell {
             self.claude_usage_group
                 .hover(hovered, &self.config)
                 .map(Message::ClaudeUsage),
-            self.login_session_group
-                .hover(hovered, &self.config)
-                .map(Message::LoginSession),
+            self.desktop_buses
+                .as_ref()
+                .map_or_else(Task::none, |buses| {
+                    self.login_session_group
+                        .hover(hovered, &self.config, buses)
+                        .map(Message::LoginSession)
+                }),
             self.llama_server_group
                 .hover(hovered, &self.config)
                 .map(Message::LlamaServer),

@@ -41,7 +41,7 @@ impl ClaudeCcusagePeriods {
 
 impl ReadingSource for ClaudeCcusagePeriods {
     type Error = Error;
-    type Key = ClaudeLocalLogs;
+    type StreamInputs = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-periods";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
@@ -67,7 +67,7 @@ pub struct ClaudeCcusageBlock {
 
 impl ReadingSource for ClaudeCcusageBlock {
     type Error = Error;
-    type Key = ClaudeLocalLogs;
+    type StreamInputs = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-block";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);

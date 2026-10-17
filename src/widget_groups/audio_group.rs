@@ -7,13 +7,14 @@ use crate::{
     data::source::{
         SourceDelivery,
         audio::{
-            self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
+            self, AudioConnectError, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading,
+            Target, WindowAudio,
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::blocking,
     widgets::{
-        bar_widget::BarWidget,
+        bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
@@ -34,9 +35,21 @@ pub enum ControlKind {
     Source,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioTarget {
+    Control(ControlKind),
+    Connection,
+}
+
+impl From<AudioTarget> for HoverTarget {
+    fn from(target: AudioTarget) -> Self {
+        HoverTarget::Audio(target)
+    }
+}
+
 impl From<ControlKind> for HoverTarget {
     fn from(kind: ControlKind) -> Self {
-        HoverTarget::Audio(kind)
+        HoverTarget::Audio(AudioTarget::Control(kind))
     }
 }
 
@@ -115,6 +128,7 @@ pub enum AudioMessage {
     State(AudioState),
     Peaks(Peaks),
     Disconnected,
+    ConnectFailed(AudioConnectError),
     Control(ControlKind, ControlMessage),
     Expansion(ExpansionMessage),
 }
@@ -122,9 +136,10 @@ pub enum AudioMessage {
 impl AudioGroup {
     pub fn subscription() -> Subscription<AudioMessage> {
         audio::subscription().map(|event| match event {
-            Some(AudioEvent::Connected(commands)) => AudioMessage::Connected(commands),
-            Some(AudioEvent::State(state)) => AudioMessage::State(state),
-            Some(AudioEvent::Peaks(peaks)) => AudioMessage::Peaks(peaks),
+            Some(Ok(AudioEvent::Connected(commands))) => AudioMessage::Connected(commands),
+            Some(Ok(AudioEvent::State(state))) => AudioMessage::State(state),
+            Some(Ok(AudioEvent::Peaks(peaks))) => AudioMessage::Peaks(peaks),
+            Some(Err(failure)) => AudioMessage::ConnectFailed(failure),
             None => AudioMessage::Disconnected,
         })
     }
@@ -138,16 +153,19 @@ impl AudioGroup {
             }
             AudioMessage::Disconnected => {
                 self.commands = None;
+                self.state.receive_delivery(SourceDelivery::Absent);
+                Task::none()
+            }
+            AudioMessage::ConnectFailed(failure) => {
+                self.commands = None;
                 self.state
-                    .receive_keeping_last_reading(SourceDelivery::Absent);
+                    .receive_delivery(SourceDelivery::Reading(Err(failure)));
                 Task::none()
             }
             AudioMessage::State(state) => {
                 feed(&mut self.sink_control, state.sink.as_ref());
                 feed(&mut self.source_control, state.source.as_ref());
-                let muted = state.sink.as_ref().is_some_and(|sink| sink.muted);
-                self.sink_control
-                    .set_icon(output_icon(state.output_kind, muted));
+                self.sink_control.set_icon(state.output_icon());
                 self.state.load(state);
                 Task::none()
             }
@@ -235,7 +253,10 @@ impl AudioGroup {
         }
     }
 
-    pub fn tooltip_for(&self, kind: ControlKind) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: AudioTarget) -> Option<Tooltip> {
+        let AudioTarget::Control(kind) = target else {
+            return self.state.tooltip();
+        };
         let state = self.state.get()?;
         let (reading, control) = match kind {
             ControlKind::Sink => (state.sink.as_ref()?, &self.sink_control),
@@ -277,6 +298,9 @@ impl AudioGroup {
                         AudioMessage::Control.with(ControlKind::Source),
                     )
                 }),
+                self.state
+                    .failure()
+                    .map(|failure| GroupItem::reading(failure, AudioTarget::Connection)),
             ]
             .into_iter()
             .flatten(),
@@ -302,14 +326,49 @@ impl AudioGroup {
     }
 }
 
-fn output_icon(kind: OutputKind, muted: bool) -> Phosphor {
-    match kind {
-        OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
-        OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
-        OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
-        OutputKind::Headset => Phosphor::Headset(Weight::Regular),
-        OutputKind::Display => Phosphor::Television(Weight::Regular),
+impl AudioState {
+    fn output_icon(&self) -> Phosphor {
+        let muted = self.sink.as_ref().is_some_and(|sink| sink.muted);
+        match self.output_kind {
+            OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
+            OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
+            OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
+            OutputKind::Headset => Phosphor::Headset(Weight::Regular),
+            OutputKind::Display => Phosphor::Television(Weight::Regular),
+        }
     }
+}
+
+impl BarWidget for AudioState {
+    fn name(&self) -> &'static str {
+        "Audio"
+    }
+
+    fn icon(&self) -> Glyph {
+        self.output_icon().into()
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        let sink = self
+            .sink
+            .iter()
+            .flat_map(|sink| device_entries(ControlKind::Sink, sink));
+        let source = self
+            .source
+            .iter()
+            .flat_map(|source| device_entries(ControlKind::Source, source));
+        TooltipBody::dictionary(sink.chain(source))
+    }
+}
+
+fn device_entries(kind: ControlKind, reading: &Reading) -> impl Iterator<Item = KeyValue> {
+    let device = reading
+        .device
+        .as_deref()
+        .map(|device| KeyValue::new("Device", device));
+    [KeyValue::new(kind.label(), format!("{}%", reading.percent))]
+        .into_iter()
+        .chain(device)
 }
 
 fn input_glyph(_value: f32, muted: bool) -> Phosphor {

@@ -11,11 +11,12 @@ use crate::{
     config::Config,
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         gamma::{self, Gamma},
         systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -98,14 +99,26 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn subscription(
-        &self,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<ColorTemperatureMessage> {
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<ColorTemperatureMessage> {
         Subscription::batch([
-            source_subscription::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma),
-            self.auto.subscription().map(ColorTemperatureMessage::Auto),
+            source_subscription::<Gamma>(buses.clone()).map(ColorTemperatureMessage::Gamma),
+            self.auto
+                .subscription(buses)
+                .map(ColorTemperatureMessage::Auto),
         ])
+    }
+
+    pub fn refresh(
+        target: ColorTemperatureTarget,
+        buses: &DesktopBuses,
+    ) -> Task<ColorTemperatureMessage> {
+        match target {
+            ColorTemperatureTarget::GammaDim
+            | ColorTemperatureTarget::Temperature
+            | ColorTemperatureTarget::Automatic => {
+                first_delivery::<Gamma>(buses.clone()).map(ColorTemperatureMessage::Gamma)
+            }
+        }
     }
 
     fn close_controls(&mut self) {

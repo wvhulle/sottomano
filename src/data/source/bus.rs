@@ -2,9 +2,11 @@ use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
     future::ready,
+    hash::{Hash, Hasher},
+    pin::pin,
 };
 
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, StreamExt, future::select, stream};
 use zbus::{
     fdo::DBusProxy,
     names::BusName,
@@ -12,7 +14,11 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
-use crate::{data::empty_text::non_empty, widgets::tooltip_body::Section};
+use crate::{
+    data::empty_text::non_empty,
+    message_subscriptions::{connected_until_failure, resubscribing_until_failure},
+    widgets::tooltip_body::Section,
+};
 
 pub type Properties = HashMap<String, OwnedValue>;
 
@@ -86,27 +92,84 @@ impl Display for Error {
     }
 }
 
-pub async fn session_proxy<P>() -> Result<P, Error>
-where
-    P: From<zbus::Proxy<'static>> + Defaults,
-{
-    proxy_on(zbus::Connection::session().await).await
+#[derive(Debug, Clone)]
+pub struct DesktopBuses {
+    pub session: zbus::Connection,
+    pub system: zbus::Connection,
 }
 
-pub async fn system_proxy<P>() -> Result<P, Error>
-where
-    P: From<zbus::Proxy<'static>> + Defaults,
-{
-    proxy_on(zbus::Connection::system().await).await
+impl DesktopBuses {
+    pub async fn connect() -> zbus::Result<Self> {
+        Ok(Self {
+            session: zbus::Connection::session().await?,
+            system: zbus::Connection::system().await?,
+        })
+    }
+
+    pub fn on(&self, bus: Bus) -> &zbus::Connection {
+        match bus {
+            Bus::Session => &self.session,
+            Bus::System => &self.system,
+        }
+    }
+
+    pub async fn proxy<P>(&self, bus: Bus) -> Result<P, Error>
+    where
+        P: From<zbus::Proxy<'static>> + Defaults,
+    {
+        Builder::new(self.on(bus))
+            .build()
+            .await
+            .map_err(|error| Error::Connect(error.to_string()))
+    }
+
+    async fn closed(&self) {
+        let session = pin!(self.session.closed());
+        let system = pin!(self.system.closed());
+        select(session, system).await;
+    }
+
+    fn unique_names(&self) -> [Option<&str>; 2] {
+        [&self.session, &self.system]
+            .map(|connection| connection.unique_name().map(|name| name.as_str()))
+    }
 }
 
-async fn proxy_on<P>(connection: zbus::Result<zbus::Connection>) -> Result<P, Error>
-where
-    P: From<zbus::Proxy<'static>> + Defaults,
-{
-    let connected = |error: zbus::Error| Error::Connect(error.to_string());
-    let connection = connection.map_err(connected)?;
-    Builder::new(&connection).build().await.map_err(connected)
+impl PartialEq for DesktopBuses {
+    fn eq(&self, other: &Self) -> bool {
+        self.unique_names() == other.unique_names()
+    }
+}
+
+impl Eq for DesktopBuses {}
+
+impl Hash for DesktopBuses {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.unique_names().hash(state);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum DesktopBusEvent {
+    Connected(DesktopBuses),
+    Disconnected,
+}
+
+pub fn desktop_bus_events() -> impl Stream<Item = Result<DesktopBusEvent, zbus::Error>> + Send {
+    resubscribing_until_failure(connected_until_closed)
+}
+
+async fn connected_until_closed()
+-> zbus::Result<impl Stream<Item = zbus::Result<DesktopBusEvent>> + Send> {
+    let buses = DesktopBuses::connect().await?;
+    let connected = DesktopBusEvent::Connected(buses.clone());
+    let disconnected = async move {
+        buses.closed().await;
+        DesktopBusEvent::Disconnected
+    };
+    Ok(stream::iter([connected])
+        .chain(stream::once(disconnected))
+        .map(Ok))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -135,31 +198,29 @@ pub enum Bus {
     System,
 }
 
-pub fn name_owned(bus: Bus, name: &'static str) -> impl Stream<Item = bool> + Send {
-    stream::once(owner_changes(bus, name)).flat_map(move |watched| match watched {
-        Ok(presence) => presence.boxed(),
-        Err(e) => {
+pub fn name_owned(
+    connection: zbus::Connection,
+    name: &'static str,
+) -> impl Stream<Item = bool> + Send {
+    connected_until_failure(owner_changes(connection, name)).map(move |owned| {
+        owned.unwrap_or_else(|e| {
             tracing::warn!("{name}: owner watch: {e}");
-            stream::iter([false]).boxed()
-        }
+            false
+        })
     })
 }
 
 async fn owner_changes(
-    bus: Bus,
+    connection: zbus::Connection,
     name: &'static str,
-) -> zbus::Result<impl Stream<Item = bool> + Send> {
-    let connection = match bus {
-        Bus::Session => zbus::Connection::session().await?,
-        Bus::System => zbus::Connection::system().await?,
-    };
+) -> zbus::Result<impl Stream<Item = zbus::Result<bool>> + Send> {
     let dbus = DBusProxy::new(&connection).await?;
     let owned = dbus.name_has_owner(BusName::try_from(name)?).await?;
     let changes = dbus
         .receive_name_owner_changed_with_args(&[(0, name)])
         .await?
         .filter_map(|signal| ready(signal.args().ok().map(|args| args.new_owner().is_some())));
-    Ok(stream::iter([owned]).chain(changes))
+    Ok(stream::iter([owned]).chain(changes).map(Ok))
 }
 
 pub fn service_absent(error: &zbus::Error) -> bool {
@@ -172,6 +233,12 @@ pub fn service_absent(error: &zbus::Error) -> bool {
             | "org.freedesktop.DBus.Error.NameHasNoOwner"
             | "org.freedesktop.DBus.Error.NoReply"
     )
+}
+
+impl From<zbus::Error> for Section {
+    fn from(error: zbus::Error) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<zbus::Error> for Error {

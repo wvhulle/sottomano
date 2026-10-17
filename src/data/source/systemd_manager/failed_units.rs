@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    convert::Infallible,
     pin::Pin,
     time::SystemTime,
 };
@@ -15,15 +14,15 @@ use zbus::{
 };
 
 use super::{
-    ManagerProxy, SystemdUnitScope, UnitRow, connect, manager_signal, signals_matching,
-    state_changed_at, systemd_signal,
+    ManagerProxy, SystemdOnBus, SystemdUnitScope, UnitRow, connect, manager_signal,
+    signals_matching, state_changed_at, systemd_signal,
 };
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery, coredumps::CoredumpEntry,
         journal::JournalPriority,
     },
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;
@@ -100,30 +99,29 @@ impl FailedUnitRestart {
 }
 
 impl ReadingSource for FailedUnits {
-    type Error = Infallible;
-    type Key = SystemdUnitScope;
+    type Error = zbus::Error;
+    type StreamInputs = SystemdOnBus;
 
     const NAME: &'static str = "failed systemd units";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(scope: SystemdUnitScope) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        restarting("systemd failed units", move || {
-            watch_failed(scope.per_user())
-        })
-        .map(move |units| Ok(FailedUnits { units, scope }))
-        .map(SourceDelivery::Reading)
+    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let scope = systemd.scope;
+        connected_until_failure(watch_failed(systemd.connection(), scope.per_user()))
+            .map(move |listed| listed.map(|units| FailedUnits { units, scope }))
+            .map(SourceDelivery::Reading)
     }
 }
 
-async fn watch_failed(user: bool) -> zbus::Result<impl Stream<Item = Vec<FailedUnitInfo>>> {
-    let connection = connect(user).await?;
+async fn watch_failed(
+    connection: zbus::Connection,
+    user: bool,
+) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<FailedUnitInfo>>>> {
     let manager = ManagerProxy::builder(&connection)
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    if let Err(e) = manager.subscribe().await {
-        tracing::warn!("systemd failed units: subscribe failed: {e}");
-    }
+    manager.subscribe().await?;
     let unit_signals = signals_matching(
         &connection,
         [
@@ -158,17 +156,23 @@ struct FailedUnitWatch {
 }
 
 impl FailedUnitWatch {
-    async fn next_report(mut self) -> Option<(Vec<FailedUnitInfo>, Self)> {
-        let listing = match self.last_listing.take() {
+    async fn next_report(mut self) -> Option<(zbus::Result<Vec<FailedUnitInfo>>, Self)> {
+        let listed = match self.last_listing.take() {
             None => failed_units(&self.manager, self.per_user).await,
             Some(last_listing) => self.next_listing(last_listing).await?,
         };
-        let units = listing.units.clone();
-        self.last_listing = Some(listing);
-        Some((units, self))
+        let report = listed.map(|listing| {
+            let units = listing.units.clone();
+            self.last_listing = Some(listing);
+            units
+        });
+        Some((report, self))
     }
 
-    async fn next_listing(&mut self, last_listing: FailedListing) -> Option<FailedListing> {
+    async fn next_listing(
+        &mut self,
+        last_listing: FailedListing,
+    ) -> Option<zbus::Result<FailedListing>> {
         loop {
             let signals = self.unit_signals.next().await?;
             if signals.iter().any(|signal| last_listing.touched_by(signal)) {
@@ -230,23 +234,21 @@ fn changed_active_state(signal: &zbus::Message) -> ActiveStateChange {
     }
 }
 
-async fn failed_units(manager: &ManagerProxy<'static>, per_user: bool) -> FailedListing {
-    let Ok(rows) = manager.list_units_filtered(&[FAILED_STATE]).await else {
-        return FailedListing {
-            units: Vec::new(),
-            paths: HashSet::new(),
-        };
-    };
+async fn failed_units(
+    manager: &ManagerProxy<'static>,
+    per_user: bool,
+) -> zbus::Result<FailedListing> {
+    let rows = manager.list_units_filtered(&[FAILED_STATE]).await?;
     let connection = manager.inner().connection();
     let paths = rows.iter().map(|row| row.unit_path.clone()).collect();
-    FailedListing {
+    Ok(FailedListing {
         units: join_all(
             rows.into_iter()
                 .map(|row| failed_unit(connection, per_user, row)),
         )
         .await,
         paths,
-    }
+    })
 }
 
 async fn failed_unit(

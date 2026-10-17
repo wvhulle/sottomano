@@ -1,11 +1,11 @@
 use std::{env, fs, time::Duration};
 
-use iced::futures::{Stream, StreamExt};
+use iced::futures::Stream;
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
     DeliveryCadence, ReadingSource, SourceDelivery, backlight, bus,
-    bus::{Error, name_owned},
+    bus::{DesktopBuses, Error, name_owned},
     polled_delivery_stream, present_or_absent,
 };
 
@@ -39,21 +39,22 @@ pub struct Clight {
 
 impl ReadingSource for Clight {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "clight";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(name_owned(bus::Bus::Session, CLIGHT_SERVICE), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
-        })
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        present_or_absent(
+            name_owned(buses.session.clone(), CLIGHT_SERVICE),
+            move || polled_delivery_stream(buses.clone(), Self::poll),
+        )
     }
 }
 
 impl Clight {
-    async fn poll((): ()) -> Result<Self, Error> {
-        let proxy: ConfBacklightProxy = bus::session_proxy().await?;
+    async fn poll(buses: DesktopBuses) -> Result<Self, Error> {
+        let proxy: ConfBacklightProxy = buses.proxy(bus::Bus::Session).await?;
         Ok(Clight {
             auto: !proxy.no_auto_calib().await?,
         })

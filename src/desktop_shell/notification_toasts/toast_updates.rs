@@ -338,6 +338,26 @@ impl NotificationLayer {
         )
     }
 
+    pub fn show_bus_failure(
+        &mut self,
+        failure: &zbus::Error,
+        context: &ToastContext,
+    ) -> Task<Message> {
+        let toast_id = self.fresh_shell_toast_id();
+        let data = NotificationData {
+            severity: Severity::Critical,
+            body: Some(format!(
+                "Widgets that read D-Bus stay empty.<pre>{}</pre>",
+                escape(failure.to_string())
+            )),
+            ..NotificationData::from_shell(toast_id, "Could not connect to the D-Bus buses")
+        };
+        self.serve(
+            ToastContent::shell_failure(data, Message::CopyText(failure.to_string())),
+            context,
+        )
+    }
+
     pub fn withdraw_config_error(&mut self, config: &Config) -> Task<Message> {
         let shown: Vec<u32> = self
             .showing()

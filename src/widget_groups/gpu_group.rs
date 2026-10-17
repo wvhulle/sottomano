@@ -18,7 +18,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -99,16 +99,16 @@ impl GpuGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<GpuMessage> {
+    pub fn subscription(&self) -> Subscription<GpuMessage> {
         let snapshots = self.devices.iter().filter_map(|(bus, device)| {
             Some(
-                source_subscription::<GpuSnapshot>(device.nvml.clone()?, forced)
+                source_subscription::<GpuSnapshot>(device.nvml.clone()?)
                     .with(bus.clone())
                     .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
             )
         });
         Subscription::batch(
-            [source_subscription::<GpuDiscovery>((), forced).map(GpuMessage::Discovered)]
+            [source_subscription::<GpuDiscovery>(()).map(GpuMessage::Discovered)]
                 .into_iter()
                 .chain(snapshots),
         )
@@ -218,6 +218,19 @@ impl GpuGroup {
                 .flatten()
             }),
         )
+    }
+
+    pub fn refresh(&self, target: &GpuTarget) -> Task<GpuMessage> {
+        let Some(nvml) = self
+            .devices
+            .get(&target.bus)
+            .and_then(|device| device.nvml.clone())
+        else {
+            return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
+        };
+        let bus = target.bus.clone();
+        first_delivery::<GpuSnapshot>(nvml)
+            .map(move |reading| GpuMessage::Snapshot(bus.clone(), reading))
     }
 
     pub fn tooltip_for(&self, target: &GpuTarget) -> Option<Tooltip> {

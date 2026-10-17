@@ -3,19 +3,20 @@ use std::{ffi::OsString, future::ready, io, path::PathBuf};
 use iced::futures::{Stream, StreamExt, stream};
 use inotify::{Inotify, WatchMask};
 
+use crate::message_subscriptions::connected_until_failure;
+
 const EVENT_BUFFER_BYTES: usize = 1024;
 
 pub fn path_present(path: PathBuf) -> impl Stream<Item = bool> + Send {
-    stream::once(ready(watch(path))).flat_map(|watched| match watched {
-        Ok(presence) => presence.boxed(),
-        Err(e) => {
+    connected_until_failure(ready(watch(path))).map(|present| {
+        present.unwrap_or_else(|e| {
             tracing::warn!("path presence: {e}");
-            stream::iter([false]).boxed()
-        }
+            false
+        })
     })
 }
 
-fn watch(path: PathBuf) -> io::Result<impl Stream<Item = bool> + Send> {
+fn watch(path: PathBuf) -> io::Result<impl Stream<Item = io::Result<bool>> + Send> {
     let name: OsString = path
         .file_name()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no file name"))?
@@ -37,9 +38,12 @@ fn watch(path: PathBuf) -> io::Result<impl Stream<Item = bool> + Send> {
     let changes = inotify
         .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
         .filter_map(move |event| {
-            let about_path =
-                event.is_ok_and(|event| event.name.as_deref() == Some(name.as_os_str()));
-            ready(about_path.then(|| path.exists()))
+            ready(match event {
+                Ok(event) => {
+                    (event.name.as_deref() == Some(name.as_os_str())).then(|| Ok(path.exists()))
+                }
+                Err(failure) => Some(Err(failure)),
+            })
         });
-    Ok(present_now.chain(changes))
+    Ok(present_now.map(Ok).chain(changes))
 }

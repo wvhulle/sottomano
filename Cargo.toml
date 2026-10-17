@@ -112,6 +112,7 @@ humantime-serde = "1.1.1"
 perf-event2 = "0.7.4"
 rusty-money = "0.5.1"
 rust_decimal = { version = "1.43.0", features = ["serde-float"] }
+pin-project-lite = "0.2.17"
 
 [dev-dependencies]
 iced_test = "0.14.0"

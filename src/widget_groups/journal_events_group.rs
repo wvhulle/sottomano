@@ -68,28 +68,26 @@ impl JournalEventsGroup {
 
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            source_subscription::<Vec<KernelOccurrence>>((), None)
-                .map(JournalEventsMessage::Kernel),
-            source_subscription::<ServiceErrors>((), None).map(JournalEventsMessage::ServiceErrors),
-            source_subscription::<Vec<CoredumpEntry>>((), None)
-                .map(JournalEventsMessage::Coredumps),
-            source_subscription::<Vec<OomKillEntry>>((), None).map(JournalEventsMessage::OomKills),
+            source_subscription::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
+            source_subscription::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
+            source_subscription::<Vec<CoredumpEntry>>(()).map(JournalEventsMessage::Coredumps),
+            source_subscription::<Vec<OomKillEntry>>(()).map(JournalEventsMessage::OomKills),
         ])
     }
 
     pub fn update(&mut self, msg: JournalEventsMessage) -> Task<JournalEventsMessage> {
         match msg {
             JournalEventsMessage::Kernel(delivery) => {
-                self.kernel.receive_keeping_last_reading(delivery);
+                self.kernel.receive_delivery(delivery);
             }
             JournalEventsMessage::ServiceErrors(delivery) => {
-                self.service_errors.receive_keeping_last_reading(delivery);
+                self.service_errors.receive_delivery(delivery);
             }
             JournalEventsMessage::Coredumps(delivery) => {
-                self.coredumps.receive_keeping_last_reading(delivery);
+                self.coredumps.receive_delivery(delivery);
             }
             JournalEventsMessage::OomKills(delivery) => {
-                self.oom_kills.receive_keeping_last_reading(delivery);
+                self.oom_kills.receive_delivery(delivery);
             }
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {
@@ -127,7 +125,12 @@ impl JournalEventsGroup {
                 self.kernel_log_item(config),
                 self.service_errors
                     .visible_reading()
-                    .map(|service_errors| service_errors.group_item(config)),
+                    .map(|service_errors| service_errors.group_item(config))
+                    .or_else(|| {
+                        self.service_errors.failure().map(|failure| {
+                            GroupItem::reading(failure, JournalTarget::ServiceErrors)
+                        })
+                    }),
                 self.coredump_log_item(config),
                 self.oom_kill_log_item(config),
             ]
@@ -138,16 +141,10 @@ impl JournalEventsGroup {
 
     fn kinds(&self) -> [Option<&dyn BarWidget>; 4] {
         [
-            self.kernel.visible_reading().map(|w| w as &dyn BarWidget),
-            self.service_errors
-                .visible_reading()
-                .map(|w| w as &dyn BarWidget),
-            self.coredumps
-                .visible_reading()
-                .map(|w| w as &dyn BarWidget),
-            self.oom_kills
-                .visible_reading()
-                .map(|w| w as &dyn BarWidget),
+            self.kernel.display(),
+            self.service_errors.display(),
+            self.coredumps.display(),
+            self.oom_kills.display(),
         ]
     }
 }

@@ -20,7 +20,10 @@ use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::data::{severity::Severity, source::systemd_manager::ScopedSystemdUnit};
+use crate::{
+    data::{severity::Severity, source::systemd_manager::ScopedSystemdUnit},
+    widgets::tooltip_body::Section,
+};
 
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
@@ -37,23 +40,47 @@ pub trait JournalEvent: Clone + Send + 'static {
     fn at(&self) -> SystemTime;
 }
 
-pub fn journal_windows<E: JournalEvent>() -> impl Stream<Item = Vec<E>> + Send {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JournalFollowError {
+    OpenFailed(io::ErrorKind),
+    FollowingStopped(io::ErrorKind),
+}
+
+impl Display for JournalFollowError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            JournalFollowError::OpenFailed(kind) => write!(f, "cannot open the journal: {kind}"),
+            JournalFollowError::FollowingStopped(kind) => {
+                write!(f, "stopped following the journal: {kind}")
+            }
+        }
+    }
+}
+
+impl From<JournalFollowError> for Section {
+    fn from(error: JournalFollowError) -> Self {
+        Section::error(error)
+    }
+}
+
+pub fn journal_windows<E: JournalEvent>()
+-> impl Stream<Item = Result<Vec<E>, JournalFollowError>> + Send {
     ReceiverStream::new(journal_events::<E>())
 }
 
-fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Vec<E>> {
+fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Result<Vec<E>, JournalFollowError>> {
     let (tx, rx) = mpsc::channel(16);
     thread::spawn(move || {
         let mut journal = match WindowedJournal::<E>::open() {
             Ok(journal) => journal,
             Err(e) => {
-                tracing::warn!("journal: {} open failed: {e}", E::NAME);
+                let _ = tx.blocking_send(Err(JournalFollowError::OpenFailed(e.kind())));
                 return;
             }
         };
-        while tx.blocking_send(journal.events()).is_ok() {
+        while tx.blocking_send(Ok(journal.events())).is_ok() {
             if let Err(e) = journal.wait_for_window_change() {
-                tracing::warn!("journal: {} wait ended: {e}", E::NAME);
+                let _ = tx.blocking_send(Err(JournalFollowError::FollowingStopped(e.kind())));
                 return;
             }
         }

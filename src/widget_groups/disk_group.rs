@@ -11,7 +11,7 @@ use crate::{
         disk::{Disk, activity::DiskActivity, health::DriveHealth},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -56,16 +56,24 @@ impl DiskGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(
-        drive_sensor: &SensorConfig,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<DiskMessage> {
+    pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<DiskMessage> {
         Subscription::batch([
-            source_subscription::<Disk>((), forced).map(DiskMessage::Usage),
-            source_subscription::<DiskActivity>((), forced).map(DiskMessage::DiskActivity),
-            source_subscription::<DriveHealth>(drive_sensor.clone(), forced)
-                .map(DiskMessage::DriveHealth),
+            source_subscription::<Disk>(()).map(DiskMessage::Usage),
+            source_subscription::<DiskActivity>(()).map(DiskMessage::DiskActivity),
+            source_subscription::<DriveHealth>(drive_sensor.clone()).map(DiskMessage::DriveHealth),
         ])
+    }
+
+    pub fn refresh(target: DiskTarget, drive_sensor: &SensorConfig) -> Task<DiskMessage> {
+        match target {
+            DiskTarget::Usage => first_delivery::<Disk>(()).map(DiskMessage::Usage),
+            DiskTarget::Read | DiskTarget::Write => {
+                first_delivery::<DiskActivity>(()).map(DiskMessage::DiskActivity)
+            }
+            DiskTarget::DriveHealth => {
+                first_delivery::<DriveHealth>(drive_sensor.clone()).map(DiskMessage::DriveHealth)
+            }
+        }
     }
 
     pub fn update(&mut self, msg: DiskMessage) -> Task<DiskMessage> {

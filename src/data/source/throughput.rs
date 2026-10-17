@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    convert::Infallible,
     fs,
     future::ready,
     mem,
@@ -21,7 +20,9 @@ use uom::si::{
 
 use crate::{
     data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, drop_unchanged_deliveries,
+        DeliveryCadence, ReadingSource, SourceDelivery,
+        bus::DesktopBuses,
+        drop_unchanged_deliveries,
         net_interfaces::{
             nm::{self, Connectivity},
             nm_readings,
@@ -92,31 +93,46 @@ pub struct Readings {
 }
 
 impl ReadingSource for Readings {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "throughput";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SAMPLE_INTERVAL);
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        let uplink_changes = nm_readings("throughput uplink", nm::UPLINK_PROPERTIES, nm::uplink)
-            .map(ThroughputEvent::UplinkChanged);
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let uplink_changes = nm_readings(buses.system, nm::UPLINK_PROPERTIES, nm::uplink).map(
+            |uplink| match uplink {
+                Ok(uplink) => ThroughputEvent::UplinkChanged(uplink),
+                Err(failure) => ThroughputEvent::UplinkUnreadable(failure),
+            },
+        );
         let ticks = ticked(SAMPLE_INTERVAL, || ready(ThroughputEvent::Tick));
         drop_unchanged_deliveries(
             select(uplink_changes, ticks)
                 .scan(ThroughputSampler::default(), |sampler, event| {
-                    let sampled = matches!(event, ThroughputEvent::Tick);
-                    *sampler = mem::take(sampler).observed(event);
-                    ready(Some(sampled.then(|| sampler.readings()).flatten()))
+                    let delivered = match event {
+                        ThroughputEvent::UplinkUnreadable(failure) => {
+                            Some(SourceDelivery::Reading(Err(failure)))
+                        }
+                        sampling => {
+                            let sampled = matches!(sampling, ThroughputEvent::Tick);
+                            *sampler = mem::take(sampler).observed(sampling);
+                            sampled
+                                .then(|| sampler.readings())
+                                .flatten()
+                                .map(|readings| SourceDelivery::Reading(Ok(readings)))
+                        }
+                    };
+                    ready(Some(delivered))
                 })
-                .filter_map(ready)
-                .map(|readings| SourceDelivery::Reading(Ok(readings))),
+                .filter_map(ready),
         )
     }
 }
 
 enum ThroughputEvent {
     UplinkChanged(Option<nm::Uplink>),
+    UplinkUnreadable(zbus::Error),
     Tick,
 }
 
@@ -153,6 +169,7 @@ impl ThroughputSampler {
                     ..self
                 }
             }
+            ThroughputEvent::UplinkUnreadable(_) => self,
         }
     }
 

@@ -1,6 +1,6 @@
 use std::{io, thread, time::Duration};
 
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, stream};
 use perf_event::{Builder, Counter, events::Dynamic};
 use tokio::task::spawn_blocking;
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -32,19 +32,19 @@ pub struct SharedCacheTraffic {
 
 impl ReadingSource for L3CacheTraffic {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "l3 cache traffic";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let countable = async {
             spawn_blocking(|| read_l3_cache_traffic().is_ok())
                 .await
                 .unwrap_or(false)
         };
         present_or_absent(stream::once(countable), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
+            polled_delivery_stream(inputs, Self::poll)
         })
     }
 }

@@ -17,6 +17,7 @@ use crate::{
         notifications::model::ActionTint,
         source::{
             SourceDelivery,
+            bus::DesktopBuses,
             sysfs_sensors::{
                 battery::{Battery, ChargerSupply},
                 cpu_tuning::CpuTuning,
@@ -24,7 +25,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -81,11 +82,22 @@ impl PowerGroup {
         }
     }
 
-    pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<PowerMessage> {
+    pub fn subscription(buses: &DesktopBuses) -> Subscription<PowerMessage> {
         Subscription::batch([
-            PowerProfileControl::subscription(forced).map(PowerMessage::PowerProfile),
-            source_subscription::<Battery>((), forced).map(PowerMessage::Battery),
+            PowerProfileControl::subscription(buses).map(PowerMessage::PowerProfile),
+            source_subscription::<Battery>(buses.clone()).map(PowerMessage::Battery),
         ])
+    }
+
+    pub fn refresh(target: PowerTarget, buses: &DesktopBuses) -> Task<PowerMessage> {
+        match target {
+            PowerTarget::Battery | PowerTarget::Draw | PowerTarget::BatteryTime => {
+                first_delivery::<Battery>(buses.clone()).map(PowerMessage::Battery)
+            }
+            PowerTarget::Profile => {
+                PowerProfileControl::refresh(buses).map(PowerMessage::PowerProfile)
+            }
+        }
     }
 
     pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<PowerMessage> {

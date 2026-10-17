@@ -19,7 +19,8 @@ use crate::{
     data::source::{
         ReadingSource, SourceDelivery,
         ai::{ccusage, read_secret},
-        all_of,
+        both_held,
+        bus::DesktopBuses,
         file_presence::path_present,
         http,
         net_interfaces::nm,
@@ -114,29 +115,36 @@ impl UserInfo {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CopilotAccount {
+    pub gh_auth_token: PathBuf,
+    pub buses: DesktopBuses,
+}
+
 fn plan_polls<S, F>(
-    key: PathBuf,
+    account: CopilotAccount,
     on_plan: fn(&UserInfo) -> bool,
-    poll: impl Fn(PathBuf) -> F + Send + Sync + Clone + 'static,
+    poll: impl Fn(CopilotAccount) -> F + Send + Sync + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
-    S: ReadingSource<Key = PathBuf, Error = Error> + PartialEq,
+    S: ReadingSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
     F: Future<Output = Result<S, Error>> + Send + 'static,
 {
-    let reachable = all_of([path_present(key.clone()).boxed(), nm::connected().boxed()]);
+    let reachable = both_held(
+        path_present(account.gh_auth_token.clone()),
+        nm::connected(account.buses.system.clone()),
+    );
     present_or_absent(reachable, move || {
-        let checked = key.clone();
-        let polled = key.clone();
+        let checked = account.gh_auth_token.clone();
+        let polled = account.clone();
         let poll = poll.clone();
-        stream::once(async move { user_info(&checked).await })
-            .flat_map(move |info| match info {
-                Ok(info) if on_plan(&info) => {
-                    polled_delivery_stream(polled.clone(), poll.clone()).boxed()
-                }
-                Ok(_) => stream::iter([SourceDelivery::Absent]).boxed(),
-                Err(e) => stream::iter([SourceDelivery::Reading(Err(e))]).boxed(),
-            })
-            .boxed()
+        stream::once(async move { user_info(&checked).await }).flat_map(move |info| match info {
+            Ok(info) if on_plan(&info) => {
+                polled_delivery_stream(polled.clone(), poll.clone()).left_stream()
+            }
+            Ok(_) => stream::iter([SourceDelivery::Absent]).right_stream(),
+            Err(e) => stream::iter([SourceDelivery::Reading(Err(e))]).right_stream(),
+        })
     })
 }
 

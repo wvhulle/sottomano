@@ -8,11 +8,11 @@ use crate::{
         empty_text::non_empty,
         source::{
             DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-            bus::{self, Bus, DbusPropertyLookup, Properties, name_owned, prop},
+            bus::{self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop},
             polled_delivery_stream, present_or_absent, sysfs_sensors,
         },
     },
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 const DAEMON_SERVICE: &str = "net.hadess.PowerProfiles";
@@ -126,20 +126,21 @@ impl Conditions {
 
 impl ReadingSource for Conditions {
     type Error = sysfs_sensors::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "power-conditions";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
-        })
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        present_or_absent(
+            name_owned(buses.system.clone(), DAEMON_SERVICE),
+            move || polled_delivery_stream(buses.clone(), Self::poll),
+        )
     }
 }
 
 impl Conditions {
-    async fn poll(_key: ()) -> Result<Self, sysfs_sensors::Error> {
+    async fn poll(_buses: DesktopBuses) -> Result<Self, sysfs_sensors::Error> {
         blocking_poll(|| Ok(Conditions::current())).await
     }
 }
@@ -170,40 +171,36 @@ pub struct ProfileStatus {
 
 impl ReadingSource for ProfileStatus {
     type Error = bus::Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "power profile";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), || {
-            restarting("power profiles", status_changes)
-                .map(SourceDelivery::Reading)
-                .boxed()
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        present_or_absent(name_owned(system.clone(), DAEMON_SERVICE), move || {
+            connected_until_failure(status_changes(system.clone())).map(SourceDelivery::Reading)
         })
     }
 }
 
-async fn status_changes() -> zbus::Result<impl Stream<Item = Result<ProfileStatus, bus::Error>>> {
-    let connection = zbus::Connection::system().await?;
-    let daemon = PowerProfilesProxy::new(&connection).await?;
-    let changes = stream::select_all([
-        daemon
-            .receive_active_profile_changed()
-            .await
-            .map(|_| ())
-            .boxed(),
-        daemon
-            .receive_active_profile_holds_changed()
-            .await
-            .map(|_| ())
-            .boxed(),
+async fn status_changes(
+    system: zbus::Connection,
+) -> Result<impl Stream<Item = Result<ProfileStatus, bus::Error>>, bus::Error> {
+    let daemon = PowerProfilesProxy::new(&system).await?;
+    let changes = stream::select(
+        stream::select(
+            daemon.receive_active_profile_changed().await.map(drop),
+            daemon
+                .receive_active_profile_holds_changed()
+                .await
+                .map(drop),
+        ),
         daemon
             .receive_performance_degraded_changed()
             .await
-            .map(|_| ())
-            .boxed(),
-    ]);
+            .map(drop),
+    );
     Ok(stream::once(async {}).chain(changes).then(move |()| {
         let daemon = daemon.clone();
         async move { read_status(&daemon).await }

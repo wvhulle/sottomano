@@ -1,4 +1,4 @@
-use std::{convert::Infallible, future::ready};
+use std::future::ready;
 
 use iced::futures::{
     Stream, StreamExt,
@@ -11,12 +11,13 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
+        bus::DesktopBuses,
         hardware::Adapter,
         net_interfaces::{
-            ReadingError, device_or_absent, kept_readings, nm, nm_readings, per_burst,
+            ReadingError, device_or_absent, device_readings, nm, nm_readings, per_burst,
         },
     },
-    message_subscriptions::restarting,
+    message_subscriptions::resubscribing_until_failure,
 };
 
 pub const NAME: &str = "wifi";
@@ -113,21 +114,24 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
 }
 
 impl ReadingSource for Wifi {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        device_or_absent(nm::SERVICE, || {
-            restarting(NAME, readings_while_access_point_holds).boxed()
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        device_or_absent(system.clone(), nm::SERVICE, move || {
+            let system = system.clone();
+            resubscribing_until_failure(move || readings_while_access_point_holds(system.clone()))
         })
     }
 }
 
-async fn readings_while_access_point_holds() -> zbus::Result<impl Stream<Item = Option<Wifi>>> {
-    let connection = Connection::system().await?;
+async fn readings_while_access_point_holds(
+    connection: Connection,
+) -> zbus::Result<impl Stream<Item = zbus::Result<Option<Wifi>>>> {
     let first = read(connection.clone()).await;
     let watched_access_point = first.as_ref().ok().and_then(Wifi::access_point);
     let device_changes = nm::changes(
@@ -140,9 +144,10 @@ async fn readings_while_access_point_holds() -> zbus::Result<impl Stream<Item = 
     )
     .await?;
     let strength_changes = match watched_access_point.clone() {
-        Some(path) => nm::access_point_changes(&connection, path).await?.boxed(),
-        None => stream::pending().boxed(),
+        Some(path) => Some(nm::access_point_changes(&connection, path).await?),
+        None => None,
     };
+    let strength_changes = stream::iter(strength_changes).flatten();
     let later = per_burst(select(device_changes, strength_changes))
         .then(move |()| read(connection.clone()));
     let readings = stream::once(ready(first))
@@ -154,7 +159,7 @@ async fn readings_while_access_point_holds() -> zbus::Result<impl Stream<Item = 
                     .map_or(true, |wifi| wifi.access_point() == watched_access_point),
             )
         });
-    Ok(kept_readings(NAME, readings))
+    Ok(device_readings(readings))
 }
 
 impl Wifi {
@@ -164,16 +169,17 @@ impl Wifi {
 }
 
 impl ReadingSource for WifiDetails {
-    type Error = Infallible;
-    type Key = ();
+    type Error = zbus::Error;
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "wifi details";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        device_or_absent(nm::SERVICE, || {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let system = buses.system;
+        device_or_absent(system.clone(), nm::SERVICE, move || {
             nm_readings(
-                Self::NAME,
+                system.clone(),
                 &[
                     nm::MANAGER_PROPERTIES,
                     nm::DEVICE_PROPERTIES,
@@ -183,7 +189,6 @@ impl ReadingSource for WifiDetails {
                 ],
                 read_details,
             )
-            .boxed()
         })
     }
 }

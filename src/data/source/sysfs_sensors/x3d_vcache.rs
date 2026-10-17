@@ -1,6 +1,6 @@
 use std::{fmt, fs, path::PathBuf, str::FromStr, time::Duration};
 
-use iced::futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, stream};
 
 use super::{Error, list_dir, read_trimmed};
 use crate::data::source::{
@@ -79,15 +79,15 @@ impl X3dCachePreference {
 
 impl ReadingSource for X3dCachePreference {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "x3d-cache-preference";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let exposed = async { Self::mode_file().is_some() };
         present_or_absent(stream::once(exposed), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
+            polled_delivery_stream(inputs, Self::poll)
         })
     }
 }

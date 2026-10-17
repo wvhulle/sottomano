@@ -16,7 +16,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widget_groups::openrouter_credit_group::model_spend_breakdown::ModelSpendBreakdown,
     widgets::{
         bar_widget::BarWidget,
@@ -71,22 +71,39 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    pub fn subscription(
+    fn account(management_key: PathBuf, config: &Config) -> OpenRouterAccount {
+        let budget = &config.widget_groups.openrouter_credit;
+        OpenRouterAccount {
+            management_key,
+            budget: SpendBudget::new(config, budget.monthly_budget_usd),
+            daily_warning_usd: budget.daily_warning_usd,
+        }
+    }
+
+    pub fn refresh(
         &self,
+        target: OpenRouterCreditTarget,
         config: &Config,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<OpenRouterCreditMessage> {
+    ) -> Task<OpenRouterCreditMessage> {
+        let Some(key) = self.management_key.clone() else {
+            return Task::none();
+        };
+        match target {
+            OpenRouterCreditTarget::SoftBudget | OpenRouterCreditTarget::ModelBreakdown => {
+                first_delivery::<OpenRouterSpend>(Self::account(key, config))
+                    .map(OpenRouterCreditMessage::SoftBudget)
+            }
+            OpenRouterCreditTarget::StrictBudget => first_delivery::<OpenRouterStrictBudget>(key)
+                .map(OpenRouterCreditMessage::StrictBudget),
+        }
+    }
+
+    pub fn subscription(&self, config: &Config) -> Subscription<OpenRouterCreditMessage> {
         Subscription::batch(self.management_key.clone().into_iter().flat_map(|key| {
-            let budget = &config.widget_groups.openrouter_credit;
-            let account = OpenRouterAccount {
-                management_key: key.clone(),
-                budget: SpendBudget::new(config, budget.monthly_budget_usd),
-                daily_warning_usd: budget.daily_warning_usd,
-            };
             [
-                source_subscription::<OpenRouterSpend>(account, forced)
+                source_subscription::<OpenRouterSpend>(Self::account(key.clone(), config))
                     .map(OpenRouterCreditMessage::SoftBudget),
-                source_subscription::<OpenRouterStrictBudget>(key, forced)
+                source_subscription::<OpenRouterStrictBudget>(key)
                     .map(OpenRouterCreditMessage::StrictBudget),
             ]
         }))

@@ -307,14 +307,16 @@ pub struct HourlyTemperature {
 
 impl ReadingSource for Temperature {
     type Error = Error;
-    type Key = Position;
+    type StreamInputs = Position;
 
     const NAME: &'static str = "weather-temp";
     const DELIVERY_CADENCE: DeliveryCadence =
         DeliveryCadence::PolledEvery(Duration::from_secs(300));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -349,14 +351,16 @@ pub struct Wind {
 
 impl ReadingSource for Wind {
     type Error = Error;
-    type Key = Position;
+    type StreamInputs = Position;
 
     const NAME: &'static str = "weather-wind";
     const DELIVERY_CADENCE: DeliveryCadence =
         DeliveryCadence::PolledEvery(Duration::from_secs(300));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -498,13 +502,15 @@ fn downpour(line: &str, now: DateTime<Local>) -> Option<Downpour> {
 
 impl ReadingSource for Rain {
     type Error = Error;
-    type Key = Position;
+    type StreamInputs = Position;
 
     const NAME: &'static str = "weather-rain";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -617,13 +623,15 @@ impl Pollen {
 
 impl ReadingSource for Pollen {
     type Error = Error;
-    type Key = Position;
+    type StreamInputs = Position;
 
     const NAME: &'static str = "pollen";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(30));
 
-    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(key, Self::poll)
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(inputs, Self::poll)
     }
 }
 
@@ -651,7 +659,7 @@ impl Location {
 
 impl ReadingSource for Location {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "location";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;

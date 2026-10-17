@@ -1,11 +1,10 @@
-use std::path::PathBuf;
-
 use chrono::{DateTime, Utc};
 use iced::futures::Stream;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
-    Error, QuotaSnapshot, USER_POLL_INTERVAL, UserInfo, plan_polls, quota_reset, user_info,
+    CopilotAccount, Error, QuotaSnapshot, USER_POLL_INTERVAL, UserInfo, plan_polls, quota_reset,
+    user_info,
 };
 use crate::data::source::{DeliveryCadence, ReadingSource, SourceDelivery, ai::quota::Quota};
 
@@ -38,19 +37,19 @@ impl CopilotMetered {
 
 impl ReadingSource for CopilotMetered {
     type Error = Error;
-    type Key = PathBuf;
+    type StreamInputs = CopilotAccount;
 
     const NAME: &'static str = "copilot-usage-metered";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(USER_POLL_INTERVAL);
 
-    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        plan_polls(key, UserInfo::metered_plan, Self::poll)
+    fn delivery_stream(inputs: CopilotAccount) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        plan_polls(inputs, UserInfo::metered_plan, Self::poll)
     }
 }
 
 impl CopilotMetered {
-    async fn poll(key: PathBuf) -> Result<Self, Error> {
-        let info = user_info(&key).await?;
+    async fn poll(key: CopilotAccount) -> Result<Self, Error> {
+        let info = user_info(&key.gh_auth_token).await?;
         let (snapshot, label) = info.metered_quota().ok_or(Error::NoQuota)?;
         Ok(CopilotMetered {
             plan: info.plan(),

@@ -40,7 +40,7 @@ impl JournalEventsGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
-        let coredumps = self.coredumps.visible_reading()?;
+        let coredumps = self.coredumps.display()?;
         Some(
             GroupItem::reading(coredumps, JournalTarget::Coredumps).on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,

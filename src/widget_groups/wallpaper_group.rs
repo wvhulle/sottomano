@@ -71,7 +71,7 @@ impl From<Failure> for Section {
 
 impl ReadingSource for Lookup {
     type Error = Failure;
-    type Key = PathBuf;
+    type StreamInputs = PathBuf;
 
     const NAME: &'static str = "wallpaper lookup";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
@@ -79,39 +79,36 @@ impl ReadingSource for Lookup {
     fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(wallpaper::daemon_installed()), move || {
             let unsplash_key = unsplash_key.clone();
-            emit_changes(wallpaper::displayed())
-                .flat_map(move |displayed| {
-                    let unsplash_key = unsplash_key.clone();
-                    match displayed {
-                        Err(failure) => {
-                            stream::iter([SourceDelivery::Reading(Err(Failure::Query(failure)))])
-                                .boxed()
-                        }
-                        Ok(DisplayedWallpaper::NoImageFile) => {
-                            stream::iter([SourceDelivery::Absent]).boxed()
-                        }
-                        Ok(DisplayedWallpaper::ImageFile(path)) => {
-                            match wallpaper::photo_id(&path) {
-                                None => stream::iter([SourceDelivery::Absent]).boxed(),
-                                Some(id) => {
-                                    let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
-                                    let resolved = async move {
-                                        SourceDelivery::Reading(
-                                            wallpaper::resolve(path, id, &unsplash_key)
-                                                .await
-                                                .map(|wallpaper| Lookup::of(&wallpaper))
-                                                .map_err(Failure::Resolve),
-                                        )
-                                    };
-                                    stream::iter([SourceDelivery::Reading(Ok(unresolved))])
-                                        .chain(stream::once(resolved))
-                                        .boxed()
-                                }
-                            }
-                        }
+            emit_changes(wallpaper::displayed()).flat_map(move |displayed| {
+                let unsplash_key = unsplash_key.clone();
+                let path = match displayed {
+                    Err(failure) => {
+                        return stream::iter([SourceDelivery::Reading(Err(Failure::Query(
+                            failure,
+                        )))])
+                        .left_stream();
                     }
-                })
-                .boxed()
+                    Ok(DisplayedWallpaper::NoImageFile) => {
+                        return stream::iter([SourceDelivery::Absent]).left_stream();
+                    }
+                    Ok(DisplayedWallpaper::ImageFile(path)) => path,
+                };
+                let Some(id) = wallpaper::photo_id(&path) else {
+                    return stream::iter([SourceDelivery::Absent]).left_stream();
+                };
+                let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
+                let resolved = async move {
+                    SourceDelivery::Reading(
+                        wallpaper::resolve(path, id, &unsplash_key)
+                            .await
+                            .map(|wallpaper| Lookup::of(&wallpaper))
+                            .map_err(Failure::Resolve),
+                    )
+                };
+                stream::iter([SourceDelivery::Reading(Ok(unresolved))])
+                    .chain(stream::once(resolved))
+                    .right_stream()
+            })
         })
     }
 }
@@ -339,7 +336,7 @@ impl WallpaperGroup {
 
     pub fn subscription(&self) -> Subscription<WallpaperMessage> {
         match &self.unsplash_key {
-            Some(unsplash_key) => source_subscription::<Lookup>(unsplash_key.clone(), None)
+            Some(unsplash_key) => source_subscription::<Lookup>(unsplash_key.clone())
                 .map(|reading| WallpaperMessage::Lookup(Box::new(reading))),
             None => Subscription::none(),
         }

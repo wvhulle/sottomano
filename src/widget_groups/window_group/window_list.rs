@@ -14,6 +14,7 @@ use crate::{
     data::source::{
         SourceDelivery,
         audio::WindowAudio,
+        bus::DesktopBuses,
         job_view::{self, Jobs},
         kitty_windows::{self, WindowProcesses},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
@@ -94,10 +95,13 @@ impl WindowList {
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
-            launcher_entry::subscription().map(WindowListMessage::LauncherEntriesChanged),
             job_view::subscription().map(WindowListMessage::JobsChanged),
             kitty_windows::subscription(agents).map(WindowListMessage::WindowProcessesPaired),
         ])
+    }
+
+    pub fn launcher_entry_subscription(buses: &DesktopBuses) -> Subscription<WindowListMessage> {
+        launcher_entry::subscription(buses).map(WindowListMessage::LauncherEntriesChanged)
     }
 
     pub fn hover_process(

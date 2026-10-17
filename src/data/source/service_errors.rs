@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, io, time::SystemTime};
+use std::{collections::HashMap, io, time::SystemTime};
 
 use iced::futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -9,22 +9,22 @@ use crate::data::{
     source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         journal::{
-            JournalEvent, JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit,
-            either_of, journal_windows,
+            JournalEvent, JournalFollowError, JournalPriority, JournalTransport, LoggingUnit,
+            MessageId, OwningUnit, either_of, journal_windows,
         },
     },
 };
 
 impl ReadingSource for ServiceErrors {
-    type Error = Infallible;
-    type Key = ();
+    type Error = JournalFollowError;
+    type StreamInputs = ();
 
     const NAME: &'static str = ServiceErrorEntry::NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         journal_windows::<ServiceErrorEntry>()
-            .map(|entries| Ok(ServiceErrors::from(entries)))
+            .map(|entries| entries.map(ServiceErrors::from))
             .map(SourceDelivery::Reading)
     }
 }

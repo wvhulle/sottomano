@@ -62,7 +62,7 @@ pub struct Snapshot {
 
 impl ReadingSource for Snapshot {
     type Error = Infallible;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "niri";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;

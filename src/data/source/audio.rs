@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    convert::Infallible,
     env, fmt, io,
     path::PathBuf,
     rc::Rc,
@@ -13,19 +12,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::{
-    Subscription,
-    futures::{Stream, stream::BoxStream},
-};
+use iced::{Subscription, futures::Stream};
 use pipewire::{
     channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
     context::ContextRc,
+    core::CoreRc,
     device::{Device, DeviceChangeMask, DeviceInfoRef, DeviceListener},
     main_loop::MainLoopRc,
     metadata::{Metadata, MetadataListener},
     node::{Node, NodeInfoRef, NodeListener, NodeState},
     proxy::ProxyT,
-    registry::{GlobalObject, Registry},
+    registry::{GlobalObject, Registry, RegistryRc},
     spa::{
         param::ParamType,
         pod::{
@@ -49,7 +46,8 @@ use crate::{
         DeliveryCadence, ReadingSource, SourceDelivery, file_presence::path_present,
         present_or_absent, while_present,
     },
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
+    widgets::tooltip_body::Section,
 };
 
 mod meter;
@@ -174,40 +172,81 @@ impl Commands {
     }
 }
 
-pub fn subscription() -> Subscription<Option<AudioEvent>> {
-    Subscription::run(|| while_present(socket_present(), || Box::pin(restarting("audio", connect))))
+#[derive(Debug, Clone)]
+pub enum AudioConnectError {
+    ThreadNotStarted(io::ErrorKind),
+    ThreadEndedBeforeConnecting,
+    PipewireRefused(Arc<pipewire::Error>),
 }
 
-fn socket_present() -> BoxStream<'static, bool> {
-    match pipewire_socket() {
-        Ok(socket) => Box::pin(path_present(socket)),
-        Err(e) => {
-            tracing::warn!("audio: {e}");
-            Box::pin(stream::iter([false]))
+impl From<io::Error> for AudioConnectError {
+    fn from(error: io::Error) -> Self {
+        Self::ThreadNotStarted(error.kind())
+    }
+}
+
+impl From<oneshot::error::RecvError> for AudioConnectError {
+    fn from(_: oneshot::error::RecvError) -> Self {
+        Self::ThreadEndedBeforeConnecting
+    }
+}
+
+impl From<pipewire::Error> for AudioConnectError {
+    fn from(error: pipewire::Error) -> Self {
+        Self::PipewireRefused(Arc::new(error))
+    }
+}
+
+impl fmt::Display for AudioConnectError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ThreadNotStarted(kind) => write!(f, "cannot start the pipewire thread: {kind}"),
+            Self::ThreadEndedBeforeConnecting => {
+                write!(f, "pipewire thread ended before connecting")
+            }
+            Self::PipewireRefused(error) => write!(f, "pipewire refused the connection: {error}"),
         }
     }
 }
 
+impl From<AudioConnectError> for Section {
+    fn from(error: AudioConnectError) -> Self {
+        Section::error(error)
+    }
+}
+
+pub fn subscription() -> Subscription<Option<Result<AudioEvent, AudioConnectError>>> {
+    Subscription::run(|| while_present(socket_present(), || connected_until_failure(connect())))
+}
+
+fn socket_present() -> impl Stream<Item = bool> + Send {
+    use iced::futures::{StreamExt, stream};
+    let socket = pipewire_socket()
+        .inspect_err(|e| tracing::warn!("audio: {e}"))
+        .ok();
+    stream::iter(socket).flat_map(path_present)
+}
+
 impl ReadingSource for AudioState {
-    type Error = Infallible;
-    type Key = ();
+    type Error = AudioConnectError;
+    type StreamInputs = ();
 
     const NAME: &'static str = "audio";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(socket_present(), || {
-            Box::pin(
-                restarting("audio", connect).filter_map(|event| match event {
-                    AudioEvent::State(state) => Some(SourceDelivery::Reading(Ok(state))),
-                    AudioEvent::Connected(_) | AudioEvent::Peaks(_) => None,
-                }),
-            )
+            connected_until_failure(connect()).filter_map(|event| match event {
+                Ok(AudioEvent::State(state)) => Some(SourceDelivery::Reading(Ok(state))),
+                Ok(AudioEvent::Connected(_) | AudioEvent::Peaks(_)) => None,
+                Err(e) => Some(SourceDelivery::Reading(Err(e))),
+            })
         })
     }
 }
 
-async fn connect() -> io::Result<impl Stream<Item = AudioEvent>> {
+async fn connect()
+-> Result<impl Stream<Item = Result<AudioEvent, AudioConnectError>>, AudioConnectError> {
     let (states, updates) = watch::channel(AudioState::default());
     let (peaks, peak_updates) = watch::channel(Peaks::default());
     let (commands, requests) = command_channel::<Command>();
@@ -215,13 +254,15 @@ async fn connect() -> io::Result<impl Stream<Item = AudioEvent>> {
     thread::Builder::new()
         .name("pipewire-audio".to_owned())
         .spawn(move || run(&states, &peaks, requests, connected))?;
-    pipewire_connected
-        .await
-        .map_err(|_| io::Error::other("pipewire connect failed"))?;
+    pipewire_connected.await??;
     let changes = WatchStream::from_changes(updates)
         .map(AudioEvent::State)
         .merge(WatchStream::from_changes(peak_updates).map(AudioEvent::Peaks));
-    Ok(stream::iter([AudioEvent::Connected(Commands { sender: commands })]).chain(changes))
+    Ok(
+        stream::iter([AudioEvent::Connected(Commands { sender: commands })])
+            .chain(changes)
+            .map(Ok),
+    )
 }
 
 fn pipewire_socket() -> io::Result<PathBuf> {
@@ -728,33 +769,58 @@ fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &Graph) {
     }
 }
 
+struct PipewireConnection {
+    main_loop: MainLoopRc,
+    core: CoreRc,
+    registry: Rc<RegistryRc>,
+}
+
+impl PipewireConnection {
+    fn open() -> Result<Self, pipewire::Error> {
+        let main_loop = MainLoopRc::new(None)?;
+        let core = ContextRc::new(&main_loop, None)?.connect_rc(None)?;
+        let registry = Rc::new(core.get_registry_rc()?);
+        Ok(Self {
+            main_loop,
+            core,
+            registry,
+        })
+    }
+}
+
 fn run(
     states: &watch::Sender<AudioState>,
     peaks: &watch::Sender<Peaks>,
     commands: CommandReceiver<Command>,
-    connected: oneshot::Sender<()>,
+    connected: oneshot::Sender<Result<(), pipewire::Error>>,
 ) {
     pipewire::init();
+    let pipewire = match PipewireConnection::open() {
+        Ok(pipewire) => pipewire,
+        Err(e) => {
+            let _ = connected.send(Err(e));
+            return;
+        }
+    };
+    let _ = connected.send(Ok(()));
     let states = Rc::new(states.clone());
-    if let Err(e) = serve(&states, peaks, commands, connected) {
-        tracing::error!("audio: pipewire connect failed: {e}");
-    }
+    serve(&pipewire, &states, peaks, commands);
     states.send_replace(AudioState::default());
     peaks.send_replace(Peaks::default());
 }
 
 fn serve(
+    pipewire: &PipewireConnection,
     states: &Publisher,
     peaks: &watch::Sender<Peaks>,
     commands: CommandReceiver<Command>,
-    connected: oneshot::Sender<()>,
-) -> Result<(), pipewire::Error> {
-    let main_loop = MainLoopRc::new(None)?;
-    let context = ContextRc::new(&main_loop, None)?;
-    let core = context.connect_rc(None)?;
-    let _ = connected.send(());
-    let registry = Rc::new(core.get_registry_rc()?);
-    let _meters = meter::attach(&core, peaks);
+) {
+    let PipewireConnection {
+        main_loop,
+        core,
+        registry,
+    } = pipewire;
+    let _meters = meter::attach(core, peaks);
     let session = Shared::default();
 
     let _attached = commands.attach(main_loop.loop_(), {
@@ -797,7 +863,6 @@ fn serve(
         .register();
 
     main_loop.run();
-    Ok(())
 }
 
 fn track(

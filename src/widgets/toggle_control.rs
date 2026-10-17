@@ -3,7 +3,7 @@ use iced::{Subscription, Task};
 use crate::{
     data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, blocking, source_subscription},
+    message_subscriptions::{blocking, first_delivery, source_subscription},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -94,11 +94,12 @@ pub enum ToggleMessage<S: ToggleableSource> {
 }
 
 impl<S: ToggleableSource> ToggleControl<S> {
-    pub fn subscription(
-        key: S::Key,
-        forced: Option<ForcedRefresh>,
-    ) -> Subscription<ToggleMessage<S>> {
-        source_subscription::<S>(key, forced).map(ToggleMessage::Reading)
+    pub fn subscription(inputs: S::StreamInputs) -> Subscription<ToggleMessage<S>> {
+        source_subscription::<S>(inputs).map(ToggleMessage::Reading)
+    }
+
+    pub fn refresh(inputs: S::StreamInputs) -> Task<ToggleMessage<S>> {
+        first_delivery::<S>(inputs).map(ToggleMessage::Reading)
     }
 
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {

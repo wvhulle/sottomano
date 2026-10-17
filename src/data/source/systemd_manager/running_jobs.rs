@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    convert::Infallible,
     pin::Pin,
     time::{Duration, SystemTime},
 };
@@ -9,12 +8,12 @@ use iced::futures::{Stream, StreamExt, future::join_all, stream};
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    JobRow, ManagerProxy, SystemdUnitScope, connect, manager_signal, signals_matching, sleep_until,
-    state_changed_at,
+    JobRow, ManagerProxy, SystemdOnBus, SystemdUnitScope, manager_signal, signals_matching,
+    sleep_until, state_changed_at,
 };
 use crate::{
-    data::source::{DeliveryCadence, ReadingSource, SourceDelivery, emit_changes},
-    message_subscriptions::restarting,
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery, drop_unchanged_deliveries},
+    message_subscriptions::connected_until_failure,
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -26,7 +25,7 @@ pub struct SlowJob {
     pub started_at: SystemTime,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SlowJobs {
     pub jobs: Vec<SlowJob>,
     pub scope: SystemdUnitScope,
@@ -43,26 +42,29 @@ impl SlowJobs {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SlowJobsWatch {
-    pub scope: SystemdUnitScope,
+    pub systemd: SystemdOnBus,
     pub slow_after: Duration,
 }
 
 impl ReadingSource for SlowJobs {
-    type Error = Infallible;
-    type Key = SlowJobsWatch;
+    type Error = zbus::Error;
+    type StreamInputs = SlowJobsWatch;
 
     const NAME: &'static str = "slow systemd jobs";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        let SlowJobsWatch { scope, slow_after } = watch;
-        emit_changes(restarting("systemd running jobs", move || {
-            watch_running_jobs(scope.per_user(), slow_after)
-        }))
-        .map(move |jobs| Ok(SlowJobs { jobs, scope }))
-        .map(SourceDelivery::Reading)
+        let scope = watch.systemd.scope;
+        drop_unchanged_deliveries(
+            connected_until_failure(watch_running_jobs(
+                watch.systemd.connection(),
+                watch.slow_after,
+            ))
+            .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
+            .map(SourceDelivery::Reading),
+        )
     }
 }
 
@@ -104,17 +106,14 @@ impl JobSignal {
 }
 
 async fn watch_running_jobs(
-    user: bool,
+    connection: zbus::Connection,
     slow_after: Duration,
-) -> zbus::Result<impl Stream<Item = Vec<SlowJob>>> {
-    let connection = connect(user).await?;
+) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<SlowJob>>>> {
     let manager = ManagerProxy::builder(&connection)
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    if let Err(e) = manager.subscribe().await {
-        tracing::warn!("systemd running jobs: subscribe failed: {e}");
-    }
+    manager.subscribe().await?;
     let job_signals = signals_matching(
         &connection,
         [manager_signal("JobNew")?, manager_signal("JobRemoved")?],
@@ -148,8 +147,8 @@ struct RunningJobWatch {
 }
 
 impl RunningJobWatch {
-    async fn next_report(mut self) -> Option<(Vec<SlowJob>, Self)> {
-        let running = match self.running.take() {
+    async fn next_report(mut self) -> Option<(zbus::Result<Vec<SlowJob>>, Self)> {
+        let listed = match self.running.take() {
             None => running_jobs(&self.manager, &self.queued_at, &[]).await,
             Some(running) => {
                 let next_slow = next_slow_deadline(&running, self.slow_after, SystemTime::now());
@@ -158,13 +157,16 @@ impl RunningJobWatch {
                         self.remember(signals?);
                         running_jobs(&self.manager, &self.queued_at, &running).await
                     }
-                    () = sleep_until(next_slow) => running,
+                    () = sleep_until(next_slow) => Ok(running),
                 }
             }
         };
-        let slow = slow_jobs(&running, self.slow_after, SystemTime::now());
-        self.running = Some(running);
-        Some((slow, self))
+        let report = listed.map(|running| {
+            let slow = slow_jobs(&running, self.slow_after, SystemTime::now());
+            self.running = Some(running);
+            slow
+        });
+        Some((report, self))
     }
 
     fn remember(&mut self, signals: Vec<JobSignal>) {
@@ -212,12 +214,10 @@ async fn running_jobs(
     manager: &ManagerProxy<'static>,
     queued_at: &HashMap<u32, SystemTime>,
     already_running: &[RunningJob],
-) -> Vec<RunningJob> {
-    let Ok(rows) = manager.list_jobs().await else {
-        return Vec::new();
-    };
+) -> zbus::Result<Vec<RunningJob>> {
+    let rows = manager.list_jobs().await?;
     let connection = manager.inner().connection();
-    join_all(
+    Ok(join_all(
         rows.into_iter()
             .filter(|row| row.state == RUNNING_JOB_STATE)
             .map(|row| {
@@ -231,7 +231,7 @@ async fn running_jobs(
                 }
             }),
     )
-    .await
+    .await)
 }
 
 async fn running_job(

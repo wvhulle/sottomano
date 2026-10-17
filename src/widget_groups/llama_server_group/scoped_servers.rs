@@ -10,8 +10,9 @@ use super::{
 use crate::{
     data::source::{
         SourceDelivery,
-        llama_server::{LlamaModel, LlamaServer, LlamaServerUnit, ModelInstance},
-        systemd_manager::{SystemdUnitScope, service_commands::ServiceCommands},
+        bus::DesktopBuses,
+        llama_server::{LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance},
+        systemd_manager::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
     },
     message_subscriptions::source_subscription,
     widgets::{
@@ -61,24 +62,31 @@ impl ScopedLlamaServers {
         }
     }
 
-    pub fn subscription(&self) -> Subscription<ScopedServersMessage> {
+    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<ScopedServersMessage> {
+        let systemd = SystemdOnBus {
+            buses: buses.clone(),
+            scope: self.scope,
+        };
         Subscription::batch(
-            [source_subscription::<ServiceCommands>(self.scope, None)
-                .map(ScopedServersMessage::Services)]
-            .into_iter()
-            .chain(self.servers.values().flat_map(|readings| {
-                let unit = readings.discovered.unit.unit_name.clone();
-                [
-                    readings
-                        .switch
-                        .subscription()
-                        .with(unit.clone())
-                        .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
-                    source_subscription::<LlamaServer>(readings.discovered.clone(), None)
-                        .with(unit)
-                        .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
-                ]
-            })),
+            [source_subscription::<ServiceCommands>(systemd).map(ScopedServersMessage::Services)]
+                .into_iter()
+                .chain(self.servers.values().flat_map(|readings| {
+                    let unit = readings.discovered.unit.unit_name.clone();
+                    let server = LlamaServerOnBus {
+                        buses: buses.clone(),
+                        server: readings.discovered.clone(),
+                    };
+                    [
+                        readings
+                            .switch
+                            .subscription(buses)
+                            .with(unit.clone())
+                            .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
+                        source_subscription::<LlamaServer>(server)
+                            .with(unit)
+                            .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
+                    ]
+                })),
         )
     }
 

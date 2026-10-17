@@ -35,7 +35,7 @@ impl Default for DarkModeSchedule {
 
 impl ReadingSource for DarkModeSchedule {
     type Error = Infallible;
-    type Key = ();
+    type StreamInputs = ();
 
     const NAME: &'static str = "dark mode schedule";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;

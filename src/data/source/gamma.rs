@@ -1,12 +1,12 @@
 use std::{ops::RangeInclusive, time::Duration};
 
-use iced::futures::{Stream, StreamExt};
+use iced::futures::Stream;
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
     DeliveryCadence, ReadingSource, SourceDelivery, bus,
-    bus::{Error, name_owned},
+    bus::{DesktopBuses, Error, name_owned},
     polled_delivery_stream, present_or_absent,
 };
 
@@ -38,21 +38,22 @@ pub struct Gamma {
 
 impl ReadingSource for Gamma {
     type Error = Error;
-    type Key = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "gamma";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(name_owned(bus::Bus::Session, RELAY_SERVICE), move || {
-            polled_delivery_stream(key, Self::poll).boxed()
-        })
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        present_or_absent(
+            name_owned(buses.session.clone(), RELAY_SERVICE),
+            move || polled_delivery_stream(buses.clone(), Self::poll),
+        )
     }
 }
 
 impl Gamma {
-    async fn poll((): ()) -> Result<Self, Error> {
-        let proxy: GammaRelayProxy = bus::session_proxy().await?;
+    async fn poll(buses: DesktopBuses) -> Result<Self, Error> {
+        let proxy: GammaRelayProxy = buses.proxy(bus::Bus::Session).await?;
         let brightness = proxy.brightness().await?;
         let temperature = proxy.temperature().await?;
         #[allow(clippy::cast_possible_truncation)]

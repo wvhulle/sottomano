@@ -12,10 +12,11 @@ use crate::{
     config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
     data::source::{
         SourceDelivery,
+        bus::DesktopBuses,
         previous_shutdown::LastShutdown,
         systemd_manager::{
-            SystemdUnitScope,
-            boot_timeline::BootTimeline,
+            SystemdOnBus, SystemdUnitScope,
+            boot_timeline::{BootTimeline, BootTimelineWatch},
             failed_units::{FailedUnitRestart, FailedUnits},
             running_jobs::{SlowJobs, SlowJobsWatch},
         },
@@ -156,31 +157,35 @@ impl SystemdManagerGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(config: &SystemdManagerConfig) -> Subscription<SystemdManagerMessage> {
+    pub fn subscription(
+        config: &SystemdManagerConfig,
+        buses: &DesktopBuses,
+    ) -> Subscription<SystemdManagerMessage> {
+        let systemd = |scope| SystemdOnBus {
+            buses: buses.clone(),
+            scope,
+        };
         Subscription::batch([
-            source_subscription::<BootTimeline>(config.slow_boot_unit, None)
-                .map(SystemdManagerMessage::Boot),
-            source_subscription::<FailedUnits>(SystemdUnitScope::SystemWide, None)
+            source_subscription::<BootTimeline>(BootTimelineWatch {
+                buses: buses.clone(),
+                slow_unit: config.slow_boot_unit,
+            })
+            .map(SystemdManagerMessage::Boot),
+            source_subscription::<FailedUnits>(systemd(SystemdUnitScope::SystemWide))
                 .map(SystemdManagerMessage::FailedSystem),
-            source_subscription::<FailedUnits>(SystemdUnitScope::UserSession, None)
+            source_subscription::<FailedUnits>(systemd(SystemdUnitScope::UserSession))
                 .map(SystemdManagerMessage::FailedUser),
-            source_subscription::<SlowJobs>(
-                SlowJobsWatch {
-                    scope: SystemdUnitScope::SystemWide,
-                    slow_after: config.slow_job,
-                },
-                None,
-            )
+            source_subscription::<SlowJobs>(SlowJobsWatch {
+                systemd: systemd(SystemdUnitScope::SystemWide),
+                slow_after: config.slow_job,
+            })
             .map(SystemdManagerMessage::SlowSystemJobs),
-            source_subscription::<SlowJobs>(
-                SlowJobsWatch {
-                    scope: SystemdUnitScope::UserSession,
-                    slow_after: config.slow_job,
-                },
-                None,
-            )
+            source_subscription::<SlowJobs>(SlowJobsWatch {
+                systemd: systemd(SystemdUnitScope::UserSession),
+                slow_after: config.slow_job,
+            })
             .map(SystemdManagerMessage::SlowUserJobs),
-            source_subscription::<LastShutdown>(config.slow_shutdown_stop, None)
+            source_subscription::<LastShutdown>(config.slow_shutdown_stop)
                 .map(SystemdManagerMessage::LastShutdown),
         ])
     }
@@ -191,19 +196,19 @@ impl SystemdManagerGroup {
                 self.boot.receive_keeping_last_reading(delivery);
             }
             SystemdManagerMessage::FailedSystem(delivery) => {
-                self.failed_system.receive_keeping_last_reading(delivery);
+                self.failed_system.receive_delivery(delivery);
             }
             SystemdManagerMessage::FailedUser(delivery) => {
-                self.failed_user.receive_keeping_last_reading(delivery);
+                self.failed_user.receive_delivery(delivery);
             }
             SystemdManagerMessage::SlowSystemJobs(delivery) => {
-                self.slow_system_jobs.receive_keeping_last_reading(delivery);
+                self.slow_system_jobs.receive_delivery(delivery);
             }
             SystemdManagerMessage::SlowUserJobs(delivery) => {
-                self.slow_user_jobs.receive_keeping_last_reading(delivery);
+                self.slow_user_jobs.receive_delivery(delivery);
             }
             SystemdManagerMessage::LastShutdown(delivery) => {
-                self.last_shutdown.receive_keeping_last_reading(delivery);
+                self.last_shutdown.receive_delivery(delivery);
             }
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::RestartFailedUnit(restart) => {
@@ -249,17 +254,30 @@ impl SystemdManagerGroup {
                 boot.map(|boot| GroupItem::reading(boot.units(), SystemdTarget::StartupUnits)),
                 self.slow_system_jobs
                     .visible_reading()
-                    .map(|jobs| jobs.group_item(config)),
+                    .map(|jobs| jobs.group_item(config))
+                    .or_else(|| {
+                        self.slow_system_jobs
+                            .group_item(SystemdTarget::SlowSystemJobs)
+                    }),
                 self.slow_user_jobs
                     .visible_reading()
-                    .map(|jobs| jobs.group_item(config)),
+                    .map(|jobs| jobs.group_item(config))
+                    .or_else(|| self.slow_user_jobs.group_item(SystemdTarget::SlowUserJobs)),
                 self.failed_system
                     .visible_reading()
-                    .map(|failed| failed.group_item(config)),
+                    .map(|failed| failed.group_item(config))
+                    .or_else(|| {
+                        self.failed_system
+                            .group_item(SystemdTarget::FailedSystemUnits)
+                    }),
                 self.failed_user
                     .visible_reading()
-                    .map(|failed| failed.group_item(config)),
-                self.last_shutdown.get().map(|last| last.group_item(config)),
+                    .map(|failed| failed.group_item(config))
+                    .or_else(|| self.failed_user.group_item(SystemdTarget::FailedUserUnits)),
+                self.last_shutdown
+                    .get()
+                    .map(|last| last.group_item(config))
+                    .or_else(|| self.last_shutdown.group_item(SystemdTarget::LastShutdown)),
             ]
             .into_iter()
             .flatten(),

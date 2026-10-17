@@ -26,7 +26,7 @@ impl JournalEventsGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
-        let kernel = self.kernel.visible_reading()?;
+        let kernel = self.kernel.display()?;
         Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalCommand::journal(

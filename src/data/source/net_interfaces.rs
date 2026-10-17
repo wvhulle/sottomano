@@ -4,15 +4,11 @@ pub mod mobile;
 pub mod nm;
 pub mod wifi;
 
-use std::{
-    collections::HashMap,
-    future::{Future, ready},
-    sync::Arc,
-};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use iced::futures::{
     Stream, StreamExt,
-    stream::{self, BoxStream, select},
+    stream::{self, select},
 };
 use zbus::{
     Connection, MatchRule, MessageStream,
@@ -24,10 +20,10 @@ use zbus::{
 use crate::{
     data::source::{
         ReadingSource, SourceDelivery,
-        bus::{Bus, Properties, name_owned},
+        bus::{Properties, name_owned},
         present_or_absent,
     },
-    message_subscriptions::restarting,
+    message_subscriptions::connected_until_failure,
 };
 
 const SIGNAL_BURST_LIMIT: usize = 64;
@@ -38,19 +34,21 @@ pub enum ReadingError {
     Absent,
 }
 
-pub fn device_or_absent<S: ReadingSource>(
+pub fn device_or_absent<S, R>(
+    system: zbus::Connection,
     service: &'static str,
-    readings: impl FnMut() -> BoxStream<'static, Option<S>> + Send + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send {
-    let mut readings = readings;
-    present_or_absent(name_owned(Bus::System, service), move || {
-        readings()
-            .map(|device| {
-                device.map_or(SourceDelivery::Absent, |device| {
-                    SourceDelivery::Reading(Ok(device))
-                })
-            })
-            .boxed()
+    mut readings: impl FnMut() -> R + Send,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
+where
+    S: ReadingSource<Error = zbus::Error>,
+    R: Stream<Item = zbus::Result<Option<S>>> + Send,
+{
+    present_or_absent(name_owned(system, service), move || {
+        readings().map(|device| match device {
+            Ok(Some(device)) => SourceDelivery::Reading(Ok(device)),
+            Ok(None) => SourceDelivery::Absent,
+            Err(failure) => SourceDelivery::Reading(Err(failure)),
+        })
     })
 }
 
@@ -60,18 +58,14 @@ impl From<zbus::Error> for ReadingError {
     }
 }
 
-pub fn kept_readings<T>(
-    label: &'static str,
+pub fn device_readings<T>(
     readings: impl Stream<Item = Result<T, ReadingError>>,
-) -> impl Stream<Item = Option<T>> {
-    readings
-        .inspect(move |reading| {
-            if let Err(ReadingError::Bus(e)) = reading {
-                tracing::debug!("{label}: read failed: {e}");
-            }
-        })
-        .filter(|reading| ready(!matches!(reading, Err(ReadingError::Bus(_)))))
-        .map(Result::ok)
+) -> impl Stream<Item = zbus::Result<Option<T>>> {
+    readings.map(|reading| match reading {
+        Ok(device) => Ok(Some(device)),
+        Err(ReadingError::Absent) => Ok(None),
+        Err(ReadingError::Bus(failure)) => Err(failure),
+    })
 }
 
 pub fn once_then_per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item = ()> {
@@ -85,50 +79,46 @@ pub fn per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item
 }
 
 pub fn nm_readings<T, F>(
-    label: &'static str,
+    system: Connection,
     watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
-) -> impl Stream<Item = Option<T>>
+) -> impl Stream<Item = zbus::Result<Option<T>>>
 where
     T: Send + 'static,
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
-    restarting(label, move || subscribe_nm(label, watched_properties, read))
+    connected_until_failure(subscribe_nm(system, watched_properties, read))
 }
 
 async fn subscribe_nm<T, F>(
-    label: &'static str,
+    connection: Connection,
     watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
-) -> zbus::Result<impl Stream<Item = Option<T>>>
+) -> zbus::Result<impl Stream<Item = zbus::Result<Option<T>>>>
 where
     T: Send + 'static,
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
-    let connection = Connection::system().await?;
     let signals = nm::changes(&connection, watched_properties).await?;
     let readings = once_then_per_burst(signals).then(move |()| read(connection.clone()));
-    Ok(kept_readings(label, readings))
+    Ok(device_readings(readings))
 }
 
 pub fn managed_objects_readings<T: Send + 'static>(
-    label: &'static str,
+    system: Connection,
     service: &'static str,
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
-) -> impl Stream<Item = Option<T>> {
-    restarting(label, move || {
-        subscribe_managed_objects(label, service, path, reading)
-    })
+) -> impl Stream<Item = zbus::Result<Option<T>>> {
+    connected_until_failure(subscribe_managed_objects(system, service, path, reading))
 }
 
 async fn subscribe_managed_objects<T: Send + 'static>(
-    label: &'static str,
+    connection: Connection,
     service: &'static str,
     path: &'static str,
     reading: fn(&ManagedObjects) -> Option<T>,
-) -> zbus::Result<impl Stream<Item = Option<T>>> {
-    let connection = Connection::system().await?;
+) -> zbus::Result<impl Stream<Item = zbus::Result<Option<T>>>> {
     let objects = Arc::new(ObjectManagerProxy::new(&connection, service, path).await?);
     let signals = select(
         select(
@@ -147,7 +137,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
             reading(&managed).ok_or(ReadingError::Absent)
         }
     });
-    Ok(kept_readings(label, readings))
+    Ok(device_readings(readings))
 }
 
 pub async fn properties_changed(

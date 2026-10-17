@@ -1,5 +1,4 @@
 use std::{
-    convert::Infallible,
     fmt::{Display, Formatter, Result as FmtResult},
     io,
     path::PathBuf,
@@ -16,23 +15,21 @@ use crate::data::{
     source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         journal::{
-            CoredumpUnit, JournalEvent, JournalPriority, MessageId, OwningUnit, decode_record,
-            journal_windows,
+            CoredumpUnit, JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit,
+            decode_record, journal_windows,
         },
     },
 };
 
 impl ReadingSource for Vec<CoredumpEntry> {
-    type Error = Infallible;
-    type Key = ();
+    type Error = JournalFollowError;
+    type StreamInputs = ();
 
     const NAME: &'static str = CoredumpEntry::NAME;
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        journal_windows::<CoredumpEntry>()
-            .map(Ok)
-            .map(SourceDelivery::Reading)
+        journal_windows::<CoredumpEntry>().map(SourceDelivery::Reading)
     }
 }
 
