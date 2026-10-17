@@ -71,26 +71,30 @@ pub fn kept_readings<T>(
 }
 
 pub fn once_then_per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item = ()> {
-    stream::iter([()]).chain(
-        subscribed_signals
-            .ready_chunks(SIGNAL_BURST_LIMIT)
-            .map(drop),
-    )
+    stream::iter([()]).chain(per_burst(subscribed_signals))
+}
+
+pub fn per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item = ()> {
+    subscribed_signals
+        .ready_chunks(SIGNAL_BURST_LIMIT)
+        .map(drop)
 }
 
 pub fn nm_readings<T, F>(
     label: &'static str,
+    watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
 ) -> impl Stream<Item = Option<T>>
 where
     T: Send + 'static,
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
-    restarting(label, move || subscribe_nm(label, read))
+    restarting(label, move || subscribe_nm(label, watched_properties, read))
 }
 
 async fn subscribe_nm<T, F>(
     label: &'static str,
+    watched_properties: &'static [&'static str],
     read: fn(Connection) -> F,
 ) -> zbus::Result<impl Stream<Item = Option<T>>>
 where
@@ -98,7 +102,7 @@ where
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
     let connection = Connection::system().await?;
-    let signals = nm::changes(&connection).await?;
+    let signals = nm::changes(&connection, watched_properties).await?;
     let readings = once_then_per_burst(signals).then(move |()| read(connection.clone()));
     Ok(kept_readings(label, readings))
 }
