@@ -4,8 +4,8 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Local, SecondsFormat, Utc};
-use serde::Deserialize;
+use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
+use serde::{Deserialize, Deserializer, de};
 use serde_json::json;
 
 use crate::data::source::{
@@ -20,6 +20,8 @@ use crate::data::source::{
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
+const KEYS_URL: &str = "https://openrouter.ai/api/v1/keys";
+const ANALYTICS_HOUR_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -58,8 +60,17 @@ struct Analytics {
 
 #[derive(Deserialize)]
 struct Usage {
+    #[serde(rename = "date__hour", deserialize_with = "utc_hour")]
+    hour: DateTime<Utc>,
     model: Option<String>,
-    total_usage: f64,
+    #[serde(rename = "total_usage")]
+    cost: f64,
+}
+
+impl Usage {
+    fn local_day(&self) -> NaiveDate {
+        self.hour.with_timezone(&Local).date_naive()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -89,6 +100,30 @@ impl SpanSpend {
 
     pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
         self.span.projected_cost(self.cost(), now, budget)
+    }
+
+    fn within(span: CalendarSpan, hourly: &[Usage]) -> Self {
+        let mut models = hourly
+            .iter()
+            .filter(|usage| span.contains(usage.local_day()))
+            .filter_map(|usage| {
+                Some(ModelSpend {
+                    model: short_model(usage.model.as_deref()?),
+                    cost: usage.cost,
+                })
+            })
+            .fold(Vec::<ModelSpend>::new(), |mut models, spend| {
+                match models
+                    .iter_mut()
+                    .find(|existing| existing.model == spend.model)
+                {
+                    Some(existing) => existing.cost += spend.cost,
+                    None => models.push(spend),
+                }
+                models
+            });
+        models.sort_by(|a, b| b.cost.total_cmp(&a.cost));
+        Self { span, models }
     }
 }
 
@@ -136,53 +171,108 @@ impl PolledSource for OpenRouterSpend {
     async fn poll(account: OpenRouterAccount) -> Result<Self, Self::Error> {
         let key = read_secret(&account.management_key).ok_or(Error::Secret)?;
         let today = Local::now().date_naive();
+        let week = CalendarSpan::week_containing(today);
+        let month = CalendarSpan::month_containing(today);
+        let hourly =
+            hourly_usage_since(&key, CalendarSpan::day(week.since.min(month.since))).await?;
         Ok(Self {
-            today: spend_within(&key, CalendarSpan::day(today)).await?,
-            week: spend_within(&key, CalendarSpan::week_containing(today)).await?,
-            month: spend_within(&key, CalendarSpan::month_containing(today)).await?,
+            today: SpanSpend::within(CalendarSpan::day(today), &hourly),
+            week: SpanSpend::within(week, &hourly),
+            month: SpanSpend::within(month, &hourly),
             budget: account.budget,
             daily_warning_usd: account.daily_warning_usd,
         })
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct OpenRouterCreditBalance(pub Credits);
-
-impl OpenRouterCreditBalance {
+impl Credits {
     pub fn remaining(&self) -> f64 {
-        self.0.total - self.0.used
-    }
-
-    pub fn overspent(&self) -> bool {
-        self.0.used > self.0.total
+        self.total - self.used
     }
 }
 
-impl Source for OpenRouterCreditBalance {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LimitReset {
+    Daily,
+    Weekly,
+    Monthly,
+}
+
+#[derive(Deserialize)]
+struct ApiKey {
+    name: String,
+    disabled: bool,
+    limit: Option<f64>,
+    limit_remaining: Option<f64>,
+    limit_reset: Option<LimitReset>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeyLimit {
+    pub name: String,
+    pub limit: f64,
+    pub remaining: f64,
+    pub reset: Option<LimitReset>,
+}
+
+impl ApiKey {
+    fn enforced_limit(self) -> Option<KeyLimit> {
+        Some(KeyLimit {
+            limit: self.limit.filter(|_| !self.disabled)?,
+            remaining: self.limit_remaining?,
+            reset: self.limit_reset,
+            name: self.name,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenRouterStrictBudget {
+    pub credits: Credits,
+    pub key_limits: Vec<KeyLimit>,
+}
+
+impl OpenRouterStrictBudget {
+    pub fn tightest_remaining(&self) -> f64 {
+        self.key_limits
+            .iter()
+            .map(|key| key.remaining)
+            .fold(self.credits.remaining(), f64::min)
+    }
+
+    pub fn exhausted(&self) -> bool {
+        self.tightest_remaining() <= 0.0
+    }
+}
+
+impl Source for OpenRouterStrictBudget {
     type Error = Error;
     type Key = PathBuf;
 
-    const NAME: &'static str = "openrouter-credit-balance";
+    const NAME: &'static str = "openrouter-strict-budget";
 }
 
-impl PolledSource for OpenRouterCreditBalance {
+impl PolledSource for OpenRouterStrictBudget {
     const INTERVAL: Duration = Duration::from_secs(300);
 
     async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
         let key = read_secret(&key).ok_or(Error::Secret)?;
-        Ok(Self(credits(&key).await?))
+        Ok(Self {
+            credits: credits(&key).await?,
+            key_limits: key_limits(&key).await?,
+        })
     }
 }
 
-async fn spend_within(key: &str, span: CalendarSpan) -> Result<SpanSpend, Error> {
-    let start = span.starts_at().ok_or(Error::LocalMidnight)?;
+async fn hourly_usage_since(key: &str, first_day: CalendarSpan) -> Result<Vec<Usage>, Error> {
+    let start = first_day.starts_at().ok_or(Error::LocalMidnight)?;
     let payload = json!({
         "metrics": ["total_usage"],
         "dimensions": ["model"],
-        "granularity": "day",
+        "granularity": "hour",
         "time_range": { "start": rfc3339(start), "end": rfc3339(Utc::now()) },
-        "limit": 1000,
+        "limit": 10000,
     });
     let auth = format!("Bearer {key}");
     let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15).await?;
@@ -192,26 +282,14 @@ async fn spend_within(key: &str, span: CalendarSpan) -> Result<SpanSpend, Error>
         return Err(Error::Api(message));
     }
     let analytics: Envelope<Analytics> = http::decode(resp.body)?;
+    Ok(analytics.data.data)
+}
 
-    let mut per_model: Vec<ModelSpend> = Vec::new();
-    for usage in analytics.data.data {
-        let Some(slug) = usage.model.as_deref() else {
-            continue;
-        };
-        let name = short_model(slug);
-        match per_model.iter_mut().find(|existing| existing.model == name) {
-            Some(existing) => existing.cost += usage.total_usage,
-            None => per_model.push(ModelSpend {
-                model: name,
-                cost: usage.total_usage,
-            }),
-        }
-    }
-    per_model.sort_by(|a, b| b.cost.total_cmp(&a.cost));
-    Ok(SpanSpend {
-        span,
-        models: per_model,
-    })
+fn utc_hour<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>, D::Error> {
+    let text = String::deserialize(deserializer)?;
+    NaiveDateTime::parse_from_str(&text, ANALYTICS_HOUR_FORMAT)
+        .map(|hour| hour.and_utc())
+        .map_err(de::Error::custom)
 }
 
 async fn credits(key: &str) -> Result<Credits, Error> {
@@ -219,6 +297,17 @@ async fn credits(key: &str) -> Result<Credits, Error> {
     let envelope: Envelope<Credits> =
         http::get_json(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
     Ok(envelope.data)
+}
+
+async fn key_limits(key: &str) -> Result<Vec<KeyLimit>, Error> {
+    let auth = format!("Bearer {key}");
+    let envelope: Envelope<Vec<ApiKey>> =
+        http::get_json(KEYS_URL, &[("Authorization", &auth)], 10).await?;
+    Ok(envelope
+        .data
+        .into_iter()
+        .filter_map(ApiKey::enforced_limit)
+        .collect())
 }
 
 fn rfc3339(at: DateTime<Utc>) -> String {
@@ -242,21 +331,54 @@ mod tests {
     fn analytics_rows_decode() {
         let envelope: Envelope<Analytics> = serde_json::from_str(
             r#"{"data":{"cachedAt":null,"metadata":{"row_count":1},
-                "data":[{"date__day":"2026-08-27","model":"openai/gpt-5.4","total_usage":0.42}]}}"#,
+                "data":[{"date__hour":"2026-08-27 13:00:00","model":"openai/gpt-5.4","total_usage":0.42}]}}"#,
         )
         .unwrap();
         let usage = envelope.data.data.into_iter().next().unwrap();
+        assert_eq!(
+            usage.hour,
+            "2026-08-27T13:00:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
         assert_eq!(short_model(usage.model.as_deref().unwrap()), "gpt-5.4");
-        assert!((usage.total_usage - 0.42).abs() < f64::EPSILON);
+        assert!((usage.cost - 0.42).abs() < f64::EPSILON);
     }
 
     #[test]
-    fn credits_within_budget_are_not_overspent() {
-        let reading = OpenRouterCreditBalance(Credits {
-            total: 25.0,
-            used: 4.5,
-        });
-        assert!((reading.remaining() - 20.5).abs() < f64::EPSILON);
-        assert!(!reading.overspent());
+    fn credits_within_budget_are_not_exhausted() {
+        let reading = OpenRouterStrictBudget {
+            credits: Credits {
+                total: 25.0,
+                used: 4.5,
+            },
+            key_limits: Vec::new(),
+        };
+        assert!((reading.tightest_remaining() - 20.5).abs() < f64::EPSILON);
+        assert!(!reading.exhausted());
+    }
+
+    #[test]
+    fn only_enabled_keys_with_a_limit_constrain_spend() {
+        let envelope: Envelope<Vec<ApiKey>> = serde_json::from_str(
+            r#"{"data":[
+                {"name":"agents","disabled":false,"limit":10,"limit_remaining":2.5,"limit_reset":"monthly"},
+                {"name":"unlimited","disabled":false,"limit":null,"limit_remaining":null,"limit_reset":null},
+                {"name":"retired","disabled":true,"limit":5,"limit_remaining":0,"limit_reset":null}
+            ]}"#,
+        )
+        .unwrap();
+        let limits: Vec<KeyLimit> = envelope
+            .data
+            .into_iter()
+            .filter_map(ApiKey::enforced_limit)
+            .collect();
+        assert_eq!(
+            limits,
+            [KeyLimit {
+                name: "agents".to_owned(),
+                limit: 10.0,
+                remaining: 2.5,
+                reset: Some(LimitReset::Monthly),
+            }]
+        );
     }
 }

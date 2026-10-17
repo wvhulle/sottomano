@@ -47,15 +47,29 @@ impl BarWidget for ClaudeCcusagePeriods {
                 .into_iter()
                 .chain(self.budget.forecast_basis()),
             ),
-            self.period_section("Today".to_owned(), &recent.today, now),
-            self.period_section(recent.week.span.week_heading(), &recent.week, now),
-            self.period_section(recent.month.span.month_heading(), &recent.month, now),
+            self.period_section("Today".to_owned(), &recent.today, None, now),
+            self.period_section(recent.week.span.week_heading(), &recent.week, None, now),
+            self.period_section(
+                recent.month.span.month_heading(),
+                &recent.month,
+                self.budget.monthly_budget_entry(
+                    recent.month.usage.cost,
+                    recent.month.projected_cost(now, &self.budget),
+                ),
+                now,
+            ),
         ])
     }
 }
 
 impl ClaudeCcusagePeriods {
-    fn period_section(&self, title: String, period: &Period, now: DateTime<Local>) -> Section {
+    fn period_section(
+        &self,
+        title: String,
+        period: &Period,
+        threshold: Option<KeyValue>,
+        now: DateTime<Local>,
+    ) -> Section {
         let projected = period
             .projected_cost(now, &self.budget)
             .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
@@ -63,6 +77,7 @@ impl ClaudeCcusagePeriods {
             [
                 Some(KeyValue::new("Cost", dollars(period.usage.cost))),
                 projected,
+                threshold,
                 Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
                 Some(KeyValue::new("Models", period.usage.models.clone())),
             ]
