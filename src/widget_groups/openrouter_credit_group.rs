@@ -1,6 +1,6 @@
+mod model_spend_breakdown;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
-mod top_model_spend;
 
 use std::path::PathBuf;
 
@@ -17,7 +17,7 @@ use crate::{
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
-    widget_groups::openrouter_credit_group::top_model_spend::TopModelSpend,
+    widget_groups::openrouter_credit_group::model_spend_breakdown::ModelSpendBreakdown,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -34,7 +34,7 @@ use crate::{
 pub enum OpenRouterCreditTarget {
     SoftBudget,
     StrictBudget,
-    TopModel,
+    ModelBreakdown,
 }
 
 impl From<OpenRouterCreditTarget> for HoverTarget {
@@ -103,20 +103,19 @@ impl OpenRouterCreditGroup {
         Task::none()
     }
 
-    fn top_model(&self) -> Option<TopModelSpend<'_>> {
-        let spend = self.spend.present_reading()?;
-        spend.today.models.first().map(|top| TopModelSpend {
-            top,
-            daily_total: spend.today.cost(),
-        })
+    fn model_breakdown(&self) -> Option<ModelSpendBreakdown<'_>> {
+        self.spend
+            .present_reading()
+            .filter(|spend| !spend.month.models.is_empty())
+            .map(ModelSpendBreakdown)
     }
 
     pub fn tooltip_for(&self, target: OpenRouterCreditTarget) -> Option<Tooltip> {
         match target {
             OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(),
             OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(),
-            OpenRouterCreditTarget::TopModel => {
-                self.spend.tooltip_with(self.top_model()?.tooltip())
+            OpenRouterCreditTarget::ModelBreakdown => {
+                self.spend.tooltip_with(self.model_breakdown()?.tooltip())
             }
         }
     }
@@ -132,8 +131,9 @@ impl OpenRouterCreditGroup {
                 ),
                 self.strict_budget
                     .present_group_item(OpenRouterCreditTarget::StrictBudget),
-                self.top_model()
-                    .map(|top| GroupItem::reading(top, OpenRouterCreditTarget::TopModel)),
+                self.model_breakdown().map(|breakdown| {
+                    GroupItem::reading(breakdown, OpenRouterCreditTarget::ModelBreakdown)
+                }),
             ]
             .into_iter()
             .flatten(),

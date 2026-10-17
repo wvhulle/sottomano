@@ -9,15 +9,13 @@ use crate::{
         },
     },
     widgets::{
-        amount_text::{dollars, to_cents},
+        amount_text::dollars,
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
-
-const LISTED_MODELS: usize = 6;
 
 impl BarWidget for OpenRouterSpend {
     fn name(&self) -> &'static str {
@@ -97,13 +95,6 @@ impl OpenRouterSpend {
         let projected = spent
             .projected_cost(now, &self.budget)
             .map(|cost| KeyValue::new("Projected Cost", dollars(cost)));
-        let rest: f64 = spent
-            .models
-            .iter()
-            .skip(LISTED_MODELS)
-            .map(|model| model.cost)
-            .sum();
-        let other = (rest > 0.0).then(|| KeyValue::new("other", format!("${}", to_cents(rest))));
         Section::dictionary(
             [
                 Some(KeyValue::new("Cost", dollars(spent.cost()))),
@@ -111,11 +102,7 @@ impl OpenRouterSpend {
                 threshold,
             ]
             .into_iter()
-            .flatten()
-            .chain(spent.models.iter().take(LISTED_MODELS).map(|model| {
-                KeyValue::new(model.model.as_str(), format!("${}", to_cents(model.cost)))
-            }))
-            .chain(other),
+            .flatten(),
         )
         .titled(title)
     }
