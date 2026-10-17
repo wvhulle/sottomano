@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{
     data::source::{
-        Delivery, PolledSource, Source, blocking_poll, delivered, hardware::PowerSupplyIdentity,
+        Delivery, PolledSource, Source, blocking_poll, hardware::PowerSupplyIdentity,
         present_or_absent,
     },
     message_subscriptions::restarting,
@@ -216,7 +216,10 @@ impl PolledSource for Battery {
             let mut ticks = interval(Battery::INTERVAL);
             ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
             let ticks = IntervalStream::new(ticks).map(|_| ());
-            delivered(select(ticks, supply_state_changes()).then(move |()| Self::poll(key))).boxed()
+            select(ticks, supply_state_changes())
+                .then(move |()| Self::poll(key))
+                .map(Delivery::Reading)
+                .boxed()
         })
     }
 }

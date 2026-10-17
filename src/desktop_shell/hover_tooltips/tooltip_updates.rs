@@ -28,9 +28,8 @@ impl DesktopShell {
                     return Task::none();
                 }
                 let Some(host) = self.surfaces.get(&surface).filter(|_| {
-                    self.tooltip_for(&target).is_some_and(|tooltip| {
-                        !tooltip.is_empty() || !press_hints.gestures().is_empty()
-                    })
+                    self.tooltip_for(&target)
+                        .is_some_and(|tooltip| !tooltip.is_empty() || !press_hints.is_empty())
                 }) else {
                     return Task::none();
                 };

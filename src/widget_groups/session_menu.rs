@@ -75,7 +75,7 @@ impl SessionMenu {
     pub fn tooltip_for(&self, target: SessionTarget, timeouts: Timeouts) -> Tooltip {
         match target {
             SessionTarget::Menu => Tooltip::sourced(
-                TooltipBody::Whole(WholeBody::SessionMenu(SessionMenuBody {
+                TooltipBody::from(WholeBody::SessionMenu(SessionMenuBody {
                     entries: self
                         .permissions
                         .allowed

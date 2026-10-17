@@ -16,7 +16,7 @@ use crate::{
         process::{Watched, launch},
         ticked_polls,
     },
-    widgets::tooltip_body::TooltipBody,
+    widgets::tooltip_body::Section,
 };
 
 const NIXPKGS_META: &str = "p: {
@@ -44,9 +44,9 @@ pub enum Error {
     Interrupted,
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 

@@ -14,8 +14,8 @@ use super::{
     state_changed_at,
 };
 use crate::{
-    data::source::{Delivery, LiveSource, Source, delivered},
-    message_subscriptions::{emit_changes, restarting},
+    data::source::{Delivery, LiveSource, Source, emit_changes},
+    message_subscriptions::restarting,
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -61,12 +61,11 @@ impl<S: UnitScope> Source for SlowJobs<S> {
 
 impl<S: UnitScope> LiveSource for SlowJobs<S> {
     fn events(slow_after: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(
-            emit_changes(restarting("systemd running jobs", move || {
-                watch_running_jobs(S::PER_USER, slow_after)
-            }))
-            .map(|jobs| Ok(SlowJobs::from(jobs))),
-        )
+        emit_changes(restarting("systemd running jobs", move || {
+            watch_running_jobs(S::PER_USER, slow_after)
+        }))
+        .map(|jobs| Ok(SlowJobs::from(jobs)))
+        .map(Delivery::Reading)
     }
 }
 

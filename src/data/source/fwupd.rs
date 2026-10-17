@@ -6,7 +6,7 @@ use crate::{
     data::source::{
         Delivery, LiveSource, Source,
         bus::{self, Bus, Properties, name_owned, prop, service_absent},
-        delivered, present_or_absent,
+        present_or_absent,
     },
     message_subscriptions::restarting,
 };
@@ -84,7 +84,7 @@ impl Source for Vec<FirmwareUpgrade> {
 impl LiveSource for Vec<FirmwareUpgrade> {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, FWUPD_SERVICE), || {
-            delivered(signalled_upgrades()).boxed()
+            signalled_upgrades().map(Delivery::Reading).boxed()
         })
     }
 }

@@ -8,7 +8,7 @@ use std::{
 use uom::si::{f64::Frequency, frequency::kilohertz};
 
 use self::cpu_clock::FrequencyLimit;
-use crate::{data::source::Panicked, widgets::tooltip_body::TooltipBody};
+use crate::{data::source::Panicked, widgets::tooltip_body::Section};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -24,9 +24,9 @@ impl From<Panicked> for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 

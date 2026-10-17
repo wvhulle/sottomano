@@ -96,7 +96,7 @@ impl NiriWindowGroup {
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
             NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(),
         };
-        control.with_live_sections(rules.unreadable().map(|unreadable| {
+        control.with_sections(rules.unreadable().map(|unreadable| {
             Section::dictionary([KeyValue::new(
                 Cell::Path(unreadable.path.to_path_buf()),
                 unreadable.kind.to_string(),

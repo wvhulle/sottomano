@@ -21,7 +21,7 @@ use crate::{
         empty_text::non_empty,
         source::{Panicked, PolledSource, Source, nix_store::Provenance},
     },
-    widgets::tooltip_body::TooltipBody,
+    widgets::tooltip_body::Section,
 };
 
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);
@@ -42,9 +42,9 @@ impl Display for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 

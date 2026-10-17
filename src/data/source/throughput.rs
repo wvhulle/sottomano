@@ -23,7 +23,7 @@ use zbus::Connection;
 
 use crate::{
     data::source::{
-        Delivery, PolledSource, Source, delivered, emit_delivery_changes,
+        Delivery, PolledSource, Source, emit_delivery_changes,
         net_interfaces::nm::{self, Connectivity},
     },
     message_subscriptions::ticked,
@@ -123,18 +123,17 @@ impl PolledSource for Readings {
     }
 
     fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        emit_delivery_changes(delivered(
-            ticked(Self::INTERVAL, move || Self::poll(key)).scan(
-                Rates::default(),
-                |peak, reading| {
+        emit_delivery_changes(
+            ticked(Self::INTERVAL, move || Self::poll(key))
+                .scan(Rates::default(), |peak, reading| {
                     let reading = reading.map(|readings| {
                         *peak = peak.raised_by(readings.rates());
                         readings.with_peak(*peak)
                     });
                     ready(Some(reading))
-                },
-            ),
-        ))
+                })
+                .map(Delivery::Reading),
+        )
     }
 }
 

@@ -13,7 +13,7 @@ use systemd::journal::Journal;
 use crate::data::{
     severity::Severity,
     source::{
-        Delivery, LiveSource, Source, delivered,
+        Delivery, LiveSource, Source,
         journal::{
             JournalEvent, JournalPriority, MessageId, OwningUnit, SubjectUnit, journal_windows,
         },
@@ -29,9 +29,9 @@ impl Source for Vec<OomKillEntry> {
 
 impl LiveSource for Vec<OomKillEntry> {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(
-            journal_windows::<OomKillEntry>().map(|entries| Ok(OomKillEntry::innermost(entries))),
-        )
+        journal_windows::<OomKillEntry>()
+            .map(|entries| Ok(OomKillEntry::innermost(entries)))
+            .map(Delivery::Reading)
     }
 }
 

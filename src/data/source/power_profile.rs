@@ -9,7 +9,7 @@ use crate::{
         source::{
             Delivery, LiveSource, PolledSource, Source, blocking_poll,
             bus::{self, Bus, DeclaredProperties, Properties, name_owned, prop},
-            delivered, present_or_absent, sysfs_sensors, ticked_polls,
+            present_or_absent, sysfs_sensors, ticked_polls,
         },
     },
     message_subscriptions::restarting,
@@ -179,7 +179,9 @@ impl Source for ProfileStatus {
 impl LiveSource for ProfileStatus {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), || {
-            delivered(restarting("power profiles", status_changes)).boxed()
+            restarting("power profiles", status_changes)
+                .map(Delivery::Reading)
+                .boxed()
         })
     }
 }

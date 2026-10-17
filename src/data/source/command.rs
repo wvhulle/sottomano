@@ -6,7 +6,7 @@ use std::{
 
 use tokio::process::Command;
 
-use crate::widgets::tooltip_body::TooltipBody;
+use crate::widgets::tooltip_body::Section;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -15,9 +15,9 @@ pub enum Error {
     Failed { program: String, stderr: String },
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
-        TooltipBody::error(error)
+        Section::error(error)
     }
 }
 

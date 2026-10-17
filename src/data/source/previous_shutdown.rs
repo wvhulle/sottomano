@@ -16,7 +16,7 @@ use tokio::task::spawn_blocking;
 use crate::data::{
     severity::Severity,
     source::{
-        Delivery, LiveSource, Source, delivered,
+        Delivery, LiveSource, Source,
         journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
     },
 };
@@ -289,27 +289,24 @@ impl Source for LastShutdown {
 
 impl LiveSource for LastShutdown {
     fn events(slow_stop: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(
-            stream::once(spawn_blocking(move || read_last_shutdown(slow_stop))).filter_map(
-                |read| {
-                    ready(match read {
-                        Ok(Ok(last_shutdown)) => Some(Ok(last_shutdown)),
-                        Ok(Err(
-                            ShutdownReadError::NoPreviousBoot
-                            | ShutdownReadError::NoShutdownRecorded,
-                        )) => None,
-                        Ok(Err(e)) => {
-                            tracing::warn!("systemd last shutdown: {e}");
-                            None
-                        }
-                        Err(e) => {
-                            tracing::error!("systemd last shutdown: task panicked: {e}");
-                            None
-                        }
-                    })
-                },
-            ),
-        )
+        stream::once(spawn_blocking(move || read_last_shutdown(slow_stop)))
+            .filter_map(|read| {
+                ready(match read {
+                    Ok(Ok(last_shutdown)) => Some(Ok(last_shutdown)),
+                    Ok(Err(
+                        ShutdownReadError::NoPreviousBoot | ShutdownReadError::NoShutdownRecorded,
+                    )) => None,
+                    Ok(Err(e)) => {
+                        tracing::warn!("systemd last shutdown: {e}");
+                        None
+                    }
+                    Err(e) => {
+                        tracing::error!("systemd last shutdown: task panicked: {e}");
+                        None
+                    }
+                })
+            })
+            .map(Delivery::Reading)
     }
 }
 

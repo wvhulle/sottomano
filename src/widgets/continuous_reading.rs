@@ -1,4 +1,4 @@
-use std::{fmt::Display, time::SystemTime};
+use std::{mem::take, time::SystemTime};
 
 use crate::{
     data::source::{Delivery, LiveSource, PolledSource, Source},
@@ -6,9 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        tooltip_body::{
-            Freshness, PollInfo, Readiness, Section, SourcedSection, Tooltip, TooltipBody,
-        },
+        tooltip_body::{Freshness, Readiness, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -32,175 +30,180 @@ impl<S: Source> BarWidget for FailedReading<S> {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        self.error.clone().into()
+        TooltipBody::sections([self.error.clone().into()])
     }
 }
 
-pub struct ContinuousReading<S: Source> {
-    stamped: Option<StampedReading<S>>,
-}
-
-struct StampedReading<S: Source> {
-    freshness: Freshness,
-    outcome: ReadingOutcome<S>,
-}
-
-enum ReadingOutcome<S: Source> {
-    Awaiting,
-    Read(S),
-    Failed(FailedReading<S>),
-}
-
-impl<S: Source> ReadingOutcome<S> {
-    fn data(&self) -> Option<&S> {
-        match self {
-            ReadingOutcome::Read(data) => Some(data),
-            ReadingOutcome::Awaiting | ReadingOutcome::Failed(_) => None,
-        }
-    }
-
-    fn keep<E: Display>(self, reading: Result<S, E>, source: &'static str) -> Self {
-        match reading {
-            Ok(data) => ReadingOutcome::Read(data),
-            Err(failure) => {
-                tracing::warn!("{source}: {failure}");
-                self
-            }
-        }
-    }
-}
-
-impl<S: Source + BarWidget> ReadingOutcome<S> {
-    fn accept(self, reading: Result<S, S::Error>) -> Self {
-        match reading {
-            Ok(data) => ReadingOutcome::Read(data),
-            Err(error) => ReadingOutcome::Failed(FailedReading {
-                icon: match self {
-                    ReadingOutcome::Read(data) => data.icon(),
-                    ReadingOutcome::Failed(failed) => failed.icon,
-                    ReadingOutcome::Awaiting => S::fallback_icon(),
-                },
-                error,
-            }),
-        }
-    }
-}
-
-impl<S: Source> Default for ContinuousReading<S> {
-    fn default() -> Self {
-        Self { stamped: None }
-    }
+#[derive(Default)]
+pub enum ContinuousReading<S: Source> {
+    #[default]
+    Absent,
+    Awaiting {
+        freshness: Freshness,
+    },
+    Read {
+        data: S,
+        freshness: Freshness,
+    },
+    Failed {
+        failure: FailedReading<S>,
+        freshness: Freshness,
+    },
 }
 
 impl<S: Source> ContinuousReading<S> {
     pub fn get(&self) -> Option<&S> {
-        self.stamped.as_ref()?.outcome.data()
+        match self {
+            ContinuousReading::Read { data, .. } => Some(data),
+            ContinuousReading::Absent
+            | ContinuousReading::Awaiting { .. }
+            | ContinuousReading::Failed { .. } => None,
+        }
+    }
+
+    fn freshness(&self) -> Option<Freshness> {
+        match self {
+            ContinuousReading::Absent => None,
+            ContinuousReading::Awaiting { freshness }
+            | ContinuousReading::Read { freshness, .. }
+            | ContinuousReading::Failed { freshness, .. } => Some(*freshness),
+        }
     }
 
     pub fn assume(&mut self, data: S) {
-        if let Some(stamped) = &mut self.stamped {
-            stamped.outcome = ReadingOutcome::Read(data);
+        if let Some(freshness) = self.freshness() {
+            *self = ContinuousReading::Read { data, freshness };
         }
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        Some(Tooltip::sourced(body, self.stamped.as_ref()?.freshness))
+        Some(Tooltip::sourced(body, self.freshness()?))
     }
 
-    pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<SourcedSection> {
-        let Some(stamped) = &self.stamped else {
+    pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
+        let ContinuousReading::Read { data, freshness } = self else {
             return Vec::new();
         };
-        stamped
-            .outcome
-            .data()
-            .map(sections)
-            .unwrap_or_default()
+        sections(data)
             .into_iter()
-            .map(|section| SourcedSection::new(section, Readiness::Settled, stamped.freshness))
+            .map(|section| section.stamped(Readiness::Settled, *freshness))
             .collect()
+    }
+
+    fn kept(self, delivery: Delivery<S>, freshness: Freshness) -> Self {
+        let Delivery::Reading(reading) = delivery else {
+            return ContinuousReading::Absent;
+        };
+        match reading {
+            Ok(data) => ContinuousReading::Read { data, freshness },
+            Err(error) => {
+                tracing::warn!("{}: {error}", S::NAME);
+                self.restamped(freshness)
+            }
+        }
+    }
+
+    fn restamped(self, freshness: Freshness) -> Self {
+        match self {
+            ContinuousReading::Absent | ContinuousReading::Awaiting { .. } => {
+                ContinuousReading::Awaiting { freshness }
+            }
+            ContinuousReading::Read { data, .. } => ContinuousReading::Read { data, freshness },
+            ContinuousReading::Failed { failure, .. } => {
+                ContinuousReading::Failed { failure, freshness }
+            }
+        }
+    }
+
+    fn keep_with(&mut self, delivery: Delivery<S>, freshness: Freshness) {
+        *self = take(self).kept(delivery, freshness);
     }
 }
 
-impl<S: Source> ContinuousReading<S> {
-    fn settle(
-        &mut self,
-        delivery: Delivery<S>,
-        freshness: Freshness,
-        settle: impl FnOnce(ReadingOutcome<S>, Result<S, S::Error>) -> ReadingOutcome<S>,
-    ) {
-        self.stamped = match delivery {
-            Delivery::Absent => None,
-            Delivery::Reading(reading) => {
-                let previous = self
-                    .stamped
-                    .take()
-                    .map_or(ReadingOutcome::Awaiting, |stamped| stamped.outcome);
-                Some(StampedReading {
-                    freshness,
-                    outcome: settle(previous, reading),
-                })
-            }
+impl<S: Source + BarWidget> ContinuousReading<S> {
+    fn accepted(self, delivery: Delivery<S>, freshness: Freshness) -> Self {
+        let Delivery::Reading(reading) = delivery else {
+            return ContinuousReading::Absent;
         };
+        match reading {
+            Ok(data) => ContinuousReading::Read { data, freshness },
+            Err(error) => ContinuousReading::Failed {
+                failure: FailedReading {
+                    icon: self.last_icon(),
+                    error,
+                },
+                freshness,
+            },
+        }
+    }
+
+    fn last_icon(&self) -> Glyph {
+        match self {
+            ContinuousReading::Read { data, .. } => data.icon(),
+            ContinuousReading::Failed { failure, .. } => failure.icon,
+            ContinuousReading::Absent | ContinuousReading::Awaiting { .. } => S::fallback_icon(),
+        }
+    }
+
+    fn accept_with(&mut self, delivery: Delivery<S>, freshness: Freshness) {
+        *self = take(self).accepted(delivery, freshness);
     }
 }
 
 impl<S: LiveSource> ContinuousReading<S> {
     pub fn load(&mut self, data: S) {
-        self.stamped = Some(StampedReading {
+        *self = ContinuousReading::Read {
+            data,
             freshness: Freshness::Live,
-            outcome: ReadingOutcome::Read(data),
-        });
+        };
     }
 
     pub fn push_or_keep(&mut self, delivery: Delivery<S>) {
-        self.settle(delivery, Freshness::Live, |previous, reading| {
-            previous.keep(reading, S::NAME)
-        });
+        self.keep_with(delivery, Freshness::Live);
     }
 }
 
 impl<S: LiveSource + BarWidget> ContinuousReading<S> {
     pub fn push(&mut self, delivery: Delivery<S>) {
-        self.settle(delivery, Freshness::Live, ReadingOutcome::accept);
+        self.accept_with(delivery, Freshness::Live);
     }
 }
 
 impl<S: PolledSource> ContinuousReading<S> {
     fn polled_now() -> Freshness {
-        Freshness::Polled(PollInfo {
+        Freshness::Polled {
             source: S::NAME,
             every: S::INTERVAL,
             last: SystemTime::now(),
-        })
+        }
     }
 
     pub fn receive_or_keep(&mut self, delivery: Delivery<S>) {
-        self.settle(delivery, Self::polled_now(), |previous, reading| {
-            previous.keep(reading, S::NAME)
-        });
+        self.keep_with(delivery, Self::polled_now());
     }
 }
 
 impl<S: PolledSource + BarWidget> ContinuousReading<S> {
     pub fn receive(&mut self, delivery: Delivery<S>) {
-        self.settle(delivery, Self::polled_now(), ReadingOutcome::accept);
+        self.accept_with(delivery, Self::polled_now());
     }
 }
 
 impl<S: Source + BarWidget> ContinuousReading<S> {
     pub fn display(&self) -> Option<&dyn BarWidget> {
-        match &self.stamped.as_ref()?.outcome {
-            ReadingOutcome::Read(data) => Some(data),
-            ReadingOutcome::Failed(failure) => Some(failure),
-            ReadingOutcome::Awaiting => None,
+        match self {
+            ContinuousReading::Read { data, .. } => Some(data),
+            ContinuousReading::Failed { failure, .. } => Some(failure),
+            ContinuousReading::Absent | ContinuousReading::Awaiting { .. } => None,
         }
     }
 
     pub fn failure(&self) -> Option<&dyn BarWidget> {
-        match &self.stamped.as_ref()?.outcome {
-            ReadingOutcome::Failed(failure) => Some(failure),
-            ReadingOutcome::Awaiting | ReadingOutcome::Read(_) => None,
+        match self {
+            ContinuousReading::Failed { failure, .. } => Some(failure),
+            ContinuousReading::Absent
+            | ContinuousReading::Awaiting { .. }
+            | ContinuousReading::Read { .. } => None,
         }
     }
 
@@ -218,7 +221,7 @@ impl<S: Source + BarWidget> ContinuousReading<S> {
 
     pub fn tooltip_with_sections(
         &self,
-        extra: impl IntoIterator<Item = SourcedSection>,
+        extra: impl IntoIterator<Item = Section>,
     ) -> Option<Tooltip> {
         let own = self.tooltip_with(self.display()?.tooltip())?;
         Some(own.with_sections(extra))
@@ -231,10 +234,12 @@ impl<S: Source + Occasional> ContinuousReading<S> {
     }
 
     pub fn present(&self) -> Option<&dyn BarWidget> {
-        match &self.stamped.as_ref()?.outcome {
-            ReadingOutcome::Read(data) => data.present().then_some(data as &dyn BarWidget),
-            ReadingOutcome::Failed(failure) => Some(failure),
-            ReadingOutcome::Awaiting => None,
+        match self {
+            ContinuousReading::Read { data, .. } => {
+                data.present().then_some(data as &dyn BarWidget)
+            }
+            ContinuousReading::Failed { failure, .. } => Some(failure),
+            ContinuousReading::Absent | ContinuousReading::Awaiting { .. } => None,
         }
     }
 

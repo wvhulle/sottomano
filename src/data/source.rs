@@ -13,7 +13,7 @@ use iced::futures::{
 };
 use tokio::task::spawn_blocking;
 
-use crate::{message_subscriptions::ticked, widgets::tooltip_body::TooltipBody};
+use crate::{message_subscriptions::ticked, widgets::tooltip_body::Section};
 
 pub mod ai;
 pub mod app_icon;
@@ -77,9 +77,9 @@ impl Display for Panicked {
     }
 }
 
-impl From<Panicked> for TooltipBody {
+impl From<Panicked> for Section {
     fn from(panicked: Panicked) -> Self {
-        TooltipBody::error(panicked)
+        Section::error(panicked)
     }
 }
 
@@ -96,7 +96,7 @@ where
 }
 
 pub trait Source: Clone + Debug + Sized + Send + 'static {
-    type Error: Clone + Debug + Display + Send + Into<TooltipBody> + 'static;
+    type Error: Clone + Debug + Display + Send + Into<Section> + 'static;
     type Key: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
@@ -124,12 +124,6 @@ pub trait LiveSource: Source {
 
 pub fn ticked_polls<S: PolledSource>(key: S::Key) -> impl Stream<Item = Delivery<S>> + Send {
     emit_delivery_changes(ticked(S::INTERVAL, move || S::poll(key.clone())).map(Delivery::Reading))
-}
-
-pub fn delivered<S: Source>(
-    readings: impl Stream<Item = Result<S, S::Error>> + Send,
-) -> impl Stream<Item = Delivery<S>> + Send {
-    readings.map(Delivery::Reading)
 }
 
 pub fn present_or_absent<S: Source>(
@@ -224,8 +218,18 @@ pub fn all_of(
         .filter_map(ready)
 }
 
-pub fn settled(present: bool) -> impl Stream<Item = bool> + Send {
-    stream::iter([present])
+pub fn emit_changes<T: Clone + PartialEq>(
+    readings: impl Stream<Item = T>,
+) -> impl Stream<Item = T> {
+    readings
+        .scan(None, |previous, reading| {
+            let changed = previous.as_ref() != Some(&reading);
+            if changed {
+                *previous = Some(reading.clone());
+            }
+            ready(Some(changed.then_some(reading)))
+        })
+        .filter_map(ready)
 }
 
 pub fn emit_delivery_changes<S: PolledSource>(

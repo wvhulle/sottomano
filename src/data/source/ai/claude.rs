@@ -22,9 +22,9 @@ pub use self::{
 use crate::{
     data::source::{
         Delivery, PolledSource, ai::ccusage, all_of, file_presence::path_present, http,
-        present_or_absent, settled, ticked_polls,
+        present_or_absent, ticked_polls,
     },
-    widgets::tooltip_body::{KeyValue, Section, TooltipBody},
+    widgets::tooltip_body::{KeyValue, Section},
 };
 
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
@@ -67,17 +67,17 @@ impl From<http::Error> for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
         match error {
             Error::RateLimited(cause) | Error::Fetch(cause) => cause.into(),
             Error::Backoff { remaining, cause } => {
-                TooltipBody::from(cause).with_sections([Section::dictionary([KeyValue::new(
+                Section::from(cause).with_entries([KeyValue::new(
                     "Retry in",
                     humantime::format_duration(remaining).to_string(),
-                )])])
+                )])
             }
-            other => TooltipBody::error(other),
+            other => Section::error(other),
         }
     }
 }
@@ -163,7 +163,7 @@ fn local_log_polls<S: PolledSource<Key = ClaudeLocalLogs>>(
         Some(credentials) => logins(credentials)
             .map(move |kind| (kind == Some(LoginKind::Subscription)) == metered_by_subscription)
             .boxed(),
-        None => settled(!metered_by_subscription).boxed(),
+        None => stream::iter([!metered_by_subscription]).boxed(),
     };
     present_or_absent(
         all_of([stream::once(ccusage::installed()).boxed(), login_matches]),

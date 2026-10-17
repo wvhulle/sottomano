@@ -8,7 +8,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use iced::{Size, alignment::Horizontal};
-use uom::si::{f64::Ratio, ratio::ratio};
+use uom::si::f64::Ratio;
 
 use crate::{
     data::{
@@ -231,39 +231,8 @@ pub enum Readiness {
 pub struct Section {
     heading: Option<Heading>,
     body: SectionBody,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SourcedSection {
-    section: Section,
     readiness: Readiness,
     freshness: Freshness,
-}
-
-impl SourcedSection {
-    pub(in crate::widgets) fn new(
-        section: Section,
-        readiness: Readiness,
-        freshness: Freshness,
-    ) -> Self {
-        Self {
-            section,
-            readiness,
-            freshness,
-        }
-    }
-
-    pub fn section(&self) -> &Section {
-        &self.section
-    }
-
-    pub fn readiness(&self) -> Readiness {
-        self.readiness
-    }
-
-    pub fn freshness(&self) -> Freshness {
-        self.freshness
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -301,11 +270,48 @@ impl Section {
         Self {
             heading: None,
             body,
+            readiness: Readiness::Settled,
+            freshness: Freshness::Live,
         }
+    }
+
+    #[must_use]
+    pub(in crate::widgets) fn stamped(self, readiness: Readiness, freshness: Freshness) -> Self {
+        Self {
+            readiness,
+            freshness,
+            ..self
+        }
+    }
+
+    pub fn readiness(&self) -> Readiness {
+        self.readiness
+    }
+
+    pub fn freshness(&self) -> Freshness {
+        self.freshness
     }
 
     pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
         Self::untitled(SectionBody::Dictionary(entries.into_iter().collect()))
+    }
+
+    pub fn error(message: impl Display) -> Self {
+        Self::dictionary([KeyValue::new("Error", message.to_string())])
+    }
+
+    #[must_use]
+    pub fn with_entries(self, extra: impl IntoIterator<Item = KeyValue>) -> Self {
+        match self.body {
+            SectionBody::Dictionary(entries) => Self {
+                body: SectionBody::Dictionary(entries.into_iter().chain(extra).collect()),
+                ..self
+            },
+            other => Self {
+                body: other,
+                ..self
+            },
+        }
     }
 
     pub fn column_table<const COLUMNS: usize>(
@@ -390,7 +396,19 @@ impl WholeBody {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TooltipBody {
     Sections(Vec<Section>),
-    Whole(WholeBody),
+    Whole {
+        body: WholeBody,
+        freshness: Freshness,
+    },
+}
+
+impl From<WholeBody> for TooltipBody {
+    fn from(body: WholeBody) -> Self {
+        TooltipBody::Whole {
+            body,
+            freshness: Freshness::Live,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -424,10 +442,6 @@ impl TooltipBody {
         TooltipBody::Sections(vec![Section::dictionary(entries)])
     }
 
-    pub fn error(message: impl Display) -> Self {
-        TooltipBody::dictionary([KeyValue::new("Error", message.to_string())])
-    }
-
     #[must_use]
     pub fn with_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
         match self {
@@ -435,70 +449,64 @@ impl TooltipBody {
                 sections.extend(extra);
                 TooltipBody::Sections(sections)
             }
-            whole @ TooltipBody::Whole(_) => whole,
+            whole @ TooltipBody::Whole { .. } => whole,
+        }
+    }
+
+    #[must_use]
+    fn stamped(self, freshness: Freshness) -> Self {
+        match self {
+            TooltipBody::Sections(sections) => TooltipBody::Sections(
+                sections
+                    .into_iter()
+                    .map(|section| {
+                        let readiness = section.readiness;
+                        section.stamped(readiness, freshness)
+                    })
+                    .collect(),
+            ),
+            TooltipBody::Whole { body, .. } => TooltipBody::Whole { body, freshness },
+        }
+    }
+
+    fn has_polled_data(&self) -> bool {
+        match self {
+            TooltipBody::Sections(sections) => sections
+                .iter()
+                .any(|section| matches!(section.freshness, Freshness::Polled { .. })),
+            TooltipBody::Whole { freshness, .. } => matches!(freshness, Freshness::Polled { .. }),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            TooltipBody::Sections(sections) => {
+                sections.iter().all(|section| section.body.is_empty())
+            }
+            TooltipBody::Whole { body, .. } => body.is_empty(),
         }
     }
 }
 
-impl From<Infallible> for TooltipBody {
+impl From<Infallible> for Section {
     fn from(never: Infallible) -> Self {
         match never {}
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PollInfo {
-    pub source: &'static str,
-    pub every: Duration,
-    pub last: SystemTime,
-}
-
-impl PollInfo {
-    pub fn elapsed_since_last_poll(&self, now: SystemTime) -> Ratio {
-        let since_delivery = now.duration_since(self.last).unwrap_or(Duration::ZERO);
-        let within_cycle = since_delivery.as_secs_f64() % self.every.as_secs_f64();
-        Ratio::new::<ratio>(within_cycle / self.every.as_secs_f64())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Freshness {
-    Polled(PollInfo),
+    Polled {
+        source: &'static str,
+        every: Duration,
+        last: SystemTime,
+    },
     Live,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum SourcedBody {
-    Sections(Vec<SourcedSection>),
-    Whole {
-        body: WholeBody,
-        freshness: Freshness,
-    },
-}
-
-impl SourcedBody {
-    fn has_polled_data(&self) -> bool {
-        match self {
-            SourcedBody::Sections(sections) => sections
-                .iter()
-                .any(|section| matches!(section.freshness, Freshness::Polled(_))),
-            SourcedBody::Whole { freshness, .. } => matches!(freshness, Freshness::Polled(_)),
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        match self {
-            SourcedBody::Sections(sections) => sections
-                .iter()
-                .all(|section| section.section.body.is_empty()),
-            SourcedBody::Whole { body, .. } => body.is_empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
-    pub body: SourcedBody,
+    pub body: TooltipBody,
     pub press_hints: PressHints,
 }
 
@@ -507,44 +515,26 @@ impl Tooltip {
         Self::sections([])
     }
 
-    pub fn sections(sections: impl IntoIterator<Item = SourcedSection>) -> Self {
+    pub fn sections(sections: impl IntoIterator<Item = Section>) -> Self {
         Self {
-            body: SourcedBody::Sections(sections.into_iter().collect()),
+            body: TooltipBody::sections(sections),
             press_hints: PressHints::default(),
         }
     }
 
     pub fn sourced(body: TooltipBody, freshness: Freshness) -> Self {
-        let body = match body {
-            TooltipBody::Sections(sections) => SourcedBody::Sections(
-                sections
-                    .into_iter()
-                    .map(|section| SourcedSection::new(section, Readiness::Settled, freshness))
-                    .collect(),
-            ),
-            TooltipBody::Whole(body) => SourcedBody::Whole { body, freshness },
-        };
         Self {
-            body,
+            body: body.stamped(freshness),
             press_hints: PressHints::default(),
         }
     }
 
     #[must_use]
-    pub fn with_sections(mut self, extra: impl IntoIterator<Item = SourcedSection>) -> Self {
-        if let SourcedBody::Sections(sections) = &mut self.body {
-            sections.extend(extra);
+    pub fn with_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
+        Self {
+            body: self.body.with_sections(extra),
+            ..self
         }
-        self
-    }
-
-    #[must_use]
-    pub fn with_live_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
-        self.with_sections(
-            extra
-                .into_iter()
-                .map(|section| SourcedSection::new(section, Readiness::Settled, Freshness::Live)),
-        )
     }
 
     pub fn has_polled_data(&self) -> bool {

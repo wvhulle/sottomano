@@ -9,7 +9,7 @@ use zbus::{names::MemberName, proxy, proxy::CacheProperties, zvariant::OwnedObje
 
 use super::{ManagerProxy, UnitScope, connect, manager_signal, signals_matching};
 use crate::{
-    data::source::{Delivery, LiveSource, Source, delivered},
+    data::source::{Delivery, LiveSource, Source},
     message_subscriptions::restarting,
 };
 
@@ -65,17 +65,16 @@ impl<S: UnitScope> Source for ServiceCommands<S> {
 
 impl<S: UnitScope> LiveSource for ServiceCommands<S> {
     fn events((): ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(
-            restarting("systemd service commands", || {
-                watch_service_commands(S::PER_USER)
+        restarting("systemd service commands", || {
+            watch_service_commands(S::PER_USER)
+        })
+        .map(|services| {
+            Ok(Self {
+                services,
+                scope: PhantomData,
             })
-            .map(|services| {
-                Ok(Self {
-                    services,
-                    scope: PhantomData,
-                })
-            }),
-        )
+        })
+        .map(Delivery::Reading)
     }
 }
 

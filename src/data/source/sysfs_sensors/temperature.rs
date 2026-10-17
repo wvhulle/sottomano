@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::HashMap,
+    future::ready,
     time::{Duration, SystemTime},
 };
 
@@ -165,14 +166,35 @@ impl PolledSource for Temperature {
                 .await
                 .is_ok_and(|readings| !readings.is_empty())
         };
-        present_or_absent(stream::once(exposed), move || {
+        holding_earliest_critical(present_or_absent(stream::once(exposed), move || {
             ticked_polls::<Self>(config.clone()).boxed()
-        })
+        }))
     }
 
     async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {
         blocking_poll(move || read_temperature(&config)).await
     }
+}
+
+fn holding_earliest_critical(
+    deliveries: impl Stream<Item = Delivery<Temperature>>,
+) -> impl Stream<Item = Delivery<Temperature>> {
+    deliveries.scan(None, |held, delivery| {
+        let delivery = match delivery {
+            Delivery::Reading(Ok(reading)) => {
+                *held = reading.critical_since.map(|now| held.unwrap_or(now));
+                Delivery::Reading(Ok(Temperature {
+                    critical_since: *held,
+                    ..reading
+                }))
+            }
+            interrupted => {
+                *held = None;
+                interrupted
+            }
+        };
+        ready(Some(delivery))
+    })
 }
 
 fn read_temperature(config: &SensorConfig) -> Result<Temperature, Error> {
@@ -334,7 +356,38 @@ fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
 
 #[cfg(test)]
 mod tests {
+    use iced::futures::executor::block_on;
+
     use super::*;
+
+    fn reading_critical_since(critical_since: Option<SystemTime>) -> Temperature {
+        Temperature {
+            readings: Vec::new(),
+            throttle_limit: None,
+            overrides: ThresholdOverrides::default(),
+            critical_since,
+        }
+    }
+
+    #[test]
+    fn holding_earliest_critical_keeps_the_first_stamp_until_a_gap() {
+        let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
+        let second = first + Duration::from_secs(5);
+        let third = first + Duration::from_secs(15);
+        let deliveries = stream::iter(
+            [Some(first), Some(second), None, Some(third)]
+                .map(|since| Delivery::Reading(Ok(reading_critical_since(since)))),
+        );
+        let held: Vec<Option<SystemTime>> = block_on(
+            holding_earliest_critical(deliveries)
+                .map(|delivery| match delivery {
+                    Delivery::Reading(Ok(reading)) => reading.critical_since,
+                    Delivery::Reading(Err(_)) | Delivery::Absent => None,
+                })
+                .collect(),
+        );
+        assert_eq!(held, [Some(first), Some(first), None, Some(third)]);
+    }
 
     #[test]
     fn reported_limit_sets_thresholds_below_throttling() {

@@ -4,7 +4,7 @@ use chrono::{NaiveTime, TimeDelta, Timelike};
 use iced::futures::{Stream, StreamExt, stream};
 
 use crate::{
-    data::source::{Delivery, LiveSource, Source, delivered},
+    data::source::{Delivery, LiveSource, Source},
     state::{Columns, StoreError, with_table},
 };
 
@@ -44,7 +44,7 @@ impl Source for QuietHoursSchedule {
 
 impl LiveSource for QuietHoursSchedule {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(stream::once(load()).map(Ok))
+        stream::once(load()).map(Ok).map(Delivery::Reading)
     }
 }
 

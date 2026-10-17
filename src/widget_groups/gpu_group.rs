@@ -25,7 +25,7 @@ use crate::{
         group_item::GroupItem,
         hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
-        tooltip_body::{SourcedSection, Tooltip, TooltipBody},
+        tooltip_body::{Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -141,8 +141,8 @@ impl GpuGroup {
     fn hovered_sections(
         &self,
         bus: &PciBusId,
-        sections: impl FnOnce(&Self) -> Vec<SourcedSection>,
-    ) -> Vec<SourcedSection> {
+        sections: impl FnOnce(&Self) -> Vec<Section>,
+    ) -> Vec<Section> {
         if self.hovered_bus.as_ref() == Some(bus) {
             sections(self)
         } else {

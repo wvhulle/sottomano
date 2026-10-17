@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::data::source::{
-    Delivery, LiveSource, Source, delivered,
+    Delivery, LiveSource, Source,
     kitty_windows::WindowProcesses,
     window_label::{IconCandidate, WindowLabel},
 };
@@ -69,16 +69,15 @@ impl Source for Snapshot {
 
 impl LiveSource for Snapshot {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(ReceiverStream::new(spawn_event_thread()).scan(
-            EventStreamState::default(),
-            |state, event| {
+        ReceiverStream::new(spawn_event_thread())
+            .scan(EventStreamState::default(), |state, event| {
                 let _ = state.apply(event);
                 ready(Some(Ok(Snapshot::derive(
                     state,
                     &WindowProcesses::default(),
                 ))))
-            },
-        ))
+            })
+            .map(Delivery::Reading)
     }
 }
 

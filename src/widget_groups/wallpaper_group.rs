@@ -12,11 +12,11 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 use crate::{
     config::SecretPaths,
     data::source::{
-        Delivery, LiveSource, Source, command, present_or_absent,
+        Delivery, LiveSource, Source, command, emit_changes, present_or_absent,
         wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{emit_changes, listening},
+    message_subscriptions::listening,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -60,11 +60,11 @@ impl Display for Failure {
     }
 }
 
-impl From<Failure> for TooltipBody {
+impl From<Failure> for Section {
     fn from(failure: Failure) -> Self {
         match failure {
             Failure::Resolve(wallpaper::Error::Fetch(fetch)) => fetch.into(),
-            other => TooltipBody::error(other),
+            other => Section::error(other),
         }
     }
 }

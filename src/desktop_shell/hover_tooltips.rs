@@ -123,6 +123,13 @@ pub enum MouseGesture {
 }
 
 impl MouseGesture {
+    pub const ALL: [MouseGesture; 4] = [
+        MouseGesture::LeftClick,
+        MouseGesture::MiddleClick,
+        MouseGesture::RightClick,
+        MouseGesture::Scroll,
+    ];
+
     pub fn glyph(self) -> Phosphor {
         match self {
             MouseGesture::LeftClick => Phosphor::MouseLeftClick(Weight::Regular),
@@ -131,12 +138,6 @@ impl MouseGesture {
             MouseGesture::Scroll => Phosphor::MouseScroll(Weight::Regular),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GestureHint {
-    pub gesture: MouseGesture,
-    pub does: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -148,16 +149,19 @@ pub struct PressHints {
 }
 
 impl PressHints {
-    pub fn gestures(self) -> Vec<GestureHint> {
-        [
-            (MouseGesture::LeftClick, self.left),
-            (MouseGesture::MiddleClick, self.middle),
-            (MouseGesture::RightClick, self.right),
-            (MouseGesture::Scroll, self.scroll),
-        ]
-        .into_iter()
-        .filter_map(|(gesture, does)| does.map(|does| GestureHint { gesture, does }))
-        .collect()
+    pub fn does(self, gesture: MouseGesture) -> Option<&'static str> {
+        match gesture {
+            MouseGesture::LeftClick => self.left,
+            MouseGesture::MiddleClick => self.middle,
+            MouseGesture::RightClick => self.right,
+            MouseGesture::Scroll => self.scroll,
+        }
+    }
+
+    pub fn is_empty(self) -> bool {
+        MouseGesture::ALL
+            .into_iter()
+            .all(|gesture| self.does(gesture).is_none())
     }
 }
 
@@ -201,18 +205,15 @@ mod tests {
             ..PressHints::default()
         };
         assert_eq!(
-            hints.gestures(),
+            MouseGesture::ALL.map(|gesture| hints.does(gesture)),
             [
-                GestureHint {
-                    gesture: MouseGesture::LeftClick,
-                    does: "focus the window",
-                },
-                GestureHint {
-                    gesture: MouseGesture::RightClick,
-                    does: "disconnect the tunnel",
-                },
+                Some("focus the window"),
+                None,
+                Some("disconnect the tunnel"),
+                None,
             ]
         );
-        assert!(PressHints::default().gestures().is_empty());
+        assert!(!hints.is_empty());
+        assert!(PressHints::default().is_empty());
     }
 }

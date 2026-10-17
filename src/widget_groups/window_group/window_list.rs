@@ -42,7 +42,7 @@ use crate::{
             draggable_slot::{draggable_slot, draggable_slot_list},
             keyed_slot_list::keyed_slot_list,
         },
-        tooltip_body::{Section, SourcedSection},
+        tooltip_body::Section,
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
@@ -140,7 +140,7 @@ impl WindowList {
         &self.window_processes
     }
 
-    pub fn process_sections(&self) -> Vec<SourcedSection> {
+    pub fn process_sections(&self) -> Vec<Section> {
         self.hovered_window
             .iter()
             .flat_map(|window| {

@@ -7,13 +7,13 @@ mod memory_usage_gauge;
 mod x3d_cache_preference_toggle;
 
 use chiplet_live_state::ChipletLiveState;
-use iced::{Subscription, Task, futures::Stream};
+use iced::{Subscription, Task};
 use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
     config::{Config, widget_groups::temperature_sensors::SensorConfig},
     data::source::{
-        Delivery, PolledSource,
+        Delivery,
         hardware::HostHardware,
         sysfs_sensors::{
             cpu_clock::CpuClock,
@@ -27,7 +27,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, holding_earliest, polling, polling_through},
+    message_subscriptions::{ForcedRefresh, polling},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -88,12 +88,6 @@ pub enum ComputeMessage {
     MemoryProcessesFetched(Delivery<MemoryProcesses>),
     ModuleTemperaturesFetched(Delivery<MemoryModuleTemperatures>),
     Expansion(ExpansionMessage),
-}
-
-fn confirmed_heat(sensor: SensorConfig) -> impl Stream<Item = Delivery<Temperature>> {
-    holding_earliest(Temperature::polls(sensor), |reading| {
-        &mut reading.critical_since
-    })
 }
 
 impl ComputeGroup {
@@ -157,8 +151,7 @@ impl ComputeGroup {
             polling::<CpuUsage>((), forced).map(ComputeMessage::Cpu),
             polling::<Memory>((), forced).map(ComputeMessage::Memory),
             polling::<CpuClock>((), forced).map(ComputeMessage::Clock),
-            polling_through::<Temperature, _>(sensor.clone(), forced, confirmed_heat)
-                .map(ComputeMessage::Temperature),
+            polling::<Temperature>(sensor.clone(), forced).map(ComputeMessage::Temperature),
             ToggleControl::<X3dCachePreference>::subscription((), forced)
                 .map(ComputeMessage::CachePreference),
         ])

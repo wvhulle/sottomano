@@ -32,7 +32,6 @@ use crate::{
     data::source::{
         Delivery, LiveSource, Source,
         bus::{DeclaredProperties, OwnerProcess, Properties},
-        delivered,
     },
     message_subscriptions::restarting,
 };
@@ -468,7 +467,7 @@ impl Source for Vec<Media> {
 
 impl LiveSource for Vec<Media> {
     fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        delivered(restarting("mpris", connect).map(Ok))
+        restarting("mpris", connect).map(Ok).map(Delivery::Reading)
     }
 }
 

@@ -10,7 +10,7 @@ use reqwest::{
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
-use crate::widgets::tooltip_body::{KeyValue, TooltipBody};
+use crate::widgets::tooltip_body::{KeyValue, Section};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -81,16 +81,16 @@ impl Display for Error {
     }
 }
 
-impl From<Error> for TooltipBody {
+impl From<Error> for Section {
     fn from(error: Error) -> Self {
         match error {
-            Error::Status { status, message } => TooltipBody::dictionary(
+            Error::Status { status, message } => Section::dictionary(
                 message
                     .map(|message| KeyValue::new("Error", message))
                     .into_iter()
                     .chain([KeyValue::new("Status", status.to_string())]),
             ),
-            other => TooltipBody::error(other),
+            other => Section::error(other),
         }
     }
 }

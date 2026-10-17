@@ -15,7 +15,7 @@ use tokio::time::sleep;
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     config::Config,
-    data::source::{Delivery, PolledSource, delivered},
+    data::source::{Delivery, PolledSource},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{ForcedRefresh, polling},
     widgets::{
@@ -141,16 +141,15 @@ impl ClockGroup {
 pub fn polled_at_second_boundaries<S: PolledSource>(
     key: S::Key,
 ) -> impl Stream<Item = Delivery<S>> + Send {
-    delivered(
-        stream::repeat_with(move || {
-            let key = key.clone();
-            async move {
-                sleep(until_next_boundary(Local::now(), TICK)).await;
-                S::poll(key).await
-            }
-        })
-        .then(identity),
-    )
+    stream::repeat_with(move || {
+        let key = key.clone();
+        async move {
+            sleep(until_next_boundary(Local::now(), TICK)).await;
+            S::poll(key).await
+        }
+    })
+    .then(identity)
+    .map(Delivery::Reading)
 }
 
 fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {

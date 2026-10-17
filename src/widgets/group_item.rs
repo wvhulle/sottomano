@@ -42,23 +42,21 @@ enum ItemKind<'a, M> {
     },
 }
 
-struct AnnouncingReading<'r> {
-    widget: &'r dyn BarWidget,
-    target: &'r HoverTarget,
-}
-
 impl<'a, M: 'a> ItemKind<'a, M> {
-    fn announcing_reading(&self) -> Option<AnnouncingReading<'_>> {
+    fn announcing_widget(&self) -> Option<&dyn BarWidget> {
         match self {
-            ItemKind::Reading { widget, target } => Some(AnnouncingReading {
-                widget: widget.as_ref(),
-                target,
-            }),
-            ItemKind::Control { widget, target, .. } => Some(AnnouncingReading {
-                widget: *widget,
-                target,
-            }),
+            ItemKind::Reading { widget, .. } => Some(widget.as_ref()),
+            ItemKind::Control { widget, .. } => Some(*widget),
             ItemKind::Element { .. } | ItemKind::HoverableElement { .. } => None,
+        }
+    }
+
+    fn hover_target(&self) -> Option<&HoverTarget> {
+        match self {
+            ItemKind::Reading { target, .. }
+            | ItemKind::Control { target, .. }
+            | ItemKind::HoverableElement { target, .. } => Some(target),
+            ItemKind::Element { .. } => None,
         }
     }
 
@@ -259,7 +257,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub(super) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
-        let AnnouncingReading { widget, target } = self.kind.announcing_reading()?;
+        let widget = self.kind.announcing_widget()?;
+        let target = self.kind.hover_target()?;
         widget.announced_level().map(|level| LevelReading {
             hover_target: target.clone(),
             glyph: widget.icon(),
@@ -276,12 +275,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let ongoing_toast =
-            self.kind
-                .announcing_reading()
-                .and_then(|AnnouncingReading { widget, target }| {
-                    OngoingToast::from_widget_state(target.clone(), widget, on_body_clicked, locale)
-                });
+        let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
+            let target = self.kind.hover_target()?;
+            OngoingToast::from_widget_state(target.clone(), widget, on_body_clicked, locale)
+        });
         ongoing_toast
             .map(|alert| {
                 self.ongoing_toast_action_buttons

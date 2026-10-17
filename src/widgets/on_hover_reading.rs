@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use crate::{
     config::Config,
     data::source::{Delivery, LiveSource, PolledSource, Source},
-    widgets::tooltip_body::{Freshness, KeyValue, PollInfo, Readiness, Section, SourcedSection},
+    widgets::tooltip_body::{Freshness, Readiness, Section},
 };
 
 #[derive(Debug)]
@@ -42,11 +42,11 @@ impl<S: Source> OnHoverReading<S> {
     where
         S: PolledSource,
     {
-        let freshness = Freshness::Polled(PollInfo {
+        let freshness = Freshness::Polled {
             source: S::NAME,
             every: S::INTERVAL,
             last: SystemTime::now(),
-        });
+        };
         self.start(S::polls(key), freshness, delivered, config)
     }
 
@@ -104,8 +104,8 @@ impl<S: Source> OnHoverReading<S> {
             }
             Delivery::Reading(reading) => self.latest = Some(reading),
         }
-        if let Some(Freshness::Polled(poll)) = &mut self.freshness {
-            poll.last = SystemTime::now();
+        if let Some(Freshness::Polled { last, .. }) = &mut self.freshness {
+            *last = SystemTime::now();
         }
     }
 
@@ -117,7 +117,7 @@ impl<S: Source> OnHoverReading<S> {
         }
     }
 
-    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<SourcedSection> {
+    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
         let Some(freshness) = self.freshness else {
             return Vec::new();
         };
@@ -129,14 +129,11 @@ impl<S: Source> OnHoverReading<S> {
         let unmarked = match &self.latest {
             None => self.shape.as_ref().map(&sections).unwrap_or_default(),
             Some(Ok(reading)) => sections(reading),
-            Some(Err(failure)) => vec![Section::dictionary([KeyValue::new(
-                "Error",
-                failure.to_string(),
-            )])],
+            Some(Err(failure)) => vec![failure.clone().into()],
         };
         unmarked
             .into_iter()
-            .map(|section| SourcedSection::new(section, readiness, freshness))
+            .map(|section| section.stamped(readiness, freshness))
             .collect()
     }
 }
