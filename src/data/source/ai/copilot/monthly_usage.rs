@@ -16,7 +16,6 @@ use crate::data::source::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotCcusage {
-    pub month: String,
     pub period: Period,
     pub budget: SpendBudget,
 }
@@ -51,10 +50,9 @@ impl PolledSource for CopilotCcusage {
     }
 
     async fn poll(budget: SpendBudget) -> Result<Self, Self::Error> {
-        let current = ccusage::this_month(Agent::CopilotCli).await?;
+        let recent = ccusage::recent(Agent::CopilotCli).await?;
         Ok(CopilotCcusage {
-            month: current.name,
-            period: current.period,
+            period: recent.month,
             budget,
         })
     }

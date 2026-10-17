@@ -1,11 +1,9 @@
-use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    path::PathBuf,
-    time::Duration,
-};
+use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::Stream;
+use rust_decimal::Decimal;
+use rusty_money::iso;
 use serde::{Deserialize, Deserializer};
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -13,12 +11,14 @@ use super::{
     Error, LoginKind, login_polls,
     oauth_api::{self, PlanReply},
 };
-use crate::data::source::{
-    Delivery, PolledSource, Source,
-    ai::quota::{Quota, QuotaLimited},
+use crate::data::{
+    money::{Money, from_minor_units},
+    source::{
+        Delivery, PolledSource, Source,
+        ai::quota::{Quota, QuotaLimited},
+    },
 };
 
-const DEFAULT_DECIMAL_PLACES: u8 = 2;
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
 const WEEKLY_LENGTH: TimeDelta = TimeDelta::days(7);
 
@@ -35,8 +35,8 @@ struct Usage {
 struct Overage {
     #[serde(default)]
     is_enabled: bool,
-    used_credits: Option<f64>,
-    monthly_limit: Option<f64>,
+    used_credits: Option<Decimal>,
+    monthly_limit: Option<Decimal>,
     utilization: Option<f64>,
     #[serde(default)]
     currency: String,
@@ -53,40 +53,6 @@ pub struct WindowUsage {
 
 fn percent_share<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Ratio, D::Error> {
     f64::deserialize(deserializer).map(Ratio::new::<percent>)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Money {
-    pub amount: f64,
-    pub currency: String,
-    pub decimal_places: usize,
-}
-
-impl Money {
-    pub fn from_minor_units(minor_units: f64, currency: String, decimal_places: u8) -> Self {
-        Money {
-            amount: minor_units / 10f64.powi(i32::from(decimal_places)),
-            currency,
-            decimal_places: usize::from(decimal_places),
-        }
-    }
-
-    pub fn short_text(&self) -> String {
-        match self.currency.as_str() {
-            "USD" => format!("${:.*}", self.decimal_places, self.amount),
-            _ => self.to_string(),
-        }
-    }
-}
-
-impl Display for Money {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(
-            f,
-            "{:.*} {}",
-            self.decimal_places, self.amount, self.currency
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -193,11 +159,13 @@ impl PolledSource for ClaudeUsageWindows {
 
 impl Overage {
     fn extra_usage(&self) -> Option<ExtraUsage> {
-        let ever_used = self.used_credits.is_some_and(|credits| credits > 0.0);
+        let ever_used = self
+            .used_credits
+            .is_some_and(|credits| credits > Decimal::ZERO);
         (self.is_enabled || ever_used).then(|| ExtraUsage {
             status: self.status(),
-            spent: self.used_credits.map(|minor| self.money(minor)),
-            monthly_limit: self.monthly_limit.map(|minor| self.money(minor)),
+            spent: self.used_credits.and_then(|minor| self.money(minor)),
+            monthly_limit: self.monthly_limit.and_then(|minor| self.money(minor)),
             used_share: self.utilization.map(Ratio::new::<percent>),
         })
     }
@@ -214,12 +182,10 @@ impl Overage {
         }
     }
 
-    fn money(&self, minor_units: f64) -> Money {
-        Money::from_minor_units(
-            minor_units,
-            self.currency.clone(),
-            self.decimal_places.unwrap_or(DEFAULT_DECIMAL_PLACES),
-        )
+    fn money(&self, minor_units: Decimal) -> Option<Money> {
+        let currency = iso::find(&self.currency)?;
+        let exponent = self.decimal_places.map_or(currency.exponent, u32::from);
+        Some(from_minor_units(minor_units, currency, exponent))
     }
 }
 
@@ -285,8 +251,16 @@ mod tests {
                 reason: Some("out of credits".to_owned())
             }
         );
-        assert_eq!(extra.spent.unwrap().to_string(), "20.16 EUR");
-        assert_eq!(extra.monthly_limit.unwrap().to_string(), "30.00 EUR");
+        assert_eq!(
+            extra.spent.map(|spent| *spent.amount()),
+            Some(Decimal::new(2016, 2))
+        );
+        assert_eq!(
+            extra
+                .monthly_limit
+                .map(|limit| limit.currency().iso_alpha_code),
+            Some("EUR")
+        );
         let used_percent = extra.used_share.map(|used| used.get::<percent>());
         assert!(used_percent.is_some_and(|used| (used - 67.2).abs() < 1e-9));
     }

@@ -18,7 +18,7 @@ use serde_json::Value;
 pub use self::{
     ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
     enterprise_spend::{ClaudeEnterpriseSpend, ClaudeOrganization},
-    usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
+    usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };
 use crate::data::source::{
     Delivery, PolledSource, ai::ccusage, all_of, file_presence::path_present, http,
@@ -40,6 +40,7 @@ pub enum Error {
     Api(ApiFailure),
     Fetch(http::Error),
     Ccusage(ccusage::Error),
+    UnknownCurrency(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +80,7 @@ impl Display for Error {
             Error::Api(cause) => write!(f, "{cause}"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
+            Error::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),
         }
     }
 }
@@ -200,10 +202,11 @@ fn plan(oauth: &Oauth) -> Option<String> {
 fn title_case(text: &str) -> String {
     text.split_whitespace()
         .map(|word| {
-            let mut chars = word.chars();
-            chars.next().map_or_else(String::new, |first| {
-                first.to_uppercase().collect::<String>() + chars.as_str()
-            })
+            word.chars()
+                .take(1)
+                .flat_map(char::to_uppercase)
+                .chain(word.chars().skip(1))
+                .collect::<String>()
         })
         .collect::<Vec<_>>()
         .join(" ")

@@ -80,7 +80,7 @@ impl OpenRouterCreditGroup {
             let budget = &config.widget_groups.openrouter_credit;
             let account = OpenRouterAccount {
                 management_key: key.clone(),
-                budget: SpendBudget::new(config, Some(budget.monthly_budget_usd)),
+                budget: SpendBudget::new(config, budget.monthly_budget_usd),
                 daily_warning_usd: budget.daily_warning_usd,
             };
             [

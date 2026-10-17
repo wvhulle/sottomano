@@ -5,17 +5,21 @@ use std::{
 };
 
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, de};
 use serde_json::json;
 
-use crate::data::source::{
-    PolledSource, Source,
-    ai::{
-        quota::{Quota, QuotaLimited},
-        read_secret,
-        working_time_forecast::{CalendarSpan, SpendBudget},
+use crate::data::{
+    money::{Money, deserialize_usd, usd},
+    source::{
+        PolledSource, Source,
+        ai::{
+            quota::{Quota, QuotaLimited},
+            read_secret,
+            working_time_forecast::{CalendarSpan, SpendBudget},
+        },
+        http,
     },
-    http,
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -63,8 +67,8 @@ struct Usage {
     #[serde(rename = "date__hour", deserialize_with = "utc_hour")]
     hour: DateTime<Utc>,
     model: Option<String>,
-    #[serde(rename = "total_usage")]
-    cost: f64,
+    #[serde(rename = "total_usage", deserialize_with = "deserialize_usd")]
+    cost: Money,
 }
 
 impl Usage {
@@ -75,16 +79,16 @@ impl Usage {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Credits {
-    #[serde(rename = "total_credits")]
-    pub total: f64,
-    #[serde(rename = "total_usage")]
-    pub used: f64,
+    #[serde(rename = "total_credits", deserialize_with = "deserialize_usd")]
+    pub total: Money,
+    #[serde(rename = "total_usage", deserialize_with = "deserialize_usd")]
+    pub used: Money,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelSpend {
     pub model: String,
-    pub cost: f64,
+    pub cost: Money,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,15 +98,15 @@ pub struct SpanSpend {
 }
 
 impl SpanSpend {
-    pub fn cost(&self) -> f64 {
-        self.models.iter().map(|model| model.cost).sum()
+    pub fn cost(&self) -> Money {
+        usd(self.models.iter().map(|model| *model.cost.amount()).sum())
     }
 
-    pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
-        self.span.projected_cost(self.cost(), now, budget)
+    pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<Money> {
+        self.span.projected_cost(&self.cost(), now, budget)
     }
 
-    pub fn model_cost(&self, model: &str) -> Option<f64> {
+    pub fn model_cost(&self, model: &str) -> Option<Money> {
         self.models
             .iter()
             .find(|spend| spend.model == model)
@@ -124,12 +128,14 @@ impl SpanSpend {
                     .iter_mut()
                     .find(|existing| existing.model == spend.model)
                 {
-                    Some(existing) => existing.cost += spend.cost,
+                    Some(existing) => {
+                        existing.cost = usd(existing.cost.amount() + spend.cost.amount());
+                    }
                     None => models.push(spend),
                 }
                 models
             });
-        models.sort_by(|a, b| b.cost.total_cmp(&a.cost));
+        models.sort_by(|a, b| b.cost.amount().cmp(a.cost.amount()));
         Self { span, models }
     }
 }
@@ -156,7 +162,7 @@ impl QuotaLimited for OpenRouterSpend {
             .span
             .budget_quota(
                 "OpenRouter monthly budget",
-                self.month.cost(),
+                &self.month.cost(),
                 &self.budget,
                 now.with_timezone(&Local),
             )
@@ -193,8 +199,8 @@ impl PolledSource for OpenRouterSpend {
 }
 
 impl Credits {
-    pub fn remaining(&self) -> f64 {
-        self.total - self.used
+    pub fn remaining(&self) -> Money {
+        usd(self.total.amount() - self.used.amount())
     }
 }
 
@@ -210,24 +216,24 @@ pub enum LimitReset {
 struct ApiKey {
     name: String,
     disabled: bool,
-    limit: Option<f64>,
-    limit_remaining: Option<f64>,
+    limit: Option<Decimal>,
+    limit_remaining: Option<Decimal>,
     limit_reset: Option<LimitReset>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyLimit {
     pub name: String,
-    pub limit: f64,
-    pub remaining: f64,
+    pub limit: Money,
+    pub remaining: Money,
     pub reset: Option<LimitReset>,
 }
 
 impl ApiKey {
     fn enforced_limit(self) -> Option<KeyLimit> {
         Some(KeyLimit {
-            limit: self.limit.filter(|_| !self.disabled)?,
-            remaining: self.limit_remaining?,
+            limit: usd(self.limit.filter(|_| !self.disabled)?),
+            remaining: usd(self.limit_remaining?),
             reset: self.limit_reset,
             name: self.name,
         })
@@ -241,15 +247,21 @@ pub struct OpenRouterStrictBudget {
 }
 
 impl OpenRouterStrictBudget {
-    pub fn tightest_remaining(&self) -> f64 {
-        self.key_limits
-            .iter()
-            .map(|key| key.remaining)
-            .fold(self.credits.remaining(), f64::min)
+    pub fn tightest_remaining(&self) -> Money {
+        self.key_limits.iter().map(|key| key.remaining).fold(
+            self.credits.remaining(),
+            |tightest, remaining| {
+                if remaining.amount() < tightest.amount() {
+                    remaining
+                } else {
+                    tightest
+                }
+            },
+        )
     }
 
     pub fn exhausted(&self) -> bool {
-        self.tightest_remaining() <= 0.0
+        !self.tightest_remaining().is_positive()
     }
 }
 
@@ -322,7 +334,7 @@ fn rfc3339(at: DateTime<Utc>) -> String {
 }
 
 fn short_model(slug: &str) -> String {
-    let base = slug.rsplit('/').next().unwrap_or(slug);
+    let base = slug.rsplit_once('/').map_or(slug, |(_, base)| base);
     match base.rsplit_once('-') {
         Some((head, tail)) if tail.len() == 8 && tail.bytes().all(|b| b.is_ascii_digit()) => {
             head.to_owned()
@@ -347,19 +359,19 @@ mod tests {
             "2026-08-27T13:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
         assert_eq!(short_model(usage.model.as_deref().unwrap()), "gpt-5.4");
-        assert!((usage.cost - 0.42).abs() < f64::EPSILON);
+        assert_eq!(usage.cost, usd(Decimal::new(42, 2)));
     }
 
     #[test]
     fn credits_within_budget_are_not_exhausted() {
         let reading = OpenRouterStrictBudget {
             credits: Credits {
-                total: 25.0,
-                used: 4.5,
+                total: usd(Decimal::from(25)),
+                used: usd(Decimal::new(45, 1)),
             },
             key_limits: Vec::new(),
         };
-        assert!((reading.tightest_remaining() - 20.5).abs() < f64::EPSILON);
+        assert_eq!(reading.tightest_remaining(), usd(Decimal::new(205, 1)));
         assert!(!reading.exhausted());
     }
 
@@ -382,8 +394,8 @@ mod tests {
             limits,
             [KeyLimit {
                 name: "agents".to_owned(),
-                limit: 10.0,
-                remaining: 2.5,
+                limit: usd(Decimal::from(10)),
+                remaining: usd(Decimal::new(25, 1)),
                 reset: Some(LimitReset::Monthly),
             }]
         );

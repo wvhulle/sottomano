@@ -1,10 +1,15 @@
 use chrono::{TimeDelta, Utc};
+use rust_decimal::Decimal;
+use rusty_money::iso;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    data::source::{
-        Delivery,
-        ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
+    data::{
+        money::Money,
+        source::{
+            Delivery,
+            ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+        },
     },
     desktop_shell::Message,
     readme_showcase::showcased_group::ShowcasedGroup,
@@ -22,9 +27,7 @@ pub fn live(tick: u32) -> Vec<Message> {
 }
 
 fn usage_windows_delivered(tick: u32) -> ClaudeUsageMessage {
-    ClaudeUsageMessage::UsageWindows(Box::new(Delivery::Reading(Ok(usage_windows(f64::from(
-        tick,
-    ))))))
+    ClaudeUsageMessage::UsageWindows(Box::new(Delivery::Reading(Ok(usage_windows(tick)))))
 }
 
 fn window(utilization_percent: f64, resets_in: TimeDelta) -> WindowUsage {
@@ -34,16 +37,14 @@ fn window(utilization_percent: f64, resets_in: TimeDelta) -> WindowUsage {
     }
 }
 
-fn euros(amount: f64) -> Money {
-    Money {
-        amount,
-        currency: "EUR".to_owned(),
-        decimal_places: 2,
-    }
+fn euro_cents(cents: u32) -> Money {
+    Money::from_decimal(Decimal::new(i64::from(cents), 2), iso::EUR)
 }
 
-fn usage_windows(elapsed_ticks: f64) -> ClaudeUsageWindows {
-    let spent = 19.81 + 0.37 * elapsed_ticks;
+fn usage_windows(tick: u32) -> ClaudeUsageWindows {
+    let elapsed_ticks = f64::from(tick);
+    let spent_cents = 1981 + 37 * tick;
+    let limit_cents = 3000;
     ClaudeUsageWindows {
         plan: Some("Max".to_owned()),
         session: window(42.0 + 2.0 * elapsed_ticks, TimeDelta::minutes(95)),
@@ -51,9 +52,11 @@ fn usage_windows(elapsed_ticks: f64) -> ClaudeUsageWindows {
         sonnet: Some(window(12.0 + 0.5 * elapsed_ticks, TimeDelta::days(3))),
         extra: Some(ExtraUsage {
             status: ExtraStatus::Enabled,
-            spent: Some(euros(spent)),
-            monthly_limit: Some(euros(30.0)),
-            used_share: Some(Ratio::new::<percent>(spent / 30.0 * 100.0)),
+            spent: Some(euro_cents(spent_cents)),
+            monthly_limit: Some(euro_cents(limit_cents)),
+            used_share: Some(Ratio::new::<percent>(
+                f64::from(spent_cents) / f64::from(limit_cents) * 100.0,
+            )),
         }),
     }
 }

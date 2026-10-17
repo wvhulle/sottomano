@@ -1,22 +1,47 @@
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
+use rust_decimal::Decimal;
+use rusty_money::{Formatter, LocalFormat, Params, Position};
 use uom::si::{f64::Ratio, ratio::percent};
 
-fn rounded_to_cents_without_negative_zero(value: f64) -> f64 {
-    (value * 100.0).round() / 100.0 + 0.0
-}
+use crate::data::money::Money;
 
-pub fn to_cents(value: f64) -> String {
-    format!("{}", rounded_to_cents_without_negative_zero(value))
+const SYMBOL_FIRST: &[Position] = &[Position::Sign, Position::Symbol, Position::Amount];
+const SYMBOL_LAST: &[Position] = &[Position::Sign, Position::Amount, Position::Symbol];
+
+pub fn two_decimals(value: f64) -> String {
+    format!("{}", (value * 100.0).round() / 100.0 + 0.0)
 }
 
 pub fn percent_text(share: Ratio) -> String {
-    format!("{}%", to_cents(share.get::<percent>()))
+    format!("{}%", two_decimals(share.get::<percent>()))
 }
 
-pub fn dollars(value: f64) -> String {
-    format!("${:.2}", rounded_to_cents_without_negative_zero(value))
+pub fn spend_text(money: &Money) -> String {
+    let currency = money.currency();
+    let amount = money.amount().normalize();
+    let shown_digits = (currency.exponent..=Decimal::MAX_SCALE)
+        .find(|digits| !amount.round_dp(*digits).is_zero())
+        .filter(|first_significant| *first_significant > currency.exponent)
+        .map_or(currency.exponent, |first_significant| first_significant + 1);
+    let format = LocalFormat::from_locale(currency.locale);
+    Formatter::money(
+        &Money::from_decimal(amount, currency),
+        Params {
+            digit_separator: format.digit_separator,
+            exponent_separator: format.exponent_separator,
+            separator_pattern: format.digit_separator_pattern,
+            positions: if currency.symbol_first {
+                SYMBOL_FIRST
+            } else {
+                SYMBOL_LAST
+            },
+            rounding: Some(shown_digits),
+            symbol: Some(currency.symbol),
+            code: Some(currency.iso_alpha_code),
+        },
+    )
 }
 
 pub fn token_count(tokens: u64) -> String {
@@ -54,6 +79,7 @@ pub fn coarse_duration_text(span: TimeDelta) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::money::usd;
 
     #[test]
     fn coarse_durations_drop_seconds_from_a_minute_on() {
@@ -67,14 +93,20 @@ mod tests {
 
     #[test]
     fn fractional_amounts_keep_up_to_two_decimals() {
-        assert_eq!(to_cents(0.2), "0.2");
-        assert_eq!(to_cents(199.8), "199.8");
-        assert_eq!(to_cents(200.0), "200");
-        assert_eq!(to_cents(1.0 / 3.0), "0.33");
+        assert_eq!(two_decimals(0.2), "0.2");
+        assert_eq!(two_decimals(199.8), "199.8");
+        assert_eq!(two_decimals(200.0), "200");
+        assert_eq!(two_decimals(1.0 / 3.0), "0.33");
         assert_eq!(percent_text(Ratio::new::<percent>(0.1)), "0.1%");
-        assert_eq!(dollars(-0.0), "$0.00");
-        assert_eq!(dollars(-0.000_4), "$0.00");
-        assert_eq!(to_cents(-0.000_4), "0");
+        assert_eq!(two_decimals(-0.000_4), "0");
+    }
+
+    #[test]
+    fn spend_shows_cents_and_two_significant_digits_below_a_cent() {
+        let spend = |amount: Decimal| spend_text(&usd(amount));
+        assert_eq!(spend(Decimal::new(310, 2)), "$3.10");
+        assert_eq!(spend(Decimal::new(-0, 2)), "$0.00");
+        assert_eq!(spend(Decimal::new(42, 4)), "$0.0042");
     }
 
     #[test]

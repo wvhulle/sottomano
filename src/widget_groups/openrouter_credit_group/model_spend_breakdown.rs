@@ -1,7 +1,10 @@
 use crate::{
-    data::source::ai::openrouter::{OpenRouterSpend, SpanSpend},
+    data::{
+        money::usd,
+        source::ai::openrouter::{OpenRouterSpend, SpanSpend},
+    },
     widgets::{
-        amount_text::dollars,
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
@@ -24,7 +27,7 @@ impl BarWidget for ModelSpendBreakdown<'_> {
 
     fn label(&self) -> Option<String> {
         let top = self.0.month.models.first()?;
-        Some(format!("{} {}", top.model, dollars(top.cost)))
+        Some(format!("{} {}", top.model, spend_text(&top.cost)))
     }
 
     fn state(&self) -> WidgetState {
@@ -37,13 +40,15 @@ impl BarWidget for ModelSpendBreakdown<'_> {
         let other = TableRecord::new(
             "other",
             self.spans().map(|span| {
-                let unlisted: f64 = span
+                let unlisted = usd(span
                     .models
                     .iter()
                     .filter(|spend| !listed.contains(&spend.model.as_str()))
-                    .map(|spend| spend.cost)
-                    .sum();
-                (unlisted > 0.0).then(|| Cell::from(dollars(unlisted)))
+                    .map(|spend| *spend.cost.amount())
+                    .sum());
+                unlisted
+                    .is_positive()
+                    .then(|| Cell::from(unlisted.to_string()))
             }),
         );
         TooltipBody::sections([Section::column_table(
@@ -58,7 +63,7 @@ impl BarWidget for ModelSpendBreakdown<'_> {
                     TableRecord::new(
                         *model,
                         self.spans()
-                            .map(|span| span.model_cost(model).map(|cost| dollars(cost).into())),
+                            .map(|span| span.model_cost(model).map(|cost| cost.to_string().into())),
                     )
                 })
                 .chain((ranked.len() > LISTED_MODELS).then_some(other)),

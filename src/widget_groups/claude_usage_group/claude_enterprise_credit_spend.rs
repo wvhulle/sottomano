@@ -7,7 +7,7 @@ use crate::{
         quota::QuotaLimited,
     },
     widgets::{
-        amount_text::percent_text,
+        amount_text::{percent_text, spend_text},
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
@@ -30,7 +30,7 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 
     fn label(&self) -> Option<String> {
-        Some(format!("{} month", self.used.short_text()))
+        Some(format!("{} month", spend_text(&self.used)))
     }
 
     fn state(&self) -> WidgetState {
@@ -77,6 +77,6 @@ impl ClaudeOrganization {
 
 impl Occasional for ClaudeEnterpriseSpend {
     fn present(&self) -> bool {
-        self.used.amount > 0.0 || self.limit.is_some()
+        self.used.is_positive() || self.limit.is_some()
     }
 }
