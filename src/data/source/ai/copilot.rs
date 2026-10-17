@@ -15,14 +15,17 @@ use serde::Deserialize;
 pub use self::{
     free_quota::CopilotFree, metered_quota::CopilotMetered, monthly_usage::CopilotCcusage,
 };
-use crate::data::source::{
-    Delivery, PolledSource,
-    ai::{ccusage, read_secret},
-    all_of,
-    file_presence::path_present,
-    http,
-    net_interfaces::nm,
-    present_or_absent, ticked_polls,
+use crate::{
+    data::source::{
+        Delivery, PolledSource,
+        ai::{ccusage, read_secret},
+        all_of,
+        file_presence::path_present,
+        http,
+        net_interfaces::nm,
+        present_or_absent, ticked_polls,
+    },
+    widgets::tooltip_body::TooltipBody,
 };
 
 const API_BASE: &str = "https://api.github.com";
@@ -52,6 +55,15 @@ impl Display for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Fetch(fetch) => fetch.into(),
+            other => TooltipBody::error(other),
+        }
     }
 }
 

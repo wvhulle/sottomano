@@ -11,6 +11,7 @@ use self::{
     mount::RootMount,
 };
 use super::{Panicked, PolledSource, Source, blocking_poll};
+use crate::widgets::tooltip_body::TooltipBody;
 
 pub mod activity;
 pub mod btrfs;
@@ -30,6 +31,12 @@ pub enum Error {
 impl From<Panicked> for Error {
     fn from(Panicked: Panicked) -> Self {
         Error::Panicked
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        TooltipBody::error(error)
     }
 }
 

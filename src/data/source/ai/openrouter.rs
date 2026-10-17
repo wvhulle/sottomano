@@ -9,17 +9,20 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, de};
 use serde_json::json;
 
-use crate::data::{
-    money::{Money, deserialize_usd, usd},
-    source::{
-        PolledSource, Source,
-        ai::{
-            quota::{Quota, QuotaLimited},
-            read_secret,
-            working_time_forecast::{CalendarSpan, SpendBudget},
+use crate::{
+    data::{
+        money::{Money, deserialize_usd, usd},
+        source::{
+            PolledSource, Source,
+            ai::{
+                quota::{Quota, QuotaLimited},
+                read_secret,
+                working_time_forecast::{CalendarSpan, SpendBudget},
+            },
+            http,
         },
-        http,
     },
+    widgets::tooltip_body::TooltipBody,
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -32,7 +35,6 @@ pub enum Error {
     Secret,
     LocalMidnight,
     Fetch(http::Error),
-    Api(String),
 }
 
 impl Display for Error {
@@ -41,7 +43,6 @@ impl Display for Error {
             Error::Secret => write!(f, "management key unreadable"),
             Error::LocalMidnight => write!(f, "local midnight does not exist today"),
             Error::Fetch(error) => write!(f, "{error}"),
-            Error::Api(message) => write!(f, "{message}"),
         }
     }
 }
@@ -49,6 +50,15 @@ impl Display for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Fetch(fetch) => fetch.into(),
+            other => TooltipBody::error(other),
+        }
     }
 }
 
@@ -296,9 +306,7 @@ async fn hourly_usage_since(key: &str, first_day: CalendarSpan) -> Result<Vec<Us
     let auth = format!("Bearer {key}");
     let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15).await?;
     if resp.status != 200 {
-        let message =
-            http::api_message(resp.body).unwrap_or_else(|| format!("HTTP {}", resp.status));
-        return Err(Error::Api(message));
+        return Err(http::Error::status(resp.status, resp.body).into());
     }
     let analytics: Envelope<Analytics> = http::decode(resp.body)?;
     Ok(analytics.data.data)

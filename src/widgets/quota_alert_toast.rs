@@ -1,5 +1,5 @@
 use crate::{
-    data::source::ai::quota::QuotaLimited,
+    data::source::{Source, ai::quota::QuotaLimited},
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Occasional},
@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-impl<S: QuotaLimited + BarWidget> ContinuousReading<S> {
+impl<S: Source + QuotaLimited + BarWidget> ContinuousReading<S> {
     fn quota_alert_toast<M>(
         &self,
         target: HoverTarget,
@@ -30,7 +30,7 @@ impl<S: QuotaLimited + BarWidget> ContinuousReading<S> {
     }
 }
 
-impl<S: QuotaLimited + Occasional> ContinuousReading<S> {
+impl<S: Source + QuotaLimited + Occasional> ContinuousReading<S> {
     pub fn present_quota_group_item<M: 'static>(
         &self,
         target: impl Into<HoverTarget>,

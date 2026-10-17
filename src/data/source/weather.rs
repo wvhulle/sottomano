@@ -15,7 +15,10 @@ use uom::si::{
     velocity::kilometer_per_hour,
 };
 
-use crate::data::source::{Delivery, LiveSource, PolledSource, Source, delivered, http};
+use crate::{
+    data::source::{Delivery, LiveSource, PolledSource, Source, delivered, http},
+    widgets::tooltip_body::TooltipBody,
+};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -47,6 +50,15 @@ impl From<situo_client::Error> for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Fetch(fetch) => fetch.into(),
+            other => TooltipBody::error(other),
+        }
     }
 }
 
@@ -492,7 +504,7 @@ impl PolledSource for Rain {
             here.latitude, here.longitude
         );
         let body = http::get_text(&url, 5).await.map_err(|error| match error {
-            http::Error::Status(404) => Error::OutsideRainRadar,
+            http::Error::Status { status: 404, .. } => Error::OutsideRainRadar,
             other => Error::from(other),
         })?;
         let now = Local::now();

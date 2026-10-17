@@ -10,6 +10,8 @@ use reqwest::{
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
+use crate::widgets::tooltip_body::{KeyValue, TooltipBody};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Header(String),
@@ -17,8 +19,45 @@ pub enum Error {
     Request(String),
     Body(String),
     Empty,
-    Status(u16),
+    Status {
+        status: u16,
+        message: Option<String>,
+    },
     Decode(String),
+}
+
+impl Error {
+    pub fn status(status: u16, body: Option<Value>) -> Self {
+        Error::Status {
+            status,
+            message: failure_message(body),
+        }
+    }
+}
+
+pub fn failure_message(body: Option<Value>) -> Option<String> {
+    decode::<FailureExplanation>(body).ok().map(String::from)
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum FailureExplanation {
+    Wrapped {
+        error: Box<FailureExplanation>,
+    },
+    Stated {
+        #[serde(alias = "reason")]
+        message: String,
+    },
+}
+
+impl From<FailureExplanation> for String {
+    fn from(explanation: FailureExplanation) -> Self {
+        match explanation {
+            FailureExplanation::Wrapped { error } => String::from(*error),
+            FailureExplanation::Stated { message } => message,
+        }
+    }
 }
 
 impl Display for Error {
@@ -29,8 +68,29 @@ impl Display for Error {
             Error::Request(detail) => write!(f, "{detail}"),
             Error::Body(detail) => write!(f, "unreadable response: {detail}"),
             Error::Empty => write!(f, "empty response"),
-            Error::Status(code) => write!(f, "HTTP {code}"),
+            Error::Status {
+                status,
+                message: Some(message),
+            } => write!(f, "{message} (HTTP {status})"),
+            Error::Status {
+                status,
+                message: None,
+            } => write!(f, "HTTP {status}"),
             Error::Decode(detail) => write!(f, "unexpected response: {detail}"),
+        }
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Status { status, message } => TooltipBody::dictionary(
+                message
+                    .map(|message| KeyValue::new("Error", message))
+                    .into_iter()
+                    .chain([KeyValue::new("Status", status.to_string())]),
+            ),
+            other => TooltipBody::error(other),
         }
     }
 }
@@ -79,10 +139,13 @@ pub async fn post_json(
 pub async fn get_text(url: &str, timeout_secs: u64) -> Result<String, Error> {
     let response = client(timeout_secs)?.get(url).send().await?;
     let status = response.status();
-    if !status.is_success() {
-        return Err(Error::Status(status.as_u16()));
-    }
     let body = response.text().await?;
+    if !status.is_success() {
+        return Err(Error::status(
+            status.as_u16(),
+            serde_json::from_str(&body).ok(),
+        ));
+    }
     if body.trim().is_empty() {
         return Err(Error::Empty);
     }
@@ -96,7 +159,7 @@ pub async fn get_json<T: DeserializeOwned>(
 ) -> Result<T, Error> {
     let response = get(url, headers, timeout_secs).await?;
     if response.status != 200 {
-        return Err(Error::Status(response.status));
+        return Err(Error::status(response.status, response.body));
     }
     decode(response.body)
 }
@@ -104,20 +167,6 @@ pub async fn get_json<T: DeserializeOwned>(
 pub fn decode<T: DeserializeOwned>(body: Option<Value>) -> Result<T, Error> {
     serde_json::from_value(body.unwrap_or(Value::Null))
         .map_err(|error| Error::Decode(error.to_string()))
-}
-
-#[derive(Deserialize)]
-struct ApiError {
-    error: ApiMessage,
-}
-
-#[derive(Deserialize)]
-struct ApiMessage {
-    message: String,
-}
-
-pub fn api_message(body: Option<Value>) -> Option<String> {
-    decode::<ApiError>(body).ok().map(|api| api.error.message)
 }
 
 fn client(timeout_secs: u64) -> Result<reqwest::Client, Error> {
@@ -159,4 +208,29 @@ async fn request(
         headers,
         body: serde_json::from_slice(&bytes).ok(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unparsable_body_falls_back_to_the_status() {
+        let failure = Error::status(503, Some(Value::Null));
+        assert_eq!(
+            failure,
+            Error::Status {
+                status: 503,
+                message: None
+            }
+        );
+        assert_eq!(failure.to_string(), "HTTP 503");
+    }
+
+    #[test]
+    fn an_api_message_is_shown_beside_the_status() {
+        let body = serde_json::json!({"error": {"message": "usage limit reached"}});
+        let failure = Error::status(429, Some(body));
+        assert_eq!(failure.to_string(), "usage limit reached (HTTP 429)");
+    }
 }

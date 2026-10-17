@@ -1,5 +1,7 @@
 use std::{
     collections::HashSet,
+    convert::Infallible,
+    fmt::Display,
     path::PathBuf,
     time::{Duration, SystemTime},
 };
@@ -422,6 +424,10 @@ impl TooltipBody {
         TooltipBody::Sections(vec![Section::dictionary(entries)])
     }
 
+    pub fn error(message: impl Display) -> Self {
+        TooltipBody::dictionary([KeyValue::new("Error", message.to_string())])
+    }
+
     #[must_use]
     pub fn with_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
         match self {
@@ -431,6 +437,12 @@ impl TooltipBody {
             }
             whole @ TooltipBody::Whole(_) => whole,
         }
+    }
+}
+
+impl From<Infallible> for TooltipBody {
+    fn from(never: Infallible) -> Self {
+        match never {}
     }
 }
 

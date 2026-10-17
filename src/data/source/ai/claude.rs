@@ -13,16 +13,18 @@ use std::{
 
 use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
-use serde_json::Value;
 
 pub use self::{
     ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
     enterprise_spend::{ClaudeEnterpriseSpend, ClaudeOrganization},
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };
-use crate::data::source::{
-    Delivery, PolledSource, ai::ccusage, all_of, file_presence::path_present, http,
-    present_or_absent, settled, ticked_polls,
+use crate::{
+    data::source::{
+        Delivery, PolledSource, ai::ccusage, all_of, file_presence::path_present, http,
+        present_or_absent, settled, ticked_polls,
+    },
+    widgets::tooltip_body::{KeyValue, Section, TooltipBody},
 };
 
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
@@ -32,39 +34,14 @@ const ENTERPRISE_SUBSCRIPTION: &str = "enterprise";
 pub enum Error {
     Credentials,
     NoToken,
-    RateLimited(ApiFailure),
+    RateLimited(http::Error),
     Backoff {
         remaining: Duration,
-        cause: ApiFailure,
+        cause: http::Error,
     },
-    Api(ApiFailure),
     Fetch(http::Error),
     Ccusage(ccusage::Error),
     UnknownCurrency(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ApiFailure {
-    pub status: u16,
-    pub message: Option<String>,
-}
-
-impl ApiFailure {
-    fn from_body(body: Value, status: u16) -> Self {
-        Self {
-            status,
-            message: http::api_message(Some(body)),
-        }
-    }
-}
-
-impl Display for ApiFailure {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match &self.message {
-            Some(message) => write!(f, "{message}"),
-            None => write!(f, "HTTP {}", self.status),
-        }
-    }
 }
 
 impl Display for Error {
@@ -77,7 +54,6 @@ impl Display for Error {
                 let wait = humantime::format_duration(*remaining);
                 write!(f, "rate limited (retrying in {wait}): {cause}")
             }
-            Error::Api(cause) => write!(f, "{cause}"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),
             Error::UnknownCurrency(code) => write!(f, "unknown currency {code:?}"),
@@ -88,6 +64,21 @@ impl Display for Error {
 impl From<http::Error> for Error {
     fn from(error: http::Error) -> Self {
         Error::Fetch(error)
+    }
+}
+
+impl From<Error> for TooltipBody {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::RateLimited(cause) | Error::Fetch(cause) => cause.into(),
+            Error::Backoff { remaining, cause } => {
+                TooltipBody::from(cause).with_sections([Section::dictionary([KeyValue::new(
+                    "Retry in",
+                    humantime::format_duration(remaining).to_string(),
+                )])])
+            }
+            other => TooltipBody::error(other),
+        }
     }
 }
 
@@ -248,19 +239,5 @@ mod tests {
                 "subscriptionType":"max"}}"#,
         );
         assert_eq!(plan.as_deref(), Some("Max 5x"));
-    }
-
-    #[test]
-    fn an_unparsable_body_falls_back_to_the_status() {
-        let failure = ApiFailure::from_body(Value::Null, 503);
-        assert_eq!(failure.message, None);
-        assert_eq!(failure.to_string(), "HTTP 503");
-    }
-
-    #[test]
-    fn an_api_message_is_preferred_over_the_status() {
-        let body = serde_json::json!({"error": {"message": "usage limit reached"}});
-        let failure = ApiFailure::from_body(body, 429);
-        assert_eq!(failure.to_string(), "usage limit reached");
     }
 }
