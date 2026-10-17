@@ -1011,6 +1011,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "club-kdl"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5ce201fadf07df7a9faa4322066cb3629d11c344adcb592fc0b00bfa3078838"
+dependencies = [
+ "club-kdl-derive",
+ "kdl 6.7.1",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "club-kdl-derive"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70c9026b57266c41338032dbbdd43291f9898b07c34a11554a0672911f881c9f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1027,7 +1049,7 @@ checksum = "fe6d2e5af09e8c8ad56c969f2157a3d4238cebc7c55f0a517728c38f7b200f81"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.1.14",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -3305,6 +3327,7 @@ dependencies = [
  "kdl 4.7.1",
  "miette 7.6.0",
  "num-traits",
+ "serde",
  "winnow 0.7.15",
 ]
 
@@ -7521,6 +7544,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "clap",
+ "club-kdl",
  "color",
  "form_urlencoded",
  "freedesktop-desktop-entry",
@@ -8117,7 +8141,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
